@@ -295,3 +295,12 @@ INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_l
 INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass) VALUES('[1,3)','[3,5)','{[1,3)}','{[1,5)}',false);
 
 INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass) VALUES('[1,3]','{[3,5),[1,3)}','[1,3]','{[1,5)}',false);
+
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);

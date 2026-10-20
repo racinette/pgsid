@@ -1,4 +1,5 @@
-import { builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { builtinMetadata, builtinCallables } from '../../postgres/builtins/inventory.js'
+import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 
@@ -107,8 +108,8 @@ function prepare(expression: EvalExpression): Preparation | null {
     const operand = prepare(expression.operand)
     if (!operand) return null
     const immutable = [expression.input, expression.output].every((signature) => {
-      const metadata = builtinMetadata(signature)
-      return metadata.kind === 'function' && metadata.volatility === 'i'
+      const metadata = builtinCallables().find((item) => callableIdentity(item) === signature)
+      return metadata?.kind === 'function' && metadata.volatility === 'i'
     })
     return immutable && operand.constant
       ? constant(expression, operand.null)

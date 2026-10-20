@@ -6037,3 +6037,163 @@ VALUES(NULL,NULL,NULL,NULL,false);
 -- name: called_imports_skipped
 INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
 VALUES('bad','bad',NULL,NULL,true);
+
+-- name: flexible_batches_valid
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_count
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',3,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_selected
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[3,5)',2,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_member
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,false,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_sorted
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[3,5)","[1,3)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_recorded
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[3,5)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_history
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[3,5)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_wrong_pack
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)","[3,5)"}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,'[1,3)',2,true,'{"[1,3)","[3,5)"}','{}',false);
+
+-- name: flexible_batches_shifted
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('[-2:-1]={"[1,3)","[3,5)"}','[-2:-1]={"[1,3)","[3,5)"}','{"[-2:-1]={\"[1,3)\",\"[3,5)\"}"}',-2,'[1,3)',2,true,'[-2:-1]={"[1,3)","[3,5)"}','{[1,5)}',false);
+
+-- name: flexible_batches_empty
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{}','{}','{"{}"}',1,NULL,0,false,'{}','{}',false);
+
+-- name: flexible_batches_null
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES(NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: flexible_batches_null_member
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{"[1,3)",NULL}','{"[1,3)",NULL}','{"{\"[1,3)\",NULL}"}',1,'[1,3)',2,true,'{"[1,3)",NULL}','{[1,5)}',false);
+
+-- name: flexible_batches_multidimensional
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{{"[1,3)","[3,5)"}}','{"[1,3)","[3,5)"}','{"{\"[1,3)\",\"[3,5)\"}"}',1,NULL,2,NULL,'{{"[1,3)","[3,5)"}}','{[1,5)}',false);
+
+-- name: flexible_batches_skipped
+INSERT INTO lane_flexible_window_batches(windows,recorded,histories,position,selected_window,expected_count,expected_member,sorted_windows,expected_pack,bypass)
+VALUES('{NULL}',NULL,NULL,1,'[3,5)',999,false,NULL,NULL,true);
+
+-- name: flexible_segment_batches_valid
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_count
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',3,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_selected
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[5,7)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_member
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,false,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_sorted
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[5,7)}","{[1,3)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_recorded
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[5,7)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_wrong_history
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[5,7)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_bad_input
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{bad','{"{[1,3)}","{[5,7)}"}',false);
+
+-- name: flexible_segment_batches_bad_piece
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}\"}"}',1,'{[1,3)}',2,true,'{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{[bad,3)}"}',false);
+
+-- name: flexible_segment_batches_empty
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES('{}','{}','{"{}"}',1,NULL,0,false,'{}','{}','{}',false);
+
+-- name: flexible_segment_batches_null
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES(NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: flexible_segment_batches_skipped
+INSERT INTO lane_flexible_segment_batches(segments,recorded,histories,position,selected_segments,expected_count,expected_member,sorted_segments,payload,pieces,bypass)
+VALUES(NULL,NULL,NULL,1,'{[1,3)}',99,true,NULL,'bad','{"bad"}',true);
+
+-- name: flexible_price_batches_valid
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_wrong_expected
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_wrong_label
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.240,3.460)","[5.000,7.000]"}',2,false);
+
+-- name: flexible_price_batches_wrong_scale
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',3,false);
+
+-- name: flexible_price_batches_bad_outer
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{bad','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_bad_bound
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[bad,3]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_negative_bound
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[-1,3]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_domain_before_upper
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[-1,bad]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_precision_overflow
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[999.995,1000]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_bad_piece
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[bad,3]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_domain_piece
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{"[1.235,3.456)","[5,7]"}','{"[-1,3]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+-- name: flexible_price_batches_empty
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('{}','{}','{}','{}',NULL,false);
+
+-- name: flexible_price_batches_null
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: flexible_price_batches_skipped
+INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
+VALUES('bad','{"bad"}',NULL,'bad',99,true);

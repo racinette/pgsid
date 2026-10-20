@@ -163,6 +163,10 @@ export function rangeTypeOutput(type: string): string | null {
   return rangeTypeProfile(type)?.output ?? multirangeTypeProfile(type)?.multirangeOutput ?? null
 }
 
+export function rangeTypeInput(type: string): string | null {
+  return rangeTypeProfile(type)?.input ?? multirangeTypeProfile(type)?.multirangeInput ?? null
+}
+
 export function rangeProfileSupport(profile: RangeProfile): {
   comparison: number
   canonical: number

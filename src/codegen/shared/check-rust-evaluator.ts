@@ -3,6 +3,7 @@ import {
   multirangeTypeProfile,
   rangeProfileSupport,
   rangeTypeOutput,
+  rangeTypeInput,
 } from '../../sql-semantics/range-profiles.js'
 import {
   nativeHashContext,
@@ -22,6 +23,7 @@ import {
 import {
   arrayElementDelimiter,
   arrayElementFamily,
+  arrayElementIdentity,
   arrayIdentityPlan,
   arrayRangeProfile,
   arrayMultirangeProfile,
@@ -252,8 +254,21 @@ const arrayElementOutput = (
   const family = arrayElementFamily(elementType)
   if (family === null)
     throw new UnsupportedCheckRustExpression('Missing array output element carrier')
-  const elementOutput = definition?.outputFunction ?? builtinTypeIO(elementType)?.output
-  const metadata = elementOutput ? builtinMetadata(elementOutput) : null
+  const profile = rangeTypeProfile(elementType) ?? multirangeTypeProfile(elementType)
+  const elementOutput =
+    definition?.outputFunction ?? rangeTypeOutput(elementType) ?? builtinTypeIO(elementType)?.output
+  if (
+    profile?.captured &&
+    (profile.subtypeOutput !== builtinTypeIO(profile.elementType)?.output ||
+      (isMultirangeType(elementType) &&
+        profile.output !== builtinTypeIO('pg_catalog.int4range')?.output))
+  )
+    throw new UnsupportedCheckRustExpression(
+      'Array output requires selected range and subtype output implementations',
+    )
+  const metadata = elementOutput
+    ? builtinCallables().find((item) => callableIdentity(item) === elementOutput)
+    : null
   if (
     !metadata ||
     metadata.kind !== 'function' ||
@@ -337,7 +352,11 @@ const arrayElementComparison = (type: string) => {
       ? 'pg_catalog.anyarray'
       : type.startsWith('enum:')
         ? 'pg_catalog.anyenum'
-        : type,
+        : isRangeType(type)
+          ? 'pg_catalog.int4range'
+          : isMultirangeType(type)
+            ? 'pg_catalog.int4multirange'
+            : type,
   )
 }
 
@@ -907,7 +926,7 @@ export function emitCheckRustEvaluator(
     const family = arrayElementFamily(elementType)
     if (family === null)
       throw new UnsupportedCheckRustExpression('Missing array input element carrier')
-    if (family === 41) {
+    if (family === 41 || inputConversion) {
       if (!inputConversion || !used)
         throw new UnsupportedCheckRustExpression(
           'Nested array text input requires its element conversion plan',
@@ -935,7 +954,9 @@ export function emitCheckRustEvaluator(
             'Nested array input requires its matching base carrier',
           )
         const result = fresh('nested_array_input_element')
-        destination.push(`let ${result}=array_element_from_array(${ownedOperand(value)});`)
+        destination.push(
+          `let ${result}=array_element_from_${rustValuePrefix(rustType(elementType))}(${ownedOperand(value)});`,
+        )
         return result
       } finally {
         if (outerInput) localInputs.set(key, outerInput)
@@ -1483,12 +1504,17 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'array-text-literal' || node.kind === 'text-to-array') {
       const baseType = arrayElementBaseType(node.elementType)
       const family = arrayElementFamily(baseType)
-      const input = baseType.startsWith('enum:') ? null : builtinTypeIO(baseType)?.input
+      const input = baseType.startsWith('enum:')
+        ? null
+        : (rangeTypeInput(baseType) ?? builtinTypeIO(baseType)?.input)
+      const metadata = input
+        ? builtinCallables().find((item) => callableIdentity(item) === input)
+        : null
       if (
         family === null ||
         (family !== 41 &&
           !baseType.startsWith('enum:') &&
-          (!input || builtinMetadata(input).args[0] !== 'pg_catalog.cstring'))
+          (!metadata || metadata.args[0] !== 'pg_catalog.cstring'))
       )
         throw new UnsupportedCheckRustExpression(
           'Array input requires its catalog element I/O identity',
@@ -1543,7 +1569,7 @@ export function emitCheckRustEvaluator(
         lines,
         node.kind === 'array-text-literal' ? node.moneyLiterals : undefined,
         conversion !== undefined || declaredArrayInputScope,
-        node.inputConversion,
+        stored ? (node.storedInputConversion ?? node.inputConversion) : node.inputConversion,
         used,
       )
       const inputPreparation: string[] = []
@@ -1616,7 +1642,7 @@ export function emitCheckRustEvaluator(
         '}',
       )
       const arguments_ = bind(
-        `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
+        `array_conversion_arguments(${builder}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
       return {
         name: bind(
@@ -2470,7 +2496,7 @@ export function emitCheckRustEvaluator(
         const args = [
           element,
           ...operands.slice(1).map(ownedOperand),
-          rustStringLiteral(elementType),
+          rustStringLiteral(arrayElementIdentity(elementType)),
           String(family),
         ]
         destination.push(`let ${name} = ${implementation.rustName}(${args.join(', ')});`)
@@ -2514,7 +2540,7 @@ export function emitCheckRustEvaluator(
               ? [ownedOperand(operands[arrayIndex]!), element]
               : [element, ownedOperand(operands[arrayIndex]!)]
           destination.push(
-            `let ${name} = ${implementation.rustName}(${args.join(', ')}, ${rustStringLiteral(elementType)}, ${family});`,
+            `let ${name} = ${implementation.rustName}(${args.join(', ')}, ${rustStringLiteral(arrayElementIdentity(elementType))}, ${family});`,
           )
         }
         return { name, type: call.type }
@@ -2783,7 +2809,7 @@ export function emitCheckRustEvaluator(
             `let ${first} = make_int4_value(0);`,
             `let mut ${result}: Int4Value = ${initial};`,
             `let mut ${index}: Int4Value = ${first};`,
-            `let ${empty} = make_array_arguments(${rustStringLiteral(elementType)}, ${family});`,
+            `let ${empty} = make_array_arguments(${rustStringLiteral(arrayElementIdentity(elementType))}, ${family});`,
             `let mut ${builder}: ArrayArguments = ${empty};`,
             `let mut ${changed}: BoolValue = make_bool_value(false);`,
           )
@@ -3314,15 +3340,22 @@ export function emitCheckRustEvaluator(
       const operand = emitScalar(node.operand, bindings, used)
       const family = arrayElementFamily(node.elementType)
       const castLink = builtinCast(node.sourceElementType, node.elementType)
-      const input = builtinMetadata(node.input)
+      const input = builtinCallables().find((item) => callableIdentity(item) === node.input)
+      if (!input)
+        throw new UnsupportedCheckRustExpression(
+          'Array I/O coercion requires a supported captured input implementation',
+        )
       const output =
-        node.sourceEnum?.outputFunction ?? builtinTypeIO(node.sourceElementType)?.output
+        node.sourceEnum?.outputFunction ??
+        rangeTypeOutput(node.sourceElementType) ??
+        builtinTypeIO(node.sourceElementType)?.output
       const expectedInput = node.enum
         ? input.kind === 'function' &&
           input.schema === 'pg_catalog' &&
           input.name === 'enum_in' &&
           input.args.join(',') === 'pg_catalog.cstring,pg_catalog.oid'
-        : builtinTypeIO(node.elementType)?.input === node.input
+        : (rangeTypeInput(node.elementType) ?? builtinTypeIO(node.elementType)?.input) ===
+          node.input
       if (
         operand.type !== `array:${node.sourceElementType}` ||
         node.type !== `array:${node.elementType}` ||
@@ -3384,11 +3417,13 @@ export function emitCheckRustEvaluator(
         lines,
         undefined,
         true,
+        node.inputConversion,
+        used,
       )
       if (node.modifier >= 0) {
         const modified = fresh('array_io_modified')
         lines.push(
-          `let ${modified} = array_element_typmod(${converted}, ${rustStringLiteral(node.elementType)}, ${node.modifier});`,
+          `let ${modified} = array_element_typmod(${converted}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${node.modifier});`,
         )
         converted = modified
       }
@@ -3406,7 +3441,7 @@ export function emitCheckRustEvaluator(
         '}',
       )
       const arguments_ = bind(
-        `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
+        `array_conversion_arguments(${builder}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
       return {
         name: bind(`finish_array_coercion(${payload}, ${arguments_}, false)`),
@@ -3463,7 +3498,7 @@ export function emitCheckRustEvaluator(
         '}',
       )
       const arguments_ = bind(
-        `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
+        `array_conversion_arguments(${builder}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
       return {
         name: bind(`finish_array_coercion(${payload}, ${arguments_}, false)`),
@@ -3556,13 +3591,13 @@ export function emitCheckRustEvaluator(
         `    let ${element} = array_output_element_at(&${payload}, ${index});`,
         ...indent(lines),
         `    let ${converted} = ${conversion};`,
-        `    let ${validity} = array_cast_validity(${element}, ${rustStringLiteral(node.sourceElementType)}, ${rustStringLiteral(node.elementType)}, ${alwaysValid});`,
+        `    let ${validity} = array_cast_validity(${element}, ${rustStringLiteral(arrayElementIdentity(node.sourceElementType))}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${alwaysValid});`,
         `    ${builder} = append_array_cast_conversion(${builder}, ${converted}, ${validity});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
       const arguments_ = bind(
-        `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
+        `array_conversion_arguments(${builder}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
       return {
         name: bind(
@@ -3631,7 +3666,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_multirange_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.subtype)})`,
+            `array_from_coerced_multirange${arrayMulti.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti).comparison},${rangeProfileSupport(arrayMulti).canonical}` : ''})`,
           ),
           type: node.type,
         }
@@ -3641,7 +3676,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_range_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.subtype)})`,
+            `array_from_coerced_range${arrayRange.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange).comparison},${rangeProfileSupport(arrayRange).canonical}` : ''})`,
           ),
           type: node.type,
         }
@@ -4322,12 +4357,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'text-to-multirange') {
       const operand = emitScalar(node.operand, bindings, used)
-      return emitMultirangeInput(
-        operand,
-        node.type,
-        node.conversion,
-        node.literal === true && node.origin === 'stored',
-      )
+      return emitMultirangeInput(operand, node.type, node.conversion, node.origin === 'stored')
     }
     if (node.kind === 'text-to-boolean') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -5030,7 +5060,7 @@ export function emitCheckRustEvaluator(
         arrayValidityScope = outer
       }
       let builder = bind(
-        `${node.multidimensional ? 'make_array_children' : 'make_array_arguments'}(${rustStringLiteral(node.elementType)}, ${family})`,
+        `${node.multidimensional ? 'make_array_children' : 'make_array_arguments'}(${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
       for (const operand of operands) {
         if (node.multidimensional)

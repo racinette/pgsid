@@ -252,6 +252,7 @@ export function planCheckInputs(
         column.typeOid,
         catalog?.domains ?? [],
         catalog?.enums ?? [],
+        catalog?.rangeTypes ?? [],
       )
     )
       return []

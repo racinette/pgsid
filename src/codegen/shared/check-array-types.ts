@@ -1,12 +1,31 @@
-import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
-import { builtinRangeType, builtinMultirangeType } from '../../postgres/builtins/inventory.js'
+import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
+import {
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeProfileSupport,
+} from '../../sql-semantics/range-profiles.js'
+
+const capturedArrayLeaf = (type: string): boolean => {
+  type = arrayElementBaseType(type)
+  while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+  return rangeTypeProfile(type)?.captured === true || multirangeTypeProfile(type)?.captured === true
+}
+
+export function arrayElementIdentity(type: string): string {
+  const domain = domainElementDefinition(type)
+  if (domain && capturedArrayLeaf(domain.base))
+    return [domain.schema, domain.name].map((n) => '"' + n.replaceAll('"', '""') + '"').join('.')
+  const span = rangeTypeProfile(type),
+    multi = multirangeTypeProfile(type)
+  return span?.captured ? span.identity : multi?.captured ? multi.multirange : type
+}
 
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
   if (type.startsWith('array:')) return 41
   if (type.startsWith('enum:')) return 6
-  if (builtinRangeType(type)) return 42
-  if (builtinMultirangeType(type)) return 43
+  if (rangeTypeProfile(type)) return 42
+  if (multirangeTypeProfile(type)) return 43
   const families: Readonly<Record<string, number>> = {
     'pg_catalog.int2': 1,
     'pg_catalog.int4': 2,
@@ -82,7 +101,7 @@ export function arrayIdentityPlan(type: string): { types: string; kinds: string 
     const element = type.slice(6),
       family = arrayElementFamily(element)
     if (family === null) return null
-    types.push(element)
+    types.push(arrayElementIdentity(element))
     kinds.push(family)
     type = arrayElementBaseType(element)
   }
@@ -91,12 +110,12 @@ export function arrayIdentityPlan(type: string): { types: string; kinds: string 
 
 export function arrayRangeProfile(type: string) {
   while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
-  return builtinRangeType(type)
+  return rangeTypeProfile(type)
 }
 
 export function arrayMultirangeProfile(type: string) {
   while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
-  return builtinMultirangeType(type)
+  return multirangeTypeProfile(type)
 }
 
 export function arrayInputPlan(type: string): string[] {
@@ -110,7 +129,13 @@ export function arrayInputPlan(type: string): string[] {
       multi.multirange,
       multi.identity,
       multi.subtype,
-      String.fromCharCode(arrayElementFamily(multi.subtype)!),
+      String.fromCharCode(arrayElementFamily(multi.elementType)!),
+      ...(multi.captured
+        ? [
+            String.fromCharCode(rangeProfileSupport(multi).comparison),
+            String.fromCharCode(rangeProfileSupport(multi).canonical),
+          ]
+        : []),
     ]
   const range = arrayRangeProfile(type)
   return range
@@ -119,7 +144,13 @@ export function arrayInputPlan(type: string): string[] {
         plan.kinds,
         range.identity,
         range.subtype,
-        String.fromCharCode(arrayElementFamily(range.subtype)!),
+        String.fromCharCode(arrayElementFamily(range.elementType)!),
+        ...(range.captured
+          ? [
+              String.fromCharCode(rangeProfileSupport(range).comparison),
+              String.fromCharCode(rangeProfileSupport(range).canonical),
+            ]
+          : []),
       ]
     : arrayElementFamily(type.slice(6)) === 41
       ? [plan.types, plan.kinds]

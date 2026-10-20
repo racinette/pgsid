@@ -20,8 +20,11 @@ import {
   isRangeType,
   isMultirangeType,
 } from '../../src/sql-semantics/expressions.js'
-import { builtinRangeType, builtinMultirangeType } from '../../src/postgres/builtins/inventory.js'
-import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
+import { rangeTypeProfile, multirangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
+import {
+  arrayElementFamily,
+  arrayElementIdentity,
+} from '../../src/codegen/shared/check-array-types.js'
 import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
 import {
   catalogDateType,
@@ -618,8 +621,13 @@ describe('world CHECK INSERT parity', () => {
         .filter(
           (column) =>
             column.generated === 'none' &&
-            catalogArrayType(column.typeName, column.typeOid, catalog.domains, catalog.enums) !==
-              null,
+            catalogArrayType(
+              column.typeName,
+              column.typeOid,
+              catalog.domains,
+              catalog.enums,
+              catalog.rangeTypes,
+            ) !== null,
         )
         .map((column) => column.name)
       const multirangeColumns = table.columns
@@ -820,6 +828,7 @@ describe('world CHECK INSERT parity', () => {
           column.typeOid,
           catalog.domains,
           catalog.enums,
+          catalog.rangeTypes,
         )!
         const profiles: Record<string, { kind: string; family: number }> = {
           'pg_catalog.int2': { kind: 'Int2', family: 1 },
@@ -839,7 +848,10 @@ describe('world CHECK INSERT parity', () => {
           dimensions: string | null
           elements: (string | null | CapturedArray | CapturedRange | CapturedMultirange)[]
         }
-        type CapturedRange = Omit<RangeInputPayload, 'bounds'> & { bounds: (string | null)[] }
+        type CapturedRange = Omit<RangeInputPayload, 'bounds'> & {
+          carrier: string
+          bounds: (string | null)[]
+        }
         type CapturedMultirange = {
           typeName: string
           rangeType: string
@@ -866,14 +878,14 @@ describe('world CHECK INSERT parity', () => {
         const captureSql = (value: string, arrayType: string, depth: number): string => {
           const { baseElementType, profile } = profileFor(arrayType)
           const alias = 'array_cell_' + depth
-          const multirange = builtinMultirangeType(baseElementType)
-          const range = builtinRangeType(baseElementType) ?? multirange
+          const multirange = multirangeTypeProfile(baseElementType)
+          const range = rangeTypeProfile(baseElementType) ?? multirange
           const rangeCell = multirange ? alias + '_member' : alias
           const rangeValue = range
-            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.subtype)},'empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${rangeCell})`, range.subtype)},${rangeBoundProjection(`upper(${rangeCell})`, range.subtype)}) END)`
+            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.elementType)},'carrier','${range.elementType}','empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${rangeCell})`, range.elementType)},${rangeBoundProjection(`upper(${rangeCell})`, range.elementType)}) END)`
             : ''
           const multirangeValue = multirange
-            ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.subtype)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
+            ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.elementType)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
             : ''
           const scalar =
             profile.kind === 'Array'
@@ -934,7 +946,7 @@ describe('world CHECK INSERT parity', () => {
                     kind: 'Value',
                     value: {
                       ...span,
-                      bounds: span.bounds.map((bound) => rangeBoundCell(span.elementType, bound)),
+                      bounds: span.bounds.map((bound) => rangeBoundCell(span.carrier, bound)),
                     },
                   })),
                 },
@@ -946,7 +958,7 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Range',
                 value: {
                   ...payload,
-                  bounds: payload.bounds.map((bound) => rangeBoundCell(payload.elementType, bound)),
+                  bounds: payload.bounds.map((bound) => rangeBoundCell(payload.carrier, bound)),
                 },
               }
             }
@@ -981,7 +993,12 @@ describe('world CHECK INSERT parity', () => {
           })
           return {
             kind: 'Value',
-            value: { elementType, elementKind: profile.family, dimensions, elements },
+            value: {
+              elementType: arrayElementIdentity(elementType),
+              elementKind: profile.family,
+              dimensions,
+              elements,
+            },
           }
         }
         portableRow[name] = convert(captured, type, true)

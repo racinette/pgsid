@@ -1,5 +1,9 @@
 import { multirangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
-import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
+import {
+  arrayElementFamily,
+  arrayElementIdentity,
+  arrayInputPlan,
+} from '../../shared/check-array-types.js'
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
@@ -81,7 +85,7 @@ export function renderTypescriptSchemaCheckArtifacts(
 } {
   const typedInputs = options.typedInputs ?? false
   const portableValueType = (name: string, oid: number | undefined): string | null => {
-    if (catalogArrayType(name, oid, domains, options.enums)) return 'ArrayValue'
+    if (catalogArrayType(name, oid, domains, options.enums, options.rangeTypes)) return 'ArrayValue'
     if (catalogRangeType(name, oid, domains, options.rangeTypes)) return 'RangeValue'
     if (catalogMultirangeType(name, oid, domains, options.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
@@ -434,7 +438,9 @@ export function renderTypescriptSchemaCheckArtifacts(
               : []),
             ...(item.type.startsWith('array:')
               ? [
-                  factory.createStringLiteral(item.type.slice('array:'.length)),
+                  factory.createStringLiteral(
+                    arrayElementIdentity(item.type.slice('array:'.length)),
+                  ),
                   factory.createNumericLiteral(
                     arrayElementFamily(item.type.slice('array:'.length))!,
                   ),
@@ -835,6 +841,8 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
   if(nested) return result
+  if(tree.length===7 && tree[4]!.length===1 && tree[5]!.length===1 && tree[6]!.length===1) return _checkRust.arrayFromCoercedRangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!)
+  if(tree.length===8 && tree[5]!.length===1 && tree[6]!.length===1 && tree[7]!.length===1) return _checkRust.arrayFromCoercedMultirangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!)
   return tree.length>=2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
 }
 function checkRustArrayElement(input: unknown, family: number, depth: number, tree: string[]=[]): _checkRust.ArrayElement | null {
@@ -849,7 +857,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     return result.kind==='Value' ? {kind:'Array',value:result.value} : null
   }
   if(input.kind==='Multirange') {
-    if(family!==43 || tree.length!==6 || tree[5]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    if(family!==43 || (tree.length!==6 && tree.length!==8) || tree[5]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const p=input.value,kind=tree[5]!.codePointAt(0)!
     if(!('typeName' in p) || p.typeName!==tree[2] || !('rangeType' in p) || p.rangeType!==tree[3] || !('elementType' in p) || p.elementType!==tree[4] || !('elementKind' in p) || p.elementKind!==kind || !('ranges' in p) || !Array.isArray(p.ranges) || p.ranges.length>2147483647) return null
     const ranges:_checkRust.RangeValue[]=[]
@@ -868,7 +876,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     return {kind:'Multirange',value:{typeName:tree[2]!,rangeType:tree[3]!,elementType:tree[4]!,elementKind:kind,support:_checkRust.rangeBuiltinSupport(tree[3]!,tree[4]!,kind),ranges}}
   }
   if(input.kind==='Range') {
-    if(family!==42 || tree.length!==5 || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    if(family!==42 || (tree.length!==5 && tree.length!==7) || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const p=input.value
     const kind=tree[4]!.codePointAt(0)!
     if(!('typeName' in p) || p.typeName!==tree[2] || !('elementType' in p) || p.elementType!==tree[3] || !('elementKind' in p) || p.elementKind!==kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return null
