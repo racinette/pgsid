@@ -24528,6 +24528,23 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 			a := checkruntime.CopyRangePayload(first.Value)
 			if last.Kind == checkruntime.RangeValueValue {
 				b := checkruntime.CopyRangePayload(last.Value)
+				if payload.Support.Canonical == 0 {
+					return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+				}
+				if payload.Support.Comparison == 0 {
+					unbounded := false
+					firstBound := checkruntime.CopyArrayElement(a.Bounds[0])
+					lastBound := checkruntime.CopyArrayElement(b.Bounds[1])
+					if firstBound.Kind == checkruntime.ArrayElementNull {
+						unbounded = true
+					}
+					if lastBound.Kind == checkruntime.ArrayElementNull {
+						unbounded = true
+					}
+					if unbounded == false {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+					}
+				}
 				return checkruntime.RangeFromProfiledBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]), payload.Support)
 			}
 		}

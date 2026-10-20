@@ -1,4 +1,4 @@
-import { isOidType, isRangeType } from '../../src/sql-semantics/expressions.js'
+import { isOidType, isRangeType, isMultirangeType } from '../../src/sql-semantics/expressions.js'
 import {
   rangeRustInput,
   rangeGoInput,
@@ -17,7 +17,6 @@ import {
   multirangeTypescriptInput,
   type MultirangeInputPayload,
 } from './multirange-input.js'
-import { builtinMultirangeType } from '../../src/postgres/builtins/inventory.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -103,7 +102,7 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    builtinMultirangeType(type)
+    isMultirangeType(type)
       ? 'multirange'
       : isRangeType(type)
         ? 'range'
@@ -578,7 +577,7 @@ export async function runCheckParity(
           return generated.makeCoercedRangeValue(
             rangeTypescriptInput(value.value as RangeInputPayload, generated),
           )
-        if (builtinMultirangeType(input.type) && value.kind === 'Value')
+        if (isMultirangeType(input.type) && value.kind === 'Value')
           return generated.makeCoercedMultirangeValue(
             multirangeTypescriptInput(value.value as MultirangeInputPayload, generated),
           )

@@ -24645,6 +24645,23 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
             const a: checkruntime.RangePayload = checkruntime.copyRangePayload(first.value);
             if (last.kind === "Value") {
                 const b: checkruntime.RangePayload = checkruntime.copyRangePayload(last.value);
+                if (payload.support.canonical === 0) {
+                    return { kind: "Unknown" };
+                }
+                if (payload.support.comparison === 0) {
+                    let unbounded: boolean = false;
+                    const firstBound: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+                    const lastBound: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+                    if (firstBound.kind === "Null") {
+                        unbounded = langruntime.checkedBool(true);
+                    }
+                    if (lastBound.kind === "Null") {
+                        unbounded = langruntime.checkedBool(true);
+                    }
+                    if (unbounded === false) {
+                        return { kind: "Unknown" };
+                    }
+                }
                 return checkruntime.rangeFromProfiledBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), payload.support);
             }
         }

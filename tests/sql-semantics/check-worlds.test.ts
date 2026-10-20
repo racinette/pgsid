@@ -457,7 +457,9 @@ describe('world CHECK INSERT parity', () => {
     )
     for (const table of tables) {
       expect(table.writeRewritesTree.beforeRow).toEqual([])
-      expect(catalogCheckGroups([table], catalog.domains, [], catalog.enums).length).toBe(1)
+      expect(
+        catalogCheckGroups([table], catalog.domains, [], catalog.enums, catalog.rangeTypes).length,
+      ).toBe(1)
     }
     await progress('typescript-generation')
     const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
@@ -469,6 +471,7 @@ describe('world CHECK INSERT parity', () => {
         nativeByteOrder: 'little',
       },
       enums: catalog.enums,
+      rangeTypes: catalog.rangeTypes,
     })
     await progress('go-generation')
     const go = renderGoSchemaArtifacts(
@@ -670,14 +673,24 @@ describe('world CHECK INSERT parity', () => {
         .filter(
           (column) =>
             column.generated === 'none' &&
-            catalogMultirangeType(column.typeName, column.typeOid, catalog.domains) !== null,
+            catalogMultirangeType(
+              column.typeName,
+              column.typeOid,
+              catalog.domains,
+              catalog.rangeTypes,
+            ) !== null,
         )
         .map((column) => column.name)
       const rangeColumns = table.columns
         .filter(
           (column) =>
             column.generated === 'none' &&
-            catalogRangeType(column.typeName, column.typeOid, catalog.domains) !== null,
+            catalogRangeType(
+              column.typeName,
+              column.typeOid,
+              catalog.domains,
+              catalog.rangeTypes,
+            ) !== null,
         )
         .map((column) => column.name)
       const jsonpathColumns = table.columns
@@ -1133,7 +1146,12 @@ describe('world CHECK INSERT parity', () => {
       }
       for (const name of multirangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
-        const type = catalogMultirangeType(column.typeName, column.typeOid, catalog.domains)!
+        const type = catalogMultirangeType(
+          column.typeName,
+          column.typeOid,
+          catalog.domains,
+          catalog.rangeTypes,
+        )!
         const text = (
           await pg.query<{ value: string | null }>(
             `SELECT ${quote(name)}::text value FROM (SELECT ${expressions.join(',')}) candidate`,
@@ -1145,7 +1163,12 @@ describe('world CHECK INSERT parity', () => {
       }
       for (const name of rangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
-        const type = catalogRangeType(column.typeName, column.typeOid, catalog.domains)!
+        const type = catalogRangeType(
+          column.typeName,
+          column.typeOid,
+          catalog.domains,
+          catalog.rangeTypes,
+        )!
         const payload = await readRangeFixture(pg, `SELECT ${expressions.join(',')}`, name, type)
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
@@ -3100,11 +3123,16 @@ describe('world CHECK INSERT parity', () => {
     const definiteConstraints = constraints.filter(
       (item) => item.true + item.false + item.null + item.error > 0,
     )
-    const corpus = catalogCheckGroups(catalog.tables, catalog.domains, [], catalog.enums).flatMap(
-      (group) =>
-        group.checks.map(({ plan }) => ({
-          constraint: `${group.source.schema}.${group.source.name}.${plan.name}`,
-        })),
+    const corpus = catalogCheckGroups(
+      catalog.tables,
+      catalog.domains,
+      [],
+      catalog.enums,
+      catalog.rangeTypes,
+    ).flatMap((group) =>
+      group.checks.map(({ plan }) => ({
+        constraint: `${group.source.schema}.${group.source.name}.${plan.name}`,
+      })),
     )
     const unexercised = corpus
       .filter((item) => !coverage.has(item.constraint))

@@ -326,6 +326,23 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
         };
         if let RangeValue::Value(a) = first {
             if let RangeValue::Value(b) = last {
+                if payload.support.canonical == 0 {
+                    return RangeValue::Unknown;
+                };
+                if payload.support.comparison == 0 {
+                    let mut unbounded = false;
+                    let first_bound = a.bounds[0].clone();
+                    let last_bound = b.bounds[1].clone();
+                    if let ArrayElement::Null = first_bound {
+                        unbounded = true;
+                    };
+                    if let ArrayElement::Null = last_bound {
+                        unbounded = true;
+                    };
+                    if unbounded == false {
+                        return RangeValue::Unknown;
+                    };
+                };
                 return range_from_profiled_bounds(
                     payload.range_type.as_str(),
                     payload.element_type.as_str(),

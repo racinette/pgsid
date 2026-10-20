@@ -1,8 +1,8 @@
-import { builtinMultirangeType } from '../../../postgres/builtins/inventory.js'
+import { multirangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
-import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
+import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
 import { enumType, isRangeType, isMultirangeType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
@@ -47,6 +47,7 @@ export function renderTypescriptSchemaChecks(
   selectedDomains: readonly DomainInfo[] = domains,
   options: {
     typedInputs?: boolean
+    rangeTypes?: readonly RangeTypeInfo[]
     enums?: readonly EnumInfo[]
     executionContext?: CheckExecutionContext
   } = {},
@@ -63,6 +64,7 @@ export function renderTypescriptSchemaCheckArtifacts(
     typedInputs?: boolean
     executionContext?: CheckExecutionContext
     rustModuleSpecifier?: string
+    rangeTypes?: readonly RangeTypeInfo[]
     enums?: readonly EnumInfo[]
   } = {},
   rust = true,
@@ -80,8 +82,8 @@ export function renderTypescriptSchemaCheckArtifacts(
   const typedInputs = options.typedInputs ?? false
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogArrayType(name, oid, domains, options.enums)) return 'ArrayValue'
-    if (catalogRangeType(name, oid, domains)) return 'RangeValue'
-    if (catalogMultirangeType(name, oid, domains)) return 'MultirangeValue'
+    if (catalogRangeType(name, oid, domains, options.rangeTypes)) return 'RangeValue'
+    if (catalogMultirangeType(name, oid, domains, options.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
     if (catalogJsonbType(name, oid, domains)) return 'JsonbValue'
     if (catalogJsonpathType(name, oid, domains)) return 'JsonpathValue'
@@ -116,7 +118,13 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ? 'TimestamptzValue'
                 : null
   }
-  const groups = catalogCheckGroups(tables, domains, selectedDomains, options.enums)
+  const groups = catalogCheckGroups(
+    tables,
+    domains,
+    selectedDomains,
+    options.enums,
+    options.rangeTypes,
+  )
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
@@ -412,7 +420,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                         ? 'checkInputText'
                         : 'checkInputBoolean',
             )
-          const multirange = builtinMultirangeType(item.type)
+          const multirange = multirangeTypeProfile(item.type)
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
@@ -421,7 +429,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                   factory.createStringLiteral(multirange.multirange),
                   factory.createStringLiteral(multirange.identity),
                   factory.createStringLiteral(multirange.subtype),
-                  factory.createNumericLiteral(arrayElementFamily(multirange.subtype)!),
+                  factory.createNumericLiteral(arrayElementFamily(multirange.elementType)!),
                 ]
               : []),
             ...(item.type.startsWith('array:')

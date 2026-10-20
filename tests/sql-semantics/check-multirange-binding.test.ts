@@ -21,6 +21,7 @@ import {
 import { rangeBoundCell, rangeBoundProjection } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import { domainElementType } from '../../src/sql-semantics/expressions.js'
 
 const state = (value: string | boolean | number | bigint | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
@@ -149,10 +150,12 @@ it('binds concrete multirange subtypes, nested domains, structural calls, CASE/C
     })
     for (const metadata of Object.values(PG18_RANGE_TYPES)) {
       expect(catalogScalarType(metadata.multirange)).toBe(metadata.multirange)
-      expect(catalogScalarType(metadata.multirange + '[]')).toBeNull()
-      expect(catalogScalarType(metadata.multirangeArray)).toBeNull()
+      expect(catalogScalarType(metadata.multirange + '[]')).toBe(`array:${metadata.multirange}`)
+      expect(catalogScalarType(metadata.multirangeArray)).toBe(`array:${metadata.multirange}`)
     }
-    expect(catalogArrayType('public.range_domain_0[]', undefined, catalog.domains)).toBeNull()
+    expect(catalogArrayType('public.range_domain_0[]', undefined, catalog.domains)).toBe(
+      `array:${domainElementType({ schema: 'public', name: 'range_domain_0' }, forms[0]!.type)}`,
+    )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     let inserts = 0
     for (const form of forms) {

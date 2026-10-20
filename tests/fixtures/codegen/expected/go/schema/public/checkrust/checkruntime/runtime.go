@@ -8561,6 +8561,23 @@ func RangeRequireType(input RangeValue, typeName string, elementType string, ele
 	}
 	return input
 }
+func RangeFromCoercedProfile(input RangeValue, typeName string, elementType string, elementKind int, comparison int, canonical int) RangeValue {
+	input = CopyRangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	if input.Kind == RangeValueValue {
+		payload := CopyRangePayload(input.Value)
+		if payload.TypeName != typeName || payload.ElementType != elementType || payload.ElementKind != elementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		support := RangeSupport{Comparison: comparison, Canonical: canonical}
+		return MakeCoercedRangeValue(rangePayloadWithSupport(payload, support))
+	}
+	return input
+}
 func RangeRequireSupport(input RangeValue, expected RangeSupport) RangeValue {
 	input = CopyRangeValue(input)
 	if input.Kind == RangeValueValue {
@@ -8778,6 +8795,29 @@ func MultirangeFromProfiledRanges(typeName string, rangeType string, elementType
 	elementKind = langruntime.CheckedI32(elementKind)
 	ranges = langruntime.CheckedStructs(ranges, CopyRangeValue)
 	return MakeCoercedMultirangeValue(MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: support, Ranges: ranges})
+}
+func MultirangeFromCoercedProfile(input MultirangeValue, typeName string, rangeType string, elementType string, elementKind int, comparison int, canonical int) MultirangeValue {
+	input = CopyMultirangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	if input.Kind == MultirangeValueValue {
+		payload := CopyMultirangePayload(input.Value)
+		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
+			return MultirangeValue{Kind: MultirangeValueUnknown}
+		}
+		ranges := payload.Ranges
+		index := 0
+		for index < len(ranges) {
+			ranges[index] = CopyRangeValue(RangeFromCoercedProfile(CopyRangeValue(ranges[index]), rangeType, elementType, elementKind, comparison, canonical))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return MultirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, RangeSupport{Comparison: comparison, Canonical: canonical})
+	}
+	return input
 }
 func MultirangeRequireSupport(input MultirangeValue, expected RangeSupport) MultirangeValue {
 	input = CopyMultirangeValue(input)

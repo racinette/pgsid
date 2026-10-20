@@ -1,0 +1,135 @@
+import { expect, it } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { PG18_RANGE_TYPES } from '../../src/postgres/builtins/type-ranges.generated.js'
+import {
+  capturedRangeType,
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeProfileSupport,
+} from '../../src/sql-semantics/range-profiles.js'
+import {
+  catalogRangeType,
+  catalogMultirangeType,
+} from '../../src/sql-semantics/catalog-check-binder.js'
+import {
+  catalogScalarType,
+  isRangeType,
+  isMultirangeType,
+} from '../../src/sql-semantics/expressions.js'
+
+it('keeps builtin range identities and comparison/canonicalization modes', () => {
+  for (const metadata of Object.values(PG18_RANGE_TYPES)) {
+    const profile = rangeTypeProfile(metadata.identity)!
+    expect(profile.rangeType).toBe(metadata.identity)
+    expect(profile.multirangeType).toBe(metadata.multirange)
+    expect(multirangeTypeProfile(metadata.multirange)).toEqual(profile)
+    expect(rangeProfileSupport(profile)).toEqual({
+      comparison: {
+        'pg_catalog.int4': 2,
+        'pg_catalog.int8': 3,
+        'pg_catalog.date': 7,
+        'pg_catalog."numeric"': 10,
+        'pg_catalog."timestamp"': 4,
+        'pg_catalog.timestamptz': 5,
+      }[metadata.subtype],
+      canonical:
+        metadata.canonical === null
+          ? 1
+          : { 'pg_catalog.int4': 2, 'pg_catalog.int8': 3, 'pg_catalog.date': 7 }[
+              metadata.subtype as 'pg_catalog.int4'
+            ],
+    })
+    expect(catalogScalarType(metadata.identity)).toBe(metadata.identity)
+  }
+})
+
+it('resolves captured qualified identities, companion namespaces and domain subtypes independently of catalog OIDs', async () => {
+  const first = await PGlite.create(),
+    second = await PGlite.create()
+  const ddl = `
+CREATE SCHEMA "Types.A";CREATE SCHEMA "Types.B";
+CREATE DOMAIN "Types.A".positive AS int4 CHECK(VALUE>0);
+CREATE TYPE "Types.A".span AS RANGE(subtype="Types.A".positive,multirange_type_name=span_set);
+CREATE TYPE "Types.B".span AS RANGE(subtype=int4);
+CREATE TYPE "Types.A".discrete;
+CREATE FUNCTION "Types.A".canon("Types.A".discrete) RETURNS "Types.A".discrete AS 'int4range_canonical' LANGUAGE internal IMMUTABLE STRICT;
+CREATE TYPE "Types.A".discrete AS RANGE(subtype=int4,canonical="Types.A".canon);
+CREATE DOMAIN "Types.A".nested AS "Types.A".span;
+CREATE TABLE "Types.A".values(value "Types.A".nested,multiple public.span_set);
+`
+  try {
+    await first.exec(ddl)
+    await second.exec('CREATE TABLE discarded(value text);DROP TABLE discarded;' + ddl)
+    const a = await snapshotCatalog(first),
+      b = await snapshotCatalog(second)
+    expect(a.tables[0]!.columns[0]!.typeOid).not.toBe(b.tables[0]!.columns[0]!.typeOid)
+    const encode = (catalog: typeof a) =>
+      catalog.rangeTypes.map((info) => capturedRangeType(info, 'pg_catalog.int4')!)
+    expect(encode(a)).toEqual(encode(b))
+    const info = a.rangeTypes.find((r) => r.identity === '"Types.A".span')!
+    const encoded = capturedRangeType(info, 'pg_catalog.int4')!
+    expect(capturedRangeType({ ...info, ...{ oid: 12345 } }, 'pg_catalog.int4')).toBe(encoded)
+    expect(isRangeType(encoded)).toBe(true)
+    expect(catalogScalarType(encoded)).toBe(encoded)
+    const profile = rangeTypeProfile(encoded)!
+    expect(profile).toMatchObject({
+      identity: '"Types.A".span',
+      subtype: '"Types.A".positive',
+      elementType: 'pg_catalog.int4',
+      multirange: 'public.span_set',
+      captured: true,
+    })
+    expect(rangeProfileSupport(profile)).toEqual({ comparison: 2, canonical: 1 })
+    expect(isMultirangeType(profile.multirangeType)).toBe(true)
+    expect(multirangeTypeProfile(profile.multirangeType)).toEqual(profile)
+    const table = a.tables.find((t) => t.schema === 'Types.A' && t.name === 'values')!
+    expect(
+      catalogRangeType(
+        table.columns[0]!.typeName,
+        table.columns[0]!.typeOid,
+        a.domains,
+        a.rangeTypes,
+      ),
+    ).toBe(encoded)
+    expect(
+      catalogMultirangeType(
+        table.columns[1]!.typeName,
+        table.columns[1]!.typeOid,
+        a.domains,
+        a.rangeTypes,
+      ),
+    ).toBe(profile.multirangeType)
+    expect(catalogRangeType('span', undefined, a.domains, a.rangeTypes)).toBeNull()
+    expect(catalogRangeType('"Types.A".span[]', undefined, a.domains, a.rangeTypes)).toBeNull()
+    expect(catalogRangeType('"Types.A".span(1)', undefined, a.domains, a.rangeTypes)).toBeNull()
+    const discrete = rangeTypeProfile(
+      encode(a).find((r) => rangeTypeProfile(r)!.name === 'discrete')!,
+    )!
+    expect(rangeProfileSupport(discrete)).toEqual({ comparison: 2, canonical: 0 })
+    const alternative = capturedRangeType(
+      { ...info, comparator: 'function:["Types.A","compare"](pg_catalog.int4,pg_catalog.int4)' },
+      'pg_catalog.int4',
+    )!
+    expect(rangeProfileSupport(rangeTypeProfile(alternative)!)).toEqual({
+      comparison: 0,
+      canonical: 1,
+    })
+    expect(capturedRangeType(info, 'pg_catalog.text')).toBeNull()
+    for (const bad of [
+      'range:',
+      'range:{}',
+      'range:[]',
+      'multirange:null',
+      encoded.replace('"elementType":"pg_catalog.int4"', '"elementType":"pg_catalog.text"'),
+      encoded.replace('"elementType":', '"oid":42,"elementType":'),
+    ]) {
+      expect(rangeTypeProfile(bad)).toBeNull()
+      expect(multirangeTypeProfile(bad)).toBeNull()
+      expect(catalogScalarType(bad)).toBeNull()
+    }
+  } finally {
+    await first.close()
+    await second.close()
+  }
+}, 30_000)

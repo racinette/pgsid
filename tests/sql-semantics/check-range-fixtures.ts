@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite'
-import { builtinRangeType } from '../../src/postgres/builtins/inventory.js'
+import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
 import type { RangeType } from '../../src/sql-semantics/expressions.js'
 import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
 import type { RangeInputCell, RangeInputPayload } from '../../tools/check-rust/range-input.js'
@@ -8,7 +8,7 @@ export function rangeCoreSamples(type: RangeType): {
   ranges: (string | null)[]
   elements: (string | null)[]
 } {
-  const subtype = builtinRangeType(type)!.subtype
+  const subtype = rangeTypeProfile(type)!.elementType
   const temporal =
     subtype === 'pg_catalog.date' ||
     subtype === 'pg_catalog."timestamp"' ||
@@ -88,7 +88,7 @@ export async function readRangeFixture(
   type: RangeType,
   parameters: unknown[] = [],
 ): Promise<RangeInputPayload | null> {
-  const metadata = builtinRangeType(type)!
+  const metadata = rangeTypeProfile(type)!
   const column = '"' + name.replaceAll('"', '""') + '"'
   const row = (
     await pg.query<{
@@ -100,21 +100,24 @@ export async function readRangeFixture(
       hi: string | null
     }>(
       `SELECT ${column} IS NULL AS is_null,isempty(${column}) AS empty,lower_inc(${column}) AS lower_inc,upper_inc(${column}) AS upper_inc,
-    ${rangeBoundProjection(`lower(${column})`, metadata.subtype)} AS lo,
-    ${rangeBoundProjection(`upper(${column})`, metadata.subtype)} AS hi FROM (${select}) candidate`,
+    ${rangeBoundProjection(`lower(${column})`, metadata.elementType)} AS lo,
+    ${rangeBoundProjection(`upper(${column})`, metadata.elementType)} AS hi FROM (${select}) candidate`,
       parameters,
     )
   ).rows[0]!
   if (row.is_null) return null
   return {
-    typeName: type,
+    typeName: metadata.identity,
     elementType: metadata.subtype,
-    elementKind: arrayElementFamily(metadata.subtype)!,
+    elementKind: arrayElementFamily(metadata.elementType)!,
     empty: row.empty,
     lowerInclusive: row.lower_inc,
     upperInclusive: row.upper_inc,
     bounds: row.empty
       ? []
-      : [rangeBoundCell(metadata.subtype, row.lo), rangeBoundCell(metadata.subtype, row.hi)],
+      : [
+          rangeBoundCell(metadata.elementType, row.lo),
+          rangeBoundCell(metadata.elementType, row.hi),
+        ],
   }
 }

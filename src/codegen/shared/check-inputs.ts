@@ -131,8 +131,8 @@ const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boole
   }
   const type = catalogScalarType(name)
   return (
-    catalogRangeType(name, oid, catalog.domains) !== null ||
-    catalogMultirangeType(name, oid, catalog.domains) !== null ||
+    catalogRangeType(name, oid, catalog.domains, catalog.rangeTypes) !== null ||
+    catalogMultirangeType(name, oid, catalog.domains, catalog.rangeTypes) !== null ||
     type === 'pg_catalog.name' ||
     type === 'pg_catalog."bit"' ||
     type === 'pg_catalog.varbit' ||
@@ -181,7 +181,7 @@ export function planCheckWrite(
   const resolved = writtenMatches.length === 1 ? writtenMatches : matches
   if (resolved.length !== 1) return null
   const table = resolved[0]!
-  const groups = catalogCheckGroups([table], catalog.domains, [], catalog.enums)
+  const groups = catalogCheckGroups([table], catalog.domains, [], catalog.enums, catalog.rangeTypes)
   const used = new Set(groups.flatMap((group) => group.checks.flatMap(({ plan }) => plan.inputs)))
   if (!used.size) return null
 

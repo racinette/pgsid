@@ -184,6 +184,7 @@ export function renderTypescriptSchemaArtifacts(
         typedInputs: true,
         executionContext: config.sql.codegen?.checks,
         enums: catalog.enums,
+        rangeTypes: catalog.rangeTypes,
       })
       const files: [string, string][] = [
         ['tables.d.ts', tableFile],
