@@ -12,7 +12,10 @@ import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
-import { enumType, arrayElementBaseType } from '../../src/sql-semantics/expressions.js'
+import { enumType, arrayElementBaseType, isRangeType } from '../../src/sql-semantics/expressions.js'
+import { builtinRangeType } from '../../src/postgres/builtins/inventory.js'
+import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
+import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
 import {
   catalogDateType,
   catalogArrayType,
@@ -48,7 +51,7 @@ import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
 import { deparseWorldSql, worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
-import { readRangeFixture } from './check-range-fixtures.js'
+import { readRangeFixture, rangeBoundProjection, rangeBoundCell } from './check-range-fixtures.js'
 // @ts-expect-error -- Espalier input policy is a runtime JavaScript rule.
 import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
@@ -854,8 +857,9 @@ describe('world CHECK INSERT parity', () => {
 
         type CapturedArray = {
           dimensions: string | null
-          elements: (string | null | CapturedArray)[]
+          elements: (string | null | CapturedArray | CapturedRange)[]
         }
+        type CapturedRange = Omit<RangeInputPayload, 'bounds'> & { bounds: (string | null)[] }
         const profileFor = (arrayType: string) => {
           const elementType = arrayType.slice(6)
           const baseElementType = arrayElementBaseType(elementType)
@@ -864,19 +868,27 @@ describe('world CHECK INSERT parity', () => {
             ? { kind: 'Array', family: 41 }
             : definition
               ? { kind: 'Enum', family: 6 }
-              : profiles[baseElementType]
+              : isRangeType(baseElementType)
+                ? { kind: 'Range', family: 42 }
+                : profiles[baseElementType]
           if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
           return { elementType, baseElementType, definition, profile }
         }
         const captureSql = (value: string, arrayType: string, depth: number): string => {
           const { baseElementType, profile } = profileFor(arrayType)
           const alias = 'array_cell_' + depth
+          const range = builtinRangeType(baseElementType)
+          const rangeValue = range
+            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.subtype)},'empty',isempty(${alias}),'lowerInclusive',lower_inc(${alias}),'upperInclusive',upper_inc(${alias}),'bounds',CASE WHEN isempty(${alias}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${alias})`, range.subtype)},${rangeBoundProjection(`upper(${alias})`, range.subtype)}) END)`
+            : ''
           const scalar =
             profile.kind === 'Array'
               ? captureSql(alias, baseElementType, depth + 1)
-              : profile.kind === 'Float4' || profile.kind === 'Float8'
-                ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(${alias}),'hex')`
-                : `${alias}::text`
+              : profile.kind === 'Range'
+                ? `CASE WHEN ${alias} IS NULL THEN NULL ELSE ${rangeValue} END`
+                : profile.kind === 'Float4' || profile.kind === 'Float8'
+                  ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(${alias}),'hex')`
+                  : `${alias}::text`
           return `CASE WHEN (${value}) IS NULL THEN NULL ELSE json_build_object('dimensions',array_dims(${value}),'elements',COALESCE((SELECT json_agg(${scalar}) FROM unnest(${value}) ${alias}),'[]'::json)) END`
         }
         const captured = (
@@ -916,6 +928,16 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Array',
                 value: convert(value as CapturedArray, baseElementType, portable).value,
               }
+            if (profile.kind === 'Range') {
+              const payload = value as CapturedRange
+              return {
+                kind: 'Range',
+                value: {
+                  ...payload,
+                  bounds: payload.bounds.map((bound) => rangeBoundCell(payload.elementType, bound)),
+                },
+              }
+            }
             const text = value as string
             const payload =
               profile.kind === 'Int4' || profile.kind === 'Int2'

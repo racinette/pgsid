@@ -9095,6 +9095,51 @@ func ArrayFromCoercedTree(input ArrayValue, types string, kinds string) ArrayVal
 	}
 	return input
 }
+func arrayRangeElementIdentity(input *ArrayPayload, position int, typeName string, elementType string, elementKind int) bool {
+	position = langruntime.CheckedIndex(position)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	element := CopyArrayElement(input.Elements[position])
+	if element.Kind == ArrayElementArray {
+		nested := CopyArrayPayload(element.Array)
+		return arrayRangeIdentityValid(&nested, typeName, elementType, elementKind)
+	}
+	if element.Kind == ArrayElementRange {
+		payload := CopyRangePayload(element.Range)
+		return payload.TypeName == typeName && payload.ElementType == elementType && payload.ElementKind == elementKind
+	}
+	return true
+}
+func arrayRangeIdentityValid(input *ArrayPayload, typeName string, elementType string, elementKind int) bool {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	position := 0
+	for position < len(input.Elements) {
+		if arrayRangeElementIdentity(input, position, typeName, elementType, elementKind) == false {
+			return false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func ArrayFromCoercedRangeTree(input ArrayValue, types string, kinds string, typeName string, elementType string, elementKind int) ArrayValue {
+	input = CopyArrayValue(input)
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == ArrayValueValue {
+		payload := CopyArrayPayload(input.Value)
+		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayRangeIdentityValid(&payload, typeName, elementType, elementKind) == false {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		return MakeArrayValue(payload)
+	}
+	return input
+}
 func MakeArrayArguments(elementType string, elementKind int) ArrayArguments {
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)

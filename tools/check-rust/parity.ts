@@ -1,5 +1,6 @@
 import { isOidType, isRangeType } from '../../src/sql-semantics/expressions.js'
 import { rangeRustInput, rangeGoInput, type RangeInputPayload } from './range-input.js'
+import { arrayRustInput, arrayGoInput, type OwnedArrayInputPayload } from './array-input.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -37,6 +38,7 @@ export type Input =
         | { time: bigint; zone: number }
         | { time: bigint; months: number; days: number }
         | RangeInputPayload
+        | OwnedArrayInputPayload
     }
   | { kind: 'Null' }
   | { kind: 'Unknown' }
@@ -176,8 +178,7 @@ export async function runCheckParity(
       return `${prefix}_${input.kind.toLowerCase()}()`
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
-    if (prefix === 'array')
-      throw new Error('Known array payload fixtures use the array storage owner')
+    if (prefix === 'array') return arrayRustInput(input.value as OwnedArrayInputPayload)
     if (prefix === 'range') return rangeRustInput(input.value as RangeInputPayload)
     if (prefix === 'jsonpath')
       return `jsonpath_from_coerced_source_utf8(make_text_value(${rustStringLiteral(input.value as string)}))`
@@ -216,6 +217,7 @@ export async function runCheckParity(
       if ('x' in parts) return `make_point_bits(${parts.x}i64, ${parts.y}i64)`
       if ('a' in parts) return `make_line_bits(${parts.a}i64, ${parts.b}i64, ${parts.c}i64)`
       if ('bounds' in parts) throw new Error('Range payload requires a range input type')
+      if ('dimensions' in parts) throw new Error('Array payload requires an array input type')
       const args =
         'zone' in parts
           ? `${parts.time}i64, ${parts.zone}`
@@ -252,6 +254,8 @@ export async function runCheckParity(
     const prefix = pascal(prefixOf(type))
     if (prefix === 'Range' && input.kind === 'Value')
       return rangeGoInput(input.value as RangeInputPayload)
+    if (prefix === 'Array' && input.kind === 'Value')
+      return arrayGoInput(input.value as OwnedArrayInputPayload)
     if (input.kind === 'Null' || input.kind === 'Unknown')
       return go.call(runtime(prefix + input.kind), [])
     if (input.kind === 'Error')
@@ -349,6 +353,7 @@ export async function runCheckParity(
           go.number(parts.c),
         ])
       if ('bounds' in parts) throw new Error('Range payload requires a range input type')
+      if ('dimensions' in parts) throw new Error('Array payload requires an array input type')
       return go.call(
         runtime('Make' + prefix + 'Value'),
         'zone' in parts

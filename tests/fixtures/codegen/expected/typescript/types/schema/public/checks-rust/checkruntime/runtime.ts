@@ -9202,6 +9202,51 @@ export function arrayFromCoercedTree(input: ArrayValue, types: string, kinds: st
     }
     return input;
 }
+function arrayRangeElementIdentity(input: ArrayPayload, position: number, typeName: string, elementType: string, elementKind: number): boolean {
+    position = langruntime.checkedIndex(position);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+    if (element.kind === "Array") {
+        const nested: ArrayPayload = copyArrayPayload(element.value);
+        return arrayRangeIdentityValid(nested, typeName, elementType, elementKind);
+    }
+    if (element.kind === "Range") {
+        const payload: RangePayload = copyRangePayload(element.value);
+        return payload.typeName === typeName && payload.elementType === elementType && payload.elementKind === elementKind;
+    }
+    return true;
+}
+function arrayRangeIdentityValid(input: ArrayPayload, typeName: string, elementType: string, elementKind: number): boolean {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    let position: number = 0;
+    while (position < input.elements.length) {
+        if (arrayRangeElementIdentity(input, position, typeName, elementType, elementKind) === false) {
+            return false;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return true;
+}
+export function arrayFromCoercedRangeTree(input: ArrayValue, types: string, kinds: string, typeName: string, elementType: string, elementKind: number): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayRangeIdentityValid(payload, typeName, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return makeArrayValue(payload);
+    }
+    return input;
+}
 export function makeArrayArguments(elementType: string, elementKind: number): ArrayArguments {
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);

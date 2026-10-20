@@ -1678,3 +1678,33 @@ CREATE TABLE lane_range_fingerprints (
     hash_range_extended(prices,seed) IS NOT DISTINCT FROM expected_extended[3] AND hash_range_extended(calendar_days,seed) IS NOT DISTINCT FROM expected_extended[4] AND
     hash_range_extended(local_shift,seed) IS NOT DISTINCT FROM expected_extended[5] AND hash_range_extended(instant_shift,seed) IS NOT DISTINCT FROM expected_extended[6] END)
 );
+
+CREATE DOMAIN lane_recorded_range AS int4range;
+CREATE DOMAIN lane_range_history AS lane_recorded_range[];
+
+CREATE TABLE lane_range_batches (
+  slots int4range[],
+  loads int8range[],
+  prices numrange[],
+  calendar_days daterange[],
+  local_shift tsrange[],
+  instant_shift tstzrange[],
+  typed_slots lane_recorded_range[],
+  histories lane_range_history[],
+  head int4range,
+  expected_counts integer[],
+  expected_member boolean,
+  expected_sorted boolean,
+  bypass boolean,
+  CONSTRAINT range_batch_slots_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(slots) IS NOT DISTINCT FROM expected_counts[1] END),
+  CONSTRAINT range_batch_loads_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(loads) IS NOT DISTINCT FROM expected_counts[2] END),
+  CONSTRAINT range_batch_prices_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(prices) IS NOT DISTINCT FROM expected_counts[3] END),
+  CONSTRAINT range_batch_calendar_days_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(calendar_days) IS NOT DISTINCT FROM expected_counts[4] END),
+  CONSTRAINT range_batch_local_shift_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(local_shift) IS NOT DISTINCT FROM expected_counts[5] END),
+  CONSTRAINT range_batch_instant_shift_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(instant_shift) IS NOT DISTINCT FROM expected_counts[6] END),
+  CONSTRAINT range_batch_first CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN slots IS NULL THEN true ELSE slots[array_lower(slots,1)] IS NOT DISTINCT FROM head END END),
+  CONSTRAINT range_batch_member CHECK(CASE WHEN bypass THEN true ELSE (head=ANY(slots)) IS NOT DISTINCT FROM expected_member END),
+  CONSTRAINT range_batch_sorted CHECK(CASE WHEN bypass THEN true ELSE (array_sort(slots)=slots) IS NOT DISTINCT FROM expected_sorted END),
+  CONSTRAINT range_batch_domain CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN typed_slots IS NULL THEN true ELSE typed_slots[1] IS NOT DISTINCT FROM head END END),
+  CONSTRAINT range_batch_nested CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN histories IS NULL THEN true ELSE (histories[1])[1] IS NOT DISTINCT FROM head END END)
+);

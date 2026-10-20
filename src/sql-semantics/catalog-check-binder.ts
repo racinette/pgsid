@@ -147,7 +147,7 @@ export function catalogArrayType(
       ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
-    return carrier && !isRangeType(carrier) && !carrier.startsWith('domain:')
+    return carrier && !carrier.startsWith('domain:')
       ? arrayType(domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>))
       : null
   } catch {
@@ -4137,7 +4137,9 @@ export function bindCatalogCheck(
           ? resolved.enum && enumType(resolved.enum)
           : resolved.item.args[1] === 'pg_catalog.anyarray'
             ? baseElement.startsWith('array:') && baseElement
-            : catalogScalarType(resolved.item.args[1]!)
+            : resolved.item.args[1] === 'pg_catalog.anyrange'
+              ? isRangeType(baseElement) && baseElement
+              : catalogScalarType(resolved.item.args[1]!)
       if (!element || (element.startsWith('array:') && element !== baseElement)) return unknown
       const targetElement = element === baseElement ? sourceElement : (element as ArrayElementType)
       const operand =
@@ -4327,7 +4329,8 @@ export function bindCatalogCheck(
       const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
       if (
         column?.isRowType === false &&
-        !catalogBaseScalarType(column.typeName, column.typeOid, domains)
+        !catalogBaseScalarType(column.typeName, column.typeOid, domains) &&
+        !catalogArrayType(column.typeName, column.typeOid, domains, enums)
       ) {
         inputs.add(column.name)
         return {

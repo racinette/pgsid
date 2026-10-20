@@ -1,4 +1,4 @@
-import { arrayElementFamily, arrayIdentityPlan } from '../../shared/check-array-types.js'
+import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
@@ -408,12 +408,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                   factory.createNumericLiteral(
                     arrayElementFamily(item.type.slice('array:'.length))!,
                   ),
-                  ...(arrayElementFamily(item.type.slice(6)) === 41
-                    ? [
-                        arrayIdentityPlan(item.type)!.types,
-                        arrayIdentityPlan(item.type)!.kinds,
-                      ].map((value) => factory.createStringLiteral(value))
-                    : []),
+                  ...arrayInputPlan(item.type).map((value) => factory.createStringLiteral(value)),
                 ]
               : []),
             ...(item.enum
@@ -775,7 +770,7 @@ function checkRustArrayNullness(row: object,name: string,elementType: string,ele
 function checkRustArray(row: object, name: string, elementType: string, elementKind: number,...tree: string[]): _checkRust.ArrayValue {
   const input = Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input === undefined) return _checkRust.arrayUnknown()
-  return checkRustArrayValue(input,elementType,elementKind,tree.length===2 ? tree[1]!.length-1 : 0,tree)
+  return checkRustArrayValue(input,elementType,elementKind,tree.length>=2 ? tree[1]!.length-1 : 0,tree)
 }
 function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false): _checkRust.ArrayValue {
   if (input === null) return _checkRust.arrayNull()
@@ -795,7 +790,7 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const elements: _checkRust.ArrayElement[]=[]
   for(const cell of value.elements) {
-    const element=checkRustArrayElement(cell,elementKind,depth)
+    const element=checkRustArrayElement(cell,elementKind,depth,tree)
     if (element===null) return _checkRust.arrayUnknown()
     elements.push(element)
   }
@@ -809,9 +804,9 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
   if(nested) return result
-  return tree.length===2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
+  return tree.length>=2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
 }
-function checkRustArrayElement(input: unknown, family: number, depth: number): _checkRust.ArrayElement | null {
+function checkRustArrayElement(input: unknown, family: number, depth: number, tree: string[]=[]): _checkRust.ArrayElement | null {
   if (!input || typeof input !== 'object' || !('kind' in input)) return null
   if (input.kind==='Unknown' || input.kind==='Null') return {kind:input.kind}
   if (input.kind==='Error') return 'value' in input && checkRustArrayField(input.value,'SqlError') ? {kind:'Error',value:input.value as _checkRust.SqlError} : null
@@ -819,8 +814,21 @@ function checkRustArrayElement(input: unknown, family: number, depth: number): _
     if(depth<1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const value=input.value
     if(!('elementType' in value) || typeof value.elementType!=='string' || !('elementKind' in value) || !checkRustArrayField(value.elementKind,'i32')) return null
-    const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,[],true)
+    const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,tree,true)
     return result.kind==='Value' ? {kind:'Array',value:result.value} : null
+  }
+  if(input.kind==='Range') {
+    if(family!==42 || tree.length!==5 || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    const p=input.value
+    const kind=tree[4]!.codePointAt(0)!
+    if(!('typeName' in p) || p.typeName!==tree[2] || !('elementType' in p) || p.elementType!==tree[3] || !('elementKind' in p) || p.elementKind!==kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return null
+    const bounds:_checkRust.ArrayElement[]=[]
+    for(const bound of p.bounds) {
+      const cell=checkRustArrayElement(bound,kind,0)
+      if(cell===null) return null
+      bounds.push(cell)
+    }
+    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
   }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}

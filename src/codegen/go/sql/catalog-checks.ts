@@ -1,4 +1,4 @@
-import { arrayElementFamily, arrayIdentityPlan } from '../../shared/check-array-types.js'
+import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
@@ -494,12 +494,7 @@ export function renderGoSchemaCheckArtifacts(
               ? [
                   go.string(item.type.slice('array:'.length)),
                   go.number(arrayElementFamily(item.type.slice('array:'.length))!),
-                  ...(arrayElementFamily(item.type.slice(6)) === 41
-                    ? [
-                        arrayIdentityPlan(item.type)!.types,
-                        arrayIdentityPlan(item.type)!.kinds,
-                      ].map((value) => go.string(value))
-                    : []),
+                  ...arrayInputPlan(item.type).map((value) => go.string(value)),
                 ]
               : []),
             ...(item.enum
@@ -736,24 +731,31 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   if input.Kind==checkruntime.ArrayValueUnknown || input.Kind==checkruntime.ArrayValueNull || input.Kind==checkruntime.ArrayValueError { return input }
   if input.Kind!=checkruntime.ArrayValueValue || input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind { return checkruntime.ArrayUnknown() }
   depth:=0
-  if len(tree)==2 { depth=len(tree[1])-1 }
-  if !checkRustArrayTree(input,depth) { return checkruntime.ArrayUnknown() }
-  if len(tree)==2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
+  if len(tree)>=2 { depth=len(tree[1])-1 }
+  if !checkRustArrayTree(input,depth,tree...) { return checkruntime.ArrayUnknown() }
+  if len(tree)>=2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
   return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
 }
-func checkRustArrayTree(input checkruntime.ArrayValue,depth int) bool {
+func checkRustArrayTree(input checkruntime.ArrayValue,depth int,tree ...string) bool {
   if input.Kind!=checkruntime.ArrayValueValue { return false }
   if len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return false }
   for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return false } }
-  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth) { return false } }
+  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth,tree...) { return false } }
   return true
 }
-func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int) bool {
-  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementBoxNonNull { return false }
+func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,tree ...string) bool {
+  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementRange { return false }
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
   if input.Kind==checkruntime.ArrayElementArray {
     if depth<1 || family!=41 { return false }
-    return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1)
+    return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,tree...)
+  }
+  if input.Kind==checkruntime.ArrayElementRange {
+    if family!=42 || len(tree)!=5 || len(tree[4])!=1 { return false }
+    p:=input.Range
+    if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=int(tree[4][0]) || len(p.Bounds)>2 { return false }
+    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,0) { return false } }
+    return true
   }
   if input.Kind==checkruntime.ArrayElementInt2 {
   if input.Int2 < -2147483648 || input.Int2 > 2147483647 { return false }
