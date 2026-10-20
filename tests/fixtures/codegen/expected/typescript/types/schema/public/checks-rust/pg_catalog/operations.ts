@@ -32862,10 +32862,26 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number): checkrunt
     }
     return { kind: "Unknown" };
 }
-export function rangeFromText(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number): checkruntime.RangeValue {
-    typeName = langruntime.checkedString(typeName);
-    elementType = langruntime.checkedString(elementType);
-    kind = langruntime.checkedI32(kind);
+function rangeTextValue(empty: boolean, lower: checkruntime.TextValue, upper: checkruntime.TextValue, flags: string): checkruntime.RangeTextPlan {
+    empty = langruntime.checkedBool(empty);
+    flags = langruntime.checkedString(flags);
+    let lowerPresent: boolean = false;
+    let upperPresent: boolean = false;
+    let lowerValue: string = "";
+    let upperValue: string = "";
+    if (lower.kind === "Value") {
+        const value: string = langruntime.checkedString(lower.value);
+        lowerPresent = langruntime.checkedBool(true);
+        lowerValue = langruntime.checkedString(value);
+    }
+    if (upper.kind === "Value") {
+        const value: string = langruntime.checkedString(upper.value);
+        upperPresent = langruntime.checkedBool(true);
+        upperValue = langruntime.checkedString(value);
+    }
+    return { kind: "Value", value: { empty: empty, lowerPresent: lowerPresent, upperPresent: upperPresent, lower: lowerValue, upper: upperValue, flags: flags } };
+}
+export function prepareRangeText(input: checkruntime.TextValue): checkruntime.RangeTextPlan {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -32886,7 +32902,7 @@ export function rangeFromText(input: checkruntime.TextValue, typeName: string, e
         }
         if (langruntime.checkedSubtract(end, position) === 5) {
             if ((langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "E") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "m" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "M") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "p" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "P") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "T") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "y" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "Y")) {
-                return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" });
+                return rangeTextValue(true, { kind: "Null" }, { kind: "Null" }, "");
             }
         }
         if (position >= end) {
@@ -32959,28 +32975,128 @@ export function rangeFromText(input: checkruntime.TextValue, typeName: string, e
         if ((!(closing === ")") && !(closing === "]")) || !(langruntime.checkedAdd(position, 1) === end)) {
             return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
         }
-        const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind);
-        if (lower.kind === "Error") {
-            const error: checkruntime.SqlError = lower.value;
-            return { kind: "Error", value: error };
-        }
-        if (lower.kind === "Unknown") {
-            return { kind: "Unknown" };
-        }
-        const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind);
-        if (upper.kind === "Error") {
-            const error: checkruntime.SqlError = upper.value;
-            return { kind: "Error", value: error };
-        }
-        if (upper.kind === "Unknown") {
-            return { kind: "Unknown" };
-        }
         let flags: string = "";
         flags = flags + langruntime.checkedChar(opening);
         flags = flags + langruntime.checkedChar(closing);
-        return rangeBuiltinConstruct(typeName, elementType, kind, lower, upper, checkruntime.makeTextValue(flags));
+        return rangeTextValue(false, lowerText, upperText, flags);
     }
     return { kind: "Unknown" };
+}
+export function rangeTextState(plan: checkruntime.RangeTextPlan): checkruntime.BoolValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    if (plan.kind === "Error") {
+        const error: checkruntime.SqlError = plan.value;
+        return { kind: "Error", value: error };
+    }
+    if (plan.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (plan.kind === "Value") {
+        const payload: checkruntime.RangeTextPayload = checkruntime.copyRangeTextPayload(plan.value);
+        return { kind: "Value", value: payload.empty };
+    }
+    return { kind: "Unknown" };
+}
+export function rangeTextNeedsBounds(plan: checkruntime.RangeTextPlan): boolean {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    return checkruntime.equalBoolValue(rangeTextState(checkruntime.copyRangeTextPlan(plan)), { kind: "Value", value: false });
+}
+export function rangeTextBound(plan: checkruntime.RangeTextPlan, upper: boolean): checkruntime.TextValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    upper = langruntime.checkedBool(upper);
+    if (plan.kind === "Value") {
+        const payload: checkruntime.RangeTextPayload = checkruntime.copyRangeTextPayload(plan.value);
+        if (upper) {
+            if (payload.upperPresent) {
+                return { kind: "Value", value: langruntime.checkedString(payload.upper) };
+            }
+        }
+        else if (payload.lowerPresent) {
+            return { kind: "Value", value: langruntime.checkedString(payload.lower) };
+        }
+    }
+    return { kind: "Null" };
+}
+export function rangeTextFlags(plan: checkruntime.RangeTextPlan): checkruntime.TextValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    if (plan.kind === "Value") {
+        const payload: checkruntime.RangeTextPayload = checkruntime.copyRangeTextPayload(plan.value);
+        if (payload.empty === false) {
+            return { kind: "Value", value: langruntime.checkedString(payload.flags) };
+        }
+    }
+    return { kind: "Null" };
+}
+export function rangeTextBoundPresent(plan: checkruntime.RangeTextPlan, upper: boolean): boolean {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    upper = langruntime.checkedBool(upper);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan))) {
+        const value: checkruntime.TextValue = rangeTextBound(plan, upper);
+        if (value.kind === "Value") {
+            return true;
+        }
+    }
+    return false;
+}
+export function rangeTextInitial(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    const state: checkruntime.BoolValue = rangeTextState(checkruntime.copyRangeTextPlan(plan));
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (state.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalBoolValue(state, { kind: "Value", value: true })) {
+        return checkruntime.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" }, support);
+    }
+    return { kind: "Unknown" };
+}
+export function finishRangeText(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
+        return rangeTextInitial(checkruntime.copyRangeTextPlan(plan), typeName, elementType, kind, support);
+    }
+    const flags: checkruntime.TextValue = rangeTextFlags(checkruntime.copyRangeTextPlan(plan));
+    return rangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support);
+}
+export function rangeFromText(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    const plan: checkruntime.RangeTextPlan = prepareRangeText(input);
+    const support: checkruntime.RangeSupport = checkruntime.rangeBuiltinSupport(typeName, elementType, kind);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
+        return rangeTextInitial(checkruntime.copyRangeTextPlan(plan), typeName, elementType, kind, support);
+    }
+    const lowerText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), false);
+    const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind);
+    if (lower.kind === "Error") {
+        const error: checkruntime.SqlError = lower.value;
+        return { kind: "Error", value: error };
+    }
+    if (lower.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    const upperText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), true);
+    const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind);
+    if (upper.kind === "Error") {
+        const error: checkruntime.SqlError = upper.value;
+        return { kind: "Error", value: error };
+    }
+    if (upper.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    return finishRangeText(plan, typeName, elementType, kind, support, lower, upper);
 }
 export function isempty86tf(input: checkruntime.RangeValue): checkruntime.BoolValue {
     input = checkruntime.copyRangeValue(input);
