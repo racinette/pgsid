@@ -2037,3 +2037,31 @@ CREATE TABLE lane_segment_batches (
   CONSTRAINT segment_batch_catalog_cast CHECK(CASE WHEN bypass THEN true ELSE source_ranges::int4multirange[] IS NOT DISTINCT FROM converted_slots END),
   CONSTRAINT segment_batch_min_slot CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN verify_transforms THEN (array_sort(slots))[array_lower(slots,1)] IS NOT DISTINCT FROM min_slot ELSE NULL END END)
 );
+
+CREATE TABLE lane_publication_documents (
+  slot int4range,
+  segments lane_recorded_segments,
+  slot_batches int4range[],
+  segment_batches lane_recorded_segments[],
+  histories lane_segment_history[],
+  prices nummultirange,
+  calendar_days daterange,
+  instant_windows tstzmultirange,
+  expected_slot jsonb,
+  expected_segments jsonb,
+  expected_batches jsonb,
+  expected_prices jsonb,
+  expected_key jsonb,
+  expected_history jsonb,
+  expected_days jsonb,
+  expected_instants jsonb,
+  bypass boolean,
+  CONSTRAINT publication_slot CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(slot) IS NOT DISTINCT FROM expected_slot END),
+  CONSTRAINT publication_segments CHECK(CASE WHEN bypass THEN true ELSE to_json(segments)::jsonb IS NOT DISTINCT FROM expected_segments END),
+  CONSTRAINT publication_batches CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(slot_batches,segment_batches) IS NOT DISTINCT FROM expected_batches END),
+  CONSTRAINT publication_prices CHECK(CASE WHEN bypass THEN true ELSE json_build_object('prices',prices)::jsonb IS NOT DISTINCT FROM expected_prices END),
+  CONSTRAINT publication_key CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN slot IS NULL THEN expected_key IS NULL ELSE jsonb_build_object(slot,segments) IS NOT DISTINCT FROM expected_key END END),
+  CONSTRAINT publication_history CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories) IS NOT DISTINCT FROM expected_history END),
+  CONSTRAINT publication_days CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(calendar_days) IS NOT DISTINCT FROM expected_days END),
+  CONSTRAINT publication_instants CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(instant_windows) IS NOT DISTINCT FROM expected_instants END)
+);

@@ -5545,3 +5545,52 @@ VALUES('[-2:0]={"[1,3)",empty,NULL}','[-2:0]={"{[1,3)}","{}",NULL}',false);
 -- name: segment_batch_catalog_cast_mismatch
 INSERT INTO lane_segment_batches(source_ranges,converted_slots,bypass)
 VALUES('{"[1,3)"}','{}',false);
+
+-- name: publication_exact_documents
+INSERT INTO lane_publication_documents(slot,segments,slot_batches,segment_batches,histories,prices,calendar_days,instant_windows,expected_slot,expected_segments,expected_batches,expected_prices,expected_key,expected_history,expected_days,expected_instants,bypass)
+VALUES ('[1,5)','{[1,3),[5,9)}','{"[1,5)",NULL}','{"{[1,3),[5,9)}",NULL}','{"{\"{[1,3),[5,9)}\",NULL}"}','{[1.0000,3.00000),[5.00,7.000]}','[-infinity,infinity]','{[-infinity,infinity]}',
+ '"[1,5)"','"{[1,3),[5,9)}"','[["[1,5)",null],["{[1,3),[5,9)}",null]]','{"prices":"{[1.0000,3.00000),[5.00,7.000]}"}','{"[1,5)":"{[1,3),[5,9)}"}','[["{[1,3),[5,9)}",null]]','"[-infinity,infinity]"','"{[-infinity,infinity]}"',false);
+
+-- name: publication_null_documents
+INSERT INTO lane_publication_documents(expected_batches,expected_prices,bypass)
+VALUES('[null,null]','{"prices":null}',false);
+
+-- name: publication_empty_documents
+INSERT INTO lane_publication_documents(slot,segments,slot_batches,segment_batches,histories,prices,calendar_days,instant_windows,expected_slot,expected_segments,expected_batches,expected_prices,expected_key,expected_history,expected_days,expected_instants,bypass)
+VALUES('empty','{}','{}','{}','{}','{}','empty','{}','"empty"','"{}"','[[],[]]','{"prices":"{}"}','{"empty":"{}"}','[]','"empty"','"{}"',false);
+
+-- name: publication_bypassed_documents
+INSERT INTO lane_publication_documents(slot,segments,expected_slot,expected_segments,expected_batches,expected_prices,expected_key,expected_history,expected_days,expected_instants,bypass)
+VALUES('[1,5)','{[1,3)}','false','false','false','false','false','false','false','false',true);
+
+-- name: publication_wrong_slot
+INSERT INTO lane_publication_documents(slot,expected_slot,expected_batches,expected_prices,bypass)
+VALUES('[1,5)','"[1,6)"','[null,null]','{"prices":null}',false);
+
+-- name: publication_wrong_segments
+INSERT INTO lane_publication_documents(segments,expected_segments,expected_batches,expected_prices,bypass)
+VALUES('{[1,3)}','"{[1,4)}"','[null,null]','{"prices":null}',false);
+
+-- name: publication_wrong_batches
+INSERT INTO lane_publication_documents(expected_batches,expected_prices,bypass)
+VALUES('[]','{"prices":null}',false);
+
+-- name: publication_wrong_prices
+INSERT INTO lane_publication_documents(expected_batches,expected_prices,bypass)
+VALUES('[null,null]','{}',false);
+
+-- name: publication_wrong_key
+INSERT INTO lane_publication_documents(expected_batches,expected_prices,expected_key,bypass)
+VALUES('[null,null]','{"prices":null}','{}',false);
+
+-- name: publication_wrong_history
+INSERT INTO lane_publication_documents(expected_batches,expected_prices,expected_history,bypass)
+VALUES('[null,null]','{"prices":null}','[]',false);
+
+-- name: publication_wrong_days
+INSERT INTO lane_publication_documents(calendar_days,expected_batches,expected_prices,expected_days,bypass)
+VALUES('empty','[null,null]','{"prices":null}','"(,)"',false);
+
+-- name: publication_wrong_instants
+INSERT INTO lane_publication_documents(instant_windows,expected_batches,expected_prices,expected_instants,bypass)
+VALUES('{}','[null,null]','{"prices":null}','"{(,)}"',false);
