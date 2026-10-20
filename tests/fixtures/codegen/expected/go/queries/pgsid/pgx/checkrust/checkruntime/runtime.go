@@ -8382,7 +8382,47 @@ type RangeSupport struct {
 	Comparison int
 	Canonical  int
 }
+type RangeTextPayload struct {
+	Empty        bool
+	LowerPresent bool
+	UpperPresent bool
+	Lower        string
+	Upper        string
+	Flags        string
+}
 
+func CopyRangeTextPayload(value RangeTextPayload) RangeTextPayload {
+	return RangeTextPayload{Empty: value.Empty, LowerPresent: value.LowerPresent, UpperPresent: value.UpperPresent, Lower: langruntime.CheckedString(value.Lower), Upper: langruntime.CheckedString(value.Upper), Flags: langruntime.CheckedString(value.Flags)}
+}
+
+type RangeTextPlanKind uint8
+
+const (
+	RangeTextPlanUnknown RangeTextPlanKind = iota
+	RangeTextPlanNull
+	RangeTextPlanError
+	RangeTextPlanValue
+)
+
+type RangeTextPlan struct {
+	Kind  RangeTextPlanKind
+	Error SqlError
+	Value RangeTextPayload
+}
+
+func CopyRangeTextPlan(value RangeTextPlan) RangeTextPlan {
+	switch value.Kind {
+	case RangeTextPlanUnknown:
+		return RangeTextPlan{Kind: RangeTextPlanUnknown}
+	case RangeTextPlanNull:
+		return RangeTextPlan{Kind: RangeTextPlanNull}
+	case RangeTextPlanError:
+		return RangeTextPlan{Kind: RangeTextPlanError, Error: value.Error}
+	case RangeTextPlanValue:
+		return RangeTextPlan{Kind: RangeTextPlanValue, Value: CopyRangeTextPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
 func RangeUnknownSupport() RangeSupport {
 	return RangeSupport{Comparison: 0, Canonical: 0}
 }

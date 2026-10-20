@@ -8531,6 +8531,36 @@ export interface RangeSupport {
     readonly comparison: number;
     readonly canonical: number;
 }
+export interface RangeTextPayload {
+    empty: boolean;
+    lowerPresent: boolean;
+    upperPresent: boolean;
+    lower: string;
+    upper: string;
+    flags: string;
+}
+export function copyRangeTextPayload(value: RangeTextPayload): RangeTextPayload {
+    return { empty: langruntime.checkedBool(value.empty), lowerPresent: langruntime.checkedBool(value.lowerPresent), upperPresent: langruntime.checkedBool(value.upperPresent), lower: langruntime.checkedString(value.lower), upper: langruntime.checkedString(value.upper), flags: langruntime.checkedString(value.flags) };
+}
+export type RangeTextPlan = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: RangeTextPayload;
+};
+export function copyRangeTextPlan(value: RangeTextPlan): RangeTextPlan {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyRangeTextPayload(value.value) };
+    }
+}
 export function rangeUnknownSupport(): RangeSupport {
     return { comparison: 0, canonical: 0 };
 }

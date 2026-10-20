@@ -4,6 +4,24 @@ pub struct RangeSupport {
     pub canonical: i32,
 }
 
+#[derive(Clone)]
+pub struct RangeTextPayload {
+    pub empty: bool,
+    pub lower_present: bool,
+    pub upper_present: bool,
+    pub lower: String,
+    pub upper: String,
+    pub flags: String,
+}
+
+#[derive(Clone)]
+pub enum RangeTextPlan {
+    Unknown,
+    Null,
+    Error(SqlError),
+    Value(RangeTextPayload),
+}
+
 pub fn range_unknown_support() -> RangeSupport {
     RangeSupport {
         comparison: 0,

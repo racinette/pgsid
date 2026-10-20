@@ -23,17 +23,40 @@ fn range_input_bound(input: TextValue, kind: i32) -> ArrayElement {
     ArrayElement::Unknown
 }
 
-pub fn range_from_text(
-    input: TextValue,
-    type_name: &str,
-    element_type: &str,
-    kind: i32,
-) -> RangeValue {
+fn range_text_value(
+    empty: bool,
+    lower: TextValue,
+    upper: TextValue,
+    flags: String,
+) -> RangeTextPlan {
+    let mut lower_present = false;
+    let mut upper_present = false;
+    let mut lower_value = String::new();
+    let mut upper_value = String::new();
+    if let TextValue::Value(value) = lower {
+        lower_present = true;
+        lower_value = value;
+    };
+    if let TextValue::Value(value) = upper {
+        upper_present = true;
+        upper_value = value;
+    };
+    RangeTextPlan::Value(RangeTextPayload {
+        empty,
+        lower_present,
+        upper_present,
+        lower: lower_value,
+        upper: upper_value,
+        flags,
+    })
+}
+
+pub fn prepare_range_text(input: TextValue) -> RangeTextPlan {
     if let TextValue::Error(error) = input {
-        return RangeValue::Error(error);
+        return RangeTextPlan::Error(error);
     };
     if let TextValue::Null = input {
-        return RangeValue::Null;
+        return RangeTextPlan::Null;
     };
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
@@ -52,24 +75,15 @@ pub fn range_from_text(
                 && (chars[position + 3] == 't' || chars[position + 3] == 'T')
                 && (chars[position + 4] == 'y' || chars[position + 4] == 'Y')
             {
-                return range_from_coerced_bounds(
-                    type_name,
-                    element_type,
-                    kind,
-                    true,
-                    false,
-                    false,
-                    ArrayElement::Null,
-                    ArrayElement::Null,
-                );
+                return range_text_value(true, TextValue::Null, TextValue::Null, String::new());
             };
         };
         if position >= end {
-            return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+            return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
         };
         let opening = chars[position];
         if opening != '[' && opening != '(' {
-            return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+            return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
         };
         position += 1;
         let mut lower_text = TextValue::Null;
@@ -77,7 +91,7 @@ pub fn range_from_text(
         let mut bound: usize = 0;
         while bound < 2 {
             if position >= end {
-                return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+                return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
             };
             let first = chars[position];
             let mut value = TextValue::Null;
@@ -87,7 +101,7 @@ pub fn range_from_text(
                 let mut scanning = true;
                 while scanning {
                     if position >= end {
-                        return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+                        return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
                     };
                     let ch = chars[position];
                     if quoted == false && (ch == ',' || ch == ')' || ch == ']') {
@@ -96,7 +110,7 @@ pub fn range_from_text(
                         position += 1;
                         if ch == '\\' {
                             if position >= end {
-                                return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+                                return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
                             };
                             content.push(chars[position]);
                             position += 1;
@@ -117,7 +131,7 @@ pub fn range_from_text(
             if bound == 0 {
                 lower_text = value;
                 if chars[position] != ',' {
-                    return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
+                    return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
                 };
                 position += 1;
             } else {
@@ -127,33 +141,139 @@ pub fn range_from_text(
         }
         let closing = chars[position];
         if (closing != ')' && closing != ']') || position + 1 != end {
-            return RangeValue::Error(make_sql_error(RANGE_INPUT_SYNTAX));
-        };
-        let lower = range_input_bound(lower_text, kind);
-        if let ArrayElement::Error(error) = lower {
-            return RangeValue::Error(error);
-        };
-        if let ArrayElement::Unknown = lower {
-            return RangeValue::Unknown;
-        };
-        let upper = range_input_bound(upper_text, kind);
-        if let ArrayElement::Error(error) = upper {
-            return RangeValue::Error(error);
-        };
-        if let ArrayElement::Unknown = upper {
-            return RangeValue::Unknown;
+            return RangeTextPlan::Error(make_sql_error(RANGE_INPUT_SYNTAX));
         };
         let mut flags = String::new();
         flags.push(opening);
         flags.push(closing);
-        return range_builtin_construct(
+        return range_text_value(false, lower_text, upper_text, flags);
+    };
+    RangeTextPlan::Unknown
+}
+
+pub fn range_text_state(plan: RangeTextPlan) -> BoolValue {
+    if let RangeTextPlan::Error(error) = plan {
+        return BoolValue::Error(error);
+    };
+    if let RangeTextPlan::Null = plan {
+        return BoolValue::Null;
+    };
+    if let RangeTextPlan::Value(payload) = plan {
+        return BoolValue::Value(payload.empty);
+    };
+    BoolValue::Unknown
+}
+
+pub fn range_text_needs_bounds(plan: RangeTextPlan) -> bool {
+    range_text_state(plan.clone()) == BoolValue::Value(false)
+}
+
+pub fn range_text_bound(plan: RangeTextPlan, upper: bool) -> TextValue {
+    if let RangeTextPlan::Value(payload) = plan {
+        if upper {
+            if payload.upper_present {
+                return TextValue::Value(payload.upper.clone());
+            };
+        } else {
+            if payload.lower_present {
+                return TextValue::Value(payload.lower.clone());
+            };
+        };
+    };
+    TextValue::Null
+}
+
+pub fn range_text_flags(plan: RangeTextPlan) -> TextValue {
+    if let RangeTextPlan::Value(payload) = plan {
+        if payload.empty == false {
+            return TextValue::Value(payload.flags.clone());
+        };
+    };
+    TextValue::Null
+}
+
+pub fn range_text_bound_present(plan: RangeTextPlan, upper: bool) -> bool {
+    if range_text_needs_bounds(plan.clone()) {
+        let value = range_text_bound(plan, upper);
+        if let TextValue::Value(_) = value {
+            return true;
+        };
+    };
+    false
+}
+
+pub fn range_text_initial(
+    plan: RangeTextPlan,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    support: RangeSupport,
+) -> RangeValue {
+    let state = range_text_state(plan.clone());
+    if let BoolValue::Error(error) = state {
+        return RangeValue::Error(error);
+    };
+    if let BoolValue::Null = state {
+        return RangeValue::Null;
+    };
+    if state == BoolValue::Value(true) {
+        return range_from_profiled_bounds(
             type_name,
             element_type,
             kind,
-            lower,
-            upper,
-            make_text_value(flags.as_str()),
+            true,
+            false,
+            false,
+            ArrayElement::Null,
+            ArrayElement::Null,
+            support,
         );
     };
     RangeValue::Unknown
+}
+
+pub fn finish_range_text(
+    plan: RangeTextPlan,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    support: RangeSupport,
+    lower: ArrayElement,
+    upper: ArrayElement,
+) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        return range_text_initial(plan.clone(), type_name, element_type, kind, support);
+    };
+    let flags = range_text_flags(plan.clone());
+    range_construct_with_support(type_name, element_type, kind, lower, upper, flags, support)
+}
+
+pub fn range_from_text(
+    input: TextValue,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+) -> RangeValue {
+    let plan = prepare_range_text(input);
+    let support = range_builtin_support(type_name, element_type, kind);
+    if range_text_needs_bounds(plan.clone()) == false {
+        return range_text_initial(plan.clone(), type_name, element_type, kind, support);
+    };
+    let lower_text = range_text_bound(plan.clone(), false);
+    let lower = range_input_bound(lower_text, kind);
+    if let ArrayElement::Error(error) = lower {
+        return RangeValue::Error(error);
+    };
+    if let ArrayElement::Unknown = lower {
+        return RangeValue::Unknown;
+    };
+    let upper_text = range_text_bound(plan.clone(), true);
+    let upper = range_input_bound(upper_text, kind);
+    if let ArrayElement::Error(error) = upper {
+        return RangeValue::Error(error);
+    };
+    if let ArrayElement::Unknown = upper {
+        return RangeValue::Unknown;
+    };
+    finish_range_text(plan, type_name, element_type, kind, support, lower, upper)
 }

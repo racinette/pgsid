@@ -32732,16 +32732,31 @@ func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayE
 	}
 	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
 }
-func RangeFromText(input checkruntime.TextValue, typeName string, elementType string, kind int) checkruntime.RangeValue {
-	typeName = langruntime.CheckedString(typeName)
-	elementType = langruntime.CheckedString(elementType)
-	kind = langruntime.CheckedI32(kind)
+func rangeTextValue(empty bool, lower checkruntime.TextValue, upper checkruntime.TextValue, flags string) checkruntime.RangeTextPlan {
+	flags = langruntime.CheckedString(flags)
+	lowerPresent := false
+	upperPresent := false
+	lowerValue := langruntime.NewTextBuffer("")
+	upperValue := langruntime.NewTextBuffer("")
+	if lower.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(lower.Value)
+		lowerPresent = true
+		lowerValue = langruntime.NewTextBuffer(value)
+	}
+	if upper.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(upper.Value)
+		upperPresent = true
+		upperValue = langruntime.NewTextBuffer(value)
+	}
+	return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanValue, Value: checkruntime.RangeTextPayload{Empty: empty, LowerPresent: lowerPresent, UpperPresent: upperPresent, Lower: string(lowerValue), Upper: string(upperValue), Flags: flags}}
+}
+func PrepareRangeText(input checkruntime.TextValue) checkruntime.RangeTextPlan {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
-		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+		return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: error}
 	}
 	if input.Kind == checkruntime.TextValueNull {
-		return checkruntime.RangeValue{Kind: checkruntime.RangeValueNull}
+		return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanNull}
 	}
 	if input.Kind == checkruntime.TextValueValue {
 		text := langruntime.CheckedString(input.Value)
@@ -32756,15 +32771,15 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 		}
 		if langruntime.CheckedSubtract(end, position) == 5 {
 			if (chars[position] == 'e' || chars[position] == 'E') && (chars[langruntime.CheckedAdd(position, 1)] == 'm' || chars[langruntime.CheckedAdd(position, 1)] == 'M') && (chars[langruntime.CheckedAdd(position, 2)] == 'p' || chars[langruntime.CheckedAdd(position, 2)] == 'P') && (chars[langruntime.CheckedAdd(position, 3)] == 't' || chars[langruntime.CheckedAdd(position, 3)] == 'T') && (chars[langruntime.CheckedAdd(position, 4)] == 'y' || chars[langruntime.CheckedAdd(position, 4)] == 'Y') {
-				return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+				return rangeTextValue(true, checkruntime.TextValue{Kind: checkruntime.TextValueNull}, checkruntime.TextValue{Kind: checkruntime.TextValueNull}, "")
 			}
 		}
 		if position >= end {
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+			return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 		}
 		opening := chars[position]
 		if opening != '[' && opening != '(' {
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+			return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 		}
 		position = langruntime.CheckedAdd(position, 1)
 		lowerText := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
@@ -32772,7 +32787,7 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 		bound := 0
 		for bound < 2 {
 			if position >= end {
-				return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+				return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 			}
 			first := chars[position]
 			value := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
@@ -32782,7 +32797,7 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 				scanning := true
 				for scanning {
 					if position >= end {
-						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+						return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 					}
 					ch := chars[position]
 					if quoted == false && (ch == ',' || ch == ')' || ch == ']') {
@@ -32791,7 +32806,7 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 						position = langruntime.CheckedAdd(position, 1)
 						if ch == '\\' {
 							if position >= end {
-								return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+								return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 							}
 							content = append(content, string(langruntime.CheckedChar(chars[position]))...)
 							position = langruntime.CheckedAdd(position, 1)
@@ -32812,7 +32827,7 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 			if bound == 0 {
 				lowerText = value
 				if chars[position] != ',' {
-					return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+					return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 				}
 				position = langruntime.CheckedAdd(position, 1)
 			} else {
@@ -32822,30 +32837,127 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 		}
 		closing := chars[position]
 		if (closing != ')' && closing != ']') || langruntime.CheckedAdd(position, 1) != end {
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
-		}
-		lower := rangeInputBound(lowerText, kind)
-		if lower.Kind == checkruntime.ArrayElementError {
-			error := lower.Error
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
-		}
-		if lower.Kind == checkruntime.ArrayElementUnknown {
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
-		}
-		upper := rangeInputBound(upperText, kind)
-		if upper.Kind == checkruntime.ArrayElementError {
-			error := upper.Error
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
-		}
-		if upper.Kind == checkruntime.ArrayElementUnknown {
-			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+			return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 		}
 		flags := langruntime.NewTextBuffer("")
 		flags = append(flags, string(langruntime.CheckedChar(opening))...)
 		flags = append(flags, string(langruntime.CheckedChar(closing))...)
-		return rangeBuiltinConstruct(typeName, elementType, kind, lower, upper, checkruntime.MakeTextValue(string(flags)))
+		return rangeTextValue(false, lowerText, upperText, string(flags))
+	}
+	return checkruntime.RangeTextPlan{Kind: checkruntime.RangeTextPlanUnknown}
+}
+func RangeTextState(plan checkruntime.RangeTextPlan) checkruntime.BoolValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	if plan.Kind == checkruntime.RangeTextPlanError {
+		error := plan.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if plan.Kind == checkruntime.RangeTextPlanNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if plan.Kind == checkruntime.RangeTextPlanValue {
+		payload := checkruntime.CopyRangeTextPayload(plan.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: payload.Empty}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func RangeTextNeedsBounds(plan checkruntime.RangeTextPlan) bool {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	return RangeTextState(checkruntime.CopyRangeTextPlan(plan)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false})
+}
+func RangeTextBound(plan checkruntime.RangeTextPlan, upper bool) checkruntime.TextValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	if plan.Kind == checkruntime.RangeTextPlanValue {
+		payload := checkruntime.CopyRangeTextPayload(plan.Value)
+		if upper {
+			if payload.UpperPresent {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(payload.Upper)}
+			}
+		} else if payload.LowerPresent {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(payload.Lower)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+}
+func RangeTextFlags(plan checkruntime.RangeTextPlan) checkruntime.TextValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	if plan.Kind == checkruntime.RangeTextPlanValue {
+		payload := checkruntime.CopyRangeTextPayload(plan.Value)
+		if payload.Empty == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(payload.Flags)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+}
+func RangeTextBoundPresent(plan checkruntime.RangeTextPlan, upper bool) bool {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) {
+		value := RangeTextBound(plan, upper)
+		if value.Kind == checkruntime.TextValueValue {
+			return true
+		}
+	}
+	return false
+}
+func RangeTextInitial(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	state := RangeTextState(checkruntime.CopyRangeTextPlan(plan))
+	if state.Kind == checkruntime.BoolValueError {
+		error := state.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if state.Kind == checkruntime.BoolValueNull {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueNull}
+	}
+	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.RangeFromProfiledBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, support)
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func FinishRangeText(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
+		return RangeTextInitial(checkruntime.CopyRangeTextPlan(plan), typeName, elementType, kind, support)
+	}
+	flags := RangeTextFlags(checkruntime.CopyRangeTextPlan(plan))
+	return RangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support)
+}
+func RangeFromText(input checkruntime.TextValue, typeName string, elementType string, kind int) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	plan := PrepareRangeText(input)
+	support := checkruntime.RangeBuiltinSupport(typeName, elementType, kind)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
+		return RangeTextInitial(checkruntime.CopyRangeTextPlan(plan), typeName, elementType, kind, support)
+	}
+	lowerText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), false)
+	lower := rangeInputBound(lowerText, kind)
+	if lower.Kind == checkruntime.ArrayElementError {
+		error := lower.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if lower.Kind == checkruntime.ArrayElementUnknown {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+	}
+	upperText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), true)
+	upper := rangeInputBound(upperText, kind)
+	if upper.Kind == checkruntime.ArrayElementError {
+		error := upper.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if upper.Kind == checkruntime.ArrayElementUnknown {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+	}
+	return FinishRangeText(plan, typeName, elementType, kind, support, lower, upper)
 }
 func Isempty86tf(input checkruntime.RangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyRangeValue(input)
