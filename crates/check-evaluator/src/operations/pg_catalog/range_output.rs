@@ -109,6 +109,9 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
     if let ArrayElement::Null = input {
         return TextValue::Null;
     };
+    if kind == 12 {
+        return jsonb_to_text(array_element_to_jsonb(input));
+    };
     if kind == 2 {
         return int4_to_text(array_element_to_int4(input));
     };
