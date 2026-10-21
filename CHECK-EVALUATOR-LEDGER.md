@@ -140,8 +140,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic, core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog literals, and explicit IntervalStyle requirements.
 - [x] Establish compact interval grammar, clock precision and scalar time constructors.
-- [x] Establish interval scaling, calendar arithmetic, precision-aware literals,
-      and clock input/output.
+- [x] Establish interval scaling, calendar arithmetic, precision-aware literals, and clock input/output.
 - [x] Establish temporal field extraction, hashes, interval truncation, timestamp binning, and local calendar age.
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone
@@ -258,6 +257,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit SQL-coerced scalar range/multirange rows through captured profiles, constructors, comparisons/sets, checked whole-value domains and recursive arrays. Validate scalar bound payloads before copying, preserve compiled support over caller metadata, exact bits/units, NULL/Unknown/errors, snapshots and reached formatting requirements; verify independent public adapters and native/Rust/Go/TypeScript INSERT parity.
 - [x] Recover stored money range/multirange bounds and recursive domain-array literals with shared Rust text grammar and exact captured units; preserve stored NULL tokens and avoid replaying domain checks or range callbacks. Verify native/Rust/Go/TypeScript INSERT parity and retain monetary-context requirements for runtime text casts.
 - [x] Verify admitted scalar range/multirange text casts, source/stored literals and array input through subtype domains, bit widths and clock/interval precision. Preserve exact wire values, omitted bounds, ordered errors, eager preparation, lazy input and partial states; retain reached monetary, timezone and platform input requirements with native/Rust/Go/TypeScript INSERT parity.
+- [x] Reproduce missing subtype hash support errors for ranges, multiranges and recursive/domain arrays, including empty and all-NULL collections. Preserve strict seeds, partial bounds, input errors, constant preparation and lazy branches; verify native/Rust/Go/TypeScript INSERT parity without deployment OIDs.
 - [ ] Audit scalar range/multirange output, wire, hash and JSON conversion boundaries, then additional subtype backends; retain unavailable callback and execution-context requirements separately.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

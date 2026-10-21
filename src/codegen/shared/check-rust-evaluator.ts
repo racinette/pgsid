@@ -2097,6 +2097,20 @@ export function emitCheckRustEvaluator(
           )
         const extended = implementation.args.length === 2
         const width = extended ? '64' : '32'
+        if (
+          !multirangeBinarySend &&
+          (extended ? multirangeProfile.subtypeHashExtended : multirangeProfile.subtypeHash) ===
+            null
+        ) {
+          const state = bindMultirange(`multirange_is_null(${ownedOperand(operands[0]!)})`)
+          const seed = extended
+            ? ownedOperand(operands[1]!)
+            : bindMultirange('make_int8_value(0i64)')
+          return {
+            name: bindMultirange(`range_hash_missing${width}(${state},${seed})`),
+            type: call.type,
+          }
+        }
         const memberSupport = builtinTypeComparison('pg_catalog.int4range')
         const memberSignature = multirangeBinarySend
           ? multirangeProfile.send
@@ -2212,6 +2226,14 @@ export function emitCheckRustEvaluator(
           : extended
             ? range.subtypeHashExtended
             : range.subtypeHash
+        if (!rangeBinarySend && signature === null) {
+          const state = bindRange(`range_is_null(${ownedOperand(input)})`)
+          const seed = extended ? ownedOperand(operands[1]!) : bindRange('make_int8_value(0i64)')
+          return {
+            name: bindRange(`range_hash_missing${extended ? '64' : '32'}(${state},${seed})`),
+            type: call.type,
+          }
+        }
         const scalar = signature
           ? builtinCallables().find((item) => callableIdentity(item) === signature)
           : null
@@ -2374,6 +2396,8 @@ export function emitCheckRustEvaluator(
           ? builtinCallables().find((item) => callableIdentity(item) === nativeHash)
           : null
         const nativeContext = nativeMetadata ? nativeHashContext(nativeMetadata) : null
+        const missingRangeHash =
+          leafRange && (extended ? leafRange.subtypeHashExtended : leafRange.subtypeHash) === null
         const orders =
           hashByteOrder !== undefined
             ? [hashByteOrder]
@@ -2394,7 +2418,7 @@ export function emitCheckRustEvaluator(
           start = fresh('array_hash_start')
         const results = orders.map(() => fresh('array_hash_result'))
         destination.push(
-          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null});`,
+          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null && !missingRangeHash});`,
           `let ${initial} = ${extended ? 'array_hash_initial64' : 'array_comparison_initial'}(&${payload});`,
           `let ${start} = make_int4_value(0);`,
           `let mut ${index}: Int4Value = ${start};`,

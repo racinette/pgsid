@@ -6945,3 +6945,107 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: audit_import_skipped
 INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
 VALUES('bad','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',true);
+
+-- name: range_price_hash_null
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES(NULL,0,NULL,false,false);
+
+-- name: range_price_hash_empty
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('empty',0,NULL,false,false);
+
+-- name: range_price_hash_unbounded
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('(,)',0,NULL,false,false);
+
+-- name: range_price_hash_finite
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('[0,1]',0,NULL,false,false);
+
+-- name: range_price_hash_null_seed
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('empty',NULL,NULL,true,false);
+
+-- name: range_price_hash_seeded
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('(,)',-1,NULL,true,false);
+
+-- name: range_price_hash_skipped
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES('[0,1]',-1,NULL,true,true);
+
+-- name: range_price_hash_mismatch
+INSERT INTO lane_price_digests (price_window, hash_seed, expected_hash, seeded, bypass)
+VALUES(NULL,0,0,false,false);
+
+-- name: segment_price_hash_null
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES(NULL,0,NULL,false,false);
+
+-- name: segment_price_hash_empty
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{}',0,NULL,false,false);
+
+-- name: segment_price_hash_unbounded
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{(,)}',0,NULL,false,false);
+
+-- name: segment_price_hash_finite
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{[0,1]}',0,NULL,false,false);
+
+-- name: segment_price_hash_null_seed
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{}',NULL,NULL,true,false);
+
+-- name: segment_price_hash_seeded
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{(,)}',-1,NULL,true,false);
+
+-- name: segment_price_hash_skipped
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES('{[0,1]}',-1,NULL,true,true);
+
+-- name: segment_price_hash_mismatch
+INSERT INTO lane_price_segment_digests (price_segments, hash_seed, expected_hash, seeded, bypass)
+VALUES(NULL,0,0,false,false);
+
+-- name: history_price_hash_null
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES(NULL,0,NULL,false,false,false);
+
+-- name: history_price_hash_empty
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{}',0,NULL,false,false,false);
+
+-- name: history_price_hash_null_cell
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{NULL}',0,NULL,false,false,false);
+
+-- name: history_price_hash_empty_cell
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{empty}',0,NULL,false,false,false);
+
+-- name: history_price_hash_null_seed
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{}',NULL,NULL,true,false,false);
+
+-- name: history_price_hash_nested_null_seed
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES(NULL,NULL,NULL,true,true,false);
+
+-- name: history_price_hash_nested_null
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES(NULL,0,NULL,false,true,false);
+
+-- name: history_price_hash_nested_seeded
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{NULL}',-1,NULL,true,true,false);
+
+-- name: history_price_hash_skipped
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES('{}',0,NULL,false,true,true);
+
+-- name: history_price_hash_mismatch
+INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
+VALUES(NULL,0,0,false,false,false);
