@@ -536,8 +536,8 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
         return false;
     };
     if kind == 12 {
-        let a = jsonb_to_text(array_element_to_jsonb(left));
-        let b = jsonb_to_text(array_element_to_jsonb(right));
+        let a = jsonb_to_ordered_text(array_element_to_jsonb(left));
+        let b = jsonb_to_ordered_text(array_element_to_jsonb(right));
         if let TextValue::Value(first) = a {
             if let TextValue::Value(second) = b {
                 return first == second;

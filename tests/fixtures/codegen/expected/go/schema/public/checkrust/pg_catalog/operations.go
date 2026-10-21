@@ -2317,8 +2317,8 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 		return false
 	}
 	if kind == 12 {
-		a := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(left))
-		b := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(right))
+		a := checkruntime.JsonbToOrderedText(checkruntime.ArrayElementToJsonb(left))
+		b := checkruntime.JsonbToOrderedText(checkruntime.ArrayElementToJsonb(right))
 		if a.Kind == checkruntime.TextValueValue {
 			first := langruntime.CheckedString(a.Value)
 			if b.Kind == checkruntime.TextValueValue {
