@@ -13,15 +13,17 @@ import type {
   CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
 import { readRangeBoundCell, rangeBoundProjection } from './check-range-fixtures.js'
+import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 
-export async function readCompositeFixture(
+async function readCompositeCellFixture(
   pg: PGlite,
   select: string,
   name: string,
   type: string,
-): Promise<CompositeInputPayload | null> {
+  array = false,
+): Promise<CompositeInputCell> {
   const profile = compositeProfile(type)
   if (!profile) throw new Error('Missing captured composite profile')
   const read = async (
@@ -92,8 +94,33 @@ export async function readCompositeFixture(
     ).rows[0]!.value
     return readRangeBoundCell(pg, logical, value, identity)
   }
-  const result = await read(profile.identity, select, quote(name))
+  const identity = array
+    ? profile.graph.definitions.find((n) => n.identity === profile.identity)?.array
+    : profile.identity
+  if (!identity) throw new Error('Missing captured composite array identity')
+  return read(identity, select, quote(name))
+}
+
+export async function readCompositeFixture(
+  pg: PGlite,
+  select: string,
+  name: string,
+  type: string,
+): Promise<CompositeInputPayload | null> {
+  const result = await readCompositeCellFixture(pg, select, name, type)
   if (result.kind === 'Null') return null
   if (result.kind !== 'Composite') throw new Error('Expected composite fixture root')
+  return result.value
+}
+
+export async function readCompositeArrayFixture(
+  pg: PGlite,
+  select: string,
+  name: string,
+  elementType: string,
+): Promise<OwnedArrayInputPayload | null> {
+  const result = await readCompositeCellFixture(pg, select, name, elementType, true)
+  if (result.kind === 'Null') return null
+  if (result.kind !== 'Array') throw new Error('Expected composite array fixture root')
   return result.value
 }

@@ -1,6 +1,12 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import {
+  compositeRustInput,
+  compositeGoCell,
+  compositeTypescriptInput,
+  type CompositeInputPayload,
+} from './composite-input.js'
+import {
   arrayGoInput,
   arrayRustInput,
   arrayTypescriptInput,
@@ -28,6 +34,7 @@ export type RangeJsonbPayload = {
 }
 
 export type RangeInputCell =
+  | { kind: 'Composite'; value: CompositeInputPayload }
   | { kind: 'Range'; value: RangeInputPayload }
   | { kind: 'Multirange'; value: MultirangeInputPayload }
   | { kind: 'Array'; value: OwnedArrayInputPayload }
@@ -100,6 +107,8 @@ const cellRecords = {
 } as const
 
 export function rangeRustCell(cell: RangeInputCell): string {
+  if (cell.kind === 'Composite')
+    return `array_element_from_composite(${compositeRustInput(cell.value)})`
   if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
   if (cell.kind === 'Multirange')
     return `array_element_from_multirange(${multirangeRustInput(cell.value)})`
@@ -135,6 +144,7 @@ export function rangeRustCell(cell: RangeInputCell): string {
 }
 
 export function rangeGoCell(cell: RangeInputCell): GoExpression {
+  if (cell.kind === 'Composite') return compositeGoCell(cell)
   const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
   if (cell.kind === 'Range')
     return go.call(runtime('ArrayElementFromRange'), [rangeGoInput(cell.value)])
@@ -306,13 +316,15 @@ export function rangeTypescriptInput(payload: RangeInputPayload, runtime: RangeS
   return {
     ...payload,
     bounds: payload.bounds.map((cell): RangeInputCell =>
-      cell.kind === 'Range'
-        ? { kind: 'Range', value: rangeTypescriptInput(cell.value, runtime) }
-        : cell.kind === 'Multirange'
-          ? { kind: 'Multirange', value: multirangeTypescriptInput(cell.value, runtime) }
-          : cell.kind === 'Array'
-            ? { kind: 'Array', value: arrayTypescriptInput(cell.value, runtime) }
-            : cell,
+      cell.kind === 'Composite'
+        ? { kind: 'Composite', value: compositeTypescriptInput(cell.value, runtime) }
+        : cell.kind === 'Range'
+          ? { kind: 'Range', value: rangeTypescriptInput(cell.value, runtime) }
+          : cell.kind === 'Multirange'
+            ? { kind: 'Multirange', value: multirangeTypescriptInput(cell.value, runtime) }
+            : cell.kind === 'Array'
+              ? { kind: 'Array', value: arrayTypescriptInput(cell.value, runtime) }
+              : cell,
     ),
     enumLabels: payload.enumLabels ?? '',
     enumCount: payload.enumCount ?? -1,

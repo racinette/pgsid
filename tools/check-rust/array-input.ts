@@ -1,6 +1,12 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import {
+  compositeRustInput,
+  compositeGoCell,
+  compositeTypescriptInput,
+  type CompositeInputPayload,
+} from './composite-input.js'
+import {
   multirangeGoInput,
   multirangeRustInput,
   multirangeTypescriptInput,
@@ -19,6 +25,7 @@ import {
 
 export type OwnedArrayInputCell =
   | RangeInputCell
+  | { kind: 'Composite'; value: CompositeInputPayload }
   | { kind: 'Text'; value: string }
   | { kind: 'Range'; value: RangeInputPayload }
   | { kind: 'Multirange'; value: MultirangeInputPayload }
@@ -34,6 +41,8 @@ export type OwnedArrayInputPayload = {
 
 export function arrayRustInput(payload: OwnedArrayInputPayload): string {
   const elements = payload.elements.map((cell) => {
+    if (cell.kind === 'Composite')
+      return `array_element_from_composite(${compositeRustInput(cell.value)})`
     if (cell.kind === 'Multirange')
       return `array_element_from_multirange(${multirangeRustInput(cell.value)})`
     if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
@@ -70,6 +79,7 @@ export function arrayGoInput(payload: OwnedArrayInputPayload): GoExpression {
         go.composite(
           go.slice(runtime('ArrayElement')),
           payload.elements.map((cell) => {
+            if (cell.kind === 'Composite') return compositeGoCell(cell)
             if (cell.kind === 'Multirange')
               return go.call(runtime('ArrayElementFromMultirange'), [multirangeGoInput(cell.value)])
             if (cell.kind === 'Range')
@@ -100,6 +110,8 @@ export function arrayTypescriptInput(
   return {
     ...payload,
     elements: payload.elements.map((cell) => {
+      if (cell.kind === 'Composite')
+        return { kind: cell.kind, value: compositeTypescriptInput(cell.value, runtime) }
       if (cell.kind === 'Range')
         return { kind: cell.kind, value: rangeTypescriptInput(cell.value, runtime) }
       if (cell.kind === 'Multirange')

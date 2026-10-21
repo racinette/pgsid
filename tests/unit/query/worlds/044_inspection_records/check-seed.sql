@@ -1,6 +1,39 @@
 -- name: InspectionPresent
 INSERT INTO inspection_reports(packet,backup,expected_null,expected_present,use_primary,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, false, true, true, false);
 
+-- name: BatchSameReadings
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 1, true, 0, false);
+-- name: BatchLaterScore
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(1,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 1, false, 1, false);
+-- name: BatchNullElement
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[NULL::draft_reading], ARRAY[NULL::draft_reading], '{NULL}', '{NULL}', 1, true, 0, false);
+-- name: BatchNullFields
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(NULL,NULL)::draft_reading], ARRAY[ROW(NULL,NULL)::draft_reading], '{"(,)"}', '{"(,)"}', 1, true, 0, false);
+-- name: BatchEmpty
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[]::draft_reading[], ARRAY[]::draft_reading[], '{}', '{}', 0, true, 0, false);
+-- name: BatchNullDatum
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: BatchLowerBounds
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES ('[-1:0]={"(1,abc)",NULL}'::draft_reading[], '[-1:0]={"(1,abc)",NULL}'::draft_reading[], '[-1:0]={"(1,abc)",NULL}', '[-1:0]={"(1,abc)",NULL}', 2, true, 0, false);
+-- name: BatchMultidimensional
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ARRAY[ROW(1,'abc')::draft_reading],ARRAY[ROW(2,'def')::draft_reading]], ARRAY[ARRAY[ROW(1,'abc')::draft_reading],ARRAY[ROW(2,'def')::draft_reading]], '{{"(1,abc)"},{"(2,def)"}}', '{{"(1,abc)"},{"(2,def)"}}', 2, true, 0, false);
+-- name: BatchWrongCount
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 2, true, 0, false);
+-- name: BatchWrongEquality
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 1, false, 0, false);
+-- name: BatchWrongOrder
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 1, true, 1, false);
+-- name: BatchNegativeScore
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(-1,'abc')::draft_reading], ARRAY[ROW(-1,'abc')::draft_reading], '{"(-1,abc)"}', '{"(-1,abc)"}', 1, true, 0, false);
+-- name: BatchWrongOutput
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,def)"}', 1, true, 0, false);
+-- name: BatchWrongInput
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(1,abc)"}', '{"(2,abc)"}', 1, true, 0, false);
+-- name: BatchInputError
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(oops,abc)"}', '{"(2,abc)"}', 1, true, 0, false);
+-- name: BatchBypassed
+INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(-1,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], 'not an array', 'wrong', 5, true, 1, true);
+
 -- name: ComparedSameReading
 INSERT INTO inspection_comparisons(current_reading,previous_reading,expected_order,expected_equal,expected_distinct,expected_retained,expected_greatest_current,bypass) VALUES (ROW(2,'ok','[1,3)'::int4range)::inspection_reading, ROW(2,'ok','[1,3)'::int4range)::inspection_reading, 0, true, false, false, true, false);
 -- name: ComparedEarlierScore

@@ -1,5 +1,6 @@
 import {
   compositeGoInput,
+  compositeGoCell,
   type CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
 import {
@@ -24,6 +25,7 @@ type ArrayFixturePayload = {
     | { kind: 'Range'; value: RangeInputPayload }
     | { kind: 'Multirange'; value: MultirangeInputPayload }
     | { kind: 'Array'; value: ArrayFixturePayload }
+    | { kind: 'Composite'; value: CompositeInputPayload }
   )[]
 }
 
@@ -200,45 +202,47 @@ export function renderGoCheckTests(
               go.composite(
                 go.slice(runtime('ArrayElement')),
                 payload.elements.map((element) =>
-                  element.kind === 'Array'
-                    ? go.composite(runtime('ArrayElement'), [
-                        go.keyValue('Kind', runtime('ArrayElementArray')),
-                        go.keyValue('Array', renderPayload(element.value)),
-                      ])
-                    : element.kind === 'Multirange'
-                      ? go.call(runtime('ArrayElementFromMultirange'), [
-                          multirangeGoInput(element.value),
+                  element.kind === 'Composite'
+                    ? compositeGoCell(element)
+                    : element.kind === 'Array'
+                      ? go.composite(runtime('ArrayElement'), [
+                          go.keyValue('Kind', runtime('ArrayElementArray')),
+                          go.keyValue('Array', renderPayload(element.value)),
                         ])
-                      : element.kind === 'Range'
-                        ? go.call(runtime('ArrayElementFromRange'), [rangeGoInput(element.value)])
-                        : element.kind === 'Enum'
-                          ? go.call(runtime('ArrayElementFromEnum'), [
-                              go.call(runtime('MakeEnumValue'), [go.number(element.value)]),
-                            ])
-                          : element.kind === 'Json'
-                            ? go.call(runtime('ArrayElementFromJson'), [
-                                go.call(runtime('MakeJsonValue'), [go.string(element.value)]),
+                      : element.kind === 'Multirange'
+                        ? go.call(runtime('ArrayElementFromMultirange'), [
+                            multirangeGoInput(element.value),
+                          ])
+                        : element.kind === 'Range'
+                          ? go.call(runtime('ArrayElementFromRange'), [rangeGoInput(element.value)])
+                          : element.kind === 'Enum'
+                            ? go.call(runtime('ArrayElementFromEnum'), [
+                                go.call(runtime('MakeEnumValue'), [go.number(element.value)]),
                               ])
-                            : element.kind === 'Jsonb'
-                              ? go.call(runtime('ArrayElementFromJsonb'), [
-                                  go.call(runtime('MakeJsonbValue'), [go.string(element.value)]),
+                            : element.kind === 'Json'
+                              ? go.call(runtime('ArrayElementFromJson'), [
+                                  go.call(runtime('MakeJsonValue'), [go.string(element.value)]),
                                 ])
-                              : go.composite(runtime('ArrayElement'), [
-                                  go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
-                                  ...(element.kind === 'Null'
-                                    ? []
-                                    : [
-                                        go.keyValue(
-                                          element.kind,
-                                          typeof element.value === 'number' ||
-                                            typeof element.value === 'bigint'
-                                            ? go.number(element.value)
-                                            : typeof element.value === 'boolean'
-                                              ? go.ident(String(element.value))
-                                              : go.string(element.value),
-                                        ),
-                                      ]),
-                                ]),
+                              : element.kind === 'Jsonb'
+                                ? go.call(runtime('ArrayElementFromJsonb'), [
+                                    go.call(runtime('MakeJsonbValue'), [go.string(element.value)]),
+                                  ])
+                                : go.composite(runtime('ArrayElement'), [
+                                    go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
+                                    ...(element.kind === 'Null'
+                                      ? []
+                                      : [
+                                          go.keyValue(
+                                            element.kind,
+                                            typeof element.value === 'number' ||
+                                              typeof element.value === 'bigint'
+                                              ? go.number(element.value)
+                                              : typeof element.value === 'boolean'
+                                                ? go.ident(String(element.value))
+                                                : go.string(element.value),
+                                          ),
+                                        ]),
+                                  ]),
                 ),
               ),
             ),

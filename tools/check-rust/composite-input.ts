@@ -1,5 +1,9 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rangeGoCell, type RangeInputCell } from './range-input.js'
+import { rangeRustCell, rangeTypescriptInput, type RangeSupportFactory } from './range-input.js'
+import { multirangeTypescriptInput } from './multirange-input.js'
+import { arrayRustInput, arrayTypescriptInput } from './array-input.js'
+import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 
 export type CompositeInputCell =
   | RangeInputCell
@@ -18,6 +22,36 @@ export type CompositeInputCell =
 export interface CompositeInputPayload {
   typeName: string
   fields: CompositeInputCell[]
+}
+
+export function compositeRustInput(payload: CompositeInputPayload): string {
+  const cell = (value: CompositeInputCell): string =>
+    value.kind === 'Composite'
+      ? `array_element_from_composite(${compositeRustInput(value.value)})`
+      : value.kind === 'Array'
+        ? `array_element_from_array(${arrayRustInput(value.value)})`
+        : rangeRustCell(value)
+  return `make_composite_value(CompositePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),fields:vec![${payload.fields.map(cell).join(',')}]})`
+}
+
+export function compositeTypescriptInput(
+  payload: CompositeInputPayload,
+  runtime: RangeSupportFactory,
+): CompositeInputPayload {
+  return {
+    ...payload,
+    fields: payload.fields.map((value) => {
+      if (value.kind === 'Composite')
+        return { kind: value.kind, value: compositeTypescriptInput(value.value, runtime) }
+      if (value.kind === 'Array')
+        return { kind: value.kind, value: arrayTypescriptInput(value.value, runtime) }
+      if (value.kind === 'Range')
+        return { kind: value.kind, value: rangeTypescriptInput(value.value, runtime) }
+      if (value.kind === 'Multirange')
+        return { kind: value.kind, value: multirangeTypescriptInput(value.value, runtime) }
+      return value
+    }),
+  }
 }
 
 const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)

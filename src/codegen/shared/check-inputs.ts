@@ -253,6 +253,8 @@ export function planCheckInputs(
         catalog?.domains ?? [],
         catalog?.enums ?? [],
         catalog?.rangeTypes ?? [],
+        undefined,
+        catalog?.compositeTypeGraph,
       )
     )
       return []

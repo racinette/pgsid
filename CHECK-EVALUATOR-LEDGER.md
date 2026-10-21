@@ -49,9 +49,7 @@ Done per form when the binder produces a meaningful expression, production evalu
 - [x] Investigate enum-to-text comparisons in the energy-grid world.
 - [x] Investigate integer-to-text comparisons in the identity-access, inventory-allocation, and lab-calibration worlds.
 - [x] Investigate timestamp-to-text comparisons in the claim-routing world.
-- [x] Diagnose the Unknown result for
-      `008_inventory_allocation/movement_increases_quantity`, constraint
-      `movement_classification_inputs`.
+- [x] Diagnose the Unknown result for `008_inventory_allocation/movement_increases_quantity`, constraint `movement_classification_inputs`.
 
 Use the surface report's constraint identities and bound expressions to locate each case. A cast, collation restriction, unavailable input, and missing implementation require different fixes. Existing formatters do not prove that
 the binder reaches them through every cast path.
@@ -261,7 +259,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit named ROW constructors, explicit field and composite-domain coercion, inherited modifiers, typed NULLs and datum distinctness. Capture physical attribute counts and preserve dropped slots, collation-dependent field projection, constant preparation, lazy row NULL tests, owned CASE/COALESCE and source/stored native/Rust/Go/TypeScript INSERT parity.
 - [x] Admit composite record text I/O and typed literals through captured implementations and shared field backends; preserve ordered grammar/conversion, dropped fields, quoting, domain/width/interval modifiers, eager source versus stored recovery, owned cursors and lazy NULL/Unknown/errors. Verify native/Rust/Go/TypeScript and world INSERT parity; retain reached scalar context requirements.
 - [x] Admit captured whole-record equality/order and composition with ordered field identity/support checks, field NULL ordering, nested arrays/records, reached callbacks and collation handling. Preserve eager preparation, owned comparison snapshots and native/Rust/Go/TypeScript/world INSERT parity without deployment OIDs.
-- [ ] Complete composite root arrays/ranges, JSON record conversion and binary/hash boundaries; preserve provenance, row versus datum NULL semantics and explicit catalog/context requirements.
+- [x] Admit root record arrays, captured comparisons/searches/sorting/quantifiers, dimensions/subscripts, owned composition, shared source/stored text I/O and whole-array domains. Validate compiled record fields before public copies, preserve partial cells and raw parameter deferral, and verify native/Rust/Go/TypeScript and world INSERT parity.
+- [ ] Complete composite-domain element arrays and composite ranges, JSON record conversion and binary/hash boundaries; preserve provenance, row versus datum NULL semantics and explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

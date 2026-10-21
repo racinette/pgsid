@@ -79,3 +79,20 @@ CREATE TABLE inspection_comparisons (
   CONSTRAINT compared_retained CHECK (CASE WHEN bypass THEN true ELSE (NULLIF(current_reading, previous_reading) IS DISTINCT FROM NULL) = expected_retained END),
   CONSTRAINT compared_greatest CHECK (CASE WHEN bypass THEN true ELSE (GREATEST(current_reading, previous_reading) IS NOT DISTINCT FROM current_reading) = expected_greatest_current END)
 );
+
+CREATE TABLE inspection_batches (
+  readings draft_reading[],
+  previous_readings draft_reading[],
+  encoded text,
+  canonical_text text,
+  expected_count integer,
+  expected_equal boolean,
+  expected_order integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT batch_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(readings) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT batch_equal CHECK (CASE WHEN bypass THEN true ELSE (readings = previous_readings) IS NOT DISTINCT FROM expected_equal END),
+  CONSTRAINT batch_order CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.btarraycmp(readings, previous_readings) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT batch_score CHECK (CASE WHEN bypass THEN true ELSE (readings[1]).score >= 0 END),
+  CONSTRAINT batch_output CHECK (CASE WHEN bypass THEN true ELSE readings::text IS NOT DISTINCT FROM canonical_text END),
+  CONSTRAINT batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::draft_reading[] IS NOT DISTINCT FROM readings END)
+);

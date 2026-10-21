@@ -9051,6 +9051,43 @@ export function compositeFromCoercedPlan(input: CompositeValue, plan: CompositeT
     }
     return input;
 }
+export function arrayFromCoercedCompositePlan(input: ArrayValue, elementType: string, plan: CompositeTypePlan): ArrayValue {
+    input = copyArrayValue(input);
+    elementType = langruntime.checkedString(elementType);
+    plan = copyCompositeTypePlan(plan);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (plan.kind === "Value") {
+            const context: CompositeTypeContext = copyCompositeTypeContext(plan.value);
+            if (compositeTypeContextValid(context) === false) {
+                return { kind: "Unknown" };
+            }
+            if (!(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).kind === 44) || !(payload.elementKind === 44) || !(payload.elementType === elementType) || !(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).typeName === elementType)) {
+                return { kind: "Unknown" };
+            }
+            let elements: ArrayElement[] = [];
+            let position: number = 0;
+            while (position < payload.elements.length) {
+                const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
+                const checked: ArrayElement = compositePrepareCell(copyArrayElement(original), context, 0);
+                if (checked.kind === "Unknown") {
+                    let partial: boolean = false;
+                    if (original.kind === "Unknown") {
+                        partial = langruntime.checkedBool(true);
+                    }
+                    if (partial === false) {
+                        return { kind: "Unknown" };
+                    }
+                }
+                langruntime.pushStruct(elements, checked, copyArrayElement);
+                position = langruntime.checkedAdd(position, 1);
+            }
+            return makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
+        }
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface CompositeTextPayload {
     characters: string[];
     position: number;

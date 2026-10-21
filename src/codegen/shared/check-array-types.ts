@@ -301,6 +301,25 @@ export function arrayInputPlan(type: string): string[] {
 export const arrayElementComparison = (type: string) => {
   const domain = domainElementDefinition(type)
   type = arrayElementBaseType(type)
+  const composite = compositeProfile(type)
+  if (composite) {
+    if (domain) return null
+    const support = composite.graph.definitions.find(
+      (n) => n.identity === composite.identity,
+    )?.comparison
+    return support
+      ? {
+          identity: composite.identity,
+          collation: null,
+          btreeClass: support.btreeClass,
+          hashClass: support.hashClass,
+          equality: support.equalityImplementation,
+          comparator: support.comparator,
+          hash: null,
+          hashExtended: null,
+        }
+      : null
+  }
   const range = rangeTypeProfile(type),
     multi = multirangeTypeProfile(type),
     profile = range ?? multi
@@ -340,6 +359,13 @@ export const arrayElementComparison = (type: string) => {
 
 export const arrayElementComparisonAvailable = (type: string, equality: boolean): boolean => {
   while (true) {
+    const composite = compositeProfile(arrayElementBaseType(type))
+    if (composite) {
+      const support = composite.graph.definitions.find(
+        (n) => n.identity === composite.identity,
+      )?.comparison
+      return (equality ? support?.equalityAvailable : support?.comparisonAvailable) === true
+    }
     const support = arrayElementComparison(type)
     if (!(equality ? support?.equality : support?.comparator)) return false
     type = arrayElementBaseType(type)
