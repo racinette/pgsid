@@ -1,3 +1,5 @@
+import { readCatalogCompositeTypes } from './composite-types.js'
+import { compositeTypeDependencies } from '../catalog/composite-dependencies.js'
 import type { PGlite } from '@electric-sql/pglite'
 
 import type {
@@ -6,6 +8,7 @@ import type {
   RangeCallInfo,
   RangeCallResolution,
   RangeSubtypeDefinition,
+  CompositeTypeGraph,
 } from '../catalog/types.js'
 export type { RangeTypeMetadata } from '../catalog/types.js'
 
@@ -228,7 +231,7 @@ async function readSubtypeDefinitions(pg: PGlite, roots: readonly string[]) {
     ),containers(root) AS (
       SELECT DISTINCT b.root FROM bases b JOIN pg_type ty ON ty.oid=b.type
       LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
-      WHERE e.oid IS NOT NULL OR ty.typtype IN ('r','m')
+      WHERE e.oid IS NOT NULL OR ty.typtype IN ('c','r','m')
     ),needed(root,type) AS (
       SELECT r.root,r.type FROM roots r JOIN containers a USING(root)
       UNION
@@ -375,6 +378,28 @@ async function readRangeTypeInfos(
     pg,
     rows.map((row) => row.subtype),
   )
+  const compositeIdentities = [
+    ...new Set(definitions.filter((node) => node.kind === 'c').map((node) => node.identity)),
+  ]
+  const composites = compositeIdentities.length
+    ? await readCatalogCompositeTypes(pg, [], compositeIdentities)
+    : null
+  const compositeGraphs = new Map<string, CompositeTypeGraph>()
+  if (composites) {
+    for (const row of rows) {
+      const roots = definitions.filter((node) => node.root === row.subtype && node.kind === 'c')
+      if (!roots.length || compositeGraphs.has(row.subtype)) continue
+      const identities = roots.map(
+        (root) =>
+          composites.definitions.find(
+            (node) => node.schema === root.schema && node.name === root.name,
+          )?.identity ?? '',
+      )
+      const graph = compositeTypeDependencies(composites, identities)
+      if (!graph) throw new Error('Missing composite range subtype dependencies: ' + row.subtype)
+      compositeGraphs.set(row.subtype, graph)
+    }
+  }
   const supports = await readTypeSupports(pg, [
     ...rows.flatMap((row) => [row.subtype, row.identity, row.multirange]),
     ...definitions.map((definition) => definition.identity),
@@ -403,6 +428,9 @@ async function readRangeTypeInfos(
               hashEqualityCompatible: supports.get(definition.identity)!.hashEqualityCompatible,
             })),
         }
+      : {}),
+    ...(compositeGraphs.has(row.subtype)
+      ? { subtypeCompositeGraph: compositeGraphs.get(row.subtype)! }
       : {}),
     schema: row.schema,
     name: row.name,
@@ -487,6 +515,7 @@ export async function readRangeTypes(
     ({
       subtypeEnum: _subtypeEnum,
       subtypeDefinitions: _subtypeDefinitions,
+      subtypeCompositeGraph: _subtypeCompositeGraph,
       subtypeRanges: _subtypeRanges,
       schema: _schema,
       name: _name,

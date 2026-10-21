@@ -796,6 +796,7 @@ export interface RangeSubtypeDefinition {
 export interface RangeTypeInfo extends RangeTypeMetadata {
   subtypeEnum?: Pick<EnumInfo, 'schema' | 'name' | 'values'>
   subtypeDefinitions?: readonly RangeSubtypeDefinition[]
+  subtypeCompositeGraph?: CompositeTypeGraph
   subtypeRanges?: readonly RangeTypeInfo[]
   schema: string
   name: string
