@@ -1,3 +1,4 @@
+import { catalogIdentifierSql as identifier } from '../catalog-identities.js'
 import type { PGlite } from '@electric-sql/pglite'
 
 export interface BuiltinTypeComparison {
@@ -33,11 +34,6 @@ type Support = {
   extended_name: string | null
   extended_args: string[] | null
 }
-const identifier = (
-  value: string,
-) => `(CASE WHEN (${value})::text COLLATE pg_catalog."C" ~ '^[a-z_][a-z0-9_$]*$'
-  AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_get_keywords() keyword WHERE keyword.word=(${value})::text AND keyword.catcode<>'U')
-  THEN (${value})::text ELSE '"'||pg_catalog.replace((${value})::text,'"','""')||'"' END)`
 const typeIdentity = `SELECT ${identifier('n.nspname')}||'.'||${identifier('t.typname')} FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
 
 export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTypeComparison[]> {

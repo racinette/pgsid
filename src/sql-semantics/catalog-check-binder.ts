@@ -4205,10 +4205,18 @@ export function bindCatalogCheck(
           'pg_catalog.bpchar',
           'pg_catalog.name',
         ].includes(operand.type ?? '')
-      )
+      ) {
+        const saved =
+          literalOrigin === 'stored' &&
+          preparedArrayDomainInput === '__pgsid_stored_composite_field'
+        const provenance = saved ? { origin: 'stored' as const } : {}
         return isMultirangeType(type)
-          ? { type, value: { kind: 'text-to-multirange', type, operand: operand.value } }
-          : { type, value: { kind: 'text-to-range', type, operand: operand.value } }
+          ? {
+              type,
+              value: { kind: 'text-to-multirange', type, operand: operand.value, ...provenance },
+            }
+          : { type, value: { kind: 'text-to-range', type, operand: operand.value, ...provenance } }
+      }
       if (
         type === 'pg_catalog.point' &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
@@ -5945,7 +5953,7 @@ export function bindCatalogCheck(
       domainStack,
       true,
       undefined,
-      undefined,
+      stored ? '__pgsid_stored_composite_field' : undefined,
       rangeTypes,
       compositeGraph,
     ).expression
@@ -6089,7 +6097,7 @@ export function bindCatalogCheck(
       }
     }
     if (!literal && !result['conversion']) {
-      const conversion = rangeConversion(type)
+      const conversion = rangeConversion(type, result['origin'] === 'stored')
       return conversion ? { ...result, conversion } : result
     }
     return result

@@ -125,6 +125,8 @@ CREATE TABLE inspection_nested_batches (
 );
 
 CREATE TYPE inspection_band AS RANGE(subtype=draft_reading);
+CREATE TYPE inspection_bounds AS(reading_band inspection_band);
+CREATE TYPE inspection_envelope AS RANGE(subtype=inspection_bounds);
 CREATE TABLE inspection_bands (
   reading_band inspection_band,
   previous_band inspection_band,
@@ -140,5 +142,7 @@ CREATE TABLE inspection_bands (
   CONSTRAINT band_output CHECK (CASE WHEN bypass THEN true ELSE reading_band::text IS NOT DISTINCT FROM canonical_text END),
   CONSTRAINT band_input CHECK (CASE WHEN bypass THEN true ELSE encoded::inspection_band IS NOT DISTINCT FROM reading_band END),
   CONSTRAINT band_literal CHECK (CASE WHEN bypass THEN true ELSE (lower('["(2,abc)",)'::inspection_band)).score >= minimum_score END),
-  CONSTRAINT band_constructed CHECK (CASE WHEN bypass THEN true ELSE inspection_band(lower(reading_band),upper(reading_band),'[]') @> reading_band END)
+  CONSTRAINT band_constructed CHECK (CASE WHEN bypass THEN true ELSE inspection_band(lower(reading_band),upper(reading_band),'[]') @> reading_band END),
+  CONSTRAINT band_envelope CHECK (CASE WHEN bypass THEN true ELSE inspection_envelope(ROW(reading_band)::inspection_bounds,NULL) @> ROW(previous_band)::inspection_bounds END),
+  CONSTRAINT envelope_output CHECK (CASE WHEN bypass THEN true ELSE length(inspection_envelope(ROW(reading_band)::inspection_bounds,NULL)::text)>0 END)
 );

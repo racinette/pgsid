@@ -1,3 +1,4 @@
+import { catalogIdentifierSql as identifier } from './catalog-identities.js'
 import { readCatalogCompositeTypes } from './composite-types.js'
 import { compositeTypeDependencies } from '../catalog/composite-dependencies.js'
 import type { PGlite } from '@electric-sql/pglite'
@@ -12,7 +13,7 @@ import type {
 } from '../catalog/types.js'
 export type { RangeTypeMetadata } from '../catalog/types.js'
 
-const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname)
+const typeIdentity = `SELECT ${identifier('n.nspname')}||'.'||${identifier('t.typname')}
   FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
 
 type SelectedFunction = { schema: string; name: string; args: string[] } | null
@@ -307,7 +308,11 @@ async function readRangeTypeInfos(
         SELECT child.type FROM needed p JOIN pg_type ty ON ty.oid=p.type
         LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
         LEFT JOIN pg_range r ON r.rngtypid=ty.oid LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
-        CROSS JOIN LATERAL (VALUES(ty.typbasetype),(e.oid),(r.rngsubtype),(m.rngtypid)) child(type)
+        CROSS JOIN LATERAL (
+          VALUES(ty.typbasetype),(e.oid),(r.rngsubtype),(m.rngtypid)
+          UNION SELECT a.atttypid FROM pg_attribute a
+            WHERE ty.typtype='c' AND a.attrelid=ty.typrelid AND a.attnum>0 AND NOT a.attisdropped
+        ) child(type)
         WHERE child.type IS NOT NULL AND child.type<>0
       ) SELECT r.rngtypid IN(SELECT type FROM scoped) AS scoped,
         n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
@@ -324,13 +329,13 @@ async function readRangeTypeInfos(
           JOIN pg_namespace en ON en.oid=et.typnamespace) AS subtype_enum,
         (${typeIdentity} r.rngmultitypid) AS multirange,
         (${typeIdentity} mt.typarray) AS multirange_array,
-        (SELECT quote_ident(cn.nspname)||'.'||quote_ident(c.collname)
+        (SELECT ${identifier('cn.nspname')}||'.'||${identifier('c.collname')}
           FROM pg_collation c JOIN pg_namespace cn ON cn.oid=c.collnamespace
           WHERE c.oid=r.rngcollation) AS collation,
         rco.collisdeterministic AS collation_deterministic,
         CASE WHEN r.rngcollation=0 THEN NULL ELSE r.rngcollation='pg_catalog."C"'::regcollation END AS collation_is_c,
         CASE WHEN r.rngcollation=0 THEN NULL ELSE r.rngcollation='pg_catalog."default"'::regcollation END AS collation_is_default,
-        quote_ident(onsp.nspname)||'.'||quote_ident(o.opcname) AS subtype_class,
+        ${identifier('onsp.nspname')}||'.'||${identifier('o.opcname')} AS subtype_class,
         pn.nspname AS comparator_schema,p.proname AS comparator_name,
         (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
           FROM unnest(p.proargtypes) WITH ORDINALITY u(t,ord)) AS comparator_args,
@@ -492,15 +497,33 @@ async function readRangeTypeInfos(
     if (visiting.has(identity)) throw new Error('Cyclic range subtype dependency: ' + identity)
     const profile = rangeProfiles.get(identity)
     if (!profile) throw new Error('Missing range subtype definition: ' + identity)
-    const nodes = new Map(profile.subtypeDefinitions?.map((node) => [node.identity, node]))
-    let node = nodes.get(profile.subtype)
-    while (node && (node.kind === 'd' || node.element !== null))
-      node = nodes.get(node.kind === 'd' ? node.base! : node.element!)
-    const child = node?.kind === 'r' ? node.identity : node?.kind === 'm' ? node.member : null
-    if (!child) return structuredClone(profile)
+    const nodes = new Map(
+      [
+        ...(profile.subtypeDefinitions ?? []),
+        ...(profile.subtypeCompositeGraph?.definitions ?? []),
+      ].map((node) => [node.identity, node] as const),
+    )
+    const visited = new Set<string>(),
+      children = new Set<string>()
+    const visit = (id: string): void => {
+      if (visited.has(id)) return
+      visited.add(id)
+      const node = nodes.get(id)
+      if (!node) return
+      if (node.kind === 'r') children.add(node.identity)
+      else if (node.kind === 'm' && node.member) children.add(node.member)
+      else if (node.kind === 'd' && node.base) visit(node.base)
+      else if (node.element) visit(node.element)
+      else if (node.kind === 'c' && 'fields' in node)
+        for (const field of node.fields) visit(field.type)
+    }
+    visit(profile.subtype)
+    if (!children.size) return structuredClone(profile)
     return {
       ...structuredClone(profile),
-      subtypeRanges: [build(child, new Set([...visiting, identity]))],
+      subtypeRanges: [...children]
+        .sort()
+        .map((child) => build(child, new Set([...visiting, identity]))),
     }
   }
   return rows.filter((row) => row.scoped).map((row) => build(row.identity, new Set()))

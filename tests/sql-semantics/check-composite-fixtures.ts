@@ -1,3 +1,5 @@
+import { readMultirangeQueryFixture } from './check-multirange-fixtures.js'
+import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
 import type { PGlite } from '@electric-sql/pglite'
 import {
   compositeProfile,
@@ -12,7 +14,11 @@ import type {
   CompositeInputCell,
   CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
-import { readRangeBoundCell, rangeBoundProjection } from './check-range-fixtures.js'
+import {
+  readRangeBoundCell,
+  readRangeFixture,
+  rangeBoundProjection,
+} from './check-range-fixtures.js'
 import { arrayElementBaseType } from '../../src/sql-semantics/expressions.js'
 import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 
@@ -62,20 +68,21 @@ async function readCompositeCellFixture(
           parameters,
         )
       ).rows
-      const rows = (
-        await pg.query<{ value: string | null }>(
-          `SELECT cell::text value FROM (SELECT unnest(${expression}) cell ${from}) cells`,
+      const count = (
+        await pg.query<{ count: number }>(
+          `SELECT cardinality(${expression}) count ${from}`,
           parameters,
         )
-      ).rows
+      ).rows[0]!.count
       const elements: CompositeInputCell[] = []
-      for (const row of rows)
+      for (let i = 0; i < count; i++)
         elements.push(
-          row.value === null
-            ? { kind: 'Null' }
-            : await read(definition.element, `SELECT $1::${definition.element} value`, 'value', [
-                row.value,
-              ]),
+          await read(
+            definition.element,
+            `SELECT cell value FROM (SELECT unnest(${expression}) cell ${from}) cells OFFSET ${i} LIMIT 1`,
+            'value',
+            parameters,
+          ),
         )
       return {
         kind: 'Array',
@@ -84,9 +91,32 @@ async function readCompositeCellFixture(
           elementKind: arrayElementFamily(element)!,
           dimensions,
           elements,
-          nullBitmap: { kind: 'Value', value: rows.some((row) => row.value === null) },
+          nullBitmap: { kind: 'Value', value: elements.some((cell) => cell.kind === 'Null') },
         },
       }
+    }
+    if (definition.kind === 'r') {
+      const range = rangeTypeProfile(logical)!
+      const payload = await readRangeFixture(
+        pg,
+        `SELECT ${expression} value ${from}`,
+        'value',
+        range.rangeType,
+        parameters,
+      )
+      if (!payload) throw new Error('Non-NULL range field became NULL')
+      return { kind: 'Range', value: payload }
+    }
+    if (definition.kind === 'm') {
+      const payload = await readMultirangeQueryFixture(
+        pg,
+        logical,
+        `SELECT ${expression} value ${from}`,
+        'value',
+        parameters,
+      )
+      if (!payload) throw new Error('Non-NULL multirange field became NULL')
+      return { kind: 'Multirange', value: payload }
     }
     const value = (
       await pg.query<{ value: string | null }>(
