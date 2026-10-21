@@ -1,4 +1,7 @@
-import { catalogCompositeType } from '../../../sql-semantics/composite-profiles.js'
+import {
+  catalogCompositeType,
+  compositeProfile,
+} from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import {
@@ -107,7 +110,18 @@ export function renderGoSchemaCheckArtifacts(
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogCompositeType(name, catalog.compositeTypeGraph, catalog.rangeTypes))
       return 'CompositeValue'
-    if (catalogArrayType(name, oid, domains, catalog.enums, catalog.rangeTypes)) return 'ArrayValue'
+    if (
+      catalogArrayType(
+        name,
+        oid,
+        domains,
+        catalog.enums,
+        catalog.rangeTypes,
+        undefined,
+        catalog.compositeTypeGraph,
+      )
+    )
+      return 'ArrayValue'
     if (catalogRangeType(name, oid, domains, catalog.rangeTypes)) return 'RangeValue'
     if (catalogMultirangeType(name, oid, domains, catalog.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
@@ -429,8 +443,13 @@ export function renderGoSchemaCheckArtifacts(
             ].includes(item.rustType)
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
-          const helper =
-            item.rustType === 'CompositeValue'
+          const compositeArray =
+            item.type.startsWith('array:') && compositeProfile(item.type.slice(6))
+          const helper = compositeArray
+            ? item.nullness
+              ? 'checkRustCompositeArrayNullness'
+              : 'checkRustCompositeArray'
+            : item.rustType === 'CompositeValue'
               ? 'checkRustComposite'
               : item.type.startsWith('array:')
                 ? item.nullness
@@ -545,7 +564,9 @@ export function renderGoSchemaCheckArtifacts(
                                                                                                         ? 'checkRustText'
                                                                                                         : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType === 'CompositeValue') rustInputAdapters.add('checkRustCompositeCell')
+          if (item.rustType === 'CompositeValue' || compositeArray)
+            rustInputAdapters.add('checkRustCompositeCell')
+          if (compositeArray) rustInputAdapters.add('checkRustCompositeArray')
           if (item.rustType === 'ByteaValue') inputHelpers.add('checkPrimitive')
           if (item.rustType === 'Float4Value' || item.rustType === 'Float8Value')
             inputHelpers.add('checkInputFloat')
@@ -622,7 +643,9 @@ export function renderGoSchemaCheckArtifacts(
           const enumDefinition = (range ?? multirange)?.subtypeEnum
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
-            ...(item.rustType === 'CompositeValue' ? [compositeContext(item.type)] : []),
+            ...(item.rustType === 'CompositeValue' || compositeArray
+              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
+              : []),
             ...(multirange
               ? [
                   go.string(multirange.multirange),
@@ -640,7 +663,7 @@ export function renderGoSchemaCheckArtifacts(
                     : []),
                 ]
               : []),
-            ...(item.type.startsWith('array:')
+            ...(item.type.startsWith('array:') && !compositeArray
               ? [
                   go.string(arrayElementIdentity(item.type.slice('array:'.length))),
                   go.number(arrayElementFamily(item.type.slice('array:'.length))!),
@@ -922,6 +945,19 @@ func checkRustArrayTypedMetadata(input checkruntime.ArrayValue,boundProfile chec
   }
   payload.Elements=elements
   return checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:payload}
+}
+func checkRustCompositeArrayNullness(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan)checkruntime.BoolValue{return checkruntime.ArrayIsNull(checkRustCompositeArray(input,plan))}
+func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan)checkruntime.ArrayValue{
+  if !input.Set{return checkruntime.ArrayUnknown()};if input.Null{return checkruntime.ArrayNull()}
+  value:=input.V;if value.Kind!=checkruntime.ArrayValueValue{return value}
+  if plan.Kind!=checkruntime.CompositeTypePlanValue||len(plan.Value.Nodes)==0{return checkruntime.ArrayUnknown()}
+  p:=value.Value
+  if len(p.Dimensions)>6||len(p.Elements)>2147483647{return checkruntime.ArrayUnknown()}
+  for _,dimension:=range p.Dimensions{if dimension.Lower < -2147483648||dimension.Lower > 2147483647||dimension.Length < -2147483648||dimension.Length > 2147483647{return checkruntime.ArrayUnknown()}}
+  elements:=make([]checkruntime.ArrayElement,len(p.Elements))
+  for i,cell:=range p.Elements{checked,ok:=checkRustCompositeCell(cell,plan,0);if !ok{return checkruntime.ArrayUnknown()};elements[i]=checked}
+  p.Elements=elements;value.Value=p
+  return checkruntime.ArrayFromCoercedCompositePlan(value,plan.Value.Nodes[0].TypeName,plan)
 }
 func checkRustComposite(input CheckOptional[checkruntime.CompositeValue],plan checkruntime.CompositeTypePlan)checkruntime.CompositeValue{
   if !input.Set{return checkruntime.CompositeUnknown()};if input.Null{return checkruntime.CompositeNull()}

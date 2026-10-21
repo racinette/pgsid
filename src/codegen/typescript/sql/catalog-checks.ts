@@ -1,5 +1,8 @@
 import type { CompositeTypeGraph } from '../../../catalog/types.js'
-import { catalogCompositeType } from '../../../sql-semantics/composite-profiles.js'
+import {
+  catalogCompositeType,
+  compositeProfile,
+} from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import {
@@ -95,7 +98,18 @@ export function renderTypescriptSchemaCheckArtifacts(
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogCompositeType(name, options.compositeTypeGraph, options.rangeTypes))
       return 'CompositeValue'
-    if (catalogArrayType(name, oid, domains, options.enums, options.rangeTypes)) return 'ArrayValue'
+    if (
+      catalogArrayType(
+        name,
+        oid,
+        domains,
+        options.enums,
+        options.rangeTypes,
+        undefined,
+        options.compositeTypeGraph,
+      )
+    )
+      return 'ArrayValue'
     if (catalogRangeType(name, oid, domains, options.rangeTypes)) return 'RangeValue'
     if (catalogMultirangeType(name, oid, domains, options.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
@@ -289,8 +303,13 @@ export function renderTypescriptSchemaCheckArtifacts(
             ].includes(item.rustType)
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
-          const helper =
-            item.rustType === 'CompositeValue'
+          const compositeArray =
+            item.type.startsWith('array:') && compositeProfile(item.type.slice(6))
+          const helper = compositeArray
+            ? item.nullness
+              ? 'checkRustCompositeArrayNullness'
+              : 'checkRustCompositeArray'
+            : item.rustType === 'CompositeValue'
               ? 'checkRustComposite'
               : item.type.startsWith('array:')
                 ? item.nullness
@@ -403,7 +422,9 @@ export function renderTypescriptSchemaCheckArtifacts(
                                                                                                         ? 'checkRustText'
                                                                                                         : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType === 'CompositeValue') rustInputAdapters.add('checkRustCompositeCell')
+          if (item.rustType === 'CompositeValue' || compositeArray)
+            rustInputAdapters.add('checkRustCompositeCell')
+          if (compositeArray) rustInputAdapters.add('checkRustCompositeArray')
           if (helper === 'checkRustPolygon') {
             rustInputAdapters.add('checkRustPath')
             rustInputAdapters.add('checkRustBox')
@@ -417,6 +438,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             if (item.rustType === 'MultirangeValue') rustInputAdapters.add('checkRustRange')
             rustInputAdapters.add('checkRustArray')
             rustInputAdapters.add('checkRustArrayValue')
+            rustInputAdapters.add('checkRustCompositeCell')
             rustInputAdapters.add('checkRustArrayElement')
             rustInputAdapters.add('checkRustProfiledBound')
             rustInputAdapters.add('checkRustArrayField')
@@ -520,7 +542,9 @@ export function renderTypescriptSchemaCheckArtifacts(
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
-            ...(item.rustType === 'CompositeValue' ? [compositeContext(item.type)] : []),
+            ...(item.rustType === 'CompositeValue' || compositeArray
+              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
+              : []),
             ...(multirange
               ? [
                   factory.createStringLiteral(multirange.multirange),
@@ -541,7 +565,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ]
               : []),
             ...(range || multirange ? (nodes.length ? [boundContext] : []) : []),
-            ...(item.type.startsWith('array:')
+            ...(item.type.startsWith('array:') && !compositeArray
               ? [
                   factory.createStringLiteral(
                     arrayElementIdentity(item.type.slice('array:'.length)),
@@ -915,7 +939,12 @@ function checkRustArray(row: object, name: string, elementType: string, elementK
   if (!Object.hasOwn(row,name) || input === undefined) return _checkRust.arrayUnknown()
   return checkRustArrayValue(input,elementType,elementKind,tree.length>=2 ? tree[1]!.length-1 : 0,tree,false,boundProfile)
 }
-function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false,boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.ArrayValue {
+function checkRustCompositeArrayNullness(row: object,name: string,plan: _checkRust.CompositeTypePlan): _checkRust.BoolValue {return _checkRust.arrayIsNull(checkRustCompositeArray(row,name,plan))}
+function checkRustCompositeArray(row: object,name: string,plan: _checkRust.CompositeTypePlan): _checkRust.ArrayValue {
+  if(!Object.hasOwn(row,name))return _checkRust.arrayUnknown()
+  return checkRustArrayValue(Reflect.get(row,name),plan.value.nodes[0]!.typeName,44,0,[],false,{nodes:[]},plan)
+}
+function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false,boundProfile: _checkRust.RangeBoundContext={nodes:[]},compositePlan?: _checkRust.CompositeTypePlan): _checkRust.ArrayValue {
   if (input === null) return _checkRust.arrayNull()
   if (!input || typeof input !== 'object' || !('kind' in input)) return _checkRust.arrayUnknown()
   if (input.kind === 'Unknown' || input.kind === 'Null') return {kind:input.kind}
@@ -933,7 +962,7 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const elements: _checkRust.ArrayElement[]=[]
   for(const cell of value.elements) {
-    const element=checkRustArrayElement(cell,elementKind,depth,tree,boundProfile)
+    const element=compositePlan ? checkRustCompositeCell(cell,compositePlan,0) : checkRustArrayElement(cell,elementKind,depth,tree,boundProfile)
     if (element===null) return _checkRust.arrayUnknown()
     elements.push(element)
   }
@@ -946,6 +975,7 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
     else if (flag.kind!=='Unknown') return _checkRust.arrayUnknown()
   }
   const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
+  if(compositePlan)return _checkRust.arrayFromCoercedCompositePlan(result,elementType,compositePlan)
   if(nested) return result
   if(boundProfile.nodes.length) {
     if(tree.length===7) return _checkRust.arrayFromCoercedRangeTypedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,boundProfile)

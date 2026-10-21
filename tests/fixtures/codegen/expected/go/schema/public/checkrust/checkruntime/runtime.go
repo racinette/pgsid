@@ -8930,6 +8930,44 @@ func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) Comp
 	}
 	return input
 }
+func ArrayFromCoercedCompositePlan(input ArrayValue, elementType string, plan CompositeTypePlan) ArrayValue {
+	input = CopyArrayValue(input)
+	elementType = langruntime.CheckedString(elementType)
+	plan = copyCompositeTypePlan(plan)
+	if input.Kind == ArrayValueValue {
+		payload := CopyArrayPayload(input.Value)
+		if plan.Kind == CompositeTypePlanValue {
+			context := copyCompositeTypeContext(plan.Value)
+			if compositeTypeContextValid(&context) == false {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			if context.Nodes[0].Kind != 44 || payload.ElementKind != 44 || payload.ElementType != elementType || context.Nodes[0].TypeName != elementType {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			elements := []ArrayElement{}
+			position := 0
+			for position < len(payload.Elements) {
+				original := CopyArrayElement(payload.Elements[position])
+				checked := compositePrepareCell(CopyArrayElement(original), &context, 0)
+				if checked.Kind == ArrayElementUnknown {
+					partial := false
+					if original.Kind == ArrayElementUnknown {
+						partial = true
+					}
+					if partial == false {
+						return ArrayValue{Kind: ArrayValueUnknown}
+					}
+				}
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, CopyArrayElement(checked))
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return MakeArrayValue(ArrayPayload{NullBitmap: payload.NullBitmap, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements})
+		}
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return input
+}
 
 type CompositeTextPayload struct {
 	Characters []rune

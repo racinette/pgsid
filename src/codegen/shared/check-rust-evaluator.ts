@@ -5,7 +5,7 @@ import {
   type CompositeProfile,
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
-import type { ArrayElementType } from '../../sql-semantics/expressions.js'
+import type { ArrayElementType, ScalarType } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -917,7 +917,36 @@ export function emitCheckRustEvaluator(
     const inner: string[] = []
     const base = arrayElementBaseType(elementType)
     let conversion: string
-    if (base.startsWith('array:')) {
+    if (compositeProfile(base)) {
+      const key = JSON.stringify(['__pgsid_array_output_element', false]),
+        outer = localInputs.get(key)
+      inner.push(`let ${scalar}=array_element_to_composite(${element});`)
+      localInputs.set(key, {
+        name: '__pgsid_array_output_element',
+        type: base,
+        rustName: scalar,
+        rustType: 'CompositeValue',
+      })
+      try {
+        const result = emitScalar(
+          {
+            kind: 'composite-to-text',
+            type: 'pg_catalog.text',
+            operand: {
+              kind: 'input',
+              name: '__pgsid_array_output_element',
+              type: base as ScalarType,
+            },
+          },
+          inner,
+          new Set(),
+        )
+        conversion = result.name
+      } finally {
+        if (outer) localInputs.set(key, outer)
+        else localInputs.delete(key)
+      }
+    } else if (base.startsWith('array:')) {
       const nested = fresh('array_nested')
       inner.push(
         `let ${scalar} = array_element_to_array(${element});`,
@@ -968,7 +997,7 @@ export function emitCheckRustEvaluator(
     const family = arrayElementFamily(elementType)
     if (family === null)
       throw new UnsupportedCheckRustExpression('Missing array input element carrier')
-    if (family === 41 || inputConversion) {
+    if (family === 41 || family === 44 || inputConversion) {
       if (!inputConversion || !used)
         throw new UnsupportedCheckRustExpression(
           'Nested array text input requires its element conversion plan',
@@ -1603,6 +1632,7 @@ export function emitCheckRustEvaluator(
       if (
         family === null ||
         (family !== 41 &&
+          family !== 44 &&
           !baseType.startsWith('enum:') &&
           (!metadata || metadata.args[0] !== 'pg_catalog.cstring'))
       )
@@ -2553,6 +2583,12 @@ export function emitCheckRustEvaluator(
           )
         const elementType = arrayType.slice(6),
           family = arrayElementFamily(elementType)
+        let leaf = arrayElementBaseType(elementType)
+        while (leaf.startsWith('array:')) leaf = arrayElementBaseType(leaf.slice(6))
+        if (compositeProfile(leaf))
+          throw new UnsupportedCheckRustExpression(
+            'Composite array hashes require captured record hash implementations',
+          )
         const defaults = arrayHashPlan?.element ?? arrayElementComparison(elementType)
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
@@ -4145,6 +4181,22 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       const arrayMulti = node.type.startsWith('array:') ? arrayMultirangeProfile(node.type) : null
+      const arrayComposite = node.type.startsWith('array:')
+        ? compositeProfile(node.type.slice(6))
+        : null
+      if (arrayComposite) {
+        const plan = compositePlanExpression(node.type.slice(6), executionContext, bind)
+        if (!plan)
+          throw new UnsupportedCheckRustExpression(
+            'Composite array input requires captured field profiles',
+          )
+        return {
+          name: bind(
+            `array_from_coerced_composite_plan(${item.rustName}.clone(),${rustStringLiteral(arrayComposite.identity)},${plan})`,
+          ),
+          type: node.type,
+        }
+      }
       if (arrayMulti) {
         const plan = arrayIdentityPlan(node.type)!
         return {

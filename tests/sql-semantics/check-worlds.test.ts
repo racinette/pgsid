@@ -1,5 +1,8 @@
-import { catalogCompositeType } from '../../src/sql-semantics/composite-profiles.js'
-import { readCompositeFixture } from './check-composite-fixtures.js'
+import {
+  catalogCompositeType,
+  compositeProfile,
+} from '../../src/sql-semantics/composite-profiles.js'
+import { readCompositeFixture, readCompositeArrayFixture } from './check-composite-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -659,6 +662,8 @@ describe('world CHECK INSERT parity', () => {
               catalog.domains,
               catalog.enums,
               catalog.rangeTypes,
+              undefined,
+              catalog.compositeTypeGraph,
             ) !== null,
         )
         .map((column) => column.name)
@@ -872,7 +877,20 @@ describe('world CHECK INSERT parity', () => {
           catalog.domains,
           catalog.enums,
           catalog.rangeTypes,
+          undefined,
+          catalog.compositeTypeGraph,
         )!
+        if (compositeProfile(type.slice(6))) {
+          const payload = await readCompositeArrayFixture(
+            pg,
+            `SELECT ${expressions.join(',')}`,
+            name,
+            type.slice(6),
+          )
+          portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+          goRow[name] = payload === null ? null : { value: payload }
+          continue
+        }
         const profiles: Record<string, { kind: string; family: number }> = {
           'pg_catalog.int2': { kind: 'Int2', family: 1 },
           'pg_catalog.int4': { kind: 'Int4', family: 2 },

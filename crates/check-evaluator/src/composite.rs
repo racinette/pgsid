@@ -294,3 +294,50 @@ pub fn composite_from_coerced_plan(input: CompositeValue, plan: CompositeTypePla
     };
     input
 }
+
+pub fn array_from_coerced_composite_plan(
+    input: ArrayValue,
+    element_type: &str,
+    plan: CompositeTypePlan,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        if let CompositeTypePlan::Value(context) = plan {
+            if composite_type_context_valid(&context) == false {
+                return ArrayValue::Unknown;
+            };
+            if context.nodes[0].kind != 44
+                || payload.element_kind != 44
+                || payload.element_type.as_str() != element_type
+                || context.nodes[0].type_name.as_str() != element_type
+            {
+                return ArrayValue::Unknown;
+            };
+            let mut elements: Vec<ArrayElement> = Vec::new();
+            let mut position: usize = 0;
+            while position < payload.elements.len() {
+                let original = payload.elements[position].clone();
+                let checked = composite_prepare_cell(original.clone(), &context, 0);
+                if let ArrayElement::Unknown = checked {
+                    let mut partial = false;
+                    if let ArrayElement::Unknown = original {
+                        partial = true;
+                    };
+                    if partial == false {
+                        return ArrayValue::Unknown;
+                    };
+                };
+                elements.push(checked);
+                position += 1;
+            }
+            return make_array_value(ArrayPayload {
+                null_bitmap: payload.null_bitmap,
+                element_type: payload.element_type,
+                element_kind: payload.element_kind,
+                dimensions: payload.dimensions,
+                elements: elements,
+            });
+        };
+        return ArrayValue::Unknown;
+    };
+    input
+}

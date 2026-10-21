@@ -14,6 +14,7 @@ import {
 } from './range-profiles.js'
 import {
   catalogCompositeType,
+  catalogCompositeArrayType,
   compositeProfile,
   compositeFieldType,
   compositePhysicalType,
@@ -137,6 +138,7 @@ export function catalogArrayType(
   enums: readonly EnumInfo[] = [],
   rangeTypes: readonly RangeTypeInfo[] = [],
   elementDomains: ReadonlySet<number> = new Set(),
+  compositeGraph?: CompositeTypeGraph,
 ): ArrayType | null {
   const seen = new Set<number>()
   while (oid !== undefined && !seen.has(oid)) {
@@ -148,6 +150,8 @@ export function catalogArrayType(
   }
   const builtin = catalogScalarType(name)
   if (builtin?.startsWith('array:')) return builtin as ArrayType
+  const composite = catalogCompositeArrayType(name, compositeGraph, rangeTypes)
+  if (composite) return composite
   for (const profile of rangeTypes) {
     const node = profile.subtypeDefinitions?.find(
       (node) => rangeCallTypeKey(node.identity) === rangeCallTypeKey(name),
@@ -213,6 +217,7 @@ export function catalogArrayType(
         enums,
         rangeTypes,
         new Set([...elementDomains, domain.oid]),
+        compositeGraph,
       ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains, rangeTypes)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
@@ -1922,8 +1927,15 @@ export function bindCatalogCheck(
     while (layer && !seen.has(layer.oid)) {
       seen.add(layer.oid)
       const carrier =
-        catalogArrayType(layer.baseTypeName, layer.baseTypeOid, domains, enums, rangeTypes) ??
-        catalogBaseScalarType(layer.baseTypeName, layer.baseTypeOid, domains, rangeTypes)
+        catalogArrayType(
+          layer.baseTypeName,
+          layer.baseTypeOid,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ) ?? catalogBaseScalarType(layer.baseTypeName, layer.baseTypeOid, domains, rangeTypes)
       if (
         layer.baseTypeMod !== undefined &&
         layer.baseTypeMod !== -1 &&
@@ -2719,6 +2731,8 @@ export function bindCatalogCheck(
             domains,
             enums,
             rangeTypes,
+            undefined,
+            compositeGraph,
           )
         if (catalogType?.startsWith('array:')) {
           castType = { ...castType, ...elementTypeName(catalogType) }
@@ -2735,6 +2749,14 @@ export function bindCatalogCheck(
         )
         if (compositeElement) {
           if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+          if (
+            domains.some((d) =>
+              names.length === 2
+                ? d.schema === names[0] && d.name === names[1]
+                : d.name === names[0],
+            )
+          )
+            return unknown
           if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
             return bindArray(cast['arg'], {
               type: compositeElement,
@@ -2745,6 +2767,73 @@ export function bindCatalogCheck(
           if (operand.type === type && operand.value) return operand
           if (operand.literal?.kind === 'null') {
             const value = materialize(operand, type)
+            return value ? { type, value } : unknown
+          }
+          if (
+            operand.literal?.kind === 'string' ||
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(operand.type ?? '')
+          ) {
+            const conversion = (stored: boolean): EvalExpression | null => {
+              const parsed = bindCatalogCheck(
+                [
+                  {
+                    name: '__pgsid_array_text_element',
+                    typeName: 'pg_catalog.text',
+                    collationIsC: true,
+                    isRowType: false,
+                  },
+                ],
+                {
+                  NullTest: {
+                    nulltesttype: 'IS_NOT_NULL',
+                    arg: {
+                      TypeCast: {
+                        arg: {
+                          ColumnRef: {
+                            fields: [{ String: { sval: '__pgsid_array_text_element' } }],
+                          },
+                        },
+                        typeName: { names: names.map((sval) => ({ String: { sval } })) },
+                      },
+                    },
+                  },
+                },
+                [],
+                enums,
+                domains,
+                moneyLiterals,
+                stored ? 'stored' : 'source',
+                domainStack,
+                true,
+                undefined,
+                stored ? '__pgsid_stored_composite_field' : undefined,
+                rangeTypes,
+                compositeGraph,
+              ).expression
+              return parsed.kind === 'eval-scalar' && parsed.expression.kind === 'null-test'
+                ? parsed.expression.operand
+                : null
+            }
+            const inputConversion = conversion(false),
+              storedInputConversion = conversion(true)
+            if (!inputConversion || !storedInputConversion) return unknown
+            const common = {
+              type,
+              elementType: compositeElement,
+              inputConversion,
+              storedInputConversion,
+            }
+            const value: EvalExpression | null =
+              operand.literal?.kind === 'string'
+                ? { kind: 'array-text-literal', ...common, value: operand.literal.value! }
+                : operand.value
+                  ? { kind: 'text-to-array', ...common, operand: operand.value }
+                  : null
             return value ? { type, value } : unknown
           }
           return unknown
@@ -2761,6 +2850,8 @@ export function bindCatalogCheck(
           domains,
           enums,
           rangeTypes,
+          undefined,
+          compositeGraph,
         )
         const element =
           (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')
@@ -3158,6 +3249,8 @@ export function bindCatalogCheck(
               domains,
               enums,
               rangeTypes,
+              undefined,
+              compositeGraph,
             ) ??
             catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes) ??
             catalogCompositeType(target.baseTypeName, compositeGraph, rangeTypes))
@@ -4536,7 +4629,15 @@ export function bindCatalogCheck(
       }
       const type =
         column &&
-        (catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes) ??
+        (catalogArrayType(
+          column.typeName,
+          column.typeOid,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ) ??
           catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) ??
           catalogCompositeType(column.typeName, compositeGraph, rangeTypes))
       if (type) {
@@ -4794,15 +4895,17 @@ export function bindCatalogCheck(
       )
       if (!resolved || resolved.item.result !== 'pg_catalog.bool') return unknown
       const element =
-        resolved.item.args[1] === 'pg_catalog.anyenum'
-          ? resolved.enum && enumType(resolved.enum)
-          : resolved.item.args[1] === 'pg_catalog.anyarray'
-            ? baseElement.startsWith('array:') && baseElement
-            : resolved.item.args[1] === 'pg_catalog.anymultirange'
-              ? isMultirangeType(baseElement) && baseElement
-              : resolved.item.args[1] === 'pg_catalog.anyrange'
-                ? isRangeType(baseElement) && baseElement
-                : catalogScalarType(resolved.item.args[1]!)
+        resolved.item.args[1] === 'pg_catalog.record'
+          ? compositeProfile(baseElement) && baseElement
+          : resolved.item.args[1] === 'pg_catalog.anyenum'
+            ? resolved.enum && enumType(resolved.enum)
+            : resolved.item.args[1] === 'pg_catalog.anyarray'
+              ? baseElement.startsWith('array:') && baseElement
+              : resolved.item.args[1] === 'pg_catalog.anymultirange'
+                ? isMultirangeType(baseElement) && baseElement
+                : resolved.item.args[1] === 'pg_catalog.anyrange'
+                  ? isRangeType(baseElement) && baseElement
+                  : catalogScalarType(resolved.item.args[1]!)
       if (!element || (element.startsWith('array:') && element !== baseElement)) return unknown
       const targetElement = element === baseElement ? sourceElement : (element as ArrayElementType)
       const operand =
@@ -5020,7 +5123,15 @@ export function bindCatalogCheck(
         column?.isRowType === false &&
         !catalogCompositeType(column.typeName, compositeGraph, rangeTypes) &&
         !catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) &&
-        !catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes)
+        !catalogArrayType(
+          column.typeName,
+          column.typeOid,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        )
       ) {
         inputs.add(column.name)
         return {
@@ -5146,7 +5257,15 @@ export function bindCatalogCheck(
       const enumDefinition = catalogEnumDefinition(target, enums, domain?.oid, domains)
       const carrier =
         (enumDefinition ? enumType(enumDefinition) : null) ??
-        catalogArrayType(target, domain?.oid, domains, enums, rangeTypes) ??
+        catalogArrayType(
+          target,
+          domain?.oid,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ) ??
         catalogBaseScalarType(target, domain?.oid, domains, rangeTypes)
       const scalar =
         domain && carrier

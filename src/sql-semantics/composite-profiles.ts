@@ -11,6 +11,7 @@ import {
   enumType,
   type ScalarType,
   type ArrayElementType,
+  type ArrayType,
 } from './expressions.js'
 import { capturedRangeType, rangeTypeProfile, multirangeTypeProfile } from './range-profiles.js'
 
@@ -19,6 +20,29 @@ export interface CompositeProfile {
   identity: string
   graph: CompositeTypeGraph
   ranges: Record<string, string>
+}
+
+export function catalogCompositeArrayType(
+  name: string,
+  graph?: CompositeTypeGraph,
+  rangeTypes: readonly RangeTypeInfo[] = [],
+): ArrayType | null {
+  if (!graph) return null
+  const explicit = name.endsWith('[]'),
+    parts = names(explicit ? name.replace(/(?:\[\])+$/u, '') : name)
+  if (!parts) return null
+  const matches = graph.definitions.filter((n) =>
+    parts.length === 2
+      ? n.schema === parts[0] && n.name === parts[1]
+      : parts.length === 1 && n.name === parts[0],
+  )
+  if (matches.length !== 1) return null
+  const element = explicit
+    ? matches[0]
+    : graph.definitions.find((n) => n.identity === matches[0]!.element)
+  if (element?.kind !== 'c') return null
+  const type = catalogCompositeType(element.identity, graph, rangeTypes)
+  return type ? arrayType(type) : null
 }
 
 function names(name: string): string[] | null {
