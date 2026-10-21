@@ -1,6 +1,15 @@
-import type { RangeTypeInfo, RangeTypeMetadata } from '../catalog/types.js'
+import type { RangeTypeInfo, RangeTypeMetadata, RangeSubtypeDefinition } from '../catalog/types.js'
 import type { PG18_RANGE_TYPES } from '../postgres/builtins/type-ranges.generated.js'
 import { parseSync } from 'libpg-query'
+import {
+  arrayType,
+  domainElementType,
+  catalogScalarType,
+  type ArrayType,
+  type ArrayElementType,
+  type ScalarType,
+  type DomainElementType,
+} from './expressions.js'
 import {
   builtinRangeType,
   builtinMultirangeType,
@@ -61,7 +70,7 @@ const subtypeKinds = {
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
 } as const
-export type RangeSubtype = keyof typeof subtypeKinds | `enum:${string}`
+export type RangeSubtype = keyof typeof subtypeKinds | `enum:${string}` | ArrayType
 
 export interface RangeProfile extends RangeTypeInfo {
   elementType: RangeSubtype
@@ -126,6 +135,10 @@ export const rangeEnumType = (
 ): `enum:${string}` => `enum:${JSON.stringify([definition.schema, definition.name])}`
 
 export function rangeSubtypeIsDomain(profile: RangeProfile): boolean {
+  if (profile.elementType.startsWith('array:'))
+    return (
+      profile.subtypeDefinitions?.find((node) => node.identity === profile.subtype)?.kind === 'd'
+    )
   if (!profile.subtypeEnum) return profile.subtype !== profile.elementType
   const fields = (value: unknown): Record<string, unknown> | undefined =>
     value && typeof value === 'object' && !Array.isArray(value)
@@ -150,6 +163,22 @@ export function rangeSubtypeIsDomain(profile: RangeProfile): boolean {
 }
 
 export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
+  if (profile.elementType.startsWith('array:')) {
+    if (!rangeArraySubtype(profile)) return undefined
+    const nodes = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
+    for (const item of nodes.values()) {
+      let node = item
+      while (node.kind === 'd') node = nodes.get(node.base!)!
+      const expected =
+        node.element !== null
+          ? builtinTypeIO('pg_catalog._int4')?.output
+          : node.kind === 'e'
+            ? 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)'
+            : builtinTypeIO(node.identity)?.output
+      if (!expected || item.output !== expected) return undefined
+    }
+    return builtinTypeIO('pg_catalog._int4')?.output ?? undefined
+  }
   if (!profile.subtypeEnum) return builtinTypeIO(profile.elementType)?.output ?? undefined
   const output = profile.subtypeOutput ? builtinMetadata(profile.subtypeOutput) : null
   return output?.kind === 'function' &&
@@ -184,6 +213,151 @@ function validEnumDefinition(value: unknown): value is NonNullable<RangeTypeInfo
   )
 }
 
+export function rangeArraySubtype(
+  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions'>,
+): ArrayType | null {
+  const definitions = profile.subtypeDefinitions
+  if (!Array.isArray(definitions) || !definitions.length || definitions.length > 2147483647)
+    return null
+  const nodes = new Map<string, RangeSubtypeDefinition>()
+  const keys = [
+    'identity',
+    'schema',
+    'name',
+    'kind',
+    'base',
+    'element',
+    'subtype',
+    'member',
+    'enumValues',
+    'input',
+    'output',
+    'send',
+    'equality',
+    'comparator',
+    'hash',
+    'hashExtended',
+    'hashEqualityCompatible',
+  ]
+  for (const node of definitions) {
+    if (
+      !node ||
+      typeof node !== 'object' ||
+      Object.keys(node).length !== keys.length ||
+      keys.some((key) => !Object.hasOwn(node, key))
+    )
+      return null
+    if (
+      ![node.identity, node.schema, node.name].every(validText) ||
+      nodes.has(node.identity) ||
+      !['b', 'd', 'e'].includes(node.kind) ||
+      typeof node.hashEqualityCompatible !== 'boolean'
+    )
+      return null
+    if (
+      [
+        node.base,
+        node.element,
+        node.subtype,
+        node.member,
+        node.input,
+        node.output,
+        node.send,
+        node.equality,
+        node.comparator,
+        node.hash,
+        node.hashExtended,
+      ].some((value) => value !== null && !validText(value))
+    )
+      return null
+    if (node.subtype !== null || node.member !== null) return null
+    if (node.kind === 'e') {
+      if (
+        !validEnumDefinition({ schema: node.schema, name: node.name, values: node.enumValues }) ||
+        node.base !== null ||
+        node.element !== null
+      )
+        return null
+    } else if (node.enumValues !== null) return null
+    if (node.kind === 'd' ? node.base === null || node.element !== null : node.base !== null)
+      return null
+    try {
+      const select = parseSync(`SELECT NULL::${node.identity}`).stmts![0]!.stmt as {
+        SelectStmt?: {
+          targetList?: {
+            ResTarget?: {
+              val?: {
+                TypeCast?: {
+                  typeName?: {
+                    names?: { String?: { sval?: string } }[]
+                    arrayBounds?: unknown[]
+                    typmods?: unknown[]
+                  }
+                }
+              }
+            }
+          }[]
+        }
+      }
+      const type = select.SelectStmt?.targetList?.[0]?.ResTarget?.val?.TypeCast?.typeName
+      if (
+        type?.arrayBounds?.length ||
+        type?.typmods?.length ||
+        type?.names?.length !== 2 ||
+        type.names[0]?.String?.sval !== node.schema ||
+        type.names[1]?.String?.sval !== node.name
+      )
+        return null
+    } catch {
+      return null
+    }
+    nodes.set(node.identity, node)
+  }
+  const visiting = new Set<string>()
+  const build = (identity: string, nominal: boolean): ScalarType | null => {
+    const node = nodes.get(identity)
+    if (!node || visiting.has(identity)) return null
+    visiting.add(identity)
+    let result: ScalarType | null = null
+    if (node.kind === 'd') {
+      const base = build(node.base!, false)
+      if (base && !base.startsWith('domain:'))
+        result = nominal
+          ? domainElementType(node, base as Exclude<ScalarType, DomainElementType>)
+          : base
+    } else if (node.element !== null) {
+      const element = build(node.element, true)
+      if (element && !element.startsWith('array:')) result = arrayType(element as ArrayElementType)
+    } else if (node.kind === 'e')
+      result = rangeEnumType({ schema: node.schema, name: node.name, values: node.enumValues! })
+    else {
+      const scalar = catalogScalarType(node.identity)
+      if (
+        scalar &&
+        !scalar.startsWith('array:') &&
+        !scalar.startsWith('range:') &&
+        !scalar.startsWith('multirange:') &&
+        !builtinRangeType(scalar) &&
+        !builtinMultirangeType(scalar)
+      )
+        result = scalar
+    }
+    visiting.delete(identity)
+    return result
+  }
+  for (const node of definitions) if (!build(node.identity, false)) return null
+  const root = build(profile.subtype, false)
+  return root?.startsWith('array:') ? (root as ArrayType) : null
+}
+
+export function rangeSubtypeCarrierIdentity(profile: RangeProfile): string {
+  if (!profile.elementType.startsWith('array:')) return profile.elementType
+  const nodes = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
+  let node = nodes.get(profile.subtype)!
+  while (node.kind === 'd') node = nodes.get(node.base!)!
+  return node.identity
+}
+
 function capturedDefinition(type: string): (RangeTypeInfo & { elementType: RangeSubtype }) | null {
   const prefix = type.startsWith('range:') ? 6 : type.startsWith('multirange:') ? 11 : 0
   if (!prefix) return null
@@ -199,7 +373,9 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
       ...jsonCategoryFields,
       ...(typeof data['elementType'] === 'string' && data['elementType'].startsWith('enum:')
         ? ['subtypeEnum']
-        : []),
+        : typeof data['elementType'] === 'string' && data['elementType'].startsWith('array:')
+          ? ['subtypeDefinitions']
+          : []),
     ]
     if (Object.keys(data).length !== keys.length || keys.some((key) => !Object.hasOwn(data, key)))
       return null
@@ -218,7 +394,9 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
       !(
         Object.hasOwn(subtypeKinds, data['elementType']) ||
         (validEnumDefinition(data['subtypeEnum']) &&
-          data['elementType'] === rangeEnumType(data['subtypeEnum']))
+          data['elementType'] === rangeEnumType(data['subtypeEnum'])) ||
+        (data['elementType'].startsWith('array:') &&
+          rangeArraySubtype(data as unknown as RangeTypeInfo) === data['elementType'])
       )
     )
       return null
@@ -246,13 +424,15 @@ export function capturedRangeType(
     !Object.hasOwn(subtypeKinds, elementType) &&
     !(
       validEnumDefinition(profile.subtypeEnum) && elementType === rangeEnumType(profile.subtypeEnum)
-    )
+    ) &&
+    !(elementType.startsWith('array:') && rangeArraySubtype(profile) === elementType)
   )
     return null
   const fields: Record<string, unknown> = { elementType }
   for (const key of [...textFields, ...nullableTextFields, ...nullableFlags, ...jsonCategoryFields])
     fields[key] = profile[key]
   if (elementType.startsWith('enum:')) fields['subtypeEnum'] = profile.subtypeEnum
+  if (elementType.startsWith('array:')) fields['subtypeDefinitions'] = profile.subtypeDefinitions
   const result: CapturedRangeType = `range:${JSON.stringify(fields)}`
   return capturedDefinition(result) ? result : null
 }
@@ -350,14 +530,21 @@ export function rangeProfileSupport(
   comparison: number
   canonical: number
 } {
-  const kind = profile.subtypeEnum
-    ? 6
-    : subtypeKinds[profile.elementType as keyof typeof subtypeKinds]
+  const kind = profile.elementType.startsWith('array:')
+    ? 41
+    : profile.subtypeEnum
+      ? 6
+      : subtypeKinds[profile.elementType as keyof typeof subtypeKinds]
   const comparison =
     profile.comparator !== null &&
     profile.comparator ===
-      builtinTypeComparison(profile.subtypeEnum ? 'pg_catalog.anyenum' : profile.elementType)
-        ?.comparator &&
+      builtinTypeComparison(
+        profile.elementType.startsWith('array:')
+          ? 'pg_catalog.anyarray'
+          : profile.subtypeEnum
+            ? 'pg_catalog.anyenum'
+            : profile.elementType,
+      )?.comparator &&
     (kind !== 12 || (context.defaultCollation === 'C' && context.serverEncoding === 'UTF8')) &&
     (kind !== 8 ||
       (context.serverEncoding === 'UTF8' &&

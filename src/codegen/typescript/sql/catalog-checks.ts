@@ -1,6 +1,9 @@
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
+  arrayRangeProfile,
+  arrayMultirangeProfile,
+  rangeBoundProfiles,
   arrayElementIdentity,
   arrayInputPlan,
 } from '../../shared/check-array-types.js'
@@ -426,6 +429,44 @@ export function renderTypescriptSchemaCheckArtifacts(
             )
           const multirange = multirangeTypeProfile(item.type)
           const range = rangeTypeProfile(item.type)
+          const compiledProfile =
+            range ??
+            multirange ??
+            (item.type.startsWith('array:')
+              ? (arrayRangeProfile(item.type) ?? arrayMultirangeProfile(item.type))
+              : null)
+          const nodes = compiledProfile
+            ? rangeBoundProfiles(compiledProfile, options.executionContext)
+            : []
+          if (!nodes) throw new Error('Missing compiled array-bound range context')
+          const boundContext = factory.createObjectLiteralExpression([
+            factory.createPropertyAssignment(
+              'nodes',
+              factory.createArrayLiteralExpression(
+                nodes.map((node) =>
+                  factory.createObjectLiteralExpression(
+                    Object.entries(node).map(([key, value]) =>
+                      factory.createPropertyAssignment(
+                        key,
+                        typeof value === 'string'
+                          ? factory.createStringLiteral(value)
+                          : typeof value === 'boolean'
+                            ? value
+                              ? factory.createTrue()
+                              : factory.createFalse()
+                            : value < 0
+                              ? factory.createPrefixUnaryExpression(
+                                  ts.SyntaxKind.MinusToken,
+                                  factory.createNumericLiteral(-value),
+                                )
+                              : factory.createNumericLiteral(value),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ])
           const enumDefinition = (range ?? multirange)?.subtypeEnum
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
@@ -449,6 +490,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                       ),
                 ]
               : []),
+            ...(range || multirange ? (nodes.length ? [boundContext] : []) : []),
             ...(item.type.startsWith('array:')
               ? [
                   factory.createStringLiteral(
@@ -457,6 +499,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                   factory.createNumericLiteral(
                     arrayElementFamily(item.type.slice('array:'.length))!,
                   ),
+                  boundContext,
                   ...arrayInputPlan(item.type).map((value) => factory.createStringLiteral(value)),
                 ]
               : []),
@@ -816,13 +859,13 @@ export function renderTypescriptSchemaCheckArtifacts(
 
 const typescriptRustAdapterSource = `const checkRustArrayRecords: Readonly<Record<string,Readonly<Record<string,string>>>> = {"SqlError":{"state":"u32"},"ArrayDimension":{"lower":"i32","length":"i32"},"BoxPayload":{"highX":"i64","highY":"i64","lowX":"i64","lowY":"i64","wireKnown":"bool"},"CirclePayload":{"x":"i64","y":"i64","radius":"i64","wireKnown":"bool"},"EnumPayload":{"ordinal":"i32","labelOid":"i64"},"IntervalPayload":{"months":"i32","days":"i32","time":"i64"},"JsonPayload":{"source":"String","kind":"i32","depth":"usize"},"JsonbNode":{"kind":"i32","child":"usize","next":"usize","keyStart":"usize","keyEnd":"usize","textStart":"usize","textEnd":"usize"},"JsonbPayload":{"characters":"Vec<char>","nodes":"Vec<JsonbNode>","root":"usize"},"JsonpathNode":{"kind":"i32","next":"usize","left":"usize","right":"usize","textStart":"usize","textEnd":"usize","first":"i32","last":"i32","flags":"i32"},"JsonpathPayload":{"characters":"Vec<char>","nodes":"Vec<JsonpathNode>","root":"usize","lax":"bool"},"LinePayload":{"a":"i64","b":"i64","c":"i64","wireKnown":"bool"},"LsegPayload":{"x1":"i64","y1":"i64","x2":"i64","y2":"i64","wireKnown":"bool"},"MacAddress":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32"},"NetworkAddress":{"family":"usize","prefix":"i32","word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"},"PathPayload":{"closed":"bool","points":"Vec<PointPayload>"},"PointPayload":{"x":"i64","y":"i64","wireKnown":"bool"},"PolygonPayload":{"points":"Vec<PointPayload>","bounds":"BoxValue"},"SnapshotPayload":{"xmin":"i64","xmax":"i64","xip":"Vec<SnapshotXid>"},"SnapshotXid":{"bits":"i64"},"TimetzPayload":{"time":"i64","zone":"i32"},"Uuid":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"}}
 const checkRustArrayProfiles: Readonly<Record<string,readonly [number,string]>> = {"Int2":[1,"i32"],"Int4":[2,"i32"],"Int8":[3,"i64"],"Timestamp":[4,"i64"],"Timestamptz":[5,"i64"],"Enum":[6,"EnumPayload"],"Date":[7,"i32"],"Text":[8,"String"],"Bool":[9,"bool"],"Numeric":[10,"String"],"Json":[11,"JsonPayload"],"Jsonb":[12,"JsonbPayload"],"Network":[13,"NetworkAddress"],"Bit":[14,"String"],"Bytea":[15,"String"],"Macaddr":[16,"MacAddress"],"Macaddr8":[17,"MacAddress"],"Uuid":[18,"Uuid"],"Float4":[19,"i32"],"Float8":[20,"i64"],"Time":[21,"i64"],"Timetz":[22,"TimetzPayload"],"Interval":[23,"IntervalPayload"],"Point":[24,"PointPayload"],"Line":[25,"LinePayload"],"Lseg":[26,"LsegPayload"],"Box":[27,"BoxPayload"],"Path":[28,"PathPayload"],"Polygon":[29,"PolygonPayload"],"Circle":[30,"CirclePayload"],"Money":[31,"i64"],"InternalChar":[32,"i32"],"Oid":[33,"i64"],"Xid":[34,"i64"],"Cid":[35,"i64"],"Snapshot":[36,"SnapshotPayload"],"Xid8":[37,"i64"],"PgLsn":[38,"i64"],"Tid":[39,"i64"],"Jsonpath":[40,"JsonpathPayload"],"JsonpathStoredText":[40,"String"]}
-function checkRustArrayNullness(row: object,name: string,elementType: string,elementKind: number,...tree: string[]): _checkRust.BoolValue { return _checkRust.arrayIsNull(checkRustArray(row,name,elementType,elementKind,...tree)) }
-function checkRustArray(row: object, name: string, elementType: string, elementKind: number,...tree: string[]): _checkRust.ArrayValue {
+function checkRustArrayNullness(row: object,name: string,elementType: string,elementKind: number,boundProfile: _checkRust.RangeBoundContext,...tree: string[]): _checkRust.BoolValue { return _checkRust.arrayIsNull(checkRustArray(row,name,elementType,elementKind,boundProfile,...tree)) }
+function checkRustArray(row: object, name: string, elementType: string, elementKind: number,boundProfile: _checkRust.RangeBoundContext,...tree: string[]): _checkRust.ArrayValue {
   const input = Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input === undefined) return _checkRust.arrayUnknown()
-  return checkRustArrayValue(input,elementType,elementKind,tree.length>=2 ? tree[1]!.length-1 : 0,tree)
+  return checkRustArrayValue(input,elementType,elementKind,tree.length>=2 ? tree[1]!.length-1 : 0,tree,false,boundProfile)
 }
-function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false): _checkRust.ArrayValue {
+function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false,boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.ArrayValue {
   if (input === null) return _checkRust.arrayNull()
   if (!input || typeof input !== 'object' || !('kind' in input)) return _checkRust.arrayUnknown()
   if (input.kind === 'Unknown' || input.kind === 'Null') return {kind:input.kind}
@@ -840,7 +883,7 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const elements: _checkRust.ArrayElement[]=[]
   for(const cell of value.elements) {
-    const element=checkRustArrayElement(cell,elementKind,depth,tree)
+    const element=checkRustArrayElement(cell,elementKind,depth,tree,boundProfile)
     if (element===null) return _checkRust.arrayUnknown()
     elements.push(element)
   }
@@ -854,13 +897,18 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
   if(nested) return result
+  if(boundProfile.nodes.length) {
+    if(tree.length===7) return _checkRust.arrayFromCoercedRangeTypedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,boundProfile)
+    if(tree.length===8) return _checkRust.arrayFromCoercedMultirangeTypedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!,boundProfile)
+    return _checkRust.arrayUnknown()
+  }
   if(tree.length===9) return _checkRust.arrayFromCoercedRangeDefinedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!,Number(tree[8]))
   if(tree.length===10) return _checkRust.arrayFromCoercedMultirangeDefinedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!,tree[8]!,Number(tree[9]))
   if(tree.length===7 && tree[4]!.length===1 && tree[5]!.length===1 && tree[6]!.length===1) return _checkRust.arrayFromCoercedRangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!)
   if(tree.length===8 && tree[5]!.length===1 && tree[6]!.length===1 && tree[7]!.length===1) return _checkRust.arrayFromCoercedMultirangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!)
   return tree.length>=2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
 }
-function checkRustArrayElement(input: unknown, family: number, depth: number, tree: string[]=[]): _checkRust.ArrayElement | null {
+function checkRustArrayElement(input: unknown, family: number, depth: number, tree: string[]=[],boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.ArrayElement | null {
   if (!input || typeof input !== 'object' || !('kind' in input)) return null
   if (input.kind==='Unknown' || input.kind==='Null') return {kind:input.kind}
   if (input.kind==='Error') return 'value' in input && checkRustArrayField(input.value,'SqlError') ? {kind:'Error',value:input.value as _checkRust.SqlError} : null
@@ -868,7 +916,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     if(depth<1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const value=input.value
     if(!('elementType' in value) || typeof value.elementType!=='string' || !('elementKind' in value) || !checkRustArrayField(value.elementKind,'i32')) return null
-    const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,tree,true)
+    const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,tree,true,boundProfile)
     return result.kind==='Value' ? {kind:'Array',value:result.value} : null
   }
   if(input.kind==='Multirange') {
@@ -884,7 +932,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
         ranges.push({kind:'Error',value:span.value as _checkRust.SqlError});continue
       }
       if(span.kind!=='Value' || !('value' in span)) return null
-      const value=checkRustArrayElement({kind:'Range',value:span.value},42,0,[tree[0]!,tree[1]!,tree[3]!,tree[4]!,tree[5]!,...(tree.length===10 ? [tree[6]!,tree[7]!,tree[8]!,tree[9]!] : [])])
+      const value=checkRustArrayElement({kind:'Range',value:span.value},42,0,[tree[0]!,tree[1]!,tree[3]!,tree[4]!,tree[5]!,...(tree.length===10 ? [tree[6]!,tree[7]!,tree[8]!,tree[9]!] : [])],boundProfile)
       if(value===null || value.kind!=='Range') return null
       ranges.push({kind:'Value',value:value.value})
     }
@@ -897,11 +945,11 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     if(!('typeName' in p) || p.typeName!==tree[2] || !('elementType' in p) || p.elementType!==tree[3] || !('elementKind' in p) || p.elementKind!==kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return null
     const bounds:_checkRust.ArrayElement[]=[]
     for(const bound of p.bounds) {
-      const cell=checkRustArrayElement(bound,kind,0)
+      const cell=checkRustArrayElement(bound,kind,boundProfile.nodes.filter(node=>node.kind===41).length)
       if(cell===null) return null
       bounds.push(cell)
     }
-    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,enumLabels:tree.length===9 ? tree[7]! : '',enumCount:tree.length===9 ? Number(tree[8]) : -1,boundProfile:{nodes:[]},support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
+    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,enumLabels:tree.length===9 ? tree[7]! : '',enumCount:tree.length===9 ? Number(tree[8]) : -1,boundProfile,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
   }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}
@@ -1060,7 +1108,7 @@ function checkRustJson(row: object, name: string): _checkRust.JsonValue {
   if (source.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(source)) return _checkRust.jsonUnknown()
   return _checkRust.makeJsonValue(source)
 }
-function checkRustMultirange(row: object, name: string, typeName: string, rangeType: string, elementType: string, elementKind: number, enumLabels: string, enumCount: number): _checkRust.MultirangeValue {
+function checkRustMultirange(row: object, name: string, typeName: string, rangeType: string, elementType: string, elementKind: number, enumLabels: string, enumCount: number,boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.MultirangeValue {
   const input=Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.multirangeUnknown()
   if (input===null) return _checkRust.multirangeNull()
@@ -1075,13 +1123,13 @@ function checkRustMultirange(row: object, name: string, typeName: string, rangeT
     if (span && typeof span==='object' && 'kind' in span && span.kind==='Value') {
       if (!('value' in span) || !span.value || typeof span.value!=='object' || !('typeName' in span.value) || span.value.typeName!==rangeType || !('elementType' in span.value) || span.value.elementType!==elementType || !('elementKind' in span.value) || span.value.elementKind!==elementKind) return _checkRust.multirangeUnknown()
     }
-    const value=checkRustRange({span},'span',enumLabels,enumCount)
+    const value=checkRustRange({span},'span',enumLabels,enumCount,boundProfile)
     ranges.push(value)
     if(value.kind==='Unknown' || value.kind==='Error') break
   }
   return _checkRust.makeCoercedMultirangeValue({typeName,rangeType,elementType,elementKind,support:_checkRust.rangeBuiltinSupport(rangeType,elementType,elementKind),ranges})
 }
-function checkRustRange(row: object, name: string, enumLabels: string, enumCount: number): _checkRust.RangeValue {
+function checkRustRange(row: object, name: string, enumLabels: string, enumCount: number,boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.RangeValue {
   const input=Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.rangeUnknown()
   if (input===null) return _checkRust.rangeNull()
@@ -1093,11 +1141,11 @@ function checkRustRange(row: object, name: string, enumLabels: string, enumCount
   if (!('typeName' in p) || !checkRustArrayField(p.typeName,'String') || !('elementType' in p) || !checkRustArrayField(p.elementType,'String') || !('elementKind' in p) || !checkRustArrayField(p.elementKind,'i32') || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return _checkRust.rangeUnknown()
   const bounds: _checkRust.ArrayElement[]=[]
   for (const bound of p.bounds) {
-    const cell=checkRustArrayElement(bound,p.elementKind as number,0)
+    const cell=checkRustArrayElement(bound,p.elementKind as number,boundProfile.nodes.filter(node=>node.kind===41).length)
     if (cell===null) return _checkRust.rangeUnknown()
     bounds.push(cell)
   }
-  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels,enumCount,boundProfile:{nodes:[]},support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
+  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels,enumCount,boundProfile,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)

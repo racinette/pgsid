@@ -202,6 +202,27 @@ pub fn multirange_from_coerced_defined_profile(
     input
 }
 
+pub fn multirange_from_coerced_typed_profile(input: MultirangeValue, type_name: &str,
+    range_type: &str, element_type: &str, element_kind: i32, comparison: i32,
+    canonical: i32, bound_profile: RangeBoundContext) -> MultirangeValue {
+    if let MultirangeValue::Value(payload)=input {
+        if payload.type_name.as_str()!=type_name || payload.range_type.as_str()!=range_type
+            || payload.element_type.as_str()!=element_type || payload.element_kind!=element_kind {
+            return MultirangeValue::Unknown;
+        };
+        let mut ranges=payload.ranges;
+        let mut index:usize=0;
+        while index<ranges.len() {
+            ranges[index]=range_from_coerced_typed_profile(ranges[index].clone(),range_type,
+                element_type,element_kind,comparison,canonical,bound_profile.clone());
+            index+=1;
+        }
+        return multirange_from_profiled_ranges(type_name,range_type,element_type,element_kind,
+            ranges,make_range_support(comparison,canonical));
+    };
+    input
+}
+
 pub fn multirange_require_support(
     input: MultirangeValue,
     expected: RangeSupport,

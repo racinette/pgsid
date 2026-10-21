@@ -25,6 +25,7 @@ import {
 } from './check-rust-validity.js'
 import {
   arrayElementDelimiter,
+  rangeBoundProfiles,
   arrayElementFamily,
   arrayElementIdentity,
   arrayElementComparison,
@@ -238,10 +239,34 @@ export const isJsonBuilder = (
 
 export class UnsupportedCheckRustExpression extends Error {}
 
-const rangeDefinitionArguments = (profile: RangeProfile): string =>
-  profile.subtypeEnum
-    ? `,${rustStringLiteral(profile.subtypeEnum.values.join('\0'))},${profile.subtypeEnum.values.length}`
-    : ''
+const rangeContextExpression = (
+  profile: RangeProfile,
+  context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' },
+  bind: (call: string) => string,
+): string => {
+  const nodes = rangeBoundProfiles(profile, context)
+  if (!nodes)
+    throw new UnsupportedCheckRustExpression(
+      'Range subtype dependencies need a concrete owned context',
+    )
+  let current = bind('empty_range_bound_context()')
+  for (const node of nodes)
+    current = bind(
+      `append_range_bound_profile(${current},${rustStringLiteral(node.typeName)},${node.kind},${node.comparison},${node.missingComparison},${rustStringLiteral(node.elementType)},${node.child},${rustStringLiteral(node.enumLabels)},${node.enumCount})`,
+    )
+  return current
+}
+
+const rangeDefinitionArguments = (
+  profile: RangeProfile,
+  context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' },
+  bind: (call: string) => string,
+): string =>
+  profile.elementType.startsWith('array:')
+    ? `,${rangeContextExpression(profile, context, bind)}.clone()`
+    : profile.subtypeEnum
+      ? `,${rustStringLiteral(profile.subtypeEnum.values.join('\0'))},${profile.subtypeEnum.values.length}`
+      : ''
 
 export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
@@ -1214,7 +1239,7 @@ export function emitCheckRustEvaluator(
         return {
           type: node.type,
           name: bind(
-            `range_construct_${profile.subtypeEnum ? 'defined' : 'with_support'}(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${lower},${upper},${ownedOperand(flags)},${compiled}${rangeDefinitionArguments(profile)})`,
+            `range_construct_${profile.elementType.startsWith('array:') ? 'typed' : profile.subtypeEnum ? 'defined' : 'with_support'}(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${lower},${upper},${ownedOperand(flags)},${compiled}${profile.elementType.startsWith('array:') ? ',"",-1' : ''}${rangeDefinitionArguments(profile, executionContext, bind)})`,
           ),
         }
       }
@@ -2315,7 +2340,7 @@ export function emitCheckRustEvaluator(
           const bytes = bounds.map((bound) => {
             if (enumSend) {
               const text = bindRange(
-                `enum_to_text(${ownedOperand(bound)}${rangeDefinitionArguments(range)})`,
+                `enum_to_text(${ownedOperand(bound)}${rangeDefinitionArguments(range, executionContext, bind)})`,
               )
               return emitCallInner(
                 {
@@ -3775,7 +3800,7 @@ export function emitCheckRustEvaluator(
         const support = rangeProfileSupport(multirange, executionContext)
         return {
           name: bind(
-            `multirange_from_coerced_${multirange.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(multirange)})`,
+            `multirange_from_coerced_${multirange.elementType.startsWith('array:') ? 'typed_profile' : multirange.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(multirange, executionContext, bind)})`,
           ),
           type: node.type,
         }
@@ -3792,7 +3817,7 @@ export function emitCheckRustEvaluator(
         const support = rangeProfileSupport(range, executionContext)
         return {
           name: bind(
-            `range_from_coerced_${range.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(range)})`,
+            `range_from_coerced_${range.elementType.startsWith('array:') ? 'typed_profile' : range.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(range, executionContext, bind)})`,
           ),
           type: node.type,
         }
@@ -3809,7 +3834,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_multirange${arrayMulti.captured ? (arrayMulti.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti, executionContext).comparison},${rangeProfileSupport(arrayMulti, executionContext).canonical}${rangeDefinitionArguments(arrayMulti)}` : ''})`,
+            `array_from_coerced_multirange${arrayMulti.captured ? (arrayMulti.elementType.startsWith('array:') ? '_typed_profile' : arrayMulti.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti, executionContext).comparison},${rangeProfileSupport(arrayMulti, executionContext).canonical}${rangeDefinitionArguments(arrayMulti, executionContext, bind)}` : ''})`,
           ),
           type: node.type,
         }
@@ -3819,7 +3844,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_range${arrayRange.captured ? (arrayRange.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange, executionContext).comparison},${rangeProfileSupport(arrayRange, executionContext).canonical}${rangeDefinitionArguments(arrayRange)}` : ''})`,
+            `array_from_coerced_range${arrayRange.captured ? (arrayRange.elementType.startsWith('array:') ? '_typed_profile' : arrayRange.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange, executionContext).comparison},${rangeProfileSupport(arrayRange, executionContext).canonical}${rangeDefinitionArguments(arrayRange, executionContext, bind)}` : ''})`,
           ),
           type: node.type,
         }
@@ -3934,7 +3959,11 @@ export function emitCheckRustEvaluator(
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
           subtype.args[0] !==
-            (multirange.subtypeEnum ? 'pg_catalog.anyenum' : multirange.elementType) ||
+            (multirange.elementType.startsWith('array:')
+              ? 'pg_catalog.anyarray'
+              : multirange.subtypeEnum
+                ? 'pg_catalog.anyenum'
+                : multirange.elementType) ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
@@ -3958,7 +3987,12 @@ export function emitCheckRustEvaluator(
           !subtype.strict ||
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
-          subtype.args[0] !== (range.subtypeEnum ? 'pg_catalog.anyenum' : range.elementType) ||
+          subtype.args[0] !==
+            (range.elementType.startsWith('array:')
+              ? 'pg_catalog.anyarray'
+              : range.subtypeEnum
+                ? 'pg_catalog.anyenum'
+                : range.elementType) ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
@@ -4280,7 +4314,10 @@ export function emitCheckRustEvaluator(
                   subtype.result !== 'pg_catalog.anyenum' ||
                   !subtype.strict ||
                   subtype.volatility !== 's'
-                : range.subtypeInput !== builtinTypeIO(range.elementType)?.input) &&
+                : range.subtypeInput !==
+                  builtinTypeIO(
+                    range.elementType.startsWith('array:') ? 'pg_catalog._int4' : range.elementType,
+                  )?.input) &&
             !subtype.returnsSet
         if (!conversion || !validSubtype)
           throw new UnsupportedCheckRustExpression(
@@ -4294,12 +4331,14 @@ export function emitCheckRustEvaluator(
         const initialHelper = stored ? 'range_stored_text_initial' : 'range_text_initial'
         const finishHelper =
           (stored ? 'finish_range_stored_text' : 'finish_range_text') +
-          (range.subtypeEnum ? '_defined' : '')
-        const definition = rangeDefinitionArguments(range)
+          (range.elementType.startsWith('array:') ? '_typed' : range.subtypeEnum ? '_defined' : '')
+        const definition = rangeDefinitionArguments(range, executionContext, bind)
         const initialExpression = `${initialHelper}(${plan}.clone(), ${metadata})`
-        const initial = range.subtypeEnum ? bind(initialExpression) : initialExpression
+        const hasDefinition =
+          range.subtypeEnum !== undefined || range.elementType.startsWith('array:')
+        const initial = hasDefinition ? bind(initialExpression) : initialExpression
         bindings.push(
-          `let mut ${result}:RangeValue=${range.subtypeEnum ? 'range_with_enum_definition(' : ''}${initial}${range.subtypeEnum ? definition + ')' : ''};`,
+          `let mut ${result}:RangeValue=${hasDefinition ? (range.elementType.startsWith('array:') ? 'range_with_bound_profile(' : 'range_with_enum_definition(') : ''}${initial}${hasDefinition ? definition + ')' : ''};`,
         )
         const inner: string[] = []
         const bound = (upper: boolean, destination: string[]): string => {
@@ -4314,6 +4353,7 @@ export function emitCheckRustEvaluator(
             lines: string[] = []
           const key = JSON.stringify(['__pgsid_range_text_bound', false])
           const outer = localInputs.get(key),
+            outerStoredArrayInput = storedArrayInputScope,
             outerValidity = arrayValidityScope,
             outerPreparation = domainInputPreparation,
             outerDepth = preparationDepth
@@ -4324,6 +4364,7 @@ export function emitCheckRustEvaluator(
             rustType: 'TextValue',
           })
           arrayValidityScope = null
+          storedArrayInputScope = stored || outerStoredArrayInput
           domainInputPreparation = { lines: prepared, status }
           preparationDepth = 0
           let value: { name: string; type: string }
@@ -4336,6 +4377,7 @@ export function emitCheckRustEvaluator(
             if (outer) localInputs.set(key, outer)
             else localInputs.delete(key)
             arrayValidityScope = outerValidity
+            storedArrayInputScope = outerStoredArrayInput
             domainInputPreparation = outerPreparation
             preparationDepth = outerDepth
           }

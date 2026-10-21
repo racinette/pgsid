@@ -23,6 +23,7 @@ import {
 import { rangeTypeProfile, multirangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
+  rangeBoundProfiles,
   arrayElementIdentity,
 } from '../../src/codegen/shared/check-array-types.js'
 import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
@@ -862,7 +863,7 @@ describe('world CHECK INSERT parity', () => {
         }
         type CapturedRange = Omit<RangeInputPayload, 'bounds'> & {
           carrier: string
-          bounds: (string | null)[]
+          bounds: (string | null | CapturedArray)[]
         }
         type CapturedMultirange = {
           typeName: string
@@ -894,7 +895,7 @@ describe('world CHECK INSERT parity', () => {
           const range = rangeTypeProfile(baseElementType) ?? multirange
           const rangeCell = multirange ? alias + '_member' : alias
           const rangeValue = range
-            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.elementType)},'carrier','${range.elementType}','empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${rangeCell})`, range.elementType)},${rangeBoundProjection(`upper(${rangeCell})`, range.elementType)}) END)`
+            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.elementType)},'carrier','${range.elementType}','empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${range.elementType.startsWith('array:') ? captureSql(`lower(${rangeCell})`, range.elementType, depth + 1) : rangeBoundProjection(`lower(${rangeCell})`, range.elementType)},${range.elementType.startsWith('array:') ? captureSql(`upper(${rangeCell})`, range.elementType, depth + 1) : rangeBoundProjection(`upper(${rangeCell})`, range.elementType)}) END)`
             : ''
           const multirangeValue = multirange
             ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.elementType)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
@@ -921,13 +922,43 @@ describe('world CHECK INSERT parity', () => {
           goRow[name] = null
           continue
         }
-        const rangeDefinition = (carrier: string) => {
+        const rangeDefinition = (carrier: string, identity: string) => {
+          if (carrier.startsWith('array:')) {
+            const profile = rangeTypeProfile(
+              catalogRangeType(identity, undefined, catalog.domains, catalog.rangeTypes)!,
+            )!
+            return {
+              boundProfile: {
+                nodes: rangeBoundProfiles(profile, {
+                  defaultCollation: 'C',
+                  serverEncoding: 'UTF8',
+                })!,
+              },
+            }
+          }
           const definition = catalog.enums.find((item) => enumType(item) === carrier)
           return definition
             ? { enumLabels: definition.values.join('\0'), enumCount: definition.values.length }
             : {}
         }
-        const rangeCell = (carrier: string, bound: string | null) => {
+        const rangeCell = (carrier: string, bound: string | null | CapturedArray) => {
+          if (carrier.startsWith('array:') && bound !== null) {
+            const payload = convert(bound as CapturedArray, carrier, true).value
+            return {
+              kind: 'Array',
+              value: {
+                ...payload,
+                nullBitmap: {
+                  kind: 'Value',
+                  value: payload.elements.some(
+                    (cell) => (cell as { kind: string }).kind === 'Null',
+                  ),
+                },
+              },
+            }
+          }
+          if (bound !== null && typeof bound !== 'string')
+            throw new Error('Expected scalar range fixture bound')
           if (carrier.startsWith('enum:') && bound !== null) {
             const definition = catalog.enums.find((item) => enumType(item) === carrier)!
             return {
@@ -976,7 +1007,7 @@ describe('world CHECK INSERT parity', () => {
                     kind: 'Value',
                     value: {
                       ...span,
-                      ...rangeDefinition(span.carrier),
+                      ...rangeDefinition(span.carrier, span.typeName),
                       bounds: span.bounds.map((bound) => rangeCell(span.carrier, bound)),
                     },
                   })),
@@ -989,7 +1020,7 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Range',
                 value: {
                   ...payload,
-                  ...rangeDefinition(payload.carrier),
+                  ...rangeDefinition(payload.carrier, payload.typeName),
                   bounds: payload.bounds.map((bound) => rangeCell(payload.carrier, bound)),
                 },
               }

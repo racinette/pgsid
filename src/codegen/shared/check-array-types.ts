@@ -5,6 +5,8 @@ import {
   rangeTypeProfile,
   multirangeTypeProfile,
   rangeProfileSupport,
+  type RangeProfile,
+  type RangeSubtype,
 } from '../../sql-semantics/range-profiles.js'
 
 const capturedArrayLeaf = (type: string): boolean => {
@@ -88,6 +90,68 @@ export function arrayElementFamily(type: string): number | null {
     'pg_catalog.jsonpath': 40,
   }
   return families[type] ?? null
+}
+
+export interface RangeBoundProfilePlan {
+  typeName: string
+  kind: number
+  comparison: number
+  missingComparison: boolean
+  elementType: string
+  child: number
+  enumLabels: string
+  enumCount: number
+}
+
+export function rangeBoundProfiles(
+  profile: RangeProfile,
+  context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' } = {},
+): RangeBoundProfilePlan[] | null {
+  if (!profile.elementType.startsWith('array:')) return []
+  if (!profile.subtypeDefinitions) return null
+  const definitions = new Map(profile.subtypeDefinitions.map((node) => [node.identity, node]))
+  const result: RangeBoundProfilePlan[] = []
+  const append = (identity: string, type: string): boolean => {
+    const selected = definitions.get(identity)
+    if (!selected) return false
+    let node = selected
+    const seen = new Set<string>()
+    while (node.kind === 'd') {
+      if (seen.has(node.identity) || !node.base || !definitions.has(node.base)) return false
+      seen.add(node.identity)
+      node = definitions.get(node.base)!
+    }
+    const base = arrayElementBaseType(type),
+      kind = arrayElementFamily(base)
+    if (kind === null || kind > 41) return false
+    const support = rangeProfileSupport(
+      {
+        ...profile,
+        elementType: base as RangeSubtype,
+        subtype: node.identity,
+        subtypeEnum:
+          node.kind === 'e'
+            ? { schema: node.schema, name: node.name, values: node.enumValues! }
+            : undefined,
+        comparator: selected.comparator,
+        canonical: null,
+      },
+      context,
+    )
+    const index = result.length
+    result.push({
+      typeName: node.identity,
+      kind,
+      comparison: index === 0 ? 41 : support.comparison,
+      missingComparison: index !== 0 && selected.comparator === null,
+      elementType: kind === 41 ? arrayElementIdentity(base.slice(6)) : '',
+      child: kind === 41 ? index + 1 : 0,
+      enumLabels: node.kind === 'e' ? node.enumValues!.join('\0') : '',
+      enumCount: node.kind === 'e' ? node.enumValues!.length : -1,
+    })
+    return kind !== 41 || (node.element !== null && append(node.element, base.slice(6)))
+  }
+  return append(profile.subtype, profile.elementType) ? result : null
 }
 
 export function arrayElementDelimiter(type: string): ',' | ';' {

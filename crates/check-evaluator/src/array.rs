@@ -628,7 +628,7 @@ pub fn array_from_coerced_multirange_tree(
     input
 }
 
-fn array_element_with_range_profile(
+fn array_element_with_typed_range_profile(
     input: ArrayElement,
     multirange_type: &str,
     range_type: &str,
@@ -638,9 +638,10 @@ fn array_element_with_range_profile(
     canonical: i32,
     labels: &str,
     count: i32,
+    bound_profile: &RangeBoundContext,
 ) -> ArrayElement {
     if let ArrayElement::Array(nested) = input {
-        let converted = array_with_range_profile(
+        let converted = array_with_typed_range_profile(
             ArrayValue::Value(nested),
             multirange_type,
             range_type,
@@ -650,10 +651,15 @@ fn array_element_with_range_profile(
             canonical,
             labels,
             count,
+            bound_profile,
         );
         return array_element_from_array(converted);
     };
     if let ArrayElement::Range(span) = input {
+        if bound_profile.nodes.len()>0 {
+            return array_element_from_range(range_from_coerced_typed_profile(RangeValue::Value(span),
+                range_type,element_type,element_kind,comparison,canonical,range_bound_context_snapshot(bound_profile)));
+        };
         if count >= 0 {
             return array_element_from_range(range_from_coerced_defined_profile(RangeValue::Value(span), range_type, element_type, element_kind, comparison, canonical, labels, count));
         };
@@ -668,6 +674,10 @@ fn array_element_with_range_profile(
         return array_element_from_range(converted);
     };
     if let ArrayElement::Multirange(spans) = input {
+        if bound_profile.nodes.len()>0 {
+            return array_element_from_multirange(multirange_from_coerced_typed_profile(MultirangeValue::Value(spans),
+                multirange_type,range_type,element_type,element_kind,comparison,canonical,range_bound_context_snapshot(bound_profile)));
+        };
         if count >= 0 {
             return array_element_from_multirange(multirange_from_coerced_defined_profile(MultirangeValue::Value(spans), multirange_type, range_type, element_type, element_kind, comparison, canonical, labels, count));
         };
@@ -685,7 +695,7 @@ fn array_element_with_range_profile(
     input
 }
 
-fn array_with_range_profile(
+fn array_with_typed_range_profile(
     input: ArrayValue,
     multirange_type: &str,
     range_type: &str,
@@ -695,6 +705,7 @@ fn array_with_range_profile(
     canonical: i32,
     labels: &str,
     count: i32,
+    bound_profile: &RangeBoundContext,
 ) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         let mut elements = payload.elements;
@@ -706,7 +717,7 @@ fn array_with_range_profile(
                 convert = false;
             };
             if convert {
-                let converted = array_element_with_range_profile(
+                let converted = array_element_with_typed_range_profile(
                     element,
                     multirange_type,
                     range_type,
@@ -716,6 +727,7 @@ fn array_with_range_profile(
                     canonical,
                     labels,
                     count,
+            bound_profile,
                 );
                 if let ArrayElement::Error(error) = converted {
                     return ArrayValue::Error(error);
@@ -736,6 +748,14 @@ fn array_with_range_profile(
         });
     };
     input
+}
+
+fn array_with_range_profile(input: ArrayValue, multirange_type: &str, range_type: &str,
+    element_type: &str, element_kind: i32, comparison: i32, canonical: i32,
+    labels: &str, count: i32) -> ArrayValue {
+    let profile=empty_range_bound_context();
+    array_with_typed_range_profile(input,multirange_type,range_type,element_type,element_kind,
+        comparison,canonical,labels,count,&profile)
 }
 
 pub fn array_from_coerced_range_profile_tree(
@@ -834,6 +854,34 @@ pub fn array_from_coerced_multirange_defined_profile_tree(
             labels,
             count,
         );
+    };
+    input
+}
+
+pub fn array_from_coerced_range_typed_profile_tree(input: ArrayValue, types: &str,
+    kinds: &str, type_name: &str, element_type: &str, element_kind: i32,
+    comparison: i32, canonical: i32, bound_profile: RangeBoundContext) -> ArrayValue {
+    if let ArrayValue::Value(payload)=input {
+        if array_tree_identity_valid(&payload,types,kinds,0)==false
+            || array_range_identity_valid(&payload,type_name,element_type,element_kind)==false {
+            return ArrayValue::Unknown;
+        };
+        return array_with_typed_range_profile(ArrayValue::Value(payload),"",type_name,element_type,
+            element_kind,comparison,canonical,"",-1,&bound_profile);
+    };
+    input
+}
+
+pub fn array_from_coerced_multirange_typed_profile_tree(input: ArrayValue, types: &str,
+    kinds: &str, type_name: &str, range_type: &str, element_type: &str, element_kind: i32,
+    comparison: i32, canonical: i32, bound_profile: RangeBoundContext) -> ArrayValue {
+    if let ArrayValue::Value(payload)=input {
+        if array_tree_identity_valid(&payload,types,kinds,0)==false
+            || array_multirange_identity_valid(&payload,type_name,range_type,element_type,element_kind)==false {
+            return ArrayValue::Unknown;
+        };
+        return array_with_typed_range_profile(ArrayValue::Value(payload),type_name,range_type,element_type,
+            element_kind,comparison,canonical,"",-1,&bound_profile);
     };
     input
 }

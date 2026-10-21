@@ -169,6 +169,23 @@ pub fn empty_range_bound_context() -> RangeBoundContext {
     RangeBoundContext {nodes}
 }
 
+pub(crate) fn range_bound_context_snapshot(input: &RangeBoundContext) -> RangeBoundContext {
+    let mut nodes:Vec<RangeBoundProfile>=Vec::new();
+    let mut index:usize=0;
+    while index<input.nodes.len() {nodes.push(input.nodes[index].clone());index+=1;}
+    RangeBoundContext {nodes}
+}
+
+pub fn append_range_bound_profile(input: RangeBoundContext, type_name: &str, kind: i32,
+    comparison: i32, missing_comparison: bool, element_type: &str, child: i32,
+    enum_labels: &str, enum_count: i32) -> RangeBoundContext {
+    let mut nodes = input.nodes;
+    nodes.push(RangeBoundProfile {type_name:type_name.to_owned(),kind,comparison,missing_comparison,
+        element_type:element_type.to_owned(),child:usize::try_from(child).unwrap_or(2147483647),
+        enum_labels:enum_labels.to_owned(),enum_count});
+    RangeBoundContext {nodes}
+}
+
 #[derive(Clone)]
 pub struct RangePayload {
     pub type_name: String,
@@ -706,6 +723,18 @@ pub fn range_from_coerced_defined_profile(
         };
         let defined = range_payload_with_definition(payload, labels, count);
         return make_coerced_range_value(range_payload_with_support(defined, make_range_support(comparison, canonical)));
+    };
+    input
+}
+
+pub fn range_from_coerced_typed_profile(input: RangeValue, type_name: &str,
+    element_type: &str, element_kind: i32, comparison: i32, canonical: i32,
+    bound_profile: RangeBoundContext) -> RangeValue {
+    if let RangeValue::Value(payload) = input {
+        if payload.type_name.as_str() != type_name || payload.element_type.as_str() != element_type
+            || payload.element_kind != element_kind { return RangeValue::Unknown; };
+        let typed = range_payload_with_bound_profile(payload, bound_profile);
+        return make_coerced_range_value(range_payload_with_support(typed,make_range_support(comparison,canonical)));
     };
     input
 }

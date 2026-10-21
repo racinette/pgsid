@@ -33763,6 +33763,38 @@ export function finishRangeStoredTextDefined(plan: checkruntime.RangeTextPlan, t
     }
     return { kind: "Unknown" };
 }
+export function finishRangeTextTyped(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    boundProfile = checkruntime.copyRangeBoundContext(boundProfile);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
+        return checkruntime.rangeWithBoundProfile(rangeTextInitial(plan, typeName, elementType, kind, support), boundProfile);
+    }
+    const flags: checkruntime.TextValue = rangeTextFlags(plan);
+    return rangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, "", langruntime.checkedSignedNegate(1), boundProfile);
+}
+export function finishRangeStoredTextTyped(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    boundProfile = checkruntime.copyRangeBoundContext(boundProfile);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
+        return checkruntime.rangeWithBoundProfile(rangeStoredTextInitial(plan, typeName, elementType, kind, support), boundProfile);
+    }
+    const flags: checkruntime.TextValue = rangeTextFlags(plan);
+    if (flags.kind === "Value") {
+        const text: string = langruntime.checkedString(flags.value);
+        return checkruntime.rangeFromTypedBounds(typeName, elementType, kind, false, text === "[]" || text === "[)", text === "[]" || text === "(]", rangeStoredTextBound(lower), rangeStoredTextBound(upper), support, "", langruntime.checkedSignedNegate(1), boundProfile);
+    }
+    return { kind: "Unknown" };
+}
 export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport): checkruntime.RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
@@ -33963,6 +33995,21 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
     }
     if (kind === 6) {
         return enumToText(checkruntime.arrayElementToEnum(input), enumLabels, enumCount);
+    }
+    if (kind === 11) {
+        return jsonToText(checkruntime.arrayElementToJson(input));
+    }
+    if (kind === 34) {
+        return xidToText(checkruntime.arrayElementToXid(input));
+    }
+    if (kind === 35) {
+        return cidToText(checkruntime.arrayElementToCid(input));
+    }
+    if (kind === 36) {
+        return snapshotToText(checkruntime.arrayElementToSnapshot(input));
+    }
+    if (kind === 40) {
+        return jsonpathToText(checkruntime.arrayElementToJsonpath(input));
     }
     if (kind === 12) {
         return jsonbTextContext(checkruntime.arrayElementToJsonb(input), utf8);

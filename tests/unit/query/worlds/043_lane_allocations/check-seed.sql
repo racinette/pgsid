@@ -8410,3 +8410,62 @@ INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_byte
 
 -- name: EnumPhaseMissingMembership
 INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[active,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: ArrayBatchSchedule
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{1},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','[{1},{3}]','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchWrongOrder
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{0},{1}]','{[{1},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','[{1},{3}]','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchMissingMembership
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{3},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','[{1},{3}]','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchWrongSlot
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{1},{5}]}','[-2:0]={"[{3},{5}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','[{1},{3}]','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchWrongConstructor
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{1},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{4}','[{1},{3}]','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchWrongLabel
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{1},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','wrong','[["[{1},{3}]", null, "[{3},{5}]"], null]',false);
+-- name: ArrayBatchWrongHistory
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES('[{1},{3}]','[{3},{5}]','{[{1},{5}]}','[-2:0]={"[{1},{3}]",NULL,"[{3},{5}]"}','{"[-2:0]={\"[{1},{3}]\",NULL,\"[{3},{5}]\"}",NULL}','{1}','{3}','[{1},{3}]','[]',false);
+-- name: ArrayBatchNulls
+INSERT INTO lane_batch_windows(batch_window,following_window,batches,windows,histories,start_batch,finish_batch,expected_label,expected_history,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: ArrayBatchInput
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('[{1},{3}]','[-2:-2]={"[{1},{3}]"}','[{1},{3}]',false);
+-- name: ArrayBatchInputWrongLabel
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('[{1},{3}]','[-2:-2]={"[{1},{3}]"}','wrong',false);
+-- name: ArrayBatchDomainViolation
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('["{1,2,3}",{4}]','[-2:-2]={"[{1},{3}]"}','[{1},{3}]',false);
+-- name: ArrayBatchMalformedBound
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('[bad,{3}]','[-2:-2]={"[{1},{3}]"}','[{1},{3}]',false);
+-- name: ArrayBatchArrayMalformedBound
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('[{1},{3}]','[-2:-2]={"[bad,{3}]"}','[{1},{3}]',false);
+-- name: ArrayBatchSkippedInput
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES('bad','bad','ignored',true);
+-- name: ArrayBatchNullInput
+INSERT INTO lane_batch_imports(payload,array_payload,expected_label,bypass) VALUES(NULL,NULL,NULL,false);
+-- name: ArrayPhaseBatchWindow
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{active}','[{queued},{active}]','[{queued},{active}]',false);
+-- name: ArrayPhaseBatchWrongConstructor
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{complete}','[{queued},{active}]','[{queued},{active}]',false);
+-- name: ArrayPhaseBatchWrongLabel
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{active}','[{queued},{active}]','wrong',false);
+-- name: ArrayPhaseBatchUnknownLabel
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{active}','[{missing},{active}]','[{queued},{active}]',false);
+-- name: ArrayPhaseBatchSkippedInput
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('empty','{queued}','{active}','bad','ignored',true);
+-- name: ArrayPhaseBatchNulls
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,false);
+-- name: ArrayDocumentUnbounded
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{}',NULL,'[]','[{},)',false);
+-- name: ArrayDocumentValue
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{1}',NULL,'[]','[{1},)',false);
+-- name: ArrayDocumentWrongLabel
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{1}',NULL,'[]','wrong',false);
+-- name: ArrayDocumentMissingComparison
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{}','{}','[]','empty',false);
+-- name: ArrayDocumentNullCellsMissingComparison
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{NULL}','{NULL}','()','empty',false);
+-- name: ArrayDocumentSkippedComparison
+INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,expected_label,bypass) VALUES('{}','{}','[]','ignored',true);
+-- name: ArrayPhaseBatchWrongInput
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{active}','[{active},{complete}]','[{queued},{active}]',false);
+-- name: ArrayPhaseBatchOutsideStart
+INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{complete}','{complete}','[{queued},{active}]','[{queued},{active}]',false);
