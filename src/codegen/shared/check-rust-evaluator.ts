@@ -1,3 +1,5 @@
+import { compositeProfile } from '../../sql-semantics/composite-profiles.js'
+import { compositePlanExpression } from './check-composite-types.js'
 import {
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -574,6 +576,7 @@ export const isJsonpathTimezoneCallable = (
 
 const rustType = (type: string): string => {
   type = arrayElementBaseType(type)
+  if (compositeProfile(type)) return 'CompositeValue'
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
@@ -789,6 +792,7 @@ export function emitCheckRustEvaluator(
       'SnapshotValue',
       'RangeValue',
       'MultirangeValue',
+      'CompositeValue',
       'PolygonValue',
       'PathValue',
       'TextValue',
@@ -3863,6 +3867,17 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'input') {
       const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
+      if (compositeProfile(node.type)) {
+        const plan = compositePlanExpression(node.type, executionContext, bind)
+        if (!plan)
+          throw new UnsupportedCheckRustExpression(
+            'Composite input requires captured field profiles',
+          )
+        return {
+          name: bind(`composite_from_coerced_plan(${item.rustName}.clone(),${plan})`),
+          type: node.type,
+        }
+      }
       const multirange = multirangeTypeProfile(node.type)
       if (multirange?.captured) {
         const support = rangeProfileSupport(multirange, executionContext)
@@ -5193,6 +5208,24 @@ export function emitCheckRustEvaluator(
         type: node.type,
       }
     }
+    if (node.kind === 'composite-field') {
+      const value = emitScalar(node.operand, bindings, used)
+      const index = bind(`make_int4_value(${node.index})`)
+      const cell = bind(`composite_field_at(${ownedOperand(value)},${index})`)
+      return {
+        name: bind(`array_element_to_${rustValuePrefix(rustType(node.type))}(${cell})`),
+        type: node.type,
+      }
+    }
+    if (node.kind === 'null-test' && compositeProfile(scalarType(node.operand))) {
+      const value = emitScalar(node.operand, bindings, used)
+      return {
+        name: bind(
+          `composite_row_is_${node.negated ? 'not_null' : 'null'}(${ownedOperand(value)})`,
+        ),
+        type: node.type,
+      }
+    }
     if (node.kind === 'null-test') {
       if (
         node.operand.kind === 'input' &&
@@ -5770,6 +5803,7 @@ export function emitCheckRustEvaluator(
               'SnapshotValue',
               'RangeValue',
               'MultirangeValue',
+              'CompositeValue',
               'PolygonValue',
               'PathValue',
               'TextValue',
@@ -6133,6 +6167,7 @@ export function emitCheckRustEvaluator(
           'SnapshotValue',
           'RangeValue',
           'MultirangeValue',
+          'CompositeValue',
           'PolygonValue',
           'PathValue',
           'TextValue',

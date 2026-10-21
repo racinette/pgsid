@@ -1,4 +1,5 @@
 import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import { compositeProfile } from '../../sql-semantics/composite-profiles.js'
 import type { RangeSubtypeDefinition } from '../../catalog/types.js'
 import { isRangeType, isMultirangeType } from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
@@ -15,10 +16,16 @@ import {
 const capturedArrayLeaf = (type: string): boolean => {
   type = arrayElementBaseType(type)
   while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
-  return rangeTypeProfile(type)?.captured === true || multirangeTypeProfile(type)?.captured === true
+  return (
+    compositeProfile(type) !== null ||
+    rangeTypeProfile(type)?.captured === true ||
+    multirangeTypeProfile(type)?.captured === true
+  )
 }
 
 export function arrayElementIdentity(type: string): string {
+  const composite = compositeProfile(type)
+  if (composite) return composite.identity
   const domain = domainElementDefinition(type)
   if (domain && capturedArrayLeaf(domain.base))
     return [domain.schema, domain.name].map((n) => '"' + n.replaceAll('"', '""') + '"').join('.')
@@ -30,6 +37,7 @@ export function arrayElementIdentity(type: string): string {
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
   if (type.startsWith('array:')) return 41
+  if (compositeProfile(type)) return 44
   if (type.startsWith('enum:')) return 6
   if (rangeTypeProfile(type)) return 42
   if (multirangeTypeProfile(type)) return 43

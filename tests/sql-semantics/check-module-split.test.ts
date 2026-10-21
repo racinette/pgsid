@@ -141,9 +141,9 @@ it('qualifies module references while preserving shadowed locals, property names
   }
 })
 
-it('re-exports public array value constructors from their runtime source files', () => {
+it('re-exports public array and composite value constructors from their runtime source files', () => {
   const files = splitCheckTypescript(
-    'export function arrayUnknown(): number {return 1;} export function arrayElementFamily(): number {return 2;} export function privateHelper(): number {return 3;} export function evaluateCheck(): number {return arrayUnknown()+arrayElementFamily();}',
+    'export function arrayUnknown(): number {return 1;} export function arrayElementFamily(): number {return 2;} export function compositeUnknown(): number {return 4;} export function privateHelper(): number {return 3;} export function evaluateCheck(): number {return arrayUnknown()+arrayElementFamily()+compositeUnknown();}',
     [
       { kind: 'function', name: 'evaluate_check', module: 'checks', visibility: 'public' },
       {
@@ -162,6 +162,13 @@ it('re-exports public array value constructors from their runtime source files',
       },
       {
         kind: 'function',
+        name: 'composite_unknown',
+        module: 'checkruntime',
+        visibility: 'public',
+        sourceFile: 'runtime/composite.rs',
+      },
+      {
+        kind: 'function',
         name: 'private_helper',
         module: 'checkruntime',
         visibility: 'public',
@@ -169,6 +176,6 @@ it('re-exports public array value constructors from their runtime source files',
       },
     ],
   )
-  expect(files.checks).toContain('export { arrayUnknown, arrayElementFamily }')
+  expect(files.checks).toContain('export { arrayUnknown, arrayElementFamily, compositeUnknown }')
   expect(files.checks).not.toContain('privateHelper')
 })

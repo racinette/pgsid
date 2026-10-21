@@ -1,4 +1,8 @@
 import {
+  compositeGoInput,
+  type CompositeInputPayload,
+} from '../../tools/check-rust/composite-input.js'
+import {
   multirangeGoInput,
   type MultirangeInputPayload,
 } from '../../tools/check-rust/multirange-input.js'
@@ -44,6 +48,7 @@ export type GoCheckCase = {
   jsonpathColumns?: readonly string[]
   arrayColumns?: readonly string[]
   multirangeColumns?: readonly string[]
+  compositeColumns?: readonly string[]
   rangeColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
@@ -101,6 +106,7 @@ export function renderGoCheckTests(
       jsonpathColumns,
       arrayColumns,
       rangeColumns,
+      compositeColumns,
       multirangeColumns,
       oidColumns,
       moneyColumns,
@@ -130,6 +136,17 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && compositeColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        statements.push(
+          go.assign(
+            [go.selector(field, 'V')],
+            [compositeGoInput(value as CompositeInputPayload | null)],
+            '=',
+          ),
+        )
         continue
       }
       if (options.dateRuntime && multirangeColumns?.includes(column.name)) {

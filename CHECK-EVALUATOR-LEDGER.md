@@ -121,8 +121,7 @@ Done per admitted category when its execution contract, NULL/error behavior,
 binding, and parity are established. Aggregates, windows, set-returning calls,
 and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
-- [x] Cache parsed source assets with independent mutable containers and share immutable
-      source text; verify unchanged world source graphs and Go fixture cache reuse.
+- [x] Cache parsed source assets with independent mutable containers and share immutable source text; verify unchanged world source graphs and Go fixture cache reuse.
 
 ## Expand value representations
 
@@ -260,8 +259,9 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Capture nominal enum range subtype definitions and catalog label order through domain chains, including empty enums and inserted labels; preserve legacy metadata views, search-path independence, independent snapshots and comparable schema state without retaining deployment label OIDs.
 - [x] Establish owned enum range/multirange label tables and ordinal bounds, shared input/output, comparisons, sets and normalization; preserve array/member snapshots, empty enums and blank labels, compiled definition replacement, malformed payload deferral and context-independent structural results. Verify native/Rust/Go/TypeScript parity without deployment OID assumptions.
 - [x] Admit captured enum range/multirange SQL types, subtype domains, literals, constructors, endpoints, comparisons, sets, text I/O, recursive arrays, JSON and binary output; inject compiled label definitions before public validation and ignore caller support hints. Preserve empty/blank enums, ordinal ordering, snapshots, lazy/error behavior and finite-hash deferral without deployment OIDs; verify independent catalogs and native/Rust/Go/TypeScript INSERT parity.
-- [x] Establish owned composite field carriers, nested container snapshots, field access and row/datum NULL distinctions; capture closed qualified field dependencies including table/view row types, domains, enum order, modifiers and selected I/O without deployment OIDs. Verify native/Rust/Go/TypeScript states and public runtime copies; SQL admission follows.
-- [ ] Admit composite SQL rows, literals, text I/O, domains, constructors, fields, comparisons, arrays/ranges and JSON record conversion with compiled field validation, source/stored provenance, row NULL semantics and world INSERT parity.
+- [x] Establish owned composite field carriers, nested container snapshots, field access and row/datum NULL distinctions; capture closed qualified field dependencies including table/view row types, domains, enum order, modifiers and selected I/O without deployment OIDs. Verify native/Rust/Go/TypeScript states and public runtime copies.
+- [x] Admit SQL-coerced composite rows, named fields, nested records/arrays, scalar operations, CASE/COALESCE and row NULL tests through captured compiled field profiles. Validate public payloads before copying, replace caller range hints, retain dropped-field order and enum labels without deployment OIDs, and verify raw/stored native/Rust/Go/TypeScript and world INSERT parity.
+- [ ] Admit composite literals, text I/O, checked domain coercion, constructors, whole-record comparisons, root arrays/ranges and JSON record conversion; preserve source/stored provenance, row versus datum NULL semantics and world INSERT parity.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

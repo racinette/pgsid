@@ -28,6 +28,9 @@ fn entry_name(name: &str) -> bool {
 
 fn type_name(ty: &Type) -> Result<&'static str, String> {
     match ty {
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("CompositeValue") => {
+            Ok("CompositeValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int2Value") => {
             Ok("Int2Value")
         }
@@ -480,6 +483,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "JsonbValue"
                     | "JsonpathValue"
                     | "ArrayValue"
+                    | "CompositeValue"
                     | "RangeValue"
                     | "MultirangeValue"
                     | "CircleValue"
@@ -862,6 +866,17 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             check_source(&source.replace("input: RangeValue", "mut input: RangeValue")).is_err()
         );
         assert!(check_source(&source.replace("input.clone()", "input.value")).is_err());
+    }
+
+    #[test]
+    fn composite_field_selection_keeps_owned_parameters_narrow() {
+        let source = "pub fn evaluate_check(input: CompositeValue) -> CheckOutcome { let position = make_int4_value(0); let field = composite_field_at(input.clone(), position); let value = array_element_to_int4(field); let nullness = int4_is_null(value); check_from_bool(nullness) }";
+        assert!(check_source(source).is_ok());
+        for ty in ["CompositePayload", "CompositeTypePlan", "CompositeValue<String>", "&CompositeValue", "Vec<CompositeValue>"] {
+            assert!(check_source(&source.replace("input: CompositeValue", &format!("input: {ty}"))).is_err());
+        }
+        assert!(check_source(&source.replace("input: CompositeValue", "mut input: CompositeValue")).is_err());
+        assert!(check_source(&source.replace("input.clone()", "input.fields")).is_err());
     }
 
     #[test]

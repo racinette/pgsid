@@ -1,0 +1,99 @@
+import type { PGlite } from '@electric-sql/pglite'
+import {
+  compositeProfile,
+  compositePhysicalType,
+  compositeFieldType,
+} from '../../src/sql-semantics/composite-profiles.js'
+import {
+  arrayElementFamily,
+  arrayElementIdentity,
+} from '../../src/codegen/shared/check-array-types.js'
+import type {
+  CompositeInputCell,
+  CompositeInputPayload,
+} from '../../tools/check-rust/composite-input.js'
+import { readRangeBoundCell, rangeBoundProjection } from './check-range-fixtures.js'
+
+const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
+
+export async function readCompositeFixture(
+  pg: PGlite,
+  select: string,
+  name: string,
+  type: string,
+): Promise<CompositeInputPayload | null> {
+  const profile = compositeProfile(type)
+  if (!profile) throw new Error('Missing captured composite profile')
+  const read = async (
+    identity: string,
+    select: string,
+    expression: string,
+    parameters: unknown[] = [],
+  ): Promise<CompositeInputCell> => {
+    const definition = compositePhysicalType(profile, identity)
+    const logical = compositeFieldType(profile, identity)
+    if (!definition || !logical) throw new Error('Unsupported composite fixture field: ' + identity)
+    const from = `FROM (${select}) candidate`
+    const missing = (
+      await pg.query<{ missing: boolean }>(
+        `SELECT (${expression}) IS NOT DISTINCT FROM NULL missing ${from}`,
+        parameters,
+      )
+    ).rows[0]!.missing
+    if (missing) return { kind: 'Null' }
+    if (definition.kind === 'c') {
+      const fields: CompositeInputCell[] = []
+      for (const field of definition.fields)
+        fields.push(
+          await read(field.type, select, `(${expression}).${quote(field.name)}`, parameters),
+        )
+      return { kind: 'Composite', value: { typeName: definition.identity, fields } }
+    }
+    if (definition.element) {
+      const element = compositeFieldType(profile, definition.element, true)
+      if (!element) throw new Error('Missing composite fixture array element')
+      const dimensions = (
+        await pg.query<{ lower: number; length: number }>(
+          `SELECT array_lower(value,d) lower,array_length(value,d) length FROM (SELECT ${expression} value ${from}) shaped CROSS JOIN LATERAL generate_series(1,array_ndims(value)) d`,
+          parameters,
+        )
+      ).rows
+      const rows = (
+        await pg.query<{ value: string | null }>(
+          `SELECT cell::text value FROM (SELECT unnest(${expression}) cell ${from}) cells`,
+          parameters,
+        )
+      ).rows
+      const elements: CompositeInputCell[] = []
+      for (const row of rows)
+        elements.push(
+          row.value === null
+            ? { kind: 'Null' }
+            : await read(definition.element, `SELECT $1::${definition.element} value`, 'value', [
+                row.value,
+              ]),
+        )
+      return {
+        kind: 'Array',
+        value: {
+          elementType: arrayElementIdentity(element),
+          elementKind: arrayElementFamily(element)!,
+          dimensions,
+          elements,
+          nullBitmap: { kind: 'Value', value: rows.some((row) => row.value === null) },
+        },
+      }
+    }
+    const value = (
+      await pg.query<{ value: string | null }>(
+        `SELECT ${rangeBoundProjection(expression, logical)} value ${from}`,
+        parameters,
+      )
+    ).rows[0]!.value
+    return readRangeBoundCell(pg, logical, value, identity)
+  }
+  const result = await read(profile.identity, select, quote(name))
+  if (result.kind === 'Null') return null
+  if (result.kind !== 'Composite') throw new Error('Expected composite fixture root')
+  return result.value
+}

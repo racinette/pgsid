@@ -112,8 +112,8 @@ it('owns heterogeneous composite fields and preserves PostgreSQL row NULL semant
       expect(typeof root.isnull).toBe('boolean')
       expect(typeof root.notnull).toBe('boolean')
       for (const [name, rust, result] of [
-        ['is_null', `composite_is_null(${sample.rust})`, root.isnull],
-        ['is_not_null', `composite_is_not_null(${sample.rust})`, root.notnull],
+        ['is_null', `composite_row_is_null(${sample.rust})`, root.isnull],
+        ['is_not_null', `composite_row_is_not_null(${sample.rust})`, root.notnull],
         ['datum_null', `composite_datum_is_null(${sample.rust})`, root.datum],
         ['count', `composite_count_matches(${sample.rust},${sample.fields})`, root.count],
       ] as const)
@@ -145,25 +145,25 @@ it('owns heterogeneous composite fields and preserves PostgreSQL row NULL semant
       }
     }
     const controls: [string, string, Outcome][] = [
-      ['unknown_root', 'composite_is_null(composite_unknown())', { kind: 'Unknown' }],
+      ['unknown_root', 'composite_row_is_null(composite_unknown())', { kind: 'Unknown' }],
       [
         'unknown_field_null',
-        `composite_is_null(${pair('ArrayElement::Unknown', 'ArrayElement::Null')})`,
+        `composite_row_is_null(${pair('ArrayElement::Unknown', 'ArrayElement::Null')})`,
         { kind: 'Unknown' },
       ],
       [
         'unknown_field_notnull',
-        `composite_is_not_null(${pair('ArrayElement::Unknown', 'ArrayElement::Null')})`,
+        `composite_row_is_not_null(${pair('ArrayElement::Unknown', 'ArrayElement::Null')})`,
         { kind: 'False' },
       ],
       [
         'known_field_null',
-        `composite_is_null(${pair('ArrayElement::Unknown', text('known'))})`,
+        `composite_row_is_null(${pair('ArrayElement::Unknown', text('known'))})`,
         { kind: 'False' },
       ],
       [
         'known_field_notnull',
-        `composite_is_not_null(${pair('ArrayElement::Unknown', text('known'))})`,
+        `composite_row_is_not_null(${pair('ArrayElement::Unknown', text('known'))})`,
         { kind: 'Unknown' },
       ],
       [
@@ -176,10 +176,10 @@ it('owns heterogeneous composite fields and preserves PostgreSQL row NULL semant
         `text_is_null(array_element_to_text(composite_field_at(${pair('ArrayElement::Unknown', text('known'))},make_int4_value(1))))`,
         { kind: 'False' },
       ],
-      ['empty_identity', 'composite_is_null(make_composite_fields(""))', { kind: 'Unknown' }],
+      ['empty_identity', 'composite_row_is_null(make_composite_fields(""))', { kind: 'Unknown' }],
       [
         'nul_identity',
-        'composite_is_null(make_composite_fields("bad\\0name"))',
+        'composite_row_is_null(make_composite_fields("bad\\0name"))',
         { kind: 'Unknown' },
       ],
       [
@@ -194,28 +194,28 @@ it('owns heterogeneous composite fields and preserves PostgreSQL row NULL semant
       ],
       [
         'eager_error',
-        `composite_is_null(${pair('ArrayElement::Int4(1)', `ArrayElement::Error(make_sql_error(${parseInt('22003', 36)}))`)})`,
+        `composite_row_is_null(${pair('ArrayElement::Int4(1)', `ArrayElement::Error(make_sql_error(${parseInt('22003', 36)}))`)})`,
         { kind: 'Error', value: { state: parseInt('22003', 36) } },
       ],
       [
         'unknown_before_error',
-        `composite_is_not_null(${pair('ArrayElement::Unknown', `ArrayElement::Error(make_sql_error(${parseInt('22012', 36)}))`)})`,
+        `composite_row_is_not_null(${pair('ArrayElement::Unknown', `ArrayElement::Error(make_sql_error(${parseInt('22012', 36)}))`)})`,
         { kind: 'Error', value: { state: parseInt('22012', 36) } },
       ],
       [
         'case_error',
-        `composite_is_null(composite_from_case_guard(CheckOutcome::Error(make_sql_error(${parseInt('22000', 36)}))))`,
+        `composite_row_is_null(composite_from_case_guard(CheckOutcome::Error(make_sql_error(${parseInt('22000', 36)}))))`,
         { kind: 'Error', value: { state: parseInt('22000', 36) } },
       ],
       [
         'case_unknown',
-        'composite_is_null(composite_from_case_guard(CheckOutcome::Unknown))',
+        'composite_row_is_null(composite_from_case_guard(CheckOutcome::Unknown))',
         { kind: 'Unknown' },
       ],
       ['snapshot', 'composite_snapshot()', { kind: 'True' }],
       [
         'array_roundtrip',
-        'composite_is_null(array_element_to_composite(array_flat_element(composite_array(),make_int4_value(0))))',
+        'composite_row_is_null(array_element_to_composite(array_flat_element(composite_array(),make_int4_value(0))))',
         { kind: 'True' },
       ],
     ]
@@ -242,7 +242,7 @@ fn composite_snapshot()->BoolValue {
  if let CompositeValue::Value(payload)=original {
   let cell=payload.fields[0].clone();if let ArrayElement::Array(array)=cell {let mut elements=array.elements;let first=elements[0].clone();if let ArrayElement::Composite(child)=first {let mut fields=child.fields;fields[0]=ArrayElement::Int4(99);};elements[0]=ArrayElement::Unknown;};let mut fields=payload.fields;fields[0]=ArrayElement::Null;
  };
- let array=array_element_to_array(composite_field_at(saved,make_int4_value(0)));let child=array_element_to_composite(array_flat_element(array,make_int4_value(0)));composite_is_null(child)
+ let array=array_element_to_array(composite_field_at(saved,make_int4_value(0)));let child=array_element_to_composite(array_flat_element(array,make_int4_value(0)));composite_row_is_null(child)
 }
 pub fn composite_probe(mode:Int4Value)->BoolValue {if let Int4Value::Value(n)=mode {${probes.map((p, i) => `if n==${i}{return ${p.rust};};`).join('\n')}};BoolValue::Unknown}
 `
@@ -293,9 +293,9 @@ func TestCompositeBoundarySnapshots(t *testing.T){
  raw:=CompositeValue{Kind:CompositeValueValue,Value:CompositePayload{TypeName:"public.wrapper",Fields:[]ArrayElement{{Kind:ArrayElementComposite,Composite:CompositePayload{TypeName:"public.pair",Fields:[]ArrayElement{{Kind:ArrayElementNull},{Kind:ArrayElementNull}}}}}}}
  saved:=CompositeFromCoercedValue(raw)
  raw.Value.Fields[0].Composite.Fields[0]=ArrayElement{Kind:ArrayElementInt4,Int4:99}
- child:=CompositeFieldAt(saved,MakeInt4Value(0));if result:=CompositeIsNull(ArrayElementToComposite(child));result.Kind!=BoolValueValue||!result.Value{t.Fatal("input snapshot",result)}
+ child:=CompositeFieldAt(saved,MakeInt4Value(0));if result:=CompositeRowIsNull(ArrayElementToComposite(child));result.Kind!=BoolValueValue||!result.Value{t.Fatal("input snapshot",result)}
  child.Composite.Fields[0]=ArrayElement{Kind:ArrayElementInt4,Int4:99}
- if result:=CompositeIsNull(ArrayElementToComposite(CompositeFieldAt(saved,MakeInt4Value(0))));result.Kind!=BoolValueValue||!result.Value{t.Fatal("field snapshot",result)}
+ if result:=CompositeRowIsNull(ArrayElementToComposite(CompositeFieldAt(saved,MakeInt4Value(0))));result.Kind!=BoolValueValue||!result.Value{t.Fatal("field snapshot",result)}
 }
 `,
     )
@@ -331,13 +331,13 @@ func TestCompositeBoundarySnapshots(t *testing.T){
     const saved = runtime.compositeFromCoercedValue(raw)
     raw.value.fields[0]!.value.fields[0] = { kind: 'Int4', value: 99 }
     const child = runtime.compositeFieldAt(saved, runtime.makeInt4Value(0))
-    expect(runtime.compositeIsNull(runtime.arrayElementToComposite(child))).toEqual({
+    expect(runtime.compositeRowIsNull(runtime.arrayElementToComposite(child))).toEqual({
       kind: 'Value',
       value: true,
     })
     child.value.fields[0] = { kind: 'Int4', value: 99 }
     expect(
-      runtime.compositeIsNull(
+      runtime.compositeRowIsNull(
         runtime.arrayElementToComposite(runtime.compositeFieldAt(saved, runtime.makeInt4Value(0))),
       ),
     ).toEqual({ kind: 'Value', value: true })

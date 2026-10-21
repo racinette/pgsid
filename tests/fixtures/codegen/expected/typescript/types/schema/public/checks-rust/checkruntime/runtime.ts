@@ -8736,11 +8736,15 @@ function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValu
     }
     return { kind: "Unknown" };
 }
-export function compositeIsNull(input: CompositeValue): BoolValue {
+export function compositeRowIsNull(input: CompositeValue): BoolValue {
     input = copyCompositeValue(input);
     return compositeRowNullTest(input, false);
 }
-export function compositeIsNotNull(input: CompositeValue): BoolValue {
+export function compositeIsNull(input: CompositeValue): BoolValue {
+    input = copyCompositeValue(input);
+    return compositeDatumIsNull(input);
+}
+export function compositeRowIsNotNull(input: CompositeValue): BoolValue {
     input = copyCompositeValue(input);
     return compositeRowNullTest(input, true);
 }
@@ -8773,6 +8777,279 @@ export function arrayElementToComposite(input: ArrayElement): CompositeValue {
         return { kind: "Value", value: value };
     }
     return { kind: "Unknown" };
+}
+export interface CompositeTypeNode {
+    typeName: string;
+    kind: number;
+    elementType: string;
+    child: number;
+    fields: number[];
+    boundProfile: RangeBoundContext;
+}
+function copyCompositeTypeNode(value: CompositeTypeNode): CompositeTypeNode {
+    return { typeName: langruntime.checkedString(value.typeName), kind: langruntime.checkedI32(value.kind), elementType: langruntime.checkedString(value.elementType), child: langruntime.checkedIndex(value.child), fields: langruntime.checkedIndices(value.fields), boundProfile: copyRangeBoundContext(value.boundProfile) };
+}
+export interface CompositeTypeContext {
+    nodes: CompositeTypeNode[];
+}
+function copyCompositeTypeContext(value: CompositeTypeContext): CompositeTypeContext {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyCompositeTypeNode) };
+}
+export type CompositeTypePlan = {
+    kind: "Value";
+    value: CompositeTypeContext;
+};
+function copyCompositeTypePlan(value: CompositeTypePlan): CompositeTypePlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyCompositeTypeContext(value.value) };
+    }
+}
+export function emptyCompositeTypePlan(): CompositeTypePlan {
+    const nodes: CompositeTypeNode[] = [];
+    return { kind: "Value", value: { nodes: nodes } };
+}
+export function appendCompositeTypeNode(input: CompositeTypePlan, typeName: string, kind: number, elementType: string, child: number, boundProfile: RangeBoundContext): CompositeTypePlan {
+    input = copyCompositeTypePlan(input);
+    typeName = langruntime.checkedString(typeName);
+    kind = langruntime.checkedI32(kind);
+    elementType = langruntime.checkedString(elementType);
+    child = langruntime.checkedI32(child);
+    boundProfile = copyRangeBoundContext(boundProfile);
+    if (input.kind === "Value") {
+        const value: CompositeTypeContext = copyCompositeTypeContext(input.value);
+        let nodes: CompositeTypeNode[] = value.nodes;
+        const fields: number[] = [];
+        langruntime.pushStruct(nodes, { typeName: typeName, kind: kind, elementType: elementType, child: langruntime.indexFromI32(child, 2147483647), fields: fields, boundProfile: boundProfile }, copyCompositeTypeNode);
+        return { kind: "Value", value: { nodes: nodes } };
+    }
+    return input;
+}
+export function appendCompositeTypeField(input: CompositeTypePlan, index: number, child: number): CompositeTypePlan {
+    input = copyCompositeTypePlan(input);
+    index = langruntime.checkedI32(index);
+    child = langruntime.checkedI32(child);
+    if (input.kind === "Value") {
+        const value: CompositeTypeContext = copyCompositeTypeContext(input.value);
+        let nodes: CompositeTypeNode[] = value.nodes;
+        const position: number = langruntime.indexFromI32(index, nodes.length);
+        if (position < nodes.length) {
+            const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(position), copyCompositeTypeNode));
+            let fields: number[] = node.fields;
+            langruntime.pushIndex(fields, langruntime.indexFromI32(child, 2147483647));
+            nodes[langruntime.checkedIndexIn(nodes, position)] = copyCompositeTypeNode({ typeName: node.typeName, kind: node.kind, elementType: node.elementType, child: node.child, fields: fields, boundProfile: node.boundProfile });
+        }
+        return { kind: "Value", value: { nodes: nodes } };
+    }
+    return input;
+}
+function compositeTypeContextValid(context: CompositeTypeContext): boolean {
+    let index: number = 0;
+    while (index < context.nodes.length) {
+        const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
+        if (node.typeName === "" || node.kind < 0 || node.kind > 44) {
+            return false;
+        }
+        if (node.kind === 41 && (node.elementType === "" || node.child >= context.nodes.length)) {
+            return false;
+        }
+        if (node.kind > 0 && node.kind < 41 || node.kind === 42 || node.kind === 43) {
+            const profile: RangeBoundContext = node.boundProfile;
+            if (profile.nodes.length === 0 || rangeBoundProfileValid(profile) === false) {
+                return false;
+            }
+            if (!(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(0), copyRangeBoundProfile).kind === node.kind)) {
+                return false;
+            }
+        }
+        let field: number = 0;
+        while (field < node.fields.length) {
+            if (!(node.kind === 44) || langruntime.indexNumber(node.fields, langruntime.checkedIndex(field)) >= context.nodes.length) {
+                return false;
+            }
+            field = langruntime.checkedAdd(field, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return context.nodes.length > 0;
+}
+function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext, index: number): ArrayElement {
+    input = copyArrayElement(input);
+    index = langruntime.checkedIndex(index);
+    if (input.kind === "Null") {
+        return input;
+    }
+    if (input.kind === "Unknown") {
+        return input;
+    }
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (index >= context.nodes.length) {
+        return { kind: "Unknown" };
+    }
+    const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
+    if (!(arrayElementFamily(copyArrayElement(input)) === node.kind)) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Composite") {
+        const payload: CompositePayload = copyCompositePayload(input.value);
+        if (!(node.kind === 44) || !(payload.typeName === node.typeName) || !(payload.fields.length === node.fields.length)) {
+            return { kind: "Unknown" };
+        }
+        let fields: ArrayElement[] = [];
+        let position: number = 0;
+        while (position < payload.fields.length) {
+            const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.fields, langruntime.checkedIndex(position), copyArrayElement));
+            const checked: ArrayElement = compositePrepareCell(copyArrayElement(original), context, langruntime.indexNumber(node.fields, langruntime.checkedIndex(position)));
+            if (checked.kind === "Error") {
+                const error: SqlError = checked.value;
+                return { kind: "Error", value: error };
+            }
+            if (checked.kind === "Unknown") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return { kind: "Unknown" };
+                }
+            }
+            langruntime.pushStruct(fields, checked, copyArrayElement);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return arrayElementFromComposite(makeCompositeValue({ typeName: payload.typeName, fields: fields }));
+    }
+    if (input.kind === "Array") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (!(node.kind === 41) || !(payload.elementType === node.elementType) || !(payload.elementKind === langruntime.indexStruct(context.nodes, langruntime.checkedIndex(node.child), copyCompositeTypeNode).kind)) {
+            return { kind: "Unknown" };
+        }
+        let elements: ArrayElement[] = [];
+        let position: number = 0;
+        while (position < payload.elements.length) {
+            const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
+            const checked: ArrayElement = compositePrepareCell(copyArrayElement(original), context, node.child);
+            if (checked.kind === "Unknown") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return { kind: "Unknown" };
+                }
+            }
+            langruntime.pushStruct(elements, checked, copyArrayElement);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return arrayElementFromArray(makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements }));
+    }
+    const profile: RangeBoundContext = node.boundProfile;
+    const checked: ArrayElement = rangePrepareProfiledBound(input, profile);
+    if (checked.kind === "Enum") {
+        const payload: EnumPayload = checked.value;
+        return arrayElementFromEnum(makeEnumValue(payload.ordinal));
+    }
+    if (checked.kind === "Date") {
+        const value: number = langruntime.checkedI32(checked.value);
+        return arrayElementFromDate(makeDateValue(value));
+    }
+    if (checked.kind === "Timestamp") {
+        const value: bigint = langruntime.checkedI64(checked.value);
+        return arrayElementFromTimestamp(makeTimestampValue(value));
+    }
+    if (checked.kind === "Timestamptz") {
+        const value: bigint = langruntime.checkedI64(checked.value);
+        return arrayElementFromTimestamptz(makeTimestamptzValue(value));
+    }
+    if (checked.kind === "Xid") {
+        const value: bigint = langruntime.checkedI64(checked.value);
+        return arrayElementFromXid(makeXidValue(value));
+    }
+    if (checked.kind === "Cid") {
+        const value: bigint = langruntime.checkedI64(checked.value);
+        return arrayElementFromCid(makeCidValue(value));
+    }
+    if (checked.kind === "Interval") {
+        const payload: IntervalPayload = checked.value;
+        return arrayElementFromInterval(makeIntervalValue(payload.months, payload.days, payload.time));
+    }
+    if (checked.kind === "Text") {
+        const text: string = langruntime.checkedString(checked.value);
+        const characters: string[] = Array.from(text);
+        let position: number = 0;
+        while (position < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\0") {
+                return { kind: "Unknown" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return { kind: "Text", value: text };
+    }
+    if (checked.kind === "ByteaUnspecified") {
+        const length: number = langruntime.checkedI32(checked.value);
+        if (length < 0) {
+            return { kind: "Unknown" };
+        }
+    }
+    if (checked.kind === "Numeric") {
+        const text: string = langruntime.checkedString(checked.value);
+        return arrayElementFromNumeric(makeNumericValue(text));
+    }
+    if (checked.kind === "Json") {
+        const payload: JsonPayload = checked.value;
+        const value: JsonValue = makeJsonValue(payload.source);
+        if (value.kind === "Value") {
+            const actual: JsonPayload = value.value;
+            if (actual.kind === payload.kind && actual.depth === payload.depth) {
+                return { kind: "Json", value: actual };
+            }
+        }
+        return { kind: "Unknown" };
+    }
+    if (checked.kind === "Jsonb") {
+        const payload: JsonbPayload = copyJsonbPayload(checked.value);
+        return arrayElementFromJsonb(jsonbFromCoercedValue({ kind: "Value", value: payload }));
+    }
+    if (checked.kind === "Jsonpath") {
+        const payload: JsonpathPayload = copyJsonpathPayload(checked.value);
+        return arrayElementFromJsonpath(jsonpathFromCoercedValue({ kind: "Value", value: payload }));
+    }
+    if (checked.kind === "JsonpathStoredText") {
+        const text: string = langruntime.checkedString(checked.value);
+        return arrayElementFromJsonpath(jsonpathFromCoercedValue({ kind: "StoredText", value: text }));
+    }
+    if (checked.kind === "Snapshot") {
+        const payload: SnapshotPayload = copySnapshotPayload(checked.value);
+        return arrayElementFromSnapshot(makeSnapshotValue(payload));
+    }
+    if (checked.kind === "Path") {
+        const payload: PathPayload = copyPathPayload(checked.value);
+        return arrayElementFromPath(makePathValue(payload));
+    }
+    if (checked.kind === "Polygon") {
+        const payload: PolygonPayload = copyPolygonPayload(checked.value);
+        return arrayElementFromPolygon(makePolygonValue(payload));
+    }
+    return checked;
+}
+export function compositeFromCoercedPlan(input: CompositeValue, plan: CompositeTypePlan): CompositeValue {
+    input = copyCompositeValue(input);
+    plan = copyCompositeTypePlan(plan);
+    if (input.kind === "Value") {
+        const payload: CompositePayload = copyCompositePayload(input.value);
+        if (plan.kind === "Value") {
+            const context: CompositeTypeContext = copyCompositeTypeContext(plan.value);
+            if (compositeTypeContextValid(context) === false) {
+                return { kind: "Unknown" };
+            }
+            if (!(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).kind === 44)) {
+                return { kind: "Unknown" };
+            }
+            return arrayElementToComposite(compositePrepareCell({ kind: "Composite", value: payload }, context, 0));
+        }
+        return { kind: "Unknown" };
+    }
+    return input;
 }
 export interface RangeSupport {
     readonly comparison: number;

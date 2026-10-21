@@ -5,6 +5,7 @@ import type {
   EnumInfo,
   TableInfo,
   RangeTypeInfo,
+  CompositeTypeGraph,
 } from '../catalog/types.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn } from './catalog-check-binder.js'
@@ -46,6 +47,7 @@ export function lowerTableCheck(
   domains: readonly DomainInfo[] = [],
   literalOrigin: 'source' | 'stored' = 'stored',
   rangeTypes: readonly RangeTypeInfo[] = [],
+  compositeGraph?: CompositeTypeGraph,
 ): CatalogCheckPlan | null {
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let parsed: ReturnType<typeof parseSync>
@@ -77,6 +79,7 @@ export function lowerTableCheck(
       : undefined,
     undefined,
     rangeTypes,
+    compositeGraph,
   )
   return { name: constraint.name, ...bound }
 }
@@ -87,6 +90,7 @@ export function lowerDomainCheck(
   enums: readonly EnumInfo[] = [],
   domains: readonly DomainInfo[] = [],
   rangeTypes: readonly RangeTypeInfo[] = [],
+  compositeGraph?: CompositeTypeGraph,
 ): CatalogCheckPlan | null {
   return lowerTableCheck(
     {
@@ -108,6 +112,7 @@ export function lowerDomainCheck(
     domains,
     'stored',
     rangeTypes,
+    compositeGraph,
   )
 }
 
@@ -117,13 +122,22 @@ export function catalogCheckGroups(
   selectedDomains: readonly DomainInfo[] = domains,
   enums: readonly EnumInfo[] = [],
   rangeTypes: readonly RangeTypeInfo[] = [],
+  compositeGraph?: CompositeTypeGraph,
 ): CatalogCheckGroup[] {
   const groups: CatalogCheckGroup[] = []
   for (const table of tables) {
     const checks = table.constraints
       .filter((constraint) => constraint.type === 'check' && constraint.enforced)
       .flatMap((constraint) => {
-        const plan = lowerTableCheck(table, constraint, enums, domains, 'stored', rangeTypes)
+        const plan = lowerTableCheck(
+          table,
+          constraint,
+          enums,
+          domains,
+          'stored',
+          rangeTypes,
+          compositeGraph,
+        )
         return plan
           ? [
               {
@@ -169,6 +183,7 @@ export function catalogCheckGroups(
           enums,
           domains,
           rangeTypes,
+          compositeGraph,
         )
         return plan
           ? [

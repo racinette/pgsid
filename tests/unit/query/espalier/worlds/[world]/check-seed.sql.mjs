@@ -3,7 +3,8 @@ import { parse } from 'libpg-query'
 export const description = 'independent INSERT cases for generated CHECK evaluator parity'
 
 export const rule = `Write independent, single-row INSERT VALUES statements with explicit
-column lists and constant scalar inputs. Use literals and casts of literals;
+column lists and constant inputs. Use literals, casts, and row/array constructors
+whose fields or elements are constant;
 fixed interval timezone conversions may construct SQL-coerced temporal values
 that text input cannot represent. A catalog-qualified circle constructor with
 constant point and float8 arguments may construct stored negative radii that
@@ -18,6 +19,8 @@ const castType = (node) =>
 export const constantInput = (node) => {
   if (node?.A_Const) return true
   if (node?.TypeCast) return constantInput(node.TypeCast.arg)
+  if (node?.RowExpr) return (node.RowExpr.args ?? []).every(constantInput)
+  if (node?.A_ArrayExpr) return (node.A_ArrayExpr.elements ?? []).every(constantInput)
   const call = node?.FuncCall
   const name = call?.funcname?.map((part) => part.String?.sval ?? '').join('.')
   if (
@@ -73,7 +76,7 @@ export async function lint({ read, emit }) {
         emit({
           code: 'check_seed_literal',
           message:
-            'CHECK cases require literals, fixed interval timezone conversions or catalog circle construction',
+            'CHECK cases require constant row/array constructors, literals, fixed interval timezone conversions or catalog circle construction',
           line: text.slice(0, raw.stmt_location ?? 0).split('\n').length,
         })
     }

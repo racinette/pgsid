@@ -21,6 +21,7 @@ import { builtinMetadata } from '../postgres/builtins/inventory.js'
 import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
+  | { kind: 'composite-field'; type: ScalarType; operand: EvalExpression; index: number }
   | {
       kind: 'captured-range-call'
       type: RangeType | MultirangeType
@@ -561,6 +562,7 @@ export function emitEvalExpression<Ast>(
     }
     if (
       node.kind === 'uncertain' ||
+      node.kind === 'composite-field' ||
       node.kind === 'domain-cast' ||
       node.kind === 'text-to-enum' ||
       node.kind === 'text-to-boolean' ||
