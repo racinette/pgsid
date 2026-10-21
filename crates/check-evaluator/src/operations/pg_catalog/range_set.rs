@@ -1,7 +1,7 @@
 const RANGE_SET_NONCONTIGUOUS: u32 = 3452544;
 
 fn range_empty_like(input: &RangePayload) -> RangeValue {
-    range_from_defined_bounds(
+    range_from_typed_bounds(
         input.type_name.as_str(),
         input.element_type.as_str(),
         input.element_kind,
@@ -13,6 +13,7 @@ fn range_empty_like(input: &RangePayload) -> RangeValue {
         input.support,
         input.enum_labels.as_str(),
         input.enum_count,
+        input.bound_profile.clone(),
     )
 }
 
@@ -20,7 +21,7 @@ fn range_copy_payload(input: &RangePayload) -> RangeValue {
     if input.empty {
         return range_empty_like(input);
     };
-    range_from_defined_bounds(
+    range_from_typed_bounds(
         input.type_name.as_str(),
         input.element_type.as_str(),
         input.element_kind,
@@ -32,6 +33,7 @@ fn range_copy_payload(input: &RangePayload) -> RangeValue {
         input.support,
         input.enum_labels.as_str(),
         input.enum_count,
+        input.bound_profile.clone(),
     )
 }
 
@@ -53,6 +55,7 @@ fn range_rebuild(
         input.support,
         input.enum_labels.as_str(),
         input.enum_count,
+        input.bound_profile.clone(),
     );
     range_builtin_canonical(initial)
 }

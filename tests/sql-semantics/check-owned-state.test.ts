@@ -93,12 +93,12 @@ func TestArena(t *testing.T) {
     }
   })
 
-  it('rejects vector cloning, owned vector elements, public aggregates and field mutation', () => {
+  it('rejects vector cloning, unsupported vector elements, public aggregates and field mutation', () => {
     for (const rejected of [
       'pub fn f(x: Vec<char>) -> Vec<char> { x.clone() }',
       '#[derive(Clone)] pub struct Arena { pub characters: Vec<char> }',
       '#[derive(Clone)] pub struct Arena { characters: Vec<char> }',
-      '#[derive(Clone)] struct Entry { value: String } #[derive(Clone)] struct Arena { entries: Vec<Entry> } pub fn f() -> Arena { let entries: Vec<Entry> = Vec::new(); Arena { entries: entries } }',
+      'struct Entry { value: String } #[derive(Clone)] struct Arena { entries: Vec<Entry> } pub fn f() -> Arena { let entries: Vec<Entry> = Vec::new(); Arena { entries: entries } }',
       "#[derive(Clone)] struct Arena { characters: Vec<char> } pub fn f(mut input: Arena) -> Arena { input.characters.push('a'); input }",
       '#[derive(Clone)] struct Arena { characters: Vec<char> } pub fn evaluate_check(input: Arena) -> bool { true }',
     ])

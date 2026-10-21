@@ -217,7 +217,7 @@ fn enum_span_invalid(mode:i32)->BoolValue {
   if mode==6 {count=-2;};
   if mode==7 {labels=String::new();count=-1;};
   if mode==8 {bounds[0]=ArrayElement::Enum(EnumPayload {ordinal:0,label_oid:4294967296i64});};
-  let raw=RangePayload {type_name:value.type_name,element_type:value.element_type,element_kind:6,enum_labels:labels,enum_count:count,support:value.support,empty:false,lower_inclusive:true,upper_inclusive:true,bounds};
+  let raw=RangePayload {bound_profile:empty_range_bound_context(),type_name:value.type_name,element_type:value.element_type,element_kind:6,enum_labels:labels,enum_count:count,support:value.support,empty:false,lower_inclusive:true,upper_inclusive:true,bounds};
   return range_is_null(make_coerced_range_value(raw));
  };BoolValue::Value(false)
 }

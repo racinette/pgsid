@@ -51,8 +51,8 @@ change to the regex transpiler unless the regex engine itself changes.
   String length methods
   remain rejected because target string lengths measure different units.
   Clone-only public wrappers accept scalar or Copy payloads and owned Clone records
-  whose supported vectors have Copy records or Clone value enums as elements. Exported owned records require public
-  fields and a public Clone value-enum owner. Explicit `clone()` on
+  whose supported vectors have Copy records, owned Clone records or Clone value enums as elements. Exported owned records require public
+  fields and a public Clone value-enum owner, directly or through nested owned records. Explicit `clone()` on
   immutable text/wrappers has value semantics; keep aggregate vector copying.
   Unicode scalars cast to `u32` or `i32` without truncation. Other character casts
   remain rejected. The ASCII CHECK and code-point suite exercise signed conversion.
@@ -62,19 +62,18 @@ change to the regex transpiler unless the regex engine itself changes.
   exercise builders, and `check-owned-text.test.ts` covers Unicode and rejection.
 - Enum tests accept unit variants or a payload with one immutable identifier
   binding or `_`. A wildcard tests the variant without accessing the payload.
-  Owned payloads may contain supported vectors of scalars, Copy records or Clone value enums;
+  Owned payloads may contain supported vectors of scalars, Copy records, owned Clone records or Clone value enums;
   extraction retains aggregate copying. Private Clone records may own vectors
-  of chars, indices, Copy records or Clone value enums. XML well-formedness CHECKs need this state
+  of chars, indices, Copy records, owned Clone records or Clone value enums. XML well-formedness CHECKs need this state
   to extend an entity character arena while retaining earlier table snapshots.
   Explicit clones copy vector storage and records in both targets. Whole record
   replacement is allowed; builders require local bindings. Public Clone records with supported vectors may be value-enum payloads with
-  public fields. Bare exported vector records, hidden mutable payloads, Clone
-  record vector elements, borrowed mutable aggregates, and direct vector cloning remain
+  public fields. Bare exported vector records, hidden mutable payloads, borrowed mutable aggregates and direct vector cloning remain
   rejected. Exported point-list records and wrappers have readonly TypeScript
   fields while construction, boundary transfers and explicit clones copy their
   storage in both targets. Clone value enum elements copy nested payload storage;
-  recursive ownership cycles must cross an owned vector; direct value cycles remain rejected. Run `check-owned-state.test.ts`
-  and `check-owned-value-batches.test.ts` for snapshots and adjacent rejection cases.
+  recursive ownership cycles must cross an owned vector; direct value cycles remain rejected. Run `check-owned-state.test.ts`,
+  `check-owned-record-profiles.test.ts` and `check-owned-value-batches.test.ts` for snapshots and adjacent rejection cases.
 - Regex starts use `usize::try_from(i32_value).unwrap_or(usize_fallback)`.
   Validate both operands eagerly; negative values select the fallback. Shared
   indices range through the signed int4 maximum and may widen back with `as i32`.

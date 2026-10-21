@@ -5,6 +5,7 @@ import type {
   RangeTypeInfo,
   RangeCallInfo,
   RangeCallResolution,
+  RangeSubtypeDefinition,
 } from '../catalog/types.js'
 export type { RangeTypeMetadata } from '../catalog/types.js'
 
@@ -199,6 +200,56 @@ async function readRangeCallResolution(
   return { types: typeRows.rows, implicitCasts: castRows.rows }
 }
 
+async function readSubtypeDefinitions(pg: PGlite, roots: readonly string[]) {
+  type Definition = Omit<
+    RangeSubtypeDefinition,
+    | 'input'
+    | 'output'
+    | 'send'
+    | 'equality'
+    | 'comparator'
+    | 'hash'
+    | 'hashExtended'
+    | 'hashEqualityCompatible'
+  > & {
+    root: string
+    input: SelectedFunction
+    output: SelectedFunction
+    send: SelectedFunction
+  }
+  if (!roots.length) return [] as Definition[]
+  return (
+    await pg.query<Definition>(
+      `WITH RECURSIVE roots(root,type) AS (
+      SELECT (${typeIdentity} ty.oid),ty.oid FROM pg_type ty WHERE (${typeIdentity} ty.oid)=ANY($1::text[])
+    ),bases(root,type) AS (
+      SELECT root,type FROM roots UNION
+      SELECT b.root,ty.typbasetype FROM bases b JOIN pg_type ty ON ty.oid=b.type WHERE ty.typtype='d'
+    ),arrays(root) AS (
+      SELECT DISTINCT b.root FROM bases b JOIN pg_type ty ON ty.oid=b.type JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+    ),needed(root,type) AS (
+      SELECT r.root,r.type FROM roots r JOIN arrays a USING(root)
+      UNION
+      SELECT p.root,child.type FROM needed p JOIN pg_type ty ON ty.oid=p.type
+      LEFT JOIN pg_type e ON e.oid=ty.typelem
+      LEFT JOIN pg_range r ON r.rngtypid=ty.oid
+      LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
+      CROSS JOIN LATERAL (VALUES(ty.typbasetype),(CASE WHEN e.typarray=ty.oid THEN ty.typelem ELSE 0 END),(r.rngsubtype),(m.rngtypid)) child(type)
+      WHERE child.type IS NOT NULL AND child.type<>0
+    ) SELECT p.root,(${typeIdentity} ty.oid) identity,n.nspname schema,ty.typname name,ty.typtype kind,
+      (${typeIdentity} ty.typbasetype) base,
+      CASE WHEN e.typarray=ty.oid THEN (${typeIdentity} ty.typelem) ELSE NULL END element,
+      (${typeIdentity} r.rngsubtype) subtype,(${typeIdentity} m.rngtypid) member,
+      CASE WHEN ty.typtype='e' THEN ARRAY(SELECT en.enumlabel FROM pg_enum en WHERE en.enumtypid=ty.oid ORDER BY en.enumsortorder) ELSE NULL END "enumValues",
+      ${functionIdentity('ty.typinput')} input,${functionIdentity('ty.typoutput')} output,${functionIdentity('ty.typsend')} send
+      FROM needed p JOIN pg_type ty ON ty.oid=p.type JOIN pg_namespace n ON n.oid=ty.typnamespace
+      LEFT JOIN pg_type e ON e.oid=ty.typelem LEFT JOIN pg_range r ON r.rngtypid=ty.oid LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
+      ORDER BY p.root,identity`,
+      [roots],
+    )
+  ).rows
+}
+
 async function readRangeTypeInfos(
   pg: PGlite,
   schema: string | null,
@@ -307,10 +358,14 @@ async function readRangeTypeInfos(
       [schema, schemas],
     )
   ).rows
-  const supports = await readTypeSupports(
+  const definitions = await readSubtypeDefinitions(
     pg,
-    rows.flatMap((row) => [row.subtype, row.identity, row.multirange]),
+    rows.map((row) => row.subtype),
   )
+  const supports = await readTypeSupports(pg, [
+    ...rows.flatMap((row) => [row.subtype, row.identity, row.multirange]),
+    ...definitions.map((definition) => definition.identity),
+  ])
   const callables = await readRangeCallables(
     pg,
     rows.map((row) => row.identity),
@@ -318,6 +373,24 @@ async function readRangeTypeInfos(
   const callResolution = rows.length ? await readRangeCallResolution(pg, callables) : undefined
   return rows.map((row) => ({
     ...(row.subtype_enum ? { subtypeEnum: row.subtype_enum } : {}),
+    ...(definitions.some((definition) => definition.root === row.subtype)
+      ? {
+          subtypeDefinitions: definitions
+            .filter((definition) => definition.root === row.subtype)
+            .map(({ root: _root, ...definition }) => ({
+              ...definition,
+              enumValues: definition.enumValues ? [...definition.enumValues] : null,
+              input: signature(definition.input),
+              output: signature(definition.output),
+              send: signature(definition.send),
+              equality: supports.get(definition.identity)!.equality,
+              comparator: supports.get(definition.identity)!.comparator,
+              hash: supports.get(definition.identity)!.hash,
+              hashExtended: supports.get(definition.identity)!.extended,
+              hashEqualityCompatible: supports.get(definition.identity)!.hashEqualityCompatible,
+            })),
+        }
+      : {}),
     schema: row.schema,
     name: row.name,
     multirangeSchema: row.multirange_schema,
@@ -383,6 +456,7 @@ export async function readRangeTypes(
   return rows.map(
     ({
       subtypeEnum: _subtypeEnum,
+      subtypeDefinitions: _subtypeDefinitions,
       schema: _schema,
       name: _name,
       multirangeSchema: _multirangeSchema,

@@ -322,7 +322,7 @@ fn multi_array_state_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
 }
 fn multi_array_state_bad_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
  let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(lower);bounds.push(upper);
- RangeValue::Value(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
+ RangeValue::Value(RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
 }
 fn multi_array_state_raw(first:RangeValue,second:RangeValue)->ArrayElement {
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(first);ranges.push(second);
@@ -345,7 +345,7 @@ fn multi_array_state_revise(input:MultirangeValue)->MultirangeValue {
   let first=payload.ranges[0].clone();
   if let RangeValue::Value(span)=first {
    let mut bounds=span.bounds;bounds[1]=ArrayElement::Int4(4);
-   let revised=make_coerced_range_value(RangePayload {enum_labels:span.enum_labels,enum_count:span.enum_count,type_name:span.type_name,element_type:span.element_type,element_kind:span.element_kind,support:span.support,empty:span.empty,lower_inclusive:span.lower_inclusive,upper_inclusive:span.upper_inclusive,bounds});
+   let revised=make_coerced_range_value(RangePayload {bound_profile:span.bound_profile,enum_labels:span.enum_labels,enum_count:span.enum_count,type_name:span.type_name,element_type:span.element_type,element_kind:span.element_kind,support:span.support,empty:span.empty,lower_inclusive:span.lower_inclusive,upper_inclusive:span.upper_inclusive,bounds});
    let mut ranges=payload.ranges;ranges[0]=revised;
    return make_coerced_multirange_value(MultirangePayload {type_name:payload.type_name,range_type:payload.range_type,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,ranges});
   };

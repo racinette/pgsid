@@ -344,7 +344,7 @@ func TestSplit(t *testing.T) {
 
   it('rejects unsupported elements, direct ownership cycles, borrowed batches and field mutation', () => {
     for (const rejected of [
-      '#[derive(Clone)] struct Item { text: String } struct Batch { items: Vec<Item> }',
+      'struct Item { text: String } struct Batch { items: Vec<Item> }',
       'enum Item { Text(String) } struct Batch { items: Vec<Item> }',
       '#[derive(Clone)] enum Item { Text(String) } pub fn f(items: Vec<Item>) -> Vec<Item> { items.clone() }',
       '#[derive(Clone)] enum Item { Text(String) } pub fn f(items: &Vec<Item>) -> usize { items.len() }',

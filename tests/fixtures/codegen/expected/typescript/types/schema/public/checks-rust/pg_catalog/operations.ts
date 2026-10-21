@@ -24904,7 +24904,7 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
                         return { kind: "Unknown" };
                     }
                 }
-                return checkruntime.rangeFromDefinedBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), payload.support, a.enumLabels, a.enumCount);
+                return checkruntime.rangeFromTypedBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), payload.support, a.enumLabels, a.enumCount, checkruntime.copyRangeBoundContext(a.boundProfile));
             }
         }
     }
@@ -32223,7 +32223,9 @@ function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolea
     if (left.elementKind === 6 && (!(left.enumCount === right.enumCount) || !(left.enumLabels === right.enumLabels))) {
         return { kind: "Unknown" };
     }
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(a, b, left.support.comparison);
+    const leftProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(left.boundProfile);
+    const rightProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(right.boundProfile);
+    const comparison: checkruntime.Int4Value = rangeTypedCompare(a, b, left.support.comparison, leftProfile, rightProfile);
     if (comparison.kind === "Value") {
         const order: number = langruntime.checkedI32(comparison.value);
         if (!(order === 0)) {
@@ -32336,7 +32338,9 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
     if (left.elementKind === 6 && (!(left.enumCount === right.enumCount) || !(left.enumLabels === right.enumLabels))) {
         return { kind: "Unknown" };
     }
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), left.support.comparison);
+    const leftProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(left.boundProfile);
+    const rightProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(right.boundProfile);
+    const comparison: checkruntime.Int4Value = rangeTypedCompare(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), left.support.comparison, leftProfile, rightProfile);
     if (comparison.kind === "Error") {
         const error: checkruntime.SqlError = comparison.value;
         return { kind: "Error", value: error };
@@ -32363,7 +32367,7 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
             else {
                 flags = flags + langruntime.checkedChar("]");
             }
-            const gap: checkruntime.RangeValue = rangeConstructDefined(left.typeName, left.elementType, left.elementKind, a, b, { kind: "Value", value: flags }, left.support, left.enumLabels, left.enumCount);
+            const gap: checkruntime.RangeValue = rangeConstructTyped(left.typeName, left.elementType, left.elementKind, a, b, { kind: "Value", value: flags }, left.support, left.enumLabels, left.enumCount, checkruntime.copyRangeBoundContext(left.boundProfile));
             return checkruntime.rangeEmptyState(gap);
         }
         return { kind: "Value", value: false };
@@ -32526,6 +32530,18 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
         if (span.elementKind === 6 && checkruntime.rangeEnumBoundValid(checkruntime.copyArrayElement(element), span.enumCount) === false) {
             return { kind: "Unknown" };
         }
+        let element1: checkruntime.ArrayElement = element;
+        const boundProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(span.boundProfile);
+        if (span.elementKind === 41) {
+            element1 = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(element1, boundProfile));
+            if (element1.kind === "Error") {
+                const error: checkruntime.SqlError = element1.value;
+                return { kind: "Error", value: error };
+            }
+            if (element1.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
         const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
         const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
         let hasLower: boolean = true;
@@ -32537,7 +32553,7 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
             hasUpper = langruntime.checkedBool(false);
         }
         if (hasLower) {
-            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.support.comparison);
+            const comparison: checkruntime.Int4Value = rangeTypedCompare(lower, checkruntime.copyArrayElement(element1), span.support.comparison, boundProfile, boundProfile);
             if (comparison.kind === "Error") {
                 const error: checkruntime.SqlError = comparison.value;
                 return { kind: "Error", value: error };
@@ -32555,7 +32571,7 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
             }
         }
         if (hasUpper) {
-            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.support.comparison);
+            const comparison: checkruntime.Int4Value = rangeTypedCompare(upper, element1, span.support.comparison, boundProfile, boundProfile);
             if (comparison.kind === "Error") {
                 const error: checkruntime.SqlError = comparison.value;
                 return { kind: "Error", value: error };
@@ -32666,6 +32682,67 @@ const rangeConstructorDataError = 3452544;
 const rangeConstructorFlagsError = 6819553;
 const rangeConstructorIntegerOverflow = 3452547;
 const rangeConstructorDateOverflow = 3452552;
+const rangeArrayComparisonUndefined = 6822435;
+function rangeProfiledArrayCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, profile: checkruntime.RangeBoundContext, index: number, other: checkruntime.RangeBoundContext, otherIndex: number): checkruntime.Int4Value {
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    index = langruntime.checkedIndex(index);
+    otherIndex = langruntime.checkedIndex(otherIndex);
+    const pair: checkruntime.Int4Value = checkruntime.arrayComparisonPair(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), false);
+    if (checkruntime.arrayPairRequiresScalar(pair) === false) {
+        return pair;
+    }
+    if (index >= profile.nodes.length || otherIndex >= other.nodes.length) {
+        return { kind: "Unknown" };
+    }
+    const node: checkruntime.RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile);
+    const peer: checkruntime.RangeBoundProfile = langruntime.indexStruct(other.nodes, langruntime.checkedIndex(otherIndex), checkruntime.copyRangeBoundProfile);
+    if (!(node.kind === peer.kind) || !(node.comparison === peer.comparison) || !(node.missingComparison === peer.missingComparison)) {
+        return { kind: "Unknown" };
+    }
+    if (node.missingComparison) {
+        return { kind: "Error", value: checkruntime.makeSqlError(rangeArrayComparisonUndefined) };
+    }
+    if (!(node.kind === 41)) {
+        if (node.kind === 6 && (!(node.enumLabels === peer.enumLabels) || !(node.enumCount === peer.enumCount))) {
+            return { kind: "Unknown" };
+        }
+        return rangeBuiltinCompare(lower, upper, node.comparison);
+    }
+    if (!(node.comparison === 41) || node.child >= profile.nodes.length || peer.child >= other.nodes.length || !(node.elementType === peer.elementType)) {
+        return { kind: "Unknown" };
+    }
+    if (!(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), checkruntime.copyRangeBoundProfile).missingComparison === langruntime.indexStruct(other.nodes, langruntime.checkedIndex(peer.child), checkruntime.copyRangeBoundProfile).missingComparison)) {
+        return { kind: "Unknown" };
+    }
+    const left: checkruntime.ArrayValue = checkruntime.arrayElementToArray(lower);
+    const right: checkruntime.ArrayValue = checkruntime.arrayElementToArray(upper);
+    const plan: checkruntime.ArrayComparisonPayload = checkruntime.prepareArrayComparison(left, right, false, langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), checkruntime.copyRangeBoundProfile).missingComparison === false);
+    let result: checkruntime.Int4Value = checkruntime.arrayComparisonInitial(plan);
+    let position: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+    while (checkruntime.arrayComparisonContinues(plan, position, result)) {
+        const a: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, false);
+        const b: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, true);
+        result = rangeProfiledArrayCompare(a, b, profile, node.child, other, peer.child);
+        position = checkruntime.arrayTextNextIndex(position);
+    }
+    return checkruntime.finishArrayComparison(plan, result);
+}
+function rangeTypedCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, comparison: number, profile: checkruntime.RangeBoundContext, other: checkruntime.RangeBoundContext): checkruntime.Int4Value {
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    comparison = langruntime.checkedI32(comparison);
+    if (lower.kind === "Null") {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (upper.kind === "Null") {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (comparison === 41) {
+        return rangeProfiledArrayCompare(lower, upper, profile, 0, other, 0);
+    }
+    return rangeBuiltinCompare(lower, upper, comparison);
+}
 function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, kind: number): checkruntime.Int4Value {
     lower = checkruntime.copyArrayElement(lower);
     upper = checkruntime.copyArrayElement(upper);
@@ -32828,7 +32905,7 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
     }
     return { kind: "Unknown" };
 }
-function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport, enumLabels: string, enumCount: number): checkruntime.RangeValue {
+function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport, enumLabels: string, enumCount: number, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
     kind = langruntime.checkedI32(kind);
@@ -32838,7 +32915,8 @@ function rangeProfileSerialize(typeName: string, elementType: string, kind: numb
     upperInclusive = langruntime.checkedBool(upperInclusive);
     enumLabels = langruntime.checkedString(enumLabels);
     enumCount = langruntime.checkedI32(enumCount);
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), support.comparison);
+    boundProfile = checkruntime.copyRangeBoundContext(boundProfile);
+    const comparison: checkruntime.Int4Value = rangeTypedCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), support.comparison, boundProfile, boundProfile);
     if (comparison.kind === "Error") {
         const error: checkruntime.SqlError = comparison.value;
         return { kind: "Error", value: error };
@@ -32849,7 +32927,7 @@ function rangeProfileSerialize(typeName: string, elementType: string, kind: numb
             return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDataError) };
         }
         if (order === 0 && (lowerInclusive === false || upperInclusive === false)) {
-            return checkruntime.rangeFromDefinedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" }, support, enumLabels, enumCount);
+            return checkruntime.rangeFromTypedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" }, support, enumLabels, enumCount, boundProfile);
         }
         let loInc: boolean = lowerInclusive;
         let hiInc: boolean = upperInclusive;
@@ -32859,7 +32937,7 @@ function rangeProfileSerialize(typeName: string, elementType: string, kind: numb
         if (upper.kind === "Null") {
             hiInc = langruntime.checkedBool(false);
         }
-        return checkruntime.rangeFromDefinedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount);
+        return checkruntime.rangeFromTypedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount, boundProfile);
     }
     return { kind: "Unknown" };
 }
@@ -32946,7 +33024,7 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
                 }
             }
         }
-        return rangeProfileSerialize(value.typeName, value.elementType, value.elementKind, lower, upper, loInc, hiInc, value.support, value.enumLabels, value.enumCount);
+        return rangeProfileSerialize(value.typeName, value.elementType, value.elementKind, lower, upper, loInc, hiInc, value.support, value.enumLabels, value.enumCount, checkruntime.copyRangeBoundContext(value.boundProfile));
     }
     return input;
 }
@@ -32975,6 +33053,18 @@ export function rangeConstructDefined(typeName: string, elementType: string, kin
     upper = checkruntime.copyArrayElement(upper);
     enumLabels = langruntime.checkedString(enumLabels);
     enumCount = langruntime.checkedI32(enumCount);
+    const profile: checkruntime.RangeBoundContext = checkruntime.emptyRangeBoundContext();
+    return rangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, enumLabels, enumCount, profile);
+}
+export function rangeConstructTyped(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, flags: checkruntime.TextValue, support: checkruntime.RangeSupport, enumLabels: string, enumCount: number, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    enumLabels = langruntime.checkedString(enumLabels);
+    enumCount = langruntime.checkedI32(enumCount);
+    boundProfile = checkruntime.copyRangeBoundContext(boundProfile);
     if (lower.kind === "Error") {
         const error: checkruntime.SqlError = lower.value;
         return { kind: "Error", value: error };
@@ -33008,9 +33098,32 @@ export function rangeConstructDefined(typeName: string, elementType: string, kin
         if (kind === 6 && (checkruntime.rangeEnumDefinitionValid(enumLabels, enumCount) === false || checkruntime.rangeEnumBoundValid(checkruntime.copyArrayElement(lower), enumCount) === false || checkruntime.rangeEnumBoundValid(checkruntime.copyArrayElement(upper), enumCount) === false)) {
             return { kind: "Unknown" };
         }
+        if (checkruntime.rangeBoundProfileValid(boundProfile) === false) {
+            return { kind: "Unknown" };
+        }
+        let lower1: checkruntime.ArrayElement = lower;
+        let upper1: checkruntime.ArrayElement = upper;
+        if (kind === 41) {
+            lower1 = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(lower1, boundProfile));
+            if (lower1.kind === "Error") {
+                const error: checkruntime.SqlError = lower1.value;
+                return { kind: "Error", value: error };
+            }
+            if (lower1.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+            upper1 = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(upper1, boundProfile));
+            if (upper1.kind === "Error") {
+                const error: checkruntime.SqlError = upper1.value;
+                return { kind: "Error", value: error };
+            }
+            if (upper1.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
         const loInc: boolean = text === "[]" || text === "[)";
         const hiInc: boolean = text === "[]" || text === "(]";
-        const initial: checkruntime.RangeValue = rangeProfileSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc, support, enumLabels, enumCount);
+        const initial: checkruntime.RangeValue = rangeProfileSerialize(typeName, elementType, kind, lower1, upper1, loInc, hiInc, support, enumLabels, enumCount, boundProfile);
         return rangeBuiltinCanonical(initial);
     }
     return { kind: "Unknown" };
@@ -33953,6 +34066,35 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
     }
     return { kind: "Unknown" };
 }
+function rangeProfiledBoundOutput(input: checkruntime.ArrayElement, profile: checkruntime.RangeBoundContext, index: number): checkruntime.TextValue {
+    input = checkruntime.copyArrayElement(input);
+    index = langruntime.checkedIndex(index);
+    if (index >= profile.nodes.length) {
+        return { kind: "Unknown" };
+    }
+    const node: checkruntime.RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile);
+    if (!(node.kind === 41)) {
+        const support: checkruntime.RangeSupport = checkruntime.makeRangeSupport(node.comparison, 1);
+        return rangeOutputBound(input, node.kind, node.typeName === "pg_catalog.cidr", checkruntime.rangeOidAliasMode(support, node.typeName), checkruntime.rangeSupportJsonbUtf8(support), node.enumLabels, node.enumCount);
+    }
+    const plan: checkruntime.ArrayOutputPayload = checkruntime.prepareArrayOutput(checkruntime.arrayElementToArray(input));
+    let rendered: checkruntime.ArrayArguments = checkruntime.makeArrayArguments("pg_catalog.text", 8);
+    let position: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+    while (checkruntime.arrayOutputHasElement(plan, position)) {
+        const cell: checkruntime.ArrayElement = checkruntime.arrayOutputElementAt(plan, position);
+        const text: checkruntime.TextValue = rangeProfiledBoundOutput(cell, profile, node.child);
+        if (text.kind === "Error") {
+            const error: checkruntime.SqlError = text.value;
+            return { kind: "Error", value: error };
+        }
+        if (text.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        rendered = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(rendered, checkruntime.arrayElementFromText(text)));
+        position = checkruntime.arrayTextNextIndex(position);
+    }
+    return finishArrayOutput(plan, rendered, langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), checkruntime.copyRangeBoundProfile).kind === 27);
+}
 export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextValue {
     input = checkruntime.copyRangeValue(input);
     if (input.kind === "Error") {
@@ -33970,7 +34112,11 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         const cidr: boolean = checkruntime.rangeSupportIsCidr(value.support) || value.elementType === "pg_catalog.cidr";
         const aliasMode: number = checkruntime.rangeOidAliasMode(value.support, value.elementType);
         const utf8: boolean = checkruntime.rangeSupportJsonbUtf8(value.support);
-        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
+        const profile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(value.boundProfile);
+        let lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
+        if (value.elementKind === 41) {
+            lower = rangeProfiledBoundOutput(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), profile, 0);
+        }
         if (lower.kind === "Error") {
             const error: checkruntime.SqlError = lower.value;
             return { kind: "Error", value: error };
@@ -33978,7 +34124,10 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         if (lower.kind === "Unknown") {
             return { kind: "Unknown" };
         }
-        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
+        let upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
+        if (value.elementKind === 41) {
+            upper = rangeProfiledBoundOutput(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), profile, 0);
+        }
         if (upper.kind === "Error") {
             const error: checkruntime.SqlError = upper.value;
             return { kind: "Error", value: error };
@@ -33992,20 +34141,20 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
 }
 const rangeSetNoncontiguous = 3452544;
 function rangeEmptyLike(input: checkruntime.RangePayload): checkruntime.RangeValue {
-    return checkruntime.rangeFromDefinedBounds(input.typeName, input.elementType, input.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" }, input.support, input.enumLabels, input.enumCount);
+    return checkruntime.rangeFromTypedBounds(input.typeName, input.elementType, input.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" }, input.support, input.enumLabels, input.enumCount, checkruntime.copyRangeBoundContext(input.boundProfile));
 }
 function rangeCopyPayload(input: checkruntime.RangePayload): checkruntime.RangeValue {
     if (input.empty) {
         return rangeEmptyLike(input);
     }
-    return checkruntime.rangeFromDefinedBounds(input.typeName, input.elementType, input.elementKind, false, input.lowerInclusive, input.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), input.support, input.enumLabels, input.enumCount);
+    return checkruntime.rangeFromTypedBounds(input.typeName, input.elementType, input.elementKind, false, input.lowerInclusive, input.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), input.support, input.enumLabels, input.enumCount, checkruntime.copyRangeBoundContext(input.boundProfile));
 }
 function rangeRebuild(input: checkruntime.RangePayload, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInc: boolean, upperInc: boolean): checkruntime.RangeValue {
     lower = checkruntime.copyArrayElement(lower);
     upper = checkruntime.copyArrayElement(upper);
     lowerInc = langruntime.checkedBool(lowerInc);
     upperInc = langruntime.checkedBool(upperInc);
-    const initial: checkruntime.RangeValue = rangeProfileSerialize(input.typeName, input.elementType, input.elementKind, lower, upper, lowerInc, upperInc, input.support, input.enumLabels, input.enumCount);
+    const initial: checkruntime.RangeValue = rangeProfileSerialize(input.typeName, input.elementType, input.elementKind, lower, upper, lowerInc, upperInc, input.support, input.enumLabels, input.enumCount, checkruntime.copyRangeBoundContext(input.boundProfile));
     return rangeBuiltinCanonical(initial);
 }
 function rangePayloadDifference(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.RangeValue {

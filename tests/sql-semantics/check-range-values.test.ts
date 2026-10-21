@@ -62,7 +62,7 @@ const rustRange = (range: Range): string => {
   if (range.kind === 'Error') return `RangeValue::Error(make_sql_error(${range.value.state}))`
   if (range.kind !== 'Value') return `RangeValue::${range.kind}`
   const p = range.value
-  return `make_coerced_range_value(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:${rustStringLiteral(p.type_name)}.to_owned(),element_type:${rustStringLiteral(p.element_type)}.to_owned(),element_kind:${p.element_kind},support:range_unknown_support(),empty:${p.empty},lower_inclusive:${p.lower_inclusive},upper_inclusive:${p.upper_inclusive},bounds:vec![${p.bounds.map(rustCell).join(',')}]})`
+  return `make_coerced_range_value(RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:${rustStringLiteral(p.type_name)}.to_owned(),element_type:${rustStringLiteral(p.element_type)}.to_owned(),element_kind:${p.element_kind},support:range_unknown_support(),empty:${p.empty},lower_inclusive:${p.lower_inclusive},upper_inclusive:${p.upper_inclusive},bounds:vec![${p.bounds.map(rustCell).join(',')}]})`
 }
 const goRange = (range: Range): string => {
   if (range.kind === 'Error')
@@ -78,6 +78,7 @@ const tsPayload = (payload: Extract<Range, { kind: 'Value' }>['value']) => ({
   elementKind: payload.element_kind,
   enumLabels: '',
   enumCount: -1,
+  boundProfile: { nodes: [] },
   support: { comparison: 0, canonical: 0 },
   empty: payload.empty,
   lowerInclusive: payload.lower_inclusive,
@@ -302,7 +303,7 @@ it('preserves SQL-coerced range shapes, exact bounds, owned snapshots and struct
       join(directory, 'checks_test.rs'),
       `include!("checks.rs");\n#[test] fn ranges_match_postgres(){${rustAssertions.join('\n')}
 let mut bounds=vec![ArrayElement::Numeric("1.00".to_owned()),ArrayElement::Numeric("2.00".to_owned())];
-let payload=RangePayload{enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.numrange".to_owned(),element_type:"pg_catalog.\\\"numeric\\\"".to_owned(),element_kind:10,support:range_unknown_support(),empty:false,lower_inclusive:true,upper_inclusive:false,bounds:bounds.clone()};
+let payload=RangePayload{bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.numrange".to_owned(),element_type:"pg_catalog.\\\"numeric\\\"".to_owned(),element_kind:10,support:range_unknown_support(),empty:false,lower_inclusive:true,upper_inclusive:false,bounds:bounds.clone()};
 let value=make_coerced_range_value(payload.clone());bounds[0]=ArrayElement::Numeric("99".to_owned());
 let saved=range_require_type(value.clone(),"pg_catalog.numrange","pg_catalog.\\\"numeric\\\"",10);
 assert!(array_element_to_numeric(range_bound(saved.clone(),false))==make_numeric_value("1.00"));

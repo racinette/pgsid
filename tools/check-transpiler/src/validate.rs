@@ -246,7 +246,8 @@ fn vector_element_type(name: &str, semantics: &Semantics) -> Option<String> {
     let element = name.strip_prefix("Vec<")?.strip_suffix('>')?;
     if element == "char"
         || element == "usize"
-        || (semantics.fields.contains_key(element) && semantics.copy.contains(element))
+        || (semantics.fields.contains_key(element)
+            && (semantics.copy.contains(element) || semantics.clone.contains(element)))
         || (semantics.clone.contains(element)
             && semantics.variants.keys().any(|(owner, _)| owner == element))
     {
@@ -864,7 +865,7 @@ fn infer_expr_type(
                     if destination == "usize"
                         || destination == "char"
                         || (semantics.fields.contains_key(&destination)
-                            && semantics.copy.contains(&destination))
+                            && (semantics.copy.contains(&destination) || semantics.clone.contains(&destination)))
                         || (semantics.clone.contains(&destination)
                             && semantics
                                 .variants
@@ -1054,32 +1055,38 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             _ => {}
         }
     }
+    let mut exported_payloads = BTreeSet::new();
+    let mut pending = file.items.iter().filter_map(|item| {
+        let Item::Enum(enumeration) = item else { return None; };
+        (matches!(enumeration.vis, syn::Visibility::Public(_))
+            && semantics.clone.contains(&enumeration.ident.to_string()))
+            .then(|| enumeration.ident.to_string())
+    }).collect::<Vec<_>>();
+    while let Some(name) = pending.pop() {
+        let inner = name.strip_prefix("Vec<").and_then(|value| value.strip_suffix('>')).unwrap_or(&name).to_string();
+        if !exported_payloads.insert(inner.clone()) { continue; }
+        if let Some(fields) = semantics.fields.get(&inner) {
+            pending.extend(fields.values().cloned());
+        }
+        pending.extend(semantics.variants.iter().filter_map(|((owner, _), payload)| {
+            if owner == &inner { payload.clone() } else { None }
+        }));
+    }
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
         let owned_record = file.items.iter().any(|item| {
             let Item::Struct(structure) = item else { return false; };
             if structure.ident != name.as_str() { return false; }
-            if matches!(structure.vis, syn::Visibility::Inherited) { return true; }
-            if !structure.fields.iter().all(|field| matches!(field.vis, syn::Visibility::Public(_))) {
-                return false;
-            }
-            file.items.iter().any(|owner| {
-                let Item::Enum(enumeration) = owner else { return false; };
-                matches!(enumeration.vis, syn::Visibility::Public(_))
-                    && semantics.clone.contains(&enumeration.ident.to_string())
-                    && enumeration.variants.iter().any(|variant| {
-                        matches!(&variant.fields, Fields::Unnamed(fields)
-                            if fields.unnamed.len() == 1
-                                && type_name(&fields.unnamed[0].ty).ok().as_deref() == Some(name.as_str()))
-                    })
-            })
+            matches!(structure.vis, syn::Visibility::Inherited)
+                || (exported_payloads.contains(name)
+                    && structure.fields.iter().all(|field| matches!(field.vis, syn::Visibility::Public(_))))
         });
         if semantics.fields.get(name).is_some_and(|fields| {
             fields.values().any(|ty| {
                 !supported(ty)
                     && !(owned_record
-                        && ty.starts_with("Vec<")
-                        && shared_vector_element(ty, &semantics).is_some())
+                        && (ty.starts_with("Vec<") || semantics.clone.contains(ty))
+                        && shared_owned_payload(ty, &semantics, &mut BTreeMap::new(), 0))
             })
         }) || semantics.variants.iter().any(|((owner, _), payload)| {
             owner == name

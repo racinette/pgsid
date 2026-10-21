@@ -117,7 +117,8 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 33
                 || kind == 37
                 || kind == 38
-                || kind == 39));
+                || kind == 39
+                || kind == 41));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
@@ -147,12 +148,35 @@ pub fn range_oid_alias_mode(input: RangeSupport, element_type: &str) -> i32 {
 }
 
 #[derive(Clone)]
+pub struct RangeBoundProfile {
+    pub type_name: String,
+    pub kind: i32,
+    pub comparison: i32,
+    pub missing_comparison: bool,
+    pub element_type: String,
+    pub child: usize,
+    pub enum_labels: String,
+    pub enum_count: i32,
+}
+
+#[derive(Clone)]
+pub struct RangeBoundContext {
+    pub nodes: Vec<RangeBoundProfile>,
+}
+
+pub fn empty_range_bound_context() -> RangeBoundContext {
+    let nodes: Vec<RangeBoundProfile> = Vec::new();
+    RangeBoundContext {nodes}
+}
+
+#[derive(Clone)]
 pub struct RangePayload {
     pub type_name: String,
     pub element_type: String,
     pub element_kind: i32,
     pub enum_labels: String,
     pub enum_count: i32,
+    pub bound_profile: RangeBoundContext,
     pub support: RangeSupport,
     pub empty: bool,
     pub lower_inclusive: bool,
@@ -183,6 +207,7 @@ fn range_payload_with_support(input: RangePayload, support: RangeSupport) -> Ran
         element_kind: input.element_kind,
         enum_labels: input.enum_labels,
         enum_count: input.enum_count,
+        bound_profile: input.bound_profile,
         support,
         empty: input.empty,
         lower_inclusive: input.lower_inclusive,
@@ -198,6 +223,7 @@ fn range_payload_with_definition(input: RangePayload, labels: &str, count: i32) 
         element_kind: input.element_kind,
         enum_labels: labels.to_owned(),
         enum_count: count,
+        bound_profile: input.bound_profile,
         support: input.support,
         empty: input.empty,
         lower_inclusive: input.lower_inclusive,
@@ -250,6 +276,110 @@ pub fn range_enum_bound_valid(input: ArrayElement, count: i32) -> bool {
 pub fn range_with_enum_definition(input: RangeValue, labels: &str, count: i32) -> RangeValue {
     if let RangeValue::Value(value) = input {
         return make_coerced_range_value(range_payload_with_definition(value, labels, count));
+    };
+    input
+}
+
+pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
+    let mut index: usize = 0;
+    while index < profile.nodes.len() {
+        let node = profile.nodes[index].clone();
+        if node.type_name.as_str() == "" || node.kind < 1 || node.kind > 41 { return false; };
+        if node.kind == 41 {
+            if node.element_type.as_str() == "" || node.child <= index || node.child >= profile.nodes.len()
+                || (node.comparison != 0 && node.comparison != 41) {
+                return false;
+            };
+        } else {
+            if node.child != 0 || node.element_type.as_str() != "" { return false; };
+            if node.missing_comparison {
+                if node.comparison != 0 { return false; };
+            } else if range_support_valid(make_range_support(node.comparison, 1), node.kind) == false {
+                return false;
+            };
+        };
+        if node.missing_comparison && node.comparison != 0 { return false; };
+        if node.kind == 6 {
+            if range_enum_definition_valid(node.enum_labels.as_str(), node.enum_count) == false { return false; };
+        } else if node.enum_labels.as_str() != "" || node.enum_count != -1 {
+            return false;
+        };
+        index += 1;
+    }
+    true
+}
+
+pub fn range_bound_profiles_equal(left: &RangeBoundContext, right: &RangeBoundContext) -> bool {
+    if left.nodes.len() != right.nodes.len() { return false; };
+    let mut index: usize = 0;
+    while index < left.nodes.len() {
+        let a = left.nodes[index].clone();
+        let b = right.nodes[index].clone();
+        if a.type_name != b.type_name || a.kind != b.kind || a.comparison != b.comparison || a.missing_comparison != b.missing_comparison
+            || a.element_type != b.element_type || a.child != b.child || a.enum_labels != b.enum_labels || a.enum_count != b.enum_count {
+            return false;
+        };
+        index += 1;
+    }
+    true
+}
+
+fn range_payload_with_bound_profile(input: RangePayload, profile: RangeBoundContext) -> RangePayload {
+    RangePayload {
+        type_name: input.type_name,
+        element_type: input.element_type,
+        element_kind: input.element_kind,
+        enum_labels: input.enum_labels,
+        enum_count: input.enum_count,
+        bound_profile: profile,
+        support: input.support,
+        empty: input.empty,
+        lower_inclusive: input.lower_inclusive,
+        upper_inclusive: input.upper_inclusive,
+        bounds: input.bounds,
+    }
+}
+
+pub fn range_with_bound_profile(input: RangeValue, profile: RangeBoundContext) -> RangeValue {
+    if let RangeValue::Value(payload) = input {
+        return make_coerced_range_value(range_payload_with_bound_profile(payload, profile));
+    };
+    input
+}
+
+fn range_profiled_bound_valid(input: ArrayElement, profile: &RangeBoundContext, index: usize) -> bool {
+    if let ArrayElement::Null = input { return true; };
+    if let ArrayElement::Unknown = input { return true; };
+    if let ArrayElement::Error(_) = input { return true; };
+    if index >= profile.nodes.len() { return false; };
+    let node = profile.nodes[index].clone();
+    if array_element_family(input.clone()) != node.kind { return false; };
+    if node.kind == 41 {
+        if let ArrayElement::Array(payload) = input {
+            if payload.element_type != node.element_type || payload.element_kind != profile.nodes[node.child].kind { return false; };
+            let mut cell: usize = 0;
+            while cell < payload.elements.len() {
+                if range_profiled_bound_valid(payload.elements[cell].clone(), profile, node.child) == false { return false; };
+                cell += 1;
+            }
+            return true;
+        };
+        return false;
+    };
+    range_bound_value_valid(input.clone(), node.type_name.as_str() == "pg_catalog.cidr")
+        && range_enum_bound_valid(input.clone(), node.enum_count)
+}
+
+pub fn range_prepare_profiled_bound(input: ArrayElement, profile: &RangeBoundContext) -> ArrayElement {
+    if range_bound_profile_valid(profile) == false { return ArrayElement::Unknown; };
+    if let ArrayElement::Array(payload) = input {
+        let normalized = make_array_value(payload);
+        if let ArrayValue::Value(payload) = normalized {
+            let cell = ArrayElement::Array(payload);
+            if range_profiled_bound_valid(cell.clone(), profile, 0) == false { return ArrayElement::Unknown; };
+            return cell;
+        };
+        return array_element_from_array(normalized);
     };
     input
 }
@@ -331,6 +461,13 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     if range_enum_definition_valid(value.enum_labels.as_str(), value.enum_count) == false {
         return RangeValue::Unknown;
     };
+    if value.element_kind != 41 {
+        let empty_profile = empty_range_bound_context();
+        value = range_payload_with_bound_profile(value, empty_profile);
+    };
+    let bound_profile = value.bound_profile.clone();
+    if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
+    if value.bound_profile.nodes.len() > 0 && value.bound_profile.nodes[0].kind != value.element_kind { return RangeValue::Unknown; };
     let mut support = value.support;
     if value.type_name.as_str() == "" || value.element_type.as_str() == "" || value.element_kind < 1
     {
@@ -385,6 +522,19 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
             if (index == 0 && value.lower_inclusive) || (index == 1 && value.upper_inclusive) {
                 return RangeValue::Unknown;
             };
+        };
+        let array_bound = bound.clone();
+        if let ArrayElement::Array(payload) = array_bound {
+            let normalized = make_array_value(payload);
+            if let ArrayValue::Error(error) = normalized { return RangeValue::Error(error); };
+            let mut known = false;
+            if let ArrayValue::Value(payload) = normalized {
+                let cell = ArrayElement::Array(payload);
+                if range_profiled_bound_valid(cell.clone(), &bound_profile, 0) == false { return RangeValue::Unknown; };
+                value.bounds[index] = cell;
+                known = true;
+            };
+            if known == false { return RangeValue::Unknown; };
         };
         if let ArrayElement::Jsonb(payload) = bound {
             let normalized = jsonb_from_coerced_value(JsonbValue::Value(payload));
@@ -453,6 +603,24 @@ pub fn range_from_defined_bounds(
     enum_labels: &str,
     enum_count: i32,
 ) -> RangeValue {
+    let profile = empty_range_bound_context();
+    range_from_typed_bounds(type_name, element_type, element_kind, empty, lower_inclusive, upper_inclusive, lower, upper, support, enum_labels, enum_count, profile)
+}
+
+pub fn range_from_typed_bounds(
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    empty: bool,
+    lower_inclusive: bool,
+    upper_inclusive: bool,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
+    bound_profile: RangeBoundContext,
+) -> RangeValue {
     let mut bounds: Vec<ArrayElement> = Vec::new();
     if empty == false {
         bounds.push(lower);
@@ -464,6 +632,7 @@ pub fn range_from_defined_bounds(
         element_kind,
         enum_labels: enum_labels.to_owned(),
         enum_count,
+        bound_profile,
         support,
         empty,
         lower_inclusive,
