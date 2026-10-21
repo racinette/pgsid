@@ -17,6 +17,7 @@ pub mod checkruntime {
     include!("jsonpath.rs");
     include!("array_elements.rs");
     include!("composite.rs");
+    include!("composite_text.rs");
     include!("range.rs");
     include!("multirange.rs");
     include!("domain.rs");
@@ -61,6 +62,7 @@ pub mod pg_catalog {
     use super::*;
 
     include!("operations/pg_catalog/boolean.rs");
+    include!("operations/pg_catalog/composite_text.rs");
     include!("operations/pg_catalog/array_metadata.rs");
     include!("operations/pg_catalog/range_metadata.rs");
     include!("operations/pg_catalog/range_subdiff.rs");

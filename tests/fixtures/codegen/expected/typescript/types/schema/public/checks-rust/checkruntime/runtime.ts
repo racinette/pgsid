@@ -8548,7 +8548,7 @@ export interface CompositePayload {
     readonly typeName: string;
     readonly fields: ArrayElement[];
 }
-function copyCompositePayload(value: CompositePayload): CompositePayload {
+export function copyCompositePayload(value: CompositePayload): CompositePayload {
     return { typeName: langruntime.checkedString(value.typeName), fields: langruntime.checkedStructs(value.fields, copyArrayElement) };
 }
 export type CompositeValue = {
@@ -8562,7 +8562,7 @@ export type CompositeValue = {
     kind: "Value";
     value: CompositePayload;
 };
-function copyCompositeValue(value: CompositeValue): CompositeValue {
+export function copyCompositeValue(value: CompositeValue): CompositeValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
@@ -9050,6 +9050,35 @@ export function compositeFromCoercedPlan(input: CompositeValue, plan: CompositeT
         return { kind: "Unknown" };
     }
     return input;
+}
+export interface CompositeTextPayload {
+    characters: string[];
+    position: number;
+    expected: number;
+    fields: ArrayElement[];
+    current: TextValue;
+}
+export function copyCompositeTextPayload(value: CompositeTextPayload): CompositeTextPayload {
+    return { characters: langruntime.checkedChars(value.characters), position: langruntime.checkedIndex(value.position), expected: langruntime.checkedIndex(value.expected), fields: langruntime.checkedStructs(value.fields, copyArrayElement), current: value.current };
+}
+export type CompositeTextPlan = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: CompositeTextPayload;
+};
+export function copyCompositeTextPlan(value: CompositeTextPlan): CompositeTextPlan {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyCompositeTextPayload(value.value) };
+    }
 }
 export interface RangeSupport {
     readonly comparison: number;

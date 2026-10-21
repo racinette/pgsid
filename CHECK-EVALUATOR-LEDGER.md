@@ -84,8 +84,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Bind Boolean/network character casts and integer/numeric text I/O through catalog identities, including actual argument types, integer radix/underscore grammar, width/precision modifiers, numeric CASE/COALESCE, mixed numeric overloads, literal preparation and composition.
 - [x] Admit scalar-domain casts and domain arrays with inherited modifiers, ordered constraints, nominal polymorphic results and original INSERT parity; capture implicit/explicit conversion context during catalog generation and defer missing or ambiguous context.
 - [ ] Inventory unsupported input forms and coercions for represented types.
-- [x] Share handled and deferred temporal input-form cases between their parity
-      suites and the coercion report, retaining the executing owner of each list.
+- [x] Share handled and deferred temporal input-form cases between their parity suites and the coercion report, retaining the executing owner of each list.
 - [x] Expand temporal text parsing in bounded, independently testable slices.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter
       conversion separately from already SQL-coerced row inputs.
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish owned composite field carriers, nested container snapshots, field access and row/datum NULL distinctions; capture closed qualified field dependencies including table/view row types, domains, enum order, modifiers and selected I/O without deployment OIDs. Verify native/Rust/Go/TypeScript states and public runtime copies.
 - [x] Admit SQL-coerced composite rows, named fields, nested records/arrays, scalar operations, CASE/COALESCE and row NULL tests through captured compiled field profiles. Validate public payloads before copying, replace caller range hints, retain dropped-field order and enum labels without deployment OIDs, and verify raw/stored native/Rust/Go/TypeScript and world INSERT parity.
 - [x] Admit named ROW constructors, explicit field and composite-domain coercion, inherited modifiers, typed NULLs and datum distinctness. Capture physical attribute counts and preserve dropped slots, collation-dependent field projection, constant preparation, lazy row NULL tests, owned CASE/COALESCE and source/stored native/Rust/Go/TypeScript INSERT parity.
-- [ ] Admit composite record text literals and I/O, whole-record comparisons, root arrays/ranges and JSON record conversion; preserve provenance, row versus datum NULL semantics and world INSERT parity.
+- [x] Admit composite record text I/O and typed literals through captured implementations and shared field backends; preserve ordered grammar/conversion, dropped fields, quoting, domain/width/interval modifiers, eager source versus stored recovery, owned cursors and lazy NULL/Unknown/errors. Verify native/Rust/Go/TypeScript and world INSERT parity; retain reached scalar context requirements.
+- [ ] Admit composite whole-record comparisons, root arrays/ranges and JSON record conversion; preserve provenance, row versus datum NULL semantics and world INSERT parity.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

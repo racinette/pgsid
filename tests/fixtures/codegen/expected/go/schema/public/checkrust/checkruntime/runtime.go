@@ -6949,7 +6949,7 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 	case ArrayElementMultirange:
 		return ArrayElement{Kind: ArrayElementMultirange, Multirange: CopyMultirangePayload(value.Multirange)}
 	case ArrayElementComposite:
-		return ArrayElement{Kind: ArrayElementComposite, Composite: copyCompositePayload(value.Composite)}
+		return ArrayElement{Kind: ArrayElementComposite, Composite: CopyCompositePayload(value.Composite)}
 	}
 	panic("unknown enum variant")
 }
@@ -8399,7 +8399,7 @@ type CompositePayload struct {
 	Fields   []ArrayElement
 }
 
-func copyCompositePayload(value CompositePayload) CompositePayload {
+func CopyCompositePayload(value CompositePayload) CompositePayload {
 	return CompositePayload{TypeName: langruntime.CheckedString(value.TypeName), Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement)}
 }
 
@@ -8418,7 +8418,7 @@ type CompositeValue struct {
 	Value CompositePayload
 }
 
-func copyCompositeValue(value CompositeValue) CompositeValue {
+func CopyCompositeValue(value CompositeValue) CompositeValue {
 	switch value.Kind {
 	case CompositeValueUnknown:
 		return CompositeValue{Kind: CompositeValueUnknown}
@@ -8427,7 +8427,7 @@ func copyCompositeValue(value CompositeValue) CompositeValue {
 	case CompositeValueError:
 		return CompositeValue{Kind: CompositeValueError, Error: value.Error}
 	case CompositeValueValue:
-		return CompositeValue{Kind: CompositeValueValue, Value: copyCompositePayload(value.Value)}
+		return CompositeValue{Kind: CompositeValueValue, Value: CopyCompositePayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -8445,7 +8445,7 @@ func CompositeFromCaseGuard(input CheckOutcome) CompositeValue {
 	return CompositeValue{Kind: CompositeValueUnknown}
 }
 func MakeCompositeValue(input CompositePayload) CompositeValue {
-	input = copyCompositePayload(input)
+	input = CopyCompositePayload(input)
 	identity := []rune(input.TypeName)
 	if len(identity) == 0 || len(input.Fields) > 2147483647 {
 		return CompositeValue{Kind: CompositeValueUnknown}
@@ -8477,9 +8477,9 @@ func MakeCompositeValue(input CompositePayload) CompositeValue {
 	return CompositeValue{Kind: CompositeValueValue, Value: CompositePayload{TypeName: input.TypeName, Fields: fields}}
 }
 func CompositeFromCoercedValue(input CompositeValue) CompositeValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	if input.Kind == CompositeValueValue {
-		value := copyCompositePayload(input.Value)
+		value := CopyCompositePayload(input.Value)
 		return MakeCompositeValue(value)
 	}
 	return input
@@ -8490,10 +8490,10 @@ func MakeCompositeFields(typeName string) CompositeValue {
 	return MakeCompositeValue(CompositePayload{TypeName: typeName, Fields: fields})
 }
 func AppendCompositeField(input CompositeValue, field ArrayElement) CompositeValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	field = CopyArrayElement(field)
 	if input.Kind == CompositeValueValue {
-		value := copyCompositePayload(input.Value)
+		value := CopyCompositePayload(input.Value)
 		fields := value.Fields
 		langruntime.CheckedAdd(len(fields), 1)
 		fields = append(fields, CopyArrayElement(field))
@@ -8502,7 +8502,7 @@ func AppendCompositeField(input CompositeValue, field ArrayElement) CompositeVal
 	return input
 }
 func CompositeFieldCount(input CompositeValue) Int4Value {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
@@ -8512,13 +8512,13 @@ func CompositeFieldCount(input CompositeValue) Int4Value {
 		return Int4Value{Kind: Int4ValueNull}
 	}
 	if checked.Kind == CompositeValueValue {
-		value := copyCompositePayload(checked.Value)
+		value := CopyCompositePayload(checked.Value)
 		return MakeInt4Value(int(int32(len(value.Fields))))
 	}
 	return Int4Value{Kind: Int4ValueUnknown}
 }
 func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
@@ -8532,7 +8532,7 @@ func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
 	if checked.Kind == CompositeValueValue {
-		value := copyCompositePayload(checked.Value)
+		value := CopyCompositePayload(checked.Value)
 		if index.Kind == Int4ValueValue {
 			offset := langruntime.CheckedI32(index.Value)
 			position := langruntime.IndexFromI32(offset, len(value.Fields))
@@ -8544,7 +8544,7 @@ func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func CompositeDatumIsNull(input CompositeValue) BoolValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
@@ -8559,7 +8559,7 @@ func CompositeDatumIsNull(input CompositeValue) BoolValue {
 	return MakeBoolValue(false)
 }
 func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueError {
 		error := checked.Error
@@ -8569,7 +8569,7 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 		return MakeBoolValue(negated == false)
 	}
 	if checked.Kind == CompositeValueValue {
-		value := copyCompositePayload(checked.Value)
+		value := CopyCompositePayload(checked.Value)
 		unknown := false
 		index := 0
 		for index < len(value.Fields) {
@@ -8598,19 +8598,19 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 	return BoolValue{Kind: BoolValueUnknown}
 }
 func CompositeRowIsNull(input CompositeValue) BoolValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	return compositeRowNullTest(input, false)
 }
 func CompositeIsNull(input CompositeValue) BoolValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	return CompositeDatumIsNull(input)
 }
 func CompositeRowIsNotNull(input CompositeValue) BoolValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	return compositeRowNullTest(input, true)
 }
 func ArrayElementFromComposite(input CompositeValue) ArrayElement {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	if input.Kind == CompositeValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -8619,7 +8619,7 @@ func ArrayElementFromComposite(input CompositeValue) ArrayElement {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
 	if input.Kind == CompositeValueValue {
-		value := copyCompositePayload(input.Value)
+		value := CopyCompositePayload(input.Value)
 		return ArrayElement{Kind: ArrayElementComposite, Composite: value}
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
@@ -8634,7 +8634,7 @@ func ArrayElementToComposite(input ArrayElement) CompositeValue {
 		return CompositeValue{Kind: CompositeValueNull}
 	}
 	if input.Kind == ArrayElementComposite {
-		value := copyCompositePayload(input.Composite)
+		value := CopyCompositePayload(input.Composite)
 		return CompositeValue{Kind: CompositeValueValue, Value: value}
 	}
 	return CompositeValue{Kind: CompositeValueUnknown}
@@ -8769,7 +8769,7 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 		return ArrayElement{Kind: ArrayElementUnknown}
 	}
 	if input.Kind == ArrayElementComposite {
-		payload := copyCompositePayload(input.Composite)
+		payload := CopyCompositePayload(input.Composite)
 		if node.Kind != 44 || payload.TypeName != node.TypeName || len(payload.Fields) != len(node.Fields) {
 			return ArrayElement{Kind: ArrayElementUnknown}
 		}
@@ -8912,10 +8912,10 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 	return checked
 }
 func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) CompositeValue {
-	input = copyCompositeValue(input)
+	input = CopyCompositeValue(input)
 	plan = copyCompositeTypePlan(plan)
 	if input.Kind == CompositeValueValue {
-		payload := copyCompositePayload(input.Value)
+		payload := CopyCompositePayload(input.Value)
 		if plan.Kind == CompositeTypePlanValue {
 			context := copyCompositeTypeContext(plan.Value)
 			if compositeTypeContextValid(&context) == false {
@@ -8929,6 +8929,47 @@ func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) Comp
 		return CompositeValue{Kind: CompositeValueUnknown}
 	}
 	return input
+}
+
+type CompositeTextPayload struct {
+	Characters []rune
+	Position   int
+	Expected   int
+	Fields     []ArrayElement
+	Current    TextValue
+}
+
+func CopyCompositeTextPayload(value CompositeTextPayload) CompositeTextPayload {
+	return CompositeTextPayload{Characters: langruntime.CheckedChars(value.Characters), Position: langruntime.CheckedIndex(value.Position), Expected: langruntime.CheckedIndex(value.Expected), Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement), Current: value.Current}
+}
+
+type CompositeTextPlanKind uint8
+
+const (
+	CompositeTextPlanUnknown CompositeTextPlanKind = iota
+	CompositeTextPlanNull
+	CompositeTextPlanError
+	CompositeTextPlanValue
+)
+
+type CompositeTextPlan struct {
+	Kind  CompositeTextPlanKind
+	Error SqlError
+	Value CompositeTextPayload
+}
+
+func CopyCompositeTextPlan(value CompositeTextPlan) CompositeTextPlan {
+	switch value.Kind {
+	case CompositeTextPlanUnknown:
+		return CompositeTextPlan{Kind: CompositeTextPlanUnknown}
+	case CompositeTextPlanNull:
+		return CompositeTextPlan{Kind: CompositeTextPlanNull}
+	case CompositeTextPlanError:
+		return CompositeTextPlan{Kind: CompositeTextPlanError, Error: value.Error}
+	case CompositeTextPlanValue:
+		return CompositeTextPlan{Kind: CompositeTextPlanValue, Value: CopyCompositeTextPayload(value.Value)}
+	}
+	panic("unknown enum variant")
 }
 
 type RangeSupport struct {
@@ -10558,7 +10599,7 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	element = CopyArrayElement(element)
 	if element.Kind == ArrayElementComposite {
-		payload := copyCompositePayload(element.Composite)
+		payload := CopyCompositePayload(element.Composite)
 		return ArrayElementFromComposite(MakeCompositeValue(payload))
 	}
 	if element.Kind == ArrayElementArray {

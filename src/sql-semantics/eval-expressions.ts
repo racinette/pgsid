@@ -21,6 +21,15 @@ import { builtinMetadata } from '../postgres/builtins/inventory.js'
 import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
+  | {
+      kind: 'text-to-composite'
+      type: ScalarType
+      operand: EvalExpression
+      conversions: readonly EvalExpression[]
+      literal?: true
+      origin?: 'source' | 'stored'
+    }
+  | { kind: 'composite-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'composite-field'; type: ScalarType; operand: EvalExpression; index: number }
   | { kind: 'composite-null'; type: ScalarType }
   | {
@@ -296,7 +305,12 @@ export type EvalExpression =
       type: 'pg_catalog."time"' | 'pg_catalog.timetz'
       operand: EvalExpression
     }
-  | { kind: 'text-to-interval'; type: 'pg_catalog."interval"'; operand: EvalExpression }
+  | {
+      kind: 'text-to-interval'
+      type: 'pg_catalog."interval"'
+      operand: EvalExpression
+      inputModifier?: number
+    }
   | { kind: 'interval-literal'; type: 'pg_catalog."interval"'; value: string; modifier: number }
   | { kind: 'clock-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
@@ -576,6 +590,8 @@ export function emitEvalExpression<Ast>(
     if (
       node.kind === 'uncertain' ||
       node.kind === 'composite-field' ||
+      node.kind === 'text-to-composite' ||
+      node.kind === 'composite-to-text' ||
       node.kind === 'composite-null' ||
       node.kind === 'composite-constructor' ||
       node.kind === 'domain-cast' ||

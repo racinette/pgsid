@@ -69,6 +69,14 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'text-to-composite' || expression.kind === 'composite-to-text') {
+    const operand = prepare(expression.operand)
+    return expression.kind === 'text-to-composite' && expression.literal
+      ? constant(expression)
+      : operand
+        ? { constant: false, null: operand.null, expressions: operand.expressions }
+        : null
+  }
   if (expression.kind === 'composite-null') return constant(expression, true)
   if (expression.kind === 'composite-constructor') {
     const prepared = prepareAll(expression.operands)
