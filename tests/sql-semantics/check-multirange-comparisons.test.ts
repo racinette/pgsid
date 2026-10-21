@@ -153,6 +153,8 @@ it('matches multirange ordering, mixed range predicates and element containment 
             )
           ).rows[0]!.value
           const cell = rangeBoundCell(f.m.subtype, text)
+          if ('value' in cell && typeof cell.value === 'object' && cell.kind !== 'Error')
+            throw new Error('Expected a primitive multirange fixture element')
           return 'value' in cell && cell.kind !== 'Error' ? value(cell.value) : value(null)
         }),
       )

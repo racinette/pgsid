@@ -10,6 +10,8 @@ import {
   rangeGoInput,
   rangeRustInput,
   rangeTypescriptInput,
+  rangeRustCell,
+  rangeGoCell,
   type RangeSupportFactory,
   type RangeInputCell,
   type RangeInputPayload,
@@ -36,14 +38,7 @@ export function arrayRustInput(payload: OwnedArrayInputPayload): string {
       return `array_element_from_multirange(${multirangeRustInput(cell.value)})`
     if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
     if (cell.kind === 'Array') return `array_element_from_array(${arrayRustInput(cell.value)})`
-    if (cell.kind === 'Null' || cell.kind === 'Unknown') return `ArrayElement::${cell.kind}`
-    if (cell.kind === 'Error') return `ArrayElement::Error(make_sql_error(${cell.value.state}))`
-    if (!('value' in cell)) throw new Error('Missing array cell')
-    const value =
-      typeof cell.value === 'string'
-        ? `${rustStringLiteral(cell.value)}.to_owned()`
-        : String(cell.value) + (typeof cell.value === 'bigint' ? 'i64' : '')
-    return `ArrayElement::${cell.kind}(${value})`
+    return rangeRustCell(cell)
   })
   const bitmap =
     payload.nullBitmap.kind === 'Unknown'
@@ -81,23 +76,7 @@ export function arrayGoInput(payload: OwnedArrayInputPayload): GoExpression {
               return go.call(runtime('ArrayElementFromRange'), [rangeGoInput(cell.value)])
             if (cell.kind === 'Array')
               return go.call(runtime('ArrayElementFromArray'), [arrayGoInput(cell.value)])
-            return go.composite(runtime('ArrayElement'), [
-              go.keyValue('Kind', runtime('ArrayElement' + cell.kind)),
-              ...('value' in cell
-                ? [
-                    go.keyValue(
-                      cell.kind,
-                      cell.kind === 'Error'
-                        ? go.composite(runtime('SqlError'), [
-                            go.keyValue('State', go.number(cell.value.state)),
-                          ])
-                        : typeof cell.value === 'string'
-                          ? go.string(cell.value)
-                          : go.number(cell.value),
-                    ),
-                  ]
-                : []),
-            ])
+            return rangeGoCell(cell)
           }),
         ),
       ),

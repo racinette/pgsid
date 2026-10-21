@@ -159,6 +159,74 @@ fn range_payload_with_support(input: RangePayload, support: RangeSupport) -> Ran
     }
 }
 
+fn range_bound_word_valid(value: i32) -> bool {
+    value >= 0 && value <= 65535
+}
+
+fn range_bound_value_valid(input: ArrayElement) -> bool {
+    if let ArrayElement::Int2(value) = input {
+        return make_int2_value(value) != Int2Value::Unknown;
+    };
+    if let ArrayElement::Bit(value) = input {
+        return make_bit_value(value.as_str()) != BitValue::Unknown;
+    };
+    if let ArrayElement::Bytea(value) = input {
+        let parsed = make_bytea_value(value.as_str());
+        if let ByteaValue::Value(canonical) = parsed {
+            return canonical == value;
+        };
+        return false;
+    };
+    if let ArrayElement::Time(value) = input {
+        return make_time_value(value) != TimeValue::Unknown;
+    };
+    if let ArrayElement::Timetz(value) = input {
+        return make_timetz_value(value.time, value.zone) != TimetzValue::Unknown;
+    };
+    if let ArrayElement::InternalChar(value) = input {
+        return make_internal_char_value(value) != InternalCharValue::Unknown;
+    };
+    if let ArrayElement::Oid(value) = input {
+        return make_oid_value(value) != OidValue::Unknown;
+    };
+    if let ArrayElement::Tid(value) = input {
+        return make_tid_value(value) != TidValue::Unknown;
+    };
+    if let ArrayElement::Network(value) = input {
+        if value.family != 4 && value.family != 6 {
+            return false;
+        };
+        if value.prefix < 0 || value.prefix > 128 {
+            return false;
+        };
+        if value.family == 4 {
+            if value.prefix > 32 || value.word2 != 0 || value.word3 != 0
+                || value.word4 != 0 || value.word5 != 0 || value.word6 != 0 || value.word7 != 0 {
+                return false;
+            };
+        };
+        return range_bound_word_valid(value.word0) && range_bound_word_valid(value.word1)
+            && range_bound_word_valid(value.word2) && range_bound_word_valid(value.word3)
+            && range_bound_word_valid(value.word4) && range_bound_word_valid(value.word5)
+            && range_bound_word_valid(value.word6) && range_bound_word_valid(value.word7);
+    };
+    if let ArrayElement::Macaddr(value) = input {
+        return value.word3 == 0 && range_bound_word_valid(value.word0)
+            && range_bound_word_valid(value.word1) && range_bound_word_valid(value.word2);
+    };
+    if let ArrayElement::Macaddr8(value) = input {
+        return range_bound_word_valid(value.word0) && range_bound_word_valid(value.word1)
+            && range_bound_word_valid(value.word2) && range_bound_word_valid(value.word3);
+    };
+    if let ArrayElement::Uuid(value) = input {
+        return range_bound_word_valid(value.word0) && range_bound_word_valid(value.word1)
+            && range_bound_word_valid(value.word2) && range_bound_word_valid(value.word3)
+            && range_bound_word_valid(value.word4) && range_bound_word_valid(value.word5)
+            && range_bound_word_valid(value.word6) && range_bound_word_valid(value.word7);
+    };
+    true
+}
+
 pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     let value = input;
     let mut support = value.support;
@@ -203,6 +271,9 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
         };
         let kind = array_element_family(bound.clone());
         if kind != 0 && kind != value.element_kind {
+            return RangeValue::Unknown;
+        };
+        if range_bound_value_valid(bound.clone()) == false {
             return RangeValue::Unknown;
         };
         if let ArrayElement::Null = bound {

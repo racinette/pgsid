@@ -389,13 +389,16 @@ CREATE TABLE "Types.A".arrays(value "Types.A".list_alias,typed "Types.A".nested[
       comparison: 0,
       canonical: 1,
     })
-    expect(capturedRangeType(info, 'pg_catalog.bool')).toBeNull()
+    expect(capturedRangeType(info, 'pg_catalog."json"')).toBeNull()
     for (const bad of [
       'range:',
       'range:{}',
       'range:[]',
       'multirange:null',
-      encoded.replace('"elementType":"pg_catalog.int4"', '"elementType":"pg_catalog.bool"'),
+      encoded.replace(
+        '"elementType":"pg_catalog.int4"',
+        '"elementType":' + JSON.stringify('pg_catalog."json"'),
+      ),
       encoded.replace('"elementType":', '"oid":42,"elementType":'),
     ]) {
       expect(rangeTypeProfile(bad)).toBeNull()

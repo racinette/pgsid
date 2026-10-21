@@ -2426,3 +2426,77 @@ CREATE TABLE lane_code_imports (
   CONSTRAINT code_imported CHECK(CASE WHEN bypass THEN true ELSE payload::lane_labeled_window IS NOT DISTINCT FROM expected_window END),
   CONSTRAINT code_imported_label CHECK(CASE WHEN bypass THEN true ELSE expected_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
 );
+
+CREATE TYPE lane_load_window AS RANGE(subtype=real);
+CREATE TYPE lane_tolerance_window AS RANGE(subtype=double precision);
+CREATE TYPE lane_capacity_window AS RANGE(subtype=smallint);
+CREATE TYPE lane_clock_window AS RANGE(subtype=time);
+CREATE TYPE lane_delay_window AS RANGE(subtype=interval);
+CREATE TYPE lane_address_window AS RANGE(subtype=inet);
+CREATE TYPE lane_nic_window AS RANGE(subtype=macaddr);
+CREATE TYPE lane_eui_window AS RANGE(subtype=macaddr8);
+CREATE TYPE lane_device_window AS RANGE(subtype=uuid);
+CREATE TYPE lane_zoned_clock_window AS RANGE(subtype=timetz);
+CREATE TYPE lane_activity_window AS RANGE(subtype=boolean);
+CREATE TYPE lane_mask_window AS RANGE(subtype=bit);
+CREATE TYPE lane_variable_mask_window AS RANGE(subtype=varbit);
+CREATE TYPE lane_payload_window AS RANGE(subtype=bytea);
+CREATE TYPE lane_status_window AS RANGE(subtype="char");
+CREATE TYPE lane_cost_window AS RANGE(subtype=money);
+CREATE TYPE lane_object_id_window AS RANGE(subtype=oid);
+CREATE TYPE lane_full_xid_window AS RANGE(subtype=xid8);
+CREATE TYPE lane_log_window AS RANGE(subtype=pg_lsn);
+CREATE TYPE lane_record_window AS RANGE(subtype=tid);
+
+CREATE TABLE lane_sensor_limits (
+  density_band lane_load_window, density real,
+  temperature_band lane_tolerance_window, temperature double precision,
+  capacity_band lane_capacity_window, bay_count smallint,
+  quiet_hours lane_clock_window, arrival time,
+  delay_band lane_delay_window, delay interval,
+  bypass boolean,
+  CONSTRAINT density_allowed CHECK(CASE WHEN bypass THEN true ELSE density_band @> density END),
+  CONSTRAINT temperature_allowed CHECK(CASE WHEN bypass THEN true ELSE temperature_band @> temperature END),
+  CONSTRAINT capacity_allowed CHECK(CASE WHEN bypass THEN true ELSE capacity_band @> bay_count END),
+  CONSTRAINT arrival_allowed CHECK(CASE WHEN bypass THEN true ELSE quiet_hours @> arrival END),
+  CONSTRAINT delay_allowed CHECK(CASE WHEN bypass THEN true ELSE delay_band @> delay END)
+);
+CREATE TABLE lane_network_limits (
+  address_band lane_address_window, address inet,
+  nic_band lane_nic_window, nic macaddr,
+  eui_band lane_eui_window, eui macaddr8,
+  device_band lane_device_window, device uuid,
+  zoned_hours lane_zoned_clock_window, zoned_arrival timetz,
+  bypass boolean,
+  CONSTRAINT address_allowed CHECK(CASE WHEN bypass THEN true ELSE address_band @> address END),
+  CONSTRAINT nic_allowed CHECK(CASE WHEN bypass THEN true ELSE nic_band @> nic END),
+  CONSTRAINT eui_allowed CHECK(CASE WHEN bypass THEN true ELSE eui_band @> eui END),
+  CONSTRAINT device_allowed CHECK(CASE WHEN bypass THEN true ELSE device_band @> device END),
+  CONSTRAINT zoned_arrival_allowed CHECK(CASE WHEN bypass THEN true ELSE zoned_hours @> zoned_arrival END)
+);
+CREATE TABLE lane_protocol_limits (
+  activity_band lane_activity_window, enabled boolean,
+  fixed_mask_band lane_mask_window, fixed_mask bit(3),
+  mask_band lane_variable_mask_window, mask varbit,
+  payload_band lane_payload_window, payload bytea,
+  status_band lane_status_window, status "char",
+  bypass boolean,
+  CONSTRAINT activity_allowed CHECK(CASE WHEN bypass THEN true ELSE activity_band @> enabled END),
+  CONSTRAINT fixed_mask_allowed CHECK(CASE WHEN bypass THEN true ELSE fixed_mask_band @> fixed_mask END),
+  CONSTRAINT mask_allowed CHECK(CASE WHEN bypass THEN true ELSE mask_band @> mask END),
+  CONSTRAINT payload_allowed CHECK(CASE WHEN bypass THEN true ELSE payload_band @> payload END),
+  CONSTRAINT status_allowed CHECK(CASE WHEN bypass THEN true ELSE status_band @> status END)
+);
+CREATE TABLE lane_audit_limits (
+  cost_band lane_cost_window, cost money,
+  object_band lane_object_id_window, object_id oid,
+  transaction_band lane_full_xid_window, transaction_id xid8,
+  wal_band lane_log_window, log_location pg_lsn,
+  record_band lane_record_window, record_location tid,
+  bypass boolean,
+  CONSTRAINT cost_allowed CHECK(CASE WHEN bypass THEN true ELSE cost_band @> cost END),
+  CONSTRAINT object_allowed CHECK(CASE WHEN bypass THEN true ELSE object_band @> object_id END),
+  CONSTRAINT transaction_allowed CHECK(CASE WHEN bypass THEN true ELSE transaction_band @> transaction_id END),
+  CONSTRAINT wal_allowed CHECK(CASE WHEN bypass THEN true ELSE wal_band @> log_location END),
+  CONSTRAINT record_allowed CHECK(CASE WHEN bypass THEN true ELSE record_band @> record_location END)
+);
