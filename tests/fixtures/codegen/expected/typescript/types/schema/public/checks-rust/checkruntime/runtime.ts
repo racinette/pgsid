@@ -8903,7 +8903,8 @@ export function rangeWithBoundProfile(input: RangeValue, profile: RangeBoundCont
     }
     return input;
 }
-function rangeBoundContextBranch(profile: RangeBoundContext, start: number): RangeBoundContext {
+export function rangeBoundContextBranch(profile: RangeBoundContext, start: number): RangeBoundContext {
+    profile = copyRangeBoundContext(profile);
     start = langruntime.checkedIndex(start);
     if (start >= profile.nodes.length) {
         return emptyRangeBoundContext();

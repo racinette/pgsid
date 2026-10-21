@@ -381,7 +381,7 @@ pub fn range_with_bound_profile(input: RangeValue, profile: RangeBoundContext) -
     input
 }
 
-fn range_bound_context_branch(profile: &RangeBoundContext, start: usize) -> RangeBoundContext {
+pub fn range_bound_context_branch(profile: &RangeBoundContext, start: usize) -> RangeBoundContext {
     if start >= profile.nodes.len() { return empty_range_bound_context(); };
     if profile.nodes[start].kind < 41 { return empty_range_bound_context(); };
     let mut nodes: Vec<RangeBoundProfile> = Vec::new();

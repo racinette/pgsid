@@ -20,7 +20,11 @@ import {
   isRangeType,
   isMultirangeType,
 } from '../../src/sql-semantics/expressions.js'
-import { rangeTypeProfile, multirangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
+import {
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeContainerKind,
+} from '../../src/sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
   rangeBoundProfiles,
@@ -63,7 +67,12 @@ import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
 import { deparseWorldSql, worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
-import { readRangeFixture, rangeBoundProjection, rangeBoundCell } from './check-range-fixtures.js'
+import {
+  readRangeFixture,
+  readRangeBoundCell,
+  rangeBoundProjection,
+  rangeBoundCell,
+} from './check-range-fixtures.js'
 // @ts-expect-error -- Espalier input policy is a runtime JavaScript rule.
 import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
@@ -894,8 +903,14 @@ describe('world CHECK INSERT parity', () => {
           const multirange = multirangeTypeProfile(baseElementType)
           const range = rangeTypeProfile(baseElementType) ?? multirange
           const rangeCell = multirange ? alias + '_member' : alias
+          const captureBound = (value: string) =>
+            range!.elementType.startsWith('array:')
+              ? captureSql(value, range!.elementType, depth + 1)
+              : rangeContainerKind(range!.elementType)
+                ? `${value}::text`
+                : rangeBoundProjection(value, range!.elementType)
           const rangeValue = range
-            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.elementType)},'carrier','${range.elementType}','empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${range.elementType.startsWith('array:') ? captureSql(`lower(${rangeCell})`, range.elementType, depth + 1) : rangeBoundProjection(`lower(${rangeCell})`, range.elementType)},${range.elementType.startsWith('array:') ? captureSql(`upper(${rangeCell})`, range.elementType, depth + 1) : rangeBoundProjection(`upper(${rangeCell})`, range.elementType)}) END)`
+            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.elementType)},'carrier','${range.elementType}','empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${captureBound(`lower(${rangeCell})`)},${captureBound(`upper(${rangeCell})`)}) END)`
             : ''
           const multirangeValue = multirange
             ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.elementType)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
@@ -922,8 +937,33 @@ describe('world CHECK INSERT parity', () => {
           goRow[name] = null
           continue
         }
+        const nestedBounds = new Map<string, Awaited<ReturnType<typeof readRangeBoundCell>>>()
+        const collectNestedBounds = async (value: unknown): Promise<void> => {
+          if (!value || typeof value !== 'object') return
+          if (
+            'carrier' in value &&
+            typeof value.carrier === 'string' &&
+            'bounds' in value &&
+            Array.isArray(value.bounds)
+          ) {
+            const kind = rangeContainerKind(value.carrier)
+            if (kind === 42 || kind === 43)
+              for (const bound of value.bounds) {
+                if (typeof bound === 'string')
+                  nestedBounds.set(
+                    value.carrier + '\0' + bound,
+                    await readRangeBoundCell(pg, value.carrier, bound),
+                  )
+              }
+          }
+          for (const child of Object.values(value)) {
+            if (Array.isArray(child)) for (const item of child) await collectNestedBounds(item)
+            else await collectNestedBounds(child)
+          }
+        }
+        await collectNestedBounds(captured)
         const rangeDefinition = (carrier: string, identity: string) => {
-          if (carrier.startsWith('array:')) {
+          if (rangeContainerKind(carrier)) {
             const profile = rangeTypeProfile(
               catalogRangeType(identity, undefined, catalog.domains, catalog.rangeTypes)!,
             )!
@@ -942,6 +982,11 @@ describe('world CHECK INSERT parity', () => {
             : {}
         }
         const rangeCell = (carrier: string, bound: string | null | CapturedArray) => {
+          if (
+            typeof bound === 'string' &&
+            (rangeContainerKind(carrier) === 42 || rangeContainerKind(carrier) === 43)
+          )
+            return nestedBounds.get(carrier + '\0' + bound)!
           if (carrier.startsWith('array:') && bound !== null) {
             const payload = convert(bound as CapturedArray, carrier, true).value
             return {

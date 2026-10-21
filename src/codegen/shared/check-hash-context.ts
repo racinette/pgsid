@@ -1,15 +1,30 @@
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import { builtinTypeComparison, builtinCallables } from '../../postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../postgres/builtins/taxonomy.js'
-import type { RangeProfile } from '../../sql-semantics/range-profiles.js'
+import {
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeNestedProfile,
+  rangeSubtypeIsDomain,
+  type RangeProfile,
+} from '../../sql-semantics/range-profiles.js'
 import { rangeArrayHashPlan, arrayElementComparison } from './check-array-types.js'
 import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
 
-export function rangeHashSupport(profile: RangeProfile, extended: boolean) {
+export function rangeHashSupport(
+  profile: RangeProfile,
+  extended: boolean,
+): {
+  available: boolean
+  compatible: boolean
+  safe: boolean
+  context: ReturnType<typeof nativeHashContext>
+} {
   let selected = extended ? profile.subtypeHashExtended : profile.subtypeHash
   let available = selected !== null
   let compatible = profile.subtypeHashEqualityCompatible === true
   let type: string = profile.elementType
+  let domain = rangeSubtypeIsDomain(profile)
   const matches = () => {
     const support = arrayElementComparison(type)
     return selected !== null && selected === (extended ? support?.hashExtended : support?.hash)
@@ -21,6 +36,7 @@ export function rangeHashSupport(profile: RangeProfile, extended: boolean) {
       : null
     if (!callback || !isArrayHash(callback)) break
     selected = extended ? node.element.hashExtended : node.element.hash
+    domain = node.element.kind === 'd'
     available &&= selected !== null
     compatible &&= node.element.hashEqualityCompatible
     type = arrayElementBaseType(type.slice(6))
@@ -29,10 +45,31 @@ export function rangeHashSupport(profile: RangeProfile, extended: boolean) {
   const scalar = selected
     ? builtinCallables().find((item) => callableIdentity(item) === selected)
     : null
+  if (domain && scalar && (isRangeHash(scalar) || isMultirangeHash(scalar))) available = false
+  const childType =
+    scalar && isRangeHash(scalar)
+      ? rangeTypeProfile(type)
+      : scalar && isMultirangeHash(scalar)
+        ? multirangeTypeProfile(type)
+        : null
+  if (childType) {
+    const child = rangeNestedProfile(profile, childType.identity) ?? childType
+    const nested = rangeHashSupport(child, extended)
+    const equality =
+      scalar && isRangeHash(scalar)
+        ? child.rangeHashEqualityCompatible
+        : child.multirangeHashEqualityCompatible
+    return {
+      available: available && nested.available,
+      compatible: compatible && nested.compatible && equality === true,
+      safe: safe && available && compatible && nested.safe && equality === true,
+      context: nested.context,
+    }
+  }
   return {
     available,
     compatible,
-    safe: safe && available && compatible,
+    safe: safe && available && compatible && scalar != null,
     context: scalar ? nativeHashContext(scalar) : null,
   }
 }

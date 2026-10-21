@@ -371,6 +371,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             rustInputAdapters.add('checkRustArray')
             rustInputAdapters.add('checkRustArrayValue')
             rustInputAdapters.add('checkRustArrayElement')
+            rustInputAdapters.add('checkRustProfiledBound')
             rustInputAdapters.add('checkRustArrayField')
             rustInputAdapters.add('checkRustArrayProfiles')
             rustInputAdapters.add('checkRustArrayRecords')
@@ -908,6 +909,53 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   if(tree.length===8 && tree[5]!.length===1 && tree[6]!.length===1 && tree[7]!.length===1) return _checkRust.arrayFromCoercedMultirangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!)
   return tree.length>=2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
 }
+function checkRustProfiledBound(input:unknown,profile:_checkRust.RangeBoundContext,index:number):_checkRust.ArrayElement|null {
+  if(!input || typeof input!=='object' || !('kind' in input))return null
+  if(input.kind==='Unknown' || input.kind==='Null' || input.kind==='Error')return checkRustArrayElement(input,0,0)
+  const node=profile.nodes[index]
+  if(!node)return null
+  if(node.kind<41)return checkRustArrayElement(input,node.kind,0)
+  const child=profile.nodes[node.child]
+  if(!child || !('value' in input) || !input.value || typeof input.value!=='object')return null
+  const p=input.value
+  if(node.kind===41) {
+    if(input.kind!=='Array' || !('elementType' in p) || p.elementType!==node.elementType || !('elementKind' in p) || p.elementKind!==child.kind || !('dimensions' in p) || !Array.isArray(p.dimensions) || p.dimensions.length>6 || !('elements' in p) || !Array.isArray(p.elements) || p.elements.length>2147483647)return null
+    const dimensions:_checkRust.ArrayDimension[]=[],elements:_checkRust.ArrayElement[]=[]
+    for(const d of p.dimensions){if(!checkRustArrayField(d,'ArrayDimension'))return null;dimensions.push(d as _checkRust.ArrayDimension)}
+    for(const cell of p.elements){const value=checkRustProfiledBound(cell,profile,node.child);if(value===null)return null;elements.push(value)}
+    let nullBitmap:_checkRust.BoolValue={kind:'Unknown'}
+    if('nullBitmap' in p && p.nullBitmap!==undefined){
+      const flag=p.nullBitmap
+      if(!flag || typeof flag!=='object' || !('kind' in flag))return null
+      if(flag.kind==='Value' && 'value' in flag && typeof flag.value==='boolean')nullBitmap={kind:'Value',value:flag.value}
+      else if(flag.kind==='Null' || flag.kind==='Error')nullBitmap={kind:'Null'}
+      else if(flag.kind!=='Unknown')return null
+    }
+    return{kind:'Array',value:{elementType:node.elementType,elementKind:child.kind,dimensions,elements,nullBitmap}}
+  }
+  if(node.kind===42) {
+    if(input.kind!=='Range' || !('typeName' in p) || p.typeName!==node.typeName || !('elementType' in p) || p.elementType!==node.elementType || !('elementKind' in p) || p.elementKind!==child.kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2)return null
+    const bounds:_checkRust.ArrayElement[]=[]
+    for(const bound of p.bounds){const value=checkRustProfiledBound(bound,profile,node.child);if(value===null)return null;bounds.push(value)}
+    return{kind:'Range',value:{typeName:node.typeName,elementType:node.elementType,elementKind:child.kind,empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds,support:_checkRust.makeRangeSupport(child.comparison,node.canonical),boundProfile:_checkRust.rangeBoundContextBranch(profile,node.child),enumLabels:child.enumLabels,enumCount:child.enumCount}}
+  }
+  if(node.kind===43) {
+    const leaf=profile.nodes[child.child]
+    if(input.kind!=='Multirange' || child.kind!==42 || !leaf || !('typeName' in p) || p.typeName!==node.typeName || !('rangeType' in p) || p.rangeType!==node.elementType || !('elementType' in p) || p.elementType!==child.elementType || !('elementKind' in p) || p.elementKind!==leaf.kind || !('ranges' in p) || !Array.isArray(p.ranges) || p.ranges.length>2147483647)return null
+    const ranges:_checkRust.RangeValue[]=[]
+    for(const span of p.ranges){
+      if(!span || typeof span!=='object' || !('kind' in span))return null
+      if(span.kind==='Unknown' || span.kind==='Null'){ranges.push({kind:span.kind});continue}
+      if(span.kind==='Error'){if(!('value' in span) || !checkRustArrayField(span.value,'SqlError'))return null;ranges.push({kind:'Error',value:span.value as _checkRust.SqlError});continue}
+      if(span.kind!=='Value' || !('value' in span))return null
+      const value=checkRustProfiledBound({kind:'Range',value:span.value},profile,node.child)
+      if(value===null || value.kind!=='Range')return null
+      ranges.push({kind:'Value',value:value.value})
+    }
+    return{kind:'Multirange',value:{typeName:node.typeName,rangeType:node.elementType,elementType:child.elementType,elementKind:leaf.kind,support:_checkRust.makeRangeSupport(leaf.comparison,child.canonical),ranges}}
+  }
+  return null
+}
 function checkRustArrayElement(input: unknown, family: number, depth: number, tree: string[]=[],boundProfile: _checkRust.RangeBoundContext={nodes:[]}): _checkRust.ArrayElement | null {
   if (!input || typeof input !== 'object' || !('kind' in input)) return null
   if (input.kind==='Unknown' || input.kind==='Null') return {kind:input.kind}
@@ -945,7 +993,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     if(!('typeName' in p) || p.typeName!==tree[2] || !('elementType' in p) || p.elementType!==tree[3] || !('elementKind' in p) || p.elementKind!==kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return null
     const bounds:_checkRust.ArrayElement[]=[]
     for(const bound of p.bounds) {
-      const cell=checkRustArrayElement(bound,kind,boundProfile.nodes.filter(node=>node.kind===41).length)
+      const cell=boundProfile.nodes.length?checkRustProfiledBound(bound,boundProfile,0):checkRustArrayElement(bound,kind,0)
       if(cell===null) return null
       bounds.push(cell)
     }
@@ -1141,7 +1189,7 @@ function checkRustRange(row: object, name: string, enumLabels: string, enumCount
   if (!('typeName' in p) || !checkRustArrayField(p.typeName,'String') || !('elementType' in p) || !checkRustArrayField(p.elementType,'String') || !('elementKind' in p) || !checkRustArrayField(p.elementKind,'i32') || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return _checkRust.rangeUnknown()
   const bounds: _checkRust.ArrayElement[]=[]
   for (const bound of p.bounds) {
-    const cell=checkRustArrayElement(bound,p.elementKind as number,boundProfile.nodes.filter(node=>node.kind===41).length)
+    const cell=boundProfile.nodes.length?checkRustProfiledBound(bound,boundProfile,0):checkRustArrayElement(bound,p.elementKind as number,0)
     if (cell===null) return _checkRust.rangeUnknown()
     bounds.push(cell)
   }

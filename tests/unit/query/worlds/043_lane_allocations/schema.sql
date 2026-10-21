@@ -3011,3 +3011,30 @@ CREATE TABLE lane_batch_fingerprints(batch_window lane_batch_window,batches lane
   CONSTRAINT batch_hash_array_wide CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(windows,seed)=expected_array_wide END),
   CONSTRAINT batch_wire_size CHECK(CASE WHEN bypass OR expected_bytes IS NULL THEN true ELSE octet_length(range_send(batch_window))=expected_bytes END)
 );
+
+CREATE TYPE lane_segment_window AS RANGE(subtype=int4range,multirange_type_name=lane_segment_set);
+CREATE TABLE lane_nested_windows(
+  segment lane_segment_window,following_segment lane_segment_window,segments lane_segment_set,
+  windows lane_segment_window[],first_span int4range,last_span int4range,payload text,
+  expected_label text,expected_json text,expected_wire integer,expected_hash integer,bypass boolean,
+  CONSTRAINT nested_order CHECK(CASE WHEN bypass THEN true ELSE segment<following_segment END),
+  CONSTRAINT nested_membership CHECK(CASE WHEN bypass THEN true ELSE segments @> segment END),
+  CONSTRAINT nested_array_slot CHECK(CASE WHEN bypass THEN true ELSE windows[-2]=segment END),
+  CONSTRAINT nested_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_segment_window(first_span,last_span,'[]')=segment END),
+  CONSTRAINT nested_input CHECK(CASE WHEN bypass THEN true ELSE payload::lane_segment_window=segment END),
+  CONSTRAINT nested_label CHECK(CASE WHEN bypass THEN true ELSE segment::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT nested_json CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(windows)::text COLLATE "C" IS NOT DISTINCT FROM expected_json COLLATE "C" END),
+  CONSTRAINT nested_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(segment)) IS NOT DISTINCT FROM expected_wire END),
+  CONSTRAINT nested_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(segment) IS NOT DISTINCT FROM expected_hash END)
+);
+CREATE TYPE lane_set_window AS RANGE(subtype=int4multirange,multirange_type_name=lane_set_windows);
+CREATE TABLE lane_nested_set_windows(
+  segment lane_set_window,following_segment lane_set_window,segments lane_set_windows,
+  windows lane_set_window[],first_set int4multirange,last_set int4multirange,payload text,expected_label text,bypass boolean,
+  CONSTRAINT nested_set_order CHECK(CASE WHEN bypass THEN true ELSE segment<following_segment END),
+  CONSTRAINT nested_set_membership CHECK(CASE WHEN bypass THEN true ELSE segments @> segment END),
+  CONSTRAINT nested_set_array_slot CHECK(CASE WHEN bypass THEN true ELSE windows[-2]=segment END),
+  CONSTRAINT nested_set_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_set_window(first_set,last_set,'[]')=segment END),
+  CONSTRAINT nested_set_input CHECK(CASE WHEN bypass THEN true ELSE payload::lane_set_window=segment END),
+  CONSTRAINT nested_set_label CHECK(CASE WHEN bypass THEN true ELSE segment::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);
