@@ -32902,6 +32902,31 @@ func TstzrangeZuff(lower checkruntime.TimestamptzValue, upper checkruntime.Times
 	hi := checkruntime.ArrayElementFromTimestamptz(upper)
 	return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags)
 }
+
+const rangeHashUndefinedFunction = 6822435
+
+func RangeHashMissing32(state checkruntime.BoolValue, seed checkruntime.Int8Value) checkruntime.Int4Value {
+	if state.Kind == checkruntime.BoolValueError {
+		error := state.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		if seed.Kind == checkruntime.Int8ValueValue {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(rangeHashUndefinedFunction)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func RangeHashMissing64(state checkruntime.BoolValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return Int8Mzac(RangeHashMissing32(state, seed))
+}
 func HashRangeOv3e(input checkruntime.RangeValue, flags checkruntime.Int4Value, lower checkruntime.Int4Value, upper checkruntime.Int4Value) checkruntime.Int4Value {
 	input = checkruntime.CopyRangeValue(input)
 	if input.Kind == checkruntime.RangeValueError {

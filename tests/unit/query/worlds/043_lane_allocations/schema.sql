@@ -2585,3 +2585,31 @@ CREATE TABLE lane_audit_imports (
   CONSTRAINT imported_log CHECK(CASE WHEN bypass THEN true ELSE log_text::lane_log_window IS NOT DISTINCT FROM log_window END),
   CONSTRAINT imported_record CHECK(CASE WHEN bypass THEN true ELSE record_text::lane_record_window IS NOT DISTINCT FROM record_window END)
 );
+
+CREATE TABLE lane_price_digests (
+  price_window lane_cost_window,
+  hash_seed bigint,
+  expected_hash bigint,
+  seeded boolean,
+  bypass boolean,
+  CONSTRAINT price_digest CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN seeded THEN hash_range_extended(price_window,hash_seed) ELSE hash_range(price_window)::bigint END) IS NOT DISTINCT FROM expected_hash END)
+);
+
+CREATE TABLE lane_price_segment_digests (
+  price_segments lane_cost_window_multirange,
+  hash_seed bigint,
+  expected_hash bigint,
+  seeded boolean,
+  bypass boolean,
+  CONSTRAINT price_digest CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN seeded THEN hash_multirange_extended(price_segments,hash_seed) ELSE hash_multirange(price_segments)::bigint END) IS NOT DISTINCT FROM expected_hash END)
+);
+
+CREATE TABLE lane_price_history_digests (
+  price_windows lane_cost_window[],
+  hash_seed bigint,
+  expected_hash bigint,
+  seeded boolean,
+  nested boolean,
+  bypass boolean,
+  CONSTRAINT history_digest CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN seeded THEN CASE WHEN nested THEN hash_array_extended(ARRAY[price_windows::lane_cost_history],hash_seed) ELSE hash_array_extended(price_windows,hash_seed) END ELSE CASE WHEN nested THEN hash_array(ARRAY[price_windows::lane_cost_history])::bigint ELSE hash_array(price_windows)::bigint END END) IS NOT DISTINCT FROM expected_hash END)
+);

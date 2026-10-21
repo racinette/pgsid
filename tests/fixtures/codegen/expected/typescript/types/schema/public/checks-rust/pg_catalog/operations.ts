@@ -33031,6 +33031,29 @@ export function tstzrangeZuff(lower: checkruntime.TimestamptzValue, upper: check
     const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(upper);
     return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags);
 }
+const rangeHashUndefinedFunction = 6822435;
+export function rangeHashMissing32(state: checkruntime.BoolValue, seed: checkruntime.Int8Value): checkruntime.Int4Value {
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(state, { kind: "Value", value: true }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalBoolValue(state, { kind: "Value", value: false })) {
+        if (seed.kind === "Value") {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeHashUndefinedFunction) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function rangeHashMissing64(state: checkruntime.BoolValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return int8Mzac(rangeHashMissing32(state, seed));
+}
 export function hashRangeOv3e(input: checkruntime.RangeValue, flags: checkruntime.Int4Value, lower: checkruntime.Int4Value, upper: checkruntime.Int4Value): checkruntime.Int4Value {
     input = checkruntime.copyRangeValue(input);
     if (input.kind === "Error") {

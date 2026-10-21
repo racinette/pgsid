@@ -1,3 +1,27 @@
+const RANGE_HASH_UNDEFINED_FUNCTION: u32 = 6822435;
+
+pub fn range_hash_missing32(state: BoolValue, seed: Int8Value) -> Int4Value {
+    if let BoolValue::Error(error) = state {
+        return Int4Value::Error(error);
+    };
+    if let Int8Value::Error(error) = seed {
+        return Int4Value::Error(error);
+    };
+    if state == BoolValue::Value(true) || seed == Int8Value::Null {
+        return Int4Value::Null;
+    };
+    if state == BoolValue::Value(false) {
+        if let Int8Value::Value(_) = seed {
+            return Int4Value::Error(make_sql_error(RANGE_HASH_UNDEFINED_FUNCTION));
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub fn range_hash_missing64(state: BoolValue, seed: Int8Value) -> Int8Value {
+    sql__pg_catalog__int8__mzac(range_hash_missing32(state, seed))
+}
+
 pub fn sql__pg_catalog__hash_range__ov3e(
     input: RangeValue,
     flags: Int4Value,
