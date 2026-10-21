@@ -211,3 +211,31 @@ INSERT INTO stored_inspections(draft,expected_null,expected_present,bypass) VALU
 INSERT INTO stored_inspections(draft,expected_null,expected_present,bypass) VALUES (ROW(2,'abc')::approved_draft,false,false,false);
 -- name: StoredBypassed
 INSERT INTO stored_inspections(draft,expected_null,expected_present,bypass) VALUES (ROW(NULL,NULL)::approved_draft,false,true,true);
+-- name: BandAccepted
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")',2,0,true,false);
+-- name: BandOrdered
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(1,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(1,abc)","(4,xyz)")','["(1,abc)","(4,xyz)")',1,-1,false,false);
+-- name: BandWrongScore
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(1,abc)","(4,xyz)")','["(1,abc)","(4,xyz)")','["(1,abc)","(4,xyz)")','["(1,abc)","(4,xyz)")',2,0,true,false);
+-- name: BandWrongOrder
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")',2,1,true,false);
+-- name: BandWrongEquality
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")',2,0,false,false);
+-- name: BandWrongOutput
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','wrong',2,0,true,false);
+-- name: BandMalformedInput
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(32768,abc)",)','["(2,abc)","(4,xyz)")',2,0,true,false);
+-- name: BandWrongInput
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','empty','["(2,abc)","(4,xyz)")',2,0,true,false);
+-- name: BandWrongLiteral
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(3,abc)","(4,xyz)")','["(3,abc)","(4,xyz)")','["(3,abc)","(4,xyz)")','["(3,abc)","(4,xyz)")',3,0,true,false);
+-- name: BandNull
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES (NULL,NULL,NULL,NULL,1,NULL,NULL,false);
+-- name: BandEmpty
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('empty','empty','empty','empty',1,0,true,false);
+-- name: BandUnbounded
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('(,)','(,)','(,)','(,)',1,0,true,false);
+-- name: BandNullFields
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(,)","(,)"]','["(,)","(,)"]','["(,)","(,)"]','["(,)","(,)"]',1,0,true,false);
+-- name: BandBypassed
+INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('empty','(,)','bad','wrong',99,99,false,true);

@@ -24956,6 +24956,72 @@ export function multirangeToText(input: checkruntime.MultirangeValue): checkrunt
     }
     return { kind: "Unknown" };
 }
+export function multirangeOutputInitial(input: checkruntime.MultirangeValue): checkruntime.TextValue {
+    input = checkruntime.copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
+        return checkruntime.makeTextValue("{");
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeOutputContinues(count: checkruntime.Int4Value, index: checkruntime.Int4Value, output: checkruntime.TextValue): boolean {
+    if (output.kind === "Value") {
+        const text: string = langruntime.checkedString(output.value);
+        if (count.kind === "Value") {
+            const length: number = langruntime.checkedI32(count.value);
+            if (index.kind === "Value") {
+                const position: number = langruntime.checkedI32(index.value);
+                return position >= 0 && position < length;
+            }
+        }
+    }
+    return false;
+}
+export function multirangeOutputAppend(output: checkruntime.TextValue, member: checkruntime.TextValue, index: checkruntime.Int4Value): checkruntime.TextValue {
+    if (output.kind === "Error") {
+        const error: checkruntime.SqlError = output.value;
+        return { kind: "Error", value: error };
+    }
+    if (output.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (output.kind === "Value") {
+        const initial: string = langruntime.checkedString(output.value);
+        let text: string = initial;
+        if (member.kind === "Error") {
+            const error: checkruntime.SqlError = member.value;
+            return { kind: "Error", value: error };
+        }
+        if (member.kind === "Value") {
+            const value: string = langruntime.checkedString(member.value);
+            if (index.kind === "Value") {
+                const position: number = langruntime.checkedI32(index.value);
+                if (position > 0) {
+                    text = text + langruntime.checkedChar(",");
+                }
+                text = text + value;
+                return { kind: "Value", value: text };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeOutputFinish(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Value") {
+        const initial: string = langruntime.checkedString(input.value);
+        let text: string = initial;
+        text = text + langruntime.checkedChar("}");
+        return { kind: "Value", value: text };
+    }
+    return input;
+}
 function multirangeSetRangeKnown(input: checkruntime.RangeValue): boolean {
     input = checkruntime.copyRangeValue(input);
     if (input.kind === "Value") {

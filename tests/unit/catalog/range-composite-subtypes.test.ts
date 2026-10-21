@@ -193,7 +193,7 @@ it('keeps exact selected record dependencies independent and exposes field chang
   }
 }, 120_000)
 
-it('retains native composite bound, missing-comparator and NULL semantics while SQL admission remains explicitly pending', async () => {
+it('retains native composite bound, missing-comparator and NULL semantics through admitted SQL field projection', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(`CREATE TYPE leaf AS(n int4,label text COLLATE "C");CREATE TYPE span AS RANGE(subtype=leaf);CREATE TYPE document AS(doc json);CREATE TYPE document_span AS RANGE(subtype=document);
@@ -242,7 +242,7 @@ CREATE TABLE gate(value span,CONSTRAINT valid CHECK((lower(value)).n>=2));`)
           catalog.rangeTypes,
           catalog.compositeTypeGraph,
         )!.expression.kind,
-      ).toBe('uncertain')
+      ).toBe('eval-scalar')
   } finally {
     await pg.close()
   }

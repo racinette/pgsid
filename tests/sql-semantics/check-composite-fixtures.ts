@@ -24,6 +24,7 @@ async function readCompositeCellFixture(
   name: string,
   type: string,
   array = false,
+  parameters: unknown[] = [],
 ): Promise<CompositeInputCell> {
   const profile = compositeProfile(type)
   if (!profile) throw new Error('Missing captured composite profile')
@@ -99,7 +100,7 @@ async function readCompositeCellFixture(
     ? profile.graph.definitions.find((n) => n.identity === profile.identity)?.array
     : profile.identity
   if (!identity) throw new Error('Missing captured composite array identity')
-  return read(identity, select, quote(name))
+  return read(identity, select, quote(name), parameters)
 }
 
 export async function readCompositeFixture(
@@ -107,8 +108,9 @@ export async function readCompositeFixture(
   select: string,
   name: string,
   type: string,
+  parameters: unknown[] = [],
 ): Promise<CompositeInputPayload | null> {
-  const result = await readCompositeCellFixture(pg, select, name, type)
+  const result = await readCompositeCellFixture(pg, select, name, type, false, parameters)
   if (result.kind === 'Null') return null
   if (result.kind !== 'Composite') throw new Error('Expected composite fixture root')
   return result.value

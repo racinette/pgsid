@@ -242,7 +242,9 @@ export function renderTypescriptSchemaCheckArtifacts(
       value: {
         nodes: nodes.map((node) => ({
           ...node,
-          boundProfile: { nodes: node.boundProfile.map((bound) => ({ ...bound, fields: [] })) },
+          boundProfile: {
+            nodes: node.boundProfile.map((bound) => ({ ...bound, fields: bound.fields ?? [] })),
+          },
         })),
       },
     })
@@ -513,38 +515,9 @@ export function renderTypescriptSchemaCheckArtifacts(
             ? rangeBoundProfiles(compiledProfile, options.executionContext)
             : []
           if (!nodes) throw new Error('Missing compiled array-bound range context')
-          const boundContext = factory.createObjectLiteralExpression([
-            factory.createPropertyAssignment(
-              'nodes',
-              factory.createArrayLiteralExpression(
-                nodes.map((node) =>
-                  factory.createObjectLiteralExpression([
-                    factory.createPropertyAssignment(
-                      'fields',
-                      factory.createArrayLiteralExpression(),
-                    ),
-                    ...Object.entries(node).map(([key, value]) =>
-                      factory.createPropertyAssignment(
-                        key,
-                        typeof value === 'string'
-                          ? factory.createStringLiteral(value)
-                          : typeof value === 'boolean'
-                            ? value
-                              ? factory.createTrue()
-                              : factory.createFalse()
-                            : value < 0
-                              ? factory.createPrefixUnaryExpression(
-                                  ts.SyntaxKind.MinusToken,
-                                  factory.createNumericLiteral(-value),
-                                )
-                              : factory.createNumericLiteral(value),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ),
-          ])
+          const boundContext = literal({
+            nodes: nodes.map((node) => ({ ...node, fields: node.fields ?? [] })),
+          })
           const enumDefinition = (range ?? multirange)?.subtypeEnum
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
@@ -1046,6 +1019,15 @@ function checkRustProfiledBound(input:unknown,profile:_checkRust.RangeBoundConte
   if(input.kind==='Unknown' || input.kind==='Null' || input.kind==='Error')return checkRustArrayElement(input,0,0)
   const node=profile.nodes[index]
   if(!node)return null
+  if(node.kind===6 && input.kind==='Enum' && 'value' in input && input.value && typeof input.value==='object' && 'ordinal' in input.value)return checkRustArrayElement({kind:'Enum',value:{ordinal:input.value.ordinal,labelOid:0n}},6,0)
+  if(node.kind===44){
+    if(input.kind!=='Composite' || !('value' in input) || !input.value || typeof input.value!=='object')return null
+    const p=input.value
+    if(!('typeName' in p) || p.typeName!==node.typeName || !('fields' in p) || !Array.isArray(p.fields) || p.fields.length!==node.fields.length)return null
+    const fields:_checkRust.ArrayElement[]=[]
+    for(let i=0;i<p.fields.length;i++){const cell=checkRustProfiledBound(p.fields[i],profile,node.fields[i]!.child);if(cell===null)return null;fields.push(cell)}
+    return{kind:'Composite',value:{typeName:node.typeName,fields}}
+  }
   if(node.kind<41)return checkRustArrayElement(input,node.kind,0)
   const child=profile.nodes[node.child]
   if(!child || !('value' in input) || !input.value || typeof input.value!=='object')return null

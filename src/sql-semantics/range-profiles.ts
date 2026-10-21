@@ -1,3 +1,4 @@
+import { catalogCompositeType, compositeProfile, type CompositeType } from './composite-profiles.js'
 import type { RangeTypeInfo, RangeTypeMetadata, RangeSubtypeDefinition } from '../catalog/types.js'
 import type { PG18_RANGE_TYPES } from '../postgres/builtins/type-ranges.generated.js'
 import { parseSync } from 'libpg-query'
@@ -71,9 +72,15 @@ const subtypeKinds = {
   'pg_catalog.tid': 39,
 } as const
 export type RangeSubtype =
-  keyof typeof subtypeKinds | `enum:${string}` | ArrayType | RangeType | MultirangeType
+  | keyof typeof subtypeKinds
+  | `enum:${string}`
+  | ArrayType
+  | RangeType
+  | MultirangeType
+  | CompositeType
 
-export function rangeContainerKind(type: string): 41 | 42 | 43 | null {
+export function rangeContainerKind(type: string): 41 | 42 | 43 | 44 | null {
+  if (type.startsWith('composite:') && compositeProfile(type)) return 44
   if (type.startsWith('array:')) return 41
   if (type.startsWith('range:') || builtinRangeType(type)) return 42
   if (type.startsWith('multirange:') || builtinMultirangeType(type)) return 43
@@ -174,6 +181,7 @@ export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
   const container = rangeContainerKind(profile.elementType)
   if (container) {
     if (!rangeContainerSubtype(profile)) return undefined
+    if (container === 44) return builtinTypeIO('pg_catalog.record')?.output ?? undefined
     const nodes = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
     for (const item of nodes.values()) {
       let node = item
@@ -185,9 +193,11 @@ export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
             ? builtinTypeIO('pg_catalog.int4range')?.output
             : node.kind === 'm'
               ? builtinTypeIO('pg_catalog.int4multirange')?.output
-              : node.kind === 'e'
-                ? 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)'
-                : builtinTypeIO(node.identity)?.output
+              : node.kind === 'c'
+                ? builtinTypeIO('pg_catalog.record')?.output
+                : node.kind === 'e'
+                  ? 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)'
+                  : builtinTypeIO(node.identity)?.output
       if (!expected || item.output !== expected) return undefined
     }
     return (
@@ -233,8 +243,11 @@ function validEnumDefinition(value: unknown): value is NonNullable<RangeTypeInfo
 }
 
 export function rangeContainerSubtype(
-  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions' | 'subtypeRanges'>,
-): ArrayType | RangeType | MultirangeType | null {
+  profile: Pick<
+    RangeTypeInfo,
+    'subtype' | 'subtypeDefinitions' | 'subtypeRanges' | 'subtypeCompositeGraph'
+  >,
+): ArrayType | RangeType | MultirangeType | CompositeType | null {
   const definitions = profile.subtypeDefinitions
   if (!Array.isArray(definitions) || !definitions.length || definitions.length > 2147483647)
     return null
@@ -269,7 +282,7 @@ export function rangeContainerSubtype(
     if (
       ![node.identity, node.schema, node.name].every(validText) ||
       nodes.has(node.identity) ||
-      !['b', 'd', 'e', 'r', 'm'].includes(node.kind) ||
+      !['b', 'd', 'e', 'r', 'm', 'c'].includes(node.kind) ||
       typeof node.hashEqualityCompatible !== 'boolean'
     )
       return null
@@ -388,7 +401,13 @@ export function rangeContainerSubtype(
         (node.kind === 'r' ? child.subtype === node.subtype : child.multirange === node.identity)
       )
         result = node.kind === 'r' ? child.rangeType : child.multirangeType
-    } else if (node.kind === 'e')
+    } else if (node.kind === 'c')
+      result = catalogCompositeType(
+        node.identity,
+        profile.subtypeCompositeGraph,
+        profile.subtypeRanges,
+      )
+    else if (node.kind === 'e')
       result = rangeEnumType({ schema: node.schema, name: node.name, values: node.enumValues! })
     else {
       const scalar = catalogScalarType(node.identity)
@@ -407,11 +426,16 @@ export function rangeContainerSubtype(
   }
   for (const node of definitions) if (!build(node.identity, false)) return null
   const root = build(profile.subtype, false)
-  return root && rangeContainerKind(root) ? (root as ArrayType | RangeType | MultirangeType) : null
+  return root && rangeContainerKind(root)
+    ? (root as ArrayType | RangeType | MultirangeType | CompositeType)
+    : null
 }
 
 export function rangeArraySubtype(
-  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions' | 'subtypeRanges'>,
+  profile: Pick<
+    RangeTypeInfo,
+    'subtype' | 'subtypeDefinitions' | 'subtypeRanges' | 'subtypeCompositeGraph'
+  >,
 ): ArrayType | null {
   const type = rangeContainerSubtype(profile)
   return type?.startsWith('array:') ? (type as ArrayType) : null
@@ -424,6 +448,7 @@ function projectedRangeDefinition(profile: RangeTypeInfo): RangeTypeInfo {
   if (profile.subtypeEnum) fields['subtypeEnum'] = structuredClone(profile.subtypeEnum)
   if (profile.subtypeDefinitions)
     fields['subtypeDefinitions'] = structuredClone(profile.subtypeDefinitions)
+  if (profile.subtypeCompositeGraph) fields['subtypeCompositeGraph'] = profile.subtypeCompositeGraph
   if (profile.subtypeRanges)
     fields['subtypeRanges'] = profile.subtypeRanges.map(projectedRangeDefinition)
   return fields as unknown as RangeTypeInfo
@@ -437,8 +462,8 @@ function validRangeDefinition(value: unknown): value is RangeTypeInfo {
     ...nullableTextFields,
     ...nullableFlags,
     ...jsonCategoryFields,
-    ...['subtypeEnum', 'subtypeDefinitions', 'subtypeRanges'].filter((key) =>
-      Object.hasOwn(item, key),
+    ...['subtypeEnum', 'subtypeDefinitions', 'subtypeRanges', 'subtypeCompositeGraph'].filter(
+      (key) => Object.hasOwn(item, key),
     ),
   ]
   if (Object.keys(item).length !== keys.length || keys.some((key) => !Object.hasOwn(item, key)))
@@ -525,6 +550,7 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
           ? ['subtypeDefinitions']
           : []),
       ...(Object.hasOwn(data, 'subtypeRanges') ? ['subtypeRanges'] : []),
+      ...(Object.hasOwn(data, 'subtypeCompositeGraph') ? ['subtypeCompositeGraph'] : []),
     ]
     if (Object.keys(data).length !== keys.length || keys.some((key) => !Object.hasOwn(data, key)))
       return null
@@ -596,6 +622,7 @@ export function capturedRangeType(
     fields[key] = profile[key]
   if (elementType.startsWith('enum:')) fields['subtypeEnum'] = profile.subtypeEnum
   if (rangeContainerKind(elementType)) fields['subtypeDefinitions'] = profile.subtypeDefinitions
+  if (profile.subtypeCompositeGraph) fields['subtypeCompositeGraph'] = profile.subtypeCompositeGraph
   if (profile.subtypeRanges)
     fields['subtypeRanges'] = profile.subtypeRanges.map(projectedRangeDefinition)
   const result: CapturedRangeType = `range:${JSON.stringify(fields)}`
@@ -704,17 +731,20 @@ export function rangeProfileSupport(
   const comparison =
     profile.comparator !== null &&
     profile.comparator ===
-      builtinTypeComparison(
-        container
-          ? {
-              41: 'pg_catalog.anyarray',
-              42: 'pg_catalog.int4range',
-              43: 'pg_catalog.int4multirange',
-            }[container]
-          : profile.subtypeEnum
-            ? 'pg_catalog.anyenum'
-            : profile.elementType,
-      )?.comparator &&
+      (container === 44
+        ? 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)'
+        : builtinTypeComparison(
+            container
+              ? {
+                  41: 'pg_catalog.anyarray',
+                  42: 'pg_catalog.int4range',
+                  43: 'pg_catalog.int4multirange',
+                  44: 'pg_catalog.record',
+                }[container]
+              : profile.subtypeEnum
+                ? 'pg_catalog.anyenum'
+                : profile.elementType,
+          )?.comparator) &&
     (kind !== 12 || (context.defaultCollation === 'C' && context.serverEncoding === 'UTF8')) &&
     (kind !== 8 ||
       (context.serverEncoding === 'UTF8' &&

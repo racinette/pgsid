@@ -5208,6 +5208,8 @@ export function bindCatalogCheck(
     const rawType = (type: string): string => {
       const domain = domainElementDefinition(type)
       if (domain) return [domain.schema, domain.name].map(quote).join('.')
+      const composite = compositeProfile(type)
+      if (composite) return composite.identity
       if (type.startsWith('array:')) return 'array:' + rawType(type.slice(6))
       const range = rangeTypeProfile(type),
         multi = multirangeTypeProfile(type)
@@ -5285,6 +5287,8 @@ export function bindCatalogCheck(
       const enumDefinition = catalogEnumDefinition(target, enums, domain?.oid, domains)
       const carrier =
         (enumDefinition ? enumType(enumDefinition) : null) ??
+        catalogCompositeType(target, compositeGraph, rangeTypes) ??
+        compositeDomainBaseType(domain, domains, compositeGraph, rangeTypes) ??
         catalogArrayType(
           target,
           domain?.oid,
