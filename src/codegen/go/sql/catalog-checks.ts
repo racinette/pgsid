@@ -1,7 +1,6 @@
-import { arrayElementBaseType } from '../../../sql-semantics/expressions.js'
 import {
   catalogCompositeType,
-  compositeProfile,
+  compositeContainerProfile,
 } from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
@@ -445,8 +444,7 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const compositeArray =
-            item.type.startsWith('array:') &&
-            compositeProfile(arrayElementBaseType(item.type.slice(6)))
+            item.type.startsWith('array:') && compositeContainerProfile(item.type.slice(6))
           const helper = compositeArray
             ? item.nullness
               ? 'checkRustCompositeArrayNullness'
@@ -646,11 +644,7 @@ export function renderGoSchemaCheckArtifacts(
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
             ...(item.rustType === 'CompositeValue' || compositeArray
-              ? [
-                  compositeContext(
-                    compositeArray ? arrayElementBaseType(item.type.slice(6)) : item.type,
-                  ),
-                ]
+              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
               : []),
             ...(compositeArray ? [go.string(arrayElementIdentity(item.type.slice(6)))] : []),
             ...(multirange

@@ -1,3 +1,28 @@
+-- name: NestedBatchPresent
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 0, false);
+-- name: NestedBatchNullFields
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(NULL,NULL)::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(NULL,NULL)::approved_draft]::inspection_batch]::text, ARRAY[ARRAY[ROW(NULL,NULL)::approved_draft]::inspection_batch]::text, 1, 0, false);
+-- name: NestedBatchEmpty
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[]::inspection_batch[], '{}', '{}', 0, 0, false);
+-- name: NestedBatchNullDatum
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (NULL, NULL, NULL, NULL, 0, false);
+-- name: NestedBatchLowerBounds
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES ('[-2:-2]={"{\"(2,abc)\"}"}'::inspection_batch[], '[-2:-2]={"{\"(2,abc)\"}"}', '[-2:-2]={"{\"(2,abc)\"}"}', 1, 0, false);
+-- name: NestedBatchWrongCount
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 2, 0, false);
+-- name: NestedBatchWrongScore
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 3, false);
+-- name: NestedBatchWrongOutput
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, '{}', 1, 0, false);
+-- name: NestedBatchEmptyInput
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY['{}'::text]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 0, false);
+-- name: NestedBatchNullInput
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], '{NULL}', ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 0, false);
+-- name: NestedBatchNegativeInput
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY['{"(-1,abc)"}'::text]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 0, false);
+-- name: NestedBatchBypassed
+INSERT INTO inspection_nested_batches(batches,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], '{NULL}', '{}', 2, 3, true);
+
 -- name: InspectionPresent
 INSERT INTO inspection_reports(packet,backup,expected_null,expected_present,use_primary,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, false, true, true, false);
 

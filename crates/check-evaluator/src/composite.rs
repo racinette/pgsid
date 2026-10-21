@@ -305,8 +305,8 @@ pub fn array_from_coerced_composite_plan(
             if composite_type_context_valid(&context) == false {
                 return ArrayValue::Unknown;
             };
-            if context.nodes[0].kind != 44
-                || payload.element_kind != 44
+            if (context.nodes[0].kind != 41 && context.nodes[0].kind != 44)
+                || payload.element_kind != context.nodes[0].kind
                 || payload.element_type.as_str() != element_type
             {
                 return ArrayValue::Unknown;

@@ -193,3 +193,40 @@ CREATE DOMAIN public.unrelated AS int4;`)
     await pg.close()
   }
 })
+
+it('captures declared domains over nested foreign record arrays without requiring a table root', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE SCHEMA foreign_types;CREATE TYPE foreign_types.leaf AS(n int4,label text);
+CREATE DOMAIN public.approved AS foreign_types.leaf CHECK((VALUE).n>0);
+CREATE DOMAIN public.batch AS public.approved[];
+CREATE DOMAIN public.required_batch AS public.batch NOT NULL;
+CREATE DOMAIN public.batch_set AS public.required_batch[];
+CREATE DOMAIN public.unrelated AS int4[];`)
+    const graph = await readCatalogCompositeTypes(pg, ['public']),
+      nodes = new Map(graph.definitions.map((n) => [n.identity, n]))
+    expect(graph.roots).toEqual([])
+    for (const [name, base] of [
+      ['approved', 'foreign_types.leaf'],
+      ['batch', 'public._approved'],
+      ['required_batch', 'public.batch'],
+      ['batch_set', 'public._required_batch'],
+    ]) {
+      expect(nodes.get('public.' + name)).toMatchObject({
+        kind: 'd',
+        base,
+        array: 'public._' + name,
+      })
+      expect(nodes.get('public._' + name)).toMatchObject({ element: 'public.' + name })
+    }
+    expect(nodes.get('foreign_types.leaf')).toMatchObject({ kind: 'c' })
+    expect(nodes.has('public.unrelated')).toBe(false)
+    expect(oidKey(graph)).toBe(false)
+    for (const node of nodes.values())
+      for (const ref of [node.array, node.base, node.element, ...node.fields.map((f) => f.type)])
+        if (ref) expect(nodes.has(ref), node.identity + ' -> ' + ref).toBe(true)
+    expect(await readCatalogCompositeTypes(pg, [])).toEqual({ roots: [], definitions: [] })
+  } finally {
+    await pg.close()
+  }
+})

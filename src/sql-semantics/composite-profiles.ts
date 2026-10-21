@@ -8,6 +8,7 @@ import {
   catalogScalarType,
   arrayType,
   domainElementType,
+  arrayElementBaseType,
   enumType,
   type ScalarType,
   type ArrayElementType,
@@ -40,9 +41,30 @@ export function catalogCompositeArrayType(
   const element = explicit
     ? matches[0]
     : graph.definitions.find((n) => n.identity === matches[0]!.element)
-  if (element?.kind !== 'c' && element?.kind !== 'd') return null
-  const type = catalogCompositeType(element.identity, graph, rangeTypes)
-  return type ? arrayType(element.kind === 'd' ? domainElementType(element, type) : type) : null
+  const visiting = new Set<string>()
+  const build = (identity: string): ScalarType | null => {
+    if (visiting.has(identity)) return null
+    visiting.add(identity)
+    const node = graph.definitions.find((n) => n.identity === identity)
+    if (!node) return null
+    if (node.kind === 'c') return catalogCompositeType(identity, graph, rangeTypes)
+    if (node.kind === 'd' && node.base) {
+      const base = build(node.base)
+      return base
+        ? domainElementType(
+            node,
+            arrayElementBaseType(base) as Exclude<ScalarType, `domain:${string}`>,
+          )
+        : null
+    }
+    if (node.element) {
+      const child = build(node.element)
+      return child && !child.startsWith('array:') ? arrayType(child as ArrayElementType) : null
+    }
+    return null
+  }
+  const type = element ? build(element.identity) : null
+  return type && !type.startsWith('array:') ? arrayType(type as ArrayElementType) : null
 }
 
 function names(name: string): string[] | null {
@@ -123,6 +145,12 @@ export function compositeProfile(type: string): CompositeProfile | null {
   } catch {
     return null
   }
+}
+
+export function compositeContainerProfile(type: string): CompositeProfile | null {
+  type = arrayElementBaseType(type)
+  while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+  return compositeProfile(type)
 }
 
 const encoded = (identity: string, p: CompositeProfile): CompositeType | null => {

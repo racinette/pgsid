@@ -20,12 +20,20 @@ export function alignStoredDomainCoercions(
     const wrapper = fields(node)
     if (!wrapper) return
     const cast = fields(wrapper['TypeCast']),
-      type = fields(cast?.['typeName'])
+      type = fields(cast?.['typeName']),
+      array = Array.isArray(type?.['arrayBounds']) && type['arrayBounds'].length > 0,
+      constructor = fields(fields(cast?.['arg'])?.['A_ArrayExpr']),
+      elements = constructor?.['elements'],
+      emptyConstructor =
+        array &&
+        constructor !== null &&
+        (elements === undefined || (Array.isArray(elements) && elements.length === 0))
     const parts = type?.['names']
     const names = Array.isArray(parts)
       ? parts.map((part) => fields(fields(part)?.['String'])?.['sval'])
       : []
     if (
+      !emptyConstructor &&
       names.every((name) => typeof name === 'string') &&
       names.length &&
       !(names.length === 1 && catalogScalarType(names[0] as string))
@@ -40,7 +48,7 @@ export function alignStoredDomainCoercions(
           node: wrapper,
           schema: matches[0]!.schema,
           name: matches[0]!.name,
-          array: Array.isArray(type?.['arrayBounds']) && type['arrayBounds'].length > 0,
+          array,
         })
     }
     Object.values(wrapper).forEach(visit)
