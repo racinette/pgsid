@@ -166,3 +166,30 @@ it('admits explicitly selected catalog row types while excluding them from defau
     await pg.close()
   }
 }, 60_000)
+
+it('captures declared composite-domain chains and foreign record dependencies without typed columns', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE SCHEMA foreign_types;CREATE TYPE foreign_types.leaf AS(n int4,label text);
+CREATE DOMAIN public.approved AS foreign_types.leaf CHECK((VALUE).n>0);
+CREATE DOMAIN public.required AS public.approved NOT NULL;
+CREATE DOMAIN public.unrelated AS int4;`)
+    const graph = await readCatalogCompositeTypes(pg, ['public']),
+      nodes = new Map(graph.definitions.map((n) => [n.identity, n]))
+    expect(graph.roots).toEqual([])
+    expect(nodes.get('public.required')).toMatchObject({
+      kind: 'd',
+      base: 'public.approved',
+      array: 'public._required',
+      notNull: true,
+    })
+    expect(nodes.get('public.approved')).toMatchObject({ kind: 'd', base: 'foreign_types.leaf' })
+    expect(nodes.get('foreign_types.leaf')).toMatchObject({ kind: 'c' })
+    expect(nodes.get('public._required')).toMatchObject({ element: 'public.required' })
+    expect(nodes.has('public.unrelated')).toBe(false)
+    expect(oidKey(graph)).toBe(false)
+    expect(await readCatalogCompositeTypes(pg, [])).toEqual({ roots: [], definitions: [] })
+  } finally {
+    await pg.close()
+  }
+})

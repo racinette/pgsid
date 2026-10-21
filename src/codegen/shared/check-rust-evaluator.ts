@@ -3149,6 +3149,7 @@ export function emitCheckRustEvaluator(
             const eqActual = eq?.kind === 'operator' ? builtinMetadata(eq.implementation) : eq
             if (
               !equality &&
+              !compositeProfile(arrayElementBaseType(elementType)) &&
               selected &&
               eq &&
               defaults.equality &&
@@ -4182,17 +4183,21 @@ export function emitCheckRustEvaluator(
         }
       const arrayMulti = node.type.startsWith('array:') ? arrayMultirangeProfile(node.type) : null
       const arrayComposite = node.type.startsWith('array:')
-        ? compositeProfile(node.type.slice(6))
+        ? compositeProfile(arrayElementBaseType(node.type.slice(6)))
         : null
       if (arrayComposite) {
-        const plan = compositePlanExpression(node.type.slice(6), executionContext, bind)
+        const plan = compositePlanExpression(
+          arrayElementBaseType(node.type.slice(6)),
+          executionContext,
+          bind,
+        )
         if (!plan)
           throw new UnsupportedCheckRustExpression(
             'Composite array input requires captured field profiles',
           )
         return {
           name: bind(
-            `array_from_coerced_composite_plan(${item.rustName}.clone(),${rustStringLiteral(arrayComposite.identity)},${plan})`,
+            `array_from_coerced_composite_plan(${item.rustName}.clone(),${rustStringLiteral(arrayElementIdentity(node.type.slice(6)))},${plan})`,
           ),
           type: node.type,
         }

@@ -96,3 +96,16 @@ CREATE TABLE inspection_batches (
   CONSTRAINT batch_output CHECK (CASE WHEN bypass THEN true ELSE readings::text IS NOT DISTINCT FROM canonical_text END),
   CONSTRAINT batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::draft_reading[] IS NOT DISTINCT FROM readings END)
 );
+
+CREATE TABLE inspection_approved_batches (
+  readings approved_draft[],
+  encoded text,
+  canonical_text text,
+  expected_count integer,
+  minimum_score integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT approved_batch_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(readings) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT approved_batch_score CHECK (CASE WHEN bypass THEN true ELSE (readings[1]).score >= minimum_score END),
+  CONSTRAINT approved_batch_output CHECK (CASE WHEN bypass THEN true ELSE readings::text IS NOT DISTINCT FROM canonical_text END),
+  CONSTRAINT approved_batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::approved_draft[] IS NOT DISTINCT FROM readings END)
+);

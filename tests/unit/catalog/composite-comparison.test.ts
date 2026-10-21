@@ -169,3 +169,59 @@ OPERATOR 1 "Compare.Types".<,OPERATOR 2 "Compare.Types".<=,OPERATOR 3 "Compare.T
     await pg.close()
   }
 }, 60_000)
+
+it('selects base record support for domain arrays even when a domain-only default class exists', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE TYPE leaf AS(n int4);CREATE DOMAIN approved AS leaf CHECK((VALUE).n>0);
+CREATE FUNCTION domain_equal(approved,approved) RETURNS bool LANGUAGE plpgsql IMMUTABLE STRICT AS $$BEGIN RAISE EXCEPTION 'domain equality callback';END$$;
+CREATE FUNCTION domain_compare(approved,approved) RETURNS int4 LANGUAGE plpgsql IMMUTABLE STRICT AS $$BEGIN RAISE EXCEPTION 'domain ordering callback';END$$;`)
+    for (const [name, symbol] of [
+      ['less', '<'],
+      ['less_equal', '<='],
+      ['greater_equal', '>='],
+      ['greater', '>'],
+    ])
+      await pg.exec(
+        `CREATE FUNCTION domain_${name}(approved,approved) RETURNS bool LANGUAGE sql IMMUTABLE STRICT AS 'SELECT domain_compare($1,$2) ${symbol} 0'`,
+      )
+    for (const [symbol, fn] of [
+      ['<', 'less'],
+      ['<=', 'less_equal'],
+      ['=', 'equal'],
+      ['>=', 'greater_equal'],
+      ['>', 'greater'],
+    ])
+      await pg.exec(
+        `CREATE OPERATOR public.${symbol}(LEFTARG=approved,RIGHTARG=approved,FUNCTION=domain_${fn})`,
+      )
+    await pg.exec(
+      `CREATE OPERATOR CLASS approved_ops DEFAULT FOR TYPE approved USING btree AS OPERATOR 1 public.<,OPERATOR 2 public.<=,OPERATOR 3 public.=,OPERATOR 4 public.>=,OPERATOR 5 public.>,FUNCTION 1 domain_compare(approved,approved);`,
+    )
+    const graph = await readCatalogCompositeTypes(pg),
+      nodes = new Map(graph.definitions.map((n) => [n.identity, n]))
+    expect(nodes.get('public.approved')!.comparison).toEqual(nodes.get('public.leaf')!.comparison)
+    expect(nodes.get('public.approved')!.comparison).toMatchObject({
+      btreeClass: 'pg_catalog.record_ops',
+      equalityImplementation:
+        'function:["pg_catalog","record_eq"](pg_catalog.record,pg_catalog.record)',
+      comparisonAvailable: true,
+    })
+    expect(
+      (
+        await pg.query<{ value: boolean }>(
+          `SELECT ARRAY[ROW(1)::approved]=ARRAY[ROW(1)::approved] value`,
+        )
+      ).rows[0]!.value,
+    ).toBe(true)
+    expect(
+      (
+        await pg.query<{ value: boolean }>(
+          `SELECT ARRAY[ROW(1)::approved]<ARRAY[ROW(2)::approved] value`,
+        )
+      ).rows[0]!.value,
+    ).toBe(true)
+  } finally {
+    await pg.close()
+  }
+})

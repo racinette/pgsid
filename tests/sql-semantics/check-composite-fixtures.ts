@@ -13,6 +13,7 @@ import type {
   CompositeInputPayload,
 } from '../../tools/check-rust/composite-input.js'
 import { readRangeBoundCell, rangeBoundProjection } from './check-range-fixtures.js'
+import { arrayElementBaseType } from '../../src/sql-semantics/expressions.js'
 import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
@@ -119,8 +120,14 @@ export async function readCompositeArrayFixture(
   name: string,
   elementType: string,
 ): Promise<OwnedArrayInputPayload | null> {
-  const result = await readCompositeCellFixture(pg, select, name, elementType, true)
+  const result = await readCompositeCellFixture(
+    pg,
+    select,
+    name,
+    arrayElementBaseType(elementType),
+    true,
+  )
   if (result.kind === 'Null') return null
   if (result.kind !== 'Array') throw new Error('Expected composite array fixture root')
-  return result.value
+  return { ...result.value, elementType: arrayElementIdentity(elementType) }
 }

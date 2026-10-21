@@ -131,6 +131,23 @@ export function catalogEnumDefinition(
 
 export { catalogScalarType } from './expressions.js'
 
+const compositeDomainBaseType = (
+  definition: DomainInfo | undefined,
+  domains: readonly DomainInfo[],
+  graph: CompositeTypeGraph | undefined,
+  ranges: readonly RangeTypeInfo[],
+): ReturnType<typeof catalogCompositeType> => {
+  const seen = new Set<number>()
+  let layer = definition
+  while (layer && !seen.has(layer.oid)) {
+    seen.add(layer.oid)
+    const next = domains.find((d) => d.oid === layer!.baseTypeOid)
+    if (!next) return catalogCompositeType(layer.baseTypeName, graph, ranges)
+    layer = next
+  }
+  return null
+}
+
 export function catalogArrayType(
   name: string,
   oid: number | undefined,
@@ -220,7 +237,9 @@ export function catalogArrayType(
         compositeGraph,
       ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains, rangeTypes)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
-    const carrier = enumBase ? enumType(enumBase) : base
+    const carrier = enumBase
+      ? enumType(enumBase)
+      : (base ?? compositeDomainBaseType(domain, domains, compositeGraph, rangeTypes))
     return carrier && !carrier.startsWith('domain:')
       ? arrayType(domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>))
       : null
@@ -2747,16 +2766,13 @@ export function bindCatalogCheck(
           compositeGraph,
           rangeTypes,
         )
-        if (compositeElement) {
-          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
-          if (
-            domains.some((d) =>
-              names.length === 2
-                ? d.schema === names[0] && d.name === names[1]
-                : d.name === names[0],
-            )
+        if (
+          compositeElement &&
+          !domains.some((d) =>
+            names.length === 2 ? d.schema === names[0] && d.name === names[1] : d.name === names[0],
           )
-            return unknown
+        ) {
+          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
           if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
             return bindArray(cast['arg'], {
               type: compositeElement,
@@ -2765,6 +2781,17 @@ export function bindCatalogCheck(
           const type = arrayType(compositeElement),
             operand = bind(cast['arg'])
           if (operand.type === type && operand.value) return operand
+          if (
+            operand.type?.startsWith('array:') &&
+            operand.value &&
+            arrayElementBaseType(operand.type.slice(6)) === compositeElement
+          )
+            return bindArrayElementCoercion(
+              operand,
+              type,
+              compositeElement,
+              elementTypeName(compositeElement),
+            )
           if (operand.literal?.kind === 'null') {
             const value = materialize(operand, type)
             return value ? { type, value } : unknown
@@ -3253,7 +3280,7 @@ export function bindCatalogCheck(
               compositeGraph,
             ) ??
             catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes) ??
-            catalogCompositeType(target.baseTypeName, compositeGraph, rangeTypes))
+            compositeDomainBaseType(target, domains, compositeGraph, rangeTypes))
         if (scalarType) {
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
@@ -4639,7 +4666,8 @@ export function bindCatalogCheck(
           compositeGraph,
         ) ??
           catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) ??
-          catalogCompositeType(column.typeName, compositeGraph, rangeTypes))
+          catalogCompositeType(column.typeName, compositeGraph, rangeTypes) ??
+          compositeDomainBaseType(domain, domains, compositeGraph, rangeTypes))
       if (type) {
         inputs.add(column.name)
         const element = type.startsWith('array:') ? arrayElementBaseType(type.slice(6)) : null
@@ -5934,15 +5962,59 @@ export function bindCatalogCheck(
     rangeConversions.set(key, result)
     return result
   }
-  const attachRangeInput = (value: unknown): unknown => {
+  const compositeConversions = new Map<string, EvalExpression | null>()
+  const compositeConversion = (type: ScalarType, stored: boolean): EvalExpression | null => {
+    const key = JSON.stringify([type, stored])
+    if (compositeConversions.has(key)) return compositeConversions.get(key)!
+    compositeConversions.set(key, null)
+    const parsed = bindCatalogCheck(
+      [
+        {
+          name: '__pgsid_array_text_element',
+          typeName: 'pg_catalog.text',
+          collationIsC: true,
+          isRowType: false,
+        },
+      ],
+      {
+        NullTest: {
+          nulltesttype: 'IS_NOT_NULL',
+          arg: {
+            TypeCast: {
+              arg: { ColumnRef: { fields: [{ String: { sval: '__pgsid_array_text_element' } }] } },
+              typeName: elementTypeName(type),
+            },
+          },
+        },
+      },
+      [],
+      enums,
+      domains,
+      moneyLiterals,
+      stored ? 'stored' : 'source',
+      domainStack,
+      true,
+      undefined,
+      stored ? '__pgsid_stored_composite_field' : undefined,
+      rangeTypes,
+      compositeGraph,
+    ).expression
+    const result =
+      parsed.kind === 'eval-scalar' && parsed.expression.kind === 'null-test'
+        ? parsed.expression.operand
+        : null
+    compositeConversions.set(key, result)
+    return result
+  }
+  const attachContainerInput = (value: unknown): unknown => {
     if (Array.isArray(value)) {
-      const items = value.map(attachRangeInput)
+      const items = value.map(attachContainerInput)
       return items.every((item, index) => item === value[index]) ? value : items
     }
     const record = fields(value)
     if (!record) return value
     const entries = Object.entries(record).map(
-      ([key, item]) => [key, attachRangeInput(item)] as const,
+      ([key, item]) => [key, attachContainerInput(item)] as const,
     )
     const result = entries.every(([key, item]) => item === record[key])
       ? record
@@ -5952,6 +6024,15 @@ export function bindCatalogCheck(
       typeof result['elementType'] === 'string'
     ) {
       const element = arrayElementBaseType(result['elementType'])
+      if (compositeProfile(element)) {
+        const inputConversion = compositeConversion(element as ScalarType, false),
+          storedInputConversion = compositeConversion(element as ScalarType, true)
+        return {
+          ...result,
+          ...(inputConversion ? { inputConversion } : {}),
+          ...(storedInputConversion ? { storedInputConversion } : {}),
+        }
+      }
       const profile = rangeTypeProfile(element) ?? multirangeTypeProfile(element)
       if (profile?.captured) {
         const conversion = rangeConversion(element),
@@ -6010,7 +6091,10 @@ export function bindCatalogCheck(
     return result
   }
   const lowered = lower(root)
-  const expression = rangeTypes.length ? (attachRangeInput(lowered) as EvalBoolExpression) : lowered
+  const expression =
+    rangeTypes.length || compositeGraph?.definitions.length
+      ? (attachContainerInput(lowered) as EvalBoolExpression)
+      : lowered
   return {
     expression:
       literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression,

@@ -303,7 +303,6 @@ export const arrayElementComparison = (type: string) => {
   type = arrayElementBaseType(type)
   const composite = compositeProfile(type)
   if (composite) {
-    if (domain) return null
     const support = composite.graph.definitions.find(
       (n) => n.identity === composite.identity,
     )?.comparison

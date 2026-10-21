@@ -40,9 +40,9 @@ export function catalogCompositeArrayType(
   const element = explicit
     ? matches[0]
     : graph.definitions.find((n) => n.identity === matches[0]!.element)
-  if (element?.kind !== 'c') return null
+  if (element?.kind !== 'c' && element?.kind !== 'd') return null
   const type = catalogCompositeType(element.identity, graph, rangeTypes)
-  return type ? arrayType(type) : null
+  return type ? arrayType(element.kind === 'd' ? domainElementType(element, type) : type) : null
 }
 
 function names(name: string): string[] | null {

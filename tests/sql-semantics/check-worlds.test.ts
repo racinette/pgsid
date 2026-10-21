@@ -880,7 +880,7 @@ describe('world CHECK INSERT parity', () => {
           undefined,
           catalog.compositeTypeGraph,
         )!
-        if (compositeProfile(type.slice(6))) {
+        if (compositeProfile(arrayElementBaseType(type.slice(6)))) {
           const payload = await readCompositeArrayFixture(
             pg,
             `SELECT ${expressions.join(',')}`,

@@ -1,6 +1,29 @@
 -- name: InspectionPresent
 INSERT INTO inspection_reports(packet,backup,expected_null,expected_present,use_primary,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ROW(2,'ok','[1,3)'::int4range)::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading])::inspection_packet, false, true, true, false);
 
+-- name: ApprovedBatchPresent
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{"(2,abc)"}', '{"(2,abc)"}', 1, 0, false);
+-- name: ApprovedBatchNullFields
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(NULL,NULL)::approved_draft], '{"(,)"}', '{"(,)"}', 1, 0, false);
+-- name: ApprovedBatchEmpty
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[]::approved_draft[], '{}', '{}', 0, 0, false);
+-- name: ApprovedBatchNullDatum
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (NULL, NULL, NULL, NULL, 0, false);
+-- name: ApprovedBatchLowerBounds
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES ('[-1:0]={"(1,abc)","(2,def)"}'::approved_draft[], '[-1:0]={"(1,abc)","(2,def)"}', '[-1:0]={"(1,abc)","(2,def)"}', 2, 0, false);
+-- name: ApprovedBatchWrongCount
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{"(2,abc)"}', '{"(2,abc)"}', 2, 0, false);
+-- name: ApprovedBatchWrongScore
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{"(2,abc)"}', '{"(2,abc)"}', 1, 3, false);
+-- name: ApprovedBatchWrongOutput
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{"(2,abc)"}', '{"(2,def)"}', 1, 0, false);
+-- name: ApprovedBatchNegativeInput
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{"(-1,abc)"}', '{"(2,abc)"}', 1, 0, false);
+-- name: ApprovedBatchNullInputElement
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{NULL}', '{"(2,abc)"}', 1, 0, false);
+-- name: ApprovedBatchBypassed
+INSERT INTO inspection_approved_batches(readings,encoded,canonical_text,expected_count,minimum_score,bypass) VALUES (ARRAY[ROW(2,'abc')::approved_draft], '{NULL}', 'wrong', 2, 3, true);
+
 -- name: BatchSameReadings
 INSERT INTO inspection_batches(readings,previous_readings,encoded,canonical_text,expected_count,expected_equal,expected_order,bypass) VALUES (ARRAY[ROW(2,'abc')::draft_reading], ARRAY[ROW(2,'abc')::draft_reading], '{"(2,abc)"}', '{"(2,abc)"}', 1, true, 0, false);
 -- name: BatchLaterScore

@@ -29,8 +29,16 @@ export async function readCatalogCompositeTypes(
       WHERE t.typtype='c' AND (
         ($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema')
         OR n.nspname=ANY($1::text[]))
+    ),domain_bases(type,base) AS (
+      SELECT t.oid,t.typbasetype FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
+      WHERE t.typtype='d' AND (
+        ($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema')
+        OR n.nspname=ANY($1::text[]))
+      UNION
+      SELECT d.type,t.typbasetype FROM domain_bases d JOIN pg_catalog.pg_type t ON t.oid=d.base WHERE t.typtype='d'
     ),needed(type) AS (
       SELECT type FROM roots UNION
+      SELECT d.type FROM domain_bases d JOIN pg_catalog.pg_type t ON t.oid=d.base WHERE t.typtype='c' UNION
       SELECT child.type FROM needed parent JOIN pg_catalog.pg_type t ON t.oid=parent.type
       LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND e.typarray=t.oid
       LEFT JOIN pg_catalog.pg_range r ON r.rngtypid=t.oid
