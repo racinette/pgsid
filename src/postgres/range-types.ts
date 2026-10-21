@@ -225,10 +225,12 @@ async function readSubtypeDefinitions(pg: PGlite, roots: readonly string[]) {
     ),bases(root,type) AS (
       SELECT root,type FROM roots UNION
       SELECT b.root,ty.typbasetype FROM bases b JOIN pg_type ty ON ty.oid=b.type WHERE ty.typtype='d'
-    ),arrays(root) AS (
-      SELECT DISTINCT b.root FROM bases b JOIN pg_type ty ON ty.oid=b.type JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+    ),containers(root) AS (
+      SELECT DISTINCT b.root FROM bases b JOIN pg_type ty ON ty.oid=b.type
+      LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+      WHERE e.oid IS NOT NULL OR ty.typtype IN ('r','m')
     ),needed(root,type) AS (
-      SELECT r.root,r.type FROM roots r JOIN arrays a USING(root)
+      SELECT r.root,r.type FROM roots r JOIN containers a USING(root)
       UNION
       SELECT p.root,child.type FROM needed p JOIN pg_type ty ON ty.oid=p.type
       LEFT JOIN pg_type e ON e.oid=ty.typelem
@@ -257,6 +259,7 @@ async function readRangeTypeInfos(
 ): Promise<RangeTypeInfo[]> {
   const rows = (
     await pg.query<{
+      scoped: boolean
       schema: string
       name: string
       multirange_schema: string
@@ -293,7 +296,18 @@ async function readRangeTypeInfos(
       json_cast: SelectedFunction
       multirange_json_cast: SelectedFunction
     }>(
-      `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
+      `WITH RECURSIVE scoped(type) AS (
+        SELECT r.rngtypid FROM pg_range r JOIN pg_type rt ON rt.oid=r.rngtypid JOIN pg_namespace n ON n.oid=rt.typnamespace
+        WHERE ($1::text IS NULL OR n.nspname=$1) AND ($2::text[] IS NULL OR n.nspname=ANY($2::text[]))
+      ),needed(type) AS (
+        SELECT type FROM scoped UNION
+        SELECT child.type FROM needed p JOIN pg_type ty ON ty.oid=p.type
+        LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+        LEFT JOIN pg_range r ON r.rngtypid=ty.oid LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
+        CROSS JOIN LATERAL (VALUES(ty.typbasetype),(e.oid),(r.rngsubtype),(m.rngtypid)) child(type)
+        WHERE child.type IS NOT NULL AND child.type<>0
+      ) SELECT r.rngtypid IN(SELECT type FROM scoped) AS scoped,
+        n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
         (${typeIdentity} r.rngtypid) AS identity,
         (${typeIdentity} rt.typarray) AS array,
         (${typeIdentity} r.rngsubtype) AS subtype,
@@ -352,8 +366,7 @@ async function readRangeTypeInfos(
         LEFT JOIN pg_namespace cn ON cn.oid=c.pronamespace
         LEFT JOIN pg_proc d ON d.oid=r.rngsubdiff
         LEFT JOIN pg_namespace dn ON dn.oid=d.pronamespace
-        WHERE ($1::text IS NULL OR n.nspname=$1)
-          AND ($2::text[] IS NULL OR n.nspname=ANY($2::text[]))
+        WHERE r.rngtypid IN(SELECT type FROM needed)
         ORDER BY identity`,
       [schema, schemas],
     )
@@ -371,7 +384,7 @@ async function readRangeTypeInfos(
     rows.map((row) => row.identity),
   )
   const callResolution = rows.length ? await readRangeCallResolution(pg, callables) : undefined
-  return rows.map((row) => ({
+  const profiles: RangeTypeInfo[] = rows.map((row) => ({
     ...(row.subtype_enum ? { subtypeEnum: row.subtype_enum } : {}),
     ...(definitions.some((definition) => definition.root === row.subtype)
       ? {
@@ -446,6 +459,23 @@ async function readRangeTypeInfos(
     callables: callables.get(row.identity) ?? [],
     ...(callResolution ? { callResolution } : {}),
   }))
+  const rangeProfiles = new Map(profiles.map((profile) => [profile.identity, profile]))
+  const build = (identity: string, visiting: ReadonlySet<string>): RangeTypeInfo => {
+    if (visiting.has(identity)) throw new Error('Cyclic range subtype dependency: ' + identity)
+    const profile = rangeProfiles.get(identity)
+    if (!profile) throw new Error('Missing range subtype definition: ' + identity)
+    const nodes = new Map(profile.subtypeDefinitions?.map((node) => [node.identity, node]))
+    let node = nodes.get(profile.subtype)
+    while (node && (node.kind === 'd' || node.element !== null))
+      node = nodes.get(node.kind === 'd' ? node.base! : node.element!)
+    const child = node?.kind === 'r' ? node.identity : node?.kind === 'm' ? node.member : null
+    if (!child) return structuredClone(profile)
+    return {
+      ...structuredClone(profile),
+      subtypeRanges: [build(child, new Set([...visiting, identity]))],
+    }
+  }
+  return rows.filter((row) => row.scoped).map((row) => build(row.identity, new Set()))
 }
 
 export async function readRangeTypes(
@@ -457,6 +487,7 @@ export async function readRangeTypes(
     ({
       subtypeEnum: _subtypeEnum,
       subtypeDefinitions: _subtypeDefinitions,
+      subtypeRanges: _subtypeRanges,
       schema: _schema,
       name: _name,
       multirangeSchema: _multirangeSchema,

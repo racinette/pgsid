@@ -32683,7 +32683,7 @@ const rangeConstructorFlagsError = 6819553;
 const rangeConstructorIntegerOverflow = 3452547;
 const rangeConstructorDateOverflow = 3452552;
 const rangeArrayComparisonUndefined = 6822435;
-function rangeProfiledArrayCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, profile: checkruntime.RangeBoundContext, index: number, other: checkruntime.RangeBoundContext, otherIndex: number): checkruntime.Int4Value {
+function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, profile: checkruntime.RangeBoundContext, index: number, other: checkruntime.RangeBoundContext, otherIndex: number): checkruntime.Int4Value {
     lower = checkruntime.copyArrayElement(lower);
     upper = checkruntime.copyArrayElement(upper);
     index = langruntime.checkedIndex(index);
@@ -32702,6 +32702,15 @@ function rangeProfiledArrayCompare(lower: checkruntime.ArrayElement, upper: chec
     }
     if (node.missingComparison) {
         return { kind: "Error", value: checkruntime.makeSqlError(rangeArrayComparisonUndefined) };
+    }
+    if (node.kind === 42 || node.kind === 43) {
+        if (!(node.typeName === peer.typeName) || !(node.elementType === peer.elementType) || !(node.canonical === peer.canonical) || !(node.comparison === node.kind)) {
+            return { kind: "Unknown" };
+        }
+        if (node.kind === 42) {
+            return rangeCmp8jgl(checkruntime.arrayElementToRange(lower), checkruntime.arrayElementToRange(upper));
+        }
+        return multirangeCmpMafd(checkruntime.arrayElementToMultirange(lower), checkruntime.arrayElementToMultirange(upper));
     }
     if (!(node.kind === 41)) {
         if (node.kind === 6 && (!(node.enumLabels === peer.enumLabels) || !(node.enumCount === peer.enumCount))) {
@@ -32723,7 +32732,7 @@ function rangeProfiledArrayCompare(lower: checkruntime.ArrayElement, upper: chec
     while (checkruntime.arrayComparisonContinues(plan, position, result)) {
         const a: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, false);
         const b: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, true);
-        result = rangeProfiledArrayCompare(a, b, profile, node.child, other, peer.child);
+        result = rangeProfiledCompare(a, b, profile, node.child, other, peer.child);
         position = checkruntime.arrayTextNextIndex(position);
     }
     return checkruntime.finishArrayComparison(plan, result);
@@ -32738,8 +32747,8 @@ function rangeTypedCompare(lower: checkruntime.ArrayElement, upper: checkruntime
     if (upper.kind === "Null") {
         return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
     }
-    if (comparison === 41) {
-        return rangeProfiledArrayCompare(lower, upper, profile, 0, other, 0);
+    if (comparison >= 41 && comparison <= 43) {
+        return rangeProfiledCompare(lower, upper, profile, 0, other, 0);
     }
     return rangeBuiltinCompare(lower, upper, comparison);
 }
@@ -33103,7 +33112,7 @@ export function rangeConstructTyped(typeName: string, elementType: string, kind:
         }
         let lower1: checkruntime.ArrayElement = lower;
         let upper1: checkruntime.ArrayElement = upper;
-        if (kind === 41) {
+        if (kind >= 41 && kind <= 43) {
             lower1 = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(lower1, boundProfile));
             if (lower1.kind === "Error") {
                 const error: checkruntime.SqlError = lower1.value;
@@ -34120,6 +34129,12 @@ function rangeProfiledBoundOutput(input: checkruntime.ArrayElement, profile: che
         return { kind: "Unknown" };
     }
     const node: checkruntime.RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile);
+    if (node.kind === 42) {
+        return rangeToText(checkruntime.arrayElementToRange(input));
+    }
+    if (node.kind === 43) {
+        return multirangeToText(checkruntime.arrayElementToMultirange(input));
+    }
     if (!(node.kind === 41)) {
         const support: checkruntime.RangeSupport = checkruntime.makeRangeSupport(node.comparison, 1);
         return rangeOutputBound(input, node.kind, node.typeName === "pg_catalog.cidr", checkruntime.rangeOidAliasMode(support, node.typeName), checkruntime.rangeSupportJsonbUtf8(support), node.enumLabels, node.enumCount);
@@ -34161,7 +34176,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         const utf8: boolean = checkruntime.rangeSupportJsonbUtf8(value.support);
         const profile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(value.boundProfile);
         let lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
-        if (value.elementKind === 41) {
+        if (value.elementKind >= 41 && value.elementKind <= 43) {
             lower = rangeProfiledBoundOutput(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), profile, 0);
         }
         if (lower.kind === "Error") {
@@ -34172,7 +34187,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
             return { kind: "Unknown" };
         }
         let upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
-        if (value.elementKind === 41) {
+        if (value.elementKind >= 41 && value.elementKind <= 43) {
             upper = rangeProfiledBoundOutput(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), profile, 0);
         }
         if (upper.kind === "Error") {

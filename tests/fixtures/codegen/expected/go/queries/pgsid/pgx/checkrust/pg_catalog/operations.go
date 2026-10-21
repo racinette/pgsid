@@ -32556,7 +32556,7 @@ const rangeConstructorIntegerOverflow = 3452547
 const rangeConstructorDateOverflow = 3452552
 const rangeArrayComparisonUndefined = 6822435
 
-func rangeProfiledArrayCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, profile *checkruntime.RangeBoundContext, index int, other *checkruntime.RangeBoundContext, otherIndex int) checkruntime.Int4Value {
+func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, profile *checkruntime.RangeBoundContext, index int, other *checkruntime.RangeBoundContext, otherIndex int) checkruntime.Int4Value {
 	lower = checkruntime.CopyArrayElement(lower)
 	upper = checkruntime.CopyArrayElement(upper)
 	index = langruntime.CheckedIndex(index)
@@ -32575,6 +32575,15 @@ func rangeProfiledArrayCompare(lower checkruntime.ArrayElement, upper checkrunti
 	}
 	if node.MissingComparison {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(rangeArrayComparisonUndefined)}
+	}
+	if node.Kind == 42 || node.Kind == 43 {
+		if node.TypeName != peer.TypeName || node.ElementType != peer.ElementType || node.Canonical != peer.Canonical || node.Comparison != node.Kind {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		if node.Kind == 42 {
+			return RangeCmp8jgl(checkruntime.ArrayElementToRange(lower), checkruntime.ArrayElementToRange(upper))
+		}
+		return MultirangeCmpMafd(checkruntime.ArrayElementToMultirange(lower), checkruntime.ArrayElementToMultirange(upper))
 	}
 	if node.Kind != 41 {
 		if node.Kind == 6 && (node.EnumLabels != peer.EnumLabels || node.EnumCount != peer.EnumCount) {
@@ -32596,7 +32605,7 @@ func rangeProfiledArrayCompare(lower checkruntime.ArrayElement, upper checkrunti
 	for checkruntime.ArrayComparisonContinues(&plan, position, result) {
 		a := checkruntime.ArrayComparisonElementAt(&plan, position, false)
 		b := checkruntime.ArrayComparisonElementAt(&plan, position, true)
-		result = rangeProfiledArrayCompare(a, b, profile, node.Child, other, peer.Child)
+		result = rangeProfiledCompare(a, b, profile, node.Child, other, peer.Child)
 		position = checkruntime.ArrayTextNextIndex(position)
 	}
 	return checkruntime.FinishArrayComparison(&plan, result)
@@ -32611,8 +32620,8 @@ func rangeTypedCompare(lower checkruntime.ArrayElement, upper checkruntime.Array
 	if upper.Kind == checkruntime.ArrayElementNull {
 		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
 	}
-	if comparison == 41 {
-		return rangeProfiledArrayCompare(lower, upper, profile, 0, other, 0)
+	if comparison >= 41 && comparison <= 43 {
+		return rangeProfiledCompare(lower, upper, profile, 0, other, 0)
 	}
 	return rangeBuiltinCompare(lower, upper, comparison)
 }
@@ -32974,7 +32983,7 @@ func RangeConstructTyped(typeName string, elementType string, kind int, lower ch
 		}
 		lower := lower
 		upper := upper
-		if kind == 41 {
+		if kind >= 41 && kind <= 43 {
 			lower = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(lower, &boundProfile))
 			if lower.Kind == checkruntime.ArrayElementError {
 				error := lower.Error
@@ -33979,6 +33988,12 @@ func rangeProfiledBoundOutput(input checkruntime.ArrayElement, profile *checkrun
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	node := profile.Nodes[index]
+	if node.Kind == 42 {
+		return RangeToText(checkruntime.ArrayElementToRange(input))
+	}
+	if node.Kind == 43 {
+		return MultirangeToText(checkruntime.ArrayElementToMultirange(input))
+	}
 	if node.Kind != 41 {
 		support := checkruntime.MakeRangeSupport(node.Comparison, 1)
 		return rangeOutputBound(input, node.Kind, node.TypeName == "pg_catalog.cidr", checkruntime.RangeOidAliasMode(support, node.TypeName), checkruntime.RangeSupportJsonbUtf8(support), node.EnumLabels, node.EnumCount)
@@ -34020,7 +34035,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		utf8 := checkruntime.RangeSupportJsonbUtf8(value.Support)
 		profile := checkruntime.CopyRangeBoundContext(value.BoundProfile)
 		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr, aliasMode, utf8, value.EnumLabels, value.EnumCount)
-		if value.ElementKind == 41 {
+		if value.ElementKind >= 41 && value.ElementKind <= 43 {
 			lower = rangeProfiledBoundOutput(checkruntime.CopyArrayElement(value.Bounds[0]), &profile, 0)
 		}
 		if lower.Kind == checkruntime.TextValueError {
@@ -34031,7 +34046,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode, utf8, value.EnumLabels, value.EnumCount)
-		if value.ElementKind == 41 {
+		if value.ElementKind >= 41 && value.ElementKind <= 43 {
 			upper = rangeProfiledBoundOutput(checkruntime.CopyArrayElement(value.Bounds[1]), &profile, 0)
 		}
 		if upper.Kind == checkruntime.TextValueError {

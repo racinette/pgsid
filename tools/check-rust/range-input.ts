@@ -6,6 +6,12 @@ import {
   arrayTypescriptInput,
   type OwnedArrayInputPayload,
 } from './array-input.js'
+import {
+  multirangeRustInput,
+  multirangeGoInput,
+  multirangeTypescriptInput,
+  type MultirangeInputPayload,
+} from './multirange-input.js'
 
 export type RangeJsonbPayload = {
   characters: string[]
@@ -22,6 +28,8 @@ export type RangeJsonbPayload = {
 }
 
 export type RangeInputCell =
+  | { kind: 'Range'; value: RangeInputPayload }
+  | { kind: 'Multirange'; value: MultirangeInputPayload }
   | { kind: 'Array'; value: OwnedArrayInputPayload }
   | { kind: 'Jsonb'; value: RangeJsonbPayload }
   | { kind: 'Json'; value: { source: string; kind: number; depth: number } }
@@ -92,6 +100,9 @@ const cellRecords = {
 } as const
 
 export function rangeRustCell(cell: RangeInputCell): string {
+  if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
+  if (cell.kind === 'Multirange')
+    return `array_element_from_multirange(${multirangeRustInput(cell.value)})`
   if (cell.kind === 'Array') return `array_element_from_array(${arrayRustInput(cell.value)})`
   if (!('value' in cell)) return `ArrayElement::${cell.kind}`
   if (cell.kind === 'Error') return `ArrayElement::Error(make_sql_error(${cell.value.state}))`
@@ -125,6 +136,10 @@ export function rangeRustCell(cell: RangeInputCell): string {
 
 export function rangeGoCell(cell: RangeInputCell): GoExpression {
   const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+  if (cell.kind === 'Range')
+    return go.call(runtime('ArrayElementFromRange'), [rangeGoInput(cell.value)])
+  if (cell.kind === 'Multirange')
+    return go.call(runtime('ArrayElementFromMultirange'), [multirangeGoInput(cell.value)])
   if (cell.kind === 'Array')
     return go.call(runtime('ArrayElementFromArray'), [arrayGoInput(cell.value)])
   if (cell.kind === 'Jsonb')
@@ -189,6 +204,7 @@ export type RangeInputBoundProfile = {
   typeName: string
   kind: number
   comparison: number
+  canonical?: number
   missingComparison: boolean
   elementType: string
   child: number
@@ -215,7 +231,7 @@ export function rangeRustInput(payload: RangeInputPayload): string {
   const profile = (payload.boundProfile?.nodes ?? [])
     .map(
       (node) =>
-        `RangeBoundProfile {type_name:${rustStringLiteral(node.typeName)}.to_owned(),kind:${node.kind},comparison:${node.comparison},missing_comparison:${node.missingComparison},element_type:${rustStringLiteral(node.elementType)}.to_owned(),child:${node.child},enum_labels:${rustStringLiteral(node.enumLabels)}.to_owned(),enum_count:${node.enumCount}}`,
+        `RangeBoundProfile {type_name:${rustStringLiteral(node.typeName)}.to_owned(),kind:${node.kind},comparison:${node.comparison},canonical:${node.canonical ?? 1},missing_comparison:${node.missingComparison},element_type:${rustStringLiteral(node.elementType)}.to_owned(),child:${node.child},enum_labels:${rustStringLiteral(node.enumLabels)}.to_owned(),enum_count:${node.enumCount}}`,
     )
     .join(',')
   return `make_coerced_range_value(RangePayload {bound_profile:RangeBoundContext {nodes:vec![${profile}]},enum_labels:${rustStringLiteral(payload.enumLabels ?? '')}.to_owned(),enum_count:${payload.enumCount ?? -1},type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.typeName)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
@@ -242,6 +258,7 @@ export function rangeGoInput(payload: RangeInputPayload): GoExpression {
                   go.keyValue('TypeName', go.string(node.typeName)),
                   go.keyValue('Kind', go.number(node.kind)),
                   go.keyValue('Comparison', go.number(node.comparison)),
+                  go.keyValue('Canonical', go.number(node.canonical ?? 1)),
                   go.keyValue('MissingComparison', go.ident(String(node.missingComparison))),
                   go.keyValue('ElementType', go.string(node.elementType)),
                   go.keyValue('Child', go.number(node.child)),
@@ -289,13 +306,22 @@ export function rangeTypescriptInput(payload: RangeInputPayload, runtime: RangeS
   return {
     ...payload,
     bounds: payload.bounds.map((cell): RangeInputCell =>
-      cell.kind === 'Array'
-        ? { kind: 'Array', value: arrayTypescriptInput(cell.value, runtime) }
-        : cell,
+      cell.kind === 'Range'
+        ? { kind: 'Range', value: rangeTypescriptInput(cell.value, runtime) }
+        : cell.kind === 'Multirange'
+          ? { kind: 'Multirange', value: multirangeTypescriptInput(cell.value, runtime) }
+          : cell.kind === 'Array'
+            ? { kind: 'Array', value: arrayTypescriptInput(cell.value, runtime) }
+            : cell,
     ),
     enumLabels: payload.enumLabels ?? '',
     enumCount: payload.enumCount ?? -1,
-    boundProfile: payload.boundProfile ?? { nodes: [] },
+    boundProfile: {
+      nodes: (payload.boundProfile?.nodes ?? []).map((node) => ({
+        ...node,
+        canonical: node.canonical ?? 1,
+      })),
+    },
     support:
       payload.support ??
       runtime.rangeBuiltinSupport(payload.typeName, payload.elementType, payload.elementKind),
