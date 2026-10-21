@@ -95,7 +95,7 @@ fn profiled_array_edit_range(input:RangePayload,mode:i32)->RangePayload {
  let mut bounds=input.bounds;
  if mode==3{name="forged.type".to_owned();};
  if mode==4{bounds.push(ArrayElement::Unknown);};
- RangePayload{type_name:name,element_type:input.element_type,element_kind:input.element_kind,support:make_range_support(99,99),empty:input.empty,lower_inclusive:input.lower_inclusive,upper_inclusive:input.upper_inclusive,bounds}
+ RangePayload{enum_labels:input.enum_labels,enum_count:input.enum_count,type_name:name,element_type:input.element_type,element_kind:input.element_kind,support:make_range_support(99,99),empty:input.empty,lower_inclusive:input.lower_inclusive,upper_inclusive:input.upper_inclusive,bounds}
 }
 fn profiled_array_edit_multi(input:MultirangePayload,mode:i32)->MultirangePayload {
  let mut ranges=input.ranges;
@@ -460,7 +460,7 @@ fn profile_state_range(name:&str,shape:i32)->ArrayElement {
  let mut bounds:Vec<ArrayElement>=Vec::new();
  if shape==1 {bounds.push(ArrayElement::Error(make_sql_error(PROFILE_ARRAY_PROBE_ERROR)));}else{bounds.push(ArrayElement::Unknown);};
  if shape!=0 {bounds.push(ArrayElement::Int4(3));};
- ArrayElement::Range(RangePayload{type_name:name.to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:make_range_support(99,99),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
+ ArrayElement::Range(RangePayload{enum_labels:String::new(),enum_count:-1,type_name:name.to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:make_range_support(99,99),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
 }
 fn profile_state_payload(first:ArrayElement,second:ArrayElement,kind:i32,name:&str)->ArrayPayload {
  let mut dimensions:Vec<ArrayDimension>=Vec::new();dimensions.push(ArrayDimension{lower:-2,length:2});

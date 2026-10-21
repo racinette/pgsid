@@ -48,6 +48,9 @@ fn range_endpoint_compare(
         };
         return make_int4_value(1);
     };
+    if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
+        return Int4Value::Unknown;
+    };
     let comparison = range_builtin_compare(a, b, left.support.comparison);
     if let Int4Value::Value(order) = comparison {
         if order != 0 {
@@ -151,6 +154,9 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
     if let ArrayElement::Null = b {
         return BoolValue::Value(false);
     };
+    if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
+        return BoolValue::Unknown;
+    };
     let comparison = range_builtin_compare(a.clone(), b.clone(), left.support.comparison);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
@@ -178,7 +184,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
             } else {
                 flags.push(']');
             };
-            let gap = range_construct_with_support(
+            let gap = range_construct_defined(
                 left.type_name.as_str(),
                 left.element_type.as_str(),
                 left.element_kind,
@@ -186,6 +192,8 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
                 b,
                 TextValue::Value(flags),
                 left.support,
+                left.enum_labels.as_str(),
+                left.enum_count,
             );
             return range_empty_state(gap);
         };
@@ -329,6 +337,9 @@ fn range_contains_element(
         };
         let kind = array_element_family(element.clone());
         if kind != 0 && kind != span.element_kind {
+            return BoolValue::Unknown;
+        };
+        if span.element_kind == 6 && range_enum_bound_valid(element.clone(), span.enum_count) == false {
             return BoolValue::Unknown;
         };
         let lower = span.bounds[0].clone();

@@ -8608,7 +8608,7 @@ export function rangeSupportEqual(left: RangeSupport, right: RangeSupport): bool
 }
 export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
     kind = langruntime.checkedI32(kind);
-    const comparison: boolean = input.comparison === 0 || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39));
+    const comparison: boolean = input.comparison === 0 || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 6 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39));
     const canonical: boolean = input.canonical === 0 || input.canonical === 1 || (input.canonical === kind && (kind === 2 || kind === 3 || kind === 7));
     return comparison && canonical;
 }
@@ -8647,6 +8647,8 @@ export interface RangePayload {
     readonly typeName: string;
     readonly elementType: string;
     readonly elementKind: number;
+    readonly enumLabels: string;
+    readonly enumCount: number;
     readonly support: RangeSupport;
     readonly empty: boolean;
     readonly lowerInclusive: boolean;
@@ -8654,7 +8656,7 @@ export interface RangePayload {
     readonly bounds: ArrayElement[];
 }
 export function copyRangePayload(value: RangePayload): RangePayload {
-    return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), support: value.support, empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
+    return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), enumLabels: langruntime.checkedString(value.enumLabels), enumCount: langruntime.checkedI32(value.enumCount), support: value.support, empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
 }
 export type RangeValue = {
     readonly kind: "Unknown";
@@ -8683,7 +8685,78 @@ export function rangeNull(): RangeValue {
 }
 function rangePayloadWithSupport(input: RangePayload, support: RangeSupport): RangePayload {
     input = copyRangePayload(input);
-    return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, support: support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
+    return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, enumLabels: input.enumLabels, enumCount: input.enumCount, support: support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
+}
+function rangePayloadWithDefinition(input: RangePayload, labels: string, count: number): RangePayload {
+    input = copyRangePayload(input);
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, enumLabels: labels, enumCount: count, support: input.support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
+}
+export function rangeEnumDefinitionValid(labels: string, count: number): boolean {
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    if (count < 0) {
+        return count === langruntime.checkedSignedNegate(1) && labels === "";
+    }
+    if (count === 0) {
+        return labels === "";
+    }
+    const characters: string[] = Array.from(labels);
+    let seen: number = 0;
+    let start: number = 0;
+    let position: number = 0;
+    while (position <= characters.length) {
+        if (position === characters.length || langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\0") {
+            let earlier: number = 0;
+            while (earlier < start) {
+                let end: number = earlier;
+                while (end < characters.length && !(langruntime.indexChar(characters, langruntime.checkedIndex(end)) === "\0")) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                if (langruntime.checkedSubtract(end, earlier) === langruntime.checkedSubtract(position, start)) {
+                    let offset: number = 0;
+                    let equal: boolean = true;
+                    while (offset < langruntime.checkedSubtract(position, start)) {
+                        if (!(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(earlier, offset))) === langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, offset))))) {
+                            equal = langruntime.checkedBool(false);
+                        }
+                        offset = langruntime.checkedAdd(offset, 1);
+                    }
+                    if (equal) {
+                        return false;
+                    }
+                }
+                earlier = langruntime.checkedIndex(langruntime.checkedAdd(end, 1));
+            }
+            if (seen >= count) {
+                return false;
+            }
+            seen = langruntime.checkedI32(langruntime.checkedSignedAdd(seen, 1));
+            start = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return seen === count;
+}
+export function rangeEnumBoundValid(input: ArrayElement, count: number): boolean {
+    input = copyArrayElement(input);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Enum") {
+        const payload: EnumPayload = input.value;
+        return count >= 0 && payload.ordinal >= 0 && payload.ordinal < count && payload.labelOid >= 0n && payload.labelOid <= 4294967295n;
+    }
+    return true;
+}
+export function rangeWithEnumDefinition(input: RangeValue, labels: string, count: number): RangeValue {
+    input = copyRangeValue(input);
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        return makeCoercedRangeValue(rangePayloadWithDefinition(value, labels, count));
+    }
+    return input;
 }
 function rangeBoundWordValid(value: number): boolean {
     value = langruntime.checkedI32(value);
@@ -8761,6 +8834,12 @@ function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
 export function makeCoercedRangeValue(input: RangePayload): RangeValue {
     input = copyRangePayload(input);
     let value: RangePayload = input;
+    if (!(value.elementKind === 6)) {
+        value = copyRangePayload(rangePayloadWithDefinition(value, "", langruntime.checkedSignedNegate(1)));
+    }
+    if (rangeEnumDefinitionValid(value.enumLabels, value.enumCount) === false) {
+        return { kind: "Unknown" };
+    }
     let support: RangeSupport = value.support;
     if (value.typeName === "" || value.elementType === "" || value.elementKind < 1) {
         return { kind: "Unknown" };
@@ -8796,6 +8875,9 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
             return { kind: "Unknown" };
         }
         if (rangeBoundValueValid(copyArrayElement(bound), rangeSupportIsCidr(support) || value.elementType === "pg_catalog.cidr") === false) {
+            return { kind: "Unknown" };
+        }
+        if (rangeEnumBoundValid(copyArrayElement(bound), value.enumCount) === false) {
             return { kind: "Unknown" };
         }
         if (bound.kind === "Null") {
@@ -8841,12 +8923,25 @@ export function rangeFromProfiledBounds(typeName: string, elementType: string, e
     upperInclusive = langruntime.checkedBool(upperInclusive);
     lower = copyArrayElement(lower);
     upper = copyArrayElement(upper);
+    return rangeFromDefinedBounds(typeName, elementType, elementKind, empty, lowerInclusive, upperInclusive, lower, upper, support, "", langruntime.checkedSignedNegate(1));
+}
+export function rangeFromDefinedBounds(typeName: string, elementType: string, elementKind: number, empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, lower: ArrayElement, upper: ArrayElement, support: RangeSupport, enumLabels: string, enumCount: number): RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    empty = langruntime.checkedBool(empty);
+    lowerInclusive = langruntime.checkedBool(lowerInclusive);
+    upperInclusive = langruntime.checkedBool(upperInclusive);
+    lower = copyArrayElement(lower);
+    upper = copyArrayElement(upper);
+    enumLabels = langruntime.checkedString(enumLabels);
+    enumCount = langruntime.checkedI32(enumCount);
     let bounds: ArrayElement[] = [];
     if (empty === false) {
         langruntime.pushStruct(bounds, lower, copyArrayElement);
         langruntime.pushStruct(bounds, upper, copyArrayElement);
     }
-    return makeCoercedRangeValue({ typeName: typeName, elementType: elementType, elementKind: elementKind, support: support, empty: empty, lowerInclusive: lowerInclusive, upperInclusive: upperInclusive, bounds: bounds });
+    return makeCoercedRangeValue({ typeName: typeName, elementType: elementType, elementKind: elementKind, enumLabels: enumLabels, enumCount: enumCount, support: support, empty: empty, lowerInclusive: lowerInclusive, upperInclusive: upperInclusive, bounds: bounds });
 }
 export function rangeRequireType(input: RangeValue, typeName: string, elementType: string, elementKind: number): RangeValue {
     input = copyRangeValue(input);
@@ -8880,6 +8975,25 @@ export function rangeFromCoercedProfile(input: RangeValue, typeName: string, ele
         }
         const support: RangeSupport = { comparison: comparison, canonical: canonical };
         return makeCoercedRangeValue(rangePayloadWithSupport(payload, support));
+    }
+    return input;
+}
+export function rangeFromCoercedDefinedProfile(input: RangeValue, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number): RangeValue {
+    input = copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        const defined: RangePayload = rangePayloadWithDefinition(payload, labels, count);
+        return makeCoercedRangeValue(rangePayloadWithSupport(defined, makeRangeSupport(comparison, canonical)));
     }
     return input;
 }

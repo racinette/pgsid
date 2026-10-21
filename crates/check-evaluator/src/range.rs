@@ -94,6 +94,7 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 3
                 || kind == 4
                 || kind == 5
+                || kind == 6
                 || kind == 7
                 || kind == 8
                 || kind == 10
@@ -150,6 +151,8 @@ pub struct RangePayload {
     pub type_name: String,
     pub element_type: String,
     pub element_kind: i32,
+    pub enum_labels: String,
+    pub enum_count: i32,
     pub support: RangeSupport,
     pub empty: bool,
     pub lower_inclusive: bool,
@@ -178,12 +181,77 @@ fn range_payload_with_support(input: RangePayload, support: RangeSupport) -> Ran
         type_name: input.type_name,
         element_type: input.element_type,
         element_kind: input.element_kind,
+        enum_labels: input.enum_labels,
+        enum_count: input.enum_count,
         support,
         empty: input.empty,
         lower_inclusive: input.lower_inclusive,
         upper_inclusive: input.upper_inclusive,
         bounds: input.bounds,
     }
+}
+
+fn range_payload_with_definition(input: RangePayload, labels: &str, count: i32) -> RangePayload {
+    RangePayload {
+        type_name: input.type_name,
+        element_type: input.element_type,
+        element_kind: input.element_kind,
+        enum_labels: labels.to_owned(),
+        enum_count: count,
+        support: input.support,
+        empty: input.empty,
+        lower_inclusive: input.lower_inclusive,
+        upper_inclusive: input.upper_inclusive,
+        bounds: input.bounds,
+    }
+}
+
+pub fn range_enum_definition_valid(labels: &str, count: i32) -> bool {
+    if count < 0 { return count == -1 && labels == ""; };
+    if count == 0 { return labels == ""; };
+    let characters: Vec<char> = labels.chars().collect();
+    let mut seen: i32 = 0;
+    let mut start: usize = 0;
+    let mut position: usize = 0;
+    while position <= characters.len() {
+        if position == characters.len() || characters[position] == '\0' {
+            let mut earlier: usize = 0;
+            while earlier < start {
+                let mut end = earlier;
+                while end < characters.len() && characters[end] != '\0' { end += 1; }
+                if end - earlier == position - start {
+                    let mut offset: usize = 0;
+                    let mut equal = true;
+                    while offset < position - start {
+                        if characters[earlier + offset] != characters[start + offset] { equal = false; };
+                        offset += 1;
+                    }
+                    if equal { return false; };
+                };
+                earlier = end + 1;
+            }
+            if seen >= count { return false; };
+            seen = seen + 1;
+            start = position + 1;
+        };
+        position += 1;
+    }
+    seen == count
+}
+
+pub fn range_enum_bound_valid(input: ArrayElement, count: i32) -> bool {
+    if let ArrayElement::Enum(payload) = input {
+        return count >= 0 && payload.ordinal >= 0 && payload.ordinal < count
+            && payload.label_oid >= 0i64 && payload.label_oid <= 4294967295i64;
+    };
+    true
+}
+
+pub fn range_with_enum_definition(input: RangeValue, labels: &str, count: i32) -> RangeValue {
+    if let RangeValue::Value(value) = input {
+        return make_coerced_range_value(range_payload_with_definition(value, labels, count));
+    };
+    input
 }
 
 fn range_bound_word_valid(value: i32) -> bool {
@@ -257,6 +325,12 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
 
 pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     let mut value = input;
+    if value.element_kind != 6 {
+        value = range_payload_with_definition(value, "", -1);
+    };
+    if range_enum_definition_valid(value.enum_labels.as_str(), value.enum_count) == false {
+        return RangeValue::Unknown;
+    };
     let mut support = value.support;
     if value.type_name.as_str() == "" || value.element_type.as_str() == "" || value.element_kind < 1
     {
@@ -302,6 +376,9 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
             return RangeValue::Unknown;
         };
         if range_bound_value_valid(bound.clone(), range_support_is_cidr(support) || value.element_type.as_str() == "pg_catalog.cidr") == false {
+            return RangeValue::Unknown;
+        };
+        if range_enum_bound_valid(bound.clone(), value.enum_count) == false {
             return RangeValue::Unknown;
         };
         if let ArrayElement::Null = bound {
@@ -360,6 +437,22 @@ pub fn range_from_profiled_bounds(
     upper: ArrayElement,
     support: RangeSupport,
 ) -> RangeValue {
+    range_from_defined_bounds(type_name, element_type, element_kind, empty, lower_inclusive, upper_inclusive, lower, upper, support, "", -1)
+}
+
+pub fn range_from_defined_bounds(
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    empty: bool,
+    lower_inclusive: bool,
+    upper_inclusive: bool,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
+) -> RangeValue {
     let mut bounds: Vec<ArrayElement> = Vec::new();
     if empty == false {
         bounds.push(lower);
@@ -369,6 +462,8 @@ pub fn range_from_profiled_bounds(
         type_name: type_name.to_owned(),
         element_type: element_type.to_owned(),
         element_kind,
+        enum_labels: enum_labels.to_owned(),
+        enum_count,
         support,
         empty,
         lower_inclusive,
@@ -421,6 +516,27 @@ pub fn range_from_coerced_profile(
             canonical,
         };
         return make_coerced_range_value(range_payload_with_support(payload, support));
+    };
+    input
+}
+
+pub fn range_from_coerced_defined_profile(
+    input: RangeValue,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+    labels: &str,
+    count: i32,
+) -> RangeValue {
+    if let RangeValue::Value(payload) = input {
+        if payload.type_name.as_str() != type_name || payload.element_type.as_str() != element_type
+            || payload.element_kind != element_kind {
+            return RangeValue::Unknown;
+        };
+        let defined = range_payload_with_definition(payload, labels, count);
+        return make_coerced_range_value(range_payload_with_support(defined, make_range_support(comparison, canonical)));
     };
     input
 }

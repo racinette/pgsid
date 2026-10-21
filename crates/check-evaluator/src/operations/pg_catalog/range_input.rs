@@ -4,7 +4,13 @@ fn range_input_space(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\x0b' || ch == '\x0c'
 }
 
-fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32, utf8: bool) -> ArrayElement {
+fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32, utf8: bool, enum_labels: &str, enum_count: i32) -> ArrayElement {
+    if kind == 6 {
+        if let TextValue::Value(_) = input {
+            if enum_count < 0 { return ArrayElement::Unknown; };
+        };
+        return array_element_from_enum(scalar_enum_from_text(input, enum_labels, enum_count));
+    };
     if kind == 8 {
         if name { return array_element_from_text(name_from_text(input)); };
         return array_element_from_text(input);
@@ -379,6 +385,39 @@ pub fn finish_range_text(
     range_construct_with_support(type_name, element_type, kind, lower, upper, flags, support)
 }
 
+pub fn finish_range_text_defined(
+    plan: RangeTextPlan, type_name: &str, element_type: &str, kind: i32,
+    support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
+    enum_labels: &str, enum_count: i32,
+) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        let initial = range_text_initial(plan, type_name, element_type, kind, support);
+        return range_with_enum_definition(initial, enum_labels, enum_count);
+    };
+    let flags = range_text_flags(plan);
+    range_construct_defined(type_name, element_type, kind, lower, upper, flags, support, enum_labels, enum_count)
+}
+
+pub fn finish_range_stored_text_defined(
+    plan: RangeTextPlan, type_name: &str, element_type: &str, kind: i32,
+    support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
+    enum_labels: &str, enum_count: i32,
+) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        let initial = range_stored_text_initial(plan, type_name, element_type, kind, support);
+        return range_with_enum_definition(initial, enum_labels, enum_count);
+    };
+    let flags = range_text_flags(plan);
+    if let TextValue::Value(text) = flags {
+        return range_from_defined_bounds(type_name, element_type, kind, false,
+            text.as_str() == "[]" || text.as_str() == "[)",
+            text.as_str() == "[]" || text.as_str() == "(]",
+            range_stored_text_bound(lower), range_stored_text_bound(upper), support,
+            enum_labels, enum_count);
+    };
+    RangeValue::Unknown
+}
+
 pub fn range_from_text_with_support(
     input: TextValue,
     type_name: &str,
@@ -386,16 +425,32 @@ pub fn range_from_text_with_support(
     kind: i32,
     support: RangeSupport,
 ) -> RangeValue {
+    range_from_text_defined(input, type_name, element_type, kind, support, "", -1)
+}
+
+pub fn range_from_text_defined(
+    input: TextValue,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
+) -> RangeValue {
     let plan = prepare_range_text(input);
     if range_text_needs_bounds(plan.clone()) == false {
-        return range_text_initial(plan.clone(), type_name, element_type, kind, support);
+        let initial = range_text_initial(plan.clone(), type_name, element_type, kind, support);
+        return range_with_enum_definition(initial, enum_labels, enum_count);
+    };
+    if kind == 6 && range_enum_definition_valid(enum_labels, enum_count) == false {
+        return RangeValue::Unknown;
     };
     let lower_text = range_text_bound(plan.clone(), false);
     let cidr = range_support_is_cidr(support) || element_type == "pg_catalog.cidr";
     let name = support.comparison == 200 || support.comparison == 208 || element_type == "pg_catalog.name";
     let alias_mode = range_oid_alias_mode(support, element_type);
     let utf8 = range_support_jsonb_utf8(support);
-    let lower = range_input_bound(lower_text, kind, cidr, name, alias_mode, utf8);
+    let lower = range_input_bound(lower_text, kind, cidr, name, alias_mode, utf8, enum_labels, enum_count);
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -403,14 +458,14 @@ pub fn range_from_text_with_support(
         return RangeValue::Unknown;
     };
     let upper_text = range_text_bound(plan.clone(), true);
-    let upper = range_input_bound(upper_text, kind, cidr, name, alias_mode, utf8);
+    let upper = range_input_bound(upper_text, kind, cidr, name, alias_mode, utf8, enum_labels, enum_count);
     if let ArrayElement::Error(error) = upper {
         return RangeValue::Error(error);
     };
     if let ArrayElement::Unknown = upper {
         return RangeValue::Unknown;
     };
-    finish_range_text(plan, type_name, element_type, kind, support, lower, upper)
+    finish_range_text_defined(plan, type_name, element_type, kind, support, lower, upper, enum_labels, enum_count)
 }
 
 pub fn range_from_text(

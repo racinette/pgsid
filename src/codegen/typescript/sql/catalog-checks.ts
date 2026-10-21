@@ -886,7 +886,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
       if(cell===null) return null
       bounds.push(cell)
     }
-    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
+    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,enumLabels:'',enumCount:-1,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
   }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}
@@ -1082,7 +1082,7 @@ function checkRustRange(row: object, name: string): _checkRust.RangeValue {
     if (cell===null) return _checkRust.rangeUnknown()
     bounds.push(cell)
   }
-  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
+  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels:'',enumCount:-1,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)

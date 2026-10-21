@@ -296,11 +296,24 @@ pub fn multirange_from_text_with_support(
     element_kind: i32,
     support: RangeSupport,
 ) -> MultirangeValue {
+    multirange_from_text_defined(input, type_name, range_type, element_type, element_kind, support, "", -1)
+}
+
+pub fn multirange_from_text_defined(
+    input: TextValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
+) -> MultirangeValue {
     let mut cursor = prepare_multirange_text(input);
     while multirange_text_has_member(&cursor) {
         let text = multirange_text_member(&cursor);
         let member =
-            range_from_text_with_support(text, range_type, element_type, element_kind, support);
+            range_from_text_defined(text, range_type, element_type, element_kind, support, enum_labels, enum_count);
         cursor = append_multirange_text(cursor, member);
     }
     finish_multirange_text(

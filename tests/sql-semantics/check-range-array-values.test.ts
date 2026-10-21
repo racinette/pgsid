@@ -267,7 +267,7 @@ fn range_array_state_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
 }
 fn range_array_state_raw(lower:ArrayElement,upper:ArrayElement)->ArrayElement {
  let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(lower);bounds.push(upper);
- ArrayElement::Range(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
+ ArrayElement::Range(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
 }
 fn range_array_state_single(element:ArrayElement,kind:i32)->ArrayValue {
  let mut dimensions:Vec<ArrayDimension>=Vec::new();dimensions.push(ArrayDimension {lower:1,length:1});
@@ -284,7 +284,7 @@ fn range_array_state_replace(input:ArrayValue,replacement:ArrayElement)->ArrayVa
 fn range_array_state_revise(input:RangeValue)->RangeValue {
  if let RangeValue::Value(payload)=input {
   let mut bounds=payload.bounds;bounds[1]=ArrayElement::Int4(9);
-  return make_coerced_range_value(RangePayload {type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
+  return make_coerced_range_value(RangePayload {enum_labels:payload.enum_labels,enum_count:payload.enum_count,type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
  };
  input
 }
@@ -316,7 +316,7 @@ pub fn range_array_state_probe(mode:Int4Value)->BoolValue {
   if selected==8 {return array_is_null(range_array_state_single(array_element_from_range(span),2));};
   if selected==9 {
    let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(ArrayElement::Int4(1));
-   let malformed_count=ArrayElement::Range(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
+   let malformed_count=ArrayElement::Range(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
    return range_is_null(array_element_to_range(malformed_count));
   };
   if selected==10 {return array_is_null(range_array_state_single(range_array_state_raw(ArrayElement::Error(first),ArrayElement::Error(second)),42));};
