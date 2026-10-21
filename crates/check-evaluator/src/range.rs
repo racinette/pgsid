@@ -86,7 +86,13 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
         || (input.comparison == kind
-            && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 10));
+            && (kind == 2
+                || kind == 3
+                || kind == 4
+                || kind == 5
+                || kind == 7
+                || kind == 8
+                || kind == 10));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));

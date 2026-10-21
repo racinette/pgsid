@@ -118,6 +118,9 @@ fn range_output_bound(input: ArrayElement, kind: i32) -> TextValue {
     if kind == 10 {
         return array_numeric_output(array_element_to_numeric(input));
     };
+    if kind == 8 {
+        return array_element_to_text(input);
+    };
     if kind == 7 {
         if let ArrayElement::Date(value) = input {
             if value == -2147483647 - 1 {

@@ -56,8 +56,7 @@ Done per form when the binder produces a meaningful expression, production evalu
       `008_inventory_allocation/movement_increases_quantity`, constraint
       `movement_classification_inputs`.
 
-Use the surface report's constraint identities and bound expressions to locate each case. A cast, collation restriction, unavailable input, and missing
-implementation require different fixes. Existing formatters do not prove that
+Use the surface report's constraint identities and bound expressions to locate each case. A cast, collation restriction, unavailable input, and missing implementation require different fixes. Existing formatters do not prove that
 the binder reaches them through every cast path.
 
 Done when each case either evaluates with parity or has an explicit, tested
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit custom range/multirange binary output and seeded/unseeded hashes through captured subtype and default operator support, including recursive array hashes, exact numeric wire scales and complete byte-order alternatives. Preserve domain-array missing-hash errors, strict seeds, eager input, lazy branches, successful hash uncertainty during preparation, independent catalogs and public inputs; defer reached user callbacks and explicit runtime type-cache incompatibilities. Verify native/raw/stored INSERT and Rust/Go/TypeScript parity.
 - [x] Admit custom range/multirange JSON conversion through captured output and function-cast categories, including recursive/domain arrays and typed VARIADIC builders; preserve exact formatting, SQL NULL skips, staged key errors, eager argument errors, lazy input, missing metadata and reached callback/context requirements. Verify independent public adapters, native INSERTs and Rust/Go/TypeScript parity.
 - [x] Bind captured constructor defaults through qualified stored expressions, including named omissions, strict NULLs, domain/scalar coercion and variadic array defaults. Preserve exact numeric scales, stored temporal values and isolated binding without column capture; retain unavailable expression preparation before guards and later errors. Verify native INSERTs, independent catalogs, public adapters and Rust/Go/TypeScript parity.
-- [ ] Complete additional range subtype backends; retain unavailable callback and execution-context requirements separately.
+- [x] Establish owned text range/multirange bounds, C/UTF8 comparison support and explicit-support text input before SQL admission; reuse shared text ordering and range grammar/output, preserve empty/unbounded/quoted distinctions, normalization, reached unavailable support and independent nested snapshots across native/Rust/Go/TypeScript checks.
+- [ ] Admit text range/multirange SQL binding through captured collation/comparator support, then complete additional range subtype backends; retain unavailable callback and execution-context requirements separately.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
