@@ -726,8 +726,29 @@ export interface RangeCallResolution {
   implicitCasts: readonly { source: string; target: string; method: 'f' | 'b' | 'i' }[]
 }
 
+export interface RangeSubtypeDefinition {
+  identity: string
+  schema: string
+  name: string
+  kind: string
+  base: string | null
+  element: string | null
+  subtype: string | null
+  member: string | null
+  enumValues: string[] | null
+  input: string | null
+  output: string | null
+  send: string | null
+  equality: string | null
+  comparator: string | null
+  hash: string | null
+  hashExtended: string | null
+  hashEqualityCompatible: boolean
+}
+
 export interface RangeTypeInfo extends RangeTypeMetadata {
   subtypeEnum?: Pick<EnumInfo, 'schema' | 'name' | 'values'>
+  subtypeDefinitions?: readonly RangeSubtypeDefinition[]
   schema: string
   name: string
   multirangeSchema: string

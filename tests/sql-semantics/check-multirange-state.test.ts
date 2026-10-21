@@ -37,7 +37,7 @@ fn multirange_state_single(span:RangeValue)->MultirangeValue {
 fn multirange_state_revise(span:RangeValue)->RangeValue {
  if let RangeValue::Value(payload)=span {
   let mut bounds=payload.bounds;bounds[1]=ArrayElement::Int4(2);
-  return make_coerced_range_value(RangePayload {enum_labels:payload.enum_labels,enum_count:payload.enum_count,type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
+  return make_coerced_range_value(RangePayload {bound_profile:payload.bound_profile,enum_labels:payload.enum_labels,enum_count:payload.enum_count,type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
  };
  span
 }
@@ -88,7 +88,7 @@ pub fn multirange_state_probe(mode:Int4Value)->BoolValue {
    let mut bounds:Vec<ArrayElement>=Vec::new();
    if selected==10 {bounds.push(ArrayElement::Text("bad bound tag".to_owned()));} else {bounds.push(ArrayElement::Error(first));};
    bounds.push(ArrayElement::Int4(3));
-   let malformed=RangeValue::Value(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
+   let malformed=RangeValue::Value(RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
    return multirange_is_null(multirange_state_single(malformed));
   };
   if selected==11 || selected==12 || selected==13 {

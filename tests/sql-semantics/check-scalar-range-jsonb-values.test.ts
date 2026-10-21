@@ -215,7 +215,7 @@ fn jsonb_span_coerced(lower:ArrayElement,upper:ArrayElement,support:RangeSupport
  if let ArrayElement::Null=lo {lower_inclusive=false;};
  if let ArrayElement::Null=hi {upper_inclusive=false;};
  let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(lower);bounds.push(upper);
- make_coerced_range_value(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"public.jsonb_span".to_owned(),element_type:"pg_catalog.jsonb".to_owned(),element_kind:12,support,empty:false,lower_inclusive,upper_inclusive,bounds})
+ make_coerced_range_value(RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"public.jsonb_span".to_owned(),element_type:"pg_catalog.jsonb".to_owned(),element_kind:12,support,empty:false,lower_inclusive,upper_inclusive,bounds})
 }
 fn jsonb_span_node(input:JsonbNode,child:usize,next:usize,end:usize,kind:i32,key_end:usize)->JsonbNode {
  JsonbNode {kind,child,next,key_start:input.key_start,key_end,text_start:input.text_start,text_end:end}

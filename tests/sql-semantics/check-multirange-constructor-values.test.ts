@@ -298,7 +298,7 @@ pub fn multirange_construct_state_probe(mode:Int4Value)->BoolValue {
   };
   if selected==16 {
    let bounds:Vec<ArrayElement>=Vec::new();
-   let span=RangeValue::Value(RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
+   let span=RangeValue::Value(RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
    return multirange_is_null(sql__pg_catalog__int4multirange__weie(span));
   };
   if selected==18 {

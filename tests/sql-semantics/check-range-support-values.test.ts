@@ -221,7 +221,7 @@ fn support_states()->BoolValue {
 }
 fn support_builtin_array_defaults()->BoolValue {
  let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(ArrayElement::Int4(1));bounds.push(ArrayElement::Int4(3));
- let raw=RangePayload {enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_unknown_support(),empty:false,lower_inclusive:true,upper_inclusive:false,bounds};
+ let raw=RangePayload {bound_profile:empty_range_bound_context(),enum_labels:String::new(),enum_count:-1,type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_unknown_support(),empty:false,lower_inclusive:true,upper_inclusive:false,bounds};
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(RangeValue::Value(raw.clone()));
  let multi=MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_unknown_support(),ranges};
  let mut multi_cells:Vec<ArrayElement>=Vec::new();multi_cells.push(ArrayElement::Multirange(multi));
@@ -296,6 +296,7 @@ pub fn support_values_probe(mode:Int4Value)->BoolValue {
             elementKind: 2,
             enumLabels: '',
             enumCount: -1,
+            boundProfile: { nodes: [] },
             support: { comparison: 2, canonical: 1 },
             empty: false,
             lowerInclusive: true,

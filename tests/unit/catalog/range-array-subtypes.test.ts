@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { readRangeTypes } from '../../../src/postgres/range-types.js'
+import { comparableStates } from '../../../src/catalog/diff.js'
 import {
   builtinTypeComparison,
   builtinTypeIO,
@@ -45,12 +47,66 @@ it('captures array subtype identities and dependencies independently of deployme
       expect(array.category).toBe('A')
       expect(array.element).not.toBeNull()
       expect(definitions.has(array.element!)).toBe(true)
+      const captured = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
+      expect([...captured.keys()].sort()).toEqual(
+        [...definitions.keys()]
+          .filter((identity) => {
+            const required = new Set([profile.subtype, carrier, array.element!])
+            if (profile.name === 'domain_span') required.add('"Range.Bags".int_bag')
+            return required.has(identity)
+          })
+          .sort(),
+      )
+      expect(captured.get(carrier)).toMatchObject({
+        kind: 'b',
+        element: array.element,
+        base: null,
+        subtype: null,
+        member: null,
+        enumValues: null,
+        comparator: builtinTypeComparison('pg_catalog.anyarray')!.comparator,
+        output: builtinTypeIO('pg_catalog._int4')!.output,
+      })
+      const leaf = captured.get(array.element!)!
+      expect(leaf).toBeDefined()
+      expect(leaf.enumValues).toEqual(profile.name === 'enum_span' ? ['z', 'a'] : null)
+      expect(leaf.comparator).toBe(
+        profile.name === 'json_span'
+          ? null
+          : builtinTypeComparison(
+              profile.name === 'enum_span' ? 'pg_catalog.anyenum' : array.element!,
+            )!.comparator,
+      )
+      if (profile.name === 'domain_span') {
+        expect(captured.get(profile.subtype)!.base).toBe('"Range.Bags".int_bag')
+        expect(captured.get('"Range.Bags".int_bag')!.base).toBe('pg_catalog._int4')
+      }
+      expect(
+        profile.subtypeDefinitions!.every((node) =>
+          Object.keys(node).every((key) => !/oid/i.test(key)),
+        ),
+      ).toBe(true)
       const input = builtinMetadata(profile.subtypeInput!)
       expect(input.kind).toBe('function')
       expect(input.name).toBe(profile.name === 'domain_span' ? 'domain_in' : 'array_in')
       expect(input.args).toEqual(['pg_catalog.cstring', 'pg_catalog.oid', 'pg_catalog.int4'])
       if (profile.name === 'enum_span') expect(array.element).toBe('"Range.Bags".stage')
     }
+    expect(
+      (await readRangeTypes(a, 'Range.Bags')).every((range) => !('subtypeDefinitions' in range)),
+    ).toBe(true)
+    const originalState = structuredClone(comparableStates(left))
+    const enumNode = left.rangeTypes
+      .find((profile) => profile.name === 'enum_span')!
+      .subtypeDefinitions!.find((node) => node.enumValues !== null)!
+    enumNode.enumValues!.push('caller mutation')
+    expect(comparableStates(left)).not.toEqual(originalState)
+    expect(
+      right.rangeTypes
+        .find((profile) => profile.name === 'enum_span')!
+        .subtypeDefinitions!.find((node) => node.enumValues !== null)!.enumValues,
+    ).toEqual(['z', 'a'])
+    expect(comparableStates(await snapshotCatalog(a))).toEqual(originalState)
     const reference = async (sql: string) => (await a.query<{ value: string }>(sql)).rows[0]!.value
     expect(
       await reference(

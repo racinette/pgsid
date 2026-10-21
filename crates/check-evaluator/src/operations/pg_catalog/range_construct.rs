@@ -2,6 +2,44 @@ const RANGE_CONSTRUCTOR_DATA_ERROR: u32 = 3452544;
 const RANGE_CONSTRUCTOR_FLAGS_ERROR: u32 = 6819553;
 const RANGE_CONSTRUCTOR_INTEGER_OVERFLOW: u32 = 3452547;
 const RANGE_CONSTRUCTOR_DATE_OVERFLOW: u32 = 3452552;
+const RANGE_ARRAY_COMPARISON_UNDEFINED: u32 = 6822435;
+
+fn range_profiled_array_compare(lower: ArrayElement, upper: ArrayElement, profile: &RangeBoundContext, index: usize, other: &RangeBoundContext, other_index: usize) -> Int4Value {
+    let pair = array_comparison_pair(lower.clone(), upper.clone(), false);
+    if array_pair_requires_scalar(pair) == false { return pair; };
+    if index >= profile.nodes.len() || other_index >= other.nodes.len() { return Int4Value::Unknown; };
+    let node = profile.nodes[index].clone();
+    let peer = other.nodes[other_index].clone();
+    if node.kind != peer.kind || node.comparison != peer.comparison || node.missing_comparison != peer.missing_comparison { return Int4Value::Unknown; };
+    if node.missing_comparison { return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED)); };
+    if node.kind != 41 {
+        if node.kind == 6 && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count) { return Int4Value::Unknown; };
+        return range_builtin_compare(lower, upper, node.comparison);
+    };
+    if node.comparison != 41 || node.child >= profile.nodes.len() || peer.child >= other.nodes.len() || node.element_type != peer.element_type { return Int4Value::Unknown; };
+    if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison { return Int4Value::Unknown; };
+    let left = array_element_to_array(lower);
+    let right = array_element_to_array(upper);
+    let plan = prepare_array_comparison(left, right, false, profile.nodes[node.child].missing_comparison == false);
+    let mut result = array_comparison_initial(&plan);
+    let mut position = make_int4_value(0);
+    while array_comparison_continues(&plan, position, result) {
+        let a = array_comparison_element_at(&plan, position, false);
+        let b = array_comparison_element_at(&plan, position, true);
+        result = range_profiled_array_compare(a, b, profile, node.child, other, peer.child);
+        position = array_text_next_index(position);
+    }
+    finish_array_comparison(&plan, result)
+}
+
+fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32, profile: &RangeBoundContext, other: &RangeBoundContext) -> Int4Value {
+    if let ArrayElement::Null = lower { return make_int4_value(-1); };
+    if let ArrayElement::Null = upper { return make_int4_value(-1); };
+    if comparison == 41 {
+        return range_profiled_array_compare(lower, upper, profile, 0, other, 0);
+    };
+    range_builtin_compare(lower, upper, comparison)
+}
 
 fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) -> Int4Value {
     if let ArrayElement::Null = lower {
@@ -174,8 +212,9 @@ fn range_profile_serialize(
     support: RangeSupport,
     enum_labels: &str,
     enum_count: i32,
+    bound_profile: RangeBoundContext,
 ) -> RangeValue {
-    let comparison = range_builtin_compare(lower.clone(), upper.clone(), support.comparison);
+    let comparison = range_typed_compare(lower.clone(), upper.clone(), support.comparison, &bound_profile, &bound_profile);
     if let Int4Value::Error(error) = comparison {
         return RangeValue::Error(error);
     };
@@ -184,7 +223,7 @@ fn range_profile_serialize(
             return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_DATA_ERROR));
         };
         if order == 0 && (lower_inclusive == false || upper_inclusive == false) {
-            return range_from_defined_bounds(
+            return range_from_typed_bounds(
                 type_name,
                 element_type,
                 kind,
@@ -196,6 +235,7 @@ fn range_profile_serialize(
                 support,
                 enum_labels,
                 enum_count,
+                bound_profile,
             );
         };
         let mut lo_inc = lower_inclusive;
@@ -206,7 +246,7 @@ fn range_profile_serialize(
         if let ArrayElement::Null = upper {
             hi_inc = false;
         };
-        return range_from_defined_bounds(
+        return range_from_typed_bounds(
             type_name,
             element_type,
             kind,
@@ -218,6 +258,7 @@ fn range_profile_serialize(
             support,
             enum_labels,
             enum_count,
+            bound_profile,
         );
     };
     RangeValue::Unknown
@@ -317,6 +358,7 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
             value.support,
             value.enum_labels.as_str(),
             value.enum_count,
+            value.bound_profile.clone(),
         );
     };
     input
@@ -357,6 +399,22 @@ pub fn range_construct_defined(
     enum_labels: &str,
     enum_count: i32,
 ) -> RangeValue {
+    let profile = empty_range_bound_context();
+    range_construct_typed(type_name, element_type, kind, lower, upper, flags, support, enum_labels, enum_count, profile)
+}
+
+pub fn range_construct_typed(
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    flags: TextValue,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
+    bound_profile: RangeBoundContext,
+) -> RangeValue {
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -391,6 +449,17 @@ pub fn range_construct_defined(
             || range_enum_bound_valid(upper.clone(), enum_count) == false) {
             return RangeValue::Unknown;
         };
+        if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
+        let mut lower = lower;
+        let mut upper = upper;
+        if kind == 41 {
+            lower = range_prepare_profiled_bound(lower, &bound_profile);
+            if let ArrayElement::Error(error) = lower { return RangeValue::Error(error); };
+            if let ArrayElement::Unknown = lower { return RangeValue::Unknown; };
+            upper = range_prepare_profiled_bound(upper, &bound_profile);
+            if let ArrayElement::Error(error) = upper { return RangeValue::Error(error); };
+            if let ArrayElement::Unknown = upper { return RangeValue::Unknown; };
+        };
         let lo_inc = text.as_str() == "[]" || text.as_str() == "[)";
         let hi_inc = text.as_str() == "[]" || text.as_str() == "(]";
         let initial = range_profile_serialize(
@@ -404,6 +473,7 @@ pub fn range_construct_defined(
             support,
             enum_labels,
             enum_count,
+            bound_profile,
         );
         return range_builtin_canonical(initial);
     };

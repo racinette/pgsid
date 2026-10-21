@@ -51,7 +51,9 @@ fn range_endpoint_compare(
     if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
         return Int4Value::Unknown;
     };
-    let comparison = range_builtin_compare(a, b, left.support.comparison);
+    let left_profile = left.bound_profile.clone();
+    let right_profile = right.bound_profile.clone();
+    let comparison = range_typed_compare(a, b, left.support.comparison, &left_profile, &right_profile);
     if let Int4Value::Value(order) = comparison {
         if order != 0 {
             return comparison;
@@ -157,7 +159,9 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
     if left.element_kind == 6 && (left.enum_count != right.enum_count || left.enum_labels != right.enum_labels) {
         return BoolValue::Unknown;
     };
-    let comparison = range_builtin_compare(a.clone(), b.clone(), left.support.comparison);
+    let left_profile = left.bound_profile.clone();
+    let right_profile = right.bound_profile.clone();
+    let comparison = range_typed_compare(a.clone(), b.clone(), left.support.comparison, &left_profile, &right_profile);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
     };
@@ -184,7 +188,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
             } else {
                 flags.push(']');
             };
-            let gap = range_construct_defined(
+            let gap = range_construct_typed(
                 left.type_name.as_str(),
                 left.element_type.as_str(),
                 left.element_kind,
@@ -194,6 +198,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
                 left.support,
                 left.enum_labels.as_str(),
                 left.enum_count,
+                left.bound_profile.clone(),
             );
             return range_empty_state(gap);
         };
@@ -342,6 +347,13 @@ fn range_contains_element(
         if span.element_kind == 6 && range_enum_bound_valid(element.clone(), span.enum_count) == false {
             return BoolValue::Unknown;
         };
+        let mut element = element;
+        let bound_profile = span.bound_profile.clone();
+        if span.element_kind == 41 {
+            element = range_prepare_profiled_bound(element, &bound_profile);
+            if let ArrayElement::Error(error) = element { return BoolValue::Error(error); };
+            if let ArrayElement::Unknown = element { return BoolValue::Unknown; };
+        };
         let lower = span.bounds[0].clone();
         let upper = span.bounds[1].clone();
         let mut has_lower = true;
@@ -353,7 +365,7 @@ fn range_contains_element(
             has_upper = false;
         };
         if has_lower {
-            let comparison = range_builtin_compare(lower, element.clone(), span.support.comparison);
+            let comparison = range_typed_compare(lower, element.clone(), span.support.comparison, &bound_profile, &bound_profile);
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };
@@ -369,7 +381,7 @@ fn range_contains_element(
             };
         };
         if has_upper {
-            let comparison = range_builtin_compare(upper, element, span.support.comparison);
+            let comparison = range_typed_compare(upper, element, span.support.comparison, &bound_profile, &bound_profile);
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };

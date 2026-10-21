@@ -24790,7 +24790,7 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 						return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 					}
 				}
-				return checkruntime.RangeFromDefinedBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]), payload.Support, a.EnumLabels, a.EnumCount)
+				return checkruntime.RangeFromTypedBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]), payload.Support, a.EnumLabels, a.EnumCount, checkruntime.CopyRangeBoundContext(a.BoundProfile))
 			}
 		}
 	}
@@ -32097,7 +32097,9 @@ func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right
 	if left.ElementKind == 6 && (left.EnumCount != right.EnumCount || left.EnumLabels != right.EnumLabels) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
-	comparison := rangeBuiltinCompare(a, b, left.Support.Comparison)
+	leftProfile := checkruntime.CopyRangeBoundContext(left.BoundProfile)
+	rightProfile := checkruntime.CopyRangeBoundContext(right.BoundProfile)
+	comparison := rangeTypedCompare(a, b, left.Support.Comparison, &leftProfile, &rightProfile)
 	if comparison.Kind == checkruntime.Int4ValueValue {
 		order := langruntime.CheckedI32(comparison.Value)
 		if order != 0 {
@@ -32210,7 +32212,9 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 	if left.ElementKind == 6 && (left.EnumCount != right.EnumCount || left.EnumLabels != right.EnumLabels) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
-	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), left.Support.Comparison)
+	leftProfile := checkruntime.CopyRangeBoundContext(left.BoundProfile)
+	rightProfile := checkruntime.CopyRangeBoundContext(right.BoundProfile)
+	comparison := rangeTypedCompare(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), left.Support.Comparison, &leftProfile, &rightProfile)
 	if comparison.Kind == checkruntime.Int4ValueError {
 		error := comparison.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32235,7 +32239,7 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 			} else {
 				flags = append(flags, string(langruntime.CheckedChar(']'))...)
 			}
-			gap := RangeConstructDefined(left.TypeName, left.ElementType, left.ElementKind, a, b, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(flags)}, left.Support, left.EnumLabels, left.EnumCount)
+			gap := RangeConstructTyped(left.TypeName, left.ElementType, left.ElementKind, a, b, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(flags)}, left.Support, left.EnumLabels, left.EnumCount, checkruntime.CopyRangeBoundContext(left.BoundProfile))
 			return checkruntime.RangeEmptyState(gap)
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
@@ -32397,6 +32401,18 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 		if span.ElementKind == 6 && checkruntime.RangeEnumBoundValid(checkruntime.CopyArrayElement(element), span.EnumCount) == false {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 		}
+		element := element
+		boundProfile := checkruntime.CopyRangeBoundContext(span.BoundProfile)
+		if span.ElementKind == 41 {
+			element = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(element, &boundProfile))
+			if element.Kind == checkruntime.ArrayElementError {
+				error := element.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if element.Kind == checkruntime.ArrayElementUnknown {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+		}
 		lower := checkruntime.CopyArrayElement(span.Bounds[0])
 		upper := checkruntime.CopyArrayElement(span.Bounds[1])
 		hasLower := true
@@ -32408,7 +32424,7 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 			hasUpper = false
 		}
 		if hasLower {
-			comparison := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.Support.Comparison)
+			comparison := rangeTypedCompare(lower, checkruntime.CopyArrayElement(element), span.Support.Comparison, &boundProfile, &boundProfile)
 			if comparison.Kind == checkruntime.Int4ValueError {
 				error := comparison.Error
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32426,7 +32442,7 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 			}
 		}
 		if hasUpper {
-			comparison := rangeBuiltinCompare(upper, element, span.Support.Comparison)
+			comparison := rangeTypedCompare(upper, element, span.Support.Comparison, &boundProfile, &boundProfile)
 			if comparison.Kind == checkruntime.Int4ValueError {
 				error := comparison.Error
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32538,7 +32554,68 @@ const rangeConstructorDataError = 3452544
 const rangeConstructorFlagsError = 6819553
 const rangeConstructorIntegerOverflow = 3452547
 const rangeConstructorDateOverflow = 3452552
+const rangeArrayComparisonUndefined = 6822435
 
+func rangeProfiledArrayCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, profile *checkruntime.RangeBoundContext, index int, other *checkruntime.RangeBoundContext, otherIndex int) checkruntime.Int4Value {
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	index = langruntime.CheckedIndex(index)
+	otherIndex = langruntime.CheckedIndex(otherIndex)
+	pair := checkruntime.ArrayComparisonPair(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), false)
+	if checkruntime.ArrayPairRequiresScalar(pair) == false {
+		return pair
+	}
+	if index >= len(profile.Nodes) || otherIndex >= len(other.Nodes) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	node := profile.Nodes[index]
+	peer := other.Nodes[otherIndex]
+	if node.Kind != peer.Kind || node.Comparison != peer.Comparison || node.MissingComparison != peer.MissingComparison {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if node.MissingComparison {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(rangeArrayComparisonUndefined)}
+	}
+	if node.Kind != 41 {
+		if node.Kind == 6 && (node.EnumLabels != peer.EnumLabels || node.EnumCount != peer.EnumCount) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		return rangeBuiltinCompare(lower, upper, node.Comparison)
+	}
+	if node.Comparison != 41 || node.Child >= len(profile.Nodes) || peer.Child >= len(other.Nodes) || node.ElementType != peer.ElementType {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if profile.Nodes[node.Child].MissingComparison != other.Nodes[peer.Child].MissingComparison {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	left := checkruntime.ArrayElementToArray(lower)
+	right := checkruntime.ArrayElementToArray(upper)
+	plan := checkruntime.PrepareArrayComparison(left, right, false, profile.Nodes[node.Child].MissingComparison == false)
+	result := checkruntime.ArrayComparisonInitial(&plan)
+	position := checkruntime.MakeInt4Value(0)
+	for checkruntime.ArrayComparisonContinues(&plan, position, result) {
+		a := checkruntime.ArrayComparisonElementAt(&plan, position, false)
+		b := checkruntime.ArrayComparisonElementAt(&plan, position, true)
+		result = rangeProfiledArrayCompare(a, b, profile, node.Child, other, peer.Child)
+		position = checkruntime.ArrayTextNextIndex(position)
+	}
+	return checkruntime.FinishArrayComparison(&plan, result)
+}
+func rangeTypedCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, comparison int, profile *checkruntime.RangeBoundContext, other *checkruntime.RangeBoundContext) checkruntime.Int4Value {
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	comparison = langruntime.CheckedI32(comparison)
+	if lower.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if upper.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if comparison == 41 {
+		return rangeProfiledArrayCompare(lower, upper, profile, 0, other, 0)
+	}
+	return rangeBuiltinCompare(lower, upper, comparison)
+}
 func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, kind int) checkruntime.Int4Value {
 	lower = checkruntime.CopyArrayElement(lower)
 	upper = checkruntime.CopyArrayElement(upper)
@@ -32701,7 +32778,7 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport, enumLabels string, enumCount int) checkruntime.RangeValue {
+func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport, enumLabels string, enumCount int, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
 	kind = langruntime.CheckedI32(kind)
@@ -32709,7 +32786,8 @@ func rangeProfileSerialize(typeName string, elementType string, kind int, lower 
 	upper = checkruntime.CopyArrayElement(upper)
 	enumLabels = langruntime.CheckedString(enumLabels)
 	enumCount = langruntime.CheckedI32(enumCount)
-	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), support.Comparison)
+	boundProfile = checkruntime.CopyRangeBoundContext(boundProfile)
+	comparison := rangeTypedCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), support.Comparison, &boundProfile, &boundProfile)
 	if comparison.Kind == checkruntime.Int4ValueError {
 		error := comparison.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -32720,7 +32798,7 @@ func rangeProfileSerialize(typeName string, elementType string, kind int, lower 
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDataError)}
 		}
 		if order == 0 && (lowerInclusive == false || upperInclusive == false) {
-			return checkruntime.RangeFromDefinedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, support, enumLabels, enumCount)
+			return checkruntime.RangeFromTypedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, support, enumLabels, enumCount, boundProfile)
 		}
 		loInc := lowerInclusive
 		hiInc := upperInclusive
@@ -32730,7 +32808,7 @@ func rangeProfileSerialize(typeName string, elementType string, kind int, lower 
 		if upper.Kind == checkruntime.ArrayElementNull {
 			hiInc = false
 		}
-		return checkruntime.RangeFromDefinedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount)
+		return checkruntime.RangeFromTypedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support, enumLabels, enumCount, boundProfile)
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 }
@@ -32817,7 +32895,7 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 				}
 			}
 		}
-		return rangeProfileSerialize(value.TypeName, value.ElementType, value.ElementKind, lower, upper, loInc, hiInc, value.Support, value.EnumLabels, value.EnumCount)
+		return rangeProfileSerialize(value.TypeName, value.ElementType, value.ElementKind, lower, upper, loInc, hiInc, value.Support, value.EnumLabels, value.EnumCount, checkruntime.CopyRangeBoundContext(value.BoundProfile))
 	}
 	return input
 }
@@ -32846,6 +32924,18 @@ func RangeConstructDefined(typeName string, elementType string, kind int, lower 
 	upper = checkruntime.CopyArrayElement(upper)
 	enumLabels = langruntime.CheckedString(enumLabels)
 	enumCount = langruntime.CheckedI32(enumCount)
+	profile := checkruntime.EmptyRangeBoundContext()
+	return RangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, enumLabels, enumCount, profile)
+}
+func RangeConstructTyped(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, flags checkruntime.TextValue, support checkruntime.RangeSupport, enumLabels string, enumCount int, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	enumLabels = langruntime.CheckedString(enumLabels)
+	enumCount = langruntime.CheckedI32(enumCount)
+	boundProfile = checkruntime.CopyRangeBoundContext(boundProfile)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -32879,9 +32969,32 @@ func RangeConstructDefined(typeName string, elementType string, kind int, lower 
 		if kind == 6 && (checkruntime.RangeEnumDefinitionValid(enumLabels, enumCount) == false || checkruntime.RangeEnumBoundValid(checkruntime.CopyArrayElement(lower), enumCount) == false || checkruntime.RangeEnumBoundValid(checkruntime.CopyArrayElement(upper), enumCount) == false) {
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 		}
+		if checkruntime.RangeBoundProfileValid(&boundProfile) == false {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		lower := lower
+		upper := upper
+		if kind == 41 {
+			lower = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(lower, &boundProfile))
+			if lower.Kind == checkruntime.ArrayElementError {
+				error := lower.Error
+				return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+			}
+			if lower.Kind == checkruntime.ArrayElementUnknown {
+				return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+			}
+			upper = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(upper, &boundProfile))
+			if upper.Kind == checkruntime.ArrayElementError {
+				error := upper.Error
+				return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+			}
+			if upper.Kind == checkruntime.ArrayElementUnknown {
+				return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+			}
+		}
 		loInc := text == "[]" || text == "[)"
 		hiInc := text == "[]" || text == "(]"
-		initial := rangeProfileSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc, support, enumLabels, enumCount)
+		initial := rangeProfileSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc, support, enumLabels, enumCount, boundProfile)
 		return rangeBuiltinCanonical(initial)
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
@@ -33812,6 +33925,35 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func rangeProfiledBoundOutput(input checkruntime.ArrayElement, profile *checkruntime.RangeBoundContext, index int) checkruntime.TextValue {
+	input = checkruntime.CopyArrayElement(input)
+	index = langruntime.CheckedIndex(index)
+	if index >= len(profile.Nodes) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	node := profile.Nodes[index]
+	if node.Kind != 41 {
+		support := checkruntime.MakeRangeSupport(node.Comparison, 1)
+		return rangeOutputBound(input, node.Kind, node.TypeName == "pg_catalog.cidr", checkruntime.RangeOidAliasMode(support, node.TypeName), checkruntime.RangeSupportJsonbUtf8(support), node.EnumLabels, node.EnumCount)
+	}
+	plan := checkruntime.PrepareArrayOutput(checkruntime.ArrayElementToArray(input))
+	rendered := checkruntime.MakeArrayArguments("pg_catalog.text", 8)
+	position := checkruntime.MakeInt4Value(0)
+	for checkruntime.ArrayOutputHasElement(&plan, position) {
+		cell := checkruntime.ArrayOutputElementAt(&plan, position)
+		text := rangeProfiledBoundOutput(cell, profile, node.Child)
+		if text.Kind == checkruntime.TextValueError {
+			error := text.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if text.Kind == checkruntime.TextValueUnknown {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		rendered = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(rendered, checkruntime.ArrayElementFromText(text)))
+		position = checkruntime.ArrayTextNextIndex(position)
+	}
+	return FinishArrayOutput(plan, rendered, profile.Nodes[node.Child].Kind == 27)
+}
 func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 	input = checkruntime.CopyRangeValue(input)
 	if input.Kind == checkruntime.RangeValueError {
@@ -33829,7 +33971,11 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		cidr := checkruntime.RangeSupportIsCidr(value.Support) || value.ElementType == "pg_catalog.cidr"
 		aliasMode := checkruntime.RangeOidAliasMode(value.Support, value.ElementType)
 		utf8 := checkruntime.RangeSupportJsonbUtf8(value.Support)
+		profile := checkruntime.CopyRangeBoundContext(value.BoundProfile)
 		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr, aliasMode, utf8, value.EnumLabels, value.EnumCount)
+		if value.ElementKind == 41 {
+			lower = rangeProfiledBoundOutput(checkruntime.CopyArrayElement(value.Bounds[0]), &profile, 0)
+		}
 		if lower.Kind == checkruntime.TextValueError {
 			error := lower.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33838,6 +33984,9 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode, utf8, value.EnumLabels, value.EnumCount)
+		if value.ElementKind == 41 {
+			upper = rangeProfiledBoundOutput(checkruntime.CopyArrayElement(value.Bounds[1]), &profile, 0)
+		}
 		if upper.Kind == checkruntime.TextValueError {
 			error := upper.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33853,18 +34002,18 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 const rangeSetNoncontiguous = 3452544
 
 func rangeEmptyLike(input *checkruntime.RangePayload) checkruntime.RangeValue {
-	return checkruntime.RangeFromDefinedBounds(input.TypeName, input.ElementType, input.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, input.Support, input.EnumLabels, input.EnumCount)
+	return checkruntime.RangeFromTypedBounds(input.TypeName, input.ElementType, input.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, input.Support, input.EnumLabels, input.EnumCount, checkruntime.CopyRangeBoundContext(input.BoundProfile))
 }
 func rangeCopyPayload(input *checkruntime.RangePayload) checkruntime.RangeValue {
 	if input.Empty {
 		return rangeEmptyLike(input)
 	}
-	return checkruntime.RangeFromDefinedBounds(input.TypeName, input.ElementType, input.ElementKind, false, input.LowerInclusive, input.UpperInclusive, checkruntime.CopyArrayElement(input.Bounds[0]), checkruntime.CopyArrayElement(input.Bounds[1]), input.Support, input.EnumLabels, input.EnumCount)
+	return checkruntime.RangeFromTypedBounds(input.TypeName, input.ElementType, input.ElementKind, false, input.LowerInclusive, input.UpperInclusive, checkruntime.CopyArrayElement(input.Bounds[0]), checkruntime.CopyArrayElement(input.Bounds[1]), input.Support, input.EnumLabels, input.EnumCount, checkruntime.CopyRangeBoundContext(input.BoundProfile))
 }
 func rangeRebuild(input *checkruntime.RangePayload, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInc bool, upperInc bool) checkruntime.RangeValue {
 	lower = checkruntime.CopyArrayElement(lower)
 	upper = checkruntime.CopyArrayElement(upper)
-	initial := rangeProfileSerialize(input.TypeName, input.ElementType, input.ElementKind, lower, upper, lowerInc, upperInc, input.Support, input.EnumLabels, input.EnumCount)
+	initial := rangeProfileSerialize(input.TypeName, input.ElementType, input.ElementKind, lower, upper, lowerInc, upperInc, input.Support, input.EnumLabels, input.EnumCount, checkruntime.CopyRangeBoundContext(input.BoundProfile))
 	return rangeBuiltinCanonical(initial)
 }
 func rangePayloadDifference(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.RangeValue {

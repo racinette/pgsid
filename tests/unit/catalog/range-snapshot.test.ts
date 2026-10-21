@@ -127,13 +127,23 @@ it('captures user range and multirange support in snapshots with selected identi
     })
     expect(
       snapshot.rangeTypes.every(
-        ({ callables, callResolution: _resolution, subtypeEnum, ...profile }) =>
+        ({ callables, callResolution: _resolution, subtypeEnum, subtypeDefinitions, ...profile }) =>
           Array.isArray(callables) &&
           (!subtypeEnum ||
             (typeof subtypeEnum.schema === 'string' &&
               typeof subtypeEnum.name === 'string' &&
               subtypeEnum.values.every((value) => typeof value === 'string') &&
               Object.keys(subtypeEnum).sort().join(',') === 'name,schema,values')) &&
+          (!subtypeDefinitions ||
+            subtypeDefinitions.every(
+              ({ enumValues, ...node }) =>
+                (!enumValues || enumValues.every((value) => typeof value === 'string')) &&
+                Object.keys(node).every((key) => !/oid/i.test(key)) &&
+                Object.values(node).every(
+                  (value) =>
+                    value === null || typeof value === 'string' || typeof value === 'boolean',
+                ),
+            )) &&
           Object.values(profile).every(
             (v) => v === null || typeof v === 'string' || typeof v === 'boolean',
           ),

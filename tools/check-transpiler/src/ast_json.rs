@@ -165,7 +165,7 @@ fn check_types(file: &syn::File) -> Result<()> {
         .filter_map(|item| match item {
             Item::Struct(node)
                 if derive_names(&node.attrs)
-                    .is_ok_and(|traits| traits.iter().any(|trait_name| trait_name == "Copy")) =>
+                    .is_ok_and(|traits| traits.iter().any(|trait_name| trait_name == "Copy" || trait_name == "Clone")) =>
             {
                 Some(node.ident.to_string())
             }
@@ -1552,7 +1552,6 @@ mod private_owned_state_tests {
         for source in [
             "#[derive(Clone)] pub struct Arena{characters:Vec<char>}",
             "#[derive(Clone)] struct Arena{characters:Vec<String>}",
-            "#[derive(Clone)] struct Entry{value:String} #[derive(Clone)] struct Arena{entries:Vec<Entry>}",
             "#[derive(Clone)] struct Arena{characters:Vec<char>} pub fn f(mut input:Arena)->Arena{input.characters.push('a');input}",
         ] {
             assert!(parse(source).is_err(), "{source}");
@@ -1566,7 +1565,6 @@ mod private_owned_state_tests {
             "#[derive(Clone)] pub struct Payload { pub points:Vec<char> }",
             "#[derive(Clone)] pub struct Payload { points:Vec<char> } #[derive(Clone)] pub enum Value { Item(Payload) }",
             "#[derive(Clone)] pub struct Payload { pub closed:bool, points:Vec<char> } #[derive(Clone)] pub enum Value { Item(Payload) }",
-            "#[derive(Clone)] struct Vertex { value:String } #[derive(Clone)] pub struct Payload { pub points:Vec<Vertex> } #[derive(Clone)] pub enum Value { Item(Payload) }",
             "#[derive(Clone)] pub enum Value { Item(Vec<char>) }",
         ] { assert!(parse(rejected).is_err(), "{rejected}"); }
     }
@@ -1596,6 +1594,23 @@ mod private_owned_state_tests {
     }
 
     #[test]
+    fn accepts_owned_record_vectors_and_nested_contexts() {
+        for accepted in [
+            "#[derive(Clone)] struct Entry { value:String } #[derive(Clone)] struct Arena { entries:Vec<Entry> } pub fn copy(input:Arena)->Arena { let mut entries=input.entries; let saved=entries[0].clone(); entries[0]=saved.clone(); entries.push(saved); Arena{entries} }",
+            "#[derive(Clone)] pub struct Entry {pub label:String,pub points:Vec<char>} #[derive(Clone)] pub struct Context {pub entries:Vec<Entry>} #[derive(Clone)] pub struct Payload {pub context:Context} #[derive(Clone)] pub enum Value {Item(Payload)} pub fn copy(input:Value)->Value {input.clone()}",
+            "#[derive(Clone)] struct Node { children:Vec<Node>, label:String } pub fn copy(input:Node)->Node {input.clone()}",
+        ] { parse(accepted).unwrap_or_else(|error| panic!("{error}: {accepted}")); }
+        for rejected in [
+            "#[derive(Clone)] pub struct Context {pub labels:Vec<char>} #[derive(Clone)] pub struct Payload {context:Context} #[derive(Clone)] pub enum Value {Item(Payload)}",
+            "struct Inner {label:String} #[derive(Clone)] struct Outer {inner:Inner}",
+            "#[derive(Clone)] struct Node {child:Node}",
+            "#[derive(Clone)] struct Node {children:Vec<Node>,child:Node}",
+            "#[derive(Clone)] struct Node {children:Vec<Node>,invalid:Vec<String>}",
+            "#[derive(Clone)] struct Entry {value:String} fn f(input:Vec<Entry>)->Vec<Entry> {input.clone()}",
+        ] { assert!(parse(rejected).is_err(),"{rejected}"); }
+    }
+
+    #[test]
     fn accepts_recursive_owned_values_only_through_vectors() {
         for accepted in [
             "#[derive(Clone)] pub enum Cell { Null, Number(i64), Array(Payload) } #[derive(Clone)] pub struct Payload { pub items:Vec<Cell> } pub fn copy_cell(input:Cell)->Cell { input.clone() }",
@@ -1607,7 +1622,6 @@ mod private_owned_state_tests {
             "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { value:Cell }",
             "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, direct:Cell }",
             "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, invalid:Vec<String> }",
-            "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, invalid:Vec<Owned> } #[derive(Clone)] struct Owned { value:String }",
             "#[derive(Clone)] pub enum Cell { Array(Payload) } #[derive(Clone)] pub struct Payload { items:Vec<Cell> }",
             "enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell> }",
         ] {
