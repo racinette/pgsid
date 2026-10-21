@@ -13,11 +13,13 @@ tests/unit/query/espalier/.cache/
 artifacts/
 src/codegen/go/wasm/go-ast.wasm
 src/codegen/go/assets/check-rust-parser.wasm
+src/codegen/go/assets/check-catalog-grammar.wasm
 src/codegen/go/assets/check-go-transpiler.wasm
 src/codegen/go/assets/check-rust-sources.json
 src/codegen/go/assets/check-ts-prelude.ts
 tools/regex-transpiler/target/
 tools/check-transpiler/target/
+tools/check-catalog-grammar/target/
 tools/check-rust-dialect/target/
 tools/check-timezone-data/target/
 tools/check-unicode-data/target/

@@ -20847,6 +20847,103 @@ func OnPl5c6f(point checkruntime.PointValue, line checkruntime.LineValue) checkr
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func literalTextFieldsValue(elements []checkruntime.ArrayElement) checkruntime.ArrayValue {
+	elements = langruntime.CheckedStructs(elements, checkruntime.CopyArrayElement)
+	dimensions := []checkruntime.ArrayDimension{}
+	if len(elements) > 0 {
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: int(int32(len(elements)))})
+	}
+	nullBitmap := false
+	index := 0
+	for index < len(elements) {
+		item := checkruntime.CopyArrayElement(elements[index])
+		if item.Kind == checkruntime.ArrayElementNull {
+			nullBitmap = true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: "pg_catalog.text", ElementKind: 8, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.MakeBoolValue(nullBitmap)})
+}
+func LiteralTextFields(input checkruntime.TextValue, kind int) checkruntime.ArrayValue {
+	kind = langruntime.CheckedI32(kind)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	fields := []checkruntime.ArrayElement{}
+	if kind == 0 {
+		plan := PrepareRangeText(input)
+		if plan.Kind == checkruntime.RangeTextPlanError {
+			error := plan.Error
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+		}
+		if plan.Kind == checkruntime.RangeTextPlanValue {
+			value := checkruntime.CopyRangeTextPayload(plan.Value)
+			if value.Empty == false {
+				if value.LowerPresent {
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementText, Text: value.Lower}))
+				} else {
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}))
+				}
+				if value.UpperPresent {
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementText, Text: value.Upper}))
+				} else {
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}))
+				}
+			}
+			return literalTextFieldsValue(fields)
+		}
+	} else if kind == 1 {
+		cursor := PrepareMultirangeText(input)
+		for MultirangeTextHasMember(&cursor) {
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromText(MultirangeTextMember(&cursor))))
+			cursor = checkruntime.CopyMultirangeTextPayload(multirangeTextAdvance(multirangeTextPayload(cursor.Characters, cursor.Position, "", true, cursor.Ranges, 1, cursor.Error)))
+		}
+		if cursor.State == langruntime.CheckedSignedNegate(2) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: cursor.Error}
+		}
+		if cursor.State == 2 {
+			return literalTextFieldsValue(fields)
+		}
+	} else if kind == 2 {
+		plan := checkruntime.ParseArrayText(input, ',', 1)
+		if plan.Kind == checkruntime.ArrayTextPlanValue {
+			value := checkruntime.CopyArrayTextPayload(plan.Value)
+			index := 0
+			for index < len(value.Events) {
+				event := checkruntime.CopyArrayTextEvent(value.Events[index])
+				if event.Kind == checkruntime.ArrayTextEventError {
+					error := event.Error
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+				}
+				if event.Kind == checkruntime.ArrayTextEventUnknown {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+				}
+				if event.Kind == checkruntime.ArrayTextEventNull {
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}))
+				}
+				if event.Kind == checkruntime.ArrayTextEventText {
+					text := langruntime.CheckedString(event.Text)
+					langruntime.CheckedAdd(len(fields), 1)
+					fields = append(fields, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementText, Text: text}))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return literalTextFieldsValue(fields)
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func lsegEndpoint(input checkruntime.LsegValue, second bool) checkruntime.PointValue {
 	if input.Kind == checkruntime.LsegValueError {
 		error := input.Error

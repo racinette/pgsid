@@ -1,0 +1,11 @@
+[package]
+name = "pgsid-check-catalog-grammar"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+pgsid-check-evaluator = { path = "../../crates/check-evaluator" }
+serde_json = "1"

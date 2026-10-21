@@ -2500,3 +2500,12 @@ CREATE TABLE lane_audit_limits (
   CONSTRAINT wal_allowed CHECK(CASE WHEN bypass THEN true ELSE wal_band @> log_location END),
   CONSTRAINT record_allowed CHECK(CASE WHEN bypass THEN true ELSE record_band @> record_location END)
 );
+
+CREATE DOMAIN lane_cost_history AS lane_cost_window[];
+CREATE TABLE lane_budget_quotes (
+  quoted_cost money,
+  credit_limit money,
+  bypass boolean,
+  CONSTRAINT quoted_cost_band CHECK(CASE WHEN bypass THEN true ELSE quoted_cost IS NULL OR quoted_cost <@ '[1234.56,2000.01]'::lane_cost_window END),
+  CONSTRAINT quoted_credit_limit CHECK(CASE WHEN bypass THEN true ELSE credit_limit IS NULL OR credit_limit <= upper((('{"{\"[1234.56,2000.01]\",NULL}",NULL}'::lane_cost_history[])[1])[1]) END)
+);

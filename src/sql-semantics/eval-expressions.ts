@@ -230,7 +230,12 @@ export type EvalExpression =
   | { kind: 'text-to-point'; type: 'pg_catalog.point'; operand: EvalExpression }
   | { kind: 'text-to-line'; type: 'pg_catalog.line'; operand: EvalExpression }
   | { kind: 'text-to-lseg'; type: 'pg_catalog.lseg'; operand: EvalExpression }
-  | { kind: 'text-to-money'; type: 'pg_catalog.money'; operand: EvalExpression }
+  | {
+      kind: 'text-to-money'
+      type: 'pg_catalog.money'
+      operand: EvalExpression
+      moneyLiterals?: readonly { text: string; units: string }[]
+    }
   | { kind: 'text-to-xid'; type: 'pg_catalog.xid'; operand: EvalExpression }
   | { kind: 'text-to-cid'; type: 'pg_catalog.cid'; operand: EvalExpression }
   | { kind: 'text-to-pg_lsn'; type: 'pg_catalog.pg_lsn'; operand: EvalExpression }

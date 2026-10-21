@@ -10181,7 +10181,7 @@ export interface ArrayTextPayload {
     dimensions: ArrayDimension[];
     events: ArrayTextEvent[];
 }
-function copyArrayTextPayload(value: ArrayTextPayload): ArrayTextPayload {
+export function copyArrayTextPayload(value: ArrayTextPayload): ArrayTextPayload {
     return { state: langruntime.checkedI32(value.state), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), events: langruntime.checkedStructs(value.events, copyArrayTextEvent) };
 }
 export type ArrayTextPlan = {
@@ -10210,7 +10210,7 @@ export type ArrayTextEvent = {
     kind: "Error";
     value: SqlError;
 };
-function copyArrayTextEvent(value: ArrayTextEvent): ArrayTextEvent {
+export function copyArrayTextEvent(value: ArrayTextEvent): ArrayTextEvent {
     switch (value.kind) {
         case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
         case "Null": return { kind: "Null" };

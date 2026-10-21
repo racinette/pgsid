@@ -6773,3 +6773,31 @@ VALUES('empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,false);
 -- name: scalar_audit_skipped
 INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
 VALUES('empty',101,'empty',1,'empty','1','empty','0/1','empty','(1,1)',true);
+
+-- name: budget_quote_allowed
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(1234.56,2000.01,false);
+
+-- name: budget_quote_upper_edge
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(2000.01,2000.01,false);
+
+-- name: budget_quote_below_band
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(1234.55,2000.01,false);
+
+-- name: budget_quote_above_band
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(2000.02,2000.01,false);
+
+-- name: budget_quote_credit_rejected
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(1500,2000.02,false);
+
+-- name: budget_quote_null
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(NULL,NULL,false);
+
+-- name: budget_quote_skipped
+INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
+VALUES(1,3000,true);

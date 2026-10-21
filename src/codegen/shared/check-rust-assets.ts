@@ -6,7 +6,11 @@ export function checkRustAsset(name: string): Buffer {
   const source = new URL(`../go/assets/${name}`, import.meta.url)
   const bundled = new URL(`./${name}`, import.meta.url)
   if (!existsSync(source) && !existsSync(bundled)) {
-    const build = new URL('../../../scripts/build-check-rust-wasm.sh', import.meta.url)
+    const script =
+      name === 'check-catalog-grammar.wasm'
+        ? 'build-check-catalog-grammar.sh'
+        : 'build-check-rust-wasm.sh'
+    const build = new URL('../../../scripts/' + script, import.meta.url)
     if (!existsSync(build)) throw new Error(`Missing packaged CHECK Rust asset: ${name}`)
     execFileSync('bash', [fileURLToPath(build)], { stdio: 'inherit' })
   }

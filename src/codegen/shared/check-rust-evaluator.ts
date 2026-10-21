@@ -888,6 +888,7 @@ export function emitCheckRustEvaluator(
   }
 
   let storedArrayInputScope = false
+  let storedArrayMoneyLiterals: readonly { text: string; units: string }[] | undefined
   let declaredArrayInputScope = false
   const renderArrayInputElement = (
     elementType: string,
@@ -912,6 +913,7 @@ export function emitCheckRustEvaluator(
       const outerInput = localInputs.get(key),
         outerValidity = arrayValidityScope,
         outerStored = storedArrayInputScope,
+        outerMoney = storedArrayMoneyLiterals,
         outerDeclared = declaredArrayInputScope,
         outerDepth = preparationDepth
       localInputs.set(key, {
@@ -922,6 +924,7 @@ export function emitCheckRustEvaluator(
       })
       arrayValidityScope = null
       storedArrayInputScope = stored
+      storedArrayMoneyLiterals = stored ? moneyLiterals : undefined
       declaredArrayInputScope = declaredArrayInputScope || declaredEncoding
       preparationDepth = 0
       try {
@@ -940,6 +943,7 @@ export function emitCheckRustEvaluator(
         else localInputs.delete(key)
         arrayValidityScope = outerValidity
         storedArrayInputScope = outerStored
+        storedArrayMoneyLiterals = outerMoney
         declaredArrayInputScope = outerDeclared
         preparationDepth = outerDepth
       }
@@ -1544,7 +1548,7 @@ export function emitCheckRustEvaluator(
         event,
         stored,
         lines,
-        node.kind === 'array-text-literal' ? node.moneyLiterals : undefined,
+        node.kind === 'array-text-literal' ? node.moneyLiterals : storedArrayMoneyLiterals,
         conversion !== undefined || declaredArrayInputScope,
         stored ? (node.storedInputConversion ?? node.inputConversion) : node.inputConversion,
         used,
@@ -3958,7 +3962,11 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Money input requires text and its catalog I/O identity',
         )
-      return { name: bind(`money_from_text(${ownedOperand(operand)})`), type: node.type }
+      const literals = node.moneyLiterals
+      const value = literals?.length
+        ? `money_from_captured_text(${ownedOperand(operand)},${rustStringLiteral(literals.map((literal) => literal.text).join('\0'))},${rustStringLiteral(literals.map((literal) => literal.units).join('\0'))},${literals.length})`
+        : `money_from_text(${ownedOperand(operand)})`
+      return { name: bind(value), type: node.type }
     }
     if (node.kind === 'text-to-xid') {
       const operand = emitScalar(node.operand, bindings, used)

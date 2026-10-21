@@ -182,12 +182,11 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       counts, binary output, geometric equality, containment and path/box conversions;
       defer ambiguous omitted bounds while retaining known nullness and lengths.
 - [ ] Geometry, after public floating-point support.
-- [ ] Full-text documents (`tsvector`): portable lexemes, positions, weights and operations; defer behind common CHECK families and retain configuration-dependent text processing requirements.
-- [ ] Full-text queries (`tsquery`): portable query trees, input/output and matching; defer behind common CHECK families and retain configuration-dependent query construction requirements.
-- [ ] ACL entries (`aclitem`): assess portable privilege payloads separately from role-name lookup and runtime authorization; defer behind common CHECK families without assuming deployment role OIDs.
+- [ ] Full-text documents (`tsvector`), queued after common CHECK families: implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
+- [ ] Full-text queries (`tsquery`), queued after common CHECK families: implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
+- [ ] ACL entries (`aclitem`), queued after common CHECK families: implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
 - [ ] XML values, with document/content and execution-context requirements explicit.
-- [x] Establish money payloads, comparisons, arithmetic, binary output and words,
-      and capture stored CHECK literals while classifying monetary context.
+- [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts,
       unsigned relations, public inputs and native signed-char hash requirements.
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit owned text ranges/multiranges through captured comparator/collation support and declared C/UTF8 ordering, including subtype domains, constructors, literals, ordered input, output, arrays, JSON, wire and hashes. Preserve compiled support over caller metadata, snapshots, strict/partial states, preparation, lazy branches and reached callback/encoding requirements; verify independent catalogs, public adapters and native/Rust/Go/TypeScript INSERT parity.
 - [x] Establish owned range/multirange backends over represented smallint, Boolean, network, bit/binary, MAC, UUID, floating, clock/interval, money and identifier carriers before SQL admission. Reuse scalar comparators, parsers and portable output; preserve continuous semantics, exact selected bounds, NaNs, strict/partial states, snapshots and existing context deferrals across native/Rust/Go/TypeScript checks.
 - [x] Admit SQL-coerced scalar range/multirange rows through captured profiles, constructors, comparisons/sets, checked whole-value domains and recursive arrays. Validate scalar bound payloads before copying, preserve compiled support over caller metadata, exact bits/units, NULL/Unknown/errors, snapshots and reached formatting requirements; verify independent public adapters and native/Rust/Go/TypeScript INSERT parity.
-- [ ] Complete scalar range/multirange input, source/stored literals, subtype domains and output/wire/hash/JSON boundary audits, then additional subtype backends; retain unavailable callback and execution-context requirements separately.
+- [x] Recover stored money range/multirange bounds and recursive domain-array literals with shared Rust text grammar and exact captured units; preserve stored NULL tokens and avoid replaying domain checks or range callbacks. Verify native/Rust/Go/TypeScript INSERT parity and retain monetary-context requirements for runtime text casts.
+- [ ] Complete scalar range/multirange input, source/stored literals, subtype domains and output/wire/hash boundaries, including conversion of these values to JSON, then additional subtype backends; retain unavailable callback and execution-context requirements separately.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
