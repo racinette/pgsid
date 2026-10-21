@@ -240,7 +240,10 @@ export function renderTypescriptSchemaCheckArtifacts(
     return literal({
       kind: 'Value',
       value: {
-        nodes: nodes.map((node) => ({ ...node, boundProfile: { nodes: node.boundProfile } })),
+        nodes: nodes.map((node) => ({
+          ...node,
+          boundProfile: { nodes: node.boundProfile.map((bound) => ({ ...bound, fields: [] })) },
+        })),
       },
     })
   }
@@ -515,8 +518,12 @@ export function renderTypescriptSchemaCheckArtifacts(
               'nodes',
               factory.createArrayLiteralExpression(
                 nodes.map((node) =>
-                  factory.createObjectLiteralExpression(
-                    Object.entries(node).map(([key, value]) =>
+                  factory.createObjectLiteralExpression([
+                    factory.createPropertyAssignment(
+                      'fields',
+                      factory.createArrayLiteralExpression(),
+                    ),
+                    ...Object.entries(node).map(([key, value]) =>
                       factory.createPropertyAssignment(
                         key,
                         typeof value === 'string'
@@ -533,7 +540,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                               : factory.createNumericLiteral(value),
                       ),
                     ),
-                  ),
+                  ]),
                 ),
               ),
             ),

@@ -252,34 +252,85 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
             element_kind:payload.element_kind,dimensions:payload.dimensions,elements:elements}));
     };
     let profile = node.bound_profile;
-    let checked = range_prepare_profiled_bound(input,&profile);
-    if let ArrayElement::Enum(payload) = checked {return array_element_from_enum(make_enum_value(payload.ordinal));};
-    if let ArrayElement::Date(value) = checked {return array_element_from_date(make_date_value(value));};
-    if let ArrayElement::Timestamp(value) = checked {return array_element_from_timestamp(make_timestamp_value(value));};
-    if let ArrayElement::Timestamptz(value) = checked {return array_element_from_timestamptz(make_timestamptz_value(value));};
-    if let ArrayElement::Xid(value) = checked {return array_element_from_xid(make_xid_value(value));};
-    if let ArrayElement::Cid(value) = checked {return array_element_from_cid(make_cid_value(value));};
-    if let ArrayElement::Interval(payload) = checked {return array_element_from_interval(make_interval_value(payload.months,payload.days,payload.time));};
+    range_prepare_profiled_bound(input,&profile)
+}
+
+pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Enum(payload) = checked {
+        return array_element_from_enum(make_enum_value(payload.ordinal));
+    };
+    if let ArrayElement::Date(value) = checked {
+        return array_element_from_date(make_date_value(value));
+    };
+    if let ArrayElement::Timestamp(value) = checked {
+        return array_element_from_timestamp(make_timestamp_value(value));
+    };
+    if let ArrayElement::Timestamptz(value) = checked {
+        return array_element_from_timestamptz(make_timestamptz_value(value));
+    };
+    if let ArrayElement::Xid(value) = checked {
+        return array_element_from_xid(make_xid_value(value));
+    };
+    if let ArrayElement::Cid(value) = checked {
+        return array_element_from_cid(make_cid_value(value));
+    };
+    if let ArrayElement::Interval(payload) = checked {
+        return array_element_from_interval(make_interval_value(
+            payload.months,
+            payload.days,
+            payload.time,
+        ));
+    };
     if let ArrayElement::Text(text) = checked {
-        let characters:Vec<char> = text.chars().collect();let mut position:usize = 0;
-        while position < characters.len() {if characters[position] == '\0' {return ArrayElement::Unknown;};position += 1;}
+        let characters: Vec<char> = text.chars().collect();
+        let mut position: usize = 0;
+        while position < characters.len() {
+            if characters[position] == '\0' {
+                return ArrayElement::Unknown;
+            };
+            position += 1;
+        }
         return ArrayElement::Text(text);
     };
-    if let ArrayElement::ByteaUnspecified(length) = checked {if length < 0 {return ArrayElement::Unknown;};};
-    if let ArrayElement::Numeric(text) = checked {return array_element_from_numeric(make_numeric_value(text.as_str()));};
+    if let ArrayElement::ByteaUnspecified(length) = checked {
+        if length < 0 {
+            return ArrayElement::Unknown;
+        };
+    };
+    if let ArrayElement::Numeric(text) = checked {
+        return array_element_from_numeric(make_numeric_value(text.as_str()));
+    };
     if let ArrayElement::Json(payload) = checked {
         let value = make_json_value(payload.source.as_str());
         if let JsonValue::Value(actual) = value {
-            if actual.kind == payload.kind && actual.depth == payload.depth {return ArrayElement::Json(actual);};
+            if actual.kind == payload.kind && actual.depth == payload.depth {
+                return ArrayElement::Json(actual);
+            };
         };
         return ArrayElement::Unknown;
     };
-    if let ArrayElement::Jsonb(payload) = checked {return array_element_from_jsonb(jsonb_from_coerced_value(JsonbValue::Value(payload)));};
-    if let ArrayElement::Jsonpath(payload) = checked {return array_element_from_jsonpath(jsonpath_from_coerced_value(JsonpathValue::Value(payload)));};
-    if let ArrayElement::JsonpathStoredText(text) = checked {return array_element_from_jsonpath(jsonpath_from_coerced_value(JsonpathValue::StoredText(text)));};
-    if let ArrayElement::Snapshot(payload) = checked {return array_element_from_snapshot(make_snapshot_value(payload));};
-    if let ArrayElement::Path(payload) = checked {return array_element_from_path(make_path_value(payload));};
-    if let ArrayElement::Polygon(payload) = checked {return array_element_from_polygon(make_polygon_value(payload));};
+    if let ArrayElement::Jsonb(payload) = checked {
+        return array_element_from_jsonb(jsonb_from_coerced_value(JsonbValue::Value(payload)));
+    };
+    if let ArrayElement::Jsonpath(payload) = checked {
+        return array_element_from_jsonpath(jsonpath_from_coerced_value(JsonpathValue::Value(
+            payload,
+        )));
+    };
+    if let ArrayElement::JsonpathStoredText(text) = checked {
+        return array_element_from_jsonpath(jsonpath_from_coerced_value(
+            JsonpathValue::StoredText(text),
+        ));
+    };
+    if let ArrayElement::Snapshot(payload) = checked {
+        return array_element_from_snapshot(make_snapshot_value(payload));
+    };
+    if let ArrayElement::Path(payload) = checked {
+        return array_element_from_path(make_path_value(payload));
+    };
+    if let ArrayElement::Polygon(payload) = checked {
+        return array_element_from_polygon(make_polygon_value(payload));
+    };
     checked
 }
 

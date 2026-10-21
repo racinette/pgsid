@@ -4,37 +4,133 @@ const RANGE_CONSTRUCTOR_INTEGER_OVERFLOW: u32 = 3452547;
 const RANGE_CONSTRUCTOR_DATE_OVERFLOW: u32 = 3452552;
 const RANGE_ARRAY_COMPARISON_UNDEFINED: u32 = 6822435;
 
-fn range_profiled_compare(lower: ArrayElement, upper: ArrayElement, profile: &RangeBoundContext, index: usize, other: &RangeBoundContext, other_index: usize) -> Int4Value {
+fn range_profiled_compare(
+    lower: ArrayElement,
+    upper: ArrayElement,
+    profile: &RangeBoundContext,
+    index: usize,
+    other: &RangeBoundContext,
+    other_index: usize,
+) -> Int4Value {
     let pair = array_comparison_pair(lower.clone(), upper.clone(), false);
-    if array_pair_requires_scalar(pair) == false { return pair; };
-    if index >= profile.nodes.len() || other_index >= other.nodes.len() { return Int4Value::Unknown; };
+    if array_pair_requires_scalar(pair) == false {
+        return pair;
+    };
+    if index >= profile.nodes.len() || other_index >= other.nodes.len() {
+        return Int4Value::Unknown;
+    };
     let node = profile.nodes[index].clone();
     let peer = other.nodes[other_index].clone();
-    if node.kind != peer.kind || node.comparison != peer.comparison || node.missing_comparison != peer.missing_comparison { return Int4Value::Unknown; };
-    if node.missing_comparison { return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED)); };
-    if node.kind == 42 || node.kind == 43 {
-        if node.type_name != peer.type_name || node.element_type != peer.element_type
-            || node.canonical != peer.canonical || node.comparison != node.kind { return Int4Value::Unknown; };
-        if node.kind == 42 {
-            return sql__pg_catalog__range_cmp__8jgl(array_element_to_range(lower),array_element_to_range(upper));
+    if node.kind != peer.kind
+        || node.comparison != peer.comparison
+        || node.missing_comparison != peer.missing_comparison
+    {
+        return Int4Value::Unknown;
+    };
+    if node.missing_comparison {
+        return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED));
+    };
+    if node.kind == 44 {
+        if node.comparison != 44 || node.type_name != peer.type_name {
+            return Int4Value::Unknown;
         };
-        return sql__pg_catalog__multirange_cmp__mafd(array_element_to_multirange(lower),array_element_to_multirange(upper));
+        let left = array_element_to_composite(lower);
+        let right = array_element_to_composite(upper);
+        let frame = prepare_record_comparison(
+            left,
+            right,
+            node.type_name.as_str(),
+            peer.type_name.as_str(),
+            node.fields.len() as i32,
+            peer.fields.len() as i32,
+        );
+        let mut result = array_comparison_initial(&frame);
+        let mut position = make_int4_value(0);
+        let mut field: usize = 0;
+        while array_comparison_continues(&frame, position, result) {
+            let a = array_comparison_element_at(&frame, position, false);
+            let b = array_comparison_element_at(&frame, position, true);
+            let entry = node.fields[field].clone();
+            let other_entry = peer.fields[field].clone();
+            let mut available: i32 = 0;
+            if entry.comparison_available && other_entry.comparison_available {
+                available = 1;
+            };
+            result = record_comparison_pair(
+                a.clone(),
+                b.clone(),
+                entry.type_name == other_entry.type_name,
+                available,
+                false,
+            );
+            if array_pair_requires_scalar(result) {
+                result = array_order_step(range_profiled_compare(
+                    a,
+                    b,
+                    profile,
+                    entry.child,
+                    other,
+                    other_entry.child,
+                ));
+            };
+            field += 1;
+            position = array_text_next_index(position);
+        }
+        return finish_record_comparison(&frame, result);
+    };
+    if node.kind == 42 || node.kind == 43 {
+        if node.type_name != peer.type_name
+            || node.element_type != peer.element_type
+            || node.canonical != peer.canonical
+            || node.comparison != node.kind
+        {
+            return Int4Value::Unknown;
+        };
+        if node.kind == 42 {
+            return sql__pg_catalog__range_cmp__8jgl(
+                array_element_to_range(lower),
+                array_element_to_range(upper),
+            );
+        };
+        return sql__pg_catalog__multirange_cmp__mafd(
+            array_element_to_multirange(lower),
+            array_element_to_multirange(upper),
+        );
     };
     if node.kind != 41 {
-        if node.kind == 6 && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count) { return Int4Value::Unknown; };
+        if node.kind == 6
+            && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count)
+        {
+            return Int4Value::Unknown;
+        };
         return range_builtin_compare(lower, upper, node.comparison);
     };
-    if node.comparison != 41 || node.child >= profile.nodes.len() || peer.child >= other.nodes.len() || node.element_type != peer.element_type { return Int4Value::Unknown; };
-    if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison { return Int4Value::Unknown; };
+    if node.comparison != 41
+        || node.child >= profile.nodes.len()
+        || peer.child >= other.nodes.len()
+        || node.element_type != peer.element_type
+    {
+        return Int4Value::Unknown;
+    };
+    if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison {
+        return Int4Value::Unknown;
+    };
     let left = array_element_to_array(lower);
     let right = array_element_to_array(upper);
-    let plan = prepare_array_comparison(left, right, false, profile.nodes[node.child].missing_comparison == false);
+    let plan = prepare_array_comparison(
+        left,
+        right,
+        false,
+        profile.nodes[node.child].missing_comparison == false,
+    );
     let mut result = array_comparison_initial(&plan);
     let mut position = make_int4_value(0);
     while array_comparison_continues(&plan, position, result) {
         let a = array_comparison_element_at(&plan, position, false);
         let b = array_comparison_element_at(&plan, position, true);
-        result = range_profiled_compare(a, b, profile, node.child, other, peer.child);
+        result = array_order_step(range_profiled_compare(
+            a, b, profile, node.child, other, peer.child,
+        ));
         position = array_text_next_index(position);
     }
     finish_array_comparison(&plan, result)
@@ -43,7 +139,7 @@ fn range_profiled_compare(lower: ArrayElement, upper: ArrayElement, profile: &Ra
 fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32, profile: &RangeBoundContext, other: &RangeBoundContext) -> Int4Value {
     if let ArrayElement::Null = lower { return make_int4_value(-1); };
     if let ArrayElement::Null = upper { return make_int4_value(-1); };
-    if comparison >= 41 && comparison <= 43 {
+    if comparison >= 41 && comparison <= 44 {
         return range_profiled_compare(lower, upper, profile, 0, other, 0);
     };
     range_builtin_compare(lower, upper, comparison)
@@ -460,7 +556,7 @@ pub fn range_construct_typed(
         if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
         let mut lower = lower;
         let mut upper = upper;
-        if kind >= 41 && kind <= 43 {
+        if kind >= 41 && kind <= 44 {
             lower = range_prepare_profiled_bound(lower, &bound_profile);
             if let ArrayElement::Error(error) = lower { return RangeValue::Error(error); };
             if let ArrayElement::Unknown = lower { return RangeValue::Unknown; };

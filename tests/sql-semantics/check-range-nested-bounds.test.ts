@@ -545,7 +545,7 @@ fn nested_multi(left:RangeValue,right:RangeValue,multi:&str,span:&str,subtype:&s
 fn nested_snapshot()->BoolValue {
  let original=${sample};let saved=original.clone();
  if let RangeValue::Value(payload)=original {
-  let mut nodes=payload.bound_profile.nodes;let root=nodes[0].clone();nodes[0]=RangeBoundProfile{type_name:root.type_name,kind:root.kind,comparison:0,canonical:0,missing_comparison:false,element_type:root.element_type,child:root.child,enum_labels:root.enum_labels,enum_count:root.enum_count};
+  let mut nodes=payload.bound_profile.nodes;let root=nodes[0].clone();nodes[0]=RangeBoundProfile{type_name:root.type_name,kind:root.kind,comparison:0,canonical:0,missing_comparison:false,element_type:root.element_type,child:root.child,enum_labels:root.enum_labels,enum_count:root.enum_count,fields:root.fields};
   let bound=payload.bounds[0].clone();if let ArrayElement::Range(inner)=bound{let mut bounds=inner.bounds;bounds[0]=ArrayElement::Unknown;};
   let mut outer=payload.bounds;outer[0]=ArrayElement::Unknown;
   if let RangeValue::Value(before)=saved {
@@ -565,8 +565,8 @@ fn nested_scalar_error_order()->BoolValue {
 fn nested_invalid(mode:i32)->BoolValue {
  let mut profile=nested_profile_sets();let root=profile.nodes[0].clone();let mut canonical=root.canonical;let mut element=root.element_type;let mut child=root.child;
  if mode==0 {canonical=2;};if mode==1 {element="public.other".to_owned();};if mode==2 {child=2;};
- profile.nodes[0]=RangeBoundProfile{type_name:root.type_name,kind:root.kind,comparison:root.comparison,canonical,missing_comparison:false,element_type:element,child,enum_labels:root.enum_labels,enum_count:root.enum_count};
- if mode==3 {let member=profile.nodes[1].clone();profile.nodes[1]=RangeBoundProfile{type_name:member.type_name,kind:member.kind,comparison:member.comparison,canonical:3,missing_comparison:false,element_type:member.element_type,child:member.child,enum_labels:member.enum_labels,enum_count:member.enum_count};};
+ profile.nodes[0]=RangeBoundProfile{type_name:root.type_name,kind:root.kind,comparison:root.comparison,canonical,missing_comparison:false,element_type:element,child,enum_labels:root.enum_labels,enum_count:root.enum_count,fields:root.fields};
+ if mode==3 {let member=profile.nodes[1].clone();profile.nodes[1]=RangeBoundProfile{type_name:member.type_name,kind:member.kind,comparison:member.comparison,canonical:3,missing_comparison:false,element_type:member.element_type,child:member.child,enum_labels:member.enum_labels,enum_count:member.enum_count,fields:member.fields};};
  let actual=range_construct_typed("public.sets_span","pg_catalog.int4multirange",43,${emptySet},ArrayElement::Null,make_text_value("[]"),make_range_support(43,1),"",-1,profile);range_is_null(actual)
 }
 fn nested_forged(mode:i32)->BoolValue {
