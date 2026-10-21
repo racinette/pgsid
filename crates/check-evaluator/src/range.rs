@@ -85,6 +85,7 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
+        || (kind == 12 && input.comparison == 120)
         || (kind == 13 && range_support_is_cidr(input))
         || (kind == 33 && range_oid_alias_mode(input, "") > 0)
         || (kind == 8 && (input.comparison == 108 || input.comparison == 200 || input.comparison == 208))
@@ -124,6 +125,10 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
 
 pub fn range_support_is_cidr(input: RangeSupport) -> bool {
     input.comparison == 100 || input.comparison == 113
+}
+
+pub fn range_support_jsonb_utf8(input: RangeSupport) -> bool {
+    input.comparison == 12 || input.comparison == 120
 }
 
 pub fn range_oid_alias_mode(input: RangeSupport, element_type: &str) -> i32 {

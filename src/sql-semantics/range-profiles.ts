@@ -27,6 +27,7 @@ const subtypeKinds = {
   'pg_catalog.name': 8,
   'pg_catalog.bool': 9,
   'pg_catalog."numeric"': 10,
+  'pg_catalog.jsonb': 12,
   'pg_catalog.inet': 13,
   'pg_catalog.cidr': 13,
   'pg_catalog."bit"': 14,
@@ -274,6 +275,7 @@ export function rangeProfileSupport(
   const comparison =
     profile.comparator !== null &&
     profile.comparator === builtinTypeComparison(profile.elementType)?.comparator &&
+    (kind !== 12 || (context.defaultCollation === 'C' && context.serverEncoding === 'UTF8')) &&
     (kind !== 8 ||
       (context.serverEncoding === 'UTF8' &&
         (profile.collationIsC === true ||
@@ -299,21 +301,28 @@ export function rangeProfileSupport(
               ? 1
               : 0
   return {
-    comparison: aliasMode
-      ? (comparison === 33 ? 330 : 300) + aliasMode
-      : profile.elementType === 'pg_catalog.cidr'
-        ? comparison === 13
-          ? 113
-          : 100
-        : profile.elementType === 'pg_catalog.bpchar'
-          ? comparison === 8
-            ? 108
-            : 0
-          : profile.elementType === 'pg_catalog.name'
-            ? comparison === 8
-              ? 208
-              : 200
-            : comparison,
+    comparison:
+      kind === 12
+        ? context.serverEncoding === 'UTF8'
+          ? comparison === 12
+            ? 12
+            : 120
+          : 0
+        : aliasMode
+          ? (comparison === 33 ? 330 : 300) + aliasMode
+          : profile.elementType === 'pg_catalog.cidr'
+            ? comparison === 13
+              ? 113
+              : 100
+            : profile.elementType === 'pg_catalog.bpchar'
+              ? comparison === 8
+                ? 108
+                : 0
+              : profile.elementType === 'pg_catalog.name'
+                ? comparison === 8
+                  ? 208
+                  : 200
+                : comparison,
     canonical,
   }
 }

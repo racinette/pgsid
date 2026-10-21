@@ -921,6 +921,10 @@ describe('world CHECK INSERT parity', () => {
           goRow[name] = null
           continue
         }
+        const rangeCell = (carrier: string, bound: string | null) =>
+          carrier === 'pg_catalog.jsonb' && bound !== null
+            ? jsonbRuntime.arrayElementFromJsonb(jsonbRuntime.makeJsonbValue(bound))
+            : rangeBoundCell(carrier, bound)
         const convert = (
           raw: CapturedArray,
           arrayType: string,
@@ -958,7 +962,7 @@ describe('world CHECK INSERT parity', () => {
                     kind: 'Value',
                     value: {
                       ...span,
-                      bounds: span.bounds.map((bound) => rangeBoundCell(span.carrier, bound)),
+                      bounds: span.bounds.map((bound) => rangeCell(span.carrier, bound)),
                     },
                   })),
                 },
@@ -970,7 +974,7 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Range',
                 value: {
                   ...payload,
-                  bounds: payload.bounds.map((bound) => rangeBoundCell(payload.carrier, bound)),
+                  bounds: payload.bounds.map((bound) => rangeCell(payload.carrier, bound)),
                 },
               }
             }

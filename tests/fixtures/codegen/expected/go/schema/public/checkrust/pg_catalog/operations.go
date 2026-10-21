@@ -33089,7 +33089,7 @@ func rangeInputSpace(ch rune) bool {
 	ch = langruntime.CheckedChar(ch)
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
-func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name bool, aliasMode int) checkruntime.ArrayElement {
+func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name bool, aliasMode int, utf8 bool) checkruntime.ArrayElement {
 	kind = langruntime.CheckedI32(kind)
 	aliasMode = langruntime.CheckedI32(aliasMode)
 	if kind == 8 {
@@ -33117,7 +33117,7 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 		return checkruntime.ArrayElementFromBool(ScalarBooleanFromText(input))
 	}
 	if kind == 12 {
-		return checkruntime.ArrayElementFromJsonb(checkruntime.JsonbFromText(input))
+		return checkruntime.ArrayElementFromJsonb(checkruntime.JsonbFromTextContext(input, utf8))
 	}
 	if kind == 13 {
 		if cidr {
@@ -33441,7 +33441,8 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 	cidr := checkruntime.RangeSupportIsCidr(support) || elementType == "pg_catalog.cidr"
 	name := support.Comparison == 200 || support.Comparison == 208 || elementType == "pg_catalog.name"
 	aliasMode := checkruntime.RangeOidAliasMode(support, elementType)
-	lower := rangeInputBound(lowerText, kind, cidr, name, aliasMode)
+	utf8 := checkruntime.RangeSupportJsonbUtf8(support)
+	lower := rangeInputBound(lowerText, kind, cidr, name, aliasMode, utf8)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33450,7 +33451,7 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	upperText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), true)
-	upper := rangeInputBound(upperText, kind, cidr, name, aliasMode)
+	upper := rangeInputBound(upperText, kind, cidr, name, aliasMode, utf8)
 	if upper.Kind == checkruntime.ArrayElementError {
 		error := upper.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33597,7 +33598,7 @@ func RangeFormatText(input checkruntime.RangeValue, lower checkruntime.TextValue
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
-func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, aliasMode int) checkruntime.TextValue {
+func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, aliasMode int, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyArrayElement(input)
 	kind = langruntime.CheckedI32(kind)
 	aliasMode = langruntime.CheckedI32(aliasMode)
@@ -33609,7 +33610,7 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
 	if kind == 12 {
-		return checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(input))
+		return JsonbTextContext(checkruntime.ArrayElementToJsonb(input), utf8)
 	}
 	if kind == 2 {
 		return Int4ToText(checkruntime.ArrayElementToInt4(input))
@@ -33726,7 +33727,8 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		}
 		cidr := checkruntime.RangeSupportIsCidr(value.Support) || value.ElementType == "pg_catalog.cidr"
 		aliasMode := checkruntime.RangeOidAliasMode(value.Support, value.ElementType)
-		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr, aliasMode)
+		utf8 := checkruntime.RangeSupportJsonbUtf8(value.Support)
+		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr, aliasMode, utf8)
 		if lower.Kind == checkruntime.TextValueError {
 			error := lower.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33734,7 +33736,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		if lower.Kind == checkruntime.TextValueUnknown {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
-		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode)
+		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode, utf8)
 		if upper.Kind == checkruntime.TextValueError {
 			error := upper.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}

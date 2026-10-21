@@ -2890,3 +2890,42 @@ CREATE TABLE lane_catalog_window_requests (
   bypass boolean,
   CONSTRAINT request_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_checked_relation_window))>=minimum_bytes END)
 );
+
+CREATE TYPE lane_document_window AS RANGE(subtype=jsonb,multirange_type_name=lane_document_set);
+CREATE DOMAIN lane_document_history AS lane_document_window[] CHECK(cardinality(VALUE)<=3);
+CREATE DOMAIN lane_checked_document AS jsonb NOT NULL CHECK(VALUE<>'"forbidden"'::jsonb);
+CREATE TYPE lane_checked_document_window AS RANGE(subtype=lane_checked_document);
+
+CREATE TABLE lane_document_windows (
+  document_window lane_document_window,
+  other lane_document_window,
+  window_set lane_document_set,
+  history lane_document_window[],
+  expected_order integer,
+  expected_member boolean,
+  expected_label text,
+  expected_wire text,
+  fingerprint integer,
+  seed bigint,
+  seeded_fingerprint bigint,
+  expected_json text,
+  bypass boolean,
+  CONSTRAINT document_window_order CHECK(CASE WHEN bypass THEN true ELSE range_cmp(document_window,other) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT document_window_member CHECK(CASE WHEN bypass THEN true ELSE (window_set @> document_window) IS NOT DISTINCT FROM expected_member END),
+  CONSTRAINT document_window_label CHECK(CASE WHEN bypass THEN true ELSE document_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT document_window_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(document_window),'hex') COLLATE "C" IS NOT DISTINCT FROM expected_wire COLLATE "C" END),
+  CONSTRAINT document_window_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(document_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT document_window_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range_extended(document_window,seed) IS NOT DISTINCT FROM seeded_fingerprint END),
+  CONSTRAINT document_window_json CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[history::lane_document_history])::text COLLATE "C" IS NOT DISTINCT FROM expected_json COLLATE "C" END)
+);
+
+CREATE TABLE lane_document_window_requests (
+  payload text,
+  array_payload text,
+  expected_label text,
+  minimum_bytes integer,
+  bypass boolean,
+  CONSTRAINT document_window_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_checked_document_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT document_window_array_input CHECK(CASE WHEN bypass THEN true ELSE ((array_payload::lane_checked_document_window[])[-2])::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT document_window_input_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_checked_document_window))>=minimum_bytes END)
+);

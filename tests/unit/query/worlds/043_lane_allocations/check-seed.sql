@@ -7533,3 +7533,349 @@ VALUES('[2147483648,4294967295]','[2147483648,4294967295]','!different!','!diffe
 -- name: catalog_window_labels_requires_catalog
 INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
 VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',false);
+
+-- name: document_windows_skipped
+INSERT INTO lane_document_windows (bypass) VALUES(true);
+
+-- name: document_window_requests_skipped
+INSERT INTO lane_document_window_requests (payload, array_payload, bypass) VALUES('bad','bad',true);
+
+-- name: document_windows_null
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,1234567,NULL,NULL,NULL,NULL,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,true,NULL,NULL,NULL,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,'!different!',NULL,NULL,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,'!different!',NULL,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,'-9223372036854775808',NULL,'[null]',false);
+
+-- name: document_windows_null_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'-9223372036854775808','0','[null]',false);
+
+-- name: document_windows_null_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'-9223372036854775808',NULL,'!different!',false);
+
+-- name: document_windows_empty
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'empty','01',484847245,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',1234567,true,'empty','01',484847245,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,false,'empty','01',484847245,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'!different!','01',484847245,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'empty','!different!',484847245,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'empty','01',0,'-9223372036854775808','-3543891578911138797','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'empty','01',484847245,'-9223372036854775808','0','[["empty", null, "(,)"]]',false);
+
+-- name: document_windows_empty_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('empty','(,)','{empty,(,)}','[-2:0]={"empty",NULL,"(,)"}',-1,true,'empty','01',484847245,'-9223372036854775808','-3543891578911138797','!different!',false);
+
+-- name: document_windows_unbounded
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'(,)','18',1061745599,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',1234567,true,'(,)','18',1061745599,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,false,'(,)','18',1061745599,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'!different!','18',1061745599,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'(,)','!different!',1061745599,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'(,)','18',0,'-9223372036854775808','8172483411836757076','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'(,)','18',1061745599,'-9223372036854775808','0','[["(,)", null, "(,)"]]',false);
+
+-- name: document_windows_unbounded_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('(,)','(,)','{(,),(,)}','[-2:0]={"(,)",NULL,"(,)"}',0,true,'(,)','18',1061745599,'-9223372036854775808','8172483411836757076','!different!',false);
+
+-- name: document_windows_numeric
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',1234567,true,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,false,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'!different!','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'[-10000000000000000000000.00100,1.2300]','!different!',498363479,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',0,'-9223372036854775808','7496536500229751306','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','0','[["[-10000000000000000000000.00100,1.2300]", null, "[0.00,2.000]"]]',false);
+
+-- name: document_windows_numeric_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','["0.00","2.000"]','{["-10000000000000000000000.00100","1.2300"],["0.00","2.000"]}','[-2:0]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL,"[\"0.00\",\"2.000\"]"}',-1,true,'[-10000000000000000000000.00100,1.2300]','060000001f012d31303030303030303030303030303030303030303030302e30303130300000000701312e32333030',498363479,'-9223372036854775808','7496536500229751306','!different!',false);
+
+-- name: document_windows_json_null
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'[null,null]','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',1234567,true,'[null,null]','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,false,'[null,null]','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'!different!','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'[null,null]','!different!',-1015421470,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'[null,null]','0600000005016e756c6c00000005016e756c6c',0,'-9223372036854775808','1829922683706143517','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'[null,null]','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','0','[["[null,null]", null, "[null,0]"]]',false);
+
+-- name: document_windows_json_null_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["null","null"]','["null","0"]','{["null","null"],["null","0"]}','[-2:0]={"[\"null\",\"null\"]",NULL,"[\"null\",\"0\"]"}',-1,true,'[null,null]','0600000005016e756c6c00000005016e756c6c',-1015421470,'-9223372036854775808','1829922683706143517','!different!',false);
+
+-- name: document_windows_containers
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'["[]",{}]','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',1234567,true,'["[]",{}]','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,false,'["[]",{}]','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'!different!','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'["[]",{}]','!different!',1132062176,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'["[]",{}]','0600000003015b5d00000003017b7d',0,'-9223372036854775808','-7393449346706181345','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'["[]",{}]','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','0','[["[\"[]\",{}]", null, "[{},\"{\"\"a\"\": 1.2300}\"]"]]',false);
+
+-- name: document_windows_containers_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["[]","{}"]','["{}","{\"a\":1.2300}"]','{["[]","{}"],["{}","{\"a\":1.2300}"]}','[-2:0]={"[\"[]\",\"{}\"]",NULL,"[\"{}\",\"{\\\"a\\\":1.2300}\"]"}',-1,true,'["[]",{}]','0600000003015b5d00000003017b7d',1132062176,'-9223372036854775808','-7393449346706181345','!different!',false);
+
+-- name: document_windows_duplicates
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',1234567,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,false,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'!different!','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','!different!',-203359048,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',0,'-9223372036854775808','-4772704954438588046','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','0','[["[\"{\"\"a\"\": [1.2300, null]}\",\"{\"\"a\"\": [2.000, null]}\"]", null, "[\"{\"\"a\"\": [2.000, null]}\",\"{\"\"a\"\": [3, null]}\"]"]]',false);
+
+-- name: document_windows_duplicates_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]','{["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"],["{\"a\":[2.000,null]}","{\"a\":[3,null]}"]}','[-2:0]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL,"[\"{\\\"a\\\":[2.000,null]}\",\"{\\\"a\\\":[3,null]}\"]"}',-1,true,'["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]','0600000016017b2261223a205b312e323330302c206e756c6c5d7d00000015017b2261223a205b322e3030302c206e756c6c5d7d',-203359048,'-9223372036854775808','-4772704954438588046','!different!',false);
+
+-- name: document_windows_boolean
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'[false,true]','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_expected_order
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',1234567,true,'[false,true]','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_expected_member
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,false,'[false,true]','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_expected_label
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'!different!','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_expected_wire
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'[false,true]','!different!',-1015421461,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'[false,true]','06000000060166616c7365000000050174727565',0,'-9223372036854775808','1456803258328181471','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_seeded_fingerprint
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'[false,true]','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','0','[["[false,true]", null, "[true,{}]"]]',false);
+
+-- name: document_windows_boolean_wrong_expected_json
+INSERT INTO lane_document_windows (document_window, other, window_set, history, expected_order, expected_member, expected_label, expected_wire, fingerprint, seed, seeded_fingerprint, expected_json, bypass)
+VALUES('["false","true"]','["true","{}"]','{["false","true"],["true","{}"]}','[-2:0]={"[\"false\",\"true\"]",NULL,"[\"true\",\"{}\"]"}',-1,true,'[false,true]','06000000060166616c7365000000050174727565',-1015421461,'-9223372036854775808','1456803258328181471','!different!',false);
+
+-- name: document_window_request_null
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES(NULL,NULL,NULL,1,false);
+
+-- name: document_window_request_null_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES(NULL,NULL,'!different!',1,false);
+
+-- name: document_window_request_empty
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('empty','[-2:-1]={"empty",NULL}','empty',1,false);
+
+-- name: document_window_request_empty_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('empty','[-2:-1]={"empty",NULL}','!different!',1,false);
+
+-- name: document_window_request_unbounded
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('(,)','[-2:-1]={"(,)",NULL}','(,)',1,false);
+
+-- name: document_window_request_unbounded_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('(,)','[-2:-1]={"(,)",NULL}','!different!',1,false);
+
+-- name: document_window_request_numeric
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','[-2:-1]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL}','[-10000000000000000000000.00100,1.2300]',1,false);
+
+-- name: document_window_request_numeric_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["-10000000000000000000000.00100","1.2300"]','[-2:-1]={"[\"-10000000000000000000000.00100\",\"1.2300\"]",NULL}','!different!',1,false);
+
+-- name: document_window_request_json_null
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["null","null"]','[-2:-1]={"[\"null\",\"null\"]",NULL}','[null,null]',1,false);
+
+-- name: document_window_request_json_null_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["null","null"]','[-2:-1]={"[\"null\",\"null\"]",NULL}','!different!',1,false);
+
+-- name: document_window_request_containers
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["[]","{}"]','[-2:-1]={"[\"[]\",\"{}\"]",NULL}','["[]",{}]',1,false);
+
+-- name: document_window_request_containers_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["[]","{}"]','[-2:-1]={"[\"[]\",\"{}\"]",NULL}','!different!',1,false);
+
+-- name: document_window_request_duplicates
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','[-2:-1]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL}','["{""a"": [1.2300, null]}","{""a"": [2.000, null]}"]',1,false);
+
+-- name: document_window_request_duplicates_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["{\"a\":0,\"a\":[1.2300,null]}","{\"a\":[2.000,null]}"]','[-2:-1]={"[\"{\\\"a\\\":0,\\\"a\\\":[1.2300,null]}\",\"{\\\"a\\\":[2.000,null]}\"]",NULL}','!different!',1,false);
+
+-- name: document_window_request_boolean
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["false","true"]','[-2:-1]={"[\"false\",\"true\"]",NULL}','[false,true]',1,false);
+
+-- name: document_window_request_boolean_wrong_label
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["false","true"]','[-2:-1]={"[\"false\",\"true\"]",NULL}','!different!',1,false);
+
+-- name: document_window_request_bad_json
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('[bad,1]',NULL,NULL,1,false);
+
+-- name: document_window_request_bad_range
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('bad',NULL,NULL,1,false);
+
+-- name: document_window_request_bad_array
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["0.00","1.2300"]','bad','[0.00,1.2300]',1,false);
+
+-- name: document_window_request_forbidden_bound
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["\"forbidden\"","\"forbidden\""]',NULL,NULL,1,false);
+
+-- name: document_window_request_short_wire
+INSERT INTO lane_document_window_requests (payload, array_payload, expected_label, minimum_bytes, bypass)
+VALUES('["0.00","1.2300"]','[-2:-1]={"[\"0.00\",\"1.2300\"]",NULL}','[0.00,1.2300]',100000,false);

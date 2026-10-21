@@ -2,7 +2,86 @@ import type { PGlite } from '@electric-sql/pglite'
 import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
 import type { RangeType } from '../../src/sql-semantics/expressions.js'
 import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
-import type { RangeInputCell, RangeInputPayload } from '../../tools/check-rust/range-input.js'
+import type {
+  RangeInputCell,
+  RangeInputPayload,
+  RangeJsonbPayload,
+} from '../../tools/check-rust/range-input.js'
+
+const jsonbBounds = new WeakMap<PGlite, Map<string, Promise<RangeJsonbPayload>>>()
+
+export async function readRangeBoundCell(
+  pg: PGlite,
+  subtype: string,
+  value: string | null,
+): Promise<RangeInputCell> {
+  if (subtype !== 'pg_catalog.jsonb' || value === null) return rangeBoundCell(subtype, value)
+  let cache = jsonbBounds.get(pg)
+  if (!cache) jsonbBounds.set(pg, (cache = new Map()))
+  let pending = cache.get(value)
+  if (!pending) {
+    pending = (async () => {
+      const { rows } = await pg.query<{
+        path: number[]
+        key: string | null
+        kind: string
+        content: string
+      }>(
+        `WITH RECURSIVE tree(path,key,value) AS (
+          SELECT ARRAY[]::integer[],NULL::text,$1::jsonb
+          UNION ALL
+          SELECT parent.path || children.ordinal::integer,children.key,children.value
+          FROM tree parent CROSS JOIN LATERAL (
+            SELECT ordinal,key,value FROM jsonb_each(CASE WHEN jsonb_typeof(parent.value)='object' THEN parent.value ELSE '{}'::jsonb END) WITH ORDINALITY AS objects(key,value,ordinal)
+            UNION ALL
+            SELECT ordinal,NULL::text,value FROM jsonb_array_elements(CASE WHEN jsonb_typeof(parent.value)='array' THEN parent.value ELSE '[]'::jsonb END) WITH ORDINALITY AS arrays(value,ordinal)
+          ) children
+        ) SELECT path,key,jsonb_typeof(value) kind,CASE WHEN jsonb_typeof(value)='string' THEN value#>>'{}' ELSE value::text END content FROM tree ORDER BY path`,
+        [value],
+      )
+      const payload: RangeJsonbPayload = {
+        characters: [],
+        nodes: [{ kind: -1, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }],
+        root: 1,
+      }
+      const ids = new Map<string, number>(),
+        tails = new Map<string, number>()
+      for (const row of rows) {
+        const index = payload.nodes.length,
+          keyStart = payload.characters.length
+        payload.characters.push(...(row.key ?? ''))
+        const keyEnd = payload.characters.length,
+          textStart = keyEnd
+        if (row.kind === 'number' || row.kind === 'string') payload.characters.push(...row.content)
+        payload.nodes.push({
+          kind:
+            row.kind === 'boolean'
+              ? row.content === 'true'
+                ? 2
+                : 1
+              : { null: 0, number: 3, string: 4, array: 5, object: 6 }[row.kind]!,
+          child: 0,
+          next: 0,
+          keyStart,
+          keyEnd,
+          textStart,
+          textEnd: payload.characters.length,
+        })
+        ids.set(row.path.join('.'), index)
+        if (row.path.length) {
+          const parent = row.path.slice(0, -1).join('.'),
+            previous = tails.get(parent)
+          if (previous) payload.nodes[previous]!.next = index
+          else payload.nodes[ids.get(parent)!]!.child = index
+          tails.set(parent, index)
+        }
+      }
+      return payload
+    })()
+    cache.set(value, pending)
+  }
+  return { kind: 'Jsonb', value: structuredClone(await pending) }
+}
 
 export function rangeCoreSamples(type: RangeType): {
   ranges: (string | null)[]
@@ -208,9 +287,9 @@ export async function readRangeFixture(
     upperInclusive: row.upper_inc,
     bounds: row.empty
       ? []
-      : [
-          rangeBoundCell(metadata.elementType, row.lo),
-          rangeBoundCell(metadata.elementType, row.hi),
-        ],
+      : await Promise.all([
+          readRangeBoundCell(pg, metadata.elementType, row.lo),
+          readRangeBoundCell(pg, metadata.elementType, row.hi),
+        ]),
   }
 }
