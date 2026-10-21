@@ -3001,3 +3001,13 @@ CREATE TYPE lane_document_batch_window AS RANGE(subtype=json[]);
 CREATE TABLE lane_document_batch_requests(lower_documents json[],upper_documents json[],flags text,expected_label text,bypass boolean,
   CONSTRAINT document_batch_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_document_batch_window(lower_documents,upper_documents,flags)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
 );
+
+CREATE TABLE lane_batch_fingerprints(batch_window lane_batch_window,batches lane_batch_set,windows lane_batch_window[],seed bigint,expected_word integer,expected_wide bigint,expected_multi_word integer,expected_multi_wide bigint,expected_array_word integer,expected_array_wide bigint,expected_bytes integer,bypass boolean,
+  CONSTRAINT batch_hash_word CHECK(CASE WHEN bypass THEN true ELSE hash_range(batch_window)=expected_word END),
+  CONSTRAINT batch_hash_wide CHECK(CASE WHEN bypass THEN true ELSE hash_range_extended(batch_window,seed)=expected_wide END),
+  CONSTRAINT batch_hash_multi_word CHECK(CASE WHEN bypass THEN true ELSE hash_multirange(batches)=expected_multi_word END),
+  CONSTRAINT batch_hash_multi_wide CHECK(CASE WHEN bypass THEN true ELSE hash_multirange_extended(batches,seed)=expected_multi_wide END),
+  CONSTRAINT batch_hash_array_word CHECK(CASE WHEN bypass THEN true ELSE hash_array(windows)=expected_array_word END),
+  CONSTRAINT batch_hash_array_wide CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(windows,seed)=expected_array_wide END),
+  CONSTRAINT batch_wire_size CHECK(CASE WHEN bypass OR expected_bytes IS NULL THEN true ELSE octet_length(range_send(batch_window))=expected_bytes END)
+);

@@ -6,6 +6,7 @@ import {
   isArrayHash,
   isRangeHash,
   isMultirangeHash,
+  rangeHashSupport,
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
@@ -140,10 +141,7 @@ export function rustCallCanFail(
     const range = isMultirangeHash(hash)
       ? multirangeTypeProfile(types[0] ?? '')
       : rangeTypeProfile(types[0] ?? '')
-    const support = range ? builtinTypeComparison(range.elementType) : null
-    const signature = hash.args.length === 1 ? range?.subtypeHash : range?.subtypeHashExtended
-    if (signature && signature === (hash.args.length === 1 ? support?.hash : support?.hashExtended))
-      return false
+    if (range && rangeHashSupport(range, hash.args.length === 2).safe) return false
   }
   if (
     hash.kind === 'function' &&
@@ -206,13 +204,7 @@ export function rustCallCanFail(
     }
     const range = rangeTypeProfile(current) ?? multirangeTypeProfile(current)
     if (range) {
-      const signature = hash.args.length === 1 ? range.subtypeHash : range.subtypeHashExtended,
-        support = builtinTypeComparison(range.elementType)
-      return !(
-        safe &&
-        signature !== null &&
-        signature === (hash.args.length === 1 ? support?.hash : support?.hashExtended)
-      )
+      return !(safe && rangeHashSupport(range, hash.args.length === 2).safe)
     }
     let element = arrayElementBaseType(types[0].slice(6))
     while (element.startsWith('array:')) element = arrayElementBaseType(element.slice(6))

@@ -16,6 +16,7 @@ import {
 } from '../../src/sql-semantics/range-profiles.js'
 import { domainElementType, arrayType } from '../../src/sql-semantics/expressions.js'
 import { builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
+import { rangeHashSupport } from '../../src/codegen/shared/check-hash-context.js'
 
 it('captures array range carriers and callback context through domains and enums without deployment OIDs', async () => {
   const pg = await PGlite.create()
@@ -52,6 +53,30 @@ it('captures array range carriers and callback context through domains and enums
       expect(rangeProfileSupport(profile)).toEqual({ comparison: 41, canonical: 1 })
       expect(rangeSubtypeOutput(profile)).toBe(builtinTypeIO('pg_catalog._int4')!.output)
       expect(rangeSubtypeIsDomain(profile)).toBe(metadata.name === 'domain_span')
+      for (const extended of [false, true]) {
+        expect(rangeHashSupport(profile, extended)).toEqual({
+          available: metadata.name !== 'json_span',
+          compatible: true,
+          safe: metadata.name !== 'json_span',
+          context: metadata.name === 'text_span' ? 'text' : null,
+        })
+        const changed = structuredClone(profile)
+        const leaf = changed.subtypeDefinitions!.find((node) => !node.base && !node.element)!
+        leaf[extended ? 'hashExtended' : 'hash'] = null
+        expect(rangeHashSupport(changed, extended).available).toBe(false)
+        const selected = extended ? 'subtypeHashExtended' : 'subtypeHash'
+        changed[selected] = 'function:["public","custom_array_hash"](pg_catalog.anyarray)'
+        expect(rangeHashSupport(changed, extended)).toMatchObject({
+          available: true,
+          safe: false,
+          context: null,
+        })
+        const incompatible = structuredClone(profile)
+        incompatible.subtypeDefinitions!.find(
+          (node) => !node.base && !node.element,
+        )!.hashEqualityCompatible = false
+        expect(rangeHashSupport(incompatible, extended).compatible).toBe(false)
+      }
       expect(
         catalogMultirangeType(metadata.multirange, undefined, catalog.domains, catalog.rangeTypes),
       ).not.toBeNull()

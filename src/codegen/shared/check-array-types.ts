@@ -1,4 +1,5 @@
 import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import type { RangeSubtypeDefinition } from '../../catalog/types.js'
 import { isRangeType, isMultirangeType } from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
 import {
@@ -101,6 +102,24 @@ export interface RangeBoundProfilePlan {
   child: number
   enumLabels: string
   enumCount: number
+}
+
+export interface RangeArrayHashPlan {
+  element: RangeSubtypeDefinition
+  child: RangeArrayHashPlan | null
+}
+
+export function rangeArrayHashPlan(profile: RangeProfile): RangeArrayHashPlan | null {
+  if (!profile.elementType.startsWith('array:') || !profile.subtypeDefinitions) return null
+  const definitions = new Map(profile.subtypeDefinitions.map((node) => [node.identity, node]))
+  const build = (identity: string): RangeArrayHashPlan | null => {
+    let node = definitions.get(identity)!
+    while (node.kind === 'd') node = definitions.get(node.base!)!
+    if (node.element === null) return null
+    const element = definitions.get(node.element)!
+    return { element, child: build(element.identity) }
+  }
+  return build(profile.subtype)
 }
 
 export function rangeBoundProfiles(
