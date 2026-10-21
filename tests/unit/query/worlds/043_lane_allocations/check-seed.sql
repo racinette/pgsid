@@ -7257,3 +7257,83 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NUL
 -- name: audit_document_skipped
 INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
 VALUES('(,)','!different!','!different!','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',true);
+
+-- name: masked_block_abbreviated_input
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[10,10.0.0.1/32]','[10.0.0.0/8,10.0.0.1/32]',false);
+
+-- name: masked_block_ipv6_input
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[2001:db8::/64,2001:db8::1/128]','[2001:db8::/64,2001:db8::1/128]',false);
+
+-- name: masked_block_host_bits_error
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[10.0.0.1/8,10.0.0.2/32]','bad',false);
+
+-- name: masked_block_domain_error
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[0.0.0.0/0,10.0.0.1/32]','bad',false);
+
+-- name: masked_block_omitted_bounds
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('(,)','(,)',false);
+
+-- name: masked_block_wrong_label
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[10,10.0.0.1/32]','!different!',false);
+
+-- name: masked_block_null
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES(NULL,NULL,false);
+
+-- name: masked_block_skipped_error
+INSERT INTO lane_network_block_requests (payload, expected_label, bypass)
+VALUES('[10.0.0.1/8,10.0.0.2/32]','bad',true);
+
+-- name: network_block_full_width
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}',-1740383905,'-6480077941498253284','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_empty
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('empty','{}','empty','{}',484847245,'1','17','01',false);
+
+-- name: network_block_unbounded
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('(,)','{(,)}','(,)','{(,)}',1061745599,'3086465990262124578','17','18',false);
+
+-- name: network_block_ipv6
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[2001:db8::/64,2001:db8::1/128]','{[2001:db8::/64,2001:db8::1/128]}','[2001:db8::/64,2001:db8::1/128]','{[2001:db8::/64,2001:db8::1/128]}',-1345870326,'-984197771522896847','17','06000000140340011020010db8000000000000000000000000000000140380011020010db8000000000000000000000001',false);
+
+-- name: network_block_wrong_window_label
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','!different!','{[10.0.0.1/32,::1/128]}',-1740383905,'-6480077941498253284','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_wrong_group_label
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','[10.0.0.1/32,::1/128]','!different!',-1740383905,'-6480077941498253284','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_wrong_fingerprint
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}',0,'-6480077941498253284','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_wrong_group_fingerprint
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}',-1740383905,'0','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_wrong_wire
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}','[10.0.0.1/32,::1/128]','{[10.0.0.1/32,::1/128]}',-1740383905,'-6480077941498253284','17','!different!',false);
+
+-- name: network_block_excluded
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{}','[10.0.0.1/32,::1/128]','{}',-1740383905,'1','17','0600000008022001040a000001000000140380011000000000000000000000000000000001',false);
+
+-- name: network_block_null
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,'17',NULL,false);
+
+-- name: network_block_skipped
+INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
+VALUES('[10.0.0.1/32,::1/128]','{}','!different!','!different!',0,'0','17','!different!',true);

@@ -32570,7 +32570,7 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToBool(upper)
 		return BtboolcmpI7aj(left, right)
 	}
-	if kind == 13 {
+	if kind == 13 || kind == 113 {
 		left := checkruntime.ArrayElementToNetwork(lower)
 		right := checkruntime.ArrayElementToNetwork(upper)
 		return NetworkCmp7dun(left, right)
@@ -33068,7 +33068,7 @@ func rangeInputSpace(ch rune) bool {
 	ch = langruntime.CheckedChar(ch)
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
-func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayElement {
+func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool) checkruntime.ArrayElement {
 	kind = langruntime.CheckedI32(kind)
 	if kind == 8 {
 		return checkruntime.ArrayElementFromText(input)
@@ -33092,6 +33092,9 @@ func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayE
 		return checkruntime.ArrayElementFromBool(ScalarBooleanFromText(input))
 	}
 	if kind == 13 {
+		if cidr {
+			return checkruntime.ArrayElementFromNetwork(checkruntime.CidrFromText(input))
+		}
 		return checkruntime.ArrayElementFromNetwork(checkruntime.NetworkFromText(input))
 	}
 	if kind == 14 {
@@ -33396,7 +33399,8 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 		return RangeTextInitial(checkruntime.CopyRangeTextPlan(plan), typeName, elementType, kind, support)
 	}
 	lowerText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), false)
-	lower := rangeInputBound(lowerText, kind)
+	cidr := checkruntime.RangeSupportIsCidr(support) || elementType == "pg_catalog.cidr"
+	lower := rangeInputBound(lowerText, kind, cidr)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33405,7 +33409,7 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	upperText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), true)
-	upper := rangeInputBound(upperText, kind)
+	upper := rangeInputBound(upperText, kind, cidr)
 	if upper.Kind == checkruntime.ArrayElementError {
 		error := upper.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33552,7 +33556,7 @@ func RangeFormatText(input checkruntime.RangeValue, lower checkruntime.TextValue
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
-func rangeOutputBound(input checkruntime.ArrayElement, kind int) checkruntime.TextValue {
+func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool) checkruntime.TextValue {
 	input = checkruntime.CopyArrayElement(input)
 	kind = langruntime.CheckedI32(kind)
 	if input.Kind == checkruntime.ArrayElementError {
@@ -33581,7 +33585,7 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int) checkruntime.Te
 		return ArrayBooleanOutput(checkruntime.ArrayElementToBool(input))
 	}
 	if kind == 13 {
-		return ArrayNetworkOutput(checkruntime.ArrayElementToNetwork(input), false)
+		return ArrayNetworkOutput(checkruntime.ArrayElementToNetwork(input), cidr)
 	}
 	if kind == 14 {
 		return checkruntime.BitToText(checkruntime.ArrayElementToBit(input))
@@ -33671,7 +33675,8 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		if value.Empty {
 			return checkruntime.MakeTextValue("empty")
 		}
-		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind)
+		cidr := checkruntime.RangeSupportIsCidr(value.Support) || value.ElementType == "pg_catalog.cidr"
+		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr)
 		if lower.Kind == checkruntime.TextValueError {
 			error := lower.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33679,7 +33684,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		if lower.Kind == checkruntime.TextValueUnknown {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
-		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind)
+		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr)
 		if upper.Kind == checkruntime.TextValueError {
 			error := upper.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}

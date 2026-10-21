@@ -75,6 +75,12 @@ export const scalarRangeBackends = [
     prefix: 'tid',
     values: ['(0,0)', '(2147483648,1)', '(4294967295,65535)'],
   },
+  {
+    type: 'pg_catalog.cidr',
+    kind: 13,
+    prefix: 'network',
+    values: ['10.0.0.0/8', '10.0.0.1/32', '::1/128'],
+  },
 ] as const
 
 export const scalarRangeText = (lower: string | null, upper: string | null, flags = '[]') => {
@@ -83,7 +89,7 @@ export const scalarRangeText = (lower: string | null, upper: string | null, flag
   return flags[0] + quote(lower) + ',' + quote(upper) + flags[1]
 }
 
-export function invalidScalarRangeBounds(input: RangeInputCell): RangeInputCell[] {
+export function invalidScalarRangeBounds(input: RangeInputCell, cidr = false): RangeInputCell[] {
   if (input.kind === 'Int2') return [{ kind: 'Int2', value: 32768 }]
   if (input.kind === 'Bit') return [{ kind: 'Bit', value: 'not binary' }]
   if (input.kind === 'Bytea')
@@ -107,6 +113,9 @@ export function invalidScalarRangeBounds(input: RangeInputCell): RangeInputCell[
     ]
   if (input.kind === 'Network')
     return [
+      ...(cidr
+        ? [{ kind: 'Network' as const, value: { ...input.value, prefix: 0, word0: 1 } }]
+        : []),
       { kind: 'Network', value: { ...input.value, family: 0 } },
       { kind: 'Network', value: { ...input.value, prefix: 129 } },
       { kind: 'Network', value: { ...input.value, word0: 65536 } },

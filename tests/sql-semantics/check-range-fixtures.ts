@@ -83,6 +83,7 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
     'pg_catalog."interval"': 'interval_send',
     'pg_catalog."char"': 'charsend',
     'pg_catalog.inet': 'inet_send',
+    'pg_catalog.cidr': 'cidr_send',
     'pg_catalog.macaddr': 'macaddr_send',
     'pg_catalog.macaddr8': 'macaddr8_send',
     'pg_catalog.uuid': 'uuid_send',
@@ -126,13 +127,17 @@ export function rangeBoundCell(subtype: string, value: string | null): RangeInpu
     }
   }
   if (
-    ['pg_catalog.inet', 'pg_catalog.macaddr', 'pg_catalog.macaddr8', 'pg_catalog.uuid'].includes(
-      subtype,
-    )
+    [
+      'pg_catalog.inet',
+      'pg_catalog.cidr',
+      'pg_catalog.macaddr',
+      'pg_catalog.macaddr8',
+      'pg_catalog.uuid',
+    ].includes(subtype)
   ) {
     const source = Buffer.from(value, 'hex'),
       bytes = Buffer.alloc(16)
-    source.copy(bytes, 0, subtype === 'pg_catalog.inet' ? 4 : 0)
+    source.copy(bytes, 0, subtype === 'pg_catalog.inet' || subtype === 'pg_catalog.cidr' ? 4 : 0)
     const words = {
       word0: bytes.readUInt16BE(0),
       word1: bytes.readUInt16BE(2),
@@ -143,7 +148,7 @@ export function rangeBoundCell(subtype: string, value: string | null): RangeInpu
       word6: bytes.readUInt16BE(12),
       word7: bytes.readUInt16BE(14),
     }
-    if (subtype === 'pg_catalog.inet')
+    if (subtype === 'pg_catalog.inet' || subtype === 'pg_catalog.cidr')
       return {
         kind: 'Network',
         value: { ...words, family: source[0] === 2 ? 4 : 6, prefix: source[1]! },

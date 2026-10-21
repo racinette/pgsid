@@ -85,6 +85,7 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
+        || (kind == 13 && range_support_is_cidr(input))
         || (input.comparison == kind
             && (kind == 2
                 || kind == 3
@@ -116,6 +117,10 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
     comparison && canonical
+}
+
+pub fn range_support_is_cidr(input: RangeSupport) -> bool {
+    input.comparison == 100 || input.comparison == 113
 }
 
 #[derive(Clone)]
@@ -163,7 +168,7 @@ fn range_bound_word_valid(value: i32) -> bool {
     value >= 0 && value <= 65535
 }
 
-fn range_bound_value_valid(input: ArrayElement) -> bool {
+fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
     if let ArrayElement::Int2(value) = input {
         return make_int2_value(value) != Int2Value::Unknown;
     };
@@ -205,7 +210,8 @@ fn range_bound_value_valid(input: ArrayElement) -> bool {
                 return false;
             };
         };
-        return range_bound_word_valid(value.word0) && range_bound_word_valid(value.word1)
+        return (cidr == false || network_cidr_host_bits_zero(value))
+            && range_bound_word_valid(value.word0) && range_bound_word_valid(value.word1)
             && range_bound_word_valid(value.word2) && range_bound_word_valid(value.word3)
             && range_bound_word_valid(value.word4) && range_bound_word_valid(value.word5)
             && range_bound_word_valid(value.word6) && range_bound_word_valid(value.word7);
@@ -273,7 +279,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
         if kind != 0 && kind != value.element_kind {
             return RangeValue::Unknown;
         };
-        if range_bound_value_valid(bound.clone()) == false {
+        if range_bound_value_valid(bound.clone(), range_support_is_cidr(support) || value.element_type.as_str() == "pg_catalog.cidr") == false {
             return RangeValue::Unknown;
         };
         if let ArrayElement::Null = bound {

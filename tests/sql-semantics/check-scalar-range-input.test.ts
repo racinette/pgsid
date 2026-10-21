@@ -21,7 +21,7 @@ const literal = (value: string) => "'" + value.replaceAll("'", "''") + "'"
 const cell = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 
-it.each([0, 5, 10, 15])(
+it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
   'checks scalar range input, subtype domains and source/stored literals across targets, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
@@ -91,6 +91,16 @@ it.each([0, 5, 10, 15])(
             invalid: false,
           },
           { name: 'bad_literal', value: `'bad'::${family.type}`, constant: true, invalid: true },
+          ...(family.backend.type === 'pg_catalog.cidr'
+            ? [
+                {
+                  name: 'host_literal',
+                  value: `${literal(family.multi ? '{[10.0.0.1/8,::1/128]}' : '[10.0.0.1/8,::1/128]')}::${family.type}`,
+                  constant: true,
+                  invalid: true,
+                },
+              ]
+            : []),
           {
             name: 'lazy_bad',
             value: `('bad'::text)::${family.type}`,
@@ -156,6 +166,17 @@ it.each([0, 5, 10, 15])(
         const platformForms = [19, 20].includes(form.backend.kind)
           ? ['NaN', '0x1p0', 'NaN(payload)'].map((text) => wrap(scalarRangeText(text, text)))
           : []
+        const cidrForms =
+          form.backend.type === 'pg_catalog.cidr'
+            ? [
+                '10',
+                '0x0a000000/8',
+                '10.0.0.1/8',
+                '2001:db8::1/64',
+                '2001:db8::/64',
+                '::ffff:192.0.2.1/128',
+              ].map((text) => wrap(scalarRangeText(text, text)))
+            : []
         const contextualForms =
           form.backend.kind === 22 ? [wrap(scalarRangeText('12:00', '13:00'))] : []
         const samples = form.constant
@@ -164,6 +185,7 @@ it.each([0, 5, 10, 15])(
               null,
               wrap('empty'),
               wrap('(,)'),
+              ...cidrForms,
               wrap(scalarRangeText(b!, c!)),
               wrap(scalarRangeText(a!, c!)),
               wrap(scalarRangeText(c!, b!)),

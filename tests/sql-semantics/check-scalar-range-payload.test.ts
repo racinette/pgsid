@@ -207,7 +207,10 @@ it('validates public scalar range payloads, compiled support and snapshots indep
         const nominal = structuredClone(row)
         nominal.v.value.typeName = 'pg_catalog.int4range'
         expect(map(evaluate(nominal)).range_order).toMatchObject({ certain: false })
-        for (const bound of invalidScalarRangeBounds(row.v.value.bounds[0]!)) {
+        for (const bound of invalidScalarRangeBounds(
+          row.v.value.bounds[0]!,
+          backend.type === 'pg_catalog.cidr',
+        )) {
           const malformed = structuredClone(row)
           malformed.v.value.bounds[0] = bound
           expect(map(evaluate(malformed)).range_order).toMatchObject({ certain: false })
@@ -265,7 +268,10 @@ it('validates public scalar range payloads, compiled support and snapshots indep
           },
         ],
       })
-      for (const [badIndex, bound] of invalidScalarRangeBounds(v!.bounds[0]!).entries()) {
+      for (const [badIndex, bound] of invalidScalarRangeBounds(
+        v!.bounds[0]!,
+        backend.type === 'pg_catalog.cidr',
+      ).entries()) {
         declarations.push({
           kind: 'function',
           name: `scalarInvalid${index}_${badIndex}`,

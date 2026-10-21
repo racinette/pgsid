@@ -102,7 +102,7 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
     TextValue::Unknown
 }
 
-fn range_output_bound(input: ArrayElement, kind: i32) -> TextValue {
+fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool) -> TextValue {
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -128,7 +128,7 @@ fn range_output_bound(input: ArrayElement, kind: i32) -> TextValue {
         return array_boolean_output(array_element_to_bool(input));
     };
     if kind == 13 {
-        return array_network_output(array_element_to_network(input), false);
+        return array_network_output(array_element_to_network(input), cidr);
     };
     if kind == 14 {
         return bit_to_text(array_element_to_bit(input));
@@ -213,14 +213,15 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
         if value.empty {
             return make_text_value("empty");
         };
-        let lower = range_output_bound(value.bounds[0].clone(), value.element_kind);
+        let cidr = range_support_is_cidr(value.support) || value.element_type.as_str() == "pg_catalog.cidr";
+        let lower = range_output_bound(value.bounds[0].clone(), value.element_kind, cidr);
         if let TextValue::Error(error) = lower {
             return TextValue::Error(error);
         };
         if let TextValue::Unknown = lower {
             return TextValue::Unknown;
         };
-        let upper = range_output_bound(value.bounds[1].clone(), value.element_kind);
+        let upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr);
         if let TextValue::Error(error) = upper {
             return TextValue::Error(error);
         };

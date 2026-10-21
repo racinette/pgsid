@@ -23,7 +23,7 @@ import { readMultirangeArrayFixture } from './check-multirange-array-fixtures.js
 const cell = (value: string | bigint | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 
-it.each([0, 5, 10, 15])(
+it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
   'matches scalar range output, wire, hashes and JSON conversion in source/stored CHECKs, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
@@ -31,10 +31,14 @@ it.each([0, 5, 10, 15])(
     try {
       await pg.exec("SET lc_monetary='C';SET IntervalStyle='postgres';SET bytea_output='hex'")
       const backends = scalarRangeBackends.slice(start, start + 5)
-      for (const [index, backend] of backends.entries())
+      for (const [index, backend] of backends.entries()) {
         await pg.exec(
           `CREATE TYPE io_span_${index} AS RANGE(subtype=${backend.type},multirange_type_name=io_set_${index})`,
         )
+        if (backend.type === 'pg_catalog.cidr')
+          await pg.exec(`CREATE DOMAIN io_cidr_bound_${index} AS cidr CHECK(masklen(VALUE)>=8);
+            CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_cidr_bound_${index},multirange_type_name=io_domain_set_${index})`)
+      }
       const initial = await snapshotCatalog(pg),
         families = customRangeProfiles(initial).flatMap((profile, index) =>
           [false, true].map((multi) => ({

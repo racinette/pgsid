@@ -55,7 +55,7 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
         let right = array_element_to_bool(upper);
         return sql__pg_catalog__btboolcmp__i7aj(left, right);
     };
-    if kind == 13 {
+    if kind == 13 || kind == 113 {
         let left = array_element_to_network(lower);
         let right = array_element_to_network(upper);
         return sql__pg_catalog__network_cmp__7dun(left, right);

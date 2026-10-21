@@ -2749,3 +2749,33 @@ CREATE TABLE lane_audit_documents (
   CONSTRAINT record_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(record_window) IS NOT DISTINCT FROM to_jsonb(record_label) END),
   CONSTRAINT record_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(record_window),'hex') COLLATE "C" IS NOT DISTINCT FROM record_wire COLLATE "C" END)
 );
+
+CREATE TYPE lane_network_block_window AS RANGE(subtype=cidr,multirange_type_name=lane_network_block_group);
+CREATE DOMAIN lane_masked_block AS cidr CHECK(masklen(VALUE)>=8);
+CREATE TYPE lane_masked_block_window AS RANGE(subtype=lane_masked_block);
+
+CREATE TABLE lane_network_block_allocations (
+  block_window lane_network_block_window,
+  block_group lane_network_block_group,
+  window_label text,
+  group_label text,
+  fingerprint integer,
+  group_fingerprint bigint,
+  hash_seed bigint,
+  window_wire text,
+  bypass boolean,
+  CONSTRAINT block_window_label CHECK(CASE WHEN bypass THEN true ELSE block_window::text COLLATE "C" IS NOT DISTINCT FROM window_label COLLATE "C" END),
+  CONSTRAINT block_group_label CHECK(CASE WHEN bypass THEN true ELSE block_group::text COLLATE "C" IS NOT DISTINCT FROM group_label COLLATE "C" END),
+  CONSTRAINT block_document CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(block_window,block_group)=jsonb_build_array(window_label,group_label) END),
+  CONSTRAINT block_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(block_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT block_group_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_multirange_extended(block_group,hash_seed) IS NOT DISTINCT FROM group_fingerprint END),
+  CONSTRAINT block_window_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(block_window),'hex') COLLATE "C" IS NOT DISTINCT FROM window_wire COLLATE "C" END),
+  CONSTRAINT block_group_contains CHECK(CASE WHEN bypass THEN true ELSE block_group @> block_window END)
+);
+
+CREATE TABLE lane_network_block_requests (
+  payload text,
+  expected_label text,
+  bypass boolean,
+  CONSTRAINT masked_block_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_masked_block_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);

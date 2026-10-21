@@ -28,6 +28,38 @@ pub fn network_address_word(address: NetworkAddress, index: usize) -> i32 {
     address.word7
 }
 
+pub fn network_cidr_host_bits_zero(address: NetworkAddress) -> bool {
+    let mut remaining = address.prefix;
+    let mut word_index: usize = 0;
+    let mut word_count: usize = 8;
+    if address.family == 4 {
+        word_count = 2;
+    } else if address.family != 6 {
+        return false;
+    };
+    if remaining < 0 || remaining > (word_count as i32) * 16 {
+        return false;
+    };
+    while word_index < word_count {
+        let mut bits = remaining;
+        if bits > 16 {
+            bits = 16;
+        };
+        remaining = remaining - bits;
+        let mut divisor: i32 = 1;
+        let mut padding = 16 - bits;
+        while padding > 0 {
+            divisor = divisor * 2;
+            padding = padding - 1;
+        };
+        if network_address_word(address, word_index) % divisor != 0 {
+            return false;
+        };
+        word_index += 1;
+    };
+    true
+}
+
 pub fn network_address_byte(address: NetworkAddress, index: usize, high: bool) -> i32 {
     let word = network_address_word(address, index);
     if high {
@@ -375,31 +407,9 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         word6: words[6].value,
         word7: words[7].value,
     };
-    if cidr {
-        let mut remaining = prefix;
-        let mut word_index: usize = 0;
-        let mut word_count: usize = 8;
-        if family == 4 {
-            word_count = 2;
-        }
-        while word_index < word_count {
-            let mut bits = remaining;
-            if bits > 16 {
-                bits = 16;
-            }
-            remaining = remaining - bits;
-            let mut divisor: i32 = 1;
-            let mut padding = 16 - bits;
-            while padding > 0 {
-                divisor = divisor * 2;
-                padding = padding - 1;
-            }
-            if network_address_word(address, word_index) % divisor != 0 {
-                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
-            }
-            word_index += 1;
-        }
-    }
+    if cidr && network_cidr_host_bits_zero(address) == false {
+        return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
+    };
     NetworkValue::Value(address)
 }
 

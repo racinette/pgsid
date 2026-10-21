@@ -2251,7 +2251,8 @@ export function emitCheckRustEvaluator(
               scalar.volatility === 's'
             )) ||
           scalar.result !== call.type ||
-          scalar.args[0] !== rangeSubtype ||
+          (scalar.args[0] !== rangeSubtype &&
+            (!scalar.args[0] || builtinCast(rangeSubtype, scalar.args[0])?.method !== 'b')) ||
           scalar.args.length !== (extended ? 2 : 1) ||
           (extended && scalar.args[1] !== 'pg_catalog.int8') ||
           !checkRustCallableNames().has(scalar.rustName) ||
@@ -2266,10 +2267,17 @@ export function emitCheckRustEvaluator(
           range.collationDeterministic !== true
         const bounds = (deferredTextHash ? [] : [false, true]).map((upper) => {
           const cell = bindRange(`range_bound(${ownedOperand(input)}, ${upper})`)
-          return {
+          const bound = {
             name: bindRange(`array_element_to_${rustValuePrefix(rustType(rangeSubtype))}(${cell})`),
             type: rangeSubtype,
           }
+          return scalar.args[0] === rangeSubtype
+            ? bound
+            : emitCallInner(
+                { kind: 'cast', signature: null, type: scalar.args[0]! },
+                [bound],
+                destination,
+              )
         })
         if (rangeBinarySend) {
           const bytes = bounds.map((bound) =>
