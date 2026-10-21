@@ -9477,6 +9477,272 @@ export function datePartYjvq(units: checkruntime.TextValue, input: checkruntime.
 export function datePartFb3a(units: checkruntime.TextValue, input: checkruntime.IntervalValue): checkruntime.Float8Value {
     return clockFieldsLegacy(units, { value: input, zone: 0, family: 3 });
 }
+const compositeTextSyntax = 3484946;
+function compositeTextSpace(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
+}
+function compositeTextRead(input: checkruntime.CompositeTextPayload): checkruntime.CompositeTextPlan {
+    input = checkruntime.copyCompositeTextPayload(input);
+    const characters: string[] = input.characters;
+    let position: number = input.position;
+    if (input.fields.length > 0) {
+        if (position >= characters.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        if (!(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ",")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let current: checkruntime.TextValue = { kind: "Null" };
+    if (position >= characters.length) {
+        return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+    }
+    if (!(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ",") && !(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ")")) {
+        let text: string = "";
+        let quoted: boolean = false;
+        let done: boolean = false;
+        while (done === false) {
+            if (position >= characters.length) {
+                return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+            }
+            const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            if (quoted === false && (ch === "," || ch === ")")) {
+                done = langruntime.checkedBool(true);
+            }
+            else {
+                position = langruntime.checkedAdd(position, 1);
+                if (ch === "\\") {
+                    if (position >= characters.length) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+                    }
+                    text = text + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                else if (ch === "\"") {
+                    if (quoted && position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\"") {
+                        text = text + langruntime.checkedChar("\"");
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    else {
+                        quoted = langruntime.checkedBool(quoted === false);
+                    }
+                }
+                else {
+                    text = text + langruntime.checkedChar(ch);
+                }
+            }
+        }
+        current = { kind: "Value", value: text };
+    }
+    return { kind: "Value", value: { characters: characters, position: position, expected: input.expected, fields: input.fields, current: current } };
+}
+export function prepareCompositeText(input: checkruntime.TextValue, expected: number): checkruntime.CompositeTextPlan {
+    expected = langruntime.checkedI32(expected);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (expected < 0) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        let position: number = 0;
+        while (position < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\0") {
+                return { kind: "Unknown" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedIndex(0);
+        while (position < characters.length && compositeTextSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position >= characters.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        if (!(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "(")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+        const fields: checkruntime.ArrayElement[] = [];
+        const count: number = langruntime.indexFromI32(expected, 0);
+        const payload: checkruntime.CompositeTextPayload = { characters: characters, position: position, expected: count, fields: fields, current: { kind: "Unknown" } };
+        if (expected > 0) {
+            return compositeTextRead(payload);
+        }
+        return { kind: "Value", value: payload };
+    }
+    return { kind: "Unknown" };
+}
+export function compositeTextHasField(input: checkruntime.CompositeTextPlan): boolean {
+    input = checkruntime.copyCompositeTextPlan(input);
+    if (input.kind === "Value") {
+        const payload: checkruntime.CompositeTextPayload = checkruntime.copyCompositeTextPayload(input.value);
+        return payload.fields.length < payload.expected;
+    }
+    return false;
+}
+export function compositeTextField(input: checkruntime.CompositeTextPlan): checkruntime.TextValue {
+    input = checkruntime.copyCompositeTextPlan(input);
+    if (input.kind === "Value") {
+        const payload: checkruntime.CompositeTextPayload = checkruntime.copyCompositeTextPayload(input.value);
+        return payload.current;
+    }
+    return { kind: "Unknown" };
+}
+export function appendCompositeText(input: checkruntime.CompositeTextPlan, field: checkruntime.ArrayElement, stored: boolean): checkruntime.CompositeTextPlan {
+    input = checkruntime.copyCompositeTextPlan(input);
+    field = checkruntime.copyArrayElement(field);
+    stored = langruntime.checkedBool(stored);
+    if (input.kind === "Value") {
+        const payload: checkruntime.CompositeTextPayload = checkruntime.copyCompositeTextPayload(input.value);
+        if (payload.fields.length >= payload.expected) {
+            return { kind: "Unknown" };
+        }
+        if (field.kind === "Error") {
+            const error: checkruntime.SqlError = field.value;
+            return { kind: "Error", value: error };
+        }
+        if (stored === false) {
+            if (field.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
+        let fields: checkruntime.ArrayElement[] = payload.fields;
+        langruntime.pushStruct(fields, field, checkruntime.copyArrayElement);
+        const next: checkruntime.CompositeTextPayload = { characters: payload.characters, position: payload.position, expected: payload.expected, fields: fields, current: { kind: "Unknown" } };
+        if (next.fields.length < next.expected) {
+            return compositeTextRead(next);
+        }
+        return { kind: "Value", value: next };
+    }
+    return input;
+}
+export function finishCompositeText(input: checkruntime.CompositeTextPlan, typeName: string): checkruntime.CompositeValue {
+    input = checkruntime.copyCompositeTextPlan(input);
+    typeName = langruntime.checkedString(typeName);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.CompositeTextPayload = checkruntime.copyCompositeTextPayload(input.value);
+        if (!(payload.fields.length === payload.expected)) {
+            return { kind: "Unknown" };
+        }
+        const characters: string[] = payload.characters;
+        let position: number = payload.position;
+        if (position >= characters.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        if (!(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ")")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+        while (position < characters.length && compositeTextSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(position === characters.length)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(compositeTextSyntax) };
+        }
+        return checkruntime.makeCompositeValue({ typeName: typeName, fields: payload.fields });
+    }
+    return { kind: "Unknown" };
+}
+export function prepareCompositeOutput(input: checkruntime.CompositeValue, typeName: string, fields: number): checkruntime.TextValue {
+    input = checkruntime.copyCompositeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    fields = langruntime.checkedI32(fields);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.CompositePayload = checkruntime.copyCompositePayload(input.value);
+        if (payload.typeName === typeName && fields >= 0 && payload.fields.length <= 2147483647 && langruntime.checkedI32(langruntime.checkedIndex(payload.fields.length)) === fields) {
+            return checkruntime.makeTextValue("(");
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function compositeOutputHasField(input: checkruntime.TextValue): boolean {
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+export function appendCompositeOutput(input: checkruntime.TextValue, field: checkruntime.TextValue, first: boolean): checkruntime.TextValue {
+    first = langruntime.checkedBool(first);
+    if (input.kind === "Value") {
+        const source: string = langruntime.checkedString(input.value);
+        if (field.kind === "Error") {
+            const error: checkruntime.SqlError = field.value;
+            return { kind: "Error", value: error };
+        }
+        if (field.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        let result: string = source;
+        if (first === false) {
+            result = result + langruntime.checkedChar(",");
+        }
+        if (field.kind === "Value") {
+            const text: string = langruntime.checkedString(field.value);
+            const characters: string[] = Array.from(text);
+            let quoted: boolean = characters.length === 0;
+            let position: number = 0;
+            while (position < characters.length) {
+                const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+                if (ch === "\0") {
+                    return { kind: "Unknown" };
+                }
+                if (ch === "\"" || ch === "\\" || ch === "(" || ch === ")" || ch === "," || compositeTextSpace(ch)) {
+                    quoted = langruntime.checkedBool(true);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (quoted) {
+                result = result + langruntime.checkedChar("\"");
+            }
+            position = langruntime.checkedIndex(0);
+            while (position < characters.length) {
+                const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+                if (ch === "\"" || ch === "\\") {
+                    result = result + langruntime.checkedChar(ch);
+                }
+                result = result + langruntime.checkedChar(ch);
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (quoted) {
+                result = result + langruntime.checkedChar("\"");
+            }
+        }
+        return { kind: "Value", value: result };
+    }
+    return input;
+}
+export function finishCompositeOutput(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        let result: string = text;
+        result = result + langruntime.checkedChar(")");
+        return { kind: "Value", value: result };
+    }
+    return input;
+}
 export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value): checkruntime.DateValue {
     if (year.kind === "Error") {
         const error: checkruntime.SqlError = year.value;

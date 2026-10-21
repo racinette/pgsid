@@ -9423,6 +9423,269 @@ func DatePartYjvq(units checkruntime.TextValue, input checkruntime.TimetzValue) 
 func DatePartFb3a(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.Float8Value {
 	return clockFieldsLegacy(units, clockFieldInput{value: input, zone: 0, family: 3})
 }
+
+const compositeTextSyntax = 3484946
+
+func compositeTextSpace(ch rune) bool {
+	ch = langruntime.CheckedChar(ch)
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
+}
+func compositeTextRead(input checkruntime.CompositeTextPayload) checkruntime.CompositeTextPlan {
+	input = checkruntime.CopyCompositeTextPayload(input)
+	characters := input.Characters
+	position := input.Position
+	if len(input.Fields) > 0 {
+		if position >= len(characters) {
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		if characters[position] != ',' {
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	current := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	if position >= len(characters) {
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+	}
+	if characters[position] != ',' && characters[position] != ')' {
+		text := langruntime.NewTextBuffer("")
+		quoted := false
+		done := false
+		for done == false {
+			if position >= len(characters) {
+				return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+			}
+			ch := characters[position]
+			if quoted == false && (ch == ',' || ch == ')') {
+				done = true
+			} else {
+				position = langruntime.CheckedAdd(position, 1)
+				if ch == '\\' {
+					if position >= len(characters) {
+						return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+					}
+					text = append(text, string(langruntime.CheckedChar(characters[position]))...)
+					position = langruntime.CheckedAdd(position, 1)
+				} else if ch == '"' {
+					if quoted && position < len(characters) && characters[position] == '"' {
+						text = append(text, string(langruntime.CheckedChar('"'))...)
+						position = langruntime.CheckedAdd(position, 1)
+					} else {
+						quoted = quoted == false
+					}
+				} else {
+					text = append(text, string(langruntime.CheckedChar(ch))...)
+				}
+			}
+		}
+		current = checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+	}
+	return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanValue, Value: checkruntime.CompositeTextPayload{Characters: characters, Position: position, Expected: input.Expected, Fields: input.Fields, Current: current}}
+}
+func PrepareCompositeText(input checkruntime.TextValue, expected int) checkruntime.CompositeTextPlan {
+	expected = langruntime.CheckedI32(expected)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanNull}
+	}
+	if expected < 0 {
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanUnknown}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		position := 0
+		for position < len(characters) {
+			if characters[position] == '\x00' {
+				return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanUnknown}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedIndex(0)
+		for position < len(characters) && compositeTextSpace(characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position >= len(characters) {
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		if characters[position] != '(' {
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		fields := []checkruntime.ArrayElement{}
+		count := langruntime.IndexFromI32(expected, 0)
+		payload := checkruntime.CompositeTextPayload{Characters: characters, Position: position, Expected: count, Fields: fields, Current: checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}}
+		if expected > 0 {
+			return compositeTextRead(payload)
+		}
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanValue, Value: payload}
+	}
+	return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanUnknown}
+}
+func CompositeTextHasField(input checkruntime.CompositeTextPlan) bool {
+	input = checkruntime.CopyCompositeTextPlan(input)
+	if input.Kind == checkruntime.CompositeTextPlanValue {
+		payload := checkruntime.CopyCompositeTextPayload(input.Value)
+		return len(payload.Fields) < payload.Expected
+	}
+	return false
+}
+func CompositeTextField(input checkruntime.CompositeTextPlan) checkruntime.TextValue {
+	input = checkruntime.CopyCompositeTextPlan(input)
+	if input.Kind == checkruntime.CompositeTextPlanValue {
+		payload := checkruntime.CopyCompositeTextPayload(input.Value)
+		return payload.Current
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func AppendCompositeText(input checkruntime.CompositeTextPlan, field checkruntime.ArrayElement, stored bool) checkruntime.CompositeTextPlan {
+	input = checkruntime.CopyCompositeTextPlan(input)
+	field = checkruntime.CopyArrayElement(field)
+	if input.Kind == checkruntime.CompositeTextPlanValue {
+		payload := checkruntime.CopyCompositeTextPayload(input.Value)
+		if len(payload.Fields) >= payload.Expected {
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanUnknown}
+		}
+		if field.Kind == checkruntime.ArrayElementError {
+			error := field.Error
+			return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanError, Error: error}
+		}
+		if stored == false {
+			if field.Kind == checkruntime.ArrayElementUnknown {
+				return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanUnknown}
+			}
+		}
+		fields := payload.Fields
+		langruntime.CheckedAdd(len(fields), 1)
+		fields = append(fields, checkruntime.CopyArrayElement(field))
+		next := checkruntime.CompositeTextPayload{Characters: payload.Characters, Position: payload.Position, Expected: payload.Expected, Fields: fields, Current: checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}}
+		if len(next.Fields) < next.Expected {
+			return compositeTextRead(next)
+		}
+		return checkruntime.CompositeTextPlan{Kind: checkruntime.CompositeTextPlanValue, Value: next}
+	}
+	return input
+}
+func FinishCompositeText(input checkruntime.CompositeTextPlan, typeName string) checkruntime.CompositeValue {
+	input = checkruntime.CopyCompositeTextPlan(input)
+	typeName = langruntime.CheckedString(typeName)
+	if input.Kind == checkruntime.CompositeTextPlanError {
+		error := input.Error
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: error}
+	}
+	if input.Kind == checkruntime.CompositeTextPlanNull {
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueNull}
+	}
+	if input.Kind == checkruntime.CompositeTextPlanValue {
+		payload := checkruntime.CopyCompositeTextPayload(input.Value)
+		if len(payload.Fields) != payload.Expected {
+			return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+		}
+		characters := payload.Characters
+		position := payload.Position
+		if position >= len(characters) {
+			return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		if characters[position] != ')' {
+			return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		for position < len(characters) && compositeTextSpace(characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position != len(characters) {
+			return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: checkruntime.MakeSqlError(compositeTextSyntax)}
+		}
+		return checkruntime.MakeCompositeValue(checkruntime.CompositePayload{TypeName: typeName, Fields: payload.Fields})
+	}
+	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+}
+func PrepareCompositeOutput(input checkruntime.CompositeValue, typeName string, fields int) checkruntime.TextValue {
+	input = checkruntime.CopyCompositeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	fields = langruntime.CheckedI32(fields)
+	if input.Kind == checkruntime.CompositeValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.CompositeValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.CompositeValueValue {
+		payload := checkruntime.CopyCompositePayload(input.Value)
+		if payload.TypeName == typeName && fields >= 0 && len(payload.Fields) <= 2147483647 && int(int32(len(payload.Fields))) == fields {
+			return checkruntime.MakeTextValue("(")
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func CompositeOutputHasField(input checkruntime.TextValue) bool {
+	if input.Kind == checkruntime.TextValueValue {
+		return true
+	}
+	return false
+}
+func AppendCompositeOutput(input checkruntime.TextValue, field checkruntime.TextValue, first bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueValue {
+		source := langruntime.CheckedString(input.Value)
+		if field.Kind == checkruntime.TextValueError {
+			error := field.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if field.Kind == checkruntime.TextValueUnknown {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		result := langruntime.NewTextBuffer(source)
+		if first == false {
+			result = append(result, string(langruntime.CheckedChar(','))...)
+		}
+		if field.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(field.Value)
+			characters := []rune(text)
+			quoted := len(characters) == 0
+			position := 0
+			for position < len(characters) {
+				ch := characters[position]
+				if ch == '\x00' {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+				}
+				if ch == '"' || ch == '\\' || ch == '(' || ch == ')' || ch == ',' || compositeTextSpace(ch) {
+					quoted = true
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if quoted {
+				result = append(result, string(langruntime.CheckedChar('"'))...)
+			}
+			position = langruntime.CheckedIndex(0)
+			for position < len(characters) {
+				ch := characters[position]
+				if ch == '"' || ch == '\\' {
+					result = append(result, string(langruntime.CheckedChar(ch))...)
+				}
+				result = append(result, string(langruntime.CheckedChar(ch))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if quoted {
+				result = append(result, string(langruntime.CheckedChar('"'))...)
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(result)}
+	}
+	return input
+}
+func FinishCompositeOutput(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		result := langruntime.NewTextBuffer(text)
+		result = append(result, string(langruntime.CheckedChar(')'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(result)}
+	}
+	return input
+}
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
 	if year.Kind == checkruntime.Int4ValueError {
 		error := year.Error

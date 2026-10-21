@@ -3305,6 +3305,134 @@ export function bindCatalogCheck(
         const operand = bind(cast['arg'])
         if (operand.literal?.kind === 'null')
           return { type: composite, value: { kind: 'composite-null', type: composite } }
+        if (
+          operand.literal?.kind === 'string' ||
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(operand.type ?? '')
+        ) {
+          const input = operand.literal ? materialize(operand, 'pg_catalog.text') : operand.value
+          if (!input) return unknown
+          const stored =
+            literalOrigin === 'stored' &&
+            (operand.literal?.kind === 'string' ||
+              preparedArrayDomainInput === '__pgsid_stored_composite_field')
+          const conversions: EvalExpression[] = []
+          for (const field of definition.fields) {
+            const declared = profile.graph.definitions.find((node) => node.identity === field.type)
+            const physical = compositePhysicalType(profile, field.type)
+            const type = compositeFieldType(profile, field.type)
+            if (!declared || !physical || !type) return unknown
+            const target = stored
+              ? elementTypeName(type)
+              : declared.kind === 'd'
+                ? { names: [declared.schema, declared.name].map((sval) => ({ String: { sval } })) }
+                : elementTypeName(type)
+            const converted = bindCatalogCheck(
+              [
+                {
+                  name: '__pgsid_composite_text_field',
+                  typeName: 'pg_catalog.text',
+                  collationIsC: true,
+                  isRowType: false,
+                },
+              ],
+              {
+                NullTest: {
+                  nulltesttype: 'IS_NOT_NULL',
+                  arg: {
+                    TypeCast: {
+                      arg: {
+                        ColumnRef: {
+                          fields: [{ String: { sval: '__pgsid_composite_text_field' } }],
+                        },
+                      },
+                      typeName: target,
+                    },
+                  },
+                },
+              },
+              [],
+              enums,
+              domains,
+              moneyLiterals,
+              literalOrigin,
+              domainStack,
+              true,
+              undefined,
+              stored ? '__pgsid_stored_composite_field' : undefined,
+              rangeTypes,
+              compositeGraph,
+            ).expression
+            if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
+              return unknown
+            let value = converted.expression.operand
+            if (!stored && type === 'pg_catalog."interval"') {
+              let modifier = field.typeMod
+              let layer = declared
+              const visited = new Set<string>()
+              while (
+                modifier === -1 &&
+                layer.kind === 'd' &&
+                layer.base &&
+                !visited.has(layer.identity)
+              ) {
+                visited.add(layer.identity)
+                modifier = layer.baseTypeMod
+                const next = profile.graph.definitions.find((n) => n.identity === layer.base)
+                if (!next) break
+                layer = next
+              }
+              if (modifier !== -1) {
+                const seed = (node: EvalExpression): EvalExpression =>
+                  node.kind === 'text-to-interval'
+                    ? { ...node, inputModifier: modifier }
+                    : node.kind === 'domain-cast'
+                      ? { ...node, operand: seed(node.operand) }
+                      : node.kind === 'call'
+                        ? { ...node, operands: node.operands.map(seed) }
+                        : node
+                value = seed(value)
+              }
+            }
+            if (!stored && field.typeMod !== -1) {
+              if (type.startsWith('array:')) {
+                const element = type.slice(6) as ArrayElementType
+                const conversion = builtinCast(element, element)
+                if (!conversion?.implementation) return unknown
+                value = {
+                  kind: 'array-coerce',
+                  type: type as ArrayType,
+                  sourceElementType: element,
+                  elementType: element,
+                  conversion: { kind: 'cast', signature: conversion.implementation, type: element },
+                  explicit: false,
+                  modifier: field.typeMod,
+                  operand: value,
+                }
+              } else {
+                const modified = modifyScalar(value, type, field.typeMod, false)
+                if (!modified) return unknown
+                value = modified
+              }
+            }
+            conversions.push(value)
+          }
+          return {
+            type: composite,
+            value: {
+              kind: 'text-to-composite',
+              type: composite,
+              operand: input,
+              conversions,
+              ...(operand.literal ? { literal: true as const } : {}),
+              ...(stored ? { origin: 'stored' as const } : {}),
+            },
+          }
+        }
         return operand.type === composite && operand.value ? operand : unknown
       }
       const captured = capturedName
@@ -3455,6 +3583,18 @@ export function bindCatalogCheck(
         return unknown
       let operand = bind(cast['arg'])
       const source = boundType(operand)
+      if (
+        source &&
+        compositeProfile(source) &&
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        operand.value
+      ) {
+        operand = {
+          type: 'pg_catalog.text',
+          value: { kind: 'composite-to-text', type: 'pg_catalog.text', operand: operand.value },
+          collation: defaultCollation,
+        }
+      }
       if (
         source?.startsWith('array:') &&
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&

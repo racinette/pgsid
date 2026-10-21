@@ -47,3 +47,17 @@ CREATE TABLE stored_inspections (
   CONSTRAINT stored_present CHECK (CASE WHEN bypass THEN true ELSE (draft IS NOT NULL) = expected_present END),
   CONSTRAINT stored_datum CHECK (CASE WHEN bypass THEN true ELSE draft IS DISTINCT FROM NULL END)
 );
+
+CREATE TABLE inspection_imports (
+  record_text text,
+  canonical_text text,
+  minimum_score integer,
+  expected_null boolean,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT imported_approval CHECK (CASE WHEN bypass THEN true ELSE (record_text::approved_draft).score >= minimum_score END),
+  CONSTRAINT imported_text CHECK (CASE WHEN bypass THEN true ELSE (record_text::draft_reading)::text COLLATE "C" IS NOT DISTINCT FROM canonical_text COLLATE "C" END),
+  CONSTRAINT imported_null CHECK (CASE WHEN bypass THEN true ELSE (record_text::draft_reading IS NULL) = expected_null END),
+  CONSTRAINT imported_present CHECK (CASE WHEN bypass THEN true ELSE (record_text::draft_reading IS NOT NULL) = expected_present END),
+  CONSTRAINT imported_literal CHECK (CASE WHEN bypass THEN true ELSE ('(2,abc)'::draft_reading).score >= minimum_score END)
+);

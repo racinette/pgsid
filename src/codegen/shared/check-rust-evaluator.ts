@@ -1,5 +1,10 @@
-import { compositeProfile } from '../../sql-semantics/composite-profiles.js'
+import {
+  compositeProfile,
+  compositeFieldType,
+  compositePhysicalType,
+} from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
+import type { ArrayElementType } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -1067,6 +1072,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'text-to-boolean' && node.literal === true) ||
         (node.kind === 'text-to-range' && node.literal === true) ||
         (node.kind === 'text-to-multirange' && node.literal === true) ||
+        (node.kind === 'text-to-composite' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'range' ||
@@ -4942,6 +4948,13 @@ export function emitCheckRustEvaluator(
                         : node.type === 'pg_catalog.cidr'
                           ? 'cidr_from_text'
                           : 'network_from_text'
+      if (node.kind === 'text-to-interval' && node.inputModifier !== undefined) {
+        const fields = bind(`make_int4_value(${Math.floor(node.inputModifier / 65536)})`)
+        return {
+          name: bind(`interval_from_text_fields(${ownedOperand(operand)},${fields})`),
+          type: node.type,
+        }
+      }
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
@@ -5282,6 +5295,282 @@ export function emitCheckRustEvaluator(
         name: bind(`array_element_to_${rustValuePrefix(rustType(node.type))}(${cell})`),
         type: node.type,
       }
+    }
+    if (node.kind === 'text-to-composite') {
+      const profile = compositeProfile(node.type)
+      const definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+      const stored = node.origin === 'stored'
+      const selected = stored ? definition?.output : definition?.input
+      const io = selected ? builtinCallables().find((n) => callableIdentity(n) === selected) : null
+      if (
+        !profile ||
+        !definition ||
+        io?.kind !== 'function' ||
+        io.schema !== 'pg_catalog' ||
+        io.name !== (stored ? 'record_out' : 'record_in') ||
+        !io.strict ||
+        io.returnsSet ||
+        io.volatility !== 's' ||
+        io.args.join(',') !==
+          (stored ? 'pg_catalog.record' : 'pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4') ||
+        io.result !== (stored ? 'pg_catalog.cstring' : 'pg_catalog.record') ||
+        definition.fields.length !== node.conversions.length
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Composite input requires captured record and field I/O identities',
+        )
+      const operand = emitScalar(node.operand, bindings, used)
+      let plan = bind(
+        `prepare_composite_text(${ownedOperand(operand)},${definition.fields.length})`,
+      )
+      for (const [index, conversion] of node.conversions.entries()) {
+        const fieldType = compositeFieldType(profile, definition.fields[index]!.type)
+        const declared = profile.graph.definitions.find(
+          (n) => n.identity === definition.fields[index]!.type,
+        )
+        const physical = compositePhysicalType(profile, definition.fields[index]!.type)
+        if (!fieldType)
+          throw new UnsupportedCheckRustExpression('Missing composite field input carrier')
+        if (node.origin !== 'stored') {
+          const name =
+            declared?.kind === 'd'
+              ? 'domain_in'
+              : physical?.kind === 'e'
+                ? 'enum_in'
+                : physical?.kind === 'c'
+                  ? 'record_in'
+                  : physical?.element
+                    ? 'array_in'
+                    : null
+          const selected = name
+            ? builtinCallables().find(
+                (n) =>
+                  n.kind === 'function' &&
+                  n.schema === 'pg_catalog' &&
+                  n.name === name &&
+                  n.args[0] === 'pg_catalog.cstring',
+              )
+            : null
+          const expected = selected
+            ? callableIdentity(selected)
+            : (rangeTypeInput(fieldType) ?? builtinTypeIO(fieldType)?.input)
+          if (!expected || declared?.input !== expected)
+            throw new UnsupportedCheckRustExpression(
+              'Composite field input requires its selected catalog implementation',
+            )
+        } else {
+          const name =
+            physical?.kind === 'e'
+              ? 'enum_out'
+              : physical?.kind === 'c'
+                ? 'record_out'
+                : physical?.element
+                  ? 'array_out'
+                  : null
+          const selected = name
+            ? builtinCallables().find(
+                (n) => n.kind === 'function' && n.schema === 'pg_catalog' && n.name === name,
+              )
+            : null
+          const expected = selected
+            ? callableIdentity(selected)
+            : (rangeTypeOutput(fieldType) ?? builtinTypeIO(fieldType)?.output)
+          if (!expected || physical?.output !== expected)
+            throw new UnsupportedCheckRustExpression(
+              'Stored composite fields require their selected catalog output implementation',
+            )
+        }
+        const kind = rustType(fieldType),
+          prefix = rustValuePrefix(kind),
+          value = fresh('record_field_value')
+        bindings.push(`let mut ${value}:${kind}=${prefix}_unknown();`)
+        const text = fresh('record_field_text'),
+          status = fresh('record_field_preparation'),
+          start = fresh('record_field_start')
+        const prepared: string[] = [],
+          lines: string[] = []
+        const key = JSON.stringify(['__pgsid_composite_text_field', false])
+        const outer = localInputs.get(key),
+          outerValidity = arrayValidityScope,
+          outerPreparation = domainInputPreparation,
+          outerDepth = preparationDepth,
+          outerStored = storedArrayInputScope
+        localInputs.set(key, {
+          name: '__pgsid_composite_text_field',
+          type: 'pg_catalog.text',
+          rustName: text,
+          rustType: 'TextValue',
+        })
+        arrayValidityScope = null
+        domainInputPreparation = { lines: prepared, status }
+        preparationDepth = 0
+        storedArrayInputScope = node.origin === 'stored' || outerStored
+        let converted: { name: string; type: string }
+        try {
+          converted = emitScalar(conversion, lines, used)
+        } finally {
+          if (outer) localInputs.set(key, outer)
+          else localInputs.delete(key)
+          arrayValidityScope = outerValidity
+          domainInputPreparation = outerPreparation
+          preparationDepth = outerDepth
+          storedArrayInputScope = outerStored
+        }
+        const cell = fresh('record_field_cell'),
+          finished = fresh('record_field_finished')
+        bindings.push(
+          `if composite_text_has_field(${plan}.clone()) {`,
+          `    let ${text}=composite_text_field(${plan}.clone());`,
+          `    let ${start}=make_bool_value(true);`,
+          `    let mut ${status}:CheckOutcome=check_from_bool(${start});`,
+          ...indent(prepared),
+          ...indent(lines),
+          `    let ${cell}=array_element_from_${prefix}(${ownedOperand(converted)});`,
+          `    let ${finished}=finish_domain_conversion(${cell},${status});`,
+          `    ${value}=array_element_to_${prefix}(${finished});`,
+          '}',
+        )
+        const element = bind(
+          `array_element_from_${prefix}(${ownedOperand({ name: value, type: fieldType })})`,
+        )
+        const decoded =
+          node.origin === 'stored' ? bind(`range_stored_text_bound(${element})`) : element
+        plan = bind(`append_composite_text(${plan},${decoded},${node.origin === 'stored'})`)
+      }
+      return {
+        name: bind(`finish_composite_text(${plan},${rustStringLiteral(profile.identity)})`),
+        type: node.type,
+      }
+    }
+    if (node.kind === 'composite-to-text') {
+      const type = scalarType(node.operand),
+        profile = compositeProfile(type)
+      const definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+      const io = definition?.output
+        ? builtinCallables().find((n) => callableIdentity(n) === definition.output)
+        : null
+      if (
+        !profile ||
+        !definition ||
+        io?.kind !== 'function' ||
+        io.schema !== 'pg_catalog' ||
+        io.name !== 'record_out' ||
+        !io.strict ||
+        io.returnsSet ||
+        io.volatility !== 's' ||
+        io.args.join(',') !== 'pg_catalog.record' ||
+        io.result !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Composite output requires its captured record I/O identity',
+        )
+      const operand = emitScalar(node.operand, bindings, used)
+      let output = bind(
+        `prepare_composite_output(${ownedOperand(operand)},${rustStringLiteral(profile.identity)},${definition.fields.length})`,
+      )
+      for (const [index, field] of definition.fields.entries()) {
+        const fieldType = compositeFieldType(profile, field.type),
+          physical = compositePhysicalType(profile, field.type)
+        if (!fieldType || !physical)
+          throw new UnsupportedCheckRustExpression('Missing composite output field carrier')
+        const lines: string[] = [],
+          position = fresh('record_output_position'),
+          cell = fresh('record_output_cell'),
+          scalar = fresh('record_output_scalar'),
+          rendered = fresh('record_output_text')
+        lines.push(
+          `let ${position}=make_int4_value(${index});`,
+          `let ${cell}=composite_field_at(${ownedOperand(operand)},${position});`,
+        )
+        let result: string
+        if (compositeProfile(fieldType) || fieldType.startsWith('array:')) {
+          const prefix = rustValuePrefix(rustType(fieldType)),
+            name = '__pgsid_composite_output_field',
+            key = JSON.stringify([name, false]),
+            outer = localInputs.get(key)
+          lines.push(`let ${scalar}=array_element_to_${prefix}(${cell});`)
+          localInputs.set(key, {
+            name,
+            type: fieldType,
+            rustName: scalar,
+            rustType: rustType(fieldType),
+          })
+          try {
+            const value = emitScalar(
+              compositeProfile(fieldType)
+                ? {
+                    kind: 'composite-to-text',
+                    type: 'pg_catalog.text',
+                    operand: { kind: 'input', type: fieldType, name },
+                  }
+                : {
+                    kind: 'array-to-text',
+                    type: 'pg_catalog.text',
+                    operand: { kind: 'input', type: fieldType, name },
+                    elementType: fieldType.slice(6) as ArrayElementType,
+                    output: physical.output!,
+                    ...(physical.element &&
+                    compositePhysicalType(profile, physical.element)?.kind === 'e'
+                      ? {
+                          enum: (() => {
+                            const n = compositePhysicalType(profile, physical.element!)!
+                            return {
+                              schema: n.schema,
+                              name: n.name,
+                              values: n.enumLabels ?? [],
+                              outputFunction: n.output ?? undefined,
+                            }
+                          })(),
+                        }
+                      : {}),
+                  },
+              lines,
+              used,
+            )
+            result = value.name
+          } finally {
+            if (outer) localInputs.set(key, outer)
+            else localInputs.delete(key)
+          }
+        } else {
+          const enumDefinition =
+            physical.kind === 'e'
+              ? {
+                  schema: physical.schema,
+                  name: physical.name,
+                  values: physical.enumLabels ?? [],
+                  outputFunction: physical.output ?? undefined,
+                }
+              : undefined
+          const conversion = arrayElementOutput(fieldType, enumDefinition, cell, scalar)
+          if (
+            physical.output !==
+            (enumDefinition?.outputFunction ??
+              rangeTypeOutput(fieldType) ??
+              builtinTypeIO(fieldType)?.output)
+          )
+            throw new UnsupportedCheckRustExpression(
+              'Composite field output requires its selected catalog implementation',
+            )
+          if (conversion.scalarRequired)
+            lines.push(`let ${scalar}=array_element_to_${conversion.prefix}(${cell});`)
+          result =
+            fieldType === 'pg_catalog.jsonb'
+              ? `jsonb_text_context(${scalar},${executionContext.serverEncoding === 'UTF8'})`
+              : conversion.conversion
+        }
+        const value = fresh('record_output_field')
+        bindings.push(
+          `let mut ${value}:TextValue=text_unknown();`,
+          `if composite_output_has_field(${output}.clone()) {`,
+          ...indent(lines),
+          `    let ${rendered}=${result};`,
+          `    ${value}=${rendered};`,
+          '}',
+        )
+        output = bind(`append_composite_output(${output},${value},${index === 0})`)
+      }
+      return { name: bind(`finish_composite_output(${output})`), type: node.type }
     }
     if (node.kind === 'composite-null') return { name: bind('composite_null()'), type: node.type }
     if (node.kind === 'composite-constructor') {
