@@ -145,8 +145,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [x] Establish point payloads, SQL-coerced public inputs, construction, geometric equality, binary output and composition; establish the scalar square-root primitive and classify geometric text rendering requirements.
-- [x] Establish point direction tests, arithmetic, distance, slope, portable text
-      input and literals, and catalog-resolved unconstrained-domain casts;
+- [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts;
       preserve semantic NaN values while classifying computed binary precision.
 - [x] Establish line coefficient payloads, geometric equality, orientation,
       binary output, domains, SQL-coerced public inputs and composition.
@@ -257,8 +256,9 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit CIDR ranges/multiranges and subtype domains through captured profiles and binary hash casts; retain host-bit validation and full-width network output with unavailable comparators. Verify constructors, literals, ordered input, public payloads, arrays, JSON, wire, hashes, snapshots and native/Rust/Go/TypeScript INSERT parity.
 - [x] Admit varchar, bpchar and name range/multirange subtypes with captured C/UTF8 comparators, padded bounds, selected hashes, wire output, arrays, JSON and source/stored literals. Preserve subtype-domain widths, ownership, callback deferrals and public inputs; retain identifier-limit and client-encoding requirements with native/Rust/Go/TypeScript INSERT parity.
 - [x] Admit catalog-OID-alias range/multirange subtypes through captured unsigned comparison, hash and alias I/O profiles, including subtype domains, arrays, constructors and literals. Distinguish input-function parsing from explicit name lookup; preserve missing callbacks, catalog-dependent output/JSON and independent deployment OIDs with native/Rust/Go/TypeScript INSERT parity.
-- [x] Establish owned JSONB range/multirange bounds through the logical JSONB backend before SQL admission; reuse comparison, parsing, output and hashes, validate and normalize nested public payloads, and verify exact scales, JSON null, partial states, malformed graphs and independent snapshots across native/Rust/Go/TypeScript checks.
-- [ ] Extend range/multirange support to JSONB, enums and recursive subtype carriers; reuse established scalar backends, preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
+- [x] Admit captured JSONB range/multirange SQL types through owned logical bounds, subtype domains, constructors, source/stored literals, arrays, validated public payloads, I/O, JSON and hashes. Retain UTF8 input/output independently of unavailable comparison, require C/UTF8 ordering, preserve exact scales, ownership and error order, and verify native/Rust/Go/TypeScript INSERT parity.
+- [ ] Audit JSONB representation-equal sort ties with Unicode keys, including range/multirange bounds and nested arrays; retain justified encoding and unequal-representation deferrals.
+- [ ] Extend range/multirange support to enums and recursive subtype carriers; reuse established scalar backends, preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.

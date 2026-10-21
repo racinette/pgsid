@@ -1,7 +1,22 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 
+export type RangeJsonbPayload = {
+  characters: string[]
+  nodes: {
+    kind: number
+    child: number
+    next: number
+    keyStart: number
+    keyEnd: number
+    textStart: number
+    textEnd: number
+  }[]
+  root: number
+}
+
 export type RangeInputCell =
+  | { kind: 'Jsonb'; value: RangeJsonbPayload }
   | { kind: 'Null' | 'Unknown' | 'Float4UnspecifiedNan' | 'Float8UnspecifiedNan' }
   | { kind: 'Error'; value: { state: number } }
   | { kind: 'Int2' | 'Int4' | 'Date' | 'Float4' | 'InternalChar'; value: number }
@@ -68,6 +83,18 @@ const cellRecords = {
 export function rangeRustCell(cell: RangeInputCell): string {
   if (!('value' in cell)) return `ArrayElement::${cell.kind}`
   if (cell.kind === 'Error') return `ArrayElement::Error(make_sql_error(${cell.value.state}))`
+  if (cell.kind === 'Jsonb') {
+    const nodes = cell.value.nodes.map(
+      (node) =>
+        `JsonbNode {${Object.entries(node)
+          .map(
+            ([key, value]) =>
+              `${key.replace(/[A-Z]/g, (letter) => '_' + letter.toLowerCase())}:${value}`,
+          )
+          .join(',')}}`,
+    )
+    return `ArrayElement::Jsonb(JsonbPayload {characters:${rustStringLiteral(cell.value.characters.join(''))}.chars().collect(),nodes:vec![${nodes.join(',')}],root:${cell.value.root}})`
+  }
   const scalar = (value: string | number | bigint | boolean) =>
     typeof value === 'string'
       ? `${rustStringLiteral(value)}.to_owned()`
@@ -83,6 +110,34 @@ export function rangeRustCell(cell: RangeInputCell): string {
 
 export function rangeGoCell(cell: RangeInputCell): GoExpression {
   const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+  if (cell.kind === 'Jsonb')
+    return go.composite(runtime('ArrayElement'), [
+      go.keyValue('Kind', runtime('ArrayElementJsonb')),
+      go.keyValue(
+        'Jsonb',
+        go.composite(runtime('JsonbPayload'), [
+          go.keyValue(
+            'Characters',
+            go.call(go.slice(go.ident('rune')), [go.string(cell.value.characters.join(''))]),
+          ),
+          go.keyValue(
+            'Nodes',
+            go.composite(
+              go.slice(runtime('JsonbNode')),
+              cell.value.nodes.map((node) =>
+                go.composite(
+                  runtime('JsonbNode'),
+                  Object.entries(node).map(([key, value]) =>
+                    go.keyValue(key[0]!.toUpperCase() + key.slice(1), go.number(value)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          go.keyValue('Root', go.number(cell.value.root)),
+        ]),
+      ),
+    ])
   const scalar = (value: string | number | bigint | boolean): GoExpression =>
     typeof value === 'string'
       ? go.string(value)

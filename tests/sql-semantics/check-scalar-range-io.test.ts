@@ -43,8 +43,8 @@ it.each(scalarRangeBatchStarts)(
         if (backend.type === 'pg_catalog.cidr')
           await pg.exec(`CREATE DOMAIN io_cidr_bound_${index} AS cidr CHECK(masklen(VALUE)>=8);
             CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_cidr_bound_${index},multirange_type_name=io_domain_set_${index})`)
-        if (backend.kind === 8 || backend.type.startsWith('pg_catalog.reg'))
-          await pg.exec(`CREATE DOMAIN io_text_bound_${index} AS ${backend.type} CHECK(${backend.type.startsWith('pg_catalog.reg') ? 'VALUE::oid<>1' : `VALUE IS DISTINCT FROM 'forbidden'::${backend.type}`});
+        if (backend.kind === 8 || backend.kind === 12 || backend.type.startsWith('pg_catalog.reg'))
+          await pg.exec(`CREATE DOMAIN io_text_bound_${index} AS ${backend.type} CHECK(${backend.type.startsWith('pg_catalog.reg') ? 'VALUE::oid<>1' : `VALUE IS DISTINCT FROM '${backend.kind === 12 ? '"forbidden"' : 'forbidden'}'::${backend.type}`});
             CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_text_bound_${index},multirange_type_name=io_domain_set_${index})`)
       }
       const initial = await snapshotCatalog(pg),

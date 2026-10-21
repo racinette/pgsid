@@ -150,6 +150,12 @@ export const scalarRangeBackends = [
     prefix: 'oid',
     values: ['0', '2147483648', '4294967295'],
   },
+  {
+    type: 'pg_catalog.jsonb',
+    kind: 12,
+    prefix: 'jsonb',
+    values: ['{"a":[-1.00,null]}', '{"a":[0.00,null]}', '{"a":[1.2300,null]}'],
+  },
 ] as const
 
 export function scalarRangeComparison(profile: (typeof scalarRangeBackends)[number]): number {
@@ -183,6 +189,15 @@ export const scalarRangeText = (lower: string | null, upper: string | null, flag
 }
 
 export function invalidScalarRangeBounds(input: RangeInputCell, cidr = false): RangeInputCell[] {
+  if (input.kind === 'Jsonb') {
+    const root = structuredClone(input)
+    root.value.root = 0
+    const cycle = structuredClone(input)
+    cycle.value.nodes[cycle.value.root]!.child = cycle.value.root
+    const span = structuredClone(input)
+    span.value.nodes[span.value.root]!.textEnd = span.value.characters.length + 1
+    return [root, cycle, span]
+  }
   if (input.kind === 'Int2') return [{ kind: 'Int2', value: 32768 }]
   if (input.kind === 'Bit') return [{ kind: 'Bit', value: 'not binary' }]
   if (input.kind === 'Bytea')
@@ -227,9 +242,10 @@ export function invalidScalarRangeBounds(input: RangeInputCell, cidr = false): R
 
 export const scalarRangeBatchStarts: number[] = []
 const aliasStart = scalarRangeBackends.findIndex((p) => p.type.startsWith('pg_catalog.reg'))
+const jsonbStart = scalarRangeBackends.findIndex((p) => p.type === 'pg_catalog.jsonb')
 for (let start = 0; start < aliasStart; start += 5) scalarRangeBatchStarts.push(start)
-for (let start = aliasStart; start < scalarRangeBackends.length; start += 5)
-  scalarRangeBatchStarts.push(start)
+for (let start = aliasStart; start < jsonbStart; start += 5) scalarRangeBatchStarts.push(start)
+scalarRangeBatchStarts.push(jsonbStart)
 export function scalarRangeBatch(start: number) {
   const next =
     scalarRangeBatchStarts[scalarRangeBatchStarts.indexOf(start) + 1] ?? scalarRangeBackends.length
