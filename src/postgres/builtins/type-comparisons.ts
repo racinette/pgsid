@@ -11,12 +11,21 @@ export interface BuiltinTypeComparison {
   hashExtended: string | null
 }
 
+export interface CapturedTypeComparison extends BuiltinTypeComparison {
+  equalityImplementation: string | null
+  equalityAvailable?: boolean
+  comparisonAvailable?: boolean
+}
+
 type Support = {
   opclass: string
   equality_schema: string | null
   equality_name: string | null
   equality_left: string | null
   equality_right: string | null
+  equality_function_schema: string | null
+  equality_function_name: string | null
+  equality_function_args: string[] | null
   comparator_schema: string | null
   comparator_name: string | null
   comparator_args: string[] | null
@@ -24,7 +33,12 @@ type Support = {
   extended_name: string | null
   extended_args: string[] | null
 }
-const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
+const identifier = (
+  value: string,
+) => `(CASE WHEN (${value})::text COLLATE pg_catalog."C" ~ '^[a-z_][a-z0-9_$]*$'
+  AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_get_keywords() keyword WHERE keyword.word=(${value})::text AND keyword.catcode<>'U')
+  THEN (${value})::text ELSE '"'||pg_catalog.replace((${value})::text,'"','""')||'"' END)`
+const typeIdentity = `SELECT ${identifier('n.nspname')}||'.'||${identifier('t.typname')} FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
 
 export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTypeComparison[]> {
   const types = (
@@ -36,13 +50,23 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
     FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
     WHERE n.nspname='pg_catalog' AND t.typtype<>'p' AND t.typcategory<>'A' ORDER BY 1`)
   ).rows
-  const rows: BuiltinTypeComparison[] = []
-  for (const { identity, collation } of [
+  const comparisons = await readTypeComparisons(pg, [
     ...types,
     { identity: 'pg_catalog.anyenum', collation: null },
     { identity: 'pg_catalog.anyarray', collation: null },
-  ]) {
+  ])
+  return comparisons.map(({ equalityImplementation: _implementation, ...comparison }) => comparison)
+}
+
+export async function readTypeComparisons(
+  pg: PGlite,
+  types: readonly { identity: string; collation: string | null }[],
+  captureAvailability = false,
+): Promise<CapturedTypeComparison[]> {
+  const rows: CapturedTypeComparison[] = []
+  for (const { identity, collation } of types) {
     const supports: Record<string, Support | null> = { btree: null, hash: null }
+    let equalityAvailable: boolean | undefined, comparisonAvailable: boolean | undefined
     for (const method of ['btree', 'hash']) {
       try {
         await pg.transaction(async (tx) => {
@@ -56,13 +80,41 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
           }
           if (identity === 'pg_catalog.anyarray') type = 'pg_catalog.int4[]'
           await tx.exec(`CREATE TEMP TABLE _pgsid_type_comparison_probe(value ${type})`)
+          if (captureAvailability && method === 'btree') {
+            for (const operation of ['record_eq', 'btrecordcmp']) {
+              await tx.exec('SAVEPOINT _pgsid_comparison_availability')
+              let available = true
+              try {
+                await tx.exec(
+                  `SELECT pg_catalog.${operation}(
+                    ROW((SELECT value FROM _pgsid_type_comparison_probe LIMIT 1)),
+                    ROW((SELECT value FROM _pgsid_type_comparison_probe LIMIT 1)))`,
+                )
+              } catch (error) {
+                if (
+                  !error ||
+                  typeof error !== 'object' ||
+                  !('code' in error) ||
+                  error.code !== '42883'
+                )
+                  throw error
+                await tx.exec('ROLLBACK TO SAVEPOINT _pgsid_comparison_availability')
+                available = false
+              }
+              await tx.exec('RELEASE SAVEPOINT _pgsid_comparison_availability')
+              if (operation === 'record_eq') equalityAvailable = available
+              else comparisonAvailable = available
+            }
+          }
           await tx.exec(
             `CREATE INDEX _pgsid_type_comparison_index ON _pgsid_type_comparison_probe USING ${method}(value)`,
           )
           const result =
-            await tx.query<Support>(`SELECT quote_ident(n.nspname)||'.'||quote_ident(c.opcname) AS opclass,
+            await tx.query<Support>(`SELECT ${identifier('n.nspname')}||'.'||${identifier('c.opcname')} AS opclass,
             en.nspname AS equality_schema,e.oprname AS equality_name,
             (${typeIdentity} e.oprleft) AS equality_left,(${typeIdentity} e.oprright) AS equality_right,
+            efn.nspname AS equality_function_schema,ef.proname AS equality_function_name,
+            (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.o) FROM unnest(ef.proargtypes) WITH ORDINALITY u(t,o)) AS equality_function_args,
             pn.nspname AS comparator_schema,p.proname AS comparator_name,
             (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.o) FROM unnest(p.proargtypes) WITH ORDINALITY u(t,o)) AS comparator_args,
             xn.nspname AS extended_schema,x.proname AS extended_name,
@@ -72,6 +124,7 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
             JOIN pg_am a ON a.oid=c.opcmethod
             LEFT JOIN pg_amop o ON o.amopfamily=c.opcfamily AND o.amoplefttype=c.opcintype AND o.amoprighttype=c.opcintype AND o.amoppurpose='s' AND o.amopstrategy=CASE WHEN a.amname='btree' THEN 3 ELSE 1 END
             LEFT JOIN pg_operator e ON e.oid=o.amopopr LEFT JOIN pg_namespace en ON en.oid=e.oprnamespace
+            LEFT JOIN pg_proc ef ON ef.oid=e.oprcode LEFT JOIN pg_namespace efn ON efn.oid=ef.pronamespace
             LEFT JOIN pg_amproc ap ON ap.amprocfamily=c.opcfamily AND ap.amproclefttype=c.opcintype AND ap.amprocrighttype=c.opcintype AND ap.amprocnum=1
             LEFT JOIN pg_proc p ON p.oid=ap.amproc LEFT JOIN pg_namespace pn ON pn.oid=p.pronamespace
             LEFT JOIN pg_amproc xp ON a.amname='hash' AND xp.amprocfamily=c.opcfamily AND xp.amproclefttype=c.opcintype AND xp.amprocrighttype=c.opcintype AND xp.amprocnum=2
@@ -100,6 +153,10 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
       equality: equality?.equality_name
         ? `operator:${JSON.stringify([equality.equality_schema, equality.equality_name])}(${equality.equality_left},${equality.equality_right})`
         : null,
+      equalityImplementation: equality?.equality_function_name
+        ? `function:${JSON.stringify([equality.equality_function_schema, equality.equality_function_name])}(${(equality.equality_function_args ?? []).join(',')})`
+        : null,
+      ...(captureAvailability ? { equalityAvailable, comparisonAvailable } : {}),
       comparator: btree?.comparator_name
         ? `function:${JSON.stringify([btree.comparator_schema, btree.comparator_name])}(${(btree.comparator_args ?? []).join(',')})`
         : null,

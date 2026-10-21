@@ -1,5 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite'
 import type { CompositeTypeDefinition, CompositeTypeGraph } from '../catalog/types.js'
+import { readTypeComparisons } from './builtins/type-comparisons.js'
 
 const identifier = (
   value: string,
@@ -22,7 +23,7 @@ export async function readCatalogCompositeTypes(
   schemas: readonly string[] | null = null,
 ): Promise<CompositeTypeGraph> {
   const rows = (
-    await pg.query<CompositeTypeDefinition & { root: boolean }>(
+    await pg.query<CompositeTypeDefinition & { root: boolean; comparisonCollation: string | null }>(
       `WITH RECURSIVE roots(type) AS (
       SELECT t.oid FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
       WHERE t.typtype='c' AND (
@@ -42,6 +43,8 @@ export async function readCatalogCompositeTypes(
       ) child WHERE child.type IS NOT NULL AND child.type<>0
     ) SELECT t.oid IN(SELECT type FROM roots) root,
       ${typeIdentity('t.oid')} identity,n.nspname AS schema,t.typname AS name,t.typtype AS kind,
+      (SELECT ${identifier('ccn.nspname')}||'.'||${identifier('cc.collname')} FROM pg_catalog.pg_collation cc
+        JOIN pg_catalog.pg_namespace ccn ON ccn.oid=cc.collnamespace WHERE cc.oid=t.typcollation) AS "comparisonCollation",
       c.relkind AS "relationKind",c.relnatts::integer AS "attributeCount",${typeIdentity('t.typarray')} AS array,
       ${typeIdentity('t.typbasetype')} AS base,t.typtypmod AS "baseTypeMod",t.typnotnull AS "notNull",
       ${typeIdentity('e.oid')} AS element,${typeIdentity('r.rngsubtype')} AS subtype,
@@ -70,8 +73,35 @@ export async function readCatalogCompositeTypes(
       [schemas],
     )
   ).rows
+  const comparisons = new Map(
+    (
+      await readTypeComparisons(
+        pg,
+        rows.map((row) => ({ identity: row.identity, collation: row.comparisonCollation })),
+        true,
+      )
+    ).map((support) => [support.identity, support]),
+  )
   return {
     roots: rows.filter((row) => row.root).map((row) => row.identity),
-    definitions: rows.map(({ root: _root, ...definition }) => definition),
+    definitions: rows.map(({ root: _root, comparisonCollation: _collation, ...definition }) => {
+      const support = comparisons.get(definition.identity)!
+      if (support.equalityAvailable === undefined || support.comparisonAvailable === undefined)
+        throw new Error(
+          'Composite comparison availability was not captured: ' + definition.identity,
+        )
+      return {
+        ...definition,
+        comparison: {
+          btreeClass: support.btreeClass,
+          hashClass: support.hashClass,
+          equality: support.equality,
+          equalityImplementation: support.equalityImplementation,
+          comparator: support.comparator,
+          equalityAvailable: support.equalityAvailable,
+          comparisonAvailable: support.comparisonAvailable,
+        },
+      }
+    }),
   }
 }

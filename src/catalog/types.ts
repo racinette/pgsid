@@ -639,6 +639,15 @@ export interface CompositeTypeDefinition {
   output: string | null
   receive: string | null
   send: string | null
+  comparison?: {
+    btreeClass: string | null
+    hashClass: string | null
+    equality: string | null
+    equalityImplementation: string | null
+    comparator: string | null
+    equalityAvailable: boolean
+    comparisonAvailable: boolean
+  }
 }
 
 export interface CompositeTypeGraph {
