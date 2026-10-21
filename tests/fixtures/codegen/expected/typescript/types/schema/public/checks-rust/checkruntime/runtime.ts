@@ -3275,6 +3275,38 @@ export function networkAddressWord(address: NetworkAddress, index: number): numb
     }
     return address.word7;
 }
+export function networkCidrHostBitsZero(address: NetworkAddress): boolean {
+    let remaining: number = address.prefix;
+    let wordIndex: number = 0;
+    let wordCount: number = 8;
+    if (address.family === 4) {
+        wordCount = langruntime.checkedIndex(2);
+    }
+    else if (!(address.family === 6)) {
+        return false;
+    }
+    if (remaining < 0 || remaining > langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(wordCount))), 16)) {
+        return false;
+    }
+    while (wordIndex < wordCount) {
+        let bits: number = remaining;
+        if (bits > 16) {
+            bits = langruntime.checkedI32(16);
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, bits));
+        let divisor: number = 1;
+        let padding: number = langruntime.checkedSignedSubtract(16, bits);
+        while (padding > 0) {
+            divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
+            padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
+        }
+        if (!(langruntime.checkedSignedRemainder(networkAddressWord(address, wordIndex), divisor) === 0)) {
+            return false;
+        }
+        wordIndex = langruntime.checkedAdd(wordIndex, 1);
+    }
+    return true;
+}
 export function networkAddressByte(address: NetworkAddress, index: number, high: boolean): number {
     index = langruntime.checkedIndex(index);
     high = langruntime.checkedBool(high);
@@ -3583,30 +3615,8 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         langruntime.pushStruct(words, { value: 0 }, copyNetworkWord);
     }
     const address: NetworkAddress = { family: family, prefix: prefix, word0: langruntime.indexStruct(words, langruntime.checkedIndex(0), copyNetworkWord).value, word1: langruntime.indexStruct(words, langruntime.checkedIndex(1), copyNetworkWord).value, word2: langruntime.indexStruct(words, langruntime.checkedIndex(2), copyNetworkWord).value, word3: langruntime.indexStruct(words, langruntime.checkedIndex(3), copyNetworkWord).value, word4: langruntime.indexStruct(words, langruntime.checkedIndex(4), copyNetworkWord).value, word5: langruntime.indexStruct(words, langruntime.checkedIndex(5), copyNetworkWord).value, word6: langruntime.indexStruct(words, langruntime.checkedIndex(6), copyNetworkWord).value, word7: langruntime.indexStruct(words, langruntime.checkedIndex(7), copyNetworkWord).value };
-    if (cidr) {
-        let remaining: number = prefix;
-        let wordIndex: number = 0;
-        let wordCount: number = 8;
-        if (family === 4) {
-            wordCount = langruntime.checkedIndex(2);
-        }
-        while (wordIndex < wordCount) {
-            let bits: number = remaining;
-            if (bits > 16) {
-                bits = langruntime.checkedI32(16);
-            }
-            remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, bits));
-            let divisor: number = 1;
-            let padding: number = langruntime.checkedSignedSubtract(16, bits);
-            while (padding > 0) {
-                divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
-                padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
-            }
-            if (!(langruntime.checkedSignedRemainder(networkAddressWord(address, wordIndex), divisor) === 0)) {
-                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
-            }
-            wordIndex = langruntime.checkedAdd(wordIndex, 1);
-        }
+    if (cidr && networkCidrHostBitsZero(address) === false) {
+        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
     }
     return { kind: "Value", value: address };
 }
@@ -8598,9 +8608,12 @@ export function rangeSupportEqual(left: RangeSupport, right: RangeSupport): bool
 }
 export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
     kind = langruntime.checkedI32(kind);
-    const comparison: boolean = input.comparison === 0 || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39));
+    const comparison: boolean = input.comparison === 0 || (kind === 13 && rangeSupportIsCidr(input)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39));
     const canonical: boolean = input.canonical === 0 || input.canonical === 1 || (input.canonical === kind && (kind === 2 || kind === 3 || kind === 7));
     return comparison && canonical;
+}
+export function rangeSupportIsCidr(input: RangeSupport): boolean {
+    return input.comparison === 100 || input.comparison === 113;
 }
 export interface RangePayload {
     readonly typeName: string;
@@ -8648,8 +8661,9 @@ function rangeBoundWordValid(value: number): boolean {
     value = langruntime.checkedI32(value);
     return value >= 0 && value <= 65535;
 }
-function rangeBoundValueValid(input: ArrayElement): boolean {
+function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
     input = copyArrayElement(input);
+    cidr = langruntime.checkedBool(cidr);
     if (input.kind === "Int2") {
         const value: number = langruntime.checkedI32(input.value);
         return !(equalInt2Value(makeInt2Value(value), { kind: "Unknown" }));
@@ -8700,7 +8714,7 @@ function rangeBoundValueValid(input: ArrayElement): boolean {
                 return false;
             }
         }
-        return rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2) && rangeBoundWordValid(value.word3) && rangeBoundWordValid(value.word4) && rangeBoundWordValid(value.word5) && rangeBoundWordValid(value.word6) && rangeBoundWordValid(value.word7);
+        return (cidr === false || networkCidrHostBitsZero(value)) && rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2) && rangeBoundWordValid(value.word3) && rangeBoundWordValid(value.word4) && rangeBoundWordValid(value.word5) && rangeBoundWordValid(value.word6) && rangeBoundWordValid(value.word7);
     }
     if (input.kind === "Macaddr") {
         const value: MacAddress = input.value;
@@ -8753,7 +8767,7 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
         if (!(kind === 0) && !(kind === value.elementKind)) {
             return { kind: "Unknown" };
         }
-        if (rangeBoundValueValid(copyArrayElement(bound)) === false) {
+        if (rangeBoundValueValid(copyArrayElement(bound), rangeSupportIsCidr(support) || value.elementType === "pg_catalog.cidr") === false) {
             return { kind: "Unknown" };
         }
         if (bound.kind === "Null") {

@@ -32697,7 +32697,7 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.BoolValue = checkruntime.arrayElementToBool(upper);
         return btboolcmpI7aj(left, right);
     }
-    if (kind === 13) {
+    if (kind === 13 || kind === 113) {
         const left: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(lower);
         const right: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(upper);
         return networkCmp7dun(left, right);
@@ -33193,8 +33193,9 @@ function rangeInputSpace(ch: string): boolean {
     ch = langruntime.checkedChar(ch);
     return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
 }
-function rangeInputBound(input: checkruntime.TextValue, kind: number): checkruntime.ArrayElement {
+function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: boolean): checkruntime.ArrayElement {
     kind = langruntime.checkedI32(kind);
+    cidr = langruntime.checkedBool(cidr);
     if (kind === 8) {
         return checkruntime.arrayElementFromText(input);
     }
@@ -33217,6 +33218,9 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number): checkrunt
         return checkruntime.arrayElementFromBool(scalarBooleanFromText(input));
     }
     if (kind === 13) {
+        if (cidr) {
+            return checkruntime.arrayElementFromNetwork(checkruntime.cidrFromText(input));
+        }
         return checkruntime.arrayElementFromNetwork(checkruntime.networkFromText(input));
     }
     if (kind === 14) {
@@ -33530,7 +33534,8 @@ export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName
         return rangeTextInitial(checkruntime.copyRangeTextPlan(plan), typeName, elementType, kind, support);
     }
     const lowerText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), false);
-    const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind);
+    const cidr: boolean = checkruntime.rangeSupportIsCidr(support) || elementType === "pg_catalog.cidr";
+    const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind, cidr);
     if (lower.kind === "Error") {
         const error: checkruntime.SqlError = lower.value;
         return { kind: "Error", value: error };
@@ -33539,7 +33544,7 @@ export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName
         return { kind: "Unknown" };
     }
     const upperText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), true);
-    const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind);
+    const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind, cidr);
     if (upper.kind === "Error") {
         const error: checkruntime.SqlError = upper.value;
         return { kind: "Error", value: error };
@@ -33688,9 +33693,10 @@ export function rangeFormatText(input: checkruntime.RangeValue, lower: checkrunt
     }
     return { kind: "Unknown" };
 }
-function rangeOutputBound(input: checkruntime.ArrayElement, kind: number): checkruntime.TextValue {
+function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: boolean): checkruntime.TextValue {
     input = checkruntime.copyArrayElement(input);
     kind = langruntime.checkedI32(kind);
+    cidr = langruntime.checkedBool(cidr);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -33717,7 +33723,7 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number): check
         return arrayBooleanOutput(checkruntime.arrayElementToBool(input));
     }
     if (kind === 13) {
-        return arrayNetworkOutput(checkruntime.arrayElementToNetwork(input), false);
+        return arrayNetworkOutput(checkruntime.arrayElementToNetwork(input), cidr);
     }
     if (kind === 14) {
         return checkruntime.bitToText(checkruntime.arrayElementToBit(input));
@@ -33807,7 +33813,8 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         if (value.empty) {
             return checkruntime.makeTextValue("empty");
         }
-        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind);
+        const cidr: boolean = checkruntime.rangeSupportIsCidr(value.support) || value.elementType === "pg_catalog.cidr";
+        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr);
         if (lower.kind === "Error") {
             const error: checkruntime.SqlError = lower.value;
             return { kind: "Error", value: error };
@@ -33815,7 +33822,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         if (lower.kind === "Unknown") {
             return { kind: "Unknown" };
         }
-        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind);
+        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr);
         if (upper.kind === "Error") {
             const error: checkruntime.SqlError = upper.value;
             return { kind: "Error", value: error };

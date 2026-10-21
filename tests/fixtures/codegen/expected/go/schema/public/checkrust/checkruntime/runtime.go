@@ -3140,6 +3140,37 @@ func NetworkAddressWord(address NetworkAddress, index int) int {
 	}
 	return address.Word7
 }
+func NetworkCidrHostBitsZero(address NetworkAddress) bool {
+	remaining := address.Prefix
+	wordIndex := 0
+	wordCount := 8
+	if address.Family == 4 {
+		wordCount = langruntime.CheckedIndex(2)
+	} else if address.Family != 6 {
+		return false
+	}
+	if remaining < 0 || remaining > langruntime.CheckedSignedMultiply((int(int32(wordCount))), 16) {
+		return false
+	}
+	for wordIndex < wordCount {
+		bits := remaining
+		if bits > 16 {
+			bits = langruntime.CheckedI32(16)
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, bits))
+		divisor := 1
+		padding := langruntime.CheckedSignedSubtract(16, bits)
+		for padding > 0 {
+			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
+			padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
+		}
+		if langruntime.CheckedSignedRemainder(NetworkAddressWord(address, wordIndex), divisor) != 0 {
+			return false
+		}
+		wordIndex = langruntime.CheckedAdd(wordIndex, 1)
+	}
+	return true
+}
 func NetworkAddressByte(address NetworkAddress, index int, high bool) int {
 	index = langruntime.CheckedIndex(index)
 	word := NetworkAddressWord(address, index)
@@ -3448,30 +3479,8 @@ func networkParse(value string, cidr bool) NetworkValue {
 		words = append(words, CopyNetworkWord(NetworkWord{Value: 0}))
 	}
 	address := NetworkAddress{Family: family, Prefix: prefix, Word0: words[0].Value, Word1: words[1].Value, Word2: words[2].Value, Word3: words[3].Value, Word4: words[4].Value, Word5: words[5].Value, Word6: words[6].Value, Word7: words[7].Value}
-	if cidr {
-		remaining := prefix
-		wordIndex := 0
-		wordCount := 8
-		if family == 4 {
-			wordCount = langruntime.CheckedIndex(2)
-		}
-		for wordIndex < wordCount {
-			bits := remaining
-			if bits > 16 {
-				bits = langruntime.CheckedI32(16)
-			}
-			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, bits))
-			divisor := 1
-			padding := langruntime.CheckedSignedSubtract(16, bits)
-			for padding > 0 {
-				divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
-				padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
-			}
-			if langruntime.CheckedSignedRemainder(NetworkAddressWord(address, wordIndex), divisor) != 0 {
-				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
-			}
-			wordIndex = langruntime.CheckedAdd(wordIndex, 1)
-		}
+	if cidr && NetworkCidrHostBitsZero(address) == false {
+		return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 	}
 	return NetworkValue{Kind: NetworkValueValue, Value: address}
 }
@@ -8462,9 +8471,12 @@ func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
 }
 func RangeSupportValid(input RangeSupport, kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	comparison := input.Comparison == 0 || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
+	comparison := input.Comparison == 0 || (kind == 13 && RangeSupportIsCidr(input)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
 	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
 	return comparison && canonical
+}
+func RangeSupportIsCidr(input RangeSupport) bool {
+	return input.Comparison == 100 || input.Comparison == 113
 }
 
 type RangePayload struct {
@@ -8524,7 +8536,7 @@ func rangeBoundWordValid(value int) bool {
 	value = langruntime.CheckedI32(value)
 	return value >= 0 && value <= 65535
 }
-func rangeBoundValueValid(input ArrayElement) bool {
+func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementInt2 {
 		value := langruntime.CheckedI32(input.Int2)
@@ -8576,7 +8588,7 @@ func rangeBoundValueValid(input ArrayElement) bool {
 				return false
 			}
 		}
-		return rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2) && rangeBoundWordValid(value.Word3) && rangeBoundWordValid(value.Word4) && rangeBoundWordValid(value.Word5) && rangeBoundWordValid(value.Word6) && rangeBoundWordValid(value.Word7)
+		return (cidr == false || NetworkCidrHostBitsZero(value)) && rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2) && rangeBoundWordValid(value.Word3) && rangeBoundWordValid(value.Word4) && rangeBoundWordValid(value.Word5) && rangeBoundWordValid(value.Word6) && rangeBoundWordValid(value.Word7)
 	}
 	if input.Kind == ArrayElementMacaddr {
 		value := input.Macaddr
@@ -8629,7 +8641,7 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 		if kind != 0 && kind != value.ElementKind {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
-		if rangeBoundValueValid(CopyArrayElement(bound)) == false {
+		if rangeBoundValueValid(CopyArrayElement(bound), RangeSupportIsCidr(support) || value.ElementType == "pg_catalog.cidr") == false {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		if bound.Kind == ArrayElementNull {

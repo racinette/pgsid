@@ -30,7 +30,7 @@ const cell = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 
-it.each([0, 5, 10, 15])(
+it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
   'binds represented scalar range row values, constructors, domains and arrays in source/stored CHECKs, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
@@ -250,7 +250,10 @@ it.each([0, 5, 10, 15])(
             const empty = forms.find(
               (form) => form.index === family.index && form.name === 'empty',
             )!
-            for (const bad of invalidScalarRangeBounds(bound))
+            for (const bad of invalidScalarRangeBounds(
+              bound,
+              family.backend.type === 'pg_catalog.cidr',
+            ))
               for (const bypass of [false, true])
                 for (const origin of ['source', 'stored']) {
                   const modified = structuredClone(v)

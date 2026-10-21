@@ -25,6 +25,7 @@ const subtypeKinds = {
   'pg_catalog.bool': 9,
   'pg_catalog."numeric"': 10,
   'pg_catalog.inet': 13,
+  'pg_catalog.cidr': 13,
   'pg_catalog."bit"': 14,
   'pg_catalog.varbit': 14,
   'pg_catalog.bytea': 15,
@@ -271,5 +272,9 @@ export function rangeProfileSupport(
       : !profile.captured && (kind === 2 || kind === 3 || kind === 7)
         ? kind
         : 0
-  return { comparison, canonical }
+  return {
+    comparison:
+      profile.elementType === 'pg_catalog.cidr' ? (comparison === 13 ? 113 : 100) : comparison,
+    canonical,
+  }
 }

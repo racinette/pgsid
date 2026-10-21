@@ -132,8 +132,7 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 Implement the remaining concrete PostgreSQL value families after the preceding expression and corpus work. Complete one bounded slice through the completion gate before expanding it. Prioritize common CHECK families, including arrays and JSON, before ACL/full-text; follow dependency order unless implementation exposes a prerequisite:
 
-- [x] Establish IEEE bit conversion primitives before floating-point values,
-      casts, comparisons, and binary I/O.
+- [x] Establish IEEE bit conversion primitives before floating-point values, casts, comparisons, and binary I/O.
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs and defaults, restoring the caller's rendering settings after the read.
 - [x] Floating point (`float4`, `float8`).
 - [x] Audit platform-generated NaN binary precision in floating input, literals and geometry; retain known NaN semantics when output bits require platform context.
@@ -179,9 +178,9 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       counts, binary output, geometric equality, containment and path/box conversions;
       defer ambiguous omitted bounds while retaining known nullness and lengths.
 - [ ] Geometry, after public floating-point support.
-- [ ] Full-text documents (`tsvector`), queued after common CHECK families: implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
-- [ ] Full-text queries (`tsquery`), queued after common CHECK families: implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
-- [ ] ACL entries (`aclitem`), queued after common CHECK families: implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
+- [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
+- [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
+- [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
 - [ ] XML values, with document/content and execution-context requirements explicit.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
@@ -258,6 +257,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Verify admitted scalar range/multirange text casts, source/stored literals and array input through subtype domains, bit widths and clock/interval precision. Preserve exact wire values, omitted bounds, ordered errors, eager preparation, lazy input and partial states; retain reached monetary, timezone and platform input requirements with native/Rust/Go/TypeScript INSERT parity.
 - [x] Reproduce missing subtype hash support errors for ranges, multiranges and recursive/domain arrays, including empty and all-NULL collections. Preserve strict seeds, partial bounds, input errors, constant preparation and lazy branches; verify native/Rust/Go/TypeScript INSERT parity without deployment OIDs.
 - [x] Verify admitted scalar range/multirange output, widths, binary send, hashes and JSON conversion through recursive/domain arrays and VARIADIC builders. Preserve exact bounds, signed zero, NaNs, key/error order, NULL and lazy branches with source/stored and native/Rust/Go/TypeScript INSERT parity; retain scalar formatting and hash build/context requirements.
+- [x] Admit CIDR ranges/multiranges and subtype domains through captured profiles and binary hash casts; retain host-bit validation and full-width network output with unavailable comparators. Verify constructors, literals, ordered input, public payloads, arrays, JSON, wire, hashes, snapshots and native/Rust/Go/TypeScript INSERT parity.
 - [ ] Extend range/multirange support to remaining SQL-admissible represented subtype carriers; preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
@@ -288,7 +288,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] JSONPath temporal methods and numeric calendar/clock templates: typed intermediates, widths/literals, grouped years/eras, ordinal/Julian/week calendars, 12-hour clocks, English/Roman names, fractions/offsets, comparisons and INSERT parity; preserve partial-field validation, integer widths, error hardness and context requirements.
 - [x] JSONPath regex execution under declared C/C.UTF-8 character profiles: flags, strict/lax sequences, lazy guards, error hardness and INSERT parity; retain engine limits and Unicode locale requirements.
 - [x] Establish scalar JSONPath _tz calls, context-independent paths, fixed-offset clock removal and explicit reached session deferrals; classify set-returning query and internal I/O interfaces with PostgreSQL checks and INSERT parity.
-- [ ] Close JSONPath Unicode locale-sensitive regex gaps; classify stored-text grouping that requires original source graphs separately from missing locale/timezone/abbreviation context.
+- [ ] Audit remaining JSONPath boundaries: Unicode locale-sensitive regex implementation gaps; unavailable locale/timezone/abbreviation context; and stored text whose original grouping requires source graphs. Keep missing implementation separate from justified Unknown results.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON. Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations, expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing, session-dependent behavior, and unimplemented callables visible in the reports; representation support alone does not complete them. Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate. Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.

@@ -245,7 +245,7 @@ it('requires selected subtype hash and send links for custom scalar and array bi
           'function:["pg_catalog","int8send"](pg_catalog.int8)',
         ])
           expect(prepare({ [field]: value }).kind, check.name + '/' + field + '/' + value).toBe(
-            check.name.startsWith('array') && value === null ? 'supported' : 'unsupported',
+            !check.name.includes('wire') && value === null ? 'supported' : 'unsupported',
           )
       expect(
         prepare({
