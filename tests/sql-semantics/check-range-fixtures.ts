@@ -91,6 +91,7 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
   }
   if (records[subtype]) return `encode(${records[subtype]}(${bound}),'hex')`
   if (subtype === 'pg_catalog.bytea') return `encode(${bound},'hex')`
+  if (subtype.startsWith('pg_catalog.reg')) return `(${bound}::oid)::text`
   return `${bound}::text`
 }
 
@@ -109,7 +110,8 @@ export function rangeBoundCell(subtype: string, value: string | null): RangeInpu
   if (subtype === 'pg_catalog.float8') return { kind: 'Float8', value: BigInt(value) }
   if (subtype === 'pg_catalog."time"') return { kind: 'Time', value: BigInt(value) }
   if (subtype === 'pg_catalog.money') return { kind: 'Money', value: BigInt(value) }
-  if (subtype === 'pg_catalog.oid') return { kind: 'Oid', value: BigInt(value) }
+  if (subtype === 'pg_catalog.oid' || subtype.startsWith('pg_catalog.reg'))
+    return { kind: 'Oid', value: BigInt(value) }
   if (subtype === 'pg_catalog.xid8')
     return { kind: 'Xid8', value: BigInt.asIntN(64, BigInt(value)) }
   if (subtype === 'pg_catalog.pg_lsn') return { kind: 'PgLsn', value: BigInt(value) }

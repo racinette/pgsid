@@ -3789,7 +3789,7 @@ export function bindCatalogCheck(
       }
       if (
         isOidType(type) &&
-        builtinCast('pg_catalog.text', type)?.method !== 'f' &&
+        (castInput === true || builtinCast('pg_catalog.text', type)?.method !== 'f') &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
         operand.value
       ) {

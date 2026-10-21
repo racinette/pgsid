@@ -84,9 +84,89 @@ export const scalarRangeBackends = [
   { type: 'pg_catalog."varchar"', kind: 8, prefix: 'text', values: ['alpha ', 'beta', 'zeta  '] },
   { type: 'pg_catalog.bpchar', kind: 8, prefix: 'text', values: ['alpha ', 'beta  ', 'zeta '] },
   { type: 'pg_catalog.name', kind: 8, prefix: 'text', values: ['alpha ', 'beta', 'zeta '] },
+  {
+    type: 'pg_catalog.regclass',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regcollation',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regconfig',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regdictionary',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regnamespace',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regoper',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regoperator',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regproc',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regprocedure',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regrole',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
+  {
+    type: 'pg_catalog.regtype',
+    kind: 33,
+    prefix: 'oid',
+    values: ['0', '2147483648', '4294967295'],
+  },
 ] as const
 
 export function scalarRangeComparison(profile: (typeof scalarRangeBackends)[number]): number {
+  if (profile.type.startsWith('pg_catalog.reg')) {
+    return (
+      330 +
+      (profile.type === 'pg_catalog.regoper'
+        ? 2
+        : profile.type === 'pg_catalog.regoperator'
+          ? 4
+          : profile.type === 'pg_catalog.regprocedure'
+            ? 3
+            : profile.type === 'pg_catalog.regtype'
+              ? 5
+              : 1)
+    )
+  }
   return profile.type === 'pg_catalog.bpchar'
     ? 108
     : profile.type === 'pg_catalog.name'
@@ -143,4 +223,26 @@ export function invalidScalarRangeBounds(input: RangeInputCell, cidr = false): R
     ]
   if (input.kind === 'Uuid') return [{ kind: 'Uuid', value: { ...input.value, word7: 65536 } }]
   return []
+}
+
+export const scalarRangeBatchStarts: number[] = []
+const aliasStart = scalarRangeBackends.findIndex((p) => p.type.startsWith('pg_catalog.reg'))
+for (let start = 0; start < aliasStart; start += 5) scalarRangeBatchStarts.push(start)
+for (let start = aliasStart; start < scalarRangeBackends.length; start += 5)
+  scalarRangeBatchStarts.push(start)
+export function scalarRangeBatch(start: number) {
+  const next =
+    scalarRangeBatchStarts[scalarRangeBatchStarts.indexOf(start) + 1] ?? scalarRangeBackends.length
+  return scalarRangeBackends.slice(start, next)
+}
+
+export function rangeHasNonzeroOid(input: unknown): boolean {
+  if (!input || typeof input !== 'object') return false
+  if ('kind' in input && 'value' in input && input.kind === 'Oid') return input.value !== 0n
+  if ('bounds' in input && Array.isArray(input.bounds)) return input.bounds.some(rangeHasNonzeroOid)
+  if ('ranges' in input && Array.isArray(input.ranges)) return input.ranges.some(rangeHasNonzeroOid)
+  if ('elements' in input && Array.isArray(input.elements))
+    return input.elements.some(rangeHasNonzeroOid)
+  if ('value' in input) return rangeHasNonzeroOid(input.value)
+  return false
 }

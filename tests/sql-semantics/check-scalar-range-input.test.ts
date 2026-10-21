@@ -13,7 +13,11 @@ import {
   type Row,
   type Outcome,
 } from '../../tools/check-rust/parity.js'
-import { scalarRangeBackends, scalarRangeText } from './check-scalar-range-fixtures.js'
+import {
+  scalarRangeBatchStarts,
+  scalarRangeBatch,
+  scalarRangeText,
+} from './check-scalar-range-fixtures.js'
 import { rangeArrayText } from './check-range-array-fixtures.js'
 import { nativeCustomRangeOutcome } from './check-custom-range-fixtures.js'
 
@@ -21,14 +25,14 @@ const literal = (value: string) => "'" + value.replaceAll("'", "''") + "'"
 const cell = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 
-it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
+it.each(scalarRangeBatchStarts)(
   'checks scalar range input, subtype domains and source/stored literals across targets, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
       directory = await mkdtemp(join(tmpdir(), 'pgsid-scalar-range-input-'))
     try {
       await pg.exec("SET lc_monetary='C';SET IntervalStyle='postgres';SET bytea_output='hex'")
-      const profiles = scalarRangeBackends.slice(start, start + 5).flatMap((backend, offset) => {
+      const profiles = scalarRangeBatch(start).flatMap((backend, offset) => {
         const index = start + offset
         return [false, true].map((checked) => ({
           backend,
@@ -63,7 +67,7 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
         const declaration = p.backend.kind === 23 ? 'interval(3)' : p.backend.type + modifier
         if (p.checked)
           await pg.exec(
-            `CREATE DOMAIN ${subtype} AS ${declaration} NOT NULL CHECK(VALUE IS DISTINCT FROM ${literal(p.values[0]!)}::${p.backend.type}${p.backend.type === 'pg_catalog."bit"' ? '(3)' : ''})`,
+            `CREATE DOMAIN ${subtype} AS ${declaration} NOT NULL CHECK(${p.backend.type.startsWith('pg_catalog.reg') ? 'VALUE::oid<>0' : `VALUE IS DISTINCT FROM ${literal(p.values[0]!)}::${p.backend.type}${p.backend.type === 'pg_catalog."bit"' ? '(3)' : ''}`})`,
           )
         await pg.exec(
           `CREATE TYPE ${p.name} AS RANGE(subtype=${subtype},multirange_type_name=${p.multiName})`,

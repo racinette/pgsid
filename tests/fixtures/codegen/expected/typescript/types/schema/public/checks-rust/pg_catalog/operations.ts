@@ -32778,7 +32778,7 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.InternalCharValue = checkruntime.arrayElementToInternalChar(upper);
         return btcharcmpGfia(left, right);
     }
-    if (kind === 33) {
+    if (kind === 33 || (kind >= 331 && kind <= 335)) {
         const left: checkruntime.OidValue = checkruntime.arrayElementToOid(lower);
         const right: checkruntime.OidValue = checkruntime.arrayElementToOid(upper);
         return btoidcmp48b8(left, right);
@@ -33209,10 +33209,11 @@ function rangeInputSpace(ch: string): boolean {
     ch = langruntime.checkedChar(ch);
     return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
 }
-function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: boolean, name: boolean): checkruntime.ArrayElement {
+function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: boolean, name: boolean, aliasMode: number): checkruntime.ArrayElement {
     kind = langruntime.checkedI32(kind);
     cidr = langruntime.checkedBool(cidr);
     name = langruntime.checkedBool(name);
+    aliasMode = langruntime.checkedI32(aliasMode);
     if (kind === 8) {
         if (name) {
             return checkruntime.arrayElementFromText(nameFromText(input));
@@ -33280,6 +33281,17 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
         return checkruntime.arrayElementFromInternalChar(internalCharFromText(input));
     }
     if (kind === 33) {
+        if (aliasMode > 0) {
+            const dash: boolean = !(aliasMode === 2) && !(aliasMode === 4);
+            let grammar: number = 0;
+            if (aliasMode === 3 || aliasMode === 4) {
+                grammar = langruntime.checkedI32(1);
+            }
+            if (aliasMode === 5) {
+                grammar = langruntime.checkedI32(2);
+            }
+            return checkruntime.arrayElementFromOid(oidAliasFromText(input, dash, grammar));
+        }
         return checkruntime.arrayElementFromOid(oidFromText(input));
     }
     if (kind === 37) {
@@ -33556,7 +33568,8 @@ export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName
     const lowerText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), false);
     const cidr: boolean = checkruntime.rangeSupportIsCidr(support) || elementType === "pg_catalog.cidr";
     const name: boolean = support.comparison === 200 || support.comparison === 208 || elementType === "pg_catalog.name";
-    const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind, cidr, name);
+    const aliasMode: number = checkruntime.rangeOidAliasMode(support, elementType);
+    const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind, cidr, name, aliasMode);
     if (lower.kind === "Error") {
         const error: checkruntime.SqlError = lower.value;
         return { kind: "Error", value: error };
@@ -33565,7 +33578,7 @@ export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName
         return { kind: "Unknown" };
     }
     const upperText: checkruntime.TextValue = rangeTextBound(checkruntime.copyRangeTextPlan(plan), true);
-    const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind, cidr, name);
+    const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind, cidr, name, aliasMode);
     if (upper.kind === "Error") {
         const error: checkruntime.SqlError = upper.value;
         return { kind: "Error", value: error };
@@ -33714,10 +33727,11 @@ export function rangeFormatText(input: checkruntime.RangeValue, lower: checkrunt
     }
     return { kind: "Unknown" };
 }
-function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: boolean): checkruntime.TextValue {
+function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: boolean, aliasMode: number): checkruntime.TextValue {
     input = checkruntime.copyArrayElement(input);
     kind = langruntime.checkedI32(kind);
     cidr = langruntime.checkedBool(cidr);
+    aliasMode = langruntime.checkedI32(aliasMode);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -33774,6 +33788,10 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
         return textJ1jh(checkruntime.arrayElementToInternalChar(input));
     }
     if (kind === 33) {
+        if (aliasMode > 0) {
+            const dash: boolean = !(aliasMode === 2) && !(aliasMode === 4);
+            return oidAliasToText(checkruntime.arrayElementToOid(input), dash);
+        }
         return oidToText(checkruntime.arrayElementToOid(input));
     }
     if (kind === 37) {
@@ -33835,7 +33853,8 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
             return checkruntime.makeTextValue("empty");
         }
         const cidr: boolean = checkruntime.rangeSupportIsCidr(value.support) || value.elementType === "pg_catalog.cidr";
-        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr);
+        const aliasMode: number = checkruntime.rangeOidAliasMode(value.support, value.elementType);
+        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode);
         if (lower.kind === "Error") {
             const error: checkruntime.SqlError = lower.value;
             return { kind: "Error", value: error };
@@ -33843,7 +33862,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         if (lower.kind === "Unknown") {
             return { kind: "Unknown" };
         }
-        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr);
+        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode);
         if (upper.kind === "Error") {
             const error: checkruntime.SqlError = upper.value;
             return { kind: "Error", value: error };

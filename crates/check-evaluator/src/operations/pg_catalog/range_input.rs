@@ -4,7 +4,7 @@ fn range_input_space(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\x0b' || ch == '\x0c'
 }
 
-fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool) -> ArrayElement {
+fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_mode: i32) -> ArrayElement {
     if kind == 8 {
         if name { return array_element_from_text(name_from_text(input)); };
         return array_element_from_text(input);
@@ -70,6 +70,13 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool) -> Arr
         return array_element_from_internal_char(internal_char_from_text(input));
     };
     if kind == 33 {
+        if alias_mode > 0 {
+            let dash = alias_mode != 2 && alias_mode != 4;
+            let mut grammar: i32 = 0;
+            if alias_mode == 3 || alias_mode == 4 { grammar = 1; };
+            if alias_mode == 5 { grammar = 2; };
+            return array_element_from_oid(oid_alias_from_text(input, dash, grammar));
+        };
         return array_element_from_oid(oid_from_text(input));
     };
     if kind == 37 {
@@ -383,7 +390,8 @@ pub fn range_from_text_with_support(
     let lower_text = range_text_bound(plan.clone(), false);
     let cidr = range_support_is_cidr(support) || element_type == "pg_catalog.cidr";
     let name = support.comparison == 200 || support.comparison == 208 || element_type == "pg_catalog.name";
-    let lower = range_input_bound(lower_text, kind, cidr, name);
+    let alias_mode = range_oid_alias_mode(support, element_type);
+    let lower = range_input_bound(lower_text, kind, cidr, name, alias_mode);
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -391,7 +399,7 @@ pub fn range_from_text_with_support(
         return RangeValue::Unknown;
     };
     let upper_text = range_text_bound(plan.clone(), true);
-    let upper = range_input_bound(upper_text, kind, cidr, name);
+    let upper = range_input_bound(upper_text, kind, cidr, name, alias_mode);
     if let ArrayElement::Error(error) = upper {
         return RangeValue::Error(error);
     };

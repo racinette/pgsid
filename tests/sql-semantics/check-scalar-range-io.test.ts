@@ -14,7 +14,12 @@ import {
   type Outcome,
 } from '../../tools/check-rust/parity.js'
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
-import { scalarRangeBackends, scalarRangeText } from './check-scalar-range-fixtures.js'
+import {
+  scalarRangeBatchStarts,
+  scalarRangeBatch,
+  rangeHasNonzeroOid,
+  scalarRangeText,
+} from './check-scalar-range-fixtures.js'
 import { readRangeFixture } from './check-range-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { rangeArrayText, readRangeArrayFixture } from './check-range-array-fixtures.js'
@@ -23,14 +28,14 @@ import { readMultirangeArrayFixture } from './check-multirange-array-fixtures.js
 const cell = (value: string | bigint | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 
-it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
+it.each(scalarRangeBatchStarts)(
   'matches scalar range output, wire, hashes and JSON conversion in source/stored CHECKs, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
       directory = await mkdtemp(join(tmpdir(), 'pgsid-scalar-range-io-'))
     try {
       await pg.exec("SET lc_monetary='C';SET IntervalStyle='postgres';SET bytea_output='hex'")
-      const backends = scalarRangeBackends.slice(start, start + 5)
+      const backends = scalarRangeBatch(start)
       for (const [index, backend] of backends.entries()) {
         await pg.exec(
           `CREATE TYPE io_span_${index} AS RANGE(subtype=${backend.type},multirange_type_name=io_set_${index})`,
@@ -38,8 +43,8 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
         if (backend.type === 'pg_catalog.cidr')
           await pg.exec(`CREATE DOMAIN io_cidr_bound_${index} AS cidr CHECK(masklen(VALUE)>=8);
             CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_cidr_bound_${index},multirange_type_name=io_domain_set_${index})`)
-        if (backend.kind === 8)
-          await pg.exec(`CREATE DOMAIN io_text_bound_${index} AS ${backend.type} CHECK(VALUE IS DISTINCT FROM 'forbidden'::${backend.type});
+        if (backend.kind === 8 || backend.type.startsWith('pg_catalog.reg'))
+          await pg.exec(`CREATE DOMAIN io_text_bound_${index} AS ${backend.type} CHECK(${backend.type.startsWith('pg_catalog.reg') ? 'VALUE::oid<>1' : `VALUE IS DISTINCT FROM 'forbidden'::${backend.type}`});
             CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_text_bound_${index},multirange_type_name=io_domain_set_${index})`)
       }
       const initial = await snapshotCatalog(pg),
@@ -202,6 +207,8 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
                       sample !== null &&
                       !['empty', '(,)'].includes(sample) &&
                       ([15, 23, 31].includes(family.backend.kind) ||
+                        (family.backend.type.startsWith('pg_catalog.reg') &&
+                          rangeHasNonzeroOid(value)) ||
                         sample === scalarRangeText('0.1', '0.3')),
                     deferred =
                       !bypass &&

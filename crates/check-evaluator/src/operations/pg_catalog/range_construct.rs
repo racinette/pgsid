@@ -130,7 +130,7 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
         let right = array_element_to_internal_char(upper);
         return sql__pg_catalog__btcharcmp__gfia(left, right);
     };
-    if kind == 33 {
+    if kind == 33 || (kind >= 331 && kind <= 335) {
         let left = array_element_to_oid(lower);
         let right = array_element_to_oid(upper);
         return sql__pg_catalog__btoidcmp__48b8(left, right);

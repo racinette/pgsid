@@ -144,8 +144,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
-- [x] Establish point payloads, SQL-coerced public inputs, construction,
-      geometric equality, binary output and composition; establish the scalar
+- [x] Establish point payloads, SQL-coerced public inputs, construction, geometric equality, binary output and composition; establish the scalar
       square-root primitive and classify geometric text rendering requirements.
 - [x] Establish point direction tests, arithmetic, distance, slope, portable text
       input and literals, and catalog-resolved unconstrained-domain casts;
@@ -258,6 +257,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Verify admitted scalar range/multirange output, widths, binary send, hashes and JSON conversion through recursive/domain arrays and VARIADIC builders. Preserve exact bounds, signed zero, NaNs, key/error order, NULL and lazy branches with source/stored and native/Rust/Go/TypeScript INSERT parity; retain scalar formatting and hash build/context requirements.
 - [x] Admit CIDR ranges/multiranges and subtype domains through captured profiles and binary hash casts; retain host-bit validation and full-width network output with unavailable comparators. Verify constructors, literals, ordered input, public payloads, arrays, JSON, wire, hashes, snapshots and native/Rust/Go/TypeScript INSERT parity.
 - [x] Admit varchar, bpchar and name range/multirange subtypes with captured C/UTF8 comparators, padded bounds, selected hashes, wire output, arrays, JSON and source/stored literals. Preserve subtype-domain widths, ownership, callback deferrals and public inputs; retain identifier-limit and client-encoding requirements with native/Rust/Go/TypeScript INSERT parity.
+- [x] Admit catalog-OID-alias range/multirange subtypes through captured unsigned comparison, hash and alias I/O profiles, including subtype domains, arrays, constructors and literals. Distinguish input-function parsing from explicit name lookup; preserve missing callbacks, catalog-dependent output/JSON and independent deployment OIDs with native/Rust/Go/TypeScript INSERT parity.
 - [ ] Extend range/multirange support to remaining SQL-admissible represented subtype carriers; preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

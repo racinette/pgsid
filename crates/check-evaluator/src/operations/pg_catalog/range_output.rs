@@ -102,7 +102,7 @@ pub fn range_format_text(input: RangeValue, lower: TextValue, upper: TextValue) 
     TextValue::Unknown
 }
 
-fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool) -> TextValue {
+fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i32) -> TextValue {
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -158,6 +158,10 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool) -> TextValue {
         return sql__pg_catalog__text__j1jh(array_element_to_internal_char(input));
     };
     if kind == 33 {
+        if alias_mode > 0 {
+            let dash = alias_mode != 2 && alias_mode != 4;
+            return oid_alias_to_text(array_element_to_oid(input), dash);
+        };
         return oid_to_text(array_element_to_oid(input));
     };
     if kind == 37 {
@@ -214,14 +218,15 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
             return make_text_value("empty");
         };
         let cidr = range_support_is_cidr(value.support) || value.element_type.as_str() == "pg_catalog.cidr";
-        let lower = range_output_bound(value.bounds[0].clone(), value.element_kind, cidr);
+        let alias_mode = range_oid_alias_mode(value.support, value.element_type.as_str());
+        let lower = range_output_bound(value.bounds[0].clone(), value.element_kind, cidr, alias_mode);
         if let TextValue::Error(error) = lower {
             return TextValue::Error(error);
         };
         if let TextValue::Unknown = lower {
             return TextValue::Unknown;
         };
-        let upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr);
+        let upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr, alias_mode);
         if let TextValue::Error(error) = upper {
             return TextValue::Error(error);
         };
