@@ -92,7 +92,26 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 5
                 || kind == 7
                 || kind == 8
-                || kind == 10));
+                || kind == 10
+                || kind == 1
+                || kind == 9
+                || kind == 13
+                || kind == 14
+                || kind == 15
+                || kind == 16
+                || kind == 17
+                || kind == 18
+                || kind == 19
+                || kind == 20
+                || kind == 21
+                || kind == 22
+                || kind == 23
+                || kind == 31
+                || kind == 32
+                || kind == 33
+                || kind == 37
+                || kind == 38
+                || kind == 39));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));

@@ -8,7 +8,7 @@ fn range_input_bound(input: TextValue, kind: i32) -> ArrayElement {
     if kind == 8 {
         return array_element_from_text(input);
     };
-    if kind == 2 || kind == 3 {
+    if kind == 1 || kind == 2 || kind == 3 {
         return array_integer_text_element(input, kind);
     };
     if kind == 10 {
@@ -22,6 +22,60 @@ fn range_input_bound(input: TextValue, kind: i32) -> ArrayElement {
     };
     if kind == 5 {
         return array_element_from_timestamptz(timestamptz_from_text(input));
+    };
+    if kind == 9 {
+        return array_element_from_bool(scalar_boolean_from_text(input));
+    };
+    if kind == 13 {
+        return array_element_from_network(network_from_text(input));
+    };
+    if kind == 14 {
+        return array_element_from_bit(bit_from_text(input));
+    };
+    if kind == 15 {
+        return array_element_from_bytea(bytea_from_text(input));
+    };
+    if kind == 16 {
+        return array_element_from_macaddr(macaddr_from_text(input));
+    };
+    if kind == 17 {
+        return array_element_from_macaddr8(macaddr8_from_text(input));
+    };
+    if kind == 18 {
+        return array_element_from_uuid(uuid_from_text(input));
+    };
+    if kind == 19 {
+        return array_element_from_float4(float4_from_text(input));
+    };
+    if kind == 20 {
+        return array_element_from_float8(float8_from_text(input));
+    };
+    if kind == 21 {
+        return array_element_from_time(time_from_text(input));
+    };
+    if kind == 22 {
+        return array_element_from_timetz(timetz_from_text(input));
+    };
+    if kind == 23 {
+        return array_element_from_interval(interval_from_text(input));
+    };
+    if kind == 31 {
+        return array_element_from_money(money_from_text(input));
+    };
+    if kind == 32 {
+        return array_element_from_internal_char(internal_char_from_text(input));
+    };
+    if kind == 33 {
+        return array_element_from_oid(oid_from_text(input));
+    };
+    if kind == 37 {
+        return array_element_from_xid8(xid8_from_text(input));
+    };
+    if kind == 38 {
+        return array_element_from_pg_lsn(pg_lsn_from_text(input));
+    };
+    if kind == 39 {
+        return array_element_from_tid(tid_from_text(input));
     };
     ArrayElement::Unknown
 }

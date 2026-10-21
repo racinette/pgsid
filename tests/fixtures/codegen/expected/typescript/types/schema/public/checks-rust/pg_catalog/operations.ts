@@ -32594,6 +32594,101 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.TextValue = checkruntime.arrayElementToText(upper);
         return bttextcmpPuxw(left, right);
     }
+    if (kind === 1) {
+        const left: checkruntime.Int2Value = checkruntime.arrayElementToInt2(lower);
+        const right: checkruntime.Int2Value = checkruntime.arrayElementToInt2(upper);
+        return btint2cmp2zqn(left, right);
+    }
+    if (kind === 9) {
+        const left: checkruntime.BoolValue = checkruntime.arrayElementToBool(lower);
+        const right: checkruntime.BoolValue = checkruntime.arrayElementToBool(upper);
+        return btboolcmpI7aj(left, right);
+    }
+    if (kind === 13) {
+        const left: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(lower);
+        const right: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(upper);
+        return networkCmp7dun(left, right);
+    }
+    if (kind === 14) {
+        const left: checkruntime.BitValue = checkruntime.arrayElementToBit(lower);
+        const right: checkruntime.BitValue = checkruntime.arrayElementToBit(upper);
+        return bitcmp2r1v(left, right);
+    }
+    if (kind === 15) {
+        const left: checkruntime.ByteaValue = checkruntime.arrayElementToBytea(lower);
+        const right: checkruntime.ByteaValue = checkruntime.arrayElementToBytea(upper);
+        return byteacmp2x4q(left, right);
+    }
+    if (kind === 16) {
+        const left: checkruntime.MacaddrValue = checkruntime.arrayElementToMacaddr(lower);
+        const right: checkruntime.MacaddrValue = checkruntime.arrayElementToMacaddr(upper);
+        return macaddrCmpJv7y(left, right);
+    }
+    if (kind === 17) {
+        const left: checkruntime.Macaddr8Value = checkruntime.arrayElementToMacaddr8(lower);
+        const right: checkruntime.Macaddr8Value = checkruntime.arrayElementToMacaddr8(upper);
+        return macaddr8CmpId7f(left, right);
+    }
+    if (kind === 18) {
+        const left: checkruntime.UuidValue = checkruntime.arrayElementToUuid(lower);
+        const right: checkruntime.UuidValue = checkruntime.arrayElementToUuid(upper);
+        return uuidCmp6t9k(left, right);
+    }
+    if (kind === 19) {
+        const left: checkruntime.Float4Value = checkruntime.arrayElementToFloat4(lower);
+        const right: checkruntime.Float4Value = checkruntime.arrayElementToFloat4(upper);
+        return btfloat4cmpYfof(left, right);
+    }
+    if (kind === 20) {
+        const left: checkruntime.Float8Value = checkruntime.arrayElementToFloat8(lower);
+        const right: checkruntime.Float8Value = checkruntime.arrayElementToFloat8(upper);
+        return btfloat8cmpAdn1(left, right);
+    }
+    if (kind === 21) {
+        const left: checkruntime.TimeValue = checkruntime.arrayElementToTime(lower);
+        const right: checkruntime.TimeValue = checkruntime.arrayElementToTime(upper);
+        return timeCmpRxkq(left, right);
+    }
+    if (kind === 22) {
+        const left: checkruntime.TimetzValue = checkruntime.arrayElementToTimetz(lower);
+        const right: checkruntime.TimetzValue = checkruntime.arrayElementToTimetz(upper);
+        return timetzCmpWy50(left, right);
+    }
+    if (kind === 23) {
+        const left: checkruntime.IntervalValue = checkruntime.arrayElementToInterval(lower);
+        const right: checkruntime.IntervalValue = checkruntime.arrayElementToInterval(upper);
+        return intervalCmpSwxt(left, right);
+    }
+    if (kind === 31) {
+        const left: checkruntime.MoneyValue = checkruntime.arrayElementToMoney(lower);
+        const right: checkruntime.MoneyValue = checkruntime.arrayElementToMoney(upper);
+        return cashCmpUvwe(left, right);
+    }
+    if (kind === 32) {
+        const left: checkruntime.InternalCharValue = checkruntime.arrayElementToInternalChar(lower);
+        const right: checkruntime.InternalCharValue = checkruntime.arrayElementToInternalChar(upper);
+        return btcharcmpGfia(left, right);
+    }
+    if (kind === 33) {
+        const left: checkruntime.OidValue = checkruntime.arrayElementToOid(lower);
+        const right: checkruntime.OidValue = checkruntime.arrayElementToOid(upper);
+        return btoidcmp48b8(left, right);
+    }
+    if (kind === 37) {
+        const left: checkruntime.Xid8Value = checkruntime.arrayElementToXid8(lower);
+        const right: checkruntime.Xid8Value = checkruntime.arrayElementToXid8(upper);
+        return xid8cmpD6ry(left, right);
+    }
+    if (kind === 38) {
+        const left: checkruntime.PgLsnValue = checkruntime.arrayElementToPgLsn(lower);
+        const right: checkruntime.PgLsnValue = checkruntime.arrayElementToPgLsn(upper);
+        return pgLsnCmp46uk(left, right);
+    }
+    if (kind === 39) {
+        const left: checkruntime.TidValue = checkruntime.arrayElementToTid(lower);
+        const right: checkruntime.TidValue = checkruntime.arrayElementToTid(upper);
+        return bttidcmpAk5t(left, right);
+    }
     return { kind: "Unknown" };
 }
 function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport): checkruntime.RangeValue {
@@ -32987,7 +33082,7 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number): checkrunt
     if (kind === 8) {
         return checkruntime.arrayElementFromText(input);
     }
-    if (kind === 2 || kind === 3) {
+    if (kind === 1 || kind === 2 || kind === 3) {
         return arrayIntegerTextElement(input, kind);
     }
     if (kind === 10) {
@@ -33001,6 +33096,60 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number): checkrunt
     }
     if (kind === 5) {
         return checkruntime.arrayElementFromTimestamptz(checkruntime.timestamptzFromText(input));
+    }
+    if (kind === 9) {
+        return checkruntime.arrayElementFromBool(scalarBooleanFromText(input));
+    }
+    if (kind === 13) {
+        return checkruntime.arrayElementFromNetwork(checkruntime.networkFromText(input));
+    }
+    if (kind === 14) {
+        return checkruntime.arrayElementFromBit(checkruntime.bitFromText(input));
+    }
+    if (kind === 15) {
+        return checkruntime.arrayElementFromBytea(byteaFromText(input));
+    }
+    if (kind === 16) {
+        return checkruntime.arrayElementFromMacaddr(checkruntime.macaddrFromText(input));
+    }
+    if (kind === 17) {
+        return checkruntime.arrayElementFromMacaddr8(checkruntime.macaddr8FromText(input));
+    }
+    if (kind === 18) {
+        return checkruntime.arrayElementFromUuid(checkruntime.uuidFromText(input));
+    }
+    if (kind === 19) {
+        return checkruntime.arrayElementFromFloat4(float4FromText(input));
+    }
+    if (kind === 20) {
+        return checkruntime.arrayElementFromFloat8(float8FromText(input));
+    }
+    if (kind === 21) {
+        return checkruntime.arrayElementFromTime(checkruntime.timeFromText(input));
+    }
+    if (kind === 22) {
+        return checkruntime.arrayElementFromTimetz(checkruntime.timetzFromText(input));
+    }
+    if (kind === 23) {
+        return checkruntime.arrayElementFromInterval(checkruntime.intervalFromText(input));
+    }
+    if (kind === 31) {
+        return checkruntime.arrayElementFromMoney(moneyFromText(input));
+    }
+    if (kind === 32) {
+        return checkruntime.arrayElementFromInternalChar(internalCharFromText(input));
+    }
+    if (kind === 33) {
+        return checkruntime.arrayElementFromOid(oidFromText(input));
+    }
+    if (kind === 37) {
+        return checkruntime.arrayElementFromXid8(xid8FromText(input));
+    }
+    if (kind === 38) {
+        return checkruntime.arrayElementFromPgLsn(pgLsnFromText(input));
+    }
+    if (kind === 39) {
+        return checkruntime.arrayElementFromTid(tidFromText(input));
     }
     return { kind: "Unknown" };
 }
@@ -33444,6 +33593,54 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number): check
     }
     if (kind === 8) {
         return checkruntime.arrayElementToText(input);
+    }
+    if (kind === 1) {
+        return int2ToText(checkruntime.arrayElementToInt2(input));
+    }
+    if (kind === 9) {
+        return arrayBooleanOutput(checkruntime.arrayElementToBool(input));
+    }
+    if (kind === 13) {
+        return arrayNetworkOutput(checkruntime.arrayElementToNetwork(input), false);
+    }
+    if (kind === 14) {
+        return checkruntime.bitToText(checkruntime.arrayElementToBit(input));
+    }
+    if (kind === 16) {
+        return macaddrToText(checkruntime.arrayElementToMacaddr(input));
+    }
+    if (kind === 17) {
+        return macaddr8ToText(checkruntime.arrayElementToMacaddr8(input));
+    }
+    if (kind === 18) {
+        return uuidToText(checkruntime.arrayElementToUuid(input));
+    }
+    if (kind === 19) {
+        return arrayFloat4Output(checkruntime.arrayElementToFloat4(input));
+    }
+    if (kind === 20) {
+        return arrayFloat8Output(checkruntime.arrayElementToFloat8(input));
+    }
+    if (kind === 21) {
+        return clockTimeToText(checkruntime.arrayElementToTime(input));
+    }
+    if (kind === 22) {
+        return clockTimetzToText(checkruntime.arrayElementToTimetz(input));
+    }
+    if (kind === 32) {
+        return textJ1jh(checkruntime.arrayElementToInternalChar(input));
+    }
+    if (kind === 33) {
+        return oidToText(checkruntime.arrayElementToOid(input));
+    }
+    if (kind === 37) {
+        return xid8ToText(checkruntime.arrayElementToXid8(input));
+    }
+    if (kind === 38) {
+        return pgLsnToText(checkruntime.arrayElementToPgLsn(input));
+    }
+    if (kind === 39) {
+        return tidToText(checkruntime.arrayElementToTid(input));
     }
     if (kind === 7) {
         if (input.kind === "Date") {

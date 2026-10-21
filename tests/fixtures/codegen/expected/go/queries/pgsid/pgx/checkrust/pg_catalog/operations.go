@@ -32463,6 +32463,101 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToText(upper)
 		return BttextcmpPuxw(left, right)
 	}
+	if kind == 1 {
+		left := checkruntime.ArrayElementToInt2(lower)
+		right := checkruntime.ArrayElementToInt2(upper)
+		return Btint2cmp2zqn(left, right)
+	}
+	if kind == 9 {
+		left := checkruntime.ArrayElementToBool(lower)
+		right := checkruntime.ArrayElementToBool(upper)
+		return BtboolcmpI7aj(left, right)
+	}
+	if kind == 13 {
+		left := checkruntime.ArrayElementToNetwork(lower)
+		right := checkruntime.ArrayElementToNetwork(upper)
+		return NetworkCmp7dun(left, right)
+	}
+	if kind == 14 {
+		left := checkruntime.ArrayElementToBit(lower)
+		right := checkruntime.ArrayElementToBit(upper)
+		return Bitcmp2r1v(left, right)
+	}
+	if kind == 15 {
+		left := checkruntime.ArrayElementToBytea(lower)
+		right := checkruntime.ArrayElementToBytea(upper)
+		return Byteacmp2x4q(left, right)
+	}
+	if kind == 16 {
+		left := checkruntime.ArrayElementToMacaddr(lower)
+		right := checkruntime.ArrayElementToMacaddr(upper)
+		return MacaddrCmpJv7y(left, right)
+	}
+	if kind == 17 {
+		left := checkruntime.ArrayElementToMacaddr8(lower)
+		right := checkruntime.ArrayElementToMacaddr8(upper)
+		return Macaddr8CmpId7f(left, right)
+	}
+	if kind == 18 {
+		left := checkruntime.ArrayElementToUuid(lower)
+		right := checkruntime.ArrayElementToUuid(upper)
+		return UuidCmp6t9k(left, right)
+	}
+	if kind == 19 {
+		left := checkruntime.ArrayElementToFloat4(lower)
+		right := checkruntime.ArrayElementToFloat4(upper)
+		return Btfloat4cmpYfof(left, right)
+	}
+	if kind == 20 {
+		left := checkruntime.ArrayElementToFloat8(lower)
+		right := checkruntime.ArrayElementToFloat8(upper)
+		return Btfloat8cmpAdn1(left, right)
+	}
+	if kind == 21 {
+		left := checkruntime.ArrayElementToTime(lower)
+		right := checkruntime.ArrayElementToTime(upper)
+		return TimeCmpRxkq(left, right)
+	}
+	if kind == 22 {
+		left := checkruntime.ArrayElementToTimetz(lower)
+		right := checkruntime.ArrayElementToTimetz(upper)
+		return TimetzCmpWy50(left, right)
+	}
+	if kind == 23 {
+		left := checkruntime.ArrayElementToInterval(lower)
+		right := checkruntime.ArrayElementToInterval(upper)
+		return IntervalCmpSwxt(left, right)
+	}
+	if kind == 31 {
+		left := checkruntime.ArrayElementToMoney(lower)
+		right := checkruntime.ArrayElementToMoney(upper)
+		return CashCmpUvwe(left, right)
+	}
+	if kind == 32 {
+		left := checkruntime.ArrayElementToInternalChar(lower)
+		right := checkruntime.ArrayElementToInternalChar(upper)
+		return BtcharcmpGfia(left, right)
+	}
+	if kind == 33 {
+		left := checkruntime.ArrayElementToOid(lower)
+		right := checkruntime.ArrayElementToOid(upper)
+		return Btoidcmp48b8(left, right)
+	}
+	if kind == 37 {
+		left := checkruntime.ArrayElementToXid8(lower)
+		right := checkruntime.ArrayElementToXid8(upper)
+		return Xid8cmpD6ry(left, right)
+	}
+	if kind == 38 {
+		left := checkruntime.ArrayElementToPgLsn(lower)
+		right := checkruntime.ArrayElementToPgLsn(upper)
+		return PgLsnCmp46uk(left, right)
+	}
+	if kind == 39 {
+		left := checkruntime.ArrayElementToTid(lower)
+		right := checkruntime.ArrayElementToTid(upper)
+		return BttidcmpAk5t(left, right)
+	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport) checkruntime.RangeValue {
@@ -32856,7 +32951,7 @@ func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayE
 	if kind == 8 {
 		return checkruntime.ArrayElementFromText(input)
 	}
-	if kind == 2 || kind == 3 {
+	if kind == 1 || kind == 2 || kind == 3 {
 		return ArrayIntegerTextElement(input, kind)
 	}
 	if kind == 10 {
@@ -32870,6 +32965,60 @@ func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayE
 	}
 	if kind == 5 {
 		return checkruntime.ArrayElementFromTimestamptz(checkruntime.TimestamptzFromText(input))
+	}
+	if kind == 9 {
+		return checkruntime.ArrayElementFromBool(ScalarBooleanFromText(input))
+	}
+	if kind == 13 {
+		return checkruntime.ArrayElementFromNetwork(checkruntime.NetworkFromText(input))
+	}
+	if kind == 14 {
+		return checkruntime.ArrayElementFromBit(checkruntime.BitFromText(input))
+	}
+	if kind == 15 {
+		return checkruntime.ArrayElementFromBytea(ByteaFromText(input))
+	}
+	if kind == 16 {
+		return checkruntime.ArrayElementFromMacaddr(checkruntime.MacaddrFromText(input))
+	}
+	if kind == 17 {
+		return checkruntime.ArrayElementFromMacaddr8(checkruntime.Macaddr8FromText(input))
+	}
+	if kind == 18 {
+		return checkruntime.ArrayElementFromUuid(checkruntime.UuidFromText(input))
+	}
+	if kind == 19 {
+		return checkruntime.ArrayElementFromFloat4(Float4FromText(input))
+	}
+	if kind == 20 {
+		return checkruntime.ArrayElementFromFloat8(Float8FromText(input))
+	}
+	if kind == 21 {
+		return checkruntime.ArrayElementFromTime(checkruntime.TimeFromText(input))
+	}
+	if kind == 22 {
+		return checkruntime.ArrayElementFromTimetz(checkruntime.TimetzFromText(input))
+	}
+	if kind == 23 {
+		return checkruntime.ArrayElementFromInterval(checkruntime.IntervalFromText(input))
+	}
+	if kind == 31 {
+		return checkruntime.ArrayElementFromMoney(MoneyFromText(input))
+	}
+	if kind == 32 {
+		return checkruntime.ArrayElementFromInternalChar(InternalCharFromText(input))
+	}
+	if kind == 33 {
+		return checkruntime.ArrayElementFromOid(OidFromText(input))
+	}
+	if kind == 37 {
+		return checkruntime.ArrayElementFromXid8(Xid8FromText(input))
+	}
+	if kind == 38 {
+		return checkruntime.ArrayElementFromPgLsn(PgLsnFromText(input))
+	}
+	if kind == 39 {
+		return checkruntime.ArrayElementFromTid(TidFromText(input))
 	}
 	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
 }
@@ -33302,6 +33451,54 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int) checkruntime.Te
 	}
 	if kind == 8 {
 		return checkruntime.ArrayElementToText(input)
+	}
+	if kind == 1 {
+		return Int2ToText(checkruntime.ArrayElementToInt2(input))
+	}
+	if kind == 9 {
+		return ArrayBooleanOutput(checkruntime.ArrayElementToBool(input))
+	}
+	if kind == 13 {
+		return ArrayNetworkOutput(checkruntime.ArrayElementToNetwork(input), false)
+	}
+	if kind == 14 {
+		return checkruntime.BitToText(checkruntime.ArrayElementToBit(input))
+	}
+	if kind == 16 {
+		return MacaddrToText(checkruntime.ArrayElementToMacaddr(input))
+	}
+	if kind == 17 {
+		return Macaddr8ToText(checkruntime.ArrayElementToMacaddr8(input))
+	}
+	if kind == 18 {
+		return UuidToText(checkruntime.ArrayElementToUuid(input))
+	}
+	if kind == 19 {
+		return ArrayFloat4Output(checkruntime.ArrayElementToFloat4(input))
+	}
+	if kind == 20 {
+		return ArrayFloat8Output(checkruntime.ArrayElementToFloat8(input))
+	}
+	if kind == 21 {
+		return ClockTimeToText(checkruntime.ArrayElementToTime(input))
+	}
+	if kind == 22 {
+		return ClockTimetzToText(checkruntime.ArrayElementToTimetz(input))
+	}
+	if kind == 32 {
+		return TextJ1jh(checkruntime.ArrayElementToInternalChar(input))
+	}
+	if kind == 33 {
+		return OidToText(checkruntime.ArrayElementToOid(input))
+	}
+	if kind == 37 {
+		return Xid8ToText(checkruntime.ArrayElementToXid8(input))
+	}
+	if kind == 38 {
+		return PgLsnToText(checkruntime.ArrayElementToPgLsn(input))
+	}
+	if kind == 39 {
+		return TidToText(checkruntime.ArrayElementToTid(input))
 	}
 	if kind == 7 {
 		if input.Kind == checkruntime.ArrayElementDate {

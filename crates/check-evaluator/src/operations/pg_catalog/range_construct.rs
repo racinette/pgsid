@@ -45,6 +45,101 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
         let right = array_element_to_text(upper);
         return sql__pg_catalog__bttextcmp__puxw(left, right);
     };
+    if kind == 1 {
+        let left = array_element_to_int2(lower);
+        let right = array_element_to_int2(upper);
+        return sql__pg_catalog__btint2cmp__2zqn(left, right);
+    };
+    if kind == 9 {
+        let left = array_element_to_bool(lower);
+        let right = array_element_to_bool(upper);
+        return sql__pg_catalog__btboolcmp__i7aj(left, right);
+    };
+    if kind == 13 {
+        let left = array_element_to_network(lower);
+        let right = array_element_to_network(upper);
+        return sql__pg_catalog__network_cmp__7dun(left, right);
+    };
+    if kind == 14 {
+        let left = array_element_to_bit(lower);
+        let right = array_element_to_bit(upper);
+        return sql__pg_catalog__bitcmp__2r1v(left, right);
+    };
+    if kind == 15 {
+        let left = array_element_to_bytea(lower);
+        let right = array_element_to_bytea(upper);
+        return sql__pg_catalog__byteacmp__2x4q(left, right);
+    };
+    if kind == 16 {
+        let left = array_element_to_macaddr(lower);
+        let right = array_element_to_macaddr(upper);
+        return sql__pg_catalog__macaddr_cmp__jv7y(left, right);
+    };
+    if kind == 17 {
+        let left = array_element_to_macaddr8(lower);
+        let right = array_element_to_macaddr8(upper);
+        return sql__pg_catalog__macaddr8_cmp__id7f(left, right);
+    };
+    if kind == 18 {
+        let left = array_element_to_uuid(lower);
+        let right = array_element_to_uuid(upper);
+        return sql__pg_catalog__uuid_cmp__6t9k(left, right);
+    };
+    if kind == 19 {
+        let left = array_element_to_float4(lower);
+        let right = array_element_to_float4(upper);
+        return sql__pg_catalog__btfloat4cmp__yfof(left, right);
+    };
+    if kind == 20 {
+        let left = array_element_to_float8(lower);
+        let right = array_element_to_float8(upper);
+        return sql__pg_catalog__btfloat8cmp__adn1(left, right);
+    };
+    if kind == 21 {
+        let left = array_element_to_time(lower);
+        let right = array_element_to_time(upper);
+        return sql__pg_catalog__time_cmp__rxkq(left, right);
+    };
+    if kind == 22 {
+        let left = array_element_to_timetz(lower);
+        let right = array_element_to_timetz(upper);
+        return sql__pg_catalog__timetz_cmp__wy50(left, right);
+    };
+    if kind == 23 {
+        let left = array_element_to_interval(lower);
+        let right = array_element_to_interval(upper);
+        return sql__pg_catalog__interval_cmp__swxt(left, right);
+    };
+    if kind == 31 {
+        let left = array_element_to_money(lower);
+        let right = array_element_to_money(upper);
+        return sql__pg_catalog__cash_cmp__uvwe(left, right);
+    };
+    if kind == 32 {
+        let left = array_element_to_internal_char(lower);
+        let right = array_element_to_internal_char(upper);
+        return sql__pg_catalog__btcharcmp__gfia(left, right);
+    };
+    if kind == 33 {
+        let left = array_element_to_oid(lower);
+        let right = array_element_to_oid(upper);
+        return sql__pg_catalog__btoidcmp__48b8(left, right);
+    };
+    if kind == 37 {
+        let left = array_element_to_xid8(lower);
+        let right = array_element_to_xid8(upper);
+        return sql__pg_catalog__xid8cmp__d6ry(left, right);
+    };
+    if kind == 38 {
+        let left = array_element_to_pg_lsn(lower);
+        let right = array_element_to_pg_lsn(upper);
+        return sql__pg_catalog__pg_lsn_cmp__46uk(left, right);
+    };
+    if kind == 39 {
+        let left = array_element_to_tid(lower);
+        let right = array_element_to_tid(upper);
+        return sql__pg_catalog__bttidcmp__ak5t(left, right);
+    };
     Int4Value::Unknown
 }
 

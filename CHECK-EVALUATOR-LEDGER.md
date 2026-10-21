@@ -137,8 +137,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs
       and defaults, restoring the caller's rendering settings after the read.
 - [x] Floating point (`float4`, `float8`).
-- [x] Audit platform-generated NaN binary precision in floating input, literals
-      and geometry; retain known NaN semantics when output bits require platform context.
+- [x] Audit platform-generated NaN binary precision in floating input, literals and geometry; retain known NaN semantics when output bits require platform context.
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic, core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog
       literals, and explicit IntervalStyle requirements.
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit custom range/multirange JSON conversion through captured output and function-cast categories, including recursive/domain arrays and typed VARIADIC builders; preserve exact formatting, SQL NULL skips, staged key errors, eager argument errors, lazy input, missing metadata and reached callback/context requirements. Verify independent public adapters, native INSERTs and Rust/Go/TypeScript parity.
 - [x] Bind captured constructor defaults through qualified stored expressions, including named omissions, strict NULLs, domain/scalar coercion and variadic array defaults. Preserve exact numeric scales, stored temporal values and isolated binding without column capture; retain unavailable expression preparation before guards and later errors. Verify native INSERTs, independent catalogs, public adapters and Rust/Go/TypeScript parity.
 - [x] Admit owned text ranges/multiranges through captured comparator/collation support and declared C/UTF8 ordering, including subtype domains, constructors, literals, ordered input, output, arrays, JSON, wire and hashes. Preserve compiled support over caller metadata, snapshots, strict/partial states, preparation, lazy branches and reached callback/encoding requirements; verify independent catalogs, public adapters and native/Rust/Go/TypeScript INSERT parity.
-- [ ] Complete additional range subtype backends; retain unavailable callback and execution-context requirements separately.
+- [x] Establish owned range/multirange backends over represented smallint, Boolean, network, bit/binary, MAC, UUID, floating, clock/interval, money and identifier carriers before SQL admission. Reuse scalar comparators, parsers and portable output; preserve continuous semantics, exact selected bounds, NaNs, strict/partial states, snapshots and existing context deferrals across native/Rust/Go/TypeScript checks.
+- [ ] Admit the established scalar range backends through captured SQL profiles, then complete additional subtype backends; retain unavailable callback and execution-context requirements separately.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
