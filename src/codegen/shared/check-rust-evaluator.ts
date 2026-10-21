@@ -987,7 +987,7 @@ export function emitCheckRustEvaluator(
       scalar = `range_from_text(${event}, ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.subtype)})`
     } else scalar = `${prefix}_from_text(${event})`
 
-    if (declaredEncoding && family === 12)
+    if (family === 12)
       scalar = `jsonb_from_text_context(${event}, ${executionContext.serverEncoding === 'UTF8'})`
     const value = fresh('array_input_scalar')
     destination.push(

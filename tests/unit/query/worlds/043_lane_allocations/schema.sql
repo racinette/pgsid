@@ -2929,3 +2929,21 @@ CREATE TABLE lane_document_window_requests (
   CONSTRAINT document_window_array_input CHECK(CASE WHEN bypass THEN true ELSE ((array_payload::lane_checked_document_window[])[-2])::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
   CONSTRAINT document_window_input_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_checked_document_window))>=minimum_bytes END)
 );
+
+CREATE TABLE lane_document_sort_ties (
+  documents jsonb[],
+  windows lane_document_window[],
+  window_sets lane_document_set[],
+  window_groups lane_document_history[],
+  descending boolean,
+  nulls_first boolean,
+  expected_documents text,
+  expected_windows text,
+  expected_sets text,
+  expected_groups text,
+  bypass boolean,
+  CONSTRAINT sorted_documents CHECK(CASE WHEN bypass THEN true ELSE array_sort(documents,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_documents COLLATE "C" END),
+  CONSTRAINT sorted_document_windows CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_windows COLLATE "C" END),
+  CONSTRAINT sorted_document_sets CHECK(CASE WHEN bypass THEN true ELSE array_sort(window_sets,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_sets COLLATE "C" END),
+  CONSTRAINT sorted_document_groups CHECK(CASE WHEN bypass THEN true ELSE array_sort(window_groups,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_groups COLLATE "C" END)
+);

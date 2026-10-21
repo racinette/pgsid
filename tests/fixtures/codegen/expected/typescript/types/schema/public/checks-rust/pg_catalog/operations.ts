@@ -2316,8 +2316,8 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
         return false;
     }
     if (kind === 12) {
-        const a: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(left));
-        const b: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(right));
+        const a: checkruntime.TextValue = checkruntime.jsonbToOrderedText(checkruntime.arrayElementToJsonb(left));
+        const b: checkruntime.TextValue = checkruntime.jsonbToOrderedText(checkruntime.arrayElementToJsonb(right));
         if (a.kind === "Value") {
             const first: string = langruntime.checkedString(a.value);
             if (b.kind === "Value") {
