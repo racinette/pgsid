@@ -711,6 +711,7 @@ export interface RangeCallInfo {
   returnsSet: boolean
   variadic: string | null
   numArgDefaults: number
+  defaultExprs?: readonly (string | null)[]
   implementation: string | null
 }
 

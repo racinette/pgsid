@@ -6413,3 +6413,67 @@ VALUES (NULL,NULL,NULL,NULL,0,false);
 -- name: custom_window_document_key_skipped
 INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
 VALUES (NULL,'{NULL,"[5,7)"}','wrong','wrong',0,true);
+
+-- name: custom_window_defaults_valid
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'[]','[1,3)','[1,3)','[1,3)','[1,3]',false);
+
+-- name: custom_window_defaults_wrong_default
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'[]','[1,4)','[1,3)','[1,3)','[1,3]',false);
+
+-- name: custom_window_defaults_wrong_override
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'[]','[1,3)','[1,4)','[1,3)','[1,3]',false);
+
+-- name: custom_window_defaults_wrong_named
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'[]','[1,3)','[1,3)','[1,4)','[1,3]',false);
+
+-- name: custom_window_defaults_wrong_flags
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'[]','[1,3)','[1,3)','[1,3)','[1,3)',false);
+
+-- name: custom_window_defaults_null_start
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (NULL,3,'[]','[1,3)','(,3)','[1,3)','(,3]',false);
+
+-- name: custom_window_defaults_null_finish
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,NULL,'[]','[1,3)','[1,)','[1,)','[1,3]',false);
+
+-- name: custom_window_defaults_null_flags
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,NULL,'[1,3)','[1,3)','[1,3)',NULL,false);
+
+-- name: custom_window_defaults_bad_flags
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (1,3,'bad','[1,3)','[1,3)','[1,3)',NULL,false);
+
+-- name: custom_window_defaults_reversed
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (3,1,'[)','[1,3)',NULL,NULL,NULL,false);
+
+-- name: custom_window_defaults_skipped
+INSERT INTO lane_window_defaults (start_position, finish_position, bounds, expected_default, expected_override, expected_named, expected_flags, bypass)
+VALUES (3,1,'bad',NULL,NULL,NULL,NULL,true);
+
+-- name: custom_segment_defaults_valid
+INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
+VALUES ('{[1,3)}','{[1,3),[5,7)}',false);
+
+-- name: custom_segment_defaults_wrong_segment
+INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
+VALUES ('{[1,4)}','{[1,3),[5,7)}',false);
+
+-- name: custom_segment_defaults_wrong_batches
+INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
+VALUES ('{[1,3)}','{[1,3),[5,8)}',false);
+
+-- name: custom_segment_defaults_null
+INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
+VALUES (NULL,NULL,false);
+
+-- name: custom_segment_defaults_skipped
+INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
+VALUES (NULL,NULL,true);

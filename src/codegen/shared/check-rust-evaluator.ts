@@ -3729,6 +3729,13 @@ export function emitCheckRustEvaluator(
       return { name: item.rustName, type: node.type }
     }
     if (node.kind === 'uncertain') {
+      if (node.preparation === 'constant') {
+        const status = fresh('unavailable_constant')
+        preparationLines.push(
+          `let ${status} = check_unknown();`,
+          `${preparationState} = constant_finish(${preparationState}, ${status});`,
+        )
+      }
       prepareOpaque()
       const kind = rustType(node.type)
       const helper = rustValuePrefix(kind) + '_unknown'

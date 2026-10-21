@@ -21,9 +21,15 @@ it('uses portable captured profiles in public custom range and multirange adapte
     customRangeSchema +
     `
 CREATE DOMAIN saved_custom_span AS "Custom.Range".integer_span;
+CREATE FUNCTION "Custom.Range".default_span(lo int4 DEFAULT 1,hi int4 DEFAULT 2,bounds text DEFAULT '[]') RETURNS "Custom.Range".integer_span AS 'range_constructor3' LANGUAGE internal IMMUTABLE;
+CREATE FUNCTION "Custom.Range".default_set(item "Custom.Range".integer_span DEFAULT '[1,2]'::"Custom.Range".integer_span) RETURNS integer_set AS 'multirange_constructor1' LANGUAGE internal IMMUTABLE STRICT;
+CREATE FUNCTION "Custom.Range".default_many(VARIADIC items "Custom.Range".integer_span[] DEFAULT ARRAY['[1,2]'::"Custom.Range".integer_span,'[3,4]'::"Custom.Range".integer_span]) RETURNS integer_set AS 'multirange_constructor2' LANGUAGE internal IMMUTABLE STRICT;
 CREATE TABLE custom_payloads(v saved_custom_span,w "Custom.Range".integer_span,m integer_set,n integer_set,p "Custom.Range".positive_span,e "Custom.Range".positive,
  CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT adjacent CHECK(NOT(v -|- w)),
  CONSTRAINT multi CHECK(NOT(m -|- n)),CONSTRAINT nominal_element CHECK(p @> e),
+ CONSTRAINT default_range CHECK("Custom.Range".default_span()=v),
+ CONSTRAINT default_named_range CHECK("Custom.Range".default_span(hi=>upper(v))=v),
+ CONSTRAINT default_set CHECK("Custom.Range".default_set()=m),
  CONSTRAINT constructed_range CHECK("Custom.Range".integer_span(e,upper(v),'[]')=v),
  CONSTRAINT constructed_single CHECK("Custom.Range".integer_set(v)=m),
  CONSTRAINT constructed_many CHECK("Custom.Range".integer_set(v,v)=m),
@@ -54,6 +60,7 @@ CREATE TABLE custom_array_payloads(windows custom_windows,typed custom_array_cel
  CONSTRAINT sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows)=windows END),
  CONSTRAINT json_windows CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(windows)::text COLLATE "C"='["[1,2]", "[1,2]", "[3,4]"]' COLLATE "C" END),
  CONSTRAINT json_history CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C"='[["[1,2]", "[1,2]", "[3,4]"]]' COLLATE "C" END),
+ CONSTRAINT default_many CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".default_many() IS NOT DISTINCT FROM expected_pack END),
  CONSTRAINT packed CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".integer_set(VARIADIC windows) IS NOT DISTINCT FROM expected_pack END));
 CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,bypass bool,
  CONSTRAINT counted CHECK(CASE WHEN bypass THEN true ELSE cardinality(windows)=3 END),

@@ -155,7 +155,8 @@ export function resolveRangeCall(
   const named = arguments_.some((a) => a.name !== undefined)
   const matches: Match[] = []
   for (const callable of callables) {
-    const expanded = callable.variadic !== null && !explicitVariadic
+    const expanded =
+      callable.variadic !== null && !explicitVariadic && arguments_.length >= callable.args.length
     if (explicitVariadic && callable.variadic === null) continue
     if (expanded && named) continue
     if (

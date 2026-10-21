@@ -2350,3 +2350,31 @@ CREATE TABLE lane_window_document_keys (
   CONSTRAINT window_document_key CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object(window_value,1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_document COLLATE "C" END),
   CONSTRAINT window_variadic_keys CHECK(CASE WHEN bypass THEN true ELSE json_build_object(VARIADIC windows)::text COLLATE "C" IS NOT DISTINCT FROM expected_flattened COLLATE "C" END)
 );
+
+CREATE FUNCTION lane_default_window(start_position integer DEFAULT 1,finish_position integer DEFAULT 3,bounds text DEFAULT '[)')
+RETURNS lane_position_window AS 'range_constructor3' LANGUAGE internal IMMUTABLE;
+CREATE FUNCTION lane_default_segments(window_value lane_position_window DEFAULT '[1,3)'::lane_position_window)
+RETURNS lane_position_segments AS 'multirange_constructor1' LANGUAGE internal IMMUTABLE STRICT;
+CREATE FUNCTION lane_default_batches(VARIADIC windows lane_position_window[] DEFAULT ARRAY['[1,3)'::lane_position_window,'[5,7)'::lane_position_window])
+RETURNS lane_position_segments AS 'multirange_constructor2' LANGUAGE internal IMMUTABLE STRICT;
+CREATE TABLE lane_window_defaults (
+  start_position integer,
+  finish_position integer,
+  bounds text,
+  expected_default lane_position_window,
+  expected_override lane_position_window,
+  expected_named lane_position_window,
+  expected_flags lane_position_window,
+  bypass boolean,
+  CONSTRAINT default_window CHECK(CASE WHEN bypass THEN true ELSE lane_default_window() IS NOT DISTINCT FROM expected_default END),
+  CONSTRAINT overridden_window CHECK(CASE WHEN bypass THEN true ELSE lane_default_window(start_position,finish_position) IS NOT DISTINCT FROM expected_override END),
+  CONSTRAINT named_default_window CHECK(CASE WHEN bypass THEN true ELSE lane_default_window(finish_position=>finish_position) IS NOT DISTINCT FROM expected_named END),
+  CONSTRAINT flagged_default_window CHECK(CASE WHEN bypass THEN true ELSE lane_default_window(start_position,bounds=>bounds) IS NOT DISTINCT FROM expected_flags END)
+);
+CREATE TABLE lane_segment_defaults (
+  expected_segment lane_position_segments,
+  expected_batches lane_position_segments,
+  bypass boolean,
+  CONSTRAINT default_segment CHECK(CASE WHEN bypass THEN true ELSE lane_default_segments() IS NOT DISTINCT FROM expected_segment END),
+  CONSTRAINT default_batches CHECK(CASE WHEN bypass THEN true ELSE lane_default_batches() IS NOT DISTINCT FROM expected_batches END)
+);
