@@ -608,6 +608,43 @@ export interface CompositeTypeInfo {
   attributes: CompositeTypeAttrInfo[]
 }
 
+export interface CompositeFieldDefinition {
+  position: number
+  name: string
+  type: string
+  typeMod: number
+  collation: string | null
+  collationDeterministic: boolean | null
+  collationIsC: boolean | null
+  collationIsDefault: boolean | null
+}
+
+export interface CompositeTypeDefinition {
+  identity: string
+  schema: string
+  name: string
+  kind: string
+  relationKind: string | null
+  array: string | null
+  base: string | null
+  baseTypeMod: number
+  notNull: boolean
+  element: string | null
+  subtype: string | null
+  member: string | null
+  enumLabels: string[] | null
+  fields: CompositeFieldDefinition[]
+  input: string | null
+  output: string | null
+  receive: string | null
+  send: string | null
+}
+
+export interface CompositeTypeGraph {
+  roots: string[]
+  definitions: CompositeTypeDefinition[]
+}
+
 export interface SequenceInfo {
   schema: string
   name: string
@@ -797,6 +834,7 @@ export interface CatalogSnapshot {
   enums: EnumInfo[]
   domains: DomainInfo[]
   compositeTypes: CompositeTypeInfo[]
+  compositeTypeGraph?: CompositeTypeGraph
   rangeTypes: RangeTypeInfo[]
   sequences: SequenceInfo[]
   extensions: ExtensionInfo[]

@@ -307,6 +307,9 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
 }
 
 fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Composite(payload) = element {
+        return array_element_from_composite(make_composite_value(payload));
+    };
     if let ArrayElement::Array(nested) = element {
         return array_element_from_array(make_array_value(nested));
     };
@@ -336,7 +339,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 43 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 44 {
         return ArrayValue::Unknown;
     };
     position = 0;

@@ -7044,6 +7044,9 @@ export type ArrayElement = {
 } | {
     readonly kind: "Multirange";
     readonly value: MultirangePayload;
+} | {
+    readonly kind: "Composite";
+    readonly value: CompositePayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7098,10 +7101,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "BoxNonNull": return { kind: "BoxNonNull" };
         case "Range": return { kind: "Range", value: copyRangePayload(value.value) };
         case "Multirange": return { kind: "Multirange", value: copyMultirangePayload(value.value) };
+        case "Composite": return { kind: "Composite", value: copyCompositePayload(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Composite") {
+        return 44;
+    }
     if (input.kind === "Multirange") {
         return 43;
     }
@@ -8534,6 +8541,236 @@ export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
     if (input.kind === "Multirange") {
         const value: MultirangePayload = copyMultirangePayload(input.value);
         return makeCoercedMultirangeValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export interface CompositePayload {
+    readonly typeName: string;
+    readonly fields: ArrayElement[];
+}
+function copyCompositePayload(value: CompositePayload): CompositePayload {
+    return { typeName: langruntime.checkedString(value.typeName), fields: langruntime.checkedStructs(value.fields, copyArrayElement) };
+}
+export type CompositeValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: CompositePayload;
+};
+function copyCompositeValue(value: CompositeValue): CompositeValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyCompositePayload(value.value) };
+    }
+}
+export function compositeUnknown(): CompositeValue {
+    return { kind: "Unknown" };
+}
+export function compositeNull(): CompositeValue {
+    return { kind: "Null" };
+}
+export function compositeFromCaseGuard(input: CheckOutcome): CompositeValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeCompositeValue(input: CompositePayload): CompositeValue {
+    input = copyCompositePayload(input);
+    const identity: string[] = Array.from(input.typeName);
+    if (identity.length === 0 || input.fields.length > 2147483647) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (index < identity.length) {
+        if (langruntime.indexChar(identity, langruntime.checkedIndex(index)) === "\0") {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let fields: ArrayElement[] = input.fields;
+    index = langruntime.checkedIndex(0);
+    while (index < fields.length) {
+        const source: ArrayElement = copyArrayElement(langruntime.indexStruct(fields, langruntime.checkedIndex(index), copyArrayElement));
+        const checked: ArrayElement = arrayCoercedOwnedElement(copyArrayElement(source));
+        if (checked.kind === "Error") {
+            const error: SqlError = checked.value;
+            return { kind: "Error", value: error };
+        }
+        if (checked.kind === "Unknown") {
+            if (arrayElementFamily(source) >= 41) {
+                return { kind: "Unknown" };
+            }
+        }
+        fields[langruntime.checkedIndexIn(fields, index)] = copyArrayElement(checked);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: { typeName: input.typeName, fields: fields } };
+}
+export function compositeFromCoercedValue(input: CompositeValue): CompositeValue {
+    input = copyCompositeValue(input);
+    if (input.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        return makeCompositeValue(value);
+    }
+    return input;
+}
+export function makeCompositeFields(typeName: string): CompositeValue {
+    typeName = langruntime.checkedString(typeName);
+    const fields: ArrayElement[] = [];
+    return makeCompositeValue({ typeName: typeName, fields: fields });
+}
+export function appendCompositeField(input: CompositeValue, field: ArrayElement): CompositeValue {
+    input = copyCompositeValue(input);
+    field = copyArrayElement(field);
+    if (input.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        let fields: ArrayElement[] = value.fields;
+        langruntime.pushStruct(fields, field, copyArrayElement);
+        return makeCompositeValue({ typeName: value.typeName, fields: fields });
+    }
+    return input;
+}
+export function compositeFieldCount(input: CompositeValue): Int4Value {
+    input = copyCompositeValue(input);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    if (checked.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checked.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(checked.value);
+        return makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(value.fields.length)));
+    }
+    return { kind: "Unknown" };
+}
+export function compositeFieldAt(input: CompositeValue, index: Int4Value): ArrayElement {
+    input = copyCompositeValue(input);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Error") {
+        const error: SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (checked.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checked.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(checked.value);
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            const position: number = langruntime.indexFromI32(offset, value.fields.length);
+            if (offset >= 0 && position < value.fields.length) {
+                return copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(position), copyArrayElement));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function compositeDatumIsNull(input: CompositeValue): BoolValue {
+    input = copyCompositeValue(input);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    if (checked.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checked.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+function compositeRowNullTest(input: CompositeValue, negated: boolean): BoolValue {
+    input = copyCompositeValue(input);
+    negated = langruntime.checkedBool(negated);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    if (checked.kind === "Null") {
+        return makeBoolValue(negated === false);
+    }
+    if (checked.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(checked.value);
+        let unknown: boolean = false;
+        let index: number = 0;
+        while (index < value.fields.length) {
+            const field: ArrayElement = copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(index), copyArrayElement));
+            let known: boolean = true;
+            if (field.kind === "Unknown") {
+                unknown = langruntime.checkedBool(true);
+                known = langruntime.checkedBool(false);
+            }
+            if (known) {
+                let isNull: boolean = false;
+                if (field.kind === "Null") {
+                    isNull = langruntime.checkedBool(true);
+                }
+                if (isNull === negated) {
+                    return makeBoolValue(false);
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (unknown) {
+            return { kind: "Unknown" };
+        }
+        return makeBoolValue(true);
+    }
+    return { kind: "Unknown" };
+}
+export function compositeIsNull(input: CompositeValue): BoolValue {
+    input = copyCompositeValue(input);
+    return compositeRowNullTest(input, false);
+}
+export function compositeIsNotNull(input: CompositeValue): BoolValue {
+    input = copyCompositeValue(input);
+    return compositeRowNullTest(input, true);
+}
+export function arrayElementFromComposite(input: CompositeValue): ArrayElement {
+    input = copyCompositeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        return { kind: "Composite", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToComposite(input: ArrayElement): CompositeValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Composite") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        return { kind: "Value", value: value };
     }
     return { kind: "Unknown" };
 }
@@ -10093,6 +10330,10 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
 }
 function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     element = copyArrayElement(element);
+    if (element.kind === "Composite") {
+        const payload: CompositePayload = copyCompositePayload(element.value);
+        return arrayElementFromComposite(makeCompositeValue(payload));
+    }
     if (element.kind === "Array") {
         const nested: ArrayPayload = copyArrayPayload(element.value);
         return arrayElementFromArray(makeArrayValue(nested));
@@ -10126,7 +10367,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 43) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 44) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);

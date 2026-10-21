@@ -6790,6 +6790,7 @@ const (
 	ArrayElementBoxNonNull
 	ArrayElementRange
 	ArrayElementMultirange
+	ArrayElementComposite
 )
 
 type ArrayElement struct {
@@ -6840,6 +6841,7 @@ type ArrayElement struct {
 	ByteaUnspecified   int
 	Range              RangePayload
 	Multirange         MultirangePayload
+	Composite          CompositePayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -6946,11 +6948,16 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementRange, Range: CopyRangePayload(value.Range)}
 	case ArrayElementMultirange:
 		return ArrayElement{Kind: ArrayElementMultirange, Multirange: CopyMultirangePayload(value.Multirange)}
+	case ArrayElementComposite:
+		return ArrayElement{Kind: ArrayElementComposite, Composite: copyCompositePayload(value.Composite)}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementComposite {
+		return 44
+	}
 	if input.Kind == ArrayElementMultirange {
 		return 43
 	}
@@ -8385,6 +8392,248 @@ func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
 		return MakeCoercedMultirangeValue(value)
 	}
 	return MultirangeValue{Kind: MultirangeValueUnknown}
+}
+
+type CompositePayload struct {
+	TypeName string
+	Fields   []ArrayElement
+}
+
+func copyCompositePayload(value CompositePayload) CompositePayload {
+	return CompositePayload{TypeName: langruntime.CheckedString(value.TypeName), Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement)}
+}
+
+type CompositeValueKind uint8
+
+const (
+	CompositeValueUnknown CompositeValueKind = iota
+	CompositeValueNull
+	CompositeValueError
+	CompositeValueValue
+)
+
+type CompositeValue struct {
+	Kind  CompositeValueKind
+	Error SqlError
+	Value CompositePayload
+}
+
+func copyCompositeValue(value CompositeValue) CompositeValue {
+	switch value.Kind {
+	case CompositeValueUnknown:
+		return CompositeValue{Kind: CompositeValueUnknown}
+	case CompositeValueNull:
+		return CompositeValue{Kind: CompositeValueNull}
+	case CompositeValueError:
+		return CompositeValue{Kind: CompositeValueError, Error: value.Error}
+	case CompositeValueValue:
+		return CompositeValue{Kind: CompositeValueValue, Value: copyCompositePayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func CompositeUnknown() CompositeValue {
+	return CompositeValue{Kind: CompositeValueUnknown}
+}
+func CompositeNull() CompositeValue {
+	return CompositeValue{Kind: CompositeValueNull}
+}
+func CompositeFromCaseGuard(input CheckOutcome) CompositeValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return CompositeValue{Kind: CompositeValueError, Error: error}
+	}
+	return CompositeValue{Kind: CompositeValueUnknown}
+}
+func MakeCompositeValue(input CompositePayload) CompositeValue {
+	input = copyCompositePayload(input)
+	identity := []rune(input.TypeName)
+	if len(identity) == 0 || len(input.Fields) > 2147483647 {
+		return CompositeValue{Kind: CompositeValueUnknown}
+	}
+	index := 0
+	for index < len(identity) {
+		if identity[index] == '\x00' {
+			return CompositeValue{Kind: CompositeValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	fields := input.Fields
+	index = langruntime.CheckedIndex(0)
+	for index < len(fields) {
+		source := CopyArrayElement(fields[index])
+		checked := arrayCoercedOwnedElement(CopyArrayElement(source))
+		if checked.Kind == ArrayElementError {
+			error := checked.Error
+			return CompositeValue{Kind: CompositeValueError, Error: error}
+		}
+		if checked.Kind == ArrayElementUnknown {
+			if ArrayElementFamily(source) >= 41 {
+				return CompositeValue{Kind: CompositeValueUnknown}
+			}
+		}
+		fields[index] = CopyArrayElement(checked)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return CompositeValue{Kind: CompositeValueValue, Value: CompositePayload{TypeName: input.TypeName, Fields: fields}}
+}
+func CompositeFromCoercedValue(input CompositeValue) CompositeValue {
+	input = copyCompositeValue(input)
+	if input.Kind == CompositeValueValue {
+		value := copyCompositePayload(input.Value)
+		return MakeCompositeValue(value)
+	}
+	return input
+}
+func MakeCompositeFields(typeName string) CompositeValue {
+	typeName = langruntime.CheckedString(typeName)
+	fields := []ArrayElement{}
+	return MakeCompositeValue(CompositePayload{TypeName: typeName, Fields: fields})
+}
+func AppendCompositeField(input CompositeValue, field ArrayElement) CompositeValue {
+	input = copyCompositeValue(input)
+	field = CopyArrayElement(field)
+	if input.Kind == CompositeValueValue {
+		value := copyCompositePayload(input.Value)
+		fields := value.Fields
+		langruntime.CheckedAdd(len(fields), 1)
+		fields = append(fields, CopyArrayElement(field))
+		return MakeCompositeValue(CompositePayload{TypeName: value.TypeName, Fields: fields})
+	}
+	return input
+}
+func CompositeFieldCount(input CompositeValue) Int4Value {
+	input = copyCompositeValue(input)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueError {
+		error := checked.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if checked.Kind == CompositeValueNull {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	if checked.Kind == CompositeValueValue {
+		value := copyCompositePayload(checked.Value)
+		return MakeInt4Value(int(int32(len(value.Fields))))
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func CompositeFieldAt(input CompositeValue, index Int4Value) ArrayElement {
+	input = copyCompositeValue(input)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueError {
+		error := checked.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if index.Kind == Int4ValueError {
+		error := index.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if checked.Kind == CompositeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if checked.Kind == CompositeValueValue {
+		value := copyCompositePayload(checked.Value)
+		if index.Kind == Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			position := langruntime.IndexFromI32(offset, len(value.Fields))
+			if offset >= 0 && position < len(value.Fields) {
+				return CopyArrayElement(value.Fields[position])
+			}
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func CompositeDatumIsNull(input CompositeValue) BoolValue {
+	input = copyCompositeValue(input)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueError {
+		error := checked.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if checked.Kind == CompositeValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if checked.Kind == CompositeValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
+	input = copyCompositeValue(input)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueError {
+		error := checked.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if checked.Kind == CompositeValueNull {
+		return MakeBoolValue(negated == false)
+	}
+	if checked.Kind == CompositeValueValue {
+		value := copyCompositePayload(checked.Value)
+		unknown := false
+		index := 0
+		for index < len(value.Fields) {
+			field := CopyArrayElement(value.Fields[index])
+			known := true
+			if field.Kind == ArrayElementUnknown {
+				unknown = true
+				known = false
+			}
+			if known {
+				isNull := false
+				if field.Kind == ArrayElementNull {
+					isNull = true
+				}
+				if isNull == negated {
+					return MakeBoolValue(false)
+				}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if unknown {
+			return BoolValue{Kind: BoolValueUnknown}
+		}
+		return MakeBoolValue(true)
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func CompositeIsNull(input CompositeValue) BoolValue {
+	input = copyCompositeValue(input)
+	return compositeRowNullTest(input, false)
+}
+func CompositeIsNotNull(input CompositeValue) BoolValue {
+	input = copyCompositeValue(input)
+	return compositeRowNullTest(input, true)
+}
+func ArrayElementFromComposite(input CompositeValue) ArrayElement {
+	input = copyCompositeValue(input)
+	if input.Kind == CompositeValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == CompositeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == CompositeValueValue {
+		value := copyCompositePayload(input.Value)
+		return ArrayElement{Kind: ArrayElementComposite, Composite: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToComposite(input ArrayElement) CompositeValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return CompositeValue{Kind: CompositeValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return CompositeValue{Kind: CompositeValueNull}
+	}
+	if input.Kind == ArrayElementComposite {
+		value := copyCompositePayload(input.Composite)
+		return CompositeValue{Kind: CompositeValueValue, Value: value}
+	}
+	return CompositeValue{Kind: CompositeValueUnknown}
 }
 
 type RangeSupport struct {
@@ -10013,6 +10262,10 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 }
 func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	element = CopyArrayElement(element)
+	if element.Kind == ArrayElementComposite {
+		payload := copyCompositePayload(element.Composite)
+		return ArrayElementFromComposite(MakeCompositeValue(payload))
+	}
 	if element.Kind == ArrayElementArray {
 		nested := CopyArrayPayload(element.Array)
 		return ArrayElementFromArray(MakeArrayValue(nested))
@@ -10046,7 +10299,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 43 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 44 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
