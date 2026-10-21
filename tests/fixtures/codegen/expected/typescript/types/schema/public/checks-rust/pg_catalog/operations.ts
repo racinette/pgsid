@@ -32713,6 +32713,11 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.BoolValue = checkruntime.arrayElementToBool(upper);
         return btboolcmpI7aj(left, right);
     }
+    if (kind === 12) {
+        const left: checkruntime.JsonbValue = checkruntime.arrayElementToJsonb(lower);
+        const right: checkruntime.JsonbValue = checkruntime.arrayElementToJsonb(upper);
+        return jsonbCmpN2cx(left, right);
+    }
     if (kind === 13 || kind === 113) {
         const left: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(lower);
         const right: checkruntime.NetworkValue = checkruntime.arrayElementToNetwork(upper);
@@ -33238,6 +33243,9 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
     if (kind === 9) {
         return checkruntime.arrayElementFromBool(scalarBooleanFromText(input));
     }
+    if (kind === 12) {
+        return checkruntime.arrayElementFromJsonb(checkruntime.jsonbFromText(input));
+    }
     if (kind === 13) {
         if (cidr) {
             return checkruntime.arrayElementFromNetwork(checkruntime.cidrFromText(input));
@@ -33738,6 +33746,9 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
+    }
+    if (kind === 12) {
+        return checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(input));
     }
     if (kind === 2) {
         return int4ToText(checkruntime.arrayElementToInt4(input));

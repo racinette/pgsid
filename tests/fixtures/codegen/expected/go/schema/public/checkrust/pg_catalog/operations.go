@@ -32586,6 +32586,11 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToBool(upper)
 		return BtboolcmpI7aj(left, right)
 	}
+	if kind == 12 {
+		left := checkruntime.ArrayElementToJsonb(lower)
+		right := checkruntime.ArrayElementToJsonb(upper)
+		return JsonbCmpN2cx(left, right)
+	}
 	if kind == 13 || kind == 113 {
 		left := checkruntime.ArrayElementToNetwork(lower)
 		right := checkruntime.ArrayElementToNetwork(upper)
@@ -33111,6 +33116,9 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 	if kind == 9 {
 		return checkruntime.ArrayElementFromBool(ScalarBooleanFromText(input))
 	}
+	if kind == 12 {
+		return checkruntime.ArrayElementFromJsonb(checkruntime.JsonbFromText(input))
+	}
 	if kind == 13 {
 		if cidr {
 			return checkruntime.ArrayElementFromNetwork(checkruntime.CidrFromText(input))
@@ -33599,6 +33607,9 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 	}
 	if input.Kind == checkruntime.ArrayElementNull {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if kind == 12 {
+		return checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(input))
 	}
 	if kind == 2 {
 		return Int4ToText(checkruntime.ArrayElementToInt4(input))

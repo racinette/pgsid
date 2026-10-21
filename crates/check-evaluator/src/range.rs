@@ -98,6 +98,7 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 10
                 || kind == 1
                 || kind == 9
+                || kind == 12
                 || kind == 13
                 || kind == 14
                 || kind == 15
@@ -250,7 +251,7 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
 }
 
 pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
-    let value = input;
+    let mut value = input;
     let mut support = value.support;
     if value.type_name.as_str() == "" || value.element_type.as_str() == "" || value.element_kind < 1
     {
@@ -300,6 +301,17 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
         };
         if let ArrayElement::Null = bound {
             if (index == 0 && value.lower_inclusive) || (index == 1 && value.upper_inclusive) {
+                return RangeValue::Unknown;
+            };
+        };
+        if let ArrayElement::Jsonb(payload) = bound {
+            let normalized = jsonb_from_coerced_value(JsonbValue::Value(payload));
+            let mut known = false;
+            if let JsonbValue::Value(payload) = normalized {
+                value.bounds[index] = ArrayElement::Jsonb(payload);
+                known = true;
+            };
+            if known == false {
                 return RangeValue::Unknown;
             };
         };

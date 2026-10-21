@@ -27,6 +27,9 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
     if kind == 9 {
         return array_element_from_bool(scalar_boolean_from_text(input));
     };
+    if kind == 12 {
+        return array_element_from_jsonb(jsonb_from_text(input));
+    };
     if kind == 13 {
         if cidr {
             return array_element_from_network(cidr_from_text(input));
