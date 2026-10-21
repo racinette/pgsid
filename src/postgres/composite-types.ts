@@ -21,6 +21,7 @@ const functionIdentity = (
 export async function readCatalogCompositeTypes(
   pg: PGlite,
   schemas: readonly string[] | null = null,
+  identities: readonly string[] = [],
 ): Promise<CompositeTypeGraph> {
   const rows = (
     await pg.query<CompositeTypeDefinition & { root: boolean; comparisonCollation: string | null }>(
@@ -28,7 +29,8 @@ export async function readCatalogCompositeTypes(
       SELECT t.oid FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
       WHERE t.typtype='c' AND (
         ($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema')
-        OR n.nspname=ANY($1::text[]))
+        OR n.nspname=ANY($1::text[])
+        OR t.oid IN(SELECT pg_catalog.to_regtype(identity)::oid FROM pg_catalog.unnest($2::text[]) identity))
     ),domain_bases(type,base) AS (
       SELECT t.oid,t.typbasetype FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
       WHERE t.typtype='d' AND (
@@ -81,7 +83,7 @@ export async function readCatalogCompositeTypes(
     LEFT JOIN pg_catalog.pg_range r ON r.rngtypid=t.oid
     LEFT JOIN pg_catalog.pg_range m ON m.rngmultitypid=t.oid
     ORDER BY n.nspname COLLATE pg_catalog."C",t.typname COLLATE pg_catalog."C"`,
-      [schemas],
+      [schemas, identities],
     )
   ).rows
   const comparisons = new Map(
