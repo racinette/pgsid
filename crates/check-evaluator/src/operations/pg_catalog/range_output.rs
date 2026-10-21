@@ -121,6 +121,54 @@ fn range_output_bound(input: ArrayElement, kind: i32) -> TextValue {
     if kind == 8 {
         return array_element_to_text(input);
     };
+    if kind == 1 {
+        return int2_to_text(array_element_to_int2(input));
+    };
+    if kind == 9 {
+        return array_boolean_output(array_element_to_bool(input));
+    };
+    if kind == 13 {
+        return array_network_output(array_element_to_network(input), false);
+    };
+    if kind == 14 {
+        return bit_to_text(array_element_to_bit(input));
+    };
+    if kind == 16 {
+        return macaddr_to_text(array_element_to_macaddr(input));
+    };
+    if kind == 17 {
+        return macaddr8_to_text(array_element_to_macaddr8(input));
+    };
+    if kind == 18 {
+        return uuid_to_text(array_element_to_uuid(input));
+    };
+    if kind == 19 {
+        return array_float4_output(array_element_to_float4(input));
+    };
+    if kind == 20 {
+        return array_float8_output(array_element_to_float8(input));
+    };
+    if kind == 21 {
+        return clock_time_to_text(array_element_to_time(input));
+    };
+    if kind == 22 {
+        return clock_timetz_to_text(array_element_to_timetz(input));
+    };
+    if kind == 32 {
+        return sql__pg_catalog__text__j1jh(array_element_to_internal_char(input));
+    };
+    if kind == 33 {
+        return oid_to_text(array_element_to_oid(input));
+    };
+    if kind == 37 {
+        return xid8_to_text(array_element_to_xid8(input));
+    };
+    if kind == 38 {
+        return pg_lsn_to_text(array_element_to_pg_lsn(input));
+    };
+    if kind == 39 {
+        return tid_to_text(array_element_to_tid(input));
+    };
     if kind == 7 {
         if let ArrayElement::Date(value) = input {
             if value == -2147483647 - 1 {
