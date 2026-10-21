@@ -26,7 +26,8 @@ export function constantScalarExpression(expression: EvalExpression): boolean {
   if (
     expression.kind === 'boolean-logic' ||
     expression.kind === 'coalesce' ||
-    expression.kind === 'array-constructor'
+    expression.kind === 'array-constructor' ||
+    expression.kind === 'composite-constructor'
   )
     return expression.operands.every(constantScalarExpression)
   if (expression.kind === 'case')
@@ -68,6 +69,43 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'composite-null') return constant(expression, true)
+  if (expression.kind === 'composite-constructor') {
+    const prepared = prepareAll(expression.operands)
+    return prepared
+      ? prepared.every((operand) => operand.constant)
+        ? constant(expression)
+        : {
+            constant: false,
+            null: false,
+            expressions: prepared.flatMap((operand) => operand.expressions),
+          }
+      : null
+  }
+  if (expression.kind === 'composite-field') {
+    if (
+      expression.operand.kind === 'composite-constructor' &&
+      expression.operand.projectable[expression.index]
+    ) {
+      const selected = expression.operand.operands[expression.index]
+      const prepared = selected ? prepare(selected) : null
+      if (prepared?.constant) return constant(expression, prepared.null)
+      const operands = prepareAll(expression.operand.operands)
+      return prepared && operands
+        ? { ...prepared, expressions: operands.flatMap((operand) => operand.expressions) }
+        : null
+    }
+    const operand = prepare(expression.operand)
+    const selected =
+      expression.operand.kind === 'composite-constructor'
+        ? expression.operand.operands[expression.index]
+        : null
+    return operand?.constant
+      ? constant(expression, operand.null || (selected ? prepare(selected)?.null === true : false))
+      : operand
+        ? { ...operand, null: false }
+        : null
+  }
   if (
     expression.kind === 'text-to-enum' ||
     expression.kind === 'text-to-range' ||

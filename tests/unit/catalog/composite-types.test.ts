@@ -56,6 +56,8 @@ it('captures table, view and standalone composite roots with closed field depend
     expect(nodes.get('"Outer.Types".materialized')!.relationKind).toBe('m')
     expect(nodes.get('"Outer.Types".empty')!.fields).toEqual([])
     const leaf = nodes.get('"Inner.Types".leaf')!
+    expect(leaf.attributeCount).toBe(4)
+    expect(nodes.get('"Outer.Types".empty')!.attributeCount).toBe(0)
     expect(leaf.fields.map((f) => [f.position, f.name])).toEqual([
       [1, 'label'],
       [3, 'amount'],

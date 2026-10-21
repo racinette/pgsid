@@ -17,3 +17,33 @@ CREATE TABLE inspection_reports (
   CONSTRAINT fallback_score CHECK (CASE WHEN bypass THEN true ELSE (COALESCE(packet, backup)).current_reading.score >= 2 END),
   CONSTRAINT selected_score CHECK (CASE WHEN bypass THEN true ELSE (CASE WHEN use_primary THEN packet ELSE backup END).current_reading.score >= 2 END)
 );
+
+CREATE TYPE draft_reading AS (score smallint, obsolete_code integer, label varchar(3) COLLATE "C");
+ALTER TYPE draft_reading DROP ATTRIBUTE obsolete_code;
+CREATE DOMAIN approved_draft AS draft_reading NOT NULL
+  CHECK ((VALUE).score IS NULL OR (VALUE).score >= 0);
+CREATE TABLE inspection_drafts (
+  score integer,
+  label text,
+  denominator integer,
+  minimum_score integer,
+  expected_null boolean,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT draft_score CHECK (CASE WHEN bypass THEN true ELSE (ROW(score, label)::draft_reading).score >= minimum_score END),
+  CONSTRAINT draft_label CHECK (CASE WHEN bypass THEN true ELSE length((ROW(score / denominator, label)::draft_reading).label) <= 3 END),
+  CONSTRAINT draft_null CHECK (CASE WHEN bypass THEN true ELSE (ROW(score, label)::draft_reading IS NULL) = expected_null END),
+  CONSTRAINT draft_present CHECK (CASE WHEN bypass THEN true ELSE (ROW(score, label)::draft_reading IS NOT NULL) = expected_present END),
+  CONSTRAINT draft_approval CHECK (CASE WHEN bypass THEN true ELSE (ROW(score, label)::approved_draft).score >= minimum_score END),
+  CONSTRAINT draft_fallback CHECK (CASE WHEN bypass THEN true ELSE (COALESCE(ROW(NULL,NULL)::draft_reading,ROW(score,label)::draft_reading)).score IS NULL END)
+);
+
+CREATE TABLE stored_inspections (
+  draft approved_draft,
+  expected_null boolean,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT stored_null CHECK (CASE WHEN bypass THEN true ELSE (draft IS NULL) = expected_null END),
+  CONSTRAINT stored_present CHECK (CASE WHEN bypass THEN true ELSE (draft IS NOT NULL) = expected_present END),
+  CONSTRAINT stored_datum CHECK (CASE WHEN bypass THEN true ELSE draft IS DISTINCT FROM NULL END)
+);

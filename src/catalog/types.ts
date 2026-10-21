@@ -625,6 +625,7 @@ export interface CompositeTypeDefinition {
   name: string
   kind: string
   relationKind: string | null
+  attributeCount?: number | null
   array: string | null
   base: string | null
   baseTypeMod: number
