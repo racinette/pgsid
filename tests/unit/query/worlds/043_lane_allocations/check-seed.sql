@@ -8469,3 +8469,26 @@ INSERT INTO lane_document_batch_requests(lower_documents,upper_documents,flags,e
 INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{queued}','{active}','[{active},{complete}]','[{queued},{active}]',false);
 -- name: ArrayPhaseBatchOutsideStart
 INSERT INTO lane_phase_batch_windows(batch_window,start_batch,finish_batch,payload,expected_label,bypass) VALUES('[{queued},{active}]','{complete}','{complete}','[{queued},{active}]','[{queued},{active}]',false);
+
+-- name: ArrayBatchFingerprint
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,-2617105299394493283,-1580432196,-2617105299394493252,2107929673,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongWord
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,0,-2617105299394493283,-1580432196,-2617105299394493252,2107929673,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongWide
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,0,-1580432196,-2617105299394493252,2107929673,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongMultiWord
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,-2617105299394493283,0,-2617105299394493252,2107929673,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongMultiWide
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,-2617105299394493283,-1580432196,0,2107929673,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongArrayWord
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,-2617105299394493283,-1580432196,-2617105299394493252,0,4824547623382053961,NULL,false);
+-- name: ArrayBatchFingerprintWrongArrayWide
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,-1580432227,-2617105299394493283,-1580432196,-2617105299394493252,2107929673,0,NULL,false);
+-- name: ArrayBatchFingerprintWire
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('(,)','{}','{}',0,NULL,NULL,NULL,NULL,NULL,NULL,1,false);
+-- name: ArrayBatchFingerprintWrongWire
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('(,)','{}','{}',0,NULL,NULL,NULL,NULL,NULL,NULL,0,false);
+-- name: ArrayBatchFingerprintNulls
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: ArrayBatchFingerprintSkipped
+INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,0,0,0,0,0,0,0,true);

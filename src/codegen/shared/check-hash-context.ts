@@ -1,6 +1,41 @@
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
-import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import { builtinTypeComparison, builtinCallables } from '../../postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../postgres/builtins/taxonomy.js'
+import type { RangeProfile } from '../../sql-semantics/range-profiles.js'
+import { rangeArrayHashPlan, arrayElementComparison } from './check-array-types.js'
+import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
+
+export function rangeHashSupport(profile: RangeProfile, extended: boolean) {
+  let selected = extended ? profile.subtypeHashExtended : profile.subtypeHash
+  let available = selected !== null
+  let compatible = profile.subtypeHashEqualityCompatible === true
+  let type: string = profile.elementType
+  const matches = () => {
+    const support = arrayElementComparison(type)
+    return selected !== null && selected === (extended ? support?.hashExtended : support?.hash)
+  }
+  let safe = matches()
+  for (let node = rangeArrayHashPlan(profile); node; node = node.child) {
+    const callback = selected
+      ? builtinCallables().find((item) => callableIdentity(item) === selected)
+      : null
+    if (!callback || !isArrayHash(callback)) break
+    selected = extended ? node.element.hashExtended : node.element.hash
+    available &&= selected !== null
+    compatible &&= node.element.hashEqualityCompatible
+    type = arrayElementBaseType(type.slice(6))
+    safe &&= matches()
+  }
+  const scalar = selected
+    ? builtinCallables().find((item) => callableIdentity(item) === selected)
+    : null
+  return {
+    available,
+    compatible,
+    safe: safe && available && compatible,
+    context: scalar ? nativeHashContext(scalar) : null,
+  }
+}
 
 export function nativeHashContext(item: BuiltinCallable): 'text' | 'bytes' | null {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null

@@ -33,7 +33,11 @@ it('injects compiled array-bound contexts before public range, multirange and re
         CONSTRAINT contained CHECK(CASE WHEN bypass THEN true ELSE m @> v END),
         CONSTRAINT position CHECK(CASE WHEN bypass THEN true ELSE array_position(items,v)=-2 END),
         CONSTRAINT nested_order CHECK(CASE WHEN bypass THEN true ELSE array_sort(nested)=nested END),
-        CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE v::text='[{z},{mid}]' END));`
+        CONSTRAINT output CHECK(CASE WHEN bypass THEN true ELSE v::text='[{z},{mid}]' END),
+        CONSTRAINT hash_range CHECK(CASE WHEN bypass THEN true ELSE hash_range(v) IS NOT NULL END),
+        CONSTRAINT hash_multirange CHECK(CASE WHEN bypass THEN true ELSE hash_multirange(m) IS NOT NULL END),
+        CONSTRAINT hash_items CHECK(CASE WHEN bypass THEN true ELSE hash_array(items) IS NOT NULL END),
+        CONSTRAINT hash_nested CHECK(CASE WHEN bypass THEN true ELSE hash_array(nested) IS NOT NULL END));`
     await pg.exec(schema)
     const catalog = await snapshotCatalog(pg),
       p = customRangeProfiles(catalog)[0]!,
@@ -54,6 +58,13 @@ it('injects compiled array-bound contexts before public range, multirange and re
       await shifted.exec('CREATE TABLE discarded(v text);DROP TABLE discarded;' + schema)
       const other = await snapshotCatalog(shifted)
       expect(other.enums[0]!.valueOids).not.toEqual(catalog.enums[0]!.valueOids)
+      const wire = async (database: PGlite) =>
+        (
+          await database.query<{ value: string }>(
+            `SELECT encode(range_send('[{z},{mid}]'::stage_span),'hex') value`,
+          )
+        ).rows[0]!.value
+      expect(await wire(shifted)).not.toBe(await wire(pg))
       expect(
         renderTypescriptSchemaCheckArtifacts(other.tables, other.domains, other.domains, {
           enums: other.enums,
@@ -162,8 +173,9 @@ it('injects compiled array-bound contexts before public range, multirange and re
       }
       edit(candidate)
       const before = structuredClone(candidate)
-      for (const result of Object.values(map(candidate)))
-        expect(result).toEqual({ certain: true, value: true })
+      for (const [constraint, result] of Object.entries(map(candidate)))
+        if (constraint.startsWith('hash_')) expect(result).toMatchObject({ certain: false })
+        else expect(result).toEqual({ certain: true, value: true })
       expect(candidate).toEqual(before)
       const bad = structuredClone(candidate)
       const lower = bad.v.value.bounds[0]!
@@ -235,7 +247,7 @@ func forgeEnumArray(input checkruntime.ArrayValue)checkruntime.ArrayValue{for i,
 func TestEnumPayload(t *testing.T){
 row:=enumFixture();row.V.V=forgeEnumSpan(row.V.V);row.W.V=forgeEnumSpan(row.W.V);for i,span:=range row.M.V.Value.Ranges{row.M.V.Value.Ranges[i]=forgeEnumSpan(span)};row.M.V.Value.Support=checkruntime.MakeRangeSupport(99,99);row.Items.V=forgeEnumArray(row.Items.V);row.Nested.V=forgeEnumArray(row.Nested.V)
 before:=enumFixture();before.V.V=forgeEnumSpan(before.V.V);before.W.V=forgeEnumSpan(before.W.V);for i,span:=range before.M.V.Value.Ranges{before.M.V.Value.Ranges[i]=forgeEnumSpan(span)};before.M.V.Value.Support=checkruntime.MakeRangeSupport(99,99);before.Items.V=forgeEnumArray(before.Items.V);before.Nested.V=forgeEnumArray(before.Nested.V)
-for _,c:=range EvaluatePublicArrayPayloadsChecks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}
+for _,c:=range EvaluatePublicArrayPayloadsChecks(row){switch c.Constraint{case "hash_range","hash_multirange","hash_items","hash_nested":if c.Result.Certain{t.Fatal("enum hash requires deployment catalog",c)};default:if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("compiled definition",c)}}}
 if !reflect.DeepEqual(row,before){t.Fatal("input mutated")}
 bad:=enumFixture().V.V;bad.Value.Bounds[0].Array.Elements[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementEnum,Enum:checkruntime.EnumPayload{Ordinal:999,LabelOid:0}};row.V=KnownCheckValue(bad)
 for _,c:=range EvaluatePublicArrayPayloadsChecks(row){if c.Constraint=="ordered"&&c.Result.Certain{t.Fatal("invalid ordinal",c)}}
@@ -258,6 +270,8 @@ skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicArrayP
         compiledDefinitions: true,
         forgedOwnedContexts: true,
         recursiveArrays: true,
+        enumHashCatalogRequired: true,
+        arrayWireCatalogHeaderRequired: true,
       }) + '\n',
     )
   } finally {
