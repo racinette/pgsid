@@ -268,6 +268,11 @@ const rangeContextExpression = (
     current = bind(
       `append_range_bound_profile_with_canonical(${current},${rustStringLiteral(node.typeName)},${node.kind},${node.comparison},${node.canonical},${node.missingComparison},${rustStringLiteral(node.elementType)},${node.child},${rustStringLiteral(node.enumLabels)},${node.enumCount})`,
     )
+  for (const [index, node] of nodes.entries())
+    for (const field of node.fields ?? [])
+      current = bind(
+        `append_range_bound_field(${current},${index},${field.child},${rustStringLiteral(field.typeName)},${field.comparisonAvailable})`,
+      )
   return current
 }
 
@@ -893,6 +898,104 @@ export function emitCheckRustEvaluator(
     destination.push(`if array_validity_unknown(${guard}) {`, ...indent(lines), '}')
   }
 
+  const renderTypedOutput = (
+    cell: string,
+    type: string,
+    destination: string[],
+    definition?: EnumDefinition,
+  ): string => {
+    const scalar = fresh('container_output_scalar')
+    const prefix = rustValuePrefix(rustType(type))
+    destination.push(`let ${scalar}=array_element_to_${prefix}(${cell});`)
+    const range = rangeTypeProfile(type),
+      multi = multirangeTypeProfile(type)
+    if (range || multi) return renderRangeOutput(scalar, (range ?? multi)!, !!multi, destination)
+    if (compositeProfile(type) || type.startsWith('array:')) {
+      const name = '__pgsid_container_output',
+        key = JSON.stringify([name, false]),
+        outer = localInputs.get(key)
+      localInputs.set(key, { name, type, rustName: scalar, rustType: rustType(type) })
+      try {
+        const result = emitScalar(
+          compositeProfile(type)
+            ? {
+                kind: 'composite-to-text',
+                type: 'pg_catalog.text',
+                operand: { kind: 'input', name, type: type as ScalarType },
+              }
+            : {
+                kind: 'array-to-text',
+                type: 'pg_catalog.text',
+                operand: { kind: 'input', name, type: type as ScalarType },
+                elementType: type.slice(6) as ArrayElementType,
+                output: builtinTypeIO('pg_catalog._int4')!.output!,
+              },
+          destination,
+          new Set(),
+        )
+        return result.name
+      } finally {
+        if (outer) localInputs.set(key, outer)
+        else localInputs.delete(key)
+      }
+    }
+    const output = arrayElementOutput(type, definition, cell, scalar)
+    return type === 'pg_catalog.jsonb'
+      ? `jsonb_text_context(${scalar},${executionContext.serverEncoding === 'UTF8'})`
+      : output.conversion
+  }
+  const renderRangeOutput = (
+    input: string,
+    profile: RangeProfile,
+    multi: boolean,
+    destination: string[],
+  ): string => {
+    if (!profile.subtypeCompositeGraph)
+      return `${multi ? 'multirange' : 'range'}_to_text(${input}.clone())`
+    if (multi) {
+      const payload = fresh('multirange_output_payload'),
+        count = fresh('multirange_output_count'),
+        index = fresh('multirange_output_index'),
+        output = fresh('multirange_output'),
+        member = fresh('multirange_output_member')
+      destination.push(
+        `let ${payload}=multirange_binary_payload(${input}.clone());`,
+        `let ${count}=multirange_binary_count(&${payload});`,
+        `let mut ${index}:Int4Value=make_int4_value(0);`,
+        `let mut ${output}:TextValue=multirange_output_initial(${input}.clone());`,
+      )
+      const body = [`let ${member}=multirange_binary_member(&${payload},${index});`]
+      const rendered = renderRangeOutput(member, profile, false, body)
+      const text = fresh('multirange_member_text')
+      body.push(
+        `let ${text}=${rendered};`,
+        `${output}=multirange_output_append(${output},${text},${index});`,
+        `${index}=array_text_next_index(${index});`,
+      )
+      destination.push(
+        `while multirange_output_continues(${count},${index},${output}.clone()) {`,
+        ...indent(body),
+        '}',
+      )
+      return `multirange_output_finish(${output})`
+    }
+    const bounds: string[] = []
+    for (const upper of [false, true]) {
+      const cell = fresh('range_output_bound'),
+        text = fresh('range_output_text')
+      destination.push(`let ${cell}=range_bound(${input}.clone(),${upper});`)
+      const rendered = renderTypedOutput(
+        cell,
+        profile.elementType,
+        destination,
+        profile.subtypeEnum,
+      )
+      destination.push(`let ${text}=${rendered};`)
+      bounds.push(text)
+    }
+    return `range_format_text(${input}.clone(),${bounds[0]},${bounds[1]})`
+  }
+
   const renderArrayOutput = (
     payload: string,
     elementType: string,
@@ -918,7 +1021,9 @@ export function emitCheckRustEvaluator(
     const inner: string[] = []
     const base = arrayElementBaseType(elementType)
     let conversion: string
-    if (compositeProfile(base)) {
+    if ((rangeTypeProfile(base) ?? multirangeTypeProfile(base))?.subtypeCompositeGraph) {
+      conversion = renderTypedOutput(element, base, inner, definition)
+    } else if (compositeProfile(base)) {
       const key = JSON.stringify(['__pgsid_array_output_element', false]),
         outer = localInputs.get(key)
       inner.push(`let ${scalar}=array_element_to_composite(${element});`)
@@ -4333,6 +4438,7 @@ export function emitCheckRustEvaluator(
                   41: 'pg_catalog.anyarray',
                   42: 'pg_catalog.anyrange',
                   43: 'pg_catalog.anymultirange',
+                  44: 'pg_catalog.record',
                 }[rangeContainerKind(multirange.elementType)!]
               : multirange.subtypeEnum
                 ? 'pg_catalog.anyenum'
@@ -4342,7 +4448,10 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Multirange output requires captured multirange, range and subtype I/O identities',
           )
-        return { name: bind(`multirange_to_text(${ownedOperand(operand)})`), type: node.type }
+        return {
+          name: bind(renderRangeOutput(operand.name, multirange, true, bindings)),
+          type: node.type,
+        }
       }
       if (range) {
         const subtypeOutput = range.subtypeOutput
@@ -4366,6 +4475,7 @@ export function emitCheckRustEvaluator(
                   41: 'pg_catalog.anyarray',
                   42: 'pg_catalog.anyrange',
                   43: 'pg_catalog.anymultirange',
+                  44: 'pg_catalog.record',
                 }[rangeContainerKind(range.elementType)!]
               : range.subtypeEnum
                 ? 'pg_catalog.anyenum'
@@ -4375,7 +4485,10 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Range output requires captured range and subtype output identities',
           )
-        return { name: bind(`range_to_text(${ownedOperand(operand)})`), type: node.type }
+        return {
+          name: bind(renderRangeOutput(operand.name, range, false, bindings)),
+          type: node.type,
+        }
       }
       if (node.enum) {
         if (
@@ -4698,6 +4811,7 @@ export function emitCheckRustEvaluator(
                           41: 'pg_catalog._int4',
                           42: 'pg_catalog.int4range',
                           43: 'pg_catalog.int4multirange',
+                          44: 'pg_catalog.record',
                         }[rangeContainerKind(range.elementType)!]
                       : range.elementType,
                   )?.input) &&
@@ -5724,7 +5838,15 @@ export function emitCheckRustEvaluator(
           `let ${cell}=composite_field_at(${ownedOperand(operand)},${position});`,
         )
         let result: string
-        if (compositeProfile(fieldType) || fieldType.startsWith('array:')) {
+        if (
+          (rangeTypeProfile(fieldType) ?? multirangeTypeProfile(fieldType))?.subtypeCompositeGraph
+        ) {
+          if (physical.output !== rangeTypeOutput(fieldType))
+            throw new UnsupportedCheckRustExpression(
+              'Composite range field output requires its captured implementation',
+            )
+          result = renderTypedOutput(cell, fieldType, lines)
+        } else if (compositeProfile(fieldType) || fieldType.startsWith('array:')) {
           const prefix = rustValuePrefix(rustType(fieldType)),
             name = '__pgsid_composite_output_field',
             key = JSON.stringify([name, false]),

@@ -1,5 +1,9 @@
 import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
-import { compositeProfile } from '../../sql-semantics/composite-profiles.js'
+import {
+  compositeProfile,
+  compositeFieldType,
+  compositePhysicalType,
+} from '../../sql-semantics/composite-profiles.js'
 import type { RangeSubtypeDefinition } from '../../catalog/types.js'
 import { isRangeType, isMultirangeType } from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
@@ -113,6 +117,7 @@ export interface RangeBoundProfilePlan {
   child: number
   enumLabels: string
   enumCount: number
+  fields?: { typeName: string; child: number; comparisonAvailable: boolean }[]
 }
 
 export interface RangeArrayHashPlan {
@@ -147,6 +152,30 @@ export function rangeBoundProfiles(
   if (!rangeContainerKind(profile.elementType)) return []
   if (!profile.subtypeDefinitions) return null
   const definitions = new Map(profile.subtypeDefinitions.map((node) => [node.identity, node]))
+  const composite = profile.subtypeCompositeGraph
+  for (const node of composite?.definitions ?? []) {
+    if (!definitions.has(node.identity))
+      definitions.set(node.identity, {
+        identity: node.identity,
+        schema: node.schema,
+        name: node.name,
+        kind: node.kind,
+        base: node.base,
+        element: node.element,
+        subtype: node.subtype,
+        member: node.member,
+        enumValues: node.enumLabels,
+        input: node.input,
+        output: node.output,
+        send: node.send,
+        equality: node.comparison?.equality ?? null,
+        comparator: node.comparison?.comparator ?? null,
+        hash: null,
+        hashExtended: null,
+        hashEqualityCompatible: false,
+      })
+  }
+  const visiting = new Set<string>()
   const result: RangeBoundProfilePlan[] = []
   const append = (
     identity: string,
@@ -164,8 +193,9 @@ export function rangeBoundProfiles(
       node = definitions.get(node.base)!
     }
     const base = arrayElementBaseType(type),
-      kind = arrayElementFamily(base)
-    if (kind === null) return false
+      kind = arrayElementFamily(base) ?? 0
+    if (visiting.has(node.identity)) return false
+    visiting.add(node.identity)
     const support = rangeProfileSupport(
       {
         ...owner,
@@ -183,7 +213,8 @@ export function rangeBoundProfiles(
     const index = result.length
     const nested =
       kind === 42 || kind === 43
-        ? rangeNestedProfile(profile, kind === 42 ? node.identity : node.member!)
+        ? ((kind === 42 ? rangeTypeProfile(base) : multirangeTypeProfile(base)) ??
+          rangeNestedProfile(profile, kind === 42 ? node.identity : node.member!))
         : null
     if ((kind === 42 || kind === 43) && !nested) return false
     const nestedSupport = nested ? rangeProfileSupport(nested, context) : null
@@ -198,7 +229,12 @@ export function rangeBoundProfiles(
       kind,
       comparison: index === 0 ? kind : (override?.comparison ?? support.comparison),
       canonical: kind === 42 ? nestedSupport!.canonical : 1,
-      missingComparison: index !== 0 && (override?.missing ?? selected.comparator === null),
+      missingComparison:
+        index !== 0 &&
+        (override?.missing ??
+          (composite?.definitions.find((n) => n.identity === selected.identity)?.comparison
+            ?.comparisonAvailable === false ||
+            selected.comparator === null)),
       elementType:
         kind === 41
           ? arrayElementIdentity(base.slice(6))
@@ -207,10 +243,39 @@ export function rangeBoundProfiles(
             : kind === 43
               ? nested!.identity
               : '',
-      child: kind >= 41 ? index + 1 : 0,
+      child: kind >= 41 && kind <= 43 ? index + 1 : 0,
       enumLabels: labels?.join('\0') ?? '',
       enumCount: labels?.length ?? -1,
     })
+    if (kind === 44) {
+      const p = compositeProfile(base)
+      const record = p ? compositePhysicalType(p, node.identity) : null
+      if (!p || record?.kind !== 'c') return false
+      const fields: NonNullable<RangeBoundProfilePlan['fields']> = []
+      result[index]!.fields = fields
+      for (const field of record.fields) {
+        const logical = compositeFieldType(p, field.type, true)
+        const definition = p.graph.definitions.find((n) => n.identity === field.type)
+        if (!definition?.comparison) return false
+        const child = result.length
+        fields.push({
+          typeName: field.type,
+          child,
+          comparisonAvailable: definition.comparison.comparisonAvailable,
+        })
+        const fieldOwner = {
+          ...owner,
+          collation: field.collation,
+          collationIsC: field.collationIsC,
+          collationIsDefault: field.collationIsDefault,
+          collationDeterministic: field.collationDeterministic,
+        }
+        if (!append(field.type, logical ?? field.type, fieldOwner)) return false
+      }
+      visiting.delete(node.identity)
+      return true
+    }
+    visiting.delete(node.identity)
     if (kind === 41) return node.element !== null && append(node.element, base.slice(6), owner)
     if (kind === 42)
       return append(nested!.subtype, nested!.elementType, nested!, {

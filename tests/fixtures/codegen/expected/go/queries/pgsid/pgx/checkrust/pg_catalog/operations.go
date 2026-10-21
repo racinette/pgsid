@@ -24843,6 +24843,74 @@ func MultirangeToText(input checkruntime.MultirangeValue) checkruntime.TextValue
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func MultirangeOutputInitial(input checkruntime.MultirangeValue) checkruntime.TextValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	if input.Kind == checkruntime.MultirangeValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.MultirangeValueValue {
+		payload := checkruntime.CopyMultirangePayload(input.Value)
+		_ = payload
+		return checkruntime.MakeTextValue("{")
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func MultirangeOutputContinues(count checkruntime.Int4Value, index checkruntime.Int4Value, output checkruntime.TextValue) bool {
+	if output.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(output.Value)
+		_ = text
+		if count.Kind == checkruntime.Int4ValueValue {
+			length := langruntime.CheckedI32(count.Value)
+			if index.Kind == checkruntime.Int4ValueValue {
+				position := langruntime.CheckedI32(index.Value)
+				return position >= 0 && position < length
+			}
+		}
+	}
+	return false
+}
+func MultirangeOutputAppend(output checkruntime.TextValue, member checkruntime.TextValue, index checkruntime.Int4Value) checkruntime.TextValue {
+	if output.Kind == checkruntime.TextValueError {
+		error := output.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if output.Kind == checkruntime.TextValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if output.Kind == checkruntime.TextValueValue {
+		initial := langruntime.CheckedString(output.Value)
+		text := langruntime.NewTextBuffer(initial)
+		if member.Kind == checkruntime.TextValueError {
+			error := member.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if member.Kind == checkruntime.TextValueValue {
+			value := langruntime.CheckedString(member.Value)
+			if index.Kind == checkruntime.Int4ValueValue {
+				position := langruntime.CheckedI32(index.Value)
+				if position > 0 {
+					text = append(text, string(langruntime.CheckedChar(','))...)
+				}
+				text = append(text, value...)
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func MultirangeOutputFinish(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueValue {
+		initial := langruntime.CheckedString(input.Value)
+		text := langruntime.NewTextBuffer(initial)
+		text = append(text, string(langruntime.CheckedChar('}'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+	}
+	return input
+}
 func multirangeSetRangeKnown(input checkruntime.RangeValue) bool {
 	input = checkruntime.CopyRangeValue(input)
 	if input.Kind == checkruntime.RangeValueValue {

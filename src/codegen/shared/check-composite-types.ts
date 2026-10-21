@@ -56,7 +56,8 @@ function rangeNodes(
   if (!nested?.length) return null
   const children = nested.map((n, i) => ({
     ...n,
-    child: n.kind >= 41 ? n.child + offset : 0,
+    child: n.kind >= 41 && n.kind <= 43 ? n.child + offset : 0,
+    fields: n.fields?.map((f) => ({ ...f, child: f.child + offset })),
     ...(i === 0
       ? { comparison: support.comparison, missingComparison: p.comparator === null }
       : {}),
@@ -180,6 +181,11 @@ export function compositePlanExpression(
       bounds = bind(
         `append_range_bound_profile_with_canonical(${bounds},${rustStringLiteral(n.typeName)},${n.kind},${n.comparison},${n.canonical},${n.missingComparison},${rustStringLiteral(n.elementType)},${n.child},${rustStringLiteral(n.enumLabels)},${n.enumCount})`,
       )
+    for (const [index, n] of node.boundProfile.entries())
+      for (const field of n.fields ?? [])
+        bounds = bind(
+          `append_range_bound_field(${bounds},${index},${field.child},${rustStringLiteral(field.typeName)},${field.comparisonAvailable})`,
+        )
     plan = bind(
       `append_composite_type_node(${plan},${rustStringLiteral(node.typeName)},${node.kind},${rustStringLiteral(node.elementType)},${node.child},${bounds})`,
     )

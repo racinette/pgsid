@@ -187,6 +187,37 @@ export function renderGoSchemaCheckArtifacts(
     : null
   if (rustGroup?.source && !rustImportPath)
     throw new Error('Go Rust CHECK module requires an import path')
+  const boundProfileNode = (
+    node: NonNullable<ReturnType<typeof rangeBoundProfiles>>[number],
+  ): GoExpression => {
+    const rt = (name: string) => go.selector(go.ident('checkruntime'), name)
+    const scalar = (value: string | number | boolean) =>
+      typeof value === 'string'
+        ? go.string(value)
+        : typeof value === 'boolean'
+          ? go.ident(String(value))
+          : go.number(value)
+    const { fields = [], ...values } = node
+    return go.composite(rt('RangeBoundProfile'), [
+      ...Object.entries(values).map(([key, value]) =>
+        go.keyValue(key[0]!.toUpperCase() + key.slice(1), scalar(value)),
+      ),
+      go.keyValue(
+        'Fields',
+        go.composite(
+          go.slice(rt('RangeBoundField')),
+          fields.map((field) =>
+            go.composite(rt('RangeBoundField'), [
+              go.keyValue('TypeName', go.string(field.typeName)),
+              go.keyValue('Child', go.number(field.child)),
+              go.keyValue('ComparisonAvailable', go.ident(String(field.comparisonAvailable))),
+            ]),
+          ),
+        ),
+      ),
+    ])
+  }
+
   const boundContext = (type: string): GoExpression => {
     const profile =
       rangeTypeProfile(type) ??
@@ -195,19 +226,7 @@ export function renderGoSchemaCheckArtifacts(
     const nodes = profile ? rangeBoundProfiles(profile, config.sql.codegen?.checks) : []
     if (!nodes) throw new Error('Missing compiled array-bound range context')
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
-    const records = nodes.map((node) => {
-      const fields = Object.entries(node).map(([key, value]) =>
-        go.keyValue(
-          key[0]!.toUpperCase() + key.slice(1),
-          typeof value === 'string'
-            ? go.string(value)
-            : typeof value === 'boolean'
-              ? go.ident(String(value))
-              : go.number(value),
-        ),
-      )
-      return go.composite(runtime('RangeBoundProfile'), fields)
-    })
+    const records = nodes.map(boundProfileNode)
     return go.composite(runtime('RangeBoundContext'), [
       go.keyValue('Nodes', go.composite(go.slice(runtime('RangeBoundProfile')), records)),
     ])
@@ -216,27 +235,11 @@ export function renderGoSchemaCheckArtifacts(
     const nodes = compositeNodes(type, config.sql.codegen?.checks)
     if (!nodes) throw new Error('Missing composite field context')
     const rt = (name: string) => go.selector(go.ident('checkruntime'), name)
-    const scalar = (value: string | number | boolean) =>
-      typeof value === 'string'
-        ? go.string(value)
-        : typeof value === 'boolean'
-          ? go.ident(String(value))
-          : go.number(value)
     const bounds = (values: (typeof nodes)[number]['boundProfile']) =>
       go.composite(rt('RangeBoundContext'), [
         go.keyValue(
           'Nodes',
-          go.composite(
-            go.slice(rt('RangeBoundProfile')),
-            values.map((node) =>
-              go.composite(
-                rt('RangeBoundProfile'),
-                Object.entries(node).map(([key, value]) =>
-                  go.keyValue(key[0]!.toUpperCase() + key.slice(1), scalar(value)),
-                ),
-              ),
-            ),
-          ),
+          go.composite(go.slice(rt('RangeBoundProfile')), values.map(boundProfileNode)),
         ),
       ])
     return go.composite(rt('CompositeTypePlan'), [
@@ -990,6 +993,13 @@ func checkRustProfiledBound(input checkruntime.ArrayElement,profile checkruntime
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return input,true }
   if index<0 || index>=len(profile.Nodes) {return input,false}
   node:=profile.Nodes[index]
+  if node.Kind==6 && input.Kind==checkruntime.ArrayElementEnum {input.Enum.LabelOid=0}
+  if node.Kind==44 {
+    if input.Kind!=checkruntime.ArrayElementComposite || input.Composite.TypeName!=node.TypeName || len(input.Composite.Fields)!=len(node.Fields) {return input,false}
+    p:=input.Composite;fields:=make([]checkruntime.ArrayElement,len(p.Fields))
+    for i,cell:=range p.Fields {value,ok:=checkRustProfiledBound(cell,profile,node.Fields[i].Child);if !ok {return input,false};fields[i]=value}
+    p.Fields=fields;input.Composite=p;return input,true
+  }
   if node.Kind<41 {return input,checkRustArrayElement(input,node.Kind,0,checkruntime.RangeBoundContext{})}
   if node.Child<0 || node.Child>=len(profile.Nodes) {return input,false}
   child:=profile.Nodes[node.Child]

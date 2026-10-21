@@ -1,3 +1,5 @@
+import { compositeProfile } from '../../src/sql-semantics/composite-profiles.js'
+import { readCompositeFixture } from './check-composite-fixtures.js'
 import type { PGlite } from '@electric-sql/pglite'
 import {
   rangeTypeProfile,
@@ -30,6 +32,17 @@ export async function readRangeBoundCell(
   value: string | null,
   sqlType?: string,
 ): Promise<RangeInputCell> {
+  if (compositeProfile(subtype) && value !== null) {
+    const payload = await readCompositeFixture(
+      pg,
+      `SELECT $1::${compositeProfile(subtype)!.identity} value`,
+      'value',
+      subtype,
+      [value],
+    )
+    if (!payload) throw new Error('Non-NULL composite range bound became NULL')
+    return { kind: 'Composite', value: payload }
+  }
   const range = rangeTypeProfile(subtype),
     multi = multirangeTypeProfile(subtype)
   if (range && value !== null)
@@ -209,7 +222,7 @@ export async function readArrayBoundFixture(
       ).rows[0]!.identity
       const rows = (
         await pg.query<{ value: string | null }>(
-          `SELECT ${base.startsWith('array:') ? 'value::text' : rangeBoundProjection('value', base)} value FROM unnest($1::${sqlType}) WITH ORDINALITY AS cells(value,position) ORDER BY position`,
+          `SELECT ${base.startsWith('array:') ? 'value::text' : rangeBoundProjection('value', base)} value FROM (SELECT unnest($1::${sqlType}) value) cells`,
           [text],
         )
       ).rows

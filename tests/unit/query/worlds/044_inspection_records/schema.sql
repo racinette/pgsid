@@ -123,3 +123,22 @@ CREATE TABLE inspection_nested_batches (
   CONSTRAINT nested_batch_output CHECK (CASE WHEN bypass THEN true ELSE batches::text IS NOT DISTINCT FROM canonical_text END),
   CONSTRAINT nested_batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::inspection_batch[] IS NOT DISTINCT FROM batches END)
 );
+
+CREATE TYPE inspection_band AS RANGE(subtype=draft_reading);
+CREATE TABLE inspection_bands (
+  reading_band inspection_band,
+  previous_band inspection_band,
+  encoded text,
+  canonical_text text,
+  minimum_score integer,
+  expected_order integer,
+  expected_equal boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT band_score CHECK (CASE WHEN bypass THEN true ELSE (lower(reading_band)).score >= minimum_score END),
+  CONSTRAINT band_order CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.range_cmp(reading_band,previous_band) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT band_equal CHECK (CASE WHEN bypass THEN true ELSE (reading_band=previous_band) IS NOT DISTINCT FROM expected_equal END),
+  CONSTRAINT band_output CHECK (CASE WHEN bypass THEN true ELSE reading_band::text IS NOT DISTINCT FROM canonical_text END),
+  CONSTRAINT band_input CHECK (CASE WHEN bypass THEN true ELSE encoded::inspection_band IS NOT DISTINCT FROM reading_band END),
+  CONSTRAINT band_literal CHECK (CASE WHEN bypass THEN true ELSE (lower('["(2,abc)",)'::inspection_band)).score >= minimum_score END),
+  CONSTRAINT band_constructed CHECK (CASE WHEN bypass THEN true ELSE inspection_band(lower(reading_band),upper(reading_band),'[]') @> reading_band END)
+);

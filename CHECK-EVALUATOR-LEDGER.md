@@ -54,8 +54,7 @@ Done per form when the binder produces a meaningful expression, production evalu
 Use the surface report's constraint identities and bound expressions to locate each case. A cast, collation restriction, unavailable input, and missing implementation require different fixes. Existing formatters do not prove that
 the binder reaches them through every cast path.
 
-Done when each case either evaluates with parity or has an explicit, tested
-context/input requirement. Do not replace an unsupported operation with an
+Done when each case either evaluates with parity or has an explicit, tested context/input requirement. Do not replace an unsupported operation with an
 assumption about server settings.
 
 ## Expand world INSERT coverage
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit captured whole-record equality/order and composition with ordered field identity/support checks, field NULL ordering, nested arrays/records, reached callbacks and collation handling. Preserve eager preparation, owned comparison snapshots and native/Rust/Go/TypeScript/world INSERT parity without deployment OIDs.
 - [x] Admit root record arrays, captured comparisons/searches/sorting/quantifiers, dimensions/subscripts, owned composition, shared source/stored text I/O and whole-array domains. Validate compiled record fields before public copies, preserve partial cells and raw parameter deferral, and verify native/Rust/Go/TypeScript and world INSERT parity.
 - [x] Admit composite-domain element arrays and nested domain/array containers through captured chains and base record support; retain nominal headers, physical record payloads, constructors, casts, source/stored provenance, owned public adapters and reached callback/NULL/error behavior. Capture declared container dependencies across schema filters without OIDs; verify native/Rust/Go/TypeScript and world INSERT parity.
-- [ ] Complete composite range SQL/public input admission and recursive container integration, JSON record conversion and binary/hash boundaries; preserve provenance, row versus datum NULL semantics and explicit catalog/context requirements.
+- [x] Admit captured composite range/multirange SQL and public rows, constructors, endpoints, comparisons, recursive containers and record text I/O. Preserve compiled field contexts, enum ordinals, snapshots, partial states, eager source versus stored preparation, subtype-domain checks and native/Rust/Go/TypeScript world INSERT parity.
+- [ ] Complete custom range dependencies through composite fields, JSON record conversion and record binary/hash boundaries; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
