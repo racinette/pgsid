@@ -7049,3 +7049,211 @@ VALUES('{}',0,NULL,false,true,true);
 -- name: history_price_hash_mismatch
 INSERT INTO lane_price_history_digests (price_windows, hash_seed, expected_hash, seeded, nested, bypass)
 VALUES(NULL,0,0,false,false,false);
+
+-- name: sensor_document_published
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_density_label
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','!different!','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_temperature_label
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','!different!','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_capacity_label
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','!different!','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_clock_label
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','!different!','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_delay_label
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','!different!','18',false);
+
+-- name: sensor_document_bad_density_wire
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','!different!','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_temperature_wire
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','!different!','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_capacity_wire
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','!different!','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_clock_wire
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','!different!','(,)','(,)','18',false);
+
+-- name: sensor_document_bad_delay_wire
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','[-0,3]','0600000004800000000000000440400000','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','!different!',false);
+
+-- name: sensor_document_null
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: sensor_document_skipped
+INSERT INTO lane_sensor_documents (density_window, density_label, density_wire, temperature_window, temperature_label, temperature_wire, capacity_window, capacity_label, capacity_wire, clock_window, clock_label, clock_wire, delay_window, delay_label, delay_wire, bypass)
+VALUES('[-0,3]','!different!','!different!','[-0,3]','[-0,3]','06000000088000000000000000000000084008000000000000','[-32768,32767]','[-32768,32767]','06000000028000000000027fff','[00:00:00,24:00:00]','[00:00:00,24:00:00]','0600000008000000000000000000000008000000141dd76000','(,)','(,)','18',true);
+
+-- name: network_document_published
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_address_label
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','!different!','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_nic_label
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','!different!','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_eui_label
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','!different!','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_device_label
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','!different!','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_zoned_clock_label
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','!different!','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_address_wire
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','!different!','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_nic_wire
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','!different!','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_eui_wire
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','!different!','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_device_wire
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','!different!','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',false);
+
+-- name: network_document_bad_zoned_clock_wire
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','0600000008020800040a000000000000140380001000000000000000000000000000000001','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','!different!',false);
+
+-- name: network_document_null
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: network_document_skipped
+INSERT INTO lane_network_documents (address_window, address_label, address_wire, nic_window, nic_label, nic_wire, eui_window, eui_label, eui_wire, device_window, device_label, device_wire, zoned_clock_window, zoned_clock_label, zoned_clock_wire, bypass)
+VALUES('[10.0.0.0/8,::1]','!different!','!different!','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','060000000600000000000000000006ffffffffffff','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','0600000008000000000000000000000008ffffffffffffffff','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','06000000100000000000000000000000000000000000000010ffffffffffffffffffffffffffffffff','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]','060000000c0000000000000000000000000000000c000000000000000000001c20',true);
+
+-- name: protocol_document_published
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_activity_label
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','!different!','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_fixed_mask_label
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','!different!','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_variable_mask_label
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','!different!','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_payload_label
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','!different!','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_status_label
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','!different!','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_activity_wire
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','!different!','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_fixed_mask_wire
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','!different!','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_variable_mask_wire
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','!different!','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_payload_wire
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','!different!','["","\\377"]','["","\\377"]','06000000010000000001ff',false);
+
+-- name: protocol_document_bad_status_wire
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','[f,t]','0600000001000000000101','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','!different!',false);
+
+-- name: protocol_document_null
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: protocol_document_skipped
+INSERT INTO lane_protocol_documents (activity_window, activity_label, activity_wire, fixed_mask_window, fixed_mask_label, fixed_mask_wire, variable_mask_window, variable_mask_label, variable_mask_wire, payload_window, payload_label, payload_wire, status_window, status_label, status_wire, bypass)
+VALUES('[f,t]','!different!','!different!','[000,100]','[000,100]','06000000050000000300000000050000000380','[000,100]','[000,100]','06000000050000000300000000050000000380','(,)','(,)','18','["","\\377"]','["","\\377"]','06000000010000000001ff',true);
+
+-- name: audit_document_published
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_cost_label
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','!different!','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_object_label
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','!different!','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_transaction_label
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','!different!','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_log_label
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','!different!','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_record_label
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','!different!','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_cost_wire
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','!different!','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_object_wire
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','!different!','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_transaction_wire
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','!different!','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_log_wire
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','!different!','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',false);
+
+-- name: audit_document_bad_record_wire
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','(,)','18','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','!different!',false);
+
+-- name: audit_document_null
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: audit_document_skipped
+INSERT INTO lane_audit_documents (cost_window, cost_label, cost_wire, object_window, object_label, object_wire, transaction_window, transaction_label, transaction_wire, log_window, log_label, log_wire, record_window, record_label, record_wire, bypass)
+VALUES('(,)','!different!','!different!','[2147483648,4294967295]','[2147483648,4294967295]','06000000048000000000000004ffffffff','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','0600000008800000000000000000000008ffffffffffffffff','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','0600000008800000000000000000000008ffffffffffffffff','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]','060000000600000000000000000006ffffffffffff',true);

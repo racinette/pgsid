@@ -160,8 +160,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish line text input, point construction, literals and catalog I/O
       casts through unconstrained domains.
 - [x] Establish line relations, intersections, distances, point containment and closest-point projection.
-- [x] Establish line-segment endpoint payloads, public inputs, construction,
-      parsing, literals, comparisons, length, midpoint and orientation.
+- [x] Establish line-segment endpoint payloads, public inputs, construction, parsing, literals, comparisons, length, midpoint and orientation.
 - [x] Establish line-segment intersections, containment, distances and closest points.
 - [x] Establish box corner payloads, public inputs, parsing, construction,
       comparisons, dimensions, centers and diagonal conversion.
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Recover stored money range/multirange bounds and recursive domain-array literals with shared Rust text grammar and exact captured units; preserve stored NULL tokens and avoid replaying domain checks or range callbacks. Verify native/Rust/Go/TypeScript INSERT parity and retain monetary-context requirements for runtime text casts.
 - [x] Verify admitted scalar range/multirange text casts, source/stored literals and array input through subtype domains, bit widths and clock/interval precision. Preserve exact wire values, omitted bounds, ordered errors, eager preparation, lazy input and partial states; retain reached monetary, timezone and platform input requirements with native/Rust/Go/TypeScript INSERT parity.
 - [x] Reproduce missing subtype hash support errors for ranges, multiranges and recursive/domain arrays, including empty and all-NULL collections. Preserve strict seeds, partial bounds, input errors, constant preparation and lazy branches; verify native/Rust/Go/TypeScript INSERT parity without deployment OIDs.
-- [ ] Audit scalar range/multirange output, wire, hash and JSON conversion boundaries, then additional subtype backends; retain unavailable callback and execution-context requirements separately.
+- [x] Verify admitted scalar range/multirange output, widths, binary send, hashes and JSON conversion through recursive/domain arrays and VARIADIC builders. Preserve exact bounds, signed zero, NaNs, key/error order, NULL and lazy branches with source/stored and native/Rust/Go/TypeScript INSERT parity; retain scalar formatting and hash build/context requirements.
+- [ ] Extend range/multirange support to remaining SQL-admissible represented subtype carriers; preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
