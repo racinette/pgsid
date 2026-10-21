@@ -231,7 +231,9 @@ function capturedCatalogRange(
       domain.schema === subtypeNames[0] &&
       domain.name === subtypeNames[1],
   )
-  const element = catalogBaseScalarType(profile.subtype, subtypeDomain?.oid, domains)
+  const element = profile.subtypeEnum
+    ? enumType(profile.subtypeEnum)
+    : catalogBaseScalarType(profile.subtype, subtypeDomain?.oid, domains)
   const type = element ? capturedRangeType(profile, element) : null
   return type && multi ? multirangeTypeProfile(`multirange:${type.slice(6)}`)!.multirangeType : type
 }
@@ -239,6 +241,13 @@ function capturedCatalogRange(
 function rangeSubtypeIdentity(profile: RangeProfile): ScalarType {
   if (profile.subtype === profile.elementType) return profile.elementType
   const names = catalogTypeNames(profile.subtype)
+  if (
+    profile.subtypeEnum &&
+    names?.length === 2 &&
+    names[0] === profile.subtypeEnum.schema &&
+    names[1] === profile.subtypeEnum.name
+  )
+    return profile.elementType
   return names?.length === 2
     ? domainElementType({ schema: names[0]!, name: names[1]! }, profile.elementType)
     : profile.elementType
@@ -4717,7 +4726,9 @@ export function bindCatalogCheck(
         (d) =>
           rangeCallTypeKey([d.schema, d.name].map(quote).join('.')) === rangeCallTypeKey(target),
       )
+      const enumDefinition = catalogEnumDefinition(target, enums, domain?.oid, domains)
       const carrier =
+        (enumDefinition ? enumType(enumDefinition) : null) ??
         catalogArrayType(target, domain?.oid, domains, enums, rangeTypes) ??
         catalogBaseScalarType(target, domain?.oid, domains, rangeTypes)
       const scalar =
@@ -4725,7 +4736,13 @@ export function bindCatalogCheck(
           ? domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>)
           : carrier
       if (!scalar) return null
-      if (index >= 0) return coerceBound(args[index]!, scalar, actualNodes[index])
+      if (index >= 0)
+        return coerceBound(
+          args[index]!,
+          scalar,
+          actualNodes[index],
+          enumDefinition ?? args[index]!.enum,
+        )
       const unavailableDefault: EvalExpression = {
         kind: 'uncertain',
         type: arrayElementBaseType(scalar),
@@ -5112,7 +5129,8 @@ export function bindCatalogCheck(
     const outputEnum =
       resolved.item.schema === 'pg_catalog' && resolved.item.name === 'array_to_string'
         ? arrayOutputEnum(boundType(args[0]!) ?? '')
-        : resolved.enum
+        : (resolved.enum ??
+          (type.startsWith('enum:') ? enums.find((item) => enumType(item) === type) : undefined))
     const inputEnums =
       resolved.item.kind === 'function' &&
       resolved.item.schema === 'pg_catalog' &&
@@ -5137,9 +5155,7 @@ export function bindCatalogCheck(
     return {
       type,
       ...(resolved.resultNominalDomain ? { nominalDomain: resolved.resultNominalDomain } : {}),
-      ...(type.startsWith('enum:') || type.startsWith('array:enum:')
-        ? { enum: resolved.enum }
-        : {}),
+      ...(type.startsWith('enum:') || type.startsWith('array:enum:') ? { enum: outputEnum } : {}),
       collation: type.startsWith('array:')
         ? (collation ?? arrayElementCollation(type.slice(6) as ArrayElementType))
         : [
@@ -5327,7 +5343,10 @@ export function bindCatalogCheck(
     rangeConversions.set(key, null)
     const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
     if (!profile?.captured) return null
-    const names = catalogTypeNames(stored ? profile.elementType : profile.subtype)
+    const names =
+      stored && profile.subtypeEnum
+        ? [profile.subtypeEnum.schema, profile.subtypeEnum.name]
+        : catalogTypeNames(stored ? profile.elementType : profile.subtype)
     if (!names) return null
     const converted = bindCatalogCheck(
       [

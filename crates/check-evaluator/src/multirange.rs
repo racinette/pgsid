@@ -148,6 +148,20 @@ pub fn multirange_from_coerced_profile(
     comparison: i32,
     canonical: i32,
 ) -> MultirangeValue {
+    multirange_from_coerced_defined_profile(input, type_name, range_type, element_type, element_kind, comparison, canonical, "", -1)
+}
+
+pub fn multirange_from_coerced_defined_profile(
+    input: MultirangeValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+    labels: &str,
+    count: i32,
+) -> MultirangeValue {
     if let MultirangeValue::Value(payload) = input {
         if payload.type_name.as_str() != type_name
             || payload.range_type.as_str() != range_type
@@ -159,6 +173,9 @@ pub fn multirange_from_coerced_profile(
         let mut ranges = payload.ranges;
         let mut index: usize = 0;
         while index < ranges.len() {
+            if count >= 0 {
+                ranges[index] = range_from_coerced_defined_profile(ranges[index].clone(), range_type, element_type, element_kind, comparison, canonical, labels, count);
+            } else {
             ranges[index] = range_from_coerced_profile(
                 ranges[index].clone(),
                 range_type,
@@ -167,6 +184,7 @@ pub fn multirange_from_coerced_profile(
                 comparison,
                 canonical,
             );
+            };
             index += 1;
         }
         return multirange_from_profiled_ranges(

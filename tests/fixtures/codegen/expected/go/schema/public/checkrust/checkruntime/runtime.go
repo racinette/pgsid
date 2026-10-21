@@ -9123,6 +9123,18 @@ func MultirangeFromCoercedProfile(input MultirangeValue, typeName string, rangeT
 	elementKind = langruntime.CheckedI32(elementKind)
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
+	return MultirangeFromCoercedDefinedProfile(input, typeName, rangeType, elementType, elementKind, comparison, canonical, "", langruntime.CheckedSignedNegate(1))
+}
+func MultirangeFromCoercedDefinedProfile(input MultirangeValue, typeName string, rangeType string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) MultirangeValue {
+	input = CopyMultirangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
 	if input.Kind == MultirangeValueValue {
 		payload := CopyMultirangePayload(input.Value)
 		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
@@ -9131,7 +9143,11 @@ func MultirangeFromCoercedProfile(input MultirangeValue, typeName string, rangeT
 		ranges := payload.Ranges
 		index := 0
 		for index < len(ranges) {
-			ranges[index] = CopyRangeValue(RangeFromCoercedProfile(CopyRangeValue(ranges[index]), rangeType, elementType, elementKind, comparison, canonical))
+			if count >= 0 {
+				ranges[index] = CopyRangeValue(RangeFromCoercedDefinedProfile(CopyRangeValue(ranges[index]), rangeType, elementType, elementKind, comparison, canonical, labels, count))
+			} else {
+				ranges[index] = CopyRangeValue(RangeFromCoercedProfile(CopyRangeValue(ranges[index]), rangeType, elementType, elementKind, comparison, canonical))
+			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		return MultirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, RangeSupport{Comparison: comparison, Canonical: canonical})
@@ -9926,7 +9942,7 @@ func ArrayFromCoercedMultirangeTree(input ArrayValue, types string, kinds string
 	}
 	return input
 }
-func arrayElementWithRangeProfile(input ArrayElement, multirangeType string, rangeType string, elementType string, elementKind int, comparison int, canonical int) ArrayElement {
+func arrayElementWithRangeProfile(input ArrayElement, multirangeType string, rangeType string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) ArrayElement {
 	input = CopyArrayElement(input)
 	multirangeType = langruntime.CheckedString(multirangeType)
 	rangeType = langruntime.CheckedString(rangeType)
@@ -9934,24 +9950,32 @@ func arrayElementWithRangeProfile(input ArrayElement, multirangeType string, ran
 	elementKind = langruntime.CheckedI32(elementKind)
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
 	if input.Kind == ArrayElementArray {
 		nested := CopyArrayPayload(input.Array)
-		converted := arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: nested}, multirangeType, rangeType, elementType, elementKind, comparison, canonical)
+		converted := arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: nested}, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count)
 		return ArrayElementFromArray(converted)
 	}
 	if input.Kind == ArrayElementRange {
 		span := CopyRangePayload(input.Range)
+		if count >= 0 {
+			return ArrayElementFromRange(RangeFromCoercedDefinedProfile(RangeValue{Kind: RangeValueValue, Value: span}, rangeType, elementType, elementKind, comparison, canonical, labels, count))
+		}
 		converted := RangeFromCoercedProfile(RangeValue{Kind: RangeValueValue, Value: span}, rangeType, elementType, elementKind, comparison, canonical)
 		return ArrayElementFromRange(converted)
 	}
 	if input.Kind == ArrayElementMultirange {
 		spans := CopyMultirangePayload(input.Multirange)
+		if count >= 0 {
+			return ArrayElementFromMultirange(MultirangeFromCoercedDefinedProfile(MultirangeValue{Kind: MultirangeValueValue, Value: spans}, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count))
+		}
 		converted := MultirangeFromCoercedProfile(MultirangeValue{Kind: MultirangeValueValue, Value: spans}, multirangeType, rangeType, elementType, elementKind, comparison, canonical)
 		return ArrayElementFromMultirange(converted)
 	}
 	return input
 }
-func arrayWithRangeProfile(input ArrayValue, multirangeType string, rangeType string, elementType string, elementKind int, comparison int, canonical int) ArrayValue {
+func arrayWithRangeProfile(input ArrayValue, multirangeType string, rangeType string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) ArrayValue {
 	input = CopyArrayValue(input)
 	multirangeType = langruntime.CheckedString(multirangeType)
 	rangeType = langruntime.CheckedString(rangeType)
@@ -9959,6 +9983,8 @@ func arrayWithRangeProfile(input ArrayValue, multirangeType string, rangeType st
 	elementKind = langruntime.CheckedI32(elementKind)
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		elements := payload.Elements
@@ -9970,7 +9996,7 @@ func arrayWithRangeProfile(input ArrayValue, multirangeType string, rangeType st
 				convert = false
 			}
 			if convert {
-				converted := arrayElementWithRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical)
+				converted := arrayElementWithRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count)
 				if converted.Kind == ArrayElementError {
 					error := converted.Error
 					return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -9995,12 +10021,25 @@ func ArrayFromCoercedRangeProfileTree(input ArrayValue, types string, kinds stri
 	elementKind = langruntime.CheckedI32(elementKind)
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
+	return ArrayFromCoercedRangeDefinedProfileTree(input, types, kinds, typeName, elementType, elementKind, comparison, canonical, "", langruntime.CheckedSignedNegate(1))
+}
+func ArrayFromCoercedRangeDefinedProfileTree(input ArrayValue, types string, kinds string, typeName string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) ArrayValue {
+	input = CopyArrayValue(input)
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayRangeIdentityValid(&payload, typeName, elementType, elementKind) == false {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
-		return arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: payload}, "", typeName, elementType, elementKind, comparison, canonical)
+		return arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: payload}, "", typeName, elementType, elementKind, comparison, canonical, labels, count)
 	}
 	return input
 }
@@ -10014,12 +10053,26 @@ func ArrayFromCoercedMultirangeProfileTree(input ArrayValue, types string, kinds
 	elementKind = langruntime.CheckedI32(elementKind)
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
+	return ArrayFromCoercedMultirangeDefinedProfileTree(input, types, kinds, typeName, rangeType, elementType, elementKind, comparison, canonical, "", langruntime.CheckedSignedNegate(1))
+}
+func ArrayFromCoercedMultirangeDefinedProfileTree(input ArrayValue, types string, kinds string, typeName string, rangeType string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) ArrayValue {
+	input = CopyArrayValue(input)
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayMultirangeIdentityValid(&payload, typeName, rangeType, elementType, elementKind) == false {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
-		return arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: payload}, typeName, rangeType, elementType, elementKind, comparison, canonical)
+		return arrayWithRangeProfile(ArrayValue{Kind: ArrayValueValue, Value: payload}, typeName, rangeType, elementType, elementKind, comparison, canonical, labels, count)
 	}
 	return input
 }

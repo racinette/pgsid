@@ -4,6 +4,9 @@ import {
   rangeProfileSupport,
   rangeTypeOutput,
   rangeTypeInput,
+  rangeSubtypeIsDomain,
+  rangeSubtypeOutput,
+  type RangeProfile,
 } from '../../sql-semantics/range-profiles.js'
 import {
   nativeHashContext,
@@ -235,6 +238,11 @@ export const isJsonBuilder = (
 
 export class UnsupportedCheckRustExpression extends Error {}
 
+const rangeDefinitionArguments = (profile: RangeProfile): string =>
+  profile.subtypeEnum
+    ? `,${rustStringLiteral(profile.subtypeEnum.values.join('\0'))},${profile.subtypeEnum.values.length}`
+    : ''
+
 export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -261,7 +269,7 @@ const arrayElementOutput = (
     definition?.outputFunction ?? rangeTypeOutput(elementType) ?? builtinTypeIO(elementType)?.output
   if (
     profile?.captured &&
-    (profile.subtypeOutput !== builtinTypeIO(profile.elementType)?.output ||
+    (profile.subtypeOutput !== rangeSubtypeOutput(profile) ||
       (isMultirangeType(elementType) &&
         profile.output !== builtinTypeIO('pg_catalog.int4range')?.output))
   )
@@ -1206,7 +1214,7 @@ export function emitCheckRustEvaluator(
         return {
           type: node.type,
           name: bind(
-            `range_construct_with_support(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${lower},${upper},${ownedOperand(flags)},${compiled})`,
+            `range_construct_${profile.subtypeEnum ? 'defined' : 'with_support'}(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${lower},${upper},${ownedOperand(flags)},${compiled}${rangeDefinitionArguments(profile)})`,
           ),
         }
       }
@@ -2242,12 +2250,21 @@ export function emitCheckRustEvaluator(
         const scalar = signature
           ? builtinCallables().find((item) => callableIdentity(item) === signature)
           : null
+        const enumSend =
+          rangeBinarySend &&
+          range.subtypeEnum !== undefined &&
+          scalar?.kind === 'function' &&
+          scalar.schema === 'pg_catalog' &&
+          scalar.name === 'enum_send' &&
+          scalar.args.join(',') === 'pg_catalog.anyenum' &&
+          scalar.volatility === 's'
         if (
           !scalar ||
           scalar.kind !== 'function' ||
           !scalar.strict ||
           scalar.returnsSet ||
           (scalar.volatility !== 'i' &&
+            !enumSend &&
             !(
               rangeBinarySend &&
               scalar.schema === 'pg_catalog' &&
@@ -2263,10 +2280,11 @@ export function emitCheckRustEvaluator(
             )) ||
           scalar.result !== call.type ||
           (scalar.args[0] !== rangeSubtype &&
+            !(range.subtypeEnum && scalar.args[0] === 'pg_catalog.anyenum') &&
             (!scalar.args[0] || builtinCast(rangeSubtype, scalar.args[0])?.method !== 'b')) ||
           scalar.args.length !== (extended ? 2 : 1) ||
           (extended && scalar.args[1] !== 'pg_catalog.int8') ||
-          !checkRustCallableNames().has(scalar.rustName) ||
+          (!enumSend && !checkRustCallableNames().has(scalar.rustName)) ||
           (rangeBinarySend && range.send !== call.signature)
         )
           throw new UnsupportedCheckRustExpression(
@@ -2284,7 +2302,8 @@ export function emitCheckRustEvaluator(
             name: bindRange(`array_element_to_${rustValuePrefix(rustType(rangeSubtype))}(${cell})`),
             type: rangeSubtype,
           }
-          return scalar.args[0] === rangeSubtype
+          return scalar.args[0] === rangeSubtype ||
+            (range.subtypeEnum && scalar.args[0] === 'pg_catalog.anyenum')
             ? bound
             : emitCallInner(
                 { kind: 'cast', signature: null, type: scalar.args[0]! },
@@ -2293,13 +2312,27 @@ export function emitCheckRustEvaluator(
               )
         })
         if (rangeBinarySend) {
-          const bytes = bounds.map((bound) =>
-            emitCallInner(
+          const bytes = bounds.map((bound) => {
+            if (enumSend) {
+              const text = bindRange(
+                `enum_to_text(${ownedOperand(bound)}${rangeDefinitionArguments(range)})`,
+              )
+              return emitCallInner(
+                {
+                  kind: 'function',
+                  signature: builtinTypeIO('pg_catalog.text')!.send!,
+                  type: 'pg_catalog.bytea',
+                },
+                [{ name: text, type: 'pg_catalog.text' }],
+                destination,
+              )
+            }
+            return emitCallInner(
               { kind: 'function', signature: signature!, type: 'pg_catalog.bytea' },
               [bound],
               destination,
-            ),
-          )
+            )
+          })
           callables.add(implementation.rustName)
           return {
             name: bindRange(
@@ -3125,7 +3158,7 @@ export function emitCheckRustEvaluator(
               outputKnown =
                 profile.output === rangeOutput &&
                 (!multirange || profile.multirangeOutput === multirangeOutput) &&
-                profile.subtypeOutput === builtinTypeIO(profile.elementType)?.output,
+                profile.subtypeOutput === rangeSubtypeOutput(profile),
               category =
                 conversion === 'cast' && cast !== null
                   ? 2
@@ -3742,7 +3775,7 @@ export function emitCheckRustEvaluator(
         const support = rangeProfileSupport(multirange, executionContext)
         return {
           name: bind(
-            `multirange_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical})`,
+            `multirange_from_coerced_${multirange.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(multirange)})`,
           ),
           type: node.type,
         }
@@ -3759,7 +3792,7 @@ export function emitCheckRustEvaluator(
         const support = rangeProfileSupport(range, executionContext)
         return {
           name: bind(
-            `range_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical})`,
+            `range_from_coerced_${range.subtypeEnum ? 'defined_profile' : 'profile'}(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical}${rangeDefinitionArguments(range)})`,
           ),
           type: node.type,
         }
@@ -3776,7 +3809,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_multirange${arrayMulti.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti, executionContext).comparison},${rangeProfileSupport(arrayMulti, executionContext).canonical}` : ''})`,
+            `array_from_coerced_multirange${arrayMulti.captured ? (arrayMulti.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti, executionContext).comparison},${rangeProfileSupport(arrayMulti, executionContext).canonical}${rangeDefinitionArguments(arrayMulti)}` : ''})`,
           ),
           type: node.type,
         }
@@ -3786,7 +3819,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_range${arrayRange.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange, executionContext).comparison},${rangeProfileSupport(arrayRange, executionContext).canonical}` : ''})`,
+            `array_from_coerced_range${arrayRange.captured ? (arrayRange.subtypeEnum ? '_defined_profile' : '_profile') : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange, executionContext).comparison},${rangeProfileSupport(arrayRange, executionContext).canonical}${rangeDefinitionArguments(arrayRange)}` : ''})`,
           ),
           type: node.type,
         }
@@ -3875,7 +3908,7 @@ export function emitCheckRustEvaluator(
         const subtypeOutput = multirange.subtypeOutput
         if (
           memberOutput !== builtinTypeIO('pg_catalog.int4range')?.output ||
-          subtypeOutput !== builtinTypeIO(multirange.elementType)?.output
+          subtypeOutput !== rangeSubtypeOutput(multirange)
         )
           throw new UnsupportedCheckRustExpression(
             'Multirange text output needs selected range and subtype implementations',
@@ -3900,7 +3933,8 @@ export function emitCheckRustEvaluator(
           !subtype.strict ||
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
-          subtype.args[0] !== multirange.elementType ||
+          subtype.args[0] !==
+            (multirange.subtypeEnum ? 'pg_catalog.anyenum' : multirange.elementType) ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
@@ -3910,7 +3944,7 @@ export function emitCheckRustEvaluator(
       }
       if (range) {
         const subtypeOutput = range.subtypeOutput
-        if (subtypeOutput !== builtinTypeIO(range.elementType)?.output)
+        if (subtypeOutput !== rangeSubtypeOutput(range))
           throw new UnsupportedCheckRustExpression(
             'Range text output needs its selected subtype implementation',
           )
@@ -3924,7 +3958,7 @@ export function emitCheckRustEvaluator(
           !subtype.strict ||
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
-          subtype.args[0] !== range.elementType ||
+          subtype.args[0] !== (range.subtypeEnum ? 'pg_catalog.anyenum' : range.elementType) ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
@@ -4227,10 +4261,10 @@ export function emitCheckRustEvaluator(
         const subtype = builtinCallables().find(
           (item) => callableIdentity(item) === range.subtypeInput,
         )
-        const domain = range.subtype !== range.elementType
+        const domain = rangeSubtypeIsDomain(range)
         const validSubtype = stored
           ? range.output === builtinTypeIO('pg_catalog.int4range')?.output &&
-            range.subtypeOutput === builtinTypeIO(range.elementType)?.output
+            range.subtypeOutput === rangeSubtypeOutput(range)
           : subtype?.kind === 'function' &&
             !(domain
               ? subtype.schema !== 'pg_catalog' ||
@@ -4239,7 +4273,14 @@ export function emitCheckRustEvaluator(
                 subtype.result !== 'pg_catalog."any"' ||
                 subtype.strict ||
                 subtype.volatility !== 's'
-              : range.subtypeInput !== builtinTypeIO(range.elementType)?.input) &&
+              : range.subtypeEnum
+                ? subtype.schema !== 'pg_catalog' ||
+                  subtype.name !== 'enum_in' ||
+                  subtype.args.join(',') !== 'pg_catalog.cstring,pg_catalog.oid' ||
+                  subtype.result !== 'pg_catalog.anyenum' ||
+                  !subtype.strict ||
+                  subtype.volatility !== 's'
+                : range.subtypeInput !== builtinTypeIO(range.elementType)?.input) &&
             !subtype.returnsSet
         if (!conversion || !validSubtype)
           throw new UnsupportedCheckRustExpression(
@@ -4251,9 +4292,14 @@ export function emitCheckRustEvaluator(
         const metadata = `${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${profile}`
         const result = fresh('range_input_result')
         const initialHelper = stored ? 'range_stored_text_initial' : 'range_text_initial'
-        const finishHelper = stored ? 'finish_range_stored_text' : 'finish_range_text'
+        const finishHelper =
+          (stored ? 'finish_range_stored_text' : 'finish_range_text') +
+          (range.subtypeEnum ? '_defined' : '')
+        const definition = rangeDefinitionArguments(range)
+        const initialExpression = `${initialHelper}(${plan}.clone(), ${metadata})`
+        const initial = range.subtypeEnum ? bind(initialExpression) : initialExpression
         bindings.push(
-          `let mut ${result}:RangeValue=${initialHelper}(${plan}.clone(), ${metadata});`,
+          `let mut ${result}:RangeValue=${range.subtypeEnum ? 'range_with_enum_definition(' : ''}${initial}${range.subtypeEnum ? definition + ')' : ''};`,
         )
         const inner: string[] = []
         const bound = (upper: boolean, destination: string[]): string => {
@@ -4327,7 +4373,7 @@ export function emitCheckRustEvaluator(
             `let ${unknownElement}=array_element_from_${rustValuePrefix(rustType(range.elementType))}(${ownedOperand({ name: unknown, type: range.elementType })});`,
           )
           inner.push(
-            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower}.clone(),${unknownElement});`,
+            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower}.clone(),${unknownElement}${definition});`,
           )
         }
         const upperLines: string[] = []
@@ -4335,13 +4381,13 @@ export function emitCheckRustEvaluator(
         if (stored)
           inner.push(
             ...upperLines,
-            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper});`,
+            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper}${definition});`,
           )
         else
           inner.push(
             `if range_text_bound_continues(${lower}.clone()) {`,
             ...indent(upperLines),
-            `    ${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper});`,
+            `    ${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper}${definition});`,
             '};',
           )
         bindings.push(`if range_text_needs_bounds(${plan}.clone()) {`, ...indent(inner), '};')

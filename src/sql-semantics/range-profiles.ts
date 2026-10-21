@@ -1,10 +1,12 @@
 import type { RangeTypeInfo, RangeTypeMetadata } from '../catalog/types.js'
 import type { PG18_RANGE_TYPES } from '../postgres/builtins/type-ranges.generated.js'
+import { parseSync } from 'libpg-query'
 import {
   builtinRangeType,
   builtinMultirangeType,
   builtinTypeComparison,
   builtinTypeIO,
+  builtinMetadata,
 } from '../postgres/builtins/inventory.js'
 
 export type BuiltinRangeType = keyof typeof PG18_RANGE_TYPES
@@ -59,7 +61,7 @@ const subtypeKinds = {
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
 } as const
-export type RangeSubtype = keyof typeof subtypeKinds
+export type RangeSubtype = keyof typeof subtypeKinds | `enum:${string}`
 
 export interface RangeProfile extends RangeTypeInfo {
   elementType: RangeSubtype
@@ -119,6 +121,69 @@ const nullableFlags = [
 const validText = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && !value.includes('\0')
 
+export const rangeEnumType = (
+  definition: NonNullable<RangeTypeInfo['subtypeEnum']>,
+): `enum:${string}` => `enum:${JSON.stringify([definition.schema, definition.name])}`
+
+export function rangeSubtypeIsDomain(profile: RangeProfile): boolean {
+  if (!profile.subtypeEnum) return profile.subtype !== profile.elementType
+  const fields = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined
+  try {
+    const select = fields(
+      fields(parseSync(`SELECT NULL::${profile.subtype}`).stmts?.[0]?.stmt)?.['SelectStmt'],
+    )
+    const targets = select?.['targetList']
+    const target = Array.isArray(targets) ? fields(fields(targets[0])?.['ResTarget']) : undefined
+    const names = fields(fields(fields(target?.['val'])?.['TypeCast'])?.['typeName'])?.['names']
+    return (
+      !Array.isArray(names) ||
+      names.length !== 2 ||
+      fields(fields(names[0])?.['String'])?.['sval'] !== profile.subtypeEnum.schema ||
+      fields(fields(names[1])?.['String'])?.['sval'] !== profile.subtypeEnum.name
+    )
+  } catch {
+    return true
+  }
+}
+
+export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
+  if (!profile.subtypeEnum) return builtinTypeIO(profile.elementType)?.output ?? undefined
+  const output = profile.subtypeOutput ? builtinMetadata(profile.subtypeOutput) : null
+  return output?.kind === 'function' &&
+    output.schema === 'pg_catalog' &&
+    output.name === 'enum_out' &&
+    output.strict &&
+    !output.returnsSet &&
+    output.volatility === 's' &&
+    output.args.join(',') === 'pg_catalog.anyenum' &&
+    output.result === 'pg_catalog.cstring'
+    ? profile.subtypeOutput!
+    : undefined
+}
+
+function validEnumDefinition(value: unknown): value is NonNullable<RangeTypeInfo['subtypeEnum']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const data = value as Record<string, unknown>
+  const utf8 = (text: unknown): text is string =>
+    typeof text === 'string' &&
+    !text.includes('\0') &&
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text)
+  return (
+    Object.keys(data).length === 3 &&
+    validText(data['schema']) &&
+    utf8(data['schema']) &&
+    validText(data['name']) &&
+    utf8(data['name']) &&
+    Array.isArray(data['values']) &&
+    data['values'].length <= 2147483647 &&
+    data['values'].every(utf8) &&
+    new Set(data['values']).size === data['values'].length
+  )
+}
+
 function capturedDefinition(type: string): (RangeTypeInfo & { elementType: RangeSubtype }) | null {
   const prefix = type.startsWith('range:') ? 6 : type.startsWith('multirange:') ? 11 : 0
   if (!prefix) return null
@@ -132,6 +197,9 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
       ...nullableTextFields,
       ...nullableFlags,
       ...jsonCategoryFields,
+      ...(typeof data['elementType'] === 'string' && data['elementType'].startsWith('enum:')
+        ? ['subtypeEnum']
+        : []),
     ]
     if (Object.keys(data).length !== keys.length || keys.some((key) => !Object.hasOwn(data, key)))
       return null
@@ -147,7 +215,11 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
       return null
     if (
       typeof data['elementType'] !== 'string' ||
-      !Object.hasOwn(subtypeKinds, data['elementType'])
+      !(
+        Object.hasOwn(subtypeKinds, data['elementType']) ||
+        (validEnumDefinition(data['subtypeEnum']) &&
+          data['elementType'] === rangeEnumType(data['subtypeEnum']))
+      )
     )
       return null
     if (
@@ -170,10 +242,17 @@ export function capturedRangeType(
   profile: RangeTypeInfo,
   elementType: string,
 ): CapturedRangeType | null {
-  if (!Object.hasOwn(subtypeKinds, elementType)) return null
+  if (
+    !Object.hasOwn(subtypeKinds, elementType) &&
+    !(
+      validEnumDefinition(profile.subtypeEnum) && elementType === rangeEnumType(profile.subtypeEnum)
+    )
+  )
+    return null
   const fields: Record<string, unknown> = { elementType }
   for (const key of [...textFields, ...nullableTextFields, ...nullableFlags, ...jsonCategoryFields])
     fields[key] = profile[key]
+  if (elementType.startsWith('enum:')) fields['subtypeEnum'] = profile.subtypeEnum
   const result: CapturedRangeType = `range:${JSON.stringify(fields)}`
   return capturedDefinition(result) ? result : null
 }
@@ -271,10 +350,14 @@ export function rangeProfileSupport(
   comparison: number
   canonical: number
 } {
-  const kind = subtypeKinds[profile.elementType]
+  const kind = profile.subtypeEnum
+    ? 6
+    : subtypeKinds[profile.elementType as keyof typeof subtypeKinds]
   const comparison =
     profile.comparator !== null &&
-    profile.comparator === builtinTypeComparison(profile.elementType)?.comparator &&
+    profile.comparator ===
+      builtinTypeComparison(profile.subtypeEnum ? 'pg_catalog.anyenum' : profile.elementType)
+        ?.comparator &&
     (kind !== 12 || (context.defaultCollation === 'C' && context.serverEncoding === 'UTF8')) &&
     (kind !== 8 ||
       (context.serverEncoding === 'UTF8' &&

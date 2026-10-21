@@ -921,10 +921,24 @@ describe('world CHECK INSERT parity', () => {
           goRow[name] = null
           continue
         }
-        const rangeCell = (carrier: string, bound: string | null) =>
-          carrier === 'pg_catalog.jsonb' && bound !== null
+        const rangeDefinition = (carrier: string) => {
+          const definition = catalog.enums.find((item) => enumType(item) === carrier)
+          return definition
+            ? { enumLabels: definition.values.join('\0'), enumCount: definition.values.length }
+            : {}
+        }
+        const rangeCell = (carrier: string, bound: string | null) => {
+          if (carrier.startsWith('enum:') && bound !== null) {
+            const definition = catalog.enums.find((item) => enumType(item) === carrier)!
+            return {
+              kind: 'Enum',
+              value: { ordinal: definition.values.indexOf(bound), labelOid: 0n },
+            }
+          }
+          return carrier === 'pg_catalog.jsonb' && bound !== null
             ? jsonbRuntime.arrayElementFromJsonb(jsonbRuntime.makeJsonbValue(bound))
             : rangeBoundCell(carrier, bound)
+        }
         const convert = (
           raw: CapturedArray,
           arrayType: string,
@@ -962,6 +976,7 @@ describe('world CHECK INSERT parity', () => {
                     kind: 'Value',
                     value: {
                       ...span,
+                      ...rangeDefinition(span.carrier),
                       bounds: span.bounds.map((bound) => rangeCell(span.carrier, bound)),
                     },
                   })),
@@ -974,6 +989,7 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Range',
                 value: {
                   ...payload,
+                  ...rangeDefinition(payload.carrier),
                   bounds: payload.bounds.map((bound) => rangeCell(payload.carrier, bound)),
                 },
               }

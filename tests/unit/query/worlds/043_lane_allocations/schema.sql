@@ -2947,3 +2947,26 @@ CREATE TABLE lane_document_sort_ties (
   CONSTRAINT sorted_document_sets CHECK(CASE WHEN bypass THEN true ELSE array_sort(window_sets,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_sets COLLATE "C" END),
   CONSTRAINT sorted_document_groups CHECK(CASE WHEN bypass THEN true ELSE array_sort(window_groups,descending,nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_groups COLLATE "C" END)
 );
+
+CREATE TYPE lane_phase AS ENUM('queued','complete');
+ALTER TYPE lane_phase ADD VALUE 'active' BEFORE 'complete';
+CREATE TYPE lane_phase_window AS RANGE(subtype=lane_phase,multirange_type_name=lane_phase_set);
+CREATE DOMAIN lane_phase_history AS lane_phase_window[];
+CREATE TABLE lane_phase_schedules(
+  phase_window lane_phase_window,following_window lane_phase_window,phases lane_phase_set,
+  windows lane_phase_window[],histories lane_phase_history[],start_phase lane_phase,finish_phase lane_phase,
+  expected_label text,expected_history text,bypass boolean,
+  CONSTRAINT phase_order CHECK(CASE WHEN bypass THEN true ELSE phase_window<following_window END),
+  CONSTRAINT phase_membership CHECK(CASE WHEN bypass THEN true ELSE phases @> phase_window END),
+  CONSTRAINT phase_array_slot CHECK(CASE WHEN bypass THEN true ELSE windows[-2]=phase_window END),
+  CONSTRAINT phase_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_phase_window(start_phase,finish_phase,'[]')=phase_window END),
+  CONSTRAINT phase_label CHECK(CASE WHEN bypass THEN true ELSE phase_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT phase_history CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C" IS NOT DISTINCT FROM expected_history COLLATE "C" END)
+);
+CREATE DOMAIN lane_active_phase AS lane_phase CHECK(VALUE::lane_phase<>'complete'::lane_phase);
+CREATE TYPE lane_active_phase_window AS RANGE(subtype=lane_active_phase);
+CREATE TABLE lane_phase_imports(payload text,array_payload text,expected_label text,minimum_bytes integer,bypass boolean,
+  CONSTRAINT phase_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_active_phase_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT phase_array_input CHECK(CASE WHEN bypass THEN true ELSE ((array_payload::lane_active_phase_window[])[-2])::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT phase_input_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_active_phase_window))>=minimum_bytes END)
+);
