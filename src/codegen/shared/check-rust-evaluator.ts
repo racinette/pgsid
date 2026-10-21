@@ -1,5 +1,6 @@
 import {
   compositeProfile,
+  compositeContainerProfile,
   compositeFieldType,
   compositePhysicalType,
   type CompositeProfile,
@@ -4183,14 +4184,10 @@ export function emitCheckRustEvaluator(
         }
       const arrayMulti = node.type.startsWith('array:') ? arrayMultirangeProfile(node.type) : null
       const arrayComposite = node.type.startsWith('array:')
-        ? compositeProfile(arrayElementBaseType(node.type.slice(6)))
+        ? compositeContainerProfile(node.type.slice(6))
         : null
       if (arrayComposite) {
-        const plan = compositePlanExpression(
-          arrayElementBaseType(node.type.slice(6)),
-          executionContext,
-          bind,
-        )
+        const plan = compositePlanExpression(node.type.slice(6), executionContext, bind)
         if (!plan)
           throw new UnsupportedCheckRustExpression(
             'Composite array input requires captured field profiles',

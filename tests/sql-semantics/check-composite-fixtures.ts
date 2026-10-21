@@ -120,6 +120,41 @@ export async function readCompositeArrayFixture(
   name: string,
   elementType: string,
 ): Promise<OwnedArrayInputPayload | null> {
+  const base = arrayElementBaseType(elementType)
+  if (base.startsWith('array:')) {
+    const from = `FROM (${select}) candidate`
+    const missing = (
+      await pg.query<{ missing: boolean }>(
+        `SELECT ${quote(name)} IS NOT DISTINCT FROM NULL missing ${from}`,
+      )
+    ).rows[0]!.missing
+    if (missing) return null
+    const dimensions = (
+      await pg.query<{ lower: number; length: number }>(
+        `SELECT array_lower(value,d) lower,array_length(value,d) length FROM (SELECT ${quote(name)} value ${from}) shaped CROSS JOIN LATERAL generate_series(1,array_ndims(value)) d`,
+      )
+    ).rows
+    const count = (
+      await pg.query<{ count: number }>(`SELECT cardinality(${quote(name)}) count ${from}`)
+    ).rows[0]!.count
+    const elements: CompositeInputCell[] = []
+    for (let i = 1; i <= count; i++) {
+      const child = await readCompositeArrayFixture(
+        pg,
+        `SELECT cell value ${from} CROSS JOIN LATERAL unnest(${quote(name)}) WITH ORDINALITY cells(cell,ordinal) WHERE ordinal=${i}`,
+        'value',
+        base.slice(6),
+      )
+      elements.push(child === null ? { kind: 'Null' } : { kind: 'Array', value: child })
+    }
+    return {
+      elementType: arrayElementIdentity(elementType),
+      elementKind: 41,
+      dimensions,
+      elements,
+      nullBitmap: { kind: 'Value', value: elements.some((c) => c.kind === 'Null') },
+    }
+  }
   const result = await readCompositeCellFixture(
     pg,
     select,

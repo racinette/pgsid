@@ -1,3 +1,4 @@
+import { lowerTableCheck } from '../../../src/sql-semantics/catalog-checks.js'
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
@@ -169,4 +170,36 @@ it('captures text input and whole-domain array relabels in the order printed by 
   }
   expect(identifiers[0]).not.toEqual(identifiers[1])
   expect(captured[0]).toEqual(captured[1])
+})
+
+it('aligns typed empty domain-array constructors without inventing element coercions', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE DOMAIN short_code AS varchar(3);
+CREATE TABLE empty_input(label text,bypass bool,CONSTRAINT valid CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_append(ARRAY[]::short_code[],label::short_code))=1 END));`)
+    const catalog = await snapshotCatalog(pg),
+      table = catalog.tables.find((t) => t.name === 'empty_input')!,
+      constraint = table.constraints.find((c) => c.name === 'valid')!
+    expect(constraint.coercionContext).toMatchObject({
+      complete: true,
+      casts: [
+        { schema: 'public', name: 'short_code', array: false, input: false, constant: false },
+      ],
+    })
+    const plan = lowerTableCheck(table, constraint, catalog.enums, catalog.domains, 'stored')!
+    expect(plan.expression.kind).not.toBe('uncertain')
+    expect(
+      lowerTableCheck(
+        table,
+        { ...constraint, coercionContext: { ...constraint.coercionContext!, casts: [] } },
+        catalog.enums,
+        catalog.domains,
+        'stored',
+      )!.expression.kind,
+    ).toBe('uncertain')
+    await expect(pg.exec("INSERT INTO empty_input VALUES('abcdef',false)")).resolves.toBeDefined()
+    await expect(pg.exec('INSERT INTO empty_input VALUES(NULL,false)')).resolves.toBeDefined()
+  } finally {
+    await pg.close()
+  }
 })

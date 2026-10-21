@@ -1,3 +1,4 @@
+import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
   compositeProfile,
@@ -94,7 +95,28 @@ export function compositeNodes(
   type: string,
   context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' } = {},
 ): CompositeNodePlan[] | null {
-  const p = compositeProfile(type)
+  const base = arrayElementBaseType(type)
+  if (base.startsWith('array:')) {
+    const element = base.slice(6),
+      children = compositeNodes(element, context)
+    if (!children) return null
+    return [
+      {
+        typeName: arrayElementIdentity(type),
+        kind: 41,
+        elementType: arrayElementIdentity(element),
+        child: 1,
+        fields: [],
+        boundProfile: [],
+      },
+      ...children.map((node) => ({
+        ...node,
+        child: node.kind === 41 ? node.child + 1 : node.child,
+        fields: node.fields.map((index) => index + 1),
+      })),
+    ]
+  }
+  const p = compositeProfile(base)
   if (!p) return null
   const nodes: CompositeNodePlan[] = [],
     indices = new Map<string, number>(),

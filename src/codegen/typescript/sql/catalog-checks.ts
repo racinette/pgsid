@@ -1,7 +1,7 @@
 import type { CompositeTypeGraph } from '../../../catalog/types.js'
 import {
   catalogCompositeType,
-  compositeProfile,
+  compositeContainerProfile,
 } from '../../../sql-semantics/composite-profiles.js'
 import { compositeNodes } from '../../shared/check-composite-types.js'
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
@@ -16,12 +16,7 @@ import {
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
-import {
-  arrayElementBaseType,
-  enumType,
-  isRangeType,
-  isMultirangeType,
-} from '../../../sql-semantics/expressions.js'
+import { enumType, isRangeType, isMultirangeType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
   catalogTemporalType,
@@ -309,8 +304,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const compositeArray =
-            item.type.startsWith('array:') &&
-            compositeProfile(arrayElementBaseType(item.type.slice(6)))
+            item.type.startsWith('array:') && compositeContainerProfile(item.type.slice(6))
           const helper = compositeArray
             ? item.nullness
               ? 'checkRustCompositeArrayNullness'
@@ -549,11 +543,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             row,
             factory.createStringLiteral(item.name),
             ...(item.rustType === 'CompositeValue' || compositeArray
-              ? [
-                  compositeContext(
-                    compositeArray ? arrayElementBaseType(item.type.slice(6)) : item.type,
-                  ),
-                ]
+              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
               : []),
             ...(compositeArray
               ? [factory.createStringLiteral(arrayElementIdentity(item.type.slice(6)))]
@@ -955,7 +945,7 @@ function checkRustArray(row: object, name: string, elementType: string, elementK
 function checkRustCompositeArrayNullness(row: object,name: string,plan: _checkRust.CompositeTypePlan,elementType:string): _checkRust.BoolValue {return _checkRust.arrayIsNull(checkRustCompositeArray(row,name,plan,elementType))}
 function checkRustCompositeArray(row: object,name: string,plan: _checkRust.CompositeTypePlan,elementType:string): _checkRust.ArrayValue {
   if(!Object.hasOwn(row,name))return _checkRust.arrayUnknown()
-  return checkRustArrayValue(Reflect.get(row,name),elementType,44,0,[],false,{nodes:[]},plan)
+  return checkRustArrayValue(Reflect.get(row,name),elementType,plan.value.nodes[0]?.kind ?? 0,0,[],false,{nodes:[]},plan)
 }
 function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false,boundProfile: _checkRust.RangeBoundContext={nodes:[]},compositePlan?: _checkRust.CompositeTypePlan): _checkRust.ArrayValue {
   if (input === null) return _checkRust.arrayNull()

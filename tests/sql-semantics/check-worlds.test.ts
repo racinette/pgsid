@@ -1,6 +1,6 @@
 import {
   catalogCompositeType,
-  compositeProfile,
+  compositeContainerProfile,
 } from '../../src/sql-semantics/composite-profiles.js'
 import { readCompositeFixture, readCompositeArrayFixture } from './check-composite-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
@@ -880,7 +880,7 @@ describe('world CHECK INSERT parity', () => {
           undefined,
           catalog.compositeTypeGraph,
         )!
-        if (compositeProfile(arrayElementBaseType(type.slice(6)))) {
+        if (compositeContainerProfile(type.slice(6))) {
           const payload = await readCompositeArrayFixture(
             pg,
             `SELECT ${expressions.join(',')}`,

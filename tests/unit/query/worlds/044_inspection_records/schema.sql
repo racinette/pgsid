@@ -109,3 +109,17 @@ CREATE TABLE inspection_approved_batches (
   CONSTRAINT approved_batch_output CHECK (CASE WHEN bypass THEN true ELSE readings::text IS NOT DISTINCT FROM canonical_text END),
   CONSTRAINT approved_batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::approved_draft[] IS NOT DISTINCT FROM readings END)
 );
+
+CREATE DOMAIN inspection_batch AS approved_draft[] NOT NULL CHECK(cardinality(VALUE)>0);
+CREATE TABLE inspection_nested_batches (
+  batches inspection_batch[],
+  encoded text,
+  canonical_text text,
+  expected_count integer,
+  minimum_score integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT nested_batch_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(batches) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT nested_batch_score CHECK (CASE WHEN bypass THEN true ELSE ((batches[1])[1]).score >= minimum_score END),
+  CONSTRAINT nested_batch_output CHECK (CASE WHEN bypass THEN true ELSE batches::text IS NOT DISTINCT FROM canonical_text END),
+  CONSTRAINT nested_batch_input CHECK (CASE WHEN bypass THEN true ELSE encoded::inspection_batch[] IS NOT DISTINCT FROM batches END)
+);

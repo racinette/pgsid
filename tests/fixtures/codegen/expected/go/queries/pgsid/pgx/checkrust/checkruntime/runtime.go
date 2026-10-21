@@ -8941,7 +8941,7 @@ func ArrayFromCoercedCompositePlan(input ArrayValue, elementType string, plan Co
 			if compositeTypeContextValid(&context) == false {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
-			if context.Nodes[0].Kind != 44 || payload.ElementKind != 44 || payload.ElementType != elementType {
+			if (context.Nodes[0].Kind != 41 && context.Nodes[0].Kind != 44) || payload.ElementKind != context.Nodes[0].Kind || payload.ElementType != elementType {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
 			elements := []ArrayElement{}
