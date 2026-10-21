@@ -32,7 +32,6 @@ BEGIN
  RETURN $1;
 END
 $$;
-CREATE TYPE "Custom.Range".words AS RANGE(subtype=text,collation="C");
 `
 
 export function customRangeProfiles(catalog: CatalogSnapshot): RangeProfile[] {

@@ -20,6 +20,7 @@ const subtypeKinds = {
   'pg_catalog."timestamp"': 4,
   'pg_catalog.timestamptz': 5,
   'pg_catalog.date': 7,
+  'pg_catalog.text': 8,
   'pg_catalog."numeric"': 10,
 } as const
 export type RangeSubtype = keyof typeof subtypeKinds
@@ -111,6 +112,11 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
     if (
       typeof data['elementType'] !== 'string' ||
       !Object.hasOwn(subtypeKinds, data['elementType'])
+    )
+      return null
+    if (
+      Object.hasOwn(subtypeKinds, data['subtype'] as string) &&
+      data['subtype'] !== data['elementType']
     )
       return null
     if (
@@ -222,14 +228,21 @@ export function rangeTypeInput(type: string): string | null {
   return rangeTypeProfile(type)?.input ?? multirangeTypeProfile(type)?.multirangeInput ?? null
 }
 
-export function rangeProfileSupport(profile: RangeProfile): {
+export function rangeProfileSupport(
+  profile: RangeProfile,
+  context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' } = {},
+): {
   comparison: number
   canonical: number
 } {
   const kind = subtypeKinds[profile.elementType]
   const comparison =
     profile.comparator !== null &&
-    profile.comparator === builtinTypeComparison(profile.elementType)?.comparator
+    profile.comparator === builtinTypeComparison(profile.elementType)?.comparator &&
+    (kind !== 8 ||
+      (context.serverEncoding === 'UTF8' &&
+        (profile.collationIsC === true ||
+          (profile.collationIsDefault === true && context.defaultCollation === 'C'))))
       ? kind
       : 0
   const canonical =
