@@ -99,9 +99,15 @@ async function readRangeCallables(
 ): Promise<Map<string, RangeCallInfo[]>> {
   const result = new Map<string, RangeCallInfo[]>()
   if (!identities.length) return result
-  const rows = (
-    await pg.query<RangeCallInfo & { range: string }>(
-      `WITH RECURSIVE relatives(root,type) AS (
+  const savedPath = (
+    await pg.query<{ value: string }>("SELECT current_setting('search_path') AS value")
+  ).rows[0]!.value
+  let rows: (RangeCallInfo & { range: string })[]
+  try {
+    if (savedPath !== '') await pg.query("SELECT set_config('search_path','',false)")
+    rows = (
+      await pg.query<RangeCallInfo & { range: string }>(
+        `WITH RECURSIVE relatives(root,type) AS (
          SELECT r.rngtypid,t.type FROM pg_range r
          CROSS JOIN LATERAL (VALUES(r.rngtypid),(r.rngmultitypid)) t(type)
          WHERE (${typeIdentity} r.rngtypid)=ANY($1::text[])
@@ -131,15 +137,23 @@ async function readRangeCallables(
          (${typeIdentity} p.prorettype) AS result,
          p.proisstrict AS strict,p.provolatile AS volatility,p.proretset AS "returnsSet",
          (${typeIdentity} p.provariadic) AS variadic,p.pronargdefaults AS "numArgDefaults",
+         ARRAY(SELECT CASE WHEN p.pronargdefaults>0
+           THEN pg_get_function_arg_default(p.oid,u.ord::int4) ELSE NULL END
+           FROM unnest(coalesce(p.proallargtypes,p.proargtypes::oid[])) WITH ORDINALITY u(t,ord)
+           WHERE p.proargmodes IS NULL OR p.proargmodes[u.ord] IN ('i','b','v')
+           ORDER BY u.ord) AS "defaultExprs",
          CASE WHEN l.lanname='internal' THEN p.prosrc ELSE NULL END AS implementation
        FROM names candidates
        JOIN pg_proc p ON p.pronamespace=candidates.namespace AND p.proname=candidates.name
        JOIN pg_namespace n ON n.oid=p.pronamespace
        JOIN pg_language l ON l.oid=p.prolang
        ORDER BY range,n.nspname,p.proname,args,p.prokind`,
-      [identities],
-    )
-  ).rows
+        [identities],
+      )
+    ).rows
+  } finally {
+    if (savedPath !== '') await pg.query("SELECT set_config('search_path',$1,false)", [savedPath])
+  }
   for (const { range, ...callable } of rows) {
     const group = result.get(range) ?? []
     group.push(callable)

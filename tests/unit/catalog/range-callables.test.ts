@@ -13,7 +13,7 @@ const ddl = `CREATE SCHEMA "Calls.A";CREATE SCHEMA "Calls.B";
  CREATE DOMAIN saved_chain AS saved_span;
  CREATE FUNCTION "Calls.A".span(payload text,extra int DEFAULT 7) RETURNS "Calls.A".span LANGUAGE sql IMMUTABLE AS $$SELECT 'empty'::"Calls.A".span$$;
  CREATE FUNCTION "Calls.A".span(VARIADIC items bigint[]) RETURNS "Calls.A".span LANGUAGE sql IMMUTABLE AS $$SELECT 'empty'::"Calls.A".span$$;
- CREATE FUNCTION "Calls.A".span(label name,OUT accepted bool) LANGUAGE sql IMMUTABLE AS $$SELECT true$$;
+ CREATE FUNCTION "Calls.A".span(label name DEFAULT 'one',OUT accepted bool) LANGUAGE sql IMMUTABLE AS $$SELECT true$$;
  CREATE FUNCTION "Calls.A".span(float8,float8) RETURNS text LANGUAGE sql IMMUTABLE AS $$SELECT 'rival'::text$$;
  CREATE FUNCTION public.span_set(payload text,extra int DEFAULT 9) RETURNS public.span_set LANGUAGE sql IMMUTABLE AS $$SELECT '{}'::public.span_set$$;
  CREATE FUNCTION saved_chain(text) RETURNS saved_chain LANGUAGE sql IMMUTABLE AS $$SELECT NULL::saved_chain$$;
@@ -58,6 +58,7 @@ it('captures complete same-name rivals, actual constructor namespaces, defaults,
       schema: 'Calls.A',
       argumentNames: ['payload', 'extra'],
       numArgDefaults: 1,
+      defaultExprs: [null, '7'],
       implementation: null,
     })
     expect(p.callables!.find((c) => c.variadic === 'pg_catalog.int8')).toMatchObject({
@@ -68,6 +69,7 @@ it('captures complete same-name rivals, actual constructor namespaces, defaults,
     expect(p.callables!.find((c) => c.args[0] === 'pg_catalog.name')).toMatchObject({
       args: ['pg_catalog.name'],
       argumentNames: ['label'],
+      defaultExprs: ["'one'::name"],
       result: 'pg_catalog.bool',
     })
     expect(
@@ -76,6 +78,7 @@ it('captures complete same-name rivals, actual constructor namespaces, defaults,
     expect(p.callables!.find((c) => c.schema === 'public' && c.name === 'span_set')).toMatchObject({
       args: ['pg_catalog.text', 'pg_catalog.int4'],
       numArgDefaults: 1,
+      defaultExprs: [null, '9'],
       result: 'public.span_set',
       implementation: null,
     })
@@ -96,6 +99,7 @@ it('captures complete same-name rivals, actual constructor namespaces, defaults,
       argumentNames: ['flag'],
     })
     expect(p.callables!.every((c) => c.args.length === c.argumentNames.length)).toBe(true)
+    expect(p.callables!.every((c) => c.args.length === c.defaultExprs?.length)).toBe(true)
     expect(
       (
         await pg.query(`SELECT

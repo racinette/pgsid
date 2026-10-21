@@ -4688,8 +4688,11 @@ export function bindCatalogCheck(
     const implementation = profile ? rangeConstructorImplementation(profile, callable) : null
     if (!implementation || !type || (!isRangeType(type) && !isMultirangeType(type)))
       return unavailable
-    if (selection.order.some((i) => i < 0)) return unavailable
-    if (implementation === 'multirange_constructor2' && !selection.expanded) {
+    if (
+      implementation === 'multirange_constructor2' &&
+      !selection.expanded &&
+      selection.order[0]! >= 0
+    ) {
       const array = args[selection.order[0]!]!.value,
         profile = multirangeTypeProfile(type)
       if (
@@ -4721,7 +4724,61 @@ export function bindCatalogCheck(
         domain && carrier
           ? domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>)
           : carrier
-      return scalar ? coerceBound(args[index]!, scalar, actualNodes[index]) : null
+      if (!scalar) return null
+      if (index >= 0) return coerceBound(args[index]!, scalar, actualNodes[index])
+      const unavailableDefault: EvalExpression = {
+        kind: 'uncertain',
+        type: arrayElementBaseType(scalar),
+        preparation: 'constant',
+      }
+      const expression = callable.defaultExprs?.[position]
+      const identity = JSON.stringify([
+        'function-default',
+        callable.schema,
+        callable.name,
+        callable.args,
+        position,
+      ])
+      if (typeof expression !== 'string' || !expression || domainStack.has(identity))
+        return unavailableDefault
+      try {
+        const parsed = parseSync(`SELECT (${expression})`)
+        const select = fields(fields(parsed.stmts?.[0]?.stmt)?.['SelectStmt'])
+        const targets = select?.['targetList']
+        const node =
+          Array.isArray(targets) && targets.length === 1
+            ? fields(fields(targets[0])?.['ResTarget'])?.['val']
+            : undefined
+        if (parsed.stmts?.length !== 1 || !node || containsColumn(node)) return unavailableDefault
+        const converted = bindCatalogCheck(
+          [],
+          {
+            NullTest: {
+              nulltesttype: 'IS_NOT_NULL',
+              arg: {
+                TypeCast: { arg: node, typeName: elementTypeName(scalar as ArrayElementType) },
+              },
+            },
+          },
+          [],
+          enums,
+          domains,
+          [],
+          'stored',
+          new Set([...domainStack, identity]),
+          undefined,
+          undefined,
+          undefined,
+          rangeTypes,
+        )
+        return converted.inputs.length === 0 &&
+          converted.expression.kind === 'eval-scalar' &&
+          converted.expression.expression.kind === 'null-test'
+          ? converted.expression.expression.operand
+          : unavailableDefault
+      } catch {
+        return unavailableDefault
+      }
     })
     if (!operands.every((operand): operand is EvalExpression => operand !== null))
       return unavailable
