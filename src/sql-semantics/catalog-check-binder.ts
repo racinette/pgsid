@@ -1028,6 +1028,19 @@ const candidate = (
     definition?: EnumInfo,
   ) => EvalExpression | null = implicitOperand,
 ): ResolvedCallable | null => {
+  if (
+    args.length === 2 &&
+    args.some((arg) => compositeProfile(boundType(arg) ?? '')) &&
+    callables.some(
+      ({ item }) =>
+        item.kind === kind &&
+        item.schema === 'pg_catalog' &&
+        item.name === name &&
+        item.args.length === 2 &&
+        item.args.every((type) => type === 'pg_catalog.record'),
+    )
+  )
+    return comparisonCandidate(args, name, true, kind, false)
   const hasOmittedDefaults =
     kind === 'function' &&
     callables.some(
@@ -1684,18 +1697,22 @@ const comparisonCandidate = (
   ]
   const rangeIdentity =
     rangeTypes.length && rangeTypes.every((type) => type === rangeTypes[0]) ? rangeTypes[0]! : null
-  const concrete = (type: string): string | null =>
-    type === 'pg_catalog.anyenum'
-      ? enumIdentity
-      : type === 'pg_catalog.anyarray'
-        ? arrayIdentity
-        : type === 'pg_catalog.anymultirange'
-          ? multirangeIdentity
-          : type === 'pg_catalog.anyelement' && rangeIdentity
-            ? rangeSubtypeIdentity(rangeTypeProfile(rangeIdentity)!)
-            : type === 'pg_catalog.anyrange'
-              ? rangeIdentity
-              : (catalogScalarType(type) ?? type)
+  const concrete = (type: string, index: number): string | null =>
+    type === 'pg_catalog.record'
+      ? compositeProfile(types[index] ?? '')
+        ? types[index]!
+        : (types.find((type) => compositeProfile(type ?? '')) ?? null)
+      : type === 'pg_catalog.anyenum'
+        ? enumIdentity
+        : type === 'pg_catalog.anyarray'
+          ? arrayIdentity
+          : type === 'pg_catalog.anymultirange'
+            ? multirangeIdentity
+            : type === 'pg_catalog.anyelement' && rangeIdentity
+              ? rangeSubtypeIdentity(rangeTypeProfile(rangeIdentity)!)
+              : type === 'pg_catalog.anyrange'
+                ? rangeIdentity
+                : (catalogScalarType(type) ?? type)
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&
@@ -1704,7 +1721,7 @@ const comparisonCandidate = (
       (!predicate || item.result === 'pg_catalog.bool') &&
       item.args.length === args.length &&
       item.args.every((type, index) => {
-        const target = concrete(type)
+        const target = concrete(type, index)
         const source =
           type === 'pg_catalog.anyelement' && rangeIdentity
             ? nominalScalarType(args[index]!)
@@ -1733,10 +1750,10 @@ const comparisonCandidate = (
       ? types.map((type) => type ?? types.find((type) => type !== null)!)
       : types
   const exact = viable.filter(({ item }) =>
-    item.args.every((type, index) => concrete(type) === assumed[index]),
+    item.args.every((type, index) => concrete(type, index) === assumed[index]),
   )
   const scores = viable.map(
-    ({ item }) => item.args.filter((type, index) => concrete(type) === types[index]).length,
+    ({ item }) => item.args.filter((type, index) => concrete(type, index) === types[index]).length,
   )
   const maximum = Math.max(-1, ...scores)
   let best = exact.length ? exact : viable.filter((_, index) => scores[index] === maximum)
@@ -1788,11 +1805,27 @@ const comparisonCandidate = (
   )
     return null
   const operands = args.map((arg, index) =>
-    implicitOperand(
-      arg,
-      arrayElementBaseType(concrete(selected.item.args[index]!)!) as ScalarType,
-      definition,
-    ),
+    selected.item.args[index] === 'pg_catalog.record' && arg.literal?.kind === 'string'
+      ? {
+          kind: 'text-to-composite' as const,
+          type: concrete('pg_catalog.record', index)! as ScalarType,
+          conversions: [],
+          anonymous: true as const,
+          literal: true as const,
+          operand: {
+            kind: 'certain' as const,
+            expression: {
+              kind: 'text' as const,
+              type: 'pg_catalog.text' as const,
+              value: arg.literal.value,
+            },
+          },
+        }
+      : implicitOperand(
+          arg,
+          arrayElementBaseType(concrete(selected.item.args[index]!, index)!) as ScalarType,
+          definition,
+        ),
   )
   return operands.every((value): value is EvalExpression => value !== null)
     ? { ...selected, operands, collation, enum: definition }
@@ -2422,6 +2455,7 @@ export function bindCatalogCheck(
         'pg_catalog.anyarray',
         'pg_catalog.anyrange',
         'pg_catalog.anymultirange',
+        'pg_catalog.record',
       ].includes(resolved.item.args[0]!)
         ? type
         : resolved.item.args[0]!
@@ -2694,6 +2728,27 @@ export function bindCatalogCheck(
       }
       if (Array.isArray(bounds) && bounds.length) {
         if (!names) return unknown
+        const compositeElement = catalogCompositeType(
+          names.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.'),
+          compositeGraph,
+          rangeTypes,
+        )
+        if (compositeElement) {
+          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+          if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
+            return bindArray(cast['arg'], {
+              type: compositeElement,
+              name: elementTypeName(compositeElement),
+            })
+          const type = arrayType(compositeElement),
+            operand = bind(cast['arg'])
+          if (operand.type === type && operand.value) return operand
+          if (operand.literal?.kind === 'null') {
+            const value = materialize(operand, type)
+            return value ? { type, value } : unknown
+          }
+          return unknown
+        }
         const definitions = enums.filter((item) =>
           names.length === 2
             ? item.schema === names[0] && item.name === names[1]
@@ -3235,9 +3290,10 @@ export function bindCatalogCheck(
         return unknown
       }
       const capturedName = names?.map((part) => '"' + part.replaceAll('"', '""') + '"').join('.')
-      const composite = capturedName
-        ? catalogCompositeType(capturedName, compositeGraph, rangeTypes)
-        : null
+      const composite =
+        capturedName && (!Array.isArray(bounds) || bounds.length === 0)
+          ? catalogCompositeType(capturedName, compositeGraph, rangeTypes)
+          : null
       if (composite) {
         if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
         const profile = compositeProfile(composite)!
@@ -4890,9 +4946,12 @@ export function bindCatalogCheck(
         const type =
           resolved.item.args[0] === 'pg_catalog.anyenum'
             ? resolved.enum && enumType(resolved.enum)
-            : ['pg_catalog.anyarray', 'pg_catalog.anyrange', 'pg_catalog.anymultirange'].includes(
-                  resolved.item.args[0]!,
-                )
+            : [
+                  'pg_catalog.anyarray',
+                  'pg_catalog.anyrange',
+                  'pg_catalog.anymultirange',
+                  'pg_catalog.record',
+                ].includes(resolved.item.args[0]!)
               ? resolved.operands[0]!.kind === 'certain'
                 ? resolved.operands[0]!.expression.type
                 : resolved.operands[0]!.kind === 'call'

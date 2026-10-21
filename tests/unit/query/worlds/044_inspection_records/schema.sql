@@ -61,3 +61,21 @@ CREATE TABLE inspection_imports (
   CONSTRAINT imported_present CHECK (CASE WHEN bypass THEN true ELSE (record_text::draft_reading IS NOT NULL) = expected_present END),
   CONSTRAINT imported_literal CHECK (CASE WHEN bypass THEN true ELSE ('(2,abc)'::draft_reading).score >= minimum_score END)
 );
+
+CREATE TABLE inspection_comparisons (
+  current_reading inspection_reading,
+  previous_reading inspection_reading,
+  expected_order integer,
+  expected_equal boolean,
+  expected_distinct boolean NOT NULL,
+  expected_retained boolean NOT NULL,
+  expected_greatest_current boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT compared_equal CHECK (CASE WHEN bypass THEN true ELSE (current_reading = previous_reading) IS NOT DISTINCT FROM expected_equal END),
+  CONSTRAINT compared_order CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.btrecordcmp(current_reading, previous_reading) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT compared_less CHECK (CASE WHEN bypass THEN true ELSE (current_reading < previous_reading) IS NOT DISTINCT FROM (expected_order < 0) END),
+  CONSTRAINT compared_greater_equal CHECK (CASE WHEN bypass THEN true ELSE (current_reading >= previous_reading) IS NOT DISTINCT FROM (expected_order >= 0) END),
+  CONSTRAINT compared_distinct CHECK (CASE WHEN bypass THEN true ELSE (current_reading IS DISTINCT FROM previous_reading) = expected_distinct END),
+  CONSTRAINT compared_retained CHECK (CASE WHEN bypass THEN true ELSE (NULLIF(current_reading, previous_reading) IS DISTINCT FROM NULL) = expected_retained END),
+  CONSTRAINT compared_greatest CHECK (CASE WHEN bypass THEN true ELSE (GREATEST(current_reading, previous_reading) IS NOT DISTINCT FROM current_reading) = expected_greatest_current END)
+);

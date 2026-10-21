@@ -28,6 +28,7 @@ export type EvalExpression =
       conversions: readonly EvalExpression[]
       literal?: true
       origin?: 'source' | 'stored'
+      anonymous?: true
     }
   | { kind: 'composite-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'composite-field'; type: ScalarType; operand: EvalExpression; index: number }

@@ -9477,6 +9477,128 @@ export function datePartYjvq(units: checkruntime.TextValue, input: checkruntime.
 export function datePartFb3a(units: checkruntime.TextValue, input: checkruntime.IntervalValue): checkruntime.Float8Value {
     return clockFieldsLegacy(units, { value: input, zone: 0, family: 3 });
 }
+const recordComparisonTypeMismatch = 6822148;
+const recordComparisonUndefined = 6822435;
+const recordComparisonCollation = 6844250;
+const recordInputAnonymous = 466560;
+function recordComparisonState(state: number, error: checkruntime.SqlError): checkruntime.ArrayComparisonPayload {
+    state = langruntime.checkedI32(state);
+    const left: checkruntime.ArrayElement[] = [];
+    const right: checkruntime.ArrayElement[] = [];
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0 };
+}
+export function prepareRecordComparison(left: checkruntime.CompositeValue, right: checkruntime.CompositeValue, leftType: string, rightType: string, leftCount: number, rightCount: number): checkruntime.ArrayComparisonPayload {
+    left = checkruntime.copyCompositeValue(left);
+    right = checkruntime.copyCompositeValue(right);
+    leftType = langruntime.checkedString(leftType);
+    rightType = langruntime.checkedString(rightType);
+    leftCount = langruntime.checkedI32(leftCount);
+    rightCount = langruntime.checkedI32(rightCount);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return recordComparisonState(langruntime.checkedSignedNegate(2), error);
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return recordComparisonState(langruntime.checkedSignedNegate(2), error);
+    }
+    if (left.kind === "Unknown") {
+        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+    }
+    if (right.kind === "Unknown") {
+        return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+    }
+    if (left.kind === "Null") {
+        return recordComparisonState(0, checkruntime.makeSqlError(0));
+    }
+    if (right.kind === "Null") {
+        return recordComparisonState(0, checkruntime.makeSqlError(0));
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.CompositePayload = checkruntime.copyCompositePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.CompositePayload = checkruntime.copyCompositePayload(right.value);
+            if (!(a.typeName === leftType) || !(b.typeName === rightType) || leftCount < 0 || rightCount < 0 || a.fields.length > 2147483647 || b.fields.length > 2147483647 || !(langruntime.checkedI32(langruntime.checkedIndex(a.fields.length)) === leftCount) || !(langruntime.checkedI32(langruntime.checkedIndex(b.fields.length)) === rightCount)) {
+                return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+            }
+            let limit: number = a.fields.length;
+            let tail: number = 0;
+            if (b.fields.length < limit) {
+                limit = langruntime.checkedIndex(b.fields.length);
+            }
+            if (!(a.fields.length === b.fields.length)) {
+                tail = langruntime.checkedIndex(1);
+            }
+            return { left: a.fields, right: b.fields, limit: limit, state: 1, error: checkruntime.makeSqlError(0), tail: tail, value: 0 };
+        }
+    }
+    return recordComparisonState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+}
+export function recordComparisonPair(left: checkruntime.ArrayElement, right: checkruntime.ArrayElement, sameType: boolean, available: number, equality: boolean): checkruntime.Int4Value {
+    left = checkruntime.copyArrayElement(left);
+    right = checkruntime.copyArrayElement(right);
+    sameType = langruntime.checkedBool(sameType);
+    available = langruntime.checkedI32(available);
+    equality = langruntime.checkedBool(equality);
+    if (sameType === false) {
+        return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonTypeMismatch) };
+    }
+    if (available === 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonUndefined) };
+    }
+    if (!(available === 1)) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.arrayComparisonPair(left, right, equality);
+}
+export function recordInvalidCollation(): checkruntime.Int4Value {
+    return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonCollation) };
+}
+export function finishRecordComparison(input: checkruntime.ArrayComparisonPayload, result: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (input.state === 1 && !(input.tail === 0)) {
+        if (result.kind === "Value") {
+            const value: number = langruntime.checkedI32(result.value);
+            if (value === 0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonTypeMismatch) };
+            }
+        }
+    }
+    return result;
+}
+export function recordAnonymousInput(input: checkruntime.TextValue): checkruntime.CompositeValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        return { kind: "Error", value: checkruntime.makeSqlError(recordInputAnonymous) };
+    }
+    return { kind: "Unknown" };
+}
+export function recordEqRc7m(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 3);
+}
+export function recordNeDmf7(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 6);
+}
+export function recordLt393p(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 1);
+}
+export function recordLeXg5r(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 2);
+}
+export function recordGt3rut(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 5);
+}
+export function recordGe69vm(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 4);
+}
+export function btrecordcmpM4or(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
 const compositeTextSyntax = 3484946;
 function compositeTextSpace(ch: string): boolean {
     ch = langruntime.checkedChar(ch);
