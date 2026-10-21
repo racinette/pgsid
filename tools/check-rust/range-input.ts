@@ -6,7 +6,7 @@ export type RangeInputCell =
   | { kind: 'Error'; value: { state: number } }
   | { kind: 'Int4' | 'Date'; value: number }
   | { kind: 'Int8' | 'Timestamp' | 'Timestamptz'; value: bigint }
-  | { kind: 'Numeric'; value: string }
+  | { kind: 'Numeric' | 'Text'; value: string }
 
 export type RangeInputPayload = {
   typeName: string

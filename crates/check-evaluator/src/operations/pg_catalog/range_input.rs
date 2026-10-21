@@ -5,6 +5,9 @@ fn range_input_space(ch: char) -> bool {
 }
 
 fn range_input_bound(input: TextValue, kind: i32) -> ArrayElement {
+    if kind == 8 {
+        return array_element_from_text(input);
+    };
     if kind == 2 || kind == 3 {
         return array_integer_text_element(input, kind);
     };
@@ -308,14 +311,14 @@ pub fn finish_range_text(
     range_construct_with_support(type_name, element_type, kind, lower, upper, flags, support)
 }
 
-pub fn range_from_text(
+pub fn range_from_text_with_support(
     input: TextValue,
     type_name: &str,
     element_type: &str,
     kind: i32,
+    support: RangeSupport,
 ) -> RangeValue {
     let plan = prepare_range_text(input);
-    let support = range_builtin_support(type_name, element_type, kind);
     if range_text_needs_bounds(plan.clone()) == false {
         return range_text_initial(plan.clone(), type_name, element_type, kind, support);
     };
@@ -336,4 +339,14 @@ pub fn range_from_text(
         return RangeValue::Unknown;
     };
     finish_range_text(plan, type_name, element_type, kind, support, lower, upper)
+}
+
+pub fn range_from_text(
+    input: TextValue,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+) -> RangeValue {
+    let support = range_builtin_support(type_name, element_type, kind);
+    range_from_text_with_support(input, type_name, element_type, kind, support)
 }

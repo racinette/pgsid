@@ -24258,7 +24258,7 @@ func FinishMultirangeStoredText(input checkruntime.MultirangeTextPayload, typeNa
 	}
 	return checkruntime.MultirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.Ranges, support)
 }
-func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+func MultirangeFromTextWithSupport(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	rangeType = langruntime.CheckedString(rangeType)
 	elementType = langruntime.CheckedString(elementType)
@@ -24266,10 +24266,18 @@ func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType
 	cursor := PrepareMultirangeText(input)
 	for MultirangeTextHasMember(&cursor) {
 		text := MultirangeTextMember(&cursor)
-		member := RangeFromText(text, rangeType, elementType, elementKind)
+		member := RangeFromTextWithSupport(text, rangeType, elementType, elementKind, support)
 		cursor = AppendMultirangeText(cursor, member)
 	}
-	return FinishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind))
+	return FinishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, support)
+}
+func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	support := checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind)
+	return MultirangeFromTextWithSupport(input, typeName, rangeType, elementType, elementKind, support)
 }
 func IsemptyT80p(input checkruntime.MultirangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyMultirangeValue(input)
@@ -32450,6 +32458,11 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToTimestamptz(upper)
 		return TimestamptzCmpCa0r(left, right)
 	}
+	if kind == 8 {
+		left := checkruntime.ArrayElementToText(lower)
+		right := checkruntime.ArrayElementToText(upper)
+		return BttextcmpPuxw(left, right)
+	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport) checkruntime.RangeValue {
@@ -32840,6 +32853,9 @@ func rangeInputSpace(ch rune) bool {
 }
 func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayElement {
 	kind = langruntime.CheckedI32(kind)
+	if kind == 8 {
+		return checkruntime.ArrayElementFromText(input)
+	}
 	if kind == 2 || kind == 3 {
 		return ArrayIntegerTextElement(input, kind)
 	}
@@ -33100,12 +33116,11 @@ func FinishRangeText(plan checkruntime.RangeTextPlan, typeName string, elementTy
 	flags := RangeTextFlags(checkruntime.CopyRangeTextPlan(plan))
 	return RangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support)
 }
-func RangeFromText(input checkruntime.TextValue, typeName string, elementType string, kind int) checkruntime.RangeValue {
+func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, elementType string, kind int, support checkruntime.RangeSupport) checkruntime.RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
 	kind = langruntime.CheckedI32(kind)
 	plan := PrepareRangeText(input)
-	support := checkruntime.RangeBuiltinSupport(typeName, elementType, kind)
 	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
 		return RangeTextInitial(checkruntime.CopyRangeTextPlan(plan), typeName, elementType, kind, support)
 	}
@@ -33128,6 +33143,13 @@ func RangeFromText(input checkruntime.TextValue, typeName string, elementType st
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	return FinishRangeText(plan, typeName, elementType, kind, support, lower, upper)
+}
+func RangeFromText(input checkruntime.TextValue, typeName string, elementType string, kind int) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	support := checkruntime.RangeBuiltinSupport(typeName, elementType, kind)
+	return RangeFromTextWithSupport(input, typeName, elementType, kind, support)
 }
 func Isempty86tf(input checkruntime.RangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyRangeValue(input)
@@ -33277,6 +33299,9 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int) checkruntime.Te
 	}
 	if kind == 10 {
 		return ArrayNumericOutput(checkruntime.ArrayElementToNumeric(input))
+	}
+	if kind == 8 {
+		return checkruntime.ArrayElementToText(input)
 	}
 	if kind == 7 {
 		if input.Kind == checkruntime.ArrayElementDate {

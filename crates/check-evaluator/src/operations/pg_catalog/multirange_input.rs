@@ -288,17 +288,19 @@ pub(crate) fn finish_multirange_stored_text(
     )
 }
 
-pub fn multirange_from_text(
+pub fn multirange_from_text_with_support(
     input: TextValue,
     type_name: &str,
     range_type: &str,
     element_type: &str,
     element_kind: i32,
+    support: RangeSupport,
 ) -> MultirangeValue {
     let mut cursor = prepare_multirange_text(input);
     while multirange_text_has_member(&cursor) {
         let text = multirange_text_member(&cursor);
-        let member = range_from_text(text, range_type, element_type, element_kind);
+        let member =
+            range_from_text_with_support(text, range_type, element_type, element_kind, support);
         cursor = append_multirange_text(cursor, member);
     }
     finish_multirange_text(
@@ -307,6 +309,24 @@ pub fn multirange_from_text(
         range_type,
         element_type,
         element_kind,
-        range_builtin_support(range_type, element_type, element_kind),
+        support,
+    )
+}
+
+pub fn multirange_from_text(
+    input: TextValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> MultirangeValue {
+    let support = range_builtin_support(range_type, element_type, element_kind);
+    multirange_from_text_with_support(
+        input,
+        type_name,
+        range_type,
+        element_type,
+        element_kind,
+        support,
     )
 }

@@ -24372,7 +24372,7 @@ export function finishMultirangeStoredText(input: checkruntime.MultirangeTextPay
     }
     return checkruntime.multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.ranges, support);
 }
-export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+export function multirangeFromTextWithSupport(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
     typeName = langruntime.checkedString(typeName);
     rangeType = langruntime.checkedString(rangeType);
     elementType = langruntime.checkedString(elementType);
@@ -24380,10 +24380,18 @@ export function multirangeFromText(input: checkruntime.TextValue, typeName: stri
     let cursor: checkruntime.MultirangeTextPayload = prepareMultirangeText(input);
     while (multirangeTextHasMember(cursor)) {
         const text: checkruntime.TextValue = multirangeTextMember(cursor);
-        const member: checkruntime.RangeValue = rangeFromText(text, rangeType, elementType, elementKind);
+        const member: checkruntime.RangeValue = rangeFromTextWithSupport(text, rangeType, elementType, elementKind, support);
         cursor = appendMultirangeText(cursor, member);
     }
-    return finishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind));
+    return finishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, support);
+}
+export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const support: checkruntime.RangeSupport = checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind);
+    return multirangeFromTextWithSupport(input, typeName, rangeType, elementType, elementKind, support);
 }
 export function isemptyT80p(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
     input = checkruntime.copyMultirangeValue(input);
@@ -32581,6 +32589,11 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.TimestamptzValue = checkruntime.arrayElementToTimestamptz(upper);
         return timestamptzCmpCa0r(left, right);
     }
+    if (kind === 8) {
+        const left: checkruntime.TextValue = checkruntime.arrayElementToText(lower);
+        const right: checkruntime.TextValue = checkruntime.arrayElementToText(upper);
+        return bttextcmpPuxw(left, right);
+    }
     return { kind: "Unknown" };
 }
 function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport): checkruntime.RangeValue {
@@ -32971,6 +32984,9 @@ function rangeInputSpace(ch: string): boolean {
 }
 function rangeInputBound(input: checkruntime.TextValue, kind: number): checkruntime.ArrayElement {
     kind = langruntime.checkedI32(kind);
+    if (kind === 8) {
+        return checkruntime.arrayElementFromText(input);
+    }
     if (kind === 2 || kind === 3) {
         return arrayIntegerTextElement(input, kind);
     }
@@ -33240,12 +33256,11 @@ export function finishRangeText(plan: checkruntime.RangeTextPlan, typeName: stri
     const flags: checkruntime.TextValue = rangeTextFlags(checkruntime.copyRangeTextPlan(plan));
     return rangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support);
 }
-export function rangeFromText(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number): checkruntime.RangeValue {
+export function rangeFromTextWithSupport(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport): checkruntime.RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
     kind = langruntime.checkedI32(kind);
     const plan: checkruntime.RangeTextPlan = prepareRangeText(input);
-    const support: checkruntime.RangeSupport = checkruntime.rangeBuiltinSupport(typeName, elementType, kind);
     if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
         return rangeTextInitial(checkruntime.copyRangeTextPlan(plan), typeName, elementType, kind, support);
     }
@@ -33268,6 +33283,13 @@ export function rangeFromText(input: checkruntime.TextValue, typeName: string, e
         return { kind: "Unknown" };
     }
     return finishRangeText(plan, typeName, elementType, kind, support, lower, upper);
+}
+export function rangeFromText(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    const support: checkruntime.RangeSupport = checkruntime.rangeBuiltinSupport(typeName, elementType, kind);
+    return rangeFromTextWithSupport(input, typeName, elementType, kind, support);
 }
 export function isempty86tf(input: checkruntime.RangeValue): checkruntime.BoolValue {
     input = checkruntime.copyRangeValue(input);
@@ -33419,6 +33441,9 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number): check
     }
     if (kind === 10) {
         return arrayNumericOutput(checkruntime.arrayElementToNumeric(input));
+    }
+    if (kind === 8) {
+        return checkruntime.arrayElementToText(input);
     }
     if (kind === 7) {
         if (input.kind === "Date") {
