@@ -1176,7 +1176,7 @@ export function emitCheckRustEvaluator(
           'Custom constructor requires its selected captured implementation',
         )
       const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
-      const support = rangeProfileSupport(profile)
+      const support = rangeProfileSupport(profile, executionContext)
       const compiled = bind(`make_range_support(${support.comparison},${support.canonical})`)
       const metadata = `${rustStringLiteral(profile.multirange)},${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${compiled}`
       if (implementation === 'range_constructor2' || implementation === 'range_constructor3') {
@@ -2216,7 +2216,14 @@ export function emitCheckRustEvaluator(
           scalar.kind !== 'function' ||
           !scalar.strict ||
           scalar.returnsSet ||
-          scalar.volatility !== 'i' ||
+          (scalar.volatility !== 'i' &&
+            !(
+              rangeBinarySend &&
+              scalar.schema === 'pg_catalog' &&
+              scalar.name === 'textsend' &&
+              scalar.args[0] === 'pg_catalog.text' &&
+              scalar.volatility === 's'
+            )) ||
           scalar.result !== call.type ||
           scalar.args[0] !== rangeSubtype ||
           scalar.args.length !== (extended ? 2 : 1) ||
@@ -2227,7 +2234,11 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Range binary operation requires captured subtype support',
           )
-        const bounds = [false, true].map((upper) => {
+        const deferredTextHash =
+          !rangeBinarySend &&
+          range.elementType === 'pg_catalog.text' &&
+          range.collationDeterministic !== true
+        const bounds = (deferredTextHash ? [] : [false, true]).map((upper) => {
           const cell = bindRange(`range_bound(${ownedOperand(input)}, ${upper})`)
           return {
             name: bindRange(`array_element_to_${rustValuePrefix(rustType(rangeSubtype))}(${cell})`),
@@ -2270,15 +2281,20 @@ export function emitCheckRustEvaluator(
               ? [1, 2]
               : [executionContext.nativeByteOrder === 'big' ? 2 : 1]
         const alternatives = orders.map((order) => {
-          const hashes = bounds.map((bound) => {
-            const args = [
-              ownedOperand(bound),
-              ...(seed ? [ownedOperand(seed)] : []),
-              ...(context ? [String(order)] : []),
-            ]
-            callables.add(scalar.rustName)
-            return bindRange(`${scalar.rustName}(${args.join(', ')})`)
-          })
+          const hashes = deferredTextHash
+            ? [false, true].map(() => bindRange(`${extended ? 'int8' : 'int4'}_unknown()`))
+            : bounds.map((bound) => {
+                const args = [
+                  ownedOperand(bound),
+                  ...(seed ? [ownedOperand(seed)] : []),
+                  ...(context ? [String(order)] : []),
+                  ...(context === 'text'
+                    ? [String(executionContext.serverEncoding === 'UTF8')]
+                    : []),
+                ]
+                callables.add(scalar.rustName)
+                return bindRange(`${scalar.rustName}(${args.join(', ')})`)
+              })
           callables.add(implementation.rustName)
           return bindRange(
             `${implementation.rustName}(${ownedOperand(input)}, ${seed ? ownedOperand(seed) + ', ' : ''}${ownedOperand(basis)}, ${hashes.join(', ')})`,
@@ -3674,7 +3690,7 @@ export function emitCheckRustEvaluator(
       used.add(item.name)
       const multirange = multirangeTypeProfile(node.type)
       if (multirange?.captured) {
-        const support = rangeProfileSupport(multirange)
+        const support = rangeProfileSupport(multirange, executionContext)
         return {
           name: bind(
             `multirange_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical})`,
@@ -3691,7 +3707,7 @@ export function emitCheckRustEvaluator(
         }
       const range = rangeTypeProfile(node.type)
       if (range?.captured) {
-        const support = rangeProfileSupport(range)
+        const support = rangeProfileSupport(range, executionContext)
         return {
           name: bind(
             `range_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical})`,
@@ -3711,7 +3727,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_multirange${arrayMulti.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti).comparison},${rangeProfileSupport(arrayMulti).canonical}` : ''})`,
+            `array_from_coerced_multirange${arrayMulti.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.elementType)}${arrayMulti.captured ? `,${rangeProfileSupport(arrayMulti, executionContext).comparison},${rangeProfileSupport(arrayMulti, executionContext).canonical}` : ''})`,
           ),
           type: node.type,
         }
@@ -3721,7 +3737,7 @@ export function emitCheckRustEvaluator(
         const plan = arrayIdentityPlan(node.type)!
         return {
           name: bind(
-            `array_from_coerced_range${arrayRange.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange).comparison},${rangeProfileSupport(arrayRange).canonical}` : ''})`,
+            `array_from_coerced_range${arrayRange.captured ? '_profile' : ''}_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayRange.identity)}, ${rustStringLiteral(arrayRange.subtype)}, ${arrayElementFamily(arrayRange.elementType)}${arrayRange.captured ? `,${rangeProfileSupport(arrayRange, executionContext).comparison},${rangeProfileSupport(arrayRange, executionContext).canonical}` : ''})`,
           ),
           type: node.type,
         }
@@ -4176,7 +4192,7 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Custom range input requires its captured subtype conversion',
           )
-        const support = rangeProfileSupport(range)
+        const support = rangeProfileSupport(range, executionContext)
         const profile = bind(`make_range_support(${support.comparison},${support.canonical})`)
         const plan = bind(`prepare_range_text(${ownedOperand(operand)})`)
         const metadata = `${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${profile}`
@@ -4391,7 +4407,7 @@ export function emitCheckRustEvaluator(
         }
         body.push(`${cursor}=append_multirange_text(${cursor},${ownedOperand(member)});`)
         bindings.push(`while multirange_text_has_member(&${cursor}) {`, ...indent(body), '}')
-        const support = rangeProfileSupport(multirange)
+        const support = rangeProfileSupport(multirange, executionContext)
         const profile = bind(`make_range_support(${support.comparison},${support.canonical})`)
         return {
           name: bind(

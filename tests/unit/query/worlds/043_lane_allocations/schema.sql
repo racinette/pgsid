@@ -2378,3 +2378,51 @@ CREATE TABLE lane_segment_defaults (
   CONSTRAINT default_segment CHECK(CASE WHEN bypass THEN true ELSE lane_default_segments() IS NOT DISTINCT FROM expected_segment END),
   CONSTRAINT default_batches CHECK(CASE WHEN bypass THEN true ELSE lane_default_batches() IS NOT DISTINCT FROM expected_batches END)
 );
+
+CREATE TYPE lane_code_window AS RANGE(subtype=text,collation="C",multirange_type_name=lane_code_segments);
+CREATE DOMAIN lane_nonempty_code AS text CHECK(VALUE<>'');
+CREATE TYPE lane_labeled_window AS RANGE(subtype=lane_nonempty_code,collation="C");
+CREATE DOMAIN lane_code_window_list AS lane_code_window[];
+CREATE TABLE lane_code_allocations (
+  allocated lane_code_window,
+  reserved lane_code_window,
+  requested_code text,
+  expected_first text,
+  expected_label text,
+  expected_membership boolean,
+  expected_overlap boolean,
+  expected_intersection text,
+  expected_document text,
+  bypass boolean,
+  CONSTRAINT code_first CHECK(CASE WHEN bypass THEN true ELSE lower(allocated) COLLATE "C" IS NOT DISTINCT FROM expected_first COLLATE "C" END),
+  CONSTRAINT code_label CHECK(CASE WHEN bypass THEN true ELSE allocated::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT code_membership CHECK(CASE WHEN bypass THEN true ELSE (allocated @> requested_code) IS NOT DISTINCT FROM expected_membership END),
+  CONSTRAINT code_overlap CHECK(CASE WHEN bypass THEN true ELSE (allocated && reserved) IS NOT DISTINCT FROM expected_overlap END),
+  CONSTRAINT code_intersection CHECK(CASE WHEN bypass THEN true ELSE (allocated*reserved)::text COLLATE "C" IS NOT DISTINCT FROM expected_intersection COLLATE "C" END),
+  CONSTRAINT code_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(allocated)::text COLLATE "C" IS NOT DISTINCT FROM expected_document COLLATE "C" END)
+);
+CREATE TABLE lane_code_groups (
+  segments lane_code_segments,
+  windows lane_code_window[],
+  histories lane_code_window_list[],
+  expected_segments text,
+  expected_windows text,
+  expected_history text,
+  reference_segments lane_code_segments,
+  reference_windows lane_code_window[],
+  hash_seed bigint,
+  bypass boolean,
+  CONSTRAINT code_segments_label CHECK(CASE WHEN bypass THEN true ELSE segments::text COLLATE "C" IS NOT DISTINCT FROM expected_segments COLLATE "C" END),
+  CONSTRAINT code_windows_label CHECK(CASE WHEN bypass THEN true ELSE windows::text COLLATE "C" IS NOT DISTINCT FROM expected_windows COLLATE "C" END),
+  CONSTRAINT code_history_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C" IS NOT DISTINCT FROM expected_history COLLATE "C" END),
+  CONSTRAINT code_segments_hash CHECK(CASE WHEN bypass THEN true ELSE hash_multirange_extended(segments,hash_seed) IS NOT DISTINCT FROM hash_multirange_extended(reference_segments,hash_seed) END),
+  CONSTRAINT code_windows_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(windows,hash_seed) IS NOT DISTINCT FROM hash_array_extended(reference_windows,hash_seed) END)
+);
+CREATE TABLE lane_code_imports (
+  payload text,
+  expected_window lane_labeled_window,
+  expected_label text,
+  bypass boolean,
+  CONSTRAINT code_imported CHECK(CASE WHEN bypass THEN true ELSE payload::lane_labeled_window IS NOT DISTINCT FROM expected_window END),
+  CONSTRAINT code_imported_label CHECK(CASE WHEN bypass THEN true ELSE expected_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);

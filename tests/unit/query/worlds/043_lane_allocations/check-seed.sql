@@ -6477,3 +6477,139 @@ VALUES (NULL,NULL,false);
 -- name: custom_segment_defaults_skipped
 INSERT INTO lane_segment_defaults (expected_segment, expected_batches, bypass)
 VALUES (NULL,NULL,true);
+
+-- name: code_allocation_valid
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,m]',true,true,'[m,m]','"[a,m]"',false);
+
+-- name: code_allocation_wrong_first
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','x','[a,m]',true,true,'[m,m]','"[a,m]"',false);
+
+-- name: code_allocation_wrong_label
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,n]',true,true,'[m,m]','"[a,m]"',false);
+
+-- name: code_allocation_wrong_membership
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,m]',false,true,'[m,m]','"[a,m]"',false);
+
+-- name: code_allocation_wrong_overlap
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,m]',true,false,'[m,m]','"[a,m]"',false);
+
+-- name: code_allocation_wrong_intersection
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,m]',true,true,'empty','"[a,m]"',false);
+
+-- name: code_allocation_wrong_document
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m]','[m,z]','b','a','[a,m]',true,true,'[m,m]','"[a,n]"',false);
+
+-- name: code_allocation_disjoint
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,m)','[n,z]','x','a','[a,m)',false,false,'empty','"[a,m)"',false);
+
+-- name: code_allocation_empty
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('empty','[a,z]','k',NULL,'empty',false,false,'empty','"empty"',false);
+
+-- name: code_allocation_unbounded
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('(,)','[a,z]','漢',NULL,'(,)',true,true,'[a,z]','"(,)"',false);
+
+-- name: code_allocation_null
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: code_allocation_unicode
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[é,漢]','[漢,😀]','é','é','[é,漢]',true,true,'[漢,漢]','"[é,漢]"',false);
+
+-- name: code_allocation_skipped
+INSERT INTO lane_code_allocations (allocated, reserved, requested_code, expected_first, expected_label, expected_membership, expected_overlap, expected_intersection, expected_document, bypass)
+VALUES ('[a,z]','[n,q]','k','wrong','wrong',false,false,'wrong','wrong',true);
+
+-- name: code_groups_valid
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}','{"{\"[a,m]\",NULL,\"[n,z]\"}"}','{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}','[["[a,m]", null, "[n,z]"]]','{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_wrong_segments_label
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'wrong','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_wrong_windows_label
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','wrong',NULL,'{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_wrong_history
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}','{"{\"[a,m]\",NULL,\"[n,z]\"}"}','{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}','[]','{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_wrong_segments_hash
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[o,z]}','{"[a,m]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_wrong_windows_hash
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','[-2:0]={"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','{"[a,n]",NULL,"[n,z]"}',0,false);
+
+-- name: code_groups_empty
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{}','{}','{}','{}','{}','[]','{}','{}',0,false);
+
+-- name: code_groups_null
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,0,false);
+
+-- name: code_groups_null_seed
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',NULL,'{[a,m],[n,z]}','{"[a,m]",NULL,"[n,z]"}',NULL,'{[a,z]}','{}',NULL,false);
+
+-- name: code_groups_unicode
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[é,漢]}','{"[é,漢]",NULL}',NULL,'{[é,漢]}','{"[é,漢]",NULL}',NULL,'{[é,漢]}','{"[é,漢]",NULL}',-1,false);
+
+-- name: code_groups_skipped
+INSERT INTO lane_code_groups (segments, windows, histories, expected_segments, expected_windows, expected_history, reference_segments, reference_windows, hash_seed, bypass)
+VALUES ('{[a,m]}','{"[a,m]"}',NULL,'wrong','wrong','wrong','{}','{}',0,true);
+
+-- name: code_import_valid
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('[a,z]','[a,z]','[a,z]',false);
+
+-- name: code_import_wrong_window
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('[a,z]','[a,y]','[a,y]',false);
+
+-- name: code_import_wrong_label
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('[a,z]','[a,z]','[a,y]',false);
+
+-- name: code_import_quoted
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('["a b",z]','["a b",z]','["a b",z]',false);
+
+-- name: code_import_empty
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('empty','empty','empty',false);
+
+-- name: code_import_unbounded
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('(,)','(,)','(,)',false);
+
+-- name: code_import_null
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES (NULL,NULL,NULL,false);
+
+-- name: code_import_bad_syntax
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('bad',NULL,NULL,false);
+
+-- name: code_import_empty_bound
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('["",z]',NULL,NULL,false);
+
+-- name: code_import_skipped
+INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
+VALUES ('bad','[a,z]','wrong',true);

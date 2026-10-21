@@ -12,6 +12,7 @@ import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { customRangeSchema } from './check-custom-range-fixtures.js'
+import { textRangeSchema } from './check-text-range-fixtures.js'
 
 it('uses portable captured profiles in public custom range and multirange adapters across independent catalogs', async () => {
   const pg = await PGlite.create(),
@@ -19,7 +20,18 @@ it('uses portable captured profiles in public custom range and multirange adapte
     run = promisify(execFile)
   const schema =
     customRangeSchema +
+    textRangeSchema +
     `
+CREATE TABLE custom_text_payloads(v "Text.Range".words,w "Text.Range".words,m word_sets,items "Text.Range".words[],bypass bool,
+ CONSTRAINT lower_text CHECK(CASE WHEN bypass THEN true ELSE lower(v) COLLATE "C"='a' COLLATE "C" END),
+ CONSTRAINT ordered_text CHECK(CASE WHEN bypass THEN true ELSE v<w END),
+ CONSTRAINT intersected_text CHECK(CASE WHEN bypass THEN true ELSE v*v=v END),
+ CONSTRAINT sent_text CHECK(CASE WHEN bypass THEN true ELSE range_send(v) IS NOT NULL END),
+ CONSTRAINT hashed_text CHECK(CASE WHEN bypass THEN true ELSE hash_range(v)=hash_range('[a,z]'::"Text.Range".words) END),
+ CONSTRAINT multi_text CHECK(CASE WHEN bypass THEN true ELSE m::text COLLATE "C"='{[a,z]}' COLLATE "C" END),
+ CONSTRAINT fetched_text CHECK(CASE WHEN bypass THEN true ELSE items[-2]=v END),
+ CONSTRAINT searched_text CHECK(CASE WHEN bypass THEN true ELSE array_position(items,v)=-2 END),
+ CONSTRAINT json_text CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(items)::text COLLATE "C"='["[a,z]", null, "[é,漢]"]' COLLATE "C" END));
 CREATE DOMAIN saved_custom_span AS "Custom.Range".integer_span;
 CREATE FUNCTION "Custom.Range".default_span(lo int4 DEFAULT 1,hi int4 DEFAULT 2,bounds text DEFAULT '[]') RETURNS "Custom.Range".integer_span AS 'range_constructor3' LANGUAGE internal IMMUTABLE;
 CREATE FUNCTION "Custom.Range".default_set(item "Custom.Range".integer_span DEFAULT '[1,2]'::"Custom.Range".integer_span) RETURNS integer_set AS 'multirange_constructor1' LANGUAGE internal IMMUTABLE STRICT;
@@ -77,7 +89,11 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       {
         enums: catalog.enums,
         rangeTypes: catalog.rangeTypes,
-        executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
+        executionContext: {
+          defaultCollation: 'C',
+          serverEncoding: 'UTF8',
+          nativeByteOrder: 'little',
+        },
       },
     )
     const shifted = await PGlite.create()
@@ -95,7 +111,11 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         {
           enums: other.enums,
           rangeTypes: other.rangeTypes,
-          executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
+          executionContext: {
+            defaultCollation: 'C',
+            serverEncoding: 'UTF8',
+            nativeByteOrder: 'little',
+          },
         },
       )
       expect(alternate).toEqual(ts)
@@ -105,7 +125,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     const go = renderGoSchemaArtifacts(
       catalog,
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: {defaultCollation: C, serverEncoding: UTF8}\n    go:\n      schema: {outDir: schema}\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: {defaultCollation: C, serverEncoding: UTF8, nativeByteOrder: little}\n    go:\n      schema: {outDir: schema}\n',
       ),
       {},
       join(root, 'schema'),
@@ -177,6 +197,74 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       p: span('positive_span', 1, 2, '"Custom.Range".positive'),
       e: 1,
     }
+    for (const forge of [false, true]) {
+      const support = forge ? { comparison: 8, canonical: 0 } : { comparison: 0, canonical: 0 }
+      const textSpan = (lo: string, hi: string) => ({
+        kind: 'Value',
+        value: {
+          typeName: '"Text.Range".words',
+          elementType: 'pg_catalog.text',
+          elementKind: 8,
+          support,
+          empty: false,
+          lowerInclusive: true,
+          upperInclusive: true,
+          bounds: [
+            { kind: 'Text', value: lo },
+            { kind: 'Text', value: hi },
+          ],
+        },
+      })
+      const first = textSpan('a', 'z'),
+        last = textSpan('é', '漢')
+      const textRow = {
+        v: first,
+        w: last,
+        m: {
+          kind: 'Value',
+          value: {
+            typeName: 'public.word_sets',
+            rangeType: '"Text.Range".words',
+            elementType: 'pg_catalog.text',
+            elementKind: 8,
+            support,
+            ranges: [first],
+          },
+        },
+        items: {
+          kind: 'Value',
+          value: {
+            elementType: '"Text.Range".words',
+            elementKind: 42,
+            dimensions: [{ lower: -2, length: 3 }],
+            nullBitmap: { kind: 'Value', value: true },
+            elements: [
+              { kind: 'Range', value: first.value },
+              { kind: 'Null' },
+              { kind: 'Range', value: last.value },
+            ],
+          },
+        },
+        bypass: false,
+      }
+      const saved = structuredClone(textRow)
+      for (const result of Object.values(
+        resultMap(generated.evaluatePublicCustomTextPayloadsChecks(textRow)),
+      ))
+        expect(result).toEqual({ certain: true, value: true })
+      expect(textRow).toEqual(saved)
+      textRow.v.value.bounds[0]!.kind = 'Int4'
+      expect(
+        resultMap(generated.evaluatePublicCustomTextPayloadsChecks(textRow)).lower_text,
+      ).toMatchObject({ certain: false })
+      for (const result of Object.values(
+        resultMap(generated.evaluatePublicCustomTextPayloadsChecks({ ...textRow, bypass: true })),
+      ))
+        expect(result).toEqual({ certain: true, value: true })
+    }
+    await pg.exec(
+      `INSERT INTO custom_text_payloads VALUES('[a,z]','[é,漢]','{[a,z]}','[-2:0]={"[a,z]",NULL,"[é,漢]"}',false)`,
+    )
     const imported = { payload: '[1,2]', expected: v, bypass: false }
     const array = {
       kind: 'Value',
@@ -390,7 +478,22 @@ func span(name string,lo int,hi int,element string,forge bool)checkruntime.Range
 func pack(name string,value checkruntime.RangeValue)checkruntime.MultirangeValue{
  return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName:"public."+name,RangeType:value.Value.TypeName,ElementType:value.Value.ElementType,ElementKind:2,Support:value.Value.Support,Ranges:[]checkruntime.RangeValue{value}})
 }
+func textSpan(lo string,hi string,comparison int)checkruntime.RangeValue{
+ return checkruntime.MakeCoercedRangeValue(checkruntime.RangePayload{TypeName:fmt.Sprintf("%q.%s","Text.Range","words"),ElementType:"pg_catalog.text",ElementKind:8,Support:checkruntime.MakeRangeSupport(comparison,0),LowerInclusive:true,UpperInclusive:true,Bounds:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementText,Text:lo},{Kind:checkruntime.ArrayElementText,Text:hi}}})
+}
 func TestCustomProfiles(t *testing.T){
+ for _,comparison:=range []int{0,8}{
+  v:=textSpan("a","z",comparison);w:=textSpan("é","漢",comparison);skip:=false
+  m:=checkruntime.MultirangeValue{Kind:checkruntime.MultirangeValueValue,Value:checkruntime.MultirangePayload{TypeName:"public.word_sets",RangeType:v.Value.TypeName,ElementType:"pg_catalog.text",ElementKind:8,Support:checkruntime.MakeRangeSupport(comparison,0),Ranges:[]checkruntime.RangeValue{v}}}
+  items:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:v.Value.TypeName,ElementKind:42,Dimensions:[]checkruntime.ArrayDimension{{Lower:-2,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementRange,Range:v.Value},{Kind:checkruntime.ArrayElementNull},{Kind:checkruntime.ArrayElementRange,Range:w.Value}},NullBitmap:checkruntime.MakeBoolValue(true)}}
+  input:=PublicCustomTextPayloadsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(w),M:KnownCheckValue(m),Items:KnownCheckValue(items),Bypass:KnownCheckValue(&skip)}
+  for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("text profiles",comparison,c)}}
+  if v.Value.Support.Comparison!=comparison||v.Value.Support.Canonical!=0{t.Fatal("text input mutated")}
+  bad:=checkruntime.CopyRangeValue(v);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};input.V=KnownCheckValue(bad)
+  for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if c.Constraint=="lower_text"&&c.Result.Certain{t.Fatal("malformed text bound",c)}}
+  skip=true;for _,c:=range EvaluatePublicCustomTextPayloadsChecks(input){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped text input",c)}}
+ }
+
  for _,forgeArray:=range []bool{false,true}{
   av:=span("integer_span",1,2,"pg_catalog.int4",false);bv:=span("integer_span",3,4,"pg_catalog.int4",false)
   windows:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:av.Value.TypeName,ElementKind:42,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementRange,Range:av.Value},{Kind:checkruntime.ArrayElementRange,Range:av.Value},{Kind:checkruntime.ArrayElementRange,Range:bv.Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}

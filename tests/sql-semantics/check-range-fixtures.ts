@@ -72,6 +72,7 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
+  if (subtype === 'pg_catalog.text') return { kind: 'Text', value }
   if (subtype === 'pg_catalog.int4') return { kind: 'Int4', value: Number(value) }
   if (subtype === 'pg_catalog.date') return { kind: 'Date', value: Number(value) }
   if (subtype === 'pg_catalog.int8') return { kind: 'Int8', value: BigInt(value) }
