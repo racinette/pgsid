@@ -12,6 +12,13 @@ import {
   rangeTypeInput,
   type RangeProfile,
 } from './range-profiles.js'
+import {
+  catalogCompositeType,
+  compositeProfile,
+  compositeFieldType,
+  compositePhysicalType,
+} from './composite-profiles.js'
+import type { CompositeTypeGraph } from '../catalog/types.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
 import {
   rangeConstructorImplementation,
@@ -1857,6 +1864,7 @@ export function bindCatalogCheck(
   coercionContext?: StoredDomainCoercionContext,
   preparedArrayDomainInput?: string,
   rangeTypes: readonly RangeTypeInfo[] = [],
+  compositeGraph?: CompositeTypeGraph,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -1989,6 +1997,7 @@ export function bindCatalogCheck(
       undefined,
       preparedInput,
       rangeTypes,
+      compositeGraph,
     ).expression
     if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
       return unknown
@@ -2193,6 +2202,73 @@ export function bindCatalogCheck(
     if (!wrapper) return unknown
     const indirection = fields(wrapper['A_Indirection'])
     if (indirection) {
+      const items0 = indirection['indirection']
+      if (Array.isArray(items0)) {
+        const firstString = items0.findIndex(
+          (item) => typeof fields(fields(item)?.['String'])?.['sval'] === 'string',
+        )
+        if (firstString >= 0) {
+          const count = firstString === 0 ? 1 : firstString
+          if (count < items0.length)
+            return bind(
+              {
+                A_Indirection: {
+                  arg: {
+                    A_Indirection: { arg: indirection['arg'], indirection: items0.slice(0, count) },
+                  },
+                  indirection: items0.slice(count),
+                },
+              },
+              expectedType,
+              implicitDomainInput,
+            )
+          if (items0.length === 1 && firstString === 0) {
+            const parent = bind(indirection['arg']),
+              profile = parent.type ? compositeProfile(parent.type) : null
+            const name = fields(fields(items0[0])?.['String'])?.['sval']
+            const root = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+            const index = root?.fields.findIndex((f) => f.name === name) ?? -1,
+              field = root?.fields[index]
+            const type = profile && field ? compositeFieldType(profile, field.type) : null
+            if (!parent.value || !type || !profile || !field) return unknown
+            const declared = profile.graph.definitions.find((n) => n.identity === field.type),
+              physical = compositePhysicalType(profile, field.type)
+            const definition =
+              physical?.kind === 'e'
+                ? {
+                    schema: physical.schema,
+                    name: physical.name,
+                    values: physical.enumLabels ?? [],
+                  }
+                : undefined
+            return {
+              type,
+              value: { kind: 'composite-field', type, operand: parent.value, index },
+              ...(definition ? { enum: definition } : {}),
+              ...(declared?.kind === 'd'
+                ? { nominalDomain: JSON.stringify([declared.schema, declared.name]) }
+                : {}),
+              ...(field.collation
+                ? {
+                    collation: {
+                      kind: field.collationIsC
+                        ? 'C'
+                        : field.collationDeterministic
+                          ? 'deterministic'
+                          : 'other',
+                      identity: field.collationIsC
+                        ? 'C'
+                        : field.collationIsDefault
+                          ? 'default'
+                          : field.collation,
+                      ...(field.collationIsDefault ? { default: true as const } : {}),
+                    },
+                  }
+                : {}),
+            }
+          }
+        }
+      }
       const operand = bind(indirection['arg'])
       if (!operand.type?.startsWith('array:') || !operand.value) return unknown
       const items = indirection['indirection']
@@ -2695,6 +2771,7 @@ export function bindCatalogCheck(
                 undefined,
                 undefined,
                 rangeTypes,
+                compositeGraph,
               ).expression
               if (parsed.kind !== 'eval-scalar' || parsed.expression.kind !== 'null-test')
                 return unknown
@@ -3114,6 +3191,7 @@ export function bindCatalogCheck(
                       : undefined,
                     undefined,
                     rangeTypes,
+                    compositeGraph,
                   ).expression
               } catch {
                 expression = { kind: 'uncertain' }
@@ -4177,7 +4255,8 @@ export function bindCatalogCheck(
       const type =
         column &&
         (catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes) ??
-          catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes))
+          catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) ??
+          catalogCompositeType(column.typeName, compositeGraph, rangeTypes))
       if (type) {
         inputs.add(column.name)
         const element = type.startsWith('array:') ? arrayElementBaseType(type.slice(6)) : null
@@ -4826,6 +4905,7 @@ export function bindCatalogCheck(
           undefined,
           undefined,
           rangeTypes,
+          compositeGraph,
         )
         return converted.inputs.length === 0 &&
           converted.expression.kind === 'eval-scalar' &&
@@ -5417,6 +5497,7 @@ export function bindCatalogCheck(
       undefined,
       undefined,
       rangeTypes,
+      compositeGraph,
     ).expression
     const operand =
       converted.kind === 'eval-scalar' && converted.expression.kind === 'null-test'

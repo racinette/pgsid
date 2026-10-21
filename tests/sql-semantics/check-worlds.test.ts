@@ -1,3 +1,5 @@
+import { catalogCompositeType } from '../../src/sql-semantics/composite-profiles.js'
+import { readCompositeFixture } from './check-composite-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -436,7 +438,14 @@ describe('world CHECK INSERT parity', () => {
     for (const table of tables) {
       expect(table.writeRewritesTree.beforeRow).toEqual([])
       expect(
-        catalogCheckGroups([table], catalog.domains, [], catalog.enums, catalog.rangeTypes).length,
+        catalogCheckGroups(
+          [table],
+          catalog.domains,
+          [],
+          catalog.enums,
+          catalog.rangeTypes,
+          catalog.compositeTypeGraph,
+        ).length,
       ).toBe(1)
     }
     await progress('typescript-generation')
@@ -450,6 +459,7 @@ describe('world CHECK INSERT parity', () => {
       },
       enums: catalog.enums,
       rangeTypes: catalog.rangeTypes,
+      compositeTypeGraph: catalog.compositeTypeGraph,
     })
     await progress('go-generation')
     const go = renderGoSchemaArtifacts(
@@ -660,6 +670,17 @@ describe('world CHECK INSERT parity', () => {
               column.typeName,
               column.typeOid,
               catalog.domains,
+              catalog.rangeTypes,
+            ) !== null,
+        )
+        .map((column) => column.name)
+      const compositeColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogCompositeType(
+              column.typeName,
+              catalog.compositeTypeGraph,
               catalog.rangeTypes,
             ) !== null,
         )
@@ -1239,6 +1260,22 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
+      for (const name of compositeColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const type = catalogCompositeType(
+          column.typeName,
+          catalog.compositeTypeGraph,
+          catalog.rangeTypes,
+        )!
+        const payload = await readCompositeFixture(
+          pg,
+          `SELECT ${expressions.join(',')}`,
+          name,
+          type,
+        )
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
       for (const name of rangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
         const type = catalogRangeType(
@@ -1433,6 +1470,7 @@ describe('world CHECK INSERT parity', () => {
         jsonpathColumns,
         arrayColumns,
         rangeColumns,
+        compositeColumns,
         multirangeColumns,
         oidColumns,
         moneyColumns,

@@ -8597,11 +8597,15 @@ func compositeRowNullTest(input CompositeValue, negated bool) BoolValue {
 	}
 	return BoolValue{Kind: BoolValueUnknown}
 }
-func CompositeIsNull(input CompositeValue) BoolValue {
+func CompositeRowIsNull(input CompositeValue) BoolValue {
 	input = copyCompositeValue(input)
 	return compositeRowNullTest(input, false)
 }
-func CompositeIsNotNull(input CompositeValue) BoolValue {
+func CompositeIsNull(input CompositeValue) BoolValue {
+	input = copyCompositeValue(input)
+	return CompositeDatumIsNull(input)
+}
+func CompositeRowIsNotNull(input CompositeValue) BoolValue {
 	input = copyCompositeValue(input)
 	return compositeRowNullTest(input, true)
 }
@@ -8634,6 +8638,297 @@ func ArrayElementToComposite(input ArrayElement) CompositeValue {
 		return CompositeValue{Kind: CompositeValueValue, Value: value}
 	}
 	return CompositeValue{Kind: CompositeValueUnknown}
+}
+
+type CompositeTypeNode struct {
+	TypeName     string
+	Kind         int
+	ElementType  string
+	Child        int
+	Fields       []int
+	BoundProfile RangeBoundContext
+}
+
+func copyCompositeTypeNode(value CompositeTypeNode) CompositeTypeNode {
+	return CompositeTypeNode{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), Fields: langruntime.CheckedIndices(value.Fields), BoundProfile: CopyRangeBoundContext(value.BoundProfile)}
+}
+
+type CompositeTypeContext struct {
+	Nodes []CompositeTypeNode
+}
+
+func copyCompositeTypeContext(value CompositeTypeContext) CompositeTypeContext {
+	return CompositeTypeContext{Nodes: langruntime.CheckedStructs(value.Nodes, copyCompositeTypeNode)}
+}
+
+type CompositeTypePlanKind uint8
+
+const (
+	CompositeTypePlanValue CompositeTypePlanKind = iota
+)
+
+type CompositeTypePlan struct {
+	Kind  CompositeTypePlanKind
+	Value CompositeTypeContext
+}
+
+func copyCompositeTypePlan(value CompositeTypePlan) CompositeTypePlan {
+	switch value.Kind {
+	case CompositeTypePlanValue:
+		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: copyCompositeTypeContext(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func EmptyCompositeTypePlan() CompositeTypePlan {
+	nodes := []CompositeTypeNode{}
+	return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
+}
+func AppendCompositeTypeNode(input CompositeTypePlan, typeName string, kind int, elementType string, child int, boundProfile RangeBoundContext) CompositeTypePlan {
+	input = copyCompositeTypePlan(input)
+	typeName = langruntime.CheckedString(typeName)
+	kind = langruntime.CheckedI32(kind)
+	elementType = langruntime.CheckedString(elementType)
+	child = langruntime.CheckedI32(child)
+	boundProfile = CopyRangeBoundContext(boundProfile)
+	if input.Kind == CompositeTypePlanValue {
+		value := copyCompositeTypeContext(input.Value)
+		nodes := value.Nodes
+		fields := []int{}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, copyCompositeTypeNode(CompositeTypeNode{TypeName: typeName, Kind: kind, ElementType: elementType, Child: langruntime.IndexFromI32(child, 2147483647), Fields: fields, BoundProfile: boundProfile}))
+		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
+	}
+	return input
+}
+func AppendCompositeTypeField(input CompositeTypePlan, index int, child int) CompositeTypePlan {
+	input = copyCompositeTypePlan(input)
+	index = langruntime.CheckedI32(index)
+	child = langruntime.CheckedI32(child)
+	if input.Kind == CompositeTypePlanValue {
+		value := copyCompositeTypeContext(input.Value)
+		nodes := value.Nodes
+		position := langruntime.IndexFromI32(index, len(nodes))
+		if position < len(nodes) {
+			node := copyCompositeTypeNode(nodes[position])
+			fields := node.Fields
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, langruntime.CheckedIndex(langruntime.IndexFromI32(child, 2147483647)))
+			nodes[position] = copyCompositeTypeNode(CompositeTypeNode{TypeName: node.TypeName, Kind: node.Kind, ElementType: node.ElementType, Child: node.Child, Fields: fields, BoundProfile: node.BoundProfile})
+		}
+		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
+	}
+	return input
+}
+func compositeTypeContextValid(context *CompositeTypeContext) bool {
+	index := 0
+	for index < len(context.Nodes) {
+		node := copyCompositeTypeNode(context.Nodes[index])
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 44 {
+			return false
+		}
+		if node.Kind == 41 && (node.ElementType == "" || node.Child >= len(context.Nodes)) {
+			return false
+		}
+		if node.Kind > 0 && node.Kind < 41 || node.Kind == 42 || node.Kind == 43 {
+			profile := node.BoundProfile
+			if len(profile.Nodes) == 0 || RangeBoundProfileValid(&profile) == false {
+				return false
+			}
+			if profile.Nodes[0].Kind != node.Kind {
+				return false
+			}
+		}
+		field := 0
+		for field < len(node.Fields) {
+			if node.Kind != 44 || node.Fields[field] >= len(context.Nodes) {
+				return false
+			}
+			field = langruntime.CheckedAdd(field, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return len(context.Nodes) > 0
+}
+func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, index int) ArrayElement {
+	input = CopyArrayElement(input)
+	index = langruntime.CheckedIndex(index)
+	if input.Kind == ArrayElementNull {
+		return input
+	}
+	if input.Kind == ArrayElementUnknown {
+		return input
+	}
+	if input.Kind == ArrayElementError {
+		return input
+	}
+	if index >= len(context.Nodes) {
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	node := copyCompositeTypeNode(context.Nodes[index])
+	if ArrayElementFamily(CopyArrayElement(input)) != node.Kind {
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	if input.Kind == ArrayElementComposite {
+		payload := copyCompositePayload(input.Composite)
+		if node.Kind != 44 || payload.TypeName != node.TypeName || len(payload.Fields) != len(node.Fields) {
+			return ArrayElement{Kind: ArrayElementUnknown}
+		}
+		fields := []ArrayElement{}
+		position := 0
+		for position < len(payload.Fields) {
+			original := CopyArrayElement(payload.Fields[position])
+			checked := compositePrepareCell(CopyArrayElement(original), context, node.Fields[position])
+			if checked.Kind == ArrayElementError {
+				error := checked.Error
+				return ArrayElement{Kind: ArrayElementError, Error: error}
+			}
+			if checked.Kind == ArrayElementUnknown {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElement{Kind: ArrayElementUnknown}
+				}
+			}
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, CopyArrayElement(checked))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return ArrayElementFromComposite(MakeCompositeValue(CompositePayload{TypeName: payload.TypeName, Fields: fields}))
+	}
+	if input.Kind == ArrayElementArray {
+		payload := CopyArrayPayload(input.Array)
+		if node.Kind != 41 || payload.ElementType != node.ElementType || payload.ElementKind != context.Nodes[node.Child].Kind {
+			return ArrayElement{Kind: ArrayElementUnknown}
+		}
+		elements := []ArrayElement{}
+		position := 0
+		for position < len(payload.Elements) {
+			original := CopyArrayElement(payload.Elements[position])
+			checked := compositePrepareCell(CopyArrayElement(original), context, node.Child)
+			if checked.Kind == ArrayElementUnknown {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElement{Kind: ArrayElementUnknown}
+				}
+			}
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, CopyArrayElement(checked))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return ArrayElementFromArray(MakeArrayValue(ArrayPayload{NullBitmap: payload.NullBitmap, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements}))
+	}
+	profile := node.BoundProfile
+	checked := RangePrepareProfiledBound(input, &profile)
+	if checked.Kind == ArrayElementEnum {
+		payload := checked.Enum
+		return ArrayElementFromEnum(MakeEnumValue(payload.Ordinal))
+	}
+	if checked.Kind == ArrayElementDate {
+		value := langruntime.CheckedI32(checked.Date)
+		return ArrayElementFromDate(MakeDateValue(value))
+	}
+	if checked.Kind == ArrayElementTimestamp {
+		value := checked.Timestamp
+		return ArrayElementFromTimestamp(MakeTimestampValue(value))
+	}
+	if checked.Kind == ArrayElementTimestamptz {
+		value := checked.Timestamptz
+		return ArrayElementFromTimestamptz(MakeTimestamptzValue(value))
+	}
+	if checked.Kind == ArrayElementXid {
+		value := checked.Xid
+		return ArrayElementFromXid(MakeXidValue(value))
+	}
+	if checked.Kind == ArrayElementCid {
+		value := checked.Cid
+		return ArrayElementFromCid(MakeCidValue(value))
+	}
+	if checked.Kind == ArrayElementInterval {
+		payload := checked.Interval
+		return ArrayElementFromInterval(MakeIntervalValue(payload.Months, payload.Days, payload.Time))
+	}
+	if checked.Kind == ArrayElementText {
+		text := langruntime.CheckedString(checked.Text)
+		characters := []rune(text)
+		position := 0
+		for position < len(characters) {
+			if characters[position] == '\x00' {
+				return ArrayElement{Kind: ArrayElementUnknown}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return ArrayElement{Kind: ArrayElementText, Text: text}
+	}
+	if checked.Kind == ArrayElementByteaUnspecified {
+		length := langruntime.CheckedI32(checked.ByteaUnspecified)
+		if length < 0 {
+			return ArrayElement{Kind: ArrayElementUnknown}
+		}
+	}
+	if checked.Kind == ArrayElementNumeric {
+		text := langruntime.CheckedString(checked.Numeric)
+		return ArrayElementFromNumeric(MakeNumericValue(text))
+	}
+	if checked.Kind == ArrayElementJson {
+		payload := checked.Json
+		value := MakeJsonValue(payload.Source)
+		if value.Kind == JsonValueValue {
+			actual := value.Value
+			if actual.Kind == payload.Kind && actual.Depth == payload.Depth {
+				return ArrayElement{Kind: ArrayElementJson, Json: actual}
+			}
+		}
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	if checked.Kind == ArrayElementJsonb {
+		payload := CopyJsonbPayload(checked.Jsonb)
+		return ArrayElementFromJsonb(JsonbFromCoercedValue(JsonbValue{Kind: JsonbValueValue, Value: payload}))
+	}
+	if checked.Kind == ArrayElementJsonpath {
+		payload := CopyJsonpathPayload(checked.Jsonpath)
+		return ArrayElementFromJsonpath(JsonpathFromCoercedValue(JsonpathValue{Kind: JsonpathValueValue, Value: payload}))
+	}
+	if checked.Kind == ArrayElementJsonpathStoredText {
+		text := langruntime.CheckedString(checked.JsonpathStoredText)
+		return ArrayElementFromJsonpath(JsonpathFromCoercedValue(JsonpathValue{Kind: JsonpathValueStoredText, StoredText: text}))
+	}
+	if checked.Kind == ArrayElementSnapshot {
+		payload := CopySnapshotPayload(checked.Snapshot)
+		return ArrayElementFromSnapshot(MakeSnapshotValue(payload))
+	}
+	if checked.Kind == ArrayElementPath {
+		payload := CopyPathPayload(checked.Path)
+		return ArrayElementFromPath(MakePathValue(payload))
+	}
+	if checked.Kind == ArrayElementPolygon {
+		payload := CopyPolygonPayload(checked.Polygon)
+		return ArrayElementFromPolygon(MakePolygonValue(payload))
+	}
+	return checked
+}
+func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) CompositeValue {
+	input = copyCompositeValue(input)
+	plan = copyCompositeTypePlan(plan)
+	if input.Kind == CompositeValueValue {
+		payload := copyCompositePayload(input.Value)
+		if plan.Kind == CompositeTypePlanValue {
+			context := copyCompositeTypeContext(plan.Value)
+			if compositeTypeContextValid(&context) == false {
+				return CompositeValue{Kind: CompositeValueUnknown}
+			}
+			if context.Nodes[0].Kind != 44 {
+				return CompositeValue{Kind: CompositeValueUnknown}
+			}
+			return ArrayElementToComposite(compositePrepareCell(ArrayElement{Kind: ArrayElementComposite, Composite: payload}, &context, 0))
+		}
+		return CompositeValue{Kind: CompositeValueUnknown}
+	}
+	return input
 }
 
 type RangeSupport struct {

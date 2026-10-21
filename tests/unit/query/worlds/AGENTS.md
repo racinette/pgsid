@@ -324,7 +324,8 @@ shared world on behalf of everyone who never needed it.
 ## `[world]/check-seed.sql` — independent INSERT cases for generated CHECK evaluator parity
 
 Write independent, single-row INSERT VALUES statements with explicit
-column lists and constant scalar inputs. Use literals and casts of literals;
+column lists and constant inputs. Use literals, casts, and row/array constructors
+whose fields or elements are constant;
 fixed interval timezone conversions may construct SQL-coerced temporal values
 that text input cannot represent. A catalog-qualified circle constructor with
 constant point and float8 arguments may construct stored negative radii that
