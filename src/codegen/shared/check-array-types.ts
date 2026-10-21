@@ -97,6 +97,7 @@ export interface RangeBoundProfilePlan {
   typeName: string
   kind: number
   comparison: number
+  canonical: number
   missingComparison: boolean
   elementType: string
   child: number
@@ -162,6 +163,7 @@ export function rangeBoundProfiles(
       typeName: node.identity,
       kind,
       comparison: index === 0 ? 41 : support.comparison,
+      canonical: 1,
       missingComparison: index !== 0 && selected.comparator === null,
       elementType: kind === 41 ? arrayElementIdentity(base.slice(6)) : '',
       child: kind === 41 ? index + 1 : 0,

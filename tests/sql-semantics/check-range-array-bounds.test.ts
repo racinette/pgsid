@@ -232,7 +232,7 @@ it('owns typed array bounds through range construction, relations, sets and mult
         name = 'bag_profile_' + profileBuilders.size
         profileBuilders.set(key, name)
         builders.push(
-          `fn ${name}()->RangeBoundContext {let mut nodes:Vec<RangeBoundProfile>=Vec::new();${items.map((n) => `nodes.push(RangeBoundProfile {type_name:${rustStringLiteral(n.typeName)}.to_owned(),kind:${n.kind},comparison:${n.comparison},missing_comparison:${n.missingComparison},element_type:${rustStringLiteral(n.elementType)}.to_owned(),child:${n.child},enum_labels:${rustStringLiteral(n.enumLabels)}.to_owned(),enum_count:${n.enumCount}});`).join('\n')}RangeBoundContext {nodes}}`,
+          `fn ${name}()->RangeBoundContext {let mut nodes:Vec<RangeBoundProfile>=Vec::new();${items.map((n) => `nodes.push(RangeBoundProfile {type_name:${rustStringLiteral(n.typeName)}.to_owned(),kind:${n.kind},comparison:${n.comparison},canonical:${n.canonical ?? 1},missing_comparison:${n.missingComparison},element_type:${rustStringLiteral(n.elementType)}.to_owned(),child:${n.child},enum_labels:${rustStringLiteral(n.enumLabels)}.to_owned(),enum_count:${n.enumCount}});`).join('\n')}RangeBoundContext {nodes}}`,
         )
       }
       return name + '()'
@@ -532,7 +532,7 @@ fn bag_snapshots()->BoolValue {
  if let RangeValue::Value(payload)=original {
   let mut context=payload.bound_profile;
   let node=context.nodes[1].clone();let saved_node=node.clone();
-  context.nodes[1]=RangeBoundProfile {type_name:"changed".to_owned(),kind:node.kind,comparison:0,missing_comparison:false,element_type:node.element_type,child:node.child,enum_labels:node.enum_labels,enum_count:node.enum_count};
+  context.nodes[1]=RangeBoundProfile {type_name:"changed".to_owned(),kind:node.kind,comparison:0,canonical:node.canonical,missing_comparison:false,element_type:node.element_type,child:node.child,enum_labels:node.enum_labels,enum_count:node.enum_count};
   let mut extra_nodes=context.nodes;extra_nodes.push(saved_node);context=RangeBoundContext {nodes:extra_nodes};
   if let RangeValue::Value(before)=saved {
    if before.bound_profile.nodes.len()!=2 || before.bound_profile.nodes[1].type_name.as_str()!="pg_catalog.int4" || before.bound_profile.nodes[1].comparison!=2 {return BoolValue::Value(false);};
@@ -551,12 +551,12 @@ fn bag_invalid(mode:i32)->BoolValue {
   let root=context.nodes[0].clone();let leaf=context.nodes[1].clone();
   let mut kind=root.kind;let mut child=root.child;let mut element_type=root.element_type.clone();let mut comparison=root.comparison;let mut labels=root.enum_labels.clone();let mut count=root.enum_count;
   if mode==0 {child=0;};if mode==1 {child=99;};if mode==2 {kind=42;};if mode==3 {element_type="".to_owned();};if mode==4 {comparison=2;};if mode==5 {labels="bad".to_owned();};if mode==6 {count=0;};
-  if mode<7 {context.nodes[0]=RangeBoundProfile{type_name:root.type_name.clone(),kind,comparison,missing_comparison:false,element_type,child,enum_labels:labels,enum_count:count};};
-  if mode==7 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:6,comparison:6,missing_comparison:false,element_type:leaf.element_type.clone(),child:0,enum_labels:"z".to_owned(),enum_count:1};};
-  if mode==8 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,missing_comparison:true,element_type:leaf.element_type.clone(),child:0,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
-  if mode==9 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,missing_comparison:false,element_type:"bad".to_owned(),child:0,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
-  if mode==10 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,missing_comparison:false,element_type:leaf.element_type.clone(),child:1,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
-  if mode==11 {context.nodes[0]=RangeBoundProfile{type_name:root.type_name.clone(),kind:root.kind,comparison:root.comparison,missing_comparison:false,element_type:"pg_catalog.int8".to_owned(),child:root.child,enum_labels:root.enum_labels.clone(),enum_count:root.enum_count};};
+  if mode<7 {context.nodes[0]=RangeBoundProfile{type_name:root.type_name.clone(),kind,comparison,canonical:root.canonical,missing_comparison:false,element_type,child,enum_labels:labels,enum_count:count};};
+  if mode==7 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:6,comparison:6,canonical:leaf.canonical,missing_comparison:false,element_type:leaf.element_type.clone(),child:0,enum_labels:"z".to_owned(),enum_count:1};};
+  if mode==8 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,canonical:leaf.canonical,missing_comparison:true,element_type:leaf.element_type.clone(),child:0,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
+  if mode==9 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,canonical:leaf.canonical,missing_comparison:false,element_type:"bad".to_owned(),child:0,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
+  if mode==10 {context.nodes[1]=RangeBoundProfile{type_name:leaf.type_name.clone(),kind:leaf.kind,comparison:leaf.comparison,canonical:leaf.canonical,missing_comparison:false,element_type:leaf.element_type.clone(),child:1,enum_labels:leaf.enum_labels.clone(),enum_count:leaf.enum_count};};
+  if mode==11 {context.nodes[0]=RangeBoundProfile{type_name:root.type_name.clone(),kind:root.kind,comparison:root.comparison,canonical:root.canonical,missing_comparison:false,element_type:"pg_catalog.int8".to_owned(),child:root.child,enum_labels:root.enum_labels.clone(),enum_count:root.enum_count};};
   return range_is_null(range_with_bound_profile(RangeValue::Value(RangePayload {type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,enum_labels:payload.enum_labels,enum_count:payload.enum_count,bound_profile:empty_range_bound_context(),support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds:payload.bounds}),context));
  };BoolValue::Value(false)
 }
@@ -567,7 +567,7 @@ fn bag_context_boundary(mode:i32)->BoolValue {
   let mut context=payload.bound_profile.clone();let node=context.nodes[1].clone();
   let mut labels=${rustStringLiteral(['other', 'a', '', 'é'].join('\0'))}.to_owned();let mut comparison=6;
   if mode==2 || mode==3 || mode==4 || mode==5 {labels=node.enum_labels;comparison=0;};
-  context.nodes[1]=RangeBoundProfile{type_name:node.type_name,kind:node.kind,comparison,missing_comparison:false,element_type:node.element_type,child:node.child,enum_labels:labels,enum_count:node.enum_count};
+  context.nodes[1]=RangeBoundProfile{type_name:node.type_name,kind:node.kind,comparison,canonical:node.canonical,missing_comparison:false,element_type:node.element_type,child:node.child,enum_labels:labels,enum_count:node.enum_count};
   let mut lower=payload.bounds[0].clone();let mut upper=payload.bounds[1].clone();
   if mode==1 || mode==3 {lower=array_element_from_array(finish_array_constructor(make_array_arguments(${rustStringLiteral(profiles[5]!.leaf)},6)));upper=lower.clone();};
   if mode==4 {lower=ArrayElement::Null;upper=ArrayElement::Null;};

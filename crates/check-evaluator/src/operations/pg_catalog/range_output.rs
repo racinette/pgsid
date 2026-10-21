@@ -220,6 +220,8 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
 fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext, index: usize) -> TextValue {
     if index >= profile.nodes.len() { return TextValue::Unknown; };
     let node = profile.nodes[index].clone();
+    if node.kind == 42 { return range_to_text(array_element_to_range(input)); };
+    if node.kind == 43 { return multirange_to_text(array_element_to_multirange(input)); };
     if node.kind != 41 {
         let support = make_range_support(node.comparison, 1);
         return range_output_bound(input, node.kind, node.type_name.as_str() == "pg_catalog.cidr",
@@ -256,7 +258,7 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
         let utf8 = range_support_jsonb_utf8(value.support);
         let profile = value.bound_profile.clone();
         let mut lower = range_output_bound(value.bounds[0].clone(), value.element_kind, cidr, alias_mode, utf8, value.enum_labels.as_str(), value.enum_count);
-        if value.element_kind == 41 { lower = range_profiled_bound_output(value.bounds[0].clone(), &profile, 0); };
+        if value.element_kind >= 41 && value.element_kind <= 43 { lower = range_profiled_bound_output(value.bounds[0].clone(), &profile, 0); };
         if let TextValue::Error(error) = lower {
             return TextValue::Error(error);
         };
@@ -264,7 +266,7 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
             return TextValue::Unknown;
         };
         let mut upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr, alias_mode, utf8, value.enum_labels.as_str(), value.enum_count);
-        if value.element_kind == 41 { upper = range_profiled_bound_output(value.bounds[1].clone(), &profile, 0); };
+        if value.element_kind >= 41 && value.element_kind <= 43 { upper = range_profiled_bound_output(value.bounds[1].clone(), &profile, 0); };
         if let TextValue::Error(error) = upper {
             return TextValue::Error(error);
         };

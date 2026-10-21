@@ -6,6 +6,7 @@ import type {
   DomainInfo,
   EntityId,
   FunctionInfo,
+  RangeTypeInfo,
   SchemaDiff,
   SchemaDiffEntry,
   SequenceInfo,
@@ -343,8 +344,17 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
     out.set(`${t.schema}.${t.name}`, compositeTypeState(t))
   }
 
+  const rangeState = (range: RangeTypeInfo): Record<string, unknown> => {
+    const {
+      callables: _callables,
+      callResolution: _callResolution,
+      subtypeRanges,
+      ...state
+    } = range
+    return { ...state, ...(subtypeRanges ? { subtypeRanges: subtypeRanges.map(rangeState) } : {}) }
+  }
   for (const range of snapshot.rangeTypes) {
-    const { callables: _callables, callResolution: _callResolution, ...state } = range
+    const state = rangeState(range)
     out.set(`${range.schema}.${range.name}`, state)
     out.set(`${range.multirangeSchema}.${range.multirangeName}`, {
       range: range.identity,

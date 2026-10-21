@@ -4,7 +4,7 @@ const RANGE_CONSTRUCTOR_INTEGER_OVERFLOW: u32 = 3452547;
 const RANGE_CONSTRUCTOR_DATE_OVERFLOW: u32 = 3452552;
 const RANGE_ARRAY_COMPARISON_UNDEFINED: u32 = 6822435;
 
-fn range_profiled_array_compare(lower: ArrayElement, upper: ArrayElement, profile: &RangeBoundContext, index: usize, other: &RangeBoundContext, other_index: usize) -> Int4Value {
+fn range_profiled_compare(lower: ArrayElement, upper: ArrayElement, profile: &RangeBoundContext, index: usize, other: &RangeBoundContext, other_index: usize) -> Int4Value {
     let pair = array_comparison_pair(lower.clone(), upper.clone(), false);
     if array_pair_requires_scalar(pair) == false { return pair; };
     if index >= profile.nodes.len() || other_index >= other.nodes.len() { return Int4Value::Unknown; };
@@ -12,6 +12,14 @@ fn range_profiled_array_compare(lower: ArrayElement, upper: ArrayElement, profil
     let peer = other.nodes[other_index].clone();
     if node.kind != peer.kind || node.comparison != peer.comparison || node.missing_comparison != peer.missing_comparison { return Int4Value::Unknown; };
     if node.missing_comparison { return Int4Value::Error(make_sql_error(RANGE_ARRAY_COMPARISON_UNDEFINED)); };
+    if node.kind == 42 || node.kind == 43 {
+        if node.type_name != peer.type_name || node.element_type != peer.element_type
+            || node.canonical != peer.canonical || node.comparison != node.kind { return Int4Value::Unknown; };
+        if node.kind == 42 {
+            return sql__pg_catalog__range_cmp__8jgl(array_element_to_range(lower),array_element_to_range(upper));
+        };
+        return sql__pg_catalog__multirange_cmp__mafd(array_element_to_multirange(lower),array_element_to_multirange(upper));
+    };
     if node.kind != 41 {
         if node.kind == 6 && (node.enum_labels != peer.enum_labels || node.enum_count != peer.enum_count) { return Int4Value::Unknown; };
         return range_builtin_compare(lower, upper, node.comparison);
@@ -26,7 +34,7 @@ fn range_profiled_array_compare(lower: ArrayElement, upper: ArrayElement, profil
     while array_comparison_continues(&plan, position, result) {
         let a = array_comparison_element_at(&plan, position, false);
         let b = array_comparison_element_at(&plan, position, true);
-        result = range_profiled_array_compare(a, b, profile, node.child, other, peer.child);
+        result = range_profiled_compare(a, b, profile, node.child, other, peer.child);
         position = array_text_next_index(position);
     }
     finish_array_comparison(&plan, result)
@@ -35,8 +43,8 @@ fn range_profiled_array_compare(lower: ArrayElement, upper: ArrayElement, profil
 fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32, profile: &RangeBoundContext, other: &RangeBoundContext) -> Int4Value {
     if let ArrayElement::Null = lower { return make_int4_value(-1); };
     if let ArrayElement::Null = upper { return make_int4_value(-1); };
-    if comparison == 41 {
-        return range_profiled_array_compare(lower, upper, profile, 0, other, 0);
+    if comparison >= 41 && comparison <= 43 {
+        return range_profiled_compare(lower, upper, profile, 0, other, 0);
     };
     range_builtin_compare(lower, upper, comparison)
 }
@@ -452,7 +460,7 @@ pub fn range_construct_typed(
         if range_bound_profile_valid(&bound_profile) == false { return RangeValue::Unknown; };
         let mut lower = lower;
         let mut upper = upper;
-        if kind == 41 {
+        if kind >= 41 && kind <= 43 {
             lower = range_prepare_profiled_bound(lower, &bound_profile);
             if let ArrayElement::Error(error) = lower { return RangeValue::Error(error); };
             if let ArrayElement::Unknown = lower { return RangeValue::Unknown; };

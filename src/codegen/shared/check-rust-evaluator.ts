@@ -255,7 +255,7 @@ const rangeContextExpression = (
   let current = bind('empty_range_bound_context()')
   for (const node of nodes)
     current = bind(
-      `append_range_bound_profile(${current},${rustStringLiteral(node.typeName)},${node.kind},${node.comparison},${node.missingComparison},${rustStringLiteral(node.elementType)},${node.child},${rustStringLiteral(node.enumLabels)},${node.enumCount})`,
+      `append_range_bound_profile_with_canonical(${current},${rustStringLiteral(node.typeName)},${node.kind},${node.comparison},${node.canonical},${node.missingComparison},${rustStringLiteral(node.elementType)},${node.child},${rustStringLiteral(node.enumLabels)},${node.enumCount})`,
     )
   return current
 }
