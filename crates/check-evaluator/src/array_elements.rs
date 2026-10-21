@@ -51,9 +51,11 @@ pub enum ArrayElement {
     BoxNonNull,
     Range(RangePayload),
     Multirange(MultirangePayload),
+    Composite(CompositePayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Composite(_) = input { return 44; };
     if let ArrayElement::Multirange(_) = input {
         return 43;
     };

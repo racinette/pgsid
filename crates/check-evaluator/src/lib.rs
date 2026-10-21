@@ -16,6 +16,7 @@ pub mod checkruntime {
     include!("jsonb_storage.rs");
     include!("jsonpath.rs");
     include!("array_elements.rs");
+    include!("composite.rs");
     include!("range.rs");
     include!("multirange.rs");
     include!("domain.rs");

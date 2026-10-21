@@ -1,4 +1,5 @@
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
+import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
 import { captureDomainCoercionContext, type DomainCoercionIdentity } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
@@ -587,6 +588,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     domainRows,
     compositeTypeRows,
     compositeAttrRows,
+    compositeTypeGraph,
     sequenceRows,
     extensionRows,
     schemaRows,
@@ -628,6 +630,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryDomains(pg),
     queryCompositeTypes(pg),
     queryCompositeAttrs(pg),
+    readCatalogCompositeTypes(pg),
     querySequences(pg),
     queryExtensions(pg),
     querySchemas(pg),
@@ -1165,6 +1168,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     enums,
     domains,
     compositeTypes,
+    compositeTypeGraph,
     rangeTypes,
     sequences,
     extensions,
