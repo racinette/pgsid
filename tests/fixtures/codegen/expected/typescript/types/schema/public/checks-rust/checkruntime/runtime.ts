@@ -9062,7 +9062,7 @@ export function arrayFromCoercedCompositePlan(input: ArrayValue, elementType: st
             if (compositeTypeContextValid(context) === false) {
                 return { kind: "Unknown" };
             }
-            if (!(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).kind === 44) || !(payload.elementKind === 44) || !(payload.elementType === elementType) || !(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).typeName === elementType)) {
+            if (!(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(0), copyCompositeTypeNode).kind === 44) || !(payload.elementKind === 44) || !(payload.elementType === elementType)) {
                 return { kind: "Unknown" };
             }
             let elements: ArrayElement[] = [];

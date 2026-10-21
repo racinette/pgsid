@@ -1,3 +1,4 @@
+import { arrayElementBaseType } from '../../../sql-semantics/expressions.js'
 import {
   catalogCompositeType,
   compositeProfile,
@@ -444,7 +445,8 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const compositeArray =
-            item.type.startsWith('array:') && compositeProfile(item.type.slice(6))
+            item.type.startsWith('array:') &&
+            compositeProfile(arrayElementBaseType(item.type.slice(6)))
           const helper = compositeArray
             ? item.nullness
               ? 'checkRustCompositeArrayNullness'
@@ -644,8 +646,13 @@ export function renderGoSchemaCheckArtifacts(
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
             ...(item.rustType === 'CompositeValue' || compositeArray
-              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
+              ? [
+                  compositeContext(
+                    compositeArray ? arrayElementBaseType(item.type.slice(6)) : item.type,
+                  ),
+                ]
               : []),
+            ...(compositeArray ? [go.string(arrayElementIdentity(item.type.slice(6)))] : []),
             ...(multirange
               ? [
                   go.string(multirange.multirange),
@@ -946,8 +953,8 @@ func checkRustArrayTypedMetadata(input checkruntime.ArrayValue,boundProfile chec
   payload.Elements=elements
   return checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:payload}
 }
-func checkRustCompositeArrayNullness(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan)checkruntime.BoolValue{return checkruntime.ArrayIsNull(checkRustCompositeArray(input,plan))}
-func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan)checkruntime.ArrayValue{
+func checkRustCompositeArrayNullness(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan,elementType string)checkruntime.BoolValue{return checkruntime.ArrayIsNull(checkRustCompositeArray(input,plan,elementType))}
+func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan checkruntime.CompositeTypePlan,elementType string)checkruntime.ArrayValue{
   if !input.Set{return checkruntime.ArrayUnknown()};if input.Null{return checkruntime.ArrayNull()}
   value:=input.V;if value.Kind!=checkruntime.ArrayValueValue{return value}
   if plan.Kind!=checkruntime.CompositeTypePlanValue||len(plan.Value.Nodes)==0{return checkruntime.ArrayUnknown()}
@@ -957,7 +964,7 @@ func checkRustCompositeArray(input CheckOptional[checkruntime.ArrayValue],plan c
   elements:=make([]checkruntime.ArrayElement,len(p.Elements))
   for i,cell:=range p.Elements{checked,ok:=checkRustCompositeCell(cell,plan,0);if !ok{return checkruntime.ArrayUnknown()};elements[i]=checked}
   p.Elements=elements;value.Value=p
-  return checkruntime.ArrayFromCoercedCompositePlan(value,plan.Value.Nodes[0].TypeName,plan)
+  return checkruntime.ArrayFromCoercedCompositePlan(value,elementType,plan)
 }
 func checkRustComposite(input CheckOptional[checkruntime.CompositeValue],plan checkruntime.CompositeTypePlan)checkruntime.CompositeValue{
   if !input.Set{return checkruntime.CompositeUnknown()};if input.Null{return checkruntime.CompositeNull()}

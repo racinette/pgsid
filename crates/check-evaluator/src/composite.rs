@@ -308,7 +308,6 @@ pub fn array_from_coerced_composite_plan(
             if context.nodes[0].kind != 44
                 || payload.element_kind != 44
                 || payload.element_type.as_str() != element_type
-                || context.nodes[0].type_name.as_str() != element_type
             {
                 return ArrayValue::Unknown;
             };
