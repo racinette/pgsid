@@ -18,6 +18,7 @@ cargo build --locked --manifest-path "$repo_dir/tools/check-transpiler/Cargo.tom
   --target wasm32-unknown-unknown --lib --release --target-dir "$target_dir"
 cp "$target_dir/wasm32-unknown-unknown/release/pgsid_check_transpiler.wasm" \
   "$asset_dir/check-rust-parser.wasm"
+bash "$repo_dir/scripts/build-check-catalog-grammar.sh"
 bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
   "$repo_dir/tools/check-transpiler/go/wasm" "$asset_dir/check-go-transpiler.wasm"
 node --input-type=module - "$repo_dir" "$asset_dir" /tmp/pgsid-check-timezone-data/tables.rs /tmp/pgsid-check-unicode-data/tables.rs <<'JS'

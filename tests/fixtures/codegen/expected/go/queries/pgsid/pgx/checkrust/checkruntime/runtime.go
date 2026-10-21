@@ -9127,7 +9127,7 @@ func FinishDomainConversion(input ArrayElement, result CheckOutcome) ArrayElemen
 	return input
 }
 func FinishDomainArrayInput(input ArrayTextPayload, converted ArrayArguments) ArrayValue {
-	input = copyArrayTextPayload(input)
+	input = CopyArrayTextPayload(input)
 	converted = CopyArrayArguments(converted)
 	if converted.Kind == ArrayArgumentsUnknown {
 		return ArrayValue{Kind: ArrayValueUnknown}
@@ -10127,8 +10127,8 @@ type ArrayTextPayload struct {
 	Events     []ArrayTextEvent
 }
 
-func copyArrayTextPayload(value ArrayTextPayload) ArrayTextPayload {
-	return ArrayTextPayload{State: langruntime.CheckedI32(value.State), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, copyArrayTextEvent)}
+func CopyArrayTextPayload(value ArrayTextPayload) ArrayTextPayload {
+	return ArrayTextPayload{State: langruntime.CheckedI32(value.State), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, CopyArrayTextEvent)}
 }
 
 type ArrayTextPlanKind uint8
@@ -10151,7 +10151,7 @@ func copyArrayTextPlan(value ArrayTextPlan) ArrayTextPlan {
 	case ArrayTextPlanNull:
 		return ArrayTextPlan{Kind: ArrayTextPlanNull}
 	case ArrayTextPlanValue:
-		return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: copyArrayTextPayload(value.Value)}
+		return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: CopyArrayTextPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -10171,7 +10171,7 @@ type ArrayTextEvent struct {
 	Error SqlError
 }
 
-func copyArrayTextEvent(value ArrayTextEvent) ArrayTextEvent {
+func CopyArrayTextEvent(value ArrayTextEvent) ArrayTextEvent {
 	switch value.Kind {
 	case ArrayTextEventText:
 		return ArrayTextEvent{Kind: ArrayTextEventText, Text: langruntime.CheckedString(value.Text)}
@@ -10336,12 +10336,12 @@ func arrayTextReadToken(source *arrayTextSource, start int, delimiter rune) arra
 }
 func arrayTextResult(dimensions []ArrayDimension, input []ArrayTextEvent, error int) ArrayTextPlan {
 	dimensions = langruntime.CheckedStructs(dimensions, copyArrayDimension)
-	input = langruntime.CheckedStructs(input, copyArrayTextEvent)
+	input = langruntime.CheckedStructs(input, CopyArrayTextEvent)
 	error = langruntime.CheckedIndex(error)
 	events := input
 	if error != 0 {
 		langruntime.CheckedAdd(len(events), 1)
-		events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: MakeSqlError(error)}))
+		events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: MakeSqlError(error)}))
 	}
 	return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: ArrayTextPayload{State: 1, Dimensions: dimensions, Events: events}}
 }
@@ -10359,7 +10359,7 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	if input.Kind == TextValueError {
 		error := input.Error
 		langruntime.CheckedAdd(len(events), 1)
-		events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: error}))
+		events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: error}))
 		return arrayTextResult(dimensions, events, 0)
 	}
 	if input.Kind == TextValueValue {
@@ -10486,7 +10486,7 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 					return arrayTextResult(dimensions, events, arrayTextInvalid)
 				}
 				langruntime.CheckedAdd(len(events), 1)
-				events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
+				events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
 				element = true
 			}
 			if kind == 5 {
@@ -10496,13 +10496,13 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 				}
 				if nulls == 1 {
 					langruntime.CheckedAdd(len(events), 1)
-					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventNull}))
+					events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventNull}))
 				} else if nulls == 0 {
 					langruntime.CheckedAdd(len(events), 1)
-					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
+					events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
 				} else {
 					langruntime.CheckedAdd(len(events), 1)
-					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventUnknown}))
+					events = append(events, CopyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventUnknown}))
 					return arrayTextResult(dimensions, events, 0)
 				}
 				element = true
@@ -10552,7 +10552,7 @@ func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
 		if offset >= len(input.Events) {
 			return TextValue{Kind: TextValueUnknown}
 		}
-		event := copyArrayTextEvent(input.Events[offset])
+		event := CopyArrayTextEvent(input.Events[offset])
 		if event.Kind == ArrayTextEventText {
 			text := langruntime.CheckedString(event.Text)
 			return TextValue{Kind: TextValueValue, Value: text}
@@ -10578,10 +10578,10 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 		return ArrayValue{Kind: ArrayValueNull}
 	}
 	if plan.Kind == ArrayTextPlanValue {
-		payload := copyArrayTextPayload(plan.Value)
+		payload := CopyArrayTextPayload(plan.Value)
 		index := 0
 		for index < len(payload.Events) {
-			event := copyArrayTextEvent(payload.Events[index])
+			event := CopyArrayTextEvent(payload.Events[index])
 			if event.Kind == ArrayTextEventError {
 				error := event.Error
 				return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -10613,7 +10613,7 @@ func PrepareArrayText(input TextValue, boxDelimiter bool, nulls int) ArrayTextPa
 	}
 	plan := ParseArrayText(input, delimiter, nulls)
 	if plan.Kind == ArrayTextPlanValue {
-		payload := copyArrayTextPayload(plan.Value)
+		payload := CopyArrayTextPayload(plan.Value)
 		return payload
 	}
 	state := langruntime.CheckedSignedNegate(1)
@@ -10635,11 +10635,11 @@ func ArrayTextHasEvent(input *ArrayTextPayload, index Int4Value) bool {
 	return false
 }
 func ArrayTextEventNeedsInput(input *ArrayTextPayload, index Int4Value) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayTextPayload)
 	if index.Kind == Int4ValueValue {
 		position := langruntime.CheckedI32(index.Value)
 		if position >= 0 && (int64(langruntime.CheckedI32(position))) < (int64(langruntime.CheckedI32((int(int32(len(input.Events))))))) {
-			event := copyArrayTextEvent(input.Events[langruntime.IndexFromI32(position, 0)])
+			event := CopyArrayTextEvent(input.Events[langruntime.IndexFromI32(position, 0)])
 			if event.Kind == ArrayTextEventError {
 				return false
 			}
@@ -10658,7 +10658,7 @@ func ArrayTextNextIndex(input Int4Value) Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
 func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) ArrayValue {
-	input = copyArrayTextPayload(input)
+	input = CopyArrayTextPayload(input)
 	converted = CopyArrayArguments(converted)
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}

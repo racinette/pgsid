@@ -5293,6 +5293,11 @@ export function bindCatalogCheck(
       ? { kind: 'eval-scalar', expression: value.value }
       : { kind: 'uncertain', ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}) }
   }
+  const hasMoneyArrayElement = (type: string): boolean => {
+    let base = arrayElementBaseType(type)
+    while (base.startsWith('array:')) base = arrayElementBaseType(base.slice(6))
+    return base === 'pg_catalog.money'
+  }
   const annotate = (value: unknown): unknown => {
     if (Array.isArray(value)) {
       const mapped = value.map(annotate)
@@ -5310,7 +5315,7 @@ export function bindCatalogCheck(
       ...(isJsonpath ? { origin: literalOrigin } : {}),
       ...(record['kind'] === 'array-text-literal' &&
       typeof record['elementType'] === 'string' &&
-      arrayElementBaseType(record['elementType']) === 'pg_catalog.money'
+      hasMoneyArrayElement(record['elementType'])
         ? { moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
         : {}),
     }
@@ -5355,10 +5360,14 @@ export function bindCatalogCheck(
       undefined,
       rangeTypes,
     ).expression
-    const result =
+    const operand =
       converted.kind === 'eval-scalar' && converted.expression.kind === 'null-test'
         ? converted.expression.operand
         : null
+    const result =
+      stored && operand?.kind === 'text-to-money' && moneyUnits.size
+        ? { ...operand, moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
+        : operand
     rangeConversions.set(key, result)
     return result
   }

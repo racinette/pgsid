@@ -1082,7 +1082,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     }))
     .sort(bySchemaName)
 
-  await captureMoneyLiterals(pg, tables, domains)
+  await captureMoneyLiterals(pg, tables, domains, rangeTypes)
 
   // --- Composite types (user-defined CREATE TYPE AS (...), not table row types). ---
   const attrsByRel = new Map<number, CompositeTypeAttrInfo[]>()

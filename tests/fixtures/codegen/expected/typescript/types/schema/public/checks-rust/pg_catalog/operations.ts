@@ -20934,6 +20934,99 @@ export function onPl5c6f(point: checkruntime.PointValue, line: checkruntime.Line
     }
     return { kind: "Unknown" };
 }
+function literalTextFieldsValue(elements: checkruntime.ArrayElement[]): checkruntime.ArrayValue {
+    elements = langruntime.checkedStructs(elements, checkruntime.copyArrayElement);
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    if (elements.length > 0) {
+        langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(elements.length)) }, checkruntime.copyArrayDimension);
+    }
+    let nullBitmap: boolean = false;
+    let index: number = 0;
+    while (index < elements.length) {
+        const item: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+        if (item.kind === "Null") {
+            nullBitmap = langruntime.checkedBool(true);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return checkruntime.makeArrayValue({ elementType: "pg_catalog.text", elementKind: 8, dimensions: dimensions, elements: elements, nullBitmap: checkruntime.makeBoolValue(nullBitmap) });
+}
+export function literalTextFields(input: checkruntime.TextValue, kind: number): checkruntime.ArrayValue {
+    kind = langruntime.checkedI32(kind);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    let fields: checkruntime.ArrayElement[] = [];
+    if (kind === 0) {
+        const plan: checkruntime.RangeTextPlan = prepareRangeText(input);
+        if (plan.kind === "Error") {
+            const error: checkruntime.SqlError = plan.value;
+            return { kind: "Error", value: error };
+        }
+        if (plan.kind === "Value") {
+            const value: checkruntime.RangeTextPayload = checkruntime.copyRangeTextPayload(plan.value);
+            if (value.empty === false) {
+                if (value.lowerPresent) {
+                    langruntime.pushStruct(fields, { kind: "Text", value: value.lower }, checkruntime.copyArrayElement);
+                }
+                else {
+                    langruntime.pushStruct(fields, { kind: "Null" }, checkruntime.copyArrayElement);
+                }
+                if (value.upperPresent) {
+                    langruntime.pushStruct(fields, { kind: "Text", value: value.upper }, checkruntime.copyArrayElement);
+                }
+                else {
+                    langruntime.pushStruct(fields, { kind: "Null" }, checkruntime.copyArrayElement);
+                }
+            }
+            return literalTextFieldsValue(fields);
+        }
+    }
+    else if (kind === 1) {
+        let cursor: checkruntime.MultirangeTextPayload = prepareMultirangeText(input);
+        while (multirangeTextHasMember(cursor)) {
+            langruntime.pushStruct(fields, checkruntime.arrayElementFromText(multirangeTextMember(cursor)), checkruntime.copyArrayElement);
+            cursor = checkruntime.copyMultirangeTextPayload(multirangeTextAdvance(multirangeTextPayload(cursor.characters, cursor.position, "", true, cursor.ranges, 1, cursor.error)));
+        }
+        if (cursor.state === langruntime.checkedSignedNegate(2)) {
+            return { kind: "Error", value: cursor.error };
+        }
+        if (cursor.state === 2) {
+            return literalTextFieldsValue(fields);
+        }
+    }
+    else if (kind === 2) {
+        const plan: checkruntime.ArrayTextPlan = checkruntime.parseArrayText(input, ",", 1);
+        if (plan.kind === "Value") {
+            const value: checkruntime.ArrayTextPayload = checkruntime.copyArrayTextPayload(plan.value);
+            let index: number = 0;
+            while (index < value.events.length) {
+                const event: checkruntime.ArrayTextEvent = checkruntime.copyArrayTextEvent(langruntime.indexStruct(value.events, langruntime.checkedIndex(index), checkruntime.copyArrayTextEvent));
+                if (event.kind === "Error") {
+                    const error: checkruntime.SqlError = event.value;
+                    return { kind: "Error", value: error };
+                }
+                if (event.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                if (event.kind === "Null") {
+                    langruntime.pushStruct(fields, { kind: "Null" }, checkruntime.copyArrayElement);
+                }
+                if (event.kind === "Text") {
+                    const text: string = langruntime.checkedString(event.value);
+                    langruntime.pushStruct(fields, { kind: "Text", value: text }, checkruntime.copyArrayElement);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return literalTextFieldsValue(fields);
+        }
+    }
+    return { kind: "Unknown" };
+}
 function lsegEndpoint(input: checkruntime.LsegValue, second: boolean): checkruntime.PointValue {
     second = langruntime.checkedBool(second);
     if (input.kind === "Error") {

@@ -72,6 +72,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/multirange_binary.rs");
     include!("operations/pg_catalog/range_construct.rs");
     include!("operations/pg_catalog/range_input.rs");
+    include!("operations/pg_catalog/literal_text_fields.rs");
     include!("operations/pg_catalog/range_output.rs");
     include!("operations/pg_catalog/range_compare.rs");
     include!("operations/pg_catalog/range_set.rs");
