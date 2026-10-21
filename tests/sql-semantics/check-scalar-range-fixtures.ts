@@ -1,3 +1,5 @@
+import type { RangeInputCell } from '../../tools/check-rust/range-input.js'
+
 export const scalarRangeBackends = [
   { type: 'pg_catalog.int2', kind: 1, prefix: 'int2', values: ['-32768', '0', '32767'] },
   { type: 'pg_catalog.bool', kind: 9, prefix: 'bool', values: ['f', 't', 't'] },
@@ -79,4 +81,44 @@ export const scalarRangeText = (lower: string | null, upper: string | null, flag
   const quote = (value: string | null) =>
     value === null ? '' : '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"'
   return flags[0] + quote(lower) + ',' + quote(upper) + flags[1]
+}
+
+export function invalidScalarRangeBounds(input: RangeInputCell): RangeInputCell[] {
+  if (input.kind === 'Int2') return [{ kind: 'Int2', value: 32768 }]
+  if (input.kind === 'Bit') return [{ kind: 'Bit', value: 'not binary' }]
+  if (input.kind === 'Bytea')
+    return [
+      { kind: 'Bytea', value: '0' },
+      { kind: 'Bytea', value: 'FF' },
+    ]
+  if (input.kind === 'Time') return [{ kind: 'Time', value: -1n }]
+  if (input.kind === 'Timetz')
+    return [{ kind: 'Timetz', value: { ...input.value, time: 86400000001n } }]
+  if (input.kind === 'InternalChar') return [{ kind: 'InternalChar', value: 256 }]
+  if (input.kind === 'Oid')
+    return [
+      { kind: 'Oid', value: -1n },
+      { kind: 'Oid', value: 4294967296n },
+    ]
+  if (input.kind === 'Tid')
+    return [
+      { kind: 'Tid', value: -1n },
+      { kind: 'Tid', value: 281474976710656n },
+    ]
+  if (input.kind === 'Network')
+    return [
+      { kind: 'Network', value: { ...input.value, family: 0 } },
+      { kind: 'Network', value: { ...input.value, prefix: 129 } },
+      { kind: 'Network', value: { ...input.value, word0: 65536 } },
+      ...(input.value.family === 4
+        ? [{ kind: 'Network' as const, value: { ...input.value, word2: 1 } }]
+        : []),
+    ]
+  if (input.kind === 'Macaddr' || input.kind === 'Macaddr8')
+    return [
+      { kind: input.kind, value: { ...input.value, word0: -1 } },
+      { kind: input.kind, value: { ...input.value, word3: input.kind === 'Macaddr' ? 1 : 65536 } },
+    ]
+  if (input.kind === 'Uuid') return [{ kind: 'Uuid', value: { ...input.value, word7: 65536 } }]
+  return []
 }

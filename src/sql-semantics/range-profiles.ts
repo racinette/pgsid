@@ -15,13 +15,33 @@ export type RangeType = BuiltinRangeType | CapturedRangeType
 export type MultirangeType = BuiltinMultirangeType | CapturedMultirangeType
 
 const subtypeKinds = {
+  'pg_catalog.int2': 1,
   'pg_catalog.int4': 2,
   'pg_catalog.int8': 3,
   'pg_catalog."timestamp"': 4,
   'pg_catalog.timestamptz': 5,
   'pg_catalog.date': 7,
   'pg_catalog.text': 8,
+  'pg_catalog.bool': 9,
   'pg_catalog."numeric"': 10,
+  'pg_catalog.inet': 13,
+  'pg_catalog."bit"': 14,
+  'pg_catalog.varbit': 14,
+  'pg_catalog.bytea': 15,
+  'pg_catalog.macaddr': 16,
+  'pg_catalog.macaddr8': 17,
+  'pg_catalog.uuid': 18,
+  'pg_catalog.float4': 19,
+  'pg_catalog.float8': 20,
+  'pg_catalog."time"': 21,
+  'pg_catalog.timetz': 22,
+  'pg_catalog."interval"': 23,
+  'pg_catalog.money': 31,
+  'pg_catalog."char"': 32,
+  'pg_catalog.oid': 33,
+  'pg_catalog.xid8': 37,
+  'pg_catalog.pg_lsn': 38,
+  'pg_catalog.tid': 39,
 } as const
 export type RangeSubtype = keyof typeof subtypeKinds
 

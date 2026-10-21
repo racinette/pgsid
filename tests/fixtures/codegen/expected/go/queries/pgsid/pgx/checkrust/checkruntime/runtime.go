@@ -8520,6 +8520,78 @@ func rangePayloadWithSupport(input RangePayload, support RangeSupport) RangePayl
 	input = CopyRangePayload(input)
 	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, Support: support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
 }
+func rangeBoundWordValid(value int) bool {
+	value = langruntime.CheckedI32(value)
+	return value >= 0 && value <= 65535
+}
+func rangeBoundValueValid(input ArrayElement) bool {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementInt2 {
+		value := langruntime.CheckedI32(input.Int2)
+		return MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown})
+	}
+	if input.Kind == ArrayElementBit {
+		value := langruntime.CheckedString(input.Bit)
+		return MakeBitValue(value) != (BitValue{Kind: BitValueUnknown})
+	}
+	if input.Kind == ArrayElementBytea {
+		value := langruntime.CheckedString(input.Bytea)
+		parsed := MakeByteaValue(value)
+		if parsed.Kind == ByteaValueValue {
+			canonical := langruntime.CheckedString(parsed.Value)
+			return canonical == value
+		}
+		return false
+	}
+	if input.Kind == ArrayElementTime {
+		value := input.Time
+		return MakeTimeValue(value) != (TimeValue{Kind: TimeValueUnknown})
+	}
+	if input.Kind == ArrayElementTimetz {
+		value := input.Timetz
+		return MakeTimetzValue(value.Time, value.Zone) != (TimetzValue{Kind: TimetzValueUnknown})
+	}
+	if input.Kind == ArrayElementInternalChar {
+		value := langruntime.CheckedI32(input.InternalChar)
+		return MakeInternalCharValue(value) != (InternalCharValue{Kind: InternalCharValueUnknown})
+	}
+	if input.Kind == ArrayElementOid {
+		value := input.Oid
+		return MakeOidValue(value) != (OidValue{Kind: OidValueUnknown})
+	}
+	if input.Kind == ArrayElementTid {
+		value := input.Tid
+		return MakeTidValue(value) != (TidValue{Kind: TidValueUnknown})
+	}
+	if input.Kind == ArrayElementNetwork {
+		value := input.Network
+		if value.Family != 4 && value.Family != 6 {
+			return false
+		}
+		if value.Prefix < 0 || value.Prefix > 128 {
+			return false
+		}
+		if value.Family == 4 {
+			if value.Prefix > 32 || value.Word2 != 0 || value.Word3 != 0 || value.Word4 != 0 || value.Word5 != 0 || value.Word6 != 0 || value.Word7 != 0 {
+				return false
+			}
+		}
+		return rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2) && rangeBoundWordValid(value.Word3) && rangeBoundWordValid(value.Word4) && rangeBoundWordValid(value.Word5) && rangeBoundWordValid(value.Word6) && rangeBoundWordValid(value.Word7)
+	}
+	if input.Kind == ArrayElementMacaddr {
+		value := input.Macaddr
+		return value.Word3 == 0 && rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2)
+	}
+	if input.Kind == ArrayElementMacaddr8 {
+		value := input.Macaddr8
+		return rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2) && rangeBoundWordValid(value.Word3)
+	}
+	if input.Kind == ArrayElementUuid {
+		value := input.Uuid
+		return rangeBoundWordValid(value.Word0) && rangeBoundWordValid(value.Word1) && rangeBoundWordValid(value.Word2) && rangeBoundWordValid(value.Word3) && rangeBoundWordValid(value.Word4) && rangeBoundWordValid(value.Word5) && rangeBoundWordValid(value.Word6) && rangeBoundWordValid(value.Word7)
+	}
+	return true
+}
 func MakeCoercedRangeValue(input RangePayload) RangeValue {
 	input = CopyRangePayload(input)
 	value := input
@@ -8555,6 +8627,9 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 		}
 		kind := ArrayElementFamily(CopyArrayElement(bound))
 		if kind != 0 && kind != value.ElementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		if rangeBoundValueValid(CopyArrayElement(bound)) == false {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		if bound.Kind == ArrayElementNull {

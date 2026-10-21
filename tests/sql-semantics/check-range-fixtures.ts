@@ -67,12 +67,93 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
     const send = subtype === 'pg_catalog.timestamptz' ? 'timestamptz_send' : 'timestamp_send'
     return `(('x'||encode(${send}(${bound}),'hex'))::bit(64)::bigint)::text`
   }
+  const sends: Record<string, readonly [string, number]> = {
+    'pg_catalog.float4': ['float4send', 32],
+    'pg_catalog.float8': ['float8send', 64],
+    'pg_catalog."time"': ['time_send', 64],
+    'pg_catalog.money': ['cash_send', 64],
+    'pg_catalog.pg_lsn': ['pg_lsn_send', 64],
+    'pg_catalog.tid': ['tidsend', 48],
+  }
+  const send = sends[subtype]
+  if (send)
+    return `(('x'||encode(${send[0]}(${bound}),'hex'))::bit(${send[1]})::${send[1] === 32 ? 'int4' : 'bigint'})::text`
+  const records: Record<string, string> = {
+    'pg_catalog.timetz': 'timetz_send',
+    'pg_catalog."interval"': 'interval_send',
+    'pg_catalog."char"': 'charsend',
+    'pg_catalog.inet': 'inet_send',
+    'pg_catalog.macaddr': 'macaddr_send',
+    'pg_catalog.macaddr8': 'macaddr8_send',
+    'pg_catalog.uuid': 'uuid_send',
+  }
+  if (records[subtype]) return `encode(${records[subtype]}(${bound}),'hex')`
+  if (subtype === 'pg_catalog.bytea') return `encode(${bound},'hex')`
   return `${bound}::text`
 }
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
   if (subtype === 'pg_catalog.text') return { kind: 'Text', value }
+  if (subtype === 'pg_catalog.int2') return { kind: 'Int2', value: Number(value) }
+  if (subtype === 'pg_catalog.bool') return { kind: 'Bool', value: value === 'true' }
+  if (subtype === 'pg_catalog."bit"' || subtype === 'pg_catalog.varbit')
+    return { kind: 'Bit', value }
+  if (subtype === 'pg_catalog.bytea') return { kind: 'Bytea', value }
+  if (subtype === 'pg_catalog.float4') return { kind: 'Float4', value: Number(value) }
+  if (subtype === 'pg_catalog.float8') return { kind: 'Float8', value: BigInt(value) }
+  if (subtype === 'pg_catalog."time"') return { kind: 'Time', value: BigInt(value) }
+  if (subtype === 'pg_catalog.money') return { kind: 'Money', value: BigInt(value) }
+  if (subtype === 'pg_catalog.oid') return { kind: 'Oid', value: BigInt(value) }
+  if (subtype === 'pg_catalog.xid8')
+    return { kind: 'Xid8', value: BigInt.asIntN(64, BigInt(value)) }
+  if (subtype === 'pg_catalog.pg_lsn') return { kind: 'PgLsn', value: BigInt(value) }
+  if (subtype === 'pg_catalog.tid') return { kind: 'Tid', value: BigInt(value) }
+  if (subtype === 'pg_catalog."char"') return { kind: 'InternalChar', value: parseInt(value, 16) }
+  if (subtype === 'pg_catalog.timetz') {
+    const bytes = Buffer.from(value, 'hex')
+    return { kind: 'Timetz', value: { time: bytes.readBigInt64BE(0), zone: bytes.readInt32BE(8) } }
+  }
+  if (subtype === 'pg_catalog."interval"') {
+    const bytes = Buffer.from(value, 'hex')
+    return {
+      kind: 'Interval',
+      value: {
+        time: bytes.readBigInt64BE(0),
+        days: bytes.readInt32BE(8),
+        months: bytes.readInt32BE(12),
+      },
+    }
+  }
+  if (
+    ['pg_catalog.inet', 'pg_catalog.macaddr', 'pg_catalog.macaddr8', 'pg_catalog.uuid'].includes(
+      subtype,
+    )
+  ) {
+    const source = Buffer.from(value, 'hex'),
+      bytes = Buffer.alloc(16)
+    source.copy(bytes, 0, subtype === 'pg_catalog.inet' ? 4 : 0)
+    const words = {
+      word0: bytes.readUInt16BE(0),
+      word1: bytes.readUInt16BE(2),
+      word2: bytes.readUInt16BE(4),
+      word3: bytes.readUInt16BE(6),
+      word4: bytes.readUInt16BE(8),
+      word5: bytes.readUInt16BE(10),
+      word6: bytes.readUInt16BE(12),
+      word7: bytes.readUInt16BE(14),
+    }
+    if (subtype === 'pg_catalog.inet')
+      return {
+        kind: 'Network',
+        value: { ...words, family: source[0] === 2 ? 4 : 6, prefix: source[1]! },
+      }
+    if (subtype === 'pg_catalog.uuid') return { kind: 'Uuid', value: words }
+    return {
+      kind: subtype === 'pg_catalog.macaddr' ? 'Macaddr' : 'Macaddr8',
+      value: { word0: words.word0, word1: words.word1, word2: words.word2, word3: words.word3 },
+    }
+  }
   if (subtype === 'pg_catalog.int4') return { kind: 'Int4', value: Number(value) }
   if (subtype === 'pg_catalog.date') return { kind: 'Date', value: Number(value) }
   if (subtype === 'pg_catalog.int8') return { kind: 'Int8', value: BigInt(value) }

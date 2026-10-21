@@ -6613,3 +6613,163 @@ VALUES ('["",z]',NULL,NULL,false);
 -- name: code_import_skipped
 INSERT INTO lane_code_imports (payload, expected_window, expected_label, bypass)
 VALUES ('bad','[a,z]','wrong',true);
+
+-- name: scalar_sensors_allowed
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',0.5,'[-10,40]',20,'[0,10]',5,'[08:00,18:00]','12:00','[0 days,1 day]','12 hours',false);
+
+-- name: scalar_density_rejected
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',2,'[-10,40]',20,'[0,10]',5,'[08:00,18:00]','12:00','[0 days,1 day]','12 hours',false);
+
+-- name: scalar_temperature_rejected
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',0.5,'[-10,40]',50,'[0,10]',5,'[08:00,18:00]','12:00','[0 days,1 day]','12 hours',false);
+
+-- name: scalar_capacity_rejected
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',0.5,'[-10,40]',20,'[0,10]',11,'[08:00,18:00]','12:00','[0 days,1 day]','12 hours',false);
+
+-- name: scalar_clock_rejected
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',0.5,'[-10,40]',20,'[0,10]',5,'[08:00,18:00]','20:00','[0 days,1 day]','12 hours',false);
+
+-- name: scalar_delay_rejected
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('[0,1]',0.5,'[-10,40]',20,'[0,10]',5,'[08:00,18:00]','12:00','[0 days,1 day]','2 days',false);
+
+-- name: scalar_sensors_null
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: scalar_sensors_unbounded
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('(,)',2,'(,)',50,'(,)',11,'(,)','20:00','(,)','2 days',false);
+
+-- name: scalar_sensors_empty_null
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,false);
+
+-- name: scalar_sensors_skipped
+INSERT INTO lane_sensor_limits (density_band, density, temperature_band, temperature, capacity_band, bay_count, quiet_hours, arrival, delay_band, delay, bypass)
+VALUES('empty',2,'empty',50,'empty',11,'empty','20:00','empty','2 days',true);
+
+-- name: scalar_network_allowed
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','10.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','00:00:00:00:00:05','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','00:00:00:00:00:00:00:05','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','00000000-0000-0000-0000-000000000005','[08:00+00,18:00+00]','12:00+00',false);
+
+-- name: scalar_address_rejected
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','11.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','00:00:00:00:00:05','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','00:00:00:00:00:00:00:05','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','00000000-0000-0000-0000-000000000005','[08:00+00,18:00+00]','12:00+00',false);
+
+-- name: scalar_nic_rejected
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','10.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','ff:ff:ff:ff:ff:ff','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','00:00:00:00:00:00:00:05','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','00000000-0000-0000-0000-000000000005','[08:00+00,18:00+00]','12:00+00',false);
+
+-- name: scalar_eui_rejected
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','10.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','00:00:00:00:00:05','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','ff:ff:ff:ff:ff:ff:ff:ff','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','00000000-0000-0000-0000-000000000005','[08:00+00,18:00+00]','12:00+00',false);
+
+-- name: scalar_device_rejected
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','10.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','00:00:00:00:00:05','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','00:00:00:00:00:00:00:05','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','ffffffff-ffff-ffff-ffff-ffffffffffff','[08:00+00,18:00+00]','12:00+00',false);
+
+-- name: scalar_zoned_clock_rejected
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('[10.0.0.0,10.0.0.255]','10.0.0.5','[00:00:00:00:00:00,00:00:00:00:00:ff]','00:00:00:00:00:05','[00:00:00:00:00:00:00:00,00:00:00:00:00:00:00:ff]','00:00:00:00:00:00:00:05','[00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-0000000000ff]','00000000-0000-0000-0000-000000000005','[08:00+00,18:00+00]','20:00+00',false);
+
+-- name: scalar_network_null
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: scalar_network_unbounded
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('(,)','11.0.0.5','(,)','ff:ff:ff:ff:ff:ff','(,)','ff:ff:ff:ff:ff:ff:ff:ff','(,)','ffffffff-ffff-ffff-ffff-ffffffffffff','(,)','20:00+00',false);
+
+-- name: scalar_network_empty_null
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,false);
+
+-- name: scalar_network_skipped
+INSERT INTO lane_network_limits (address_band, address, nic_band, nic, eui_band, eui, device_band, device, zoned_hours, zoned_arrival, bypass)
+VALUES('empty','11.0.0.5','empty','ff:ff:ff:ff:ff:ff','empty','ff:ff:ff:ff:ff:ff:ff:ff','empty','ffffffff-ffff-ffff-ffff-ffffffffffff','empty','20:00+00',true);
+
+-- name: scalar_protocol_allowed
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',false,'[000,100]','010','[000,100]','010','["\\x00","\\xff"]','\x80','[A,Z]','M',false);
+
+-- name: scalar_activity_rejected
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',true,'[000,100]','010','[000,100]','010','["\\x00","\\xff"]','\x80','[A,Z]','M',false);
+
+-- name: scalar_fixed_mask_rejected
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',false,'[000,100]','111','[000,100]','010','["\\x00","\\xff"]','\x80','[A,Z]','M',false);
+
+-- name: scalar_mask_rejected
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',false,'[000,100]','010','[000,100]','111','["\\x00","\\xff"]','\x80','[A,Z]','M',false);
+
+-- name: scalar_payload_rejected
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',false,'[000,100]','010','[000,100]','010','["\\x00","\\xff"]','\xff00','[A,Z]','M',false);
+
+-- name: scalar_status_rejected
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('[f,f]',false,'[000,100]','010','[000,100]','010','["\\x00","\\xff"]','\x80','[A,Z]','a',false);
+
+-- name: scalar_protocol_null
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: scalar_protocol_unbounded
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('(,)',true,'(,)','111','(,)','111','(,)','\xff00','(,)','a',false);
+
+-- name: scalar_protocol_empty_null
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,false);
+
+-- name: scalar_protocol_skipped
+INSERT INTO lane_protocol_limits (activity_band, enabled, fixed_mask_band, fixed_mask, mask_band, mask, payload_band, payload, status_band, status, bypass)
+VALUES('empty',true,'empty','111','empty','111','empty','\xff00','empty','a',true);
+
+-- name: scalar_audit_allowed
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',50,'[2147483648,4294967295]',3000000000,'[9223372036854775808,18446744073709551615]','18446744073709551614','[80000000/0,FFFFFFFF/FFFFFFFF]','A0000000/1','["(2147483648,0)","(4294967295,65535)"]','(3000000000,1)',false);
+
+-- name: scalar_cost_rejected
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',101,'[2147483648,4294967295]',3000000000,'[9223372036854775808,18446744073709551615]','18446744073709551614','[80000000/0,FFFFFFFF/FFFFFFFF]','A0000000/1','["(2147483648,0)","(4294967295,65535)"]','(3000000000,1)',false);
+
+-- name: scalar_object_rejected
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',50,'[2147483648,4294967295]',1,'[9223372036854775808,18446744073709551615]','18446744073709551614','[80000000/0,FFFFFFFF/FFFFFFFF]','A0000000/1','["(2147483648,0)","(4294967295,65535)"]','(3000000000,1)',false);
+
+-- name: scalar_full_xid_rejected
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',50,'[2147483648,4294967295]',3000000000,'[9223372036854775808,18446744073709551615]','1','[80000000/0,FFFFFFFF/FFFFFFFF]','A0000000/1','["(2147483648,0)","(4294967295,65535)"]','(3000000000,1)',false);
+
+-- name: scalar_wal_rejected
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',50,'[2147483648,4294967295]',3000000000,'[9223372036854775808,18446744073709551615]','18446744073709551614','[80000000/0,FFFFFFFF/FFFFFFFF]','0/1','["(2147483648,0)","(4294967295,65535)"]','(3000000000,1)',false);
+
+-- name: scalar_record_rejected
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('[0,100]',50,'[2147483648,4294967295]',3000000000,'[9223372036854775808,18446744073709551615]','18446744073709551614','[80000000/0,FFFFFFFF/FFFFFFFF]','A0000000/1','["(2147483648,0)","(4294967295,65535)"]','(1,1)',false);
+
+-- name: scalar_audit_null
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: scalar_audit_unbounded
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('(,)',101,'(,)',1,'(,)','1','(,)','0/1','(,)','(1,1)',false);
+
+-- name: scalar_audit_empty_null
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,'empty',NULL,false);
+
+-- name: scalar_audit_skipped
+INSERT INTO lane_audit_limits (cost_band, cost, object_band, object_id, transaction_band, transaction_id, wal_band, log_location, record_band, record_location, bypass)
+VALUES('empty',101,'empty',1,'empty','1','empty','0/1','empty','(1,1)',true);

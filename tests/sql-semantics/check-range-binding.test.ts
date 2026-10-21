@@ -227,7 +227,7 @@ it('binds concrete range subtypes, nested domains, structural calls, CASE/COALES
         if (form.name === 'case' || form.name === 'coalesce') {
           expect(alternate?.empty).toBe(false)
           const bound = alternate!.bounds[form.name === 'case' ? 0 : 1]!
-          if (!('value' in bound) || bound.kind === 'Error')
+          if (!('value' in bound) || bound.kind === 'Error' || typeof bound.value === 'object')
             throw new Error('Expected a finite fallback bound')
           const known: Input = { kind: 'Value', value: alternate! }
           const first: Input = { kind: 'Error', value: { state: 3452582 } }

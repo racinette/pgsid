@@ -175,6 +175,8 @@ it('binds multirange constructors, range casts, variadic range arrays and lazy c
                   ? { kind: 'Null' as const }
                   : { kind: 'Value' as const, value: payload === 'true' }
                 : rangeBoundCell(f.result, payload)
+            if ('value' in cell && typeof cell.value === 'object' && cell.kind !== 'Error')
+              throw new Error('Expected a primitive multirange constructor result')
             const target: Input =
               cell.kind === 'Null'
                 ? { kind: 'Null' }

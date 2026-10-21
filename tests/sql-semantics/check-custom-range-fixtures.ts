@@ -125,6 +125,8 @@ export async function customRangeRow(
     )
   ).rows[0]!.value
   const cell = rangeBoundCell(profile.elementType, projected)
+  if ('value' in cell && typeof cell.value === 'object' && cell.kind !== 'Error')
+    throw new Error('Expected a primitive custom range fixture element')
   return {
     v: v === null ? { kind: 'Null' } : { kind: 'Value', value: v },
     w: w === null ? { kind: 'Null' } : { kind: 'Value', value: w },

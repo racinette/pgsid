@@ -8644,6 +8644,78 @@ function rangePayloadWithSupport(input: RangePayload, support: RangeSupport): Ra
     input = copyRangePayload(input);
     return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, support: support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
 }
+function rangeBoundWordValid(value: number): boolean {
+    value = langruntime.checkedI32(value);
+    return value >= 0 && value <= 65535;
+}
+function rangeBoundValueValid(input: ArrayElement): boolean {
+    input = copyArrayElement(input);
+    if (input.kind === "Int2") {
+        const value: number = langruntime.checkedI32(input.value);
+        return !(equalInt2Value(makeInt2Value(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Bit") {
+        const value: string = langruntime.checkedString(input.value);
+        return !(equalBitValue(makeBitValue(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Bytea") {
+        const value: string = langruntime.checkedString(input.value);
+        const parsed: ByteaValue = makeByteaValue(value);
+        if (parsed.kind === "Value") {
+            const canonical: string = langruntime.checkedString(parsed.value);
+            return canonical === value;
+        }
+        return false;
+    }
+    if (input.kind === "Time") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return !(equalTimeValue(makeTimeValue(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Timetz") {
+        const value: TimetzPayload = input.value;
+        return !(equalTimetzValue(makeTimetzValue(value.time, value.zone), { kind: "Unknown" }));
+    }
+    if (input.kind === "InternalChar") {
+        const value: number = langruntime.checkedI32(input.value);
+        return !(equalInternalCharValue(makeInternalCharValue(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Oid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return !(equalOidValue(makeOidValue(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Tid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return !(equalTidValue(makeTidValue(value), { kind: "Unknown" }));
+    }
+    if (input.kind === "Network") {
+        const value: NetworkAddress = input.value;
+        if (!(value.family === 4) && !(value.family === 6)) {
+            return false;
+        }
+        if (value.prefix < 0 || value.prefix > 128) {
+            return false;
+        }
+        if (value.family === 4) {
+            if (value.prefix > 32 || !(value.word2 === 0) || !(value.word3 === 0) || !(value.word4 === 0) || !(value.word5 === 0) || !(value.word6 === 0) || !(value.word7 === 0)) {
+                return false;
+            }
+        }
+        return rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2) && rangeBoundWordValid(value.word3) && rangeBoundWordValid(value.word4) && rangeBoundWordValid(value.word5) && rangeBoundWordValid(value.word6) && rangeBoundWordValid(value.word7);
+    }
+    if (input.kind === "Macaddr") {
+        const value: MacAddress = input.value;
+        return value.word3 === 0 && rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2);
+    }
+    if (input.kind === "Macaddr8") {
+        const value: MacAddress = input.value;
+        return rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2) && rangeBoundWordValid(value.word3);
+    }
+    if (input.kind === "Uuid") {
+        const value: Uuid = input.value;
+        return rangeBoundWordValid(value.word0) && rangeBoundWordValid(value.word1) && rangeBoundWordValid(value.word2) && rangeBoundWordValid(value.word3) && rangeBoundWordValid(value.word4) && rangeBoundWordValid(value.word5) && rangeBoundWordValid(value.word6) && rangeBoundWordValid(value.word7);
+    }
+    return true;
+}
 export function makeCoercedRangeValue(input: RangePayload): RangeValue {
     input = copyRangePayload(input);
     const value: RangePayload = input;
@@ -8679,6 +8751,9 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
         }
         const kind: number = arrayElementFamily(copyArrayElement(bound));
         if (!(kind === 0) && !(kind === value.elementKind)) {
+            return { kind: "Unknown" };
+        }
+        if (rangeBoundValueValid(copyArrayElement(bound)) === false) {
             return { kind: "Unknown" };
         }
         if (bound.kind === "Null") {
