@@ -136,7 +136,9 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
             value !== 'empty' &&
             value !== '(,)' &&
             !['bad', '[a,b,c]'].includes(value) &&
-            [15, 23, 31].includes(profile.kind),
+            ([15, 23, 31].includes(profile.kind) ||
+              (profile.type.startsWith('pg_catalog.reg') &&
+                (value.includes(b) || value.includes(c)))),
         )
       }
       if (![21, 22, 31, 39].includes(profile.kind))
@@ -145,6 +147,9 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
           `$1::${span}`,
           [scalarRangeText('bad', b)],
           input(scalarRangeText('bad', b), index),
+          false,
+          profile.type.startsWith('pg_catalog.reg') &&
+            !['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(profile.type),
         )
       if (profile.kind === 21 || profile.kind === 22) {
         const invalid = scalarRangeText('25:00:00+00', b)
@@ -352,9 +357,19 @@ fn scalar_range_states(profile:i32,kind:i32,text:&str)->BoolValue {
  let retained=array_element_to_range(array_flat_element(array,make_int4_value(0)));
  BoolValue::Value(scalar_range_wire(retained,profile)==wire)
 }
+${Array.from(
+  { length: Math.ceil(cases.length / 256) },
+  (_, part) => `fn scalar_range_value_group_${part}(selected:i32)->BoolValue {
+${cases
+  .slice(part * 256, (part + 1) * 256)
+  .map((item, index) => `if selected==${part * 256 + index}{return ${item.rust};};`)
+  .join('\n')}
+BoolValue::Unknown
+}`,
+).join('\n')}
 pub fn scalar_range_values_probe(mode:Int4Value)->BoolValue {
  if let Int4Value::Value(selected)=mode {
-${cases.map((item, index) => `if selected==${index}{return ${item.rust};};`).join('\n')}
+${Array.from({ length: Math.ceil(cases.length / 256) }, (_, part) => `if selected<${(part + 1) * 256}{return scalar_range_value_group_${part}(selected);};`).join('\n')}
  };BoolValue::Unknown
 }`,
       })

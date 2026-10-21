@@ -86,6 +86,7 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
         || (kind == 13 && range_support_is_cidr(input))
+        || (kind == 33 && range_oid_alias_mode(input, "") > 0)
         || (kind == 8 && (input.comparison == 108 || input.comparison == 200 || input.comparison == 208))
         || (input.comparison == kind
             && (kind == 2
@@ -122,6 +123,20 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
 
 pub fn range_support_is_cidr(input: RangeSupport) -> bool {
     input.comparison == 100 || input.comparison == 113
+}
+
+pub fn range_oid_alias_mode(input: RangeSupport, element_type: &str) -> i32 {
+    if input.comparison >= 331 && input.comparison <= 335 { return input.comparison - 330; };
+    if input.comparison >= 301 && input.comparison <= 305 { return input.comparison - 300; };
+    if element_type == "pg_catalog.regoper" { return 2; };
+    if element_type == "pg_catalog.regoperator" { return 4; };
+    if element_type == "pg_catalog.regprocedure" { return 3; };
+    if element_type == "pg_catalog.regtype" { return 5; };
+    if element_type == "pg_catalog.regclass" || element_type == "pg_catalog.regcollation"
+        || element_type == "pg_catalog.regconfig" || element_type == "pg_catalog.regdictionary"
+        || element_type == "pg_catalog.regnamespace" || element_type == "pg_catalog.regproc"
+        || element_type == "pg_catalog.regrole" { return 1; };
+    0
 }
 
 #[derive(Clone)]

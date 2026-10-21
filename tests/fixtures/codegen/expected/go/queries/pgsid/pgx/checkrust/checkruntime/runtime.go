@@ -8471,12 +8471,37 @@ func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
 }
 func RangeSupportValid(input RangeSupport, kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	comparison := input.Comparison == 0 || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
+	comparison := input.Comparison == 0 || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
 	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
 	return comparison && canonical
 }
 func RangeSupportIsCidr(input RangeSupport) bool {
 	return input.Comparison == 100 || input.Comparison == 113
+}
+func RangeOidAliasMode(input RangeSupport, elementType string) int {
+	elementType = langruntime.CheckedString(elementType)
+	if input.Comparison >= 331 && input.Comparison <= 335 {
+		return langruntime.CheckedSignedSubtract(input.Comparison, 330)
+	}
+	if input.Comparison >= 301 && input.Comparison <= 305 {
+		return langruntime.CheckedSignedSubtract(input.Comparison, 300)
+	}
+	if elementType == "pg_catalog.regoper" {
+		return 2
+	}
+	if elementType == "pg_catalog.regoperator" {
+		return 4
+	}
+	if elementType == "pg_catalog.regprocedure" {
+		return 3
+	}
+	if elementType == "pg_catalog.regtype" {
+		return 5
+	}
+	if elementType == "pg_catalog.regclass" || elementType == "pg_catalog.regcollation" || elementType == "pg_catalog.regconfig" || elementType == "pg_catalog.regdictionary" || elementType == "pg_catalog.regnamespace" || elementType == "pg_catalog.regproc" || elementType == "pg_catalog.regrole" {
+		return 1
+	}
+	return 0
 }
 
 type RangePayload struct {

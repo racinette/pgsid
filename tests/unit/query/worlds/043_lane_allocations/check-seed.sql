@@ -7433,3 +7433,103 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: label_window_skipped
 INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
 VALUES('[a,"a "]','[a,"a "]','[a,"a "]','!different!','[a,"a "]','[a,"a "]',-2092141517,0,454226846,'060000000161000000026120','060000000161000000026120','!different!',true);
+
+-- name: catalog_window_request_numeric
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('[2147483648,4294967295]',0,false);
+
+-- name: catalog_window_request_omitted
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('(,)',0,false);
+
+-- name: catalog_window_request_empty
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('empty',0,false);
+
+-- name: catalog_window_request_rejected
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('[2147483648,4294967295]',1000,false);
+
+-- name: catalog_window_request_domain_error
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('[0,0]',0,false);
+
+-- name: catalog_window_request_syntax_error
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('bad',0,false);
+
+-- name: catalog_window_request_null
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES(NULL,0,false);
+
+-- name: catalog_window_request_skipped
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('[pg_class,pg_class]',1000,true);
+
+-- name: catalog_window_request_requires_catalog
+INSERT INTO lane_catalog_window_requests (payload, minimum_bytes, bypass)
+VALUES('[pg_class,pg_class]',0,false);
+
+-- name: catalog_windows_unsigned
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',533697477,'06000000048000000000000004ffffffff',false);
+
+-- name: catalog_windows_zero
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]','[0,0]',1941611536,'0600000004000000000000000400000000',false);
+
+-- name: catalog_windows_empty
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','empty',484847245,'01',false);
+
+-- name: catalog_windows_unbounded
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)',1061745599,'18',false);
+
+-- name: catalog_windows_wrong_fingerprint
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',0,'06000000048000000000000004ffffffff',false);
+
+-- name: catalog_windows_wrong_wire
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',533697477,'!different!',false);
+
+-- name: catalog_windows_null
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: catalog_windows_skipped
+INSERT INTO lane_catalog_windows (regclass_window, regcollation_window, regconfig_window, regdictionary_window, regnamespace_window, regoper_window, regoperator_window, regproc_window, regprocedure_window, regrole_window, regtype_window, fingerprint, wire, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',0,'!different!',true);
+
+-- name: catalog_window_labels_zero
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('[0,0]','[0,0]','[-,-]','[0,0]',false);
+
+-- name: catalog_window_labels_empty
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('empty','empty','empty','empty',false);
+
+-- name: catalog_window_labels_unbounded
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('(,)','(,)','(,)','(,)',false);
+
+-- name: catalog_window_labels_wrong_relation
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('[0,0]','[0,0]','!different!','[0,0]',false);
+
+-- name: catalog_window_labels_wrong_operator
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('[0,0]','[0,0]','[-,-]','!different!',false);
+
+-- name: catalog_window_labels_null
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES(NULL,NULL,NULL,NULL,false);
+
+-- name: catalog_window_labels_skipped
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','!different!','!different!',true);
+
+-- name: catalog_window_labels_requires_catalog
+INSERT INTO lane_catalog_window_labels (relation_window, operator_window, relation_label, operator_label, bypass)
+VALUES('[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]','[2147483648,4294967295]',false);

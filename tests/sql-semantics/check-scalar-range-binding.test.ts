@@ -18,6 +18,9 @@ import {
 import { customRangeProfiles } from './check-custom-range-fixtures.js'
 import {
   scalarRangeBackends,
+  scalarRangeBatchStarts,
+  scalarRangeBatch,
+  rangeHasNonzeroOid,
   scalarRangeText,
   invalidScalarRangeBounds,
 } from './check-scalar-range-fixtures.js'
@@ -30,14 +33,14 @@ const cell = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 
-it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i) => i * 5))(
+it.each(scalarRangeBatchStarts)(
   'binds represented scalar range row values, constructors, domains and arrays in source/stored CHECKs, batch %s',
   async (start) => {
     const pg = await PGlite.create(),
       directory = await mkdtemp(join(tmpdir(), 'pgsid-scalar-range-binding-'))
     try {
       await pg.exec('CREATE SCHEMA "Scalar.Range"')
-      const backends = scalarRangeBackends.slice(start, start + 5)
+      const backends = scalarRangeBatch(start)
       for (const backend of backends) {
         const index = scalarRangeBackends.indexOf(backend)
         await pg.exec(
@@ -208,9 +211,12 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
                 inserts++
                 const reached =
                   value !== null &&
-                  [15, 23, 31].includes(family.backend.kind) &&
+                  ([15, 23, 31].includes(family.backend.kind) ||
+                    family.backend.type.startsWith('pg_catalog.reg')) &&
                   (form.name === 'json'
-                    ? sample[0] !== 'empty' && sample[0] !== '(,)'
+                    ? family.backend.type.startsWith('pg_catalog.reg')
+                      ? rangeHasNonzeroOid(v)
+                      : sample[0] !== 'empty' && sample[0] !== '(,)'
                     : form.name === 'nested' &&
                       sample.some(
                         (value) => value !== null && value !== 'empty' && value !== '(,)',

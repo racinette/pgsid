@@ -32651,7 +32651,7 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToInternalChar(upper)
 		return BtcharcmpGfia(left, right)
 	}
-	if kind == 33 {
+	if kind == 33 || (kind >= 331 && kind <= 335) {
 		left := checkruntime.ArrayElementToOid(lower)
 		right := checkruntime.ArrayElementToOid(upper)
 		return Btoidcmp48b8(left, right)
@@ -33084,8 +33084,9 @@ func rangeInputSpace(ch rune) bool {
 	ch = langruntime.CheckedChar(ch)
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
-func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name bool) checkruntime.ArrayElement {
+func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name bool, aliasMode int) checkruntime.ArrayElement {
 	kind = langruntime.CheckedI32(kind)
+	aliasMode = langruntime.CheckedI32(aliasMode)
 	if kind == 8 {
 		if name {
 			return checkruntime.ArrayElementFromText(NameFromText(input))
@@ -33153,6 +33154,17 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 		return checkruntime.ArrayElementFromInternalChar(InternalCharFromText(input))
 	}
 	if kind == 33 {
+		if aliasMode > 0 {
+			dash := aliasMode != 2 && aliasMode != 4
+			grammar := 0
+			if aliasMode == 3 || aliasMode == 4 {
+				grammar = langruntime.CheckedI32(1)
+			}
+			if aliasMode == 5 {
+				grammar = langruntime.CheckedI32(2)
+			}
+			return checkruntime.ArrayElementFromOid(OidAliasFromText(input, dash, grammar))
+		}
 		return checkruntime.ArrayElementFromOid(OidFromText(input))
 	}
 	if kind == 37 {
@@ -33420,7 +33432,8 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 	lowerText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), false)
 	cidr := checkruntime.RangeSupportIsCidr(support) || elementType == "pg_catalog.cidr"
 	name := support.Comparison == 200 || support.Comparison == 208 || elementType == "pg_catalog.name"
-	lower := rangeInputBound(lowerText, kind, cidr, name)
+	aliasMode := checkruntime.RangeOidAliasMode(support, elementType)
+	lower := rangeInputBound(lowerText, kind, cidr, name, aliasMode)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33429,7 +33442,7 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	upperText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), true)
-	upper := rangeInputBound(upperText, kind, cidr, name)
+	upper := rangeInputBound(upperText, kind, cidr, name, aliasMode)
 	if upper.Kind == checkruntime.ArrayElementError {
 		error := upper.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33576,9 +33589,10 @@ func RangeFormatText(input checkruntime.RangeValue, lower checkruntime.TextValue
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
-func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool) checkruntime.TextValue {
+func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, aliasMode int) checkruntime.TextValue {
 	input = checkruntime.CopyArrayElement(input)
 	kind = langruntime.CheckedI32(kind)
+	aliasMode = langruntime.CheckedI32(aliasMode)
 	if input.Kind == checkruntime.ArrayElementError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33635,6 +33649,10 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool) chec
 		return TextJ1jh(checkruntime.ArrayElementToInternalChar(input))
 	}
 	if kind == 33 {
+		if aliasMode > 0 {
+			dash := aliasMode != 2 && aliasMode != 4
+			return OidAliasToText(checkruntime.ArrayElementToOid(input), dash)
+		}
 		return OidToText(checkruntime.ArrayElementToOid(input))
 	}
 	if kind == 37 {
@@ -33696,7 +33714,8 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 			return checkruntime.MakeTextValue("empty")
 		}
 		cidr := checkruntime.RangeSupportIsCidr(value.Support) || value.ElementType == "pg_catalog.cidr"
-		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr)
+		aliasMode := checkruntime.RangeOidAliasMode(value.Support, value.ElementType)
+		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind, cidr, aliasMode)
 		if lower.Kind == checkruntime.TextValueError {
 			error := lower.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -33704,7 +33723,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		if lower.Kind == checkruntime.TextValueUnknown {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
-		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr)
+		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode)
 		if upper.Kind == checkruntime.TextValueError {
 			error := upper.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}

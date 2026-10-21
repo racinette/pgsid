@@ -170,7 +170,19 @@ const arraySortContextCases = new Map<string, string>([
     'world_043_lane_allocations.lane_sorted_precision.sorted_precision_text',
   ],
 ])
-const jsonValueContextCases = new Map<string, string>([
+const declaredValueContextCases = new Map<string, string>([
+  [
+    '043_lane_allocations/catalog_window_labels_requires_catalog/relation_window_label',
+    'world_043_lane_allocations.lane_catalog_window_labels.relation_window_label',
+  ],
+  [
+    '043_lane_allocations/catalog_window_labels_requires_catalog/operator_window_label',
+    'world_043_lane_allocations.lane_catalog_window_labels.operator_window_label',
+  ],
+  [
+    '043_lane_allocations/catalog_window_request_requires_catalog/request_wire',
+    'world_043_lane_allocations.lane_catalog_window_requests.request_wire',
+  ],
   [
     '043_lane_allocations/hash_slots_nan/readings_hash',
     'world_043_lane_allocations.lane_hashes.readings_hash',
@@ -1522,7 +1534,7 @@ describe('world CHECK INSERT parity', () => {
           check.result.certain ||
             catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`) ||
             binaryContextCases.has(`${item.name}/${check.constraint}`) ||
-            jsonValueContextCases.has(`${item.name}/${check.constraint}`),
+            declaredValueContextCases.has(`${item.name}/${check.constraint}`),
           `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
         ).toBe(true)
     const row = inputs.get(item.name)!
@@ -1688,7 +1700,7 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
-    for (const [identity, constraint] of [...jsonValueContextCases, ...catalogBinaryCases]) {
+    for (const [identity, constraint] of [...declaredValueContextCases, ...catalogBinaryCases]) {
       const slash = identity.lastIndexOf('/')
       const item = caseResults.find((row) => row.name === identity.slice(0, slash))
       if (selectedWorldNames && !worlds.some((world) => identity.startsWith(world.name + '/')))
@@ -3154,7 +3166,7 @@ describe('world CHECK INSERT parity', () => {
         if (catalogDependentChecks.has(measured.constraint)) continue
         expect(measured.unknown, measured.constraint).toBe(
           binaryDeferrals(measured.constraint) +
-            [...jsonValueContextCases.values()].filter((name) => name === measured.constraint)
+            [...declaredValueContextCases.values()].filter((name) => name === measured.constraint)
               .length,
         )
       }

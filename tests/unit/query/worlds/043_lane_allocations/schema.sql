@@ -2820,3 +2820,73 @@ CREATE TABLE lane_fixed_route_requests (
   bypass boolean,
   CONSTRAINT fixed_route_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_fixed_route_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
 );
+
+CREATE TYPE lane_regclass_window AS RANGE(subtype=regclass);
+CREATE TYPE lane_regcollation_window AS RANGE(subtype=regcollation);
+CREATE TYPE lane_regconfig_window AS RANGE(subtype=regconfig);
+CREATE TYPE lane_regdictionary_window AS RANGE(subtype=regdictionary);
+CREATE TYPE lane_regnamespace_window AS RANGE(subtype=regnamespace);
+CREATE TYPE lane_regoper_window AS RANGE(subtype=regoper);
+CREATE TYPE lane_regoperator_window AS RANGE(subtype=regoperator);
+CREATE TYPE lane_regproc_window AS RANGE(subtype=regproc);
+CREATE TYPE lane_regprocedure_window AS RANGE(subtype=regprocedure);
+CREATE TYPE lane_regrole_window AS RANGE(subtype=regrole);
+CREATE TYPE lane_regtype_window AS RANGE(subtype=regtype);
+
+CREATE TABLE lane_catalog_windows (
+  regclass_window lane_regclass_window,
+  regcollation_window lane_regcollation_window,
+  regconfig_window lane_regconfig_window,
+  regdictionary_window lane_regdictionary_window,
+  regnamespace_window lane_regnamespace_window,
+  regoper_window lane_regoper_window,
+  regoperator_window lane_regoperator_window,
+  regproc_window lane_regproc_window,
+  regprocedure_window lane_regprocedure_window,
+  regrole_window lane_regrole_window,
+  regtype_window lane_regtype_window,
+  fingerprint integer,
+  wire text,
+  bypass boolean,
+  CONSTRAINT regclass_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regclass_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regclass_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regclass_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regcollation_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regcollation_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regcollation_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regcollation_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regconfig_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regconfig_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regconfig_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regconfig_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regdictionary_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regdictionary_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regdictionary_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regdictionary_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regnamespace_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regnamespace_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regnamespace_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regnamespace_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regoper_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regoper_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regoper_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regoper_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regoperator_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regoperator_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regoperator_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regoperator_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regproc_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regproc_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regproc_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regproc_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regprocedure_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regprocedure_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regprocedure_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regprocedure_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regrole_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regrole_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regrole_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regrole_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END),
+  CONSTRAINT regtype_fingerprint CHECK(CASE WHEN bypass THEN true ELSE hash_range(regtype_window) IS NOT DISTINCT FROM fingerprint END),
+  CONSTRAINT regtype_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(regtype_window),'hex') COLLATE "C" IS NOT DISTINCT FROM wire COLLATE "C" END)
+);
+
+CREATE TABLE lane_catalog_window_labels (
+  relation_window lane_regclass_window,
+  operator_window lane_regoperator_window,
+  relation_label text,
+  operator_label text,
+  bypass boolean,
+  CONSTRAINT relation_window_label CHECK(CASE WHEN bypass THEN true ELSE relation_window::text COLLATE "C"=relation_label COLLATE "C" END),
+  CONSTRAINT operator_window_label CHECK(CASE WHEN bypass THEN true ELSE operator_window::text COLLATE "C"=operator_label COLLATE "C" END)
+);
+
+CREATE DOMAIN lane_nonzero_relation_identifier AS regclass NOT NULL CHECK(VALUE::oid<>0);
+CREATE TYPE lane_checked_relation_window AS RANGE(subtype=lane_nonzero_relation_identifier);
+CREATE TABLE lane_catalog_window_requests (
+  payload text,
+  minimum_bytes integer,
+  bypass boolean,
+  CONSTRAINT request_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_checked_relation_window))>=minimum_bytes END)
+);

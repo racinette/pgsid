@@ -43,6 +43,17 @@ const subtypeKinds = {
   'pg_catalog.money': 31,
   'pg_catalog."char"': 32,
   'pg_catalog.oid': 33,
+  'pg_catalog.regclass': 33,
+  'pg_catalog.regcollation': 33,
+  'pg_catalog.regconfig': 33,
+  'pg_catalog.regdictionary': 33,
+  'pg_catalog.regnamespace': 33,
+  'pg_catalog.regoper': 33,
+  'pg_catalog.regoperator': 33,
+  'pg_catalog.regproc': 33,
+  'pg_catalog.regprocedure': 33,
+  'pg_catalog.regrole': 33,
+  'pg_catalog.regtype': 33,
   'pg_catalog.xid8': 37,
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
@@ -275,9 +286,22 @@ export function rangeProfileSupport(
       : !profile.captured && (kind === 2 || kind === 3 || kind === 7)
         ? kind
         : 0
+  const aliasMode =
+    profile.elementType === 'pg_catalog.regoper'
+      ? 2
+      : profile.elementType === 'pg_catalog.regoperator'
+        ? 4
+        : profile.elementType === 'pg_catalog.regprocedure'
+          ? 3
+          : profile.elementType === 'pg_catalog.regtype'
+            ? 5
+            : profile.elementType.startsWith('pg_catalog.reg')
+              ? 1
+              : 0
   return {
-    comparison:
-      profile.elementType === 'pg_catalog.cidr'
+    comparison: aliasMode
+      ? (comparison === 33 ? 330 : 300) + aliasMode
+      : profile.elementType === 'pg_catalog.cidr'
         ? comparison === 13
           ? 113
           : 100
