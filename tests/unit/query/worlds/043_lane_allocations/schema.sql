@@ -2509,3 +2509,79 @@ CREATE TABLE lane_budget_quotes (
   CONSTRAINT quoted_cost_band CHECK(CASE WHEN bypass THEN true ELSE quoted_cost IS NULL OR quoted_cost <@ '[1234.56,2000.01]'::lane_cost_window END),
   CONSTRAINT quoted_credit_limit CHECK(CASE WHEN bypass THEN true ELSE credit_limit IS NULL OR credit_limit <= upper((('{"{\"[1234.56,2000.01]\",NULL}",NULL}'::lane_cost_history[])[1])[1]) END)
 );
+
+CREATE TABLE lane_sensor_imports (
+  density_text text,
+  density_window lane_load_window,
+  temperature_text text,
+  temperature_window lane_tolerance_window,
+  capacity_text text,
+  capacity_window lane_capacity_window,
+  clock_text text,
+  clock_window lane_clock_window,
+  delay_text text,
+  delay_window lane_delay_window,
+  bypass boolean,
+  CONSTRAINT imported_density CHECK(CASE WHEN bypass THEN true ELSE density_text::lane_load_window IS NOT DISTINCT FROM density_window END),
+  CONSTRAINT imported_temperature CHECK(CASE WHEN bypass THEN true ELSE temperature_text::lane_tolerance_window IS NOT DISTINCT FROM temperature_window END),
+  CONSTRAINT imported_capacity CHECK(CASE WHEN bypass THEN true ELSE capacity_text::lane_capacity_window IS NOT DISTINCT FROM capacity_window END),
+  CONSTRAINT imported_clock CHECK(CASE WHEN bypass THEN true ELSE clock_text::lane_clock_window IS NOT DISTINCT FROM clock_window END),
+  CONSTRAINT imported_delay CHECK(CASE WHEN bypass THEN true ELSE delay_text::lane_delay_window IS NOT DISTINCT FROM delay_window END)
+);
+
+CREATE TABLE lane_network_imports (
+  address_text text,
+  address_window lane_address_window,
+  nic_text text,
+  nic_window lane_nic_window,
+  eui_text text,
+  eui_window lane_eui_window,
+  device_text text,
+  device_window lane_device_window,
+  zoned_clock_text text,
+  zoned_clock_window lane_zoned_clock_window,
+  bypass boolean,
+  CONSTRAINT imported_address CHECK(CASE WHEN bypass THEN true ELSE address_text::lane_address_window IS NOT DISTINCT FROM address_window END),
+  CONSTRAINT imported_nic CHECK(CASE WHEN bypass THEN true ELSE nic_text::lane_nic_window IS NOT DISTINCT FROM nic_window END),
+  CONSTRAINT imported_eui CHECK(CASE WHEN bypass THEN true ELSE eui_text::lane_eui_window IS NOT DISTINCT FROM eui_window END),
+  CONSTRAINT imported_device CHECK(CASE WHEN bypass THEN true ELSE device_text::lane_device_window IS NOT DISTINCT FROM device_window END),
+  CONSTRAINT imported_zoned_clock CHECK(CASE WHEN bypass THEN true ELSE zoned_clock_text::lane_zoned_clock_window IS NOT DISTINCT FROM zoned_clock_window END)
+);
+
+CREATE TABLE lane_protocol_imports (
+  activity_text text,
+  activity_window lane_activity_window,
+  fixed_mask_text text,
+  fixed_mask_window lane_mask_window,
+  variable_mask_text text,
+  variable_mask_window lane_variable_mask_window,
+  payload_text text,
+  payload_window lane_payload_window,
+  status_text text,
+  status_window lane_status_window,
+  bypass boolean,
+  CONSTRAINT imported_activity CHECK(CASE WHEN bypass THEN true ELSE activity_text::lane_activity_window IS NOT DISTINCT FROM activity_window END),
+  CONSTRAINT imported_fixed_mask CHECK(CASE WHEN bypass THEN true ELSE fixed_mask_text::lane_mask_window IS NOT DISTINCT FROM fixed_mask_window END),
+  CONSTRAINT imported_variable_mask CHECK(CASE WHEN bypass THEN true ELSE variable_mask_text::lane_variable_mask_window IS NOT DISTINCT FROM variable_mask_window END),
+  CONSTRAINT imported_payload CHECK(CASE WHEN bypass THEN true ELSE payload_text::lane_payload_window IS NOT DISTINCT FROM payload_window END),
+  CONSTRAINT imported_status CHECK(CASE WHEN bypass THEN true ELSE status_text::lane_status_window IS NOT DISTINCT FROM status_window END)
+);
+
+CREATE TABLE lane_audit_imports (
+  cost_text text,
+  cost_window lane_cost_window,
+  object_text text,
+  object_window lane_object_id_window,
+  transaction_text text,
+  transaction_window lane_full_xid_window,
+  log_text text,
+  log_window lane_log_window,
+  record_text text,
+  record_window lane_record_window,
+  bypass boolean,
+  CONSTRAINT imported_cost CHECK(CASE WHEN bypass THEN true ELSE cost_text::lane_cost_window IS NOT DISTINCT FROM cost_window END),
+  CONSTRAINT imported_object CHECK(CASE WHEN bypass THEN true ELSE object_text::lane_object_id_window IS NOT DISTINCT FROM object_window END),
+  CONSTRAINT imported_transaction CHECK(CASE WHEN bypass THEN true ELSE transaction_text::lane_full_xid_window IS NOT DISTINCT FROM transaction_window END),
+  CONSTRAINT imported_log CHECK(CASE WHEN bypass THEN true ELSE log_text::lane_log_window IS NOT DISTINCT FROM log_window END),
+  CONSTRAINT imported_record CHECK(CASE WHEN bypass THEN true ELSE record_text::lane_record_window IS NOT DISTINCT FROM record_window END)
+);
