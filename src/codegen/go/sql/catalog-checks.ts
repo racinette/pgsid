@@ -456,6 +456,7 @@ export function renderGoSchemaCheckArtifacts(
           ) {
             if (item.rustType === 'MultirangeValue') rustInputAdapters.add('checkRustRange')
             rustInputAdapters.add('checkRustArray')
+            rustInputAdapters.add('checkRustArrayProfileWord')
             rustInputAdapters.add('checkRustArrayTree')
             rustInputAdapters.add('checkRustArrayElement')
           }
@@ -764,6 +765,11 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
 }
 
 const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,tree...)) }
+func checkRustArrayProfileWord(input string) int {
+  word,width:=utf8.DecodeRuneInString(input)
+  if width==0 || width!=len(input) || (word==utf8.RuneError && width==1) { return -1 }
+  return int(word)
+}
 func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int,tree ...string) checkruntime.ArrayValue {
   if !field.Set { return checkruntime.ArrayUnknown() }
   if field.Null { return checkruntime.ArrayNull() }
@@ -774,10 +780,10 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   depth:=0
   if len(tree)>=2 { depth=len(tree[1])-1 }
   if !checkRustArrayTree(input,depth,tree...) { return checkruntime.ArrayUnknown() }
-  if len(tree)==9 { count,err:=strconv.Atoi(tree[8]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedRangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],int(tree[4][0]),int(tree[5][0]),int(tree[6][0]),tree[7],count) }
-  if len(tree)==10 { count,err:=strconv.Atoi(tree[9]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedMultirangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],int(tree[5][0]),int(tree[6][0]),int(tree[7][0]),tree[8],count) }
-  if len(tree)==7 && len(tree[4])==1 && len(tree[5])==1 && len(tree[6])==1 { return checkruntime.ArrayFromCoercedRangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],int(tree[4][0]),int(tree[5][0]),int(tree[6][0])) }
-  if len(tree)==8 && len(tree[5])==1 && len(tree[6])==1 && len(tree[7])==1 { return checkruntime.ArrayFromCoercedMultirangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],int(tree[5][0]),int(tree[6][0]),int(tree[7][0])) }
+  if len(tree)==9 { count,err:=strconv.Atoi(tree[8]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedRangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),tree[7],count) }
+  if len(tree)==10 { count,err:=strconv.Atoi(tree[9]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedMultirangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),tree[8],count) }
+  if len(tree)==7 && checkRustArrayProfileWord(tree[4])>=0 && checkRustArrayProfileWord(tree[5])>=0 && checkRustArrayProfileWord(tree[6])>=0 { return checkruntime.ArrayFromCoercedRangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6])) }
+  if len(tree)==8 && checkRustArrayProfileWord(tree[5])>=0 && checkRustArrayProfileWord(tree[6])>=0 && checkRustArrayProfileWord(tree[7])>=0 { return checkruntime.ArrayFromCoercedMultirangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7])) }
   if len(tree)>=2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
   return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
 }
@@ -796,9 +802,9 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,tree...)
   }
   if input.Kind==checkruntime.ArrayElementMultirange {
-    if family!=43 || (len(tree)!=6 && len(tree)!=8 && len(tree)!=10) || len(tree[5])!=1 { return false }
+    if family!=43 || (len(tree)!=6 && len(tree)!=8 && len(tree)!=10) || checkRustArrayProfileWord(tree[5])<0 { return false }
     p:=input.Multirange
-    if p.TypeName!=tree[2] || p.RangeType!=tree[3] || p.ElementType!=tree[4] || p.ElementKind!=int(tree[5][0]) || len(p.Ranges)>2147483647 { return false }
+    if p.TypeName!=tree[2] || p.RangeType!=tree[3] || p.ElementType!=tree[4] || p.ElementKind!=checkRustArrayProfileWord(tree[5]) || len(p.Ranges)>2147483647 { return false }
     for _,span:=range p.Ranges {
       if span.Kind==checkruntime.RangeValueUnknown || span.Kind==checkruntime.RangeValueNull || span.Kind==checkruntime.RangeValueError { continue }
       if span.Kind!=checkruntime.RangeValueValue || !checkRustArrayElement(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:span.Value},42,0,tree[0],tree[1],tree[3],tree[4],tree[5]) { return false }
@@ -806,9 +812,9 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     return true
   }
   if input.Kind==checkruntime.ArrayElementRange {
-    if family!=42 || (len(tree)!=5 && len(tree)!=7 && len(tree)!=9) || len(tree[4])!=1 { return false }
+    if family!=42 || (len(tree)!=5 && len(tree)!=7 && len(tree)!=9) || checkRustArrayProfileWord(tree[4])<0 { return false }
     p:=input.Range
-    if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=int(tree[4][0]) || len(p.Bounds)>2 { return false }
+    if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=checkRustArrayProfileWord(tree[4]) || len(p.Bounds)>2 { return false }
     for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,0) { return false } }
     return true
   }
