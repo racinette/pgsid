@@ -22,6 +22,13 @@ import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
   | { kind: 'composite-field'; type: ScalarType; operand: EvalExpression; index: number }
+  | { kind: 'composite-null'; type: ScalarType }
+  | {
+      kind: 'composite-constructor'
+      type: ScalarType
+      operands: readonly EvalExpression[]
+      projectable: readonly (boolean | null)[]
+    }
   | {
       kind: 'captured-range-call'
       type: RangeType | MultirangeType
@@ -72,7 +79,13 @@ export type EvalExpression =
       comparison: SqlCallableExpression
       operation: 'and' | 'or'
     }
-  | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
+  | {
+      kind: 'null-test'
+      type: 'pg_catalog.bool'
+      negated: boolean
+      datum?: true
+      operand: EvalExpression
+    }
   | {
       kind: 'distinct'
       type: 'pg_catalog.bool'
@@ -563,6 +576,8 @@ export function emitEvalExpression<Ast>(
     if (
       node.kind === 'uncertain' ||
       node.kind === 'composite-field' ||
+      node.kind === 'composite-null' ||
+      node.kind === 'composite-constructor' ||
       node.kind === 'domain-cast' ||
       node.kind === 'text-to-enum' ||
       node.kind === 'text-to-boolean' ||

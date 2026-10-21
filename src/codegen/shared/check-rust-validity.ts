@@ -371,6 +371,9 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'domain-cast':
       return node.notNull || node.checks.length > 0
     case 'input':
+    case 'composite-null':
+    case 'composite-constructor':
+    case 'composite-field':
     case 'input-null-test':
     case 'certain':
     case 'null-test':
@@ -389,6 +392,21 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
       return false
     case 'call': {
       if (safePathTranslation(node) || safeFloatEncoding(node)) return false
+      if (node.call.signature !== null && node.operands.length === 3) {
+        const callable = builtinMetadata(node.call.signature)
+        const explicit = node.operands[2]
+        if (
+          callable.kind === 'function' &&
+          callable.schema === 'pg_catalog' &&
+          callable.name === 'varchar' &&
+          callable.args.join(',') === 'pg_catalog."varchar",pg_catalog.int4,pg_catalog.bool' &&
+          callable.result === 'pg_catalog."varchar"' &&
+          explicit?.kind === 'certain' &&
+          explicit.expression.kind === 'boolean' &&
+          explicit.expression.value === true
+        )
+          return false
+      }
       const thresholds = node.operands[1]
       if (
         node.call.signature &&

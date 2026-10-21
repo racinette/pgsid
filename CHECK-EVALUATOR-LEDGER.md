@@ -144,8 +144,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish point payloads, SQL-coerced public inputs, construction, geometric equality, binary output and composition; establish the scalar square-root primitive and classify geometric text rendering requirements.
 - [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts; preserve semantic NaN values while classifying computed binary precision.
 - [x] Establish line coefficient payloads, geometric equality, orientation, binary output, domains, SQL-coerced public inputs and composition.
-- [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs
-      across comparisons, casts and composition while deferring unavailable
+- [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs across comparisons, casts and composition while deferring unavailable
       binary precision.
 - [x] Establish line text input, point construction, literals and catalog I/O
       casts through unconstrained domains.
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit captured enum range/multirange SQL types, subtype domains, literals, constructors, endpoints, comparisons, sets, text I/O, recursive arrays, JSON and binary output; inject compiled label definitions before public validation and ignore caller support hints. Preserve empty/blank enums, ordinal ordering, snapshots, lazy/error behavior and finite-hash deferral without deployment OIDs; verify independent catalogs and native/Rust/Go/TypeScript INSERT parity.
 - [x] Establish owned composite field carriers, nested container snapshots, field access and row/datum NULL distinctions; capture closed qualified field dependencies including table/view row types, domains, enum order, modifiers and selected I/O without deployment OIDs. Verify native/Rust/Go/TypeScript states and public runtime copies.
 - [x] Admit SQL-coerced composite rows, named fields, nested records/arrays, scalar operations, CASE/COALESCE and row NULL tests through captured compiled field profiles. Validate public payloads before copying, replace caller range hints, retain dropped-field order and enum labels without deployment OIDs, and verify raw/stored native/Rust/Go/TypeScript and world INSERT parity.
-- [ ] Admit composite literals, text I/O, checked domain coercion, constructors, whole-record comparisons, root arrays/ranges and JSON record conversion; preserve source/stored provenance, row versus datum NULL semantics and world INSERT parity.
+- [x] Admit named ROW constructors, explicit field and composite-domain coercion, inherited modifiers, typed NULLs and datum distinctness. Capture physical attribute counts and preserve dropped slots, collation-dependent field projection, constant preparation, lazy row NULL tests, owned CASE/COALESCE and source/stored native/Rust/Go/TypeScript INSERT parity.
+- [ ] Admit composite record text literals and I/O, whole-record comparisons, root arrays/ranges and JSON record conversion; preserve provenance, row versus datum NULL semantics and world INSERT parity.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

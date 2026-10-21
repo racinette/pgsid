@@ -743,6 +743,8 @@ const materialize = (
   type: ScalarType,
   definition = bound.enum,
 ): EvalExpression | null => {
+  if (compositeProfile(type) && bound.literal?.kind === 'null')
+    return { kind: 'composite-null', type }
   if (
     type === 'pg_catalog."numeric"' &&
     bound.value?.kind === 'certain' &&
@@ -1073,6 +1075,7 @@ const candidate = (
     ((kind === 'function' && name === 'char') ||
       args.some(
         (arg) =>
+          (kind === 'operator' && arg.type === 'pg_catalog."varchar"') ||
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
           arg.type === 'pg_catalog."numeric"' ||
@@ -1914,29 +1917,39 @@ export function bindCatalogCheck(
           ...elementTypeName(type.slice(6) as ArrayElementType),
           arrayBounds: [{ Integer: { ival: -1 } }],
         }
-      : rangeTypeProfile(type)?.captured || multirangeTypeProfile(type)?.captured
+      : compositeProfile(type)
         ? (() => {
-            const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)!
+            const profile = compositeProfile(type)!
+            const definition = profile.graph.definitions.find(
+              (node) => node.identity === profile.identity,
+            )!
             return {
-              names: (isRangeType(type)
-                ? [profile.schema, profile.name]
-                : [profile.multirangeSchema, profile.multirangeName]
-              ).map((sval) => ({ String: { sval } })),
+              names: [definition.schema, definition.name].map((sval) => ({ String: { sval } })),
             }
           })()
-        : {
-            names: type.startsWith('domain:')
-              ? (() => {
-                  const domain = domainElementDefinition(type)!
-                  return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
-                })()
-              : type.startsWith('enum:')
-                ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
-                : [
-                    { String: { sval: 'pg_catalog' } },
-                    { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
-                  ],
-          }
+        : rangeTypeProfile(type)?.captured || multirangeTypeProfile(type)?.captured
+          ? (() => {
+              const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)!
+              return {
+                names: (isRangeType(type)
+                  ? [profile.schema, profile.name]
+                  : [profile.multirangeSchema, profile.multirangeName]
+                ).map((sval) => ({ String: { sval } })),
+              }
+            })()
+          : {
+              names: type.startsWith('domain:')
+                ? (() => {
+                    const domain = domainElementDefinition(type)!
+                    return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
+                  })()
+                : type.startsWith('enum:')
+                  ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
+                  : [
+                      { String: { sval: 'pg_catalog' } },
+                      { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
+                    ],
+            }
   const bindArrayElementCoercion = (
     operand: Bound,
     type: ArrayType,
@@ -3091,7 +3104,8 @@ export function bindCatalogCheck(
               enums,
               rangeTypes,
             ) ??
-            catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes))
+            catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes) ??
+            catalogCompositeType(target.baseTypeName, compositeGraph, rangeTypes))
         if (scalarType) {
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
@@ -3221,6 +3235,78 @@ export function bindCatalogCheck(
         return unknown
       }
       const capturedName = names?.map((part) => '"' + part.replaceAll('"', '""') + '"').join('.')
+      const composite = capturedName
+        ? catalogCompositeType(capturedName, compositeGraph, rangeTypes)
+        : null
+      if (composite) {
+        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+        const profile = compositeProfile(composite)!
+        const definition = profile.graph.definitions.find(
+          (node) => node.identity === profile.identity,
+        )!
+        const row = fields(fields(cast['arg'])?.['RowExpr'])
+        if (row) {
+          const args = row['args'] ?? []
+          if (!Array.isArray(args) || args.length !== definition.fields.length) return unknown
+          const operands: EvalExpression[] = []
+          const projectable: (boolean | null)[] = []
+          for (const [index, field] of definition.fields.entries()) {
+            const declared = profile.graph.definitions.find((node) => node.identity === field.type)
+            const type = compositeFieldType(profile, field.type)
+            if (!declared || !type) return unknown
+            const targetName =
+              declared.kind === 'd'
+                ? { names: [declared.schema, declared.name].map((sval) => ({ String: { sval } })) }
+                : elementTypeName(type)
+            const value = bind(
+              { TypeCast: { arg: args[index], typeName: targetName } },
+              undefined,
+              false,
+            )
+            if (!value.value || value.type !== type) return unknown
+            let operand = value.value
+            if (field.typeMod !== -1) {
+              if (type.startsWith('array:'))
+                operand = {
+                  kind: 'array-typmod',
+                  type: type as ArrayType,
+                  elementType: type.slice(6) as ArrayElementType,
+                  modifier: field.typeMod,
+                  operand,
+                }
+              else {
+                const modified = modifyScalar(operand, type, field.typeMod, true)
+                if (!modified) return unknown
+                operand = modified
+              }
+            }
+            operands.push(operand)
+            const collation = value.collation ?? defaultCollation
+            const identity = field.collationIsC
+              ? 'C'
+              : field.collationIsDefault
+                ? 'default'
+                : field.collation
+            const actual = collation.default ? 'default' : collation.identity
+            projectable.push(
+              identity === null || actual === identity
+                ? true
+                : (identity === 'C' || identity === 'default') &&
+                    (actual === 'C' || actual === 'default')
+                  ? false
+                  : null,
+            )
+          }
+          return {
+            type: composite,
+            value: { kind: 'composite-constructor', type: composite, operands, projectable },
+          }
+        }
+        const operand = bind(cast['arg'])
+        if (operand.literal?.kind === 'null')
+          return { type: composite, value: { kind: 'composite-null', type: composite } }
+        return operand.type === composite && operand.value ? operand : unknown
+      }
       const captured = capturedName
         ? catalogBaseScalarType(capturedName, undefined, domains, rangeTypes)
         : null
@@ -4630,13 +4716,26 @@ export function bindCatalogCheck(
       const nullIndex = nodes.findIndex(
         (node) => fields(fields(node)?.['A_Const'])?.['isnull'] === true,
       )
-      if (nullIndex !== -1 && operator['kind'] !== 'AEXPR_NULLIF')
+      if (nullIndex !== -1 && operator['kind'] !== 'AEXPR_NULLIF') {
+        const operand = bind(nodes[1 - nullIndex])
+        if (operand.type && operand.value && compositeProfile(operand.type))
+          return {
+            type: 'pg_catalog.bool',
+            value: {
+              kind: 'null-test',
+              type: 'pg_catalog.bool',
+              negated: !negated,
+              datum: true,
+              operand: operand.value,
+            },
+          }
         return bind({
           NullTest: {
             arg: nodes[1 - nullIndex],
             nulltesttype: negated ? 'IS_NULL' : 'IS_NOT_NULL',
           },
         })
+      }
       const resolved = comparisonCandidate(nodes.map((node) => bind(node)))
       if (!resolved || resolved.item.result !== 'pg_catalog.bool' || resolved.operands.length !== 2)
         return unknown
@@ -4720,6 +4819,7 @@ export function bindCatalogCheck(
       const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
       if (
         column?.isRowType === false &&
+        !catalogCompositeType(column.typeName, compositeGraph, rangeTypes) &&
         !catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) &&
         !catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes)
       ) {

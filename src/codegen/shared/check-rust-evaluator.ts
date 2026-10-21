@@ -1204,6 +1204,49 @@ export function emitCheckRustEvaluator(
       constantOperandDepth--
     }
   }
+  const prepareCompositeOperand = (operand: EvalExpression): void => {
+    const start = constantBindings.length
+    const outer: string | null = arrayValidityScope
+    arrayValidityScope = null
+    try {
+      emitPreparedOperand(operand, [], new Set())
+    } finally {
+      arrayValidityScope = outer
+    }
+    for (const binding of constantBindings.slice(start)) {
+      const prefix =
+        binding.type === 'CheckOutcome'
+          ? 'bool_from_check'
+          : rustValuePrefix(binding.type) + '_is_null'
+      const argument =
+        binding.name +
+        ([
+          'JsonValue',
+          'JsonbValue',
+          'JsonpathValue',
+          'ArrayValue',
+          'SnapshotValue',
+          'RangeValue',
+          'MultirangeValue',
+          'CompositeValue',
+          'PolygonValue',
+          'PathValue',
+          'TextValue',
+          'ByteaValue',
+          'BitValue',
+          'NumericValue',
+        ].includes(binding.type)
+          ? '.clone()'
+          : '')
+      const nullness = fresh('discarded_field_nullness'),
+        status = fresh('discarded_field_preparation')
+      preparationLines.push(
+        `let ${nullness} = ${prefix}(${argument});`,
+        `let ${status} = array_value_validity(${nullness}, true);`,
+        `${preparationState} = constant_finish(${preparationState}, ${status});`,
+      )
+    }
+  }
   const emitScalarInner = (
     node: EvalExpression,
     bindings: string[],
@@ -5209,6 +5252,29 @@ export function emitCheckRustEvaluator(
       }
     }
     if (node.kind === 'composite-field') {
+      if (
+        node.operand.kind === 'composite-constructor' &&
+        node.operand.projectable[node.index] === null
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Composite projection requires captured field-expression collation identity',
+        )
+      if (node.operand.kind === 'composite-constructor' && node.operand.projectable[node.index]) {
+        const outer: string | null = arrayValidityScope
+        arrayValidityScope = null
+        let selected: { name: string; type: string } | undefined
+        try {
+          for (const [index, operand] of node.operand.operands.entries()) {
+            if (index === node.index) selected = emitPreparedOperand(operand, bindings, used)
+            else prepareCompositeOperand(operand)
+          }
+        } finally {
+          arrayValidityScope = outer
+        }
+        if (!selected)
+          throw new UnsupportedCheckRustExpression('Missing composite constructor field')
+        return selected
+      }
       const value = emitScalar(node.operand, bindings, used)
       const index = bind(`make_int4_value(${node.index})`)
       const cell = bind(`composite_field_at(${ownedOperand(value)},${index})`)
@@ -5217,7 +5283,90 @@ export function emitCheckRustEvaluator(
         type: node.type,
       }
     }
-    if (node.kind === 'null-test' && compositeProfile(scalarType(node.operand))) {
+    if (node.kind === 'composite-null') return { name: bind('composite_null()'), type: node.type }
+    if (node.kind === 'composite-constructor') {
+      const profile = compositeProfile(node.type)
+      if (!profile)
+        throw new UnsupportedCheckRustExpression('Missing composite constructor profile')
+      const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
+      let value = bind(`make_composite_fields(${rustStringLiteral(profile.identity)})`)
+      for (const operand of operands) {
+        const cell = bind(
+          `array_element_from_${rustValuePrefix(rustType(operand.type))}(${ownedOperand(operand)})`,
+        )
+        value = bind(`append_composite_field(${value},${cell})`)
+      }
+      return { name: value, type: node.type }
+    }
+    if (node.kind === 'null-test' && !node.datum && compositeProfile(scalarType(node.operand))) {
+      if (
+        node.operand.kind === 'composite-constructor' &&
+        !constantScalarExpression(node.operand)
+      ) {
+        const profile = compositeProfile(node.operand.type)!
+        const definition = profile.graph.definitions.find(
+          (node) => node.identity === profile.identity,
+        )!
+        if (
+          typeof definition.attributeCount !== 'number' ||
+          !Number.isInteger(definition.attributeCount) ||
+          definition.attributeCount < definition.fields.length ||
+          definition.attributeCount > 2147483647 ||
+          definition.fields.some(
+            (field) =>
+              !Number.isInteger(field.position) ||
+              field.position < 1 ||
+              field.position > definition.attributeCount!,
+          ) ||
+          new Set(definition.fields.map((field) => field.position)).size !==
+            definition.fields.length
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Composite constructor NULL tests require physical attribute counts',
+          )
+        for (const operand of node.operand.operands) prepareCompositeOperand(operand)
+        const operands: EvalExpression[] = []
+        for (let position = 1; position <= definition.attributeCount; position++) {
+          const index = definition.fields.findIndex((field) => field.position === position)
+          const operand =
+            index < 0
+              ? {
+                  kind: 'certain' as const,
+                  expression: {
+                    kind: 'integer' as const,
+                    type: 'pg_catalog.int4' as const,
+                    value: null,
+                  },
+                }
+              : node.operand.operands[index]!
+          operands.push({
+            kind: 'null-test',
+            type: 'pg_catalog.bool',
+            negated: node.negated,
+            datum: true,
+            operand,
+          })
+        }
+        const ordered = [
+          ...operands.filter((operand) => constantScalarExpression(operand)),
+          ...operands.filter((operand) => !constantScalarExpression(operand)),
+        ]
+        const conjunction = ordered.reduce<EvalExpression | null>(
+          (left, right) =>
+            left
+              ? {
+                  kind: 'boolean-logic',
+                  type: 'pg_catalog.bool',
+                  operation: 'and',
+                  operands: [left, right],
+                }
+              : right,
+          null,
+        )
+        return conjunction
+          ? emitScalar(conjunction, bindings, used)
+          : { name: bind('make_bool_value(true)'), type: node.type }
+      }
       const value = emitScalar(node.operand, bindings, used)
       return {
         name: bind(
@@ -5229,6 +5378,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'null-test') {
       if (
         node.operand.kind === 'input' &&
+        !compositeProfile(node.operand.type) &&
         !node.operand.type.startsWith('enum:') &&
         !isOidType(node.operand.type) &&
         !isRangeType(node.operand.type) &&

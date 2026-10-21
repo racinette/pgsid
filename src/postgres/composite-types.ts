@@ -42,7 +42,7 @@ export async function readCatalogCompositeTypes(
       ) child WHERE child.type IS NOT NULL AND child.type<>0
     ) SELECT t.oid IN(SELECT type FROM roots) root,
       ${typeIdentity('t.oid')} identity,n.nspname AS schema,t.typname AS name,t.typtype AS kind,
-      c.relkind AS "relationKind",${typeIdentity('t.typarray')} AS array,
+      c.relkind AS "relationKind",c.relnatts::integer AS "attributeCount",${typeIdentity('t.typarray')} AS array,
       ${typeIdentity('t.typbasetype')} AS base,t.typtypmod AS "baseTypeMod",t.typnotnull AS "notNull",
       ${typeIdentity('e.oid')} AS element,${typeIdentity('r.rngsubtype')} AS subtype,
       ${typeIdentity('m.rngtypid')} AS member,
