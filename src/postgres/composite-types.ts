@@ -1,12 +1,8 @@
+import { catalogIdentifierSql as identifier } from './catalog-identities.js'
 import type { PGlite } from '@electric-sql/pglite'
 import type { CompositeTypeDefinition, CompositeTypeGraph } from '../catalog/types.js'
 import { readTypeComparisons } from './builtins/type-comparisons.js'
 
-const identifier = (
-  value: string,
-) => `(CASE WHEN (${value})::text COLLATE pg_catalog."C" ~ '^[a-z_][a-z0-9_$]*$'
-  AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_get_keywords() keyword WHERE keyword.word=(${value})::text AND keyword.catcode<>'U')
-  THEN (${value})::text ELSE '"'||pg_catalog.replace((${value})::text,'"','""')||'"' END)`
 const typeIdentity = (
   value: string,
 ) => `(SELECT ${identifier('identity_namespace.nspname')}||'.'||${identifier('identity_type.typname')}

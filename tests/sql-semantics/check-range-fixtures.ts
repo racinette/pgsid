@@ -446,6 +446,23 @@ export async function readRangeFixture(
     )
   ).rows[0]!
   if (row.is_null) return null
+  const bounds: RangeInputCell[] = []
+  if (!row.empty)
+    for (const [upper, text] of [
+      [false, row.lo],
+      [true, row.hi],
+    ] as const) {
+      if (compositeProfile(metadata.elementType)) {
+        const payload = await readCompositeFixture(
+          pg,
+          `SELECT ${upper ? 'upper' : 'lower'}(${column}) value FROM (${select}) candidate`,
+          'value',
+          metadata.elementType,
+          parameters,
+        )
+        bounds.push(payload === null ? { kind: 'Null' } : { kind: 'Composite', value: payload })
+      } else bounds.push(await readRangeBoundCell(pg, metadata.elementType, text, metadata.subtype))
+    }
   return {
     typeName: metadata.identity,
     elementType: metadata.subtype,
@@ -466,11 +483,6 @@ export async function readRangeFixture(
     empty: row.empty,
     lowerInclusive: row.lower_inc,
     upperInclusive: row.upper_inc,
-    bounds: row.empty
-      ? []
-      : await Promise.all([
-          readRangeBoundCell(pg, metadata.elementType, row.lo, metadata.subtype),
-          readRangeBoundCell(pg, metadata.elementType, row.hi, metadata.subtype),
-        ]),
+    bounds,
   }
 }
