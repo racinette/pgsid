@@ -10,6 +10,11 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
     if let ArrayElement::Null = upper {
         return make_int4_value(-1);
     };
+    if kind == 6 {
+        let left = array_element_to_enum(lower);
+        let right = array_element_to_enum(upper);
+        return sql__pg_catalog__enum_cmp__hjt6(left, right);
+    };
     if kind == 7 {
         let left = array_element_to_date(lower);
         let right = array_element_to_date(upper);
@@ -167,6 +172,8 @@ fn range_profile_serialize(
     lower_inclusive: bool,
     upper_inclusive: bool,
     support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
 ) -> RangeValue {
     let comparison = range_builtin_compare(lower.clone(), upper.clone(), support.comparison);
     if let Int4Value::Error(error) = comparison {
@@ -177,7 +184,7 @@ fn range_profile_serialize(
             return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_DATA_ERROR));
         };
         if order == 0 && (lower_inclusive == false || upper_inclusive == false) {
-            return range_from_profiled_bounds(
+            return range_from_defined_bounds(
                 type_name,
                 element_type,
                 kind,
@@ -187,6 +194,8 @@ fn range_profile_serialize(
                 ArrayElement::Null,
                 ArrayElement::Null,
                 support,
+                enum_labels,
+                enum_count,
             );
         };
         let mut lo_inc = lower_inclusive;
@@ -197,7 +206,7 @@ fn range_profile_serialize(
         if let ArrayElement::Null = upper {
             hi_inc = false;
         };
-        return range_from_profiled_bounds(
+        return range_from_defined_bounds(
             type_name,
             element_type,
             kind,
@@ -207,6 +216,8 @@ fn range_profile_serialize(
             lower,
             upper,
             support,
+            enum_labels,
+            enum_count,
         );
     };
     RangeValue::Unknown
@@ -304,6 +315,8 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
             lo_inc,
             hi_inc,
             value.support,
+            value.enum_labels.as_str(),
+            value.enum_count,
         );
     };
     input
@@ -329,6 +342,20 @@ pub fn range_construct_with_support(
     upper: ArrayElement,
     flags: TextValue,
     support: RangeSupport,
+) -> RangeValue {
+    range_construct_defined(type_name, element_type, kind, lower, upper, flags, support, "", -1)
+}
+
+pub fn range_construct_defined(
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    flags: TextValue,
+    support: RangeSupport,
+    enum_labels: &str,
+    enum_count: i32,
 ) -> RangeValue {
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
@@ -359,6 +386,11 @@ pub fn range_construct_with_support(
         if let ArrayElement::Unknown = upper {
             return RangeValue::Unknown;
         };
+        if kind == 6 && (range_enum_definition_valid(enum_labels, enum_count) == false
+            || range_enum_bound_valid(lower.clone(), enum_count) == false
+            || range_enum_bound_valid(upper.clone(), enum_count) == false) {
+            return RangeValue::Unknown;
+        };
         let lo_inc = text.as_str() == "[]" || text.as_str() == "[)";
         let hi_inc = text.as_str() == "[]" || text.as_str() == "(]";
         let initial = range_profile_serialize(
@@ -370,6 +402,8 @@ pub fn range_construct_with_support(
             lo_inc,
             hi_inc,
             support,
+            enum_labels,
+            enum_count,
         );
         return range_builtin_canonical(initial);
     };

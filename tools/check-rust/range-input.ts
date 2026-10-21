@@ -17,6 +17,7 @@ export type RangeJsonbPayload = {
 
 export type RangeInputCell =
   | { kind: 'Jsonb'; value: RangeJsonbPayload }
+  | { kind: 'Enum'; value: { ordinal: number; labelOid: bigint } }
   | { kind: 'Null' | 'Unknown' | 'Float4UnspecifiedNan' | 'Float8UnspecifiedNan' }
   | { kind: 'Error'; value: { state: number } }
   | { kind: 'Int2' | 'Int4' | 'Date' | 'Float4' | 'InternalChar'; value: number }
@@ -72,6 +73,7 @@ export type RangeInputCell =
     }
 
 const cellRecords = {
+  Enum: 'EnumPayload',
   Timetz: 'TimetzPayload',
   Interval: 'IntervalPayload',
   Network: 'NetworkAddress',
@@ -102,7 +104,10 @@ export function rangeRustCell(cell: RangeInputCell): string {
   const value =
     typeof cell.value === 'object'
       ? `${cellRecords[cell.kind as keyof typeof cellRecords]} {${Object.entries(cell.value)
-          .map(([name, value]) => `${name}:${scalar(value)}`)
+          .map(
+            ([name, value]) =>
+              `${name.replace(/[A-Z]/g, (letter) => '_' + letter.toLowerCase())}:${scalar(value)}`,
+          )
           .join(',')}}`
       : scalar(cell.value)
   return `ArrayElement::${cell.kind}(${value})`
@@ -172,6 +177,8 @@ export type RangeInputPayload = {
   typeName: string
   elementType: string
   elementKind: number
+  enumLabels?: string
+  enumCount?: number
   support?: { comparison: number; canonical: number }
   empty: boolean
   lowerInclusive: boolean
@@ -181,7 +188,7 @@ export type RangeInputPayload = {
 
 export function rangeRustInput(payload: RangeInputPayload): string {
   const cells = payload.bounds.map(rangeRustCell)
-  return `make_coerced_range_value(RangePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.typeName)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
+  return `make_coerced_range_value(RangePayload {enum_labels:${rustStringLiteral(payload.enumLabels ?? '')}.to_owned(),enum_count:${payload.enumCount ?? -1},type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.typeName)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
 }
 
 export function rangeGoInput(payload: RangeInputPayload): GoExpression {
@@ -191,6 +198,8 @@ export function rangeGoInput(payload: RangeInputPayload): GoExpression {
       go.keyValue('TypeName', go.string(payload.typeName)),
       go.keyValue('ElementType', go.string(payload.elementType)),
       go.keyValue('ElementKind', go.number(payload.elementKind)),
+      go.keyValue('EnumLabels', go.string(payload.enumLabels ?? '')),
+      go.keyValue('EnumCount', go.number(payload.enumCount ?? -1)),
       go.keyValue(
         'Support',
         payload.support
@@ -226,6 +235,8 @@ export type RangeSupportFactory = {
 export function rangeTypescriptInput(payload: RangeInputPayload, runtime: RangeSupportFactory) {
   return {
     ...payload,
+    enumLabels: payload.enumLabels ?? '',
+    enumCount: payload.enumCount ?? -1,
     support:
       payload.support ??
       runtime.rangeBuiltinSupport(payload.typeName, payload.elementType, payload.elementKind),

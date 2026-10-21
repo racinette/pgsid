@@ -343,7 +343,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                         return RangeValue::Unknown;
                     };
                 };
-                return range_from_profiled_bounds(
+                return range_from_defined_bounds(
                     payload.range_type.as_str(),
                     payload.element_type.as_str(),
                     payload.element_kind,
@@ -353,6 +353,8 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                     a.bounds[0].clone(),
                     b.bounds[1].clone(),
                     payload.support,
+                    a.enum_labels.as_str(),
+                    a.enum_count,
                 );
             };
         };

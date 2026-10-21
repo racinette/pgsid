@@ -8471,7 +8471,7 @@ func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
 }
 func RangeSupportValid(input RangeSupport, kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	comparison := input.Comparison == 0 || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
+	comparison := input.Comparison == 0 || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 6 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39))
 	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
 	return comparison && canonical
 }
@@ -8511,6 +8511,8 @@ type RangePayload struct {
 	TypeName       string
 	ElementType    string
 	ElementKind    int
+	EnumLabels     string
+	EnumCount      int
 	Support        RangeSupport
 	Empty          bool
 	LowerInclusive bool
@@ -8519,7 +8521,7 @@ type RangePayload struct {
 }
 
 func CopyRangePayload(value RangePayload) RangePayload {
-	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Support: value.Support, Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
+	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), EnumLabels: langruntime.CheckedString(value.EnumLabels), EnumCount: langruntime.CheckedI32(value.EnumCount), Support: value.Support, Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
 }
 
 type RangeValueKind uint8
@@ -8558,7 +8560,78 @@ func RangeNull() RangeValue {
 }
 func rangePayloadWithSupport(input RangePayload, support RangeSupport) RangePayload {
 	input = CopyRangePayload(input)
-	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, Support: support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
+	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, EnumLabels: input.EnumLabels, EnumCount: input.EnumCount, Support: support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
+}
+func rangePayloadWithDefinition(input RangePayload, labels string, count int) RangePayload {
+	input = CopyRangePayload(input)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, EnumLabels: labels, EnumCount: count, Support: input.Support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
+}
+func RangeEnumDefinitionValid(labels string, count int) bool {
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	if count < 0 {
+		return count == langruntime.CheckedSignedNegate(1) && labels == ""
+	}
+	if count == 0 {
+		return labels == ""
+	}
+	characters := []rune(labels)
+	seen := 0
+	start := 0
+	position := 0
+	for position <= len(characters) {
+		if position == len(characters) || characters[position] == '\x00' {
+			earlier := 0
+			for earlier < start {
+				end := earlier
+				for end < len(characters) && characters[end] != '\x00' {
+					end = langruntime.CheckedAdd(end, 1)
+				}
+				if langruntime.CheckedSubtract(end, earlier) == langruntime.CheckedSubtract(position, start) {
+					offset := 0
+					equal := true
+					for offset < langruntime.CheckedSubtract(position, start) {
+						if characters[langruntime.CheckedAdd(earlier, offset)] != characters[langruntime.CheckedAdd(start, offset)] {
+							equal = false
+						}
+						offset = langruntime.CheckedAdd(offset, 1)
+					}
+					if equal {
+						return false
+					}
+				}
+				earlier = langruntime.CheckedIndex(langruntime.CheckedAdd(end, 1))
+			}
+			if seen >= count {
+				return false
+			}
+			seen = langruntime.CheckedI32(langruntime.CheckedSignedAdd(seen, 1))
+			start = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return seen == count
+}
+func RangeEnumBoundValid(input ArrayElement, count int) bool {
+	input = CopyArrayElement(input)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == ArrayElementEnum {
+		payload := input.Enum
+		return count >= 0 && payload.Ordinal >= 0 && payload.Ordinal < count && payload.LabelOid >= int64(0) && payload.LabelOid <= int64(4294967295)
+	}
+	return true
+}
+func RangeWithEnumDefinition(input RangeValue, labels string, count int) RangeValue {
+	input = CopyRangeValue(input)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == RangeValueValue {
+		value := CopyRangePayload(input.Value)
+		return MakeCoercedRangeValue(rangePayloadWithDefinition(value, labels, count))
+	}
+	return input
 }
 func rangeBoundWordValid(value int) bool {
 	value = langruntime.CheckedI32(value)
@@ -8635,6 +8708,12 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 func MakeCoercedRangeValue(input RangePayload) RangeValue {
 	input = CopyRangePayload(input)
 	value := input
+	if value.ElementKind != 6 {
+		value = CopyRangePayload(rangePayloadWithDefinition(value, "", langruntime.CheckedSignedNegate(1)))
+	}
+	if RangeEnumDefinitionValid(value.EnumLabels, value.EnumCount) == false {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
 	support := value.Support
 	if value.TypeName == "" || value.ElementType == "" || value.ElementKind < 1 {
 		return RangeValue{Kind: RangeValueUnknown}
@@ -8670,6 +8749,9 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		if rangeBoundValueValid(CopyArrayElement(bound), RangeSupportIsCidr(support) || value.ElementType == "pg_catalog.cidr") == false {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		if RangeEnumBoundValid(CopyArrayElement(bound), value.EnumCount) == false {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		if bound.Kind == ArrayElementNull {
@@ -8709,6 +8791,16 @@ func RangeFromProfiledBounds(typeName string, elementType string, elementKind in
 	elementKind = langruntime.CheckedI32(elementKind)
 	lower = CopyArrayElement(lower)
 	upper = CopyArrayElement(upper)
+	return RangeFromDefinedBounds(typeName, elementType, elementKind, empty, lowerInclusive, upperInclusive, lower, upper, support, "", langruntime.CheckedSignedNegate(1))
+}
+func RangeFromDefinedBounds(typeName string, elementType string, elementKind int, empty bool, lowerInclusive bool, upperInclusive bool, lower ArrayElement, upper ArrayElement, support RangeSupport, enumLabels string, enumCount int) RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	lower = CopyArrayElement(lower)
+	upper = CopyArrayElement(upper)
+	enumLabels = langruntime.CheckedString(enumLabels)
+	enumCount = langruntime.CheckedI32(enumCount)
 	bounds := []ArrayElement{}
 	if empty == false {
 		langruntime.CheckedAdd(len(bounds), 1)
@@ -8716,7 +8808,7 @@ func RangeFromProfiledBounds(typeName string, elementType string, elementKind in
 		langruntime.CheckedAdd(len(bounds), 1)
 		bounds = append(bounds, CopyArrayElement(upper))
 	}
-	return MakeCoercedRangeValue(RangePayload{TypeName: typeName, ElementType: elementType, ElementKind: elementKind, Support: support, Empty: empty, LowerInclusive: lowerInclusive, UpperInclusive: upperInclusive, Bounds: bounds})
+	return MakeCoercedRangeValue(RangePayload{TypeName: typeName, ElementType: elementType, ElementKind: elementKind, EnumLabels: enumLabels, EnumCount: enumCount, Support: support, Empty: empty, LowerInclusive: lowerInclusive, UpperInclusive: upperInclusive, Bounds: bounds})
 }
 func RangeRequireType(input RangeValue, typeName string, elementType string, elementKind int) RangeValue {
 	input = CopyRangeValue(input)
@@ -8750,6 +8842,25 @@ func RangeFromCoercedProfile(input RangeValue, typeName string, elementType stri
 		}
 		support := RangeSupport{Comparison: comparison, Canonical: canonical}
 		return MakeCoercedRangeValue(rangePayloadWithSupport(payload, support))
+	}
+	return input
+}
+func RangeFromCoercedDefinedProfile(input RangeValue, typeName string, elementType string, elementKind int, comparison int, canonical int, labels string, count int) RangeValue {
+	input = CopyRangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == RangeValueValue {
+		payload := CopyRangePayload(input.Value)
+		if payload.TypeName != typeName || payload.ElementType != elementType || payload.ElementKind != elementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		defined := rangePayloadWithDefinition(payload, labels, count)
+		return MakeCoercedRangeValue(rangePayloadWithSupport(defined, MakeRangeSupport(comparison, canonical)))
 	}
 	return input
 }
