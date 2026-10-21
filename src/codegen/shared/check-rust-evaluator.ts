@@ -2,6 +2,7 @@ import {
   compositeProfile,
   compositeFieldType,
   compositePhysicalType,
+  type CompositeProfile,
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
 import type { ArrayElementType } from '../../sql-semantics/expressions.js'
@@ -415,6 +416,20 @@ export const isArrayComparison = (
         'arraycontained',
         'arrayoverlap',
       ].includes(item.name) && item.result === 'pg_catalog.bool')
+
+export const isRecordComparison = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args.length === 2 &&
+  item.args.every((type) => type === 'pg_catalog.record') &&
+  (item.name === 'btrecordcmp'
+    ? item.result === 'pg_catalog.int4'
+    : ['record_eq', 'record_ne', 'record_lt', 'record_le', 'record_gt', 'record_ge'].includes(
+        item.name,
+      ) && item.result === 'pg_catalog.bool')
 
 const isArrayExtremum = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
@@ -935,6 +950,8 @@ export function emitCheckRustEvaluator(
   }
 
   let storedArrayInputScope = false
+  let comparisonProfileScope: CompositeProfile | null = null
+  let comparisonCollationInvalid = false
   let storedArrayMoneyLiterals: readonly { text: string; units: string }[] | undefined
   let declaredArrayInputScope = false
   const renderArrayInputElement = (
@@ -1112,6 +1129,7 @@ export function emitCheckRustEvaluator(
         node.kind === 'array-quantifier' ||
         (implementation !== null &&
           (isArrayComparison(implementation) ||
+            isRecordComparison(implementation) ||
             isArrayExtremum(implementation) ||
             isArrayBucket(implementation) ||
             isArrayHash(implementation)))) &&
@@ -2138,23 +2156,27 @@ export function emitCheckRustEvaluator(
                       rangeSubtype &&
                       operands[index]?.type === rangeSubtype
                     ? false
-                    : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                    : type === 'pg_catalog.record' &&
+                        isRecordComparison(implementation) &&
+                        compositeProfile(operands[index]?.type ?? '')
                       ? false
-                      : type === 'pg_catalog.anyenum' && enumCall
-                        ? !operands[index]?.type.startsWith('enum:')
-                        : type === 'pg_catalog.anyelement' &&
-                            (jsonbConversion || jsonConversion || arrayFill)
-                          ? false
-                          : catalogScalarType(type)?.startsWith('array:') &&
-                              operands[index]?.type === catalogScalarType(type)
+                      : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                        ? false
+                        : type === 'pg_catalog.anyenum' && enumCall
+                          ? !operands[index]?.type.startsWith('enum:')
+                          : type === 'pg_catalog.anyelement' &&
+                              (jsonbConversion || jsonConversion || arrayFill)
                             ? false
-                            : operands[index]?.type !== type &&
-                              !(
-                                call.kind === 'cast' &&
-                                call.type === 'pg_catalog."char"' &&
-                                type === 'pg_catalog.text' &&
-                                operands[index]?.type === 'pg_catalog.bpchar'
-                              ),
+                            : catalogScalarType(type)?.startsWith('array:') &&
+                                operands[index]?.type === catalogScalarType(type)
+                              ? false
+                              : operands[index]?.type !== type &&
+                                !(
+                                  call.kind === 'cast' &&
+                                  call.type === 'pg_catalog."char"' &&
+                                  type === 'pg_catalog.text' &&
+                                  operands[index]?.type === 'pg_catalog.bpchar'
+                                ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -2801,6 +2823,155 @@ export function emitCheckRustEvaluator(
         }
         return { name, type: call.type }
       }
+      if (isRecordComparison(implementation)) {
+        const left = operands[0]!,
+          right = operands[1]!,
+          a = compositeProfile(left.type),
+          b = compositeProfile(right.type),
+          first = a?.graph.definitions.find((n) => n.identity === a.identity),
+          second = b?.graph.definitions.find((n) => n.identity === b.identity)
+        if (!a || !b || !first || !second)
+          throw new UnsupportedCheckRustExpression(
+            'Record comparison requires captured field descriptors',
+          )
+        const equality = ['record_eq', 'record_ne'].includes(implementation.name),
+          payload = fresh('record_comparison'),
+          result = fresh('record_ordering')
+        destination.push(
+          `let ${payload}=prepare_record_comparison(${ownedOperand(left)},${ownedOperand(right)},${rustStringLiteral(a.identity)},${rustStringLiteral(b.identity)},${first.fields.length},${second.fields.length});`,
+          `let mut ${result}:Int4Value=array_comparison_initial(&${payload});`,
+        )
+        for (let index = 0; index < Math.min(first.fields.length, second.fields.length); index++) {
+          const field = first.fields[index]!,
+            other = second.fields[index]!,
+            selectedType = compositeFieldType(a, field.type),
+            otherType = compositeFieldType(b, other.type),
+            support = a.graph.definitions.find((n) => n.identity === field.type)?.comparison,
+            otherSupport = b.graph.definitions.find((n) => n.identity === other.type)?.comparison,
+            availability =
+              support && JSON.stringify(support) === JSON.stringify(otherSupport)
+                ? (equality ? support.equalityAvailable : support.comparisonAvailable)
+                  ? 1
+                  : 0
+                : -1,
+            selected = equality ? support?.equalityImplementation : support?.comparator,
+            metadata = selected
+              ? builtinCallables().find((n) => callableIdentity(n) === selected)
+              : null,
+            leftCell = fresh('record_left_cell'),
+            rightCell = fresh('record_right_cell'),
+            position = fresh('record_position'),
+            pair = fresh('record_pair'),
+            compared = fresh('record_compared'),
+            lines: string[] = [],
+            scalarLines: string[] = []
+          lines.push(
+            `let ${position}=make_int4_value(${index});`,
+            `let ${leftCell}=array_comparison_element_at(&${payload},${position},false);`,
+            `let ${rightCell}=array_comparison_element_at(&${payload},${position},true);`,
+            `let ${pair}=record_comparison_pair(${leftCell}.clone(),${rightCell}.clone(),${field.type === other.type},${availability},${equality});`,
+            `let mut ${compared}:Int4Value=${pair};`,
+          )
+          const text = metadata?.args.some((type) =>
+              [
+                'pg_catalog.text',
+                'pg_catalog."varchar"',
+                'pg_catalog.bpchar',
+                'pg_catalog.name',
+              ].includes(type),
+            ),
+            invalid = field.collation !== other.collation,
+            collation =
+              field.collationIsC && other.collationIsC
+                ? ('C' as const)
+                : field.collationIsDefault &&
+                    other.collationIsDefault &&
+                    executionContext.defaultCollation === 'C'
+                  ? ('C' as const)
+                  : field.collationDeterministic && other.collationDeterministic
+                    ? ('deterministic' as const)
+                    : ('other' as const)
+          if (invalid && text) scalarLines.push(`${compared}=record_invalid_collation();`)
+          else if (
+            field.type === other.type &&
+            selected &&
+            selectedType &&
+            otherType &&
+            metadata?.kind === 'function' &&
+            metadata.strict &&
+            !metadata.returnsSet &&
+            metadata.volatility === 'i' &&
+            checkRustCallableNames().has(metadata.rustName) &&
+            (!text || supportsTextCallableCollation(selected, collation))
+          ) {
+            const prefix = rustValuePrefix(rustType(selectedType)),
+              leftScalar = fresh('record_left_scalar'),
+              rightScalar = fresh('record_right_scalar')
+            scalarLines.push(
+              `let ${leftScalar}=array_element_to_${prefix}(${leftCell});`,
+              `let ${rightScalar}=array_element_to_${rustValuePrefix(rustType(otherType))}(${rightCell});`,
+            )
+            const outer = comparisonProfileScope,
+              outerInvalid = comparisonCollationInvalid
+            comparisonProfileScope = a
+            comparisonCollationInvalid = invalid
+            try {
+              const values = [
+                { name: leftScalar, type: selectedType },
+                { name: rightScalar, type: otherType },
+              ].map((value, i) => {
+                const target = metadata.args[i]!
+                if (
+                  [
+                    'pg_catalog.anyenum',
+                    'pg_catalog.anyarray',
+                    'pg_catalog.anyrange',
+                    'pg_catalog.anymultirange',
+                    'pg_catalog.record',
+                  ].includes(target) ||
+                  target === value.type
+                )
+                  return value
+                if (builtinCast(value.type, target)?.method !== 'b')
+                  throw new UnsupportedCheckRustExpression(
+                    'Record field support requires its catalog binary relabel',
+                  )
+                return emitCall(
+                  { kind: 'cast', signature: null, type: target as typeof selectedType },
+                  [value],
+                  scalarLines,
+                )
+              })
+              const value = emitCall(
+                { kind: 'function', signature: selected, type: metadata.result, collation },
+                values,
+                scalarLines,
+              )
+              scalarLines.push(
+                `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
+              )
+            } finally {
+              comparisonProfileScope = outer
+              comparisonCollationInvalid = outerInvalid
+            }
+          } else scalarLines.push(`${compared}=int4_unknown();`)
+          lines.push(
+            `if array_pair_requires_scalar(${pair}) {`,
+            ...indent(scalarLines),
+            '}',
+            `${result}=${compared};`,
+          )
+          destination.push(`if row_compare_continues(${result}) {`, ...indent(lines), '}')
+        }
+        const completed = fresh('record_completed'),
+          name = fresh('record_result')
+        destination.push(
+          `let ${completed}=finish_record_comparison(&${payload},${result});`,
+          `let ${name}=${implementation.rustName}(${completed});`,
+        )
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       if (
         isArrayComparison(implementation) ||
         arrayExtremum ||
@@ -2838,13 +3009,22 @@ export function emitCheckRustEvaluator(
           arrayRewrite ||
           membership ||
           ['array_eq', 'array_ne'].includes(implementation.name)
-        const defaults = arrayElementComparison(elementType)
+        const captured = comparisonProfileScope?.graph.definitions.find(
+          (n) => compositeFieldType(comparisonProfileScope!, n.identity, true) === elementType,
+        )?.comparison
+        const defaults = captured
+          ? { ...captured, equality: captured.equalityImplementation }
+          : arrayElementComparison(elementType)
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires captured element comparison metadata',
           )
         const selected = equality ? defaults.equality : defaults.comparator
-        const available = arrayElementComparisonAvailable(elementType, equality)
+        const available = captured
+          ? equality
+            ? captured.equalityAvailable
+            : captured.comparisonAvailable
+          : arrayElementComparisonAvailable(elementType, equality)
         const emitPair = (
           left: string,
           right: string,
@@ -2891,6 +3071,7 @@ export function emitCheckRustEvaluator(
               const target = scalar.args[position]
               if (
                 target === baseType ||
+                (target === 'pg_catalog.record' && compositeProfile(baseType)) ||
                 target === 'pg_catalog.anyenum' ||
                 (target === 'pg_catalog.anyrange' && isRangeType(baseType)) ||
                 (target === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) ||
@@ -2918,7 +3099,9 @@ export function emitCheckRustEvaluator(
               scalarLines,
             )
           }
-          if (!deferred && scalar && selected) {
+          if (comparisonCollationInvalid && text) {
+            scalarLines.push(`${result}=record_invalid_collation();`)
+          } else if (!deferred && scalar && selected) {
             const compared = emitElement(selected, scalar)
             scalarLines.push(
               `${result} = ${equality ? 'array_equality_step' : 'array_order_step'}(${compared.name});`,
@@ -5297,6 +5480,10 @@ export function emitCheckRustEvaluator(
       }
     }
     if (node.kind === 'text-to-composite') {
+      if (node.anonymous) {
+        const operand = emitScalar(node.operand, bindings, used)
+        return { name: bind(`record_anonymous_input(${ownedOperand(operand)})`), type: node.type }
+      }
       const profile = compositeProfile(node.type)
       const definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
       const stored = node.origin === 'stored'
@@ -6162,6 +6349,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.anyarray',
             'pg_catalog.anyrange',
             'pg_catalog.anymultirange',
+            'pg_catalog.record',
           ].includes(metadata.args[index]!)
             ? node.type
             : metadata.args[index]!

@@ -9424,6 +9424,128 @@ func DatePartFb3a(units checkruntime.TextValue, input checkruntime.IntervalValue
 	return clockFieldsLegacy(units, clockFieldInput{value: input, zone: 0, family: 3})
 }
 
+const recordComparisonTypeMismatch = 6822148
+const recordComparisonUndefined = 6822435
+const recordComparisonCollation = 6844250
+const recordInputAnonymous = 466560
+
+func recordComparisonState(state int, error checkruntime.SqlError) checkruntime.ArrayComparisonPayload {
+	state = langruntime.CheckedI32(state)
+	left := []checkruntime.ArrayElement{}
+	right := []checkruntime.ArrayElement{}
+	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0}
+}
+func PrepareRecordComparison(left checkruntime.CompositeValue, right checkruntime.CompositeValue, leftType string, rightType string, leftCount int, rightCount int) checkruntime.ArrayComparisonPayload {
+	left = checkruntime.CopyCompositeValue(left)
+	right = checkruntime.CopyCompositeValue(right)
+	leftType = langruntime.CheckedString(leftType)
+	rightType = langruntime.CheckedString(rightType)
+	leftCount = langruntime.CheckedI32(leftCount)
+	rightCount = langruntime.CheckedI32(rightCount)
+	if left.Kind == checkruntime.CompositeValueError {
+		error := left.Error
+		return recordComparisonState(langruntime.CheckedSignedNegate(2), error)
+	}
+	if right.Kind == checkruntime.CompositeValueError {
+		error := right.Error
+		return recordComparisonState(langruntime.CheckedSignedNegate(2), error)
+	}
+	if left.Kind == checkruntime.CompositeValueUnknown {
+		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+	}
+	if right.Kind == checkruntime.CompositeValueUnknown {
+		return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+	}
+	if left.Kind == checkruntime.CompositeValueNull {
+		return recordComparisonState(0, checkruntime.MakeSqlError(0))
+	}
+	if right.Kind == checkruntime.CompositeValueNull {
+		return recordComparisonState(0, checkruntime.MakeSqlError(0))
+	}
+	if left.Kind == checkruntime.CompositeValueValue {
+		a := checkruntime.CopyCompositePayload(left.Value)
+		if right.Kind == checkruntime.CompositeValueValue {
+			b := checkruntime.CopyCompositePayload(right.Value)
+			if a.TypeName != leftType || b.TypeName != rightType || leftCount < 0 || rightCount < 0 || len(a.Fields) > 2147483647 || len(b.Fields) > 2147483647 || int(int32(len(a.Fields))) != leftCount || int(int32(len(b.Fields))) != rightCount {
+				return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+			}
+			limit := len(a.Fields)
+			tail := 0
+			if len(b.Fields) < limit {
+				limit = langruntime.CheckedIndex(len(b.Fields))
+			}
+			if len(a.Fields) != len(b.Fields) {
+				tail = langruntime.CheckedIndex(1)
+			}
+			return checkruntime.ArrayComparisonPayload{Left: a.Fields, Right: b.Fields, Limit: limit, State: 1, Error: checkruntime.MakeSqlError(0), Tail: tail, Value: 0}
+		}
+	}
+	return recordComparisonState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+}
+func RecordComparisonPair(left checkruntime.ArrayElement, right checkruntime.ArrayElement, sameType bool, available int, equality bool) checkruntime.Int4Value {
+	left = checkruntime.CopyArrayElement(left)
+	right = checkruntime.CopyArrayElement(right)
+	available = langruntime.CheckedI32(available)
+	if sameType == false {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonTypeMismatch)}
+	}
+	if available == 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonUndefined)}
+	}
+	if available != 1 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return checkruntime.ArrayComparisonPair(left, right, equality)
+}
+func RecordInvalidCollation() checkruntime.Int4Value {
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonCollation)}
+}
+func FinishRecordComparison(input *checkruntime.ArrayComparisonPayload, result checkruntime.Int4Value) checkruntime.Int4Value {
+	if input.State == 1 && input.Tail != 0 {
+		if result.Kind == checkruntime.Int4ValueValue {
+			value := langruntime.CheckedI32(result.Value)
+			if value == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonTypeMismatch)}
+			}
+		}
+	}
+	return result
+}
+func RecordAnonymousInput(input checkruntime.TextValue) checkruntime.CompositeValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: checkruntime.MakeSqlError(recordInputAnonymous)}
+	}
+	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+}
+func RecordEqRc7m(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 3)
+}
+func RecordNeDmf7(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 6)
+}
+func RecordLt393p(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 1)
+}
+func RecordLeXg5r(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 2)
+}
+func RecordGt3rut(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 5)
+}
+func RecordGe69vm(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 4)
+}
+func BtrecordcmpM4or(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+
 const compositeTextSyntax = 3484946
 
 func compositeTextSpace(ch rune) bool {
