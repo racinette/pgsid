@@ -8944,7 +8944,9 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
         return arrayElementFromArray(makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements }));
     }
     const profile: RangeBoundContext = node.boundProfile;
-    const checked: ArrayElement = rangePrepareProfiledBound(input, profile);
+    return rangePrepareProfiledBound(input, profile);
+}
+export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement {
     if (checked.kind === "Enum") {
         const payload: EnumPayload = checked.value;
         return arrayElementFromEnum(makeEnumValue(payload.ordinal));
@@ -9188,7 +9190,7 @@ export function rangeSupportEqual(left: RangeSupport, right: RangeSupport): bool
 }
 export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
     kind = langruntime.checkedI32(kind);
-    const comparison: boolean = input.comparison === 0 || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 6 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39 || kind === 41 || kind === 42 || kind === 43));
+    const comparison: boolean = input.comparison === 0 || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 6 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39 || kind === 41 || kind === 42 || kind === 43 || kind === 44));
     const canonical: boolean = input.canonical === 0 || input.canonical === 1 || (input.canonical === kind && (kind === 2 || kind === 3 || kind === 7));
     return comparison && canonical;
 }
@@ -9223,6 +9225,14 @@ export function rangeOidAliasMode(input: RangeSupport, elementType: string): num
     }
     return 0;
 }
+export interface RangeBoundField {
+    readonly typeName: string;
+    readonly child: number;
+    readonly comparisonAvailable: boolean;
+}
+export function copyRangeBoundField(value: RangeBoundField): RangeBoundField {
+    return { typeName: langruntime.checkedString(value.typeName), child: langruntime.checkedIndex(value.child), comparisonAvailable: langruntime.checkedBool(value.comparisonAvailable) };
+}
 export interface RangeBoundProfile {
     readonly typeName: string;
     readonly kind: number;
@@ -9233,9 +9243,10 @@ export interface RangeBoundProfile {
     readonly child: number;
     readonly enumLabels: string;
     readonly enumCount: number;
+    readonly fields: RangeBoundField[];
 }
 export function copyRangeBoundProfile(value: RangeBoundProfile): RangeBoundProfile {
-    return { typeName: langruntime.checkedString(value.typeName), kind: langruntime.checkedI32(value.kind), comparison: langruntime.checkedI32(value.comparison), canonical: langruntime.checkedI32(value.canonical), missingComparison: langruntime.checkedBool(value.missingComparison), elementType: langruntime.checkedString(value.elementType), child: langruntime.checkedIndex(value.child), enumLabels: langruntime.checkedString(value.enumLabels), enumCount: langruntime.checkedI32(value.enumCount) };
+    return { typeName: langruntime.checkedString(value.typeName), kind: langruntime.checkedI32(value.kind), comparison: langruntime.checkedI32(value.comparison), canonical: langruntime.checkedI32(value.canonical), missingComparison: langruntime.checkedBool(value.missingComparison), elementType: langruntime.checkedString(value.elementType), child: langruntime.checkedIndex(value.child), enumLabels: langruntime.checkedString(value.enumLabels), enumCount: langruntime.checkedI32(value.enumCount), fields: langruntime.checkedStructs(value.fields, copyRangeBoundField) };
 }
 export interface RangeBoundContext {
     readonly nodes: RangeBoundProfile[];
@@ -9251,7 +9262,7 @@ export function rangeBoundContextSnapshot(input: RangeBoundContext): RangeBoundC
     let nodes: RangeBoundProfile[] = [];
     let index: number = 0;
     while (index < input.nodes.length) {
-        langruntime.pushStruct(nodes, langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile), copyRangeBoundProfile);
+        langruntime.pushStruct(nodes, copyRangeBoundProfile(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile)), copyRangeBoundProfile);
         index = langruntime.checkedAdd(index, 1);
     }
     return { nodes: nodes };
@@ -9280,7 +9291,24 @@ export function appendRangeBoundProfileWithCanonical(input: RangeBoundContext, t
     enumLabels = langruntime.checkedString(enumLabels);
     enumCount = langruntime.checkedI32(enumCount);
     let nodes: RangeBoundProfile[] = input.nodes;
-    langruntime.pushStruct(nodes, { typeName: typeName, kind: kind, comparison: comparison, canonical: canonical, missingComparison: missingComparison, elementType: elementType, child: langruntime.indexFromI32(child, 2147483647), enumLabels: enumLabels, enumCount: enumCount }, copyRangeBoundProfile);
+    const fields: RangeBoundField[] = [];
+    langruntime.pushStruct(nodes, { typeName: typeName, kind: kind, comparison: comparison, canonical: canonical, missingComparison: missingComparison, elementType: elementType, child: langruntime.indexFromI32(child, 2147483647), enumLabels: enumLabels, enumCount: enumCount, fields: fields }, copyRangeBoundProfile);
+    return { nodes: nodes };
+}
+export function appendRangeBoundField(input: RangeBoundContext, parent: number, child: number, typeName: string, comparisonAvailable: boolean): RangeBoundContext {
+    input = copyRangeBoundContext(input);
+    parent = langruntime.checkedI32(parent);
+    child = langruntime.checkedI32(child);
+    typeName = langruntime.checkedString(typeName);
+    comparisonAvailable = langruntime.checkedBool(comparisonAvailable);
+    let nodes: RangeBoundProfile[] = input.nodes;
+    const index: number = langruntime.indexFromI32(parent, nodes.length);
+    if (index < nodes.length) {
+        const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
+        let fields: RangeBoundField[] = node.fields;
+        langruntime.pushStruct(fields, { typeName: typeName, child: langruntime.indexFromI32(child, nodes.length), comparisonAvailable: comparisonAvailable }, copyRangeBoundField);
+        nodes[langruntime.checkedIndexIn(nodes, index)] = copyRangeBoundProfile({ typeName: node.typeName, kind: node.kind, comparison: node.comparison, canonical: node.canonical, missingComparison: node.missingComparison, elementType: node.elementType, child: node.child, enumLabels: node.enumLabels, enumCount: node.enumCount, fields: fields });
+    }
     return { nodes: nodes };
 }
 export interface RangePayload {
@@ -9403,11 +9431,11 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
     profile = copyRangeBoundContext(profile);
     let index: number = 0;
     while (index < profile.nodes.length) {
-        const node: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile);
-        if (node.typeName === "" || node.kind < 1 || node.kind > 43) {
+        const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
+        if (node.typeName === "" || node.kind < 0 || node.kind > 44) {
             return false;
         }
-        if (node.kind >= 41) {
+        if (node.kind >= 41 && node.kind <= 43) {
             if (node.elementType === "" || node.child <= index || node.child >= profile.nodes.length || (!(node.comparison === 0) && !(node.comparison === node.kind))) {
                 return false;
             }
@@ -9415,7 +9443,7 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
                 return false;
             }
             if (node.kind === 42) {
-                const child: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile);
+                const child: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile));
                 if (rangeSupportValid(makeRangeSupport(child.comparison, node.canonical), child.kind) === false) {
                     return false;
                 }
@@ -9433,6 +9461,17 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
             else if (rangeSupportValid(makeRangeSupport(node.comparison, 1), node.kind) === false) {
                 return false;
             }
+        }
+        if (node.fields.length > 2147483647 || (!(node.kind === 44) && !(node.fields.length === 0))) {
+            return false;
+        }
+        let field: number = 0;
+        while (field < node.fields.length) {
+            const entry: RangeBoundField = langruntime.indexStruct(node.fields, langruntime.checkedIndex(field), copyRangeBoundField);
+            if (entry.typeName === "" || entry.child <= index || entry.child >= profile.nodes.length) {
+                return false;
+            }
+            field = langruntime.checkedAdd(field, 1);
         }
         if (node.missingComparison && !(node.comparison === 0)) {
             return false;
@@ -9460,10 +9499,22 @@ export function rangeBoundProfilesEqual(left: RangeBoundContext, right: RangeBou
     }
     let index: number = 0;
     while (index < left.nodes.length) {
-        const a: RangeBoundProfile = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile);
-        const b: RangeBoundProfile = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile);
+        const a: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(left.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
+        const b: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(right.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
         if (!(a.typeName === b.typeName) || !(a.kind === b.kind) || !(a.comparison === b.comparison) || !(a.canonical === b.canonical) || !(a.missingComparison === b.missingComparison) || !(a.elementType === b.elementType) || !(a.child === b.child) || !(a.enumLabels === b.enumLabels) || !(a.enumCount === b.enumCount)) {
             return false;
+        }
+        if (!(a.fields.length === b.fields.length)) {
+            return false;
+        }
+        let field: number = 0;
+        while (field < a.fields.length) {
+            const x: RangeBoundField = langruntime.indexStruct(a.fields, langruntime.checkedIndex(field), copyRangeBoundField);
+            const y: RangeBoundField = langruntime.indexStruct(b.fields, langruntime.checkedIndex(field), copyRangeBoundField);
+            if (!(x.typeName === y.typeName) || !(x.child === y.child) || !(x.comparisonAvailable === y.comparisonAvailable)) {
+                return false;
+            }
+            field = langruntime.checkedAdd(field, 1);
         }
         index = langruntime.checkedAdd(index, 1);
     }
@@ -9486,21 +9537,55 @@ export function rangeWithBoundProfile(input: RangeValue, profile: RangeBoundCont
 export function rangeBoundContextBranch(profile: RangeBoundContext, start: number): RangeBoundContext {
     profile = copyRangeBoundContext(profile);
     start = langruntime.checkedIndex(start);
-    if (start >= profile.nodes.length) {
+    if (start >= profile.nodes.length || rangeBoundProfileValid(profile) === false) {
         return emptyRangeBoundContext();
     }
     if (langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind < 41) {
         return emptyRangeBoundContext();
     }
-    let nodes: RangeBoundProfile[] = [];
-    let index: number = start;
+    let indices: number[] = [];
+    let index: number = 0;
     while (index < profile.nodes.length) {
-        const node: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile);
-        let child: number = 0;
-        if (node.kind >= 41) {
-            child = langruntime.checkedIndex(langruntime.checkedSubtract(node.child, start));
+        langruntime.pushIndex(indices, profile.nodes.length);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    indices[langruntime.checkedIndexIn(indices, start)] = langruntime.checkedIndex(0);
+    index = langruntime.checkedIndex(start);
+    let count: number = 0;
+    while (index < profile.nodes.length) {
+        if (langruntime.indexNumber(indices, langruntime.checkedIndex(index)) < profile.nodes.length) {
+            indices[langruntime.checkedIndexIn(indices, index)] = langruntime.checkedIndex(count);
+            count = langruntime.checkedAdd(count, 1);
+            const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
+            if (node.kind >= 41 && node.kind <= 43) {
+                indices[langruntime.checkedIndexIn(indices, node.child)] = langruntime.checkedIndex(0);
+            }
+            let field: number = 0;
+            while (field < node.fields.length) {
+                indices[langruntime.checkedIndexIn(indices, langruntime.indexStruct(node.fields, langruntime.checkedIndex(field), copyRangeBoundField).child)] = langruntime.checkedIndex(0);
+                field = langruntime.checkedAdd(field, 1);
+            }
         }
-        langruntime.pushStruct(nodes, { typeName: node.typeName, kind: node.kind, comparison: node.comparison, canonical: node.canonical, missingComparison: node.missingComparison, elementType: node.elementType, child: child, enumLabels: node.enumLabels, enumCount: node.enumCount }, copyRangeBoundProfile);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let nodes: RangeBoundProfile[] = [];
+    index = langruntime.checkedIndex(start);
+    while (index < profile.nodes.length) {
+        if (langruntime.indexNumber(indices, langruntime.checkedIndex(index)) < profile.nodes.length) {
+            const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
+            let child: number = 0;
+            if (node.kind >= 41 && node.kind <= 43) {
+                child = langruntime.checkedIndex(langruntime.indexNumber(indices, langruntime.checkedIndex(node.child)));
+            }
+            let fields: RangeBoundField[] = [];
+            let field: number = 0;
+            while (field < node.fields.length) {
+                const entry: RangeBoundField = langruntime.indexStruct(node.fields, langruntime.checkedIndex(field), copyRangeBoundField);
+                langruntime.pushStruct(fields, { typeName: entry.typeName, child: langruntime.indexNumber(indices, langruntime.checkedIndex(entry.child)), comparisonAvailable: entry.comparisonAvailable }, copyRangeBoundField);
+                field = langruntime.checkedAdd(field, 1);
+            }
+            langruntime.pushStruct(nodes, { typeName: node.typeName, kind: node.kind, comparison: node.comparison, canonical: node.canonical, missingComparison: node.missingComparison, elementType: node.elementType, child: child, enumLabels: node.enumLabels, enumCount: node.enumCount, fields: fields }, copyRangeBoundProfile);
+        }
         index = langruntime.checkedAdd(index, 1);
     }
     return { nodes: nodes };
@@ -9520,9 +9605,37 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
     if (index >= profile.nodes.length) {
         return { kind: "Unknown" };
     }
-    const node: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile);
+    const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
     if (!(arrayElementFamily(copyArrayElement(input)) === node.kind)) {
         return { kind: "Unknown" };
+    }
+    if (input.kind === "Composite") {
+        const payload: CompositePayload = copyCompositePayload(input.value);
+        if (!(node.kind === 44) || !(payload.typeName === node.typeName) || !(payload.fields.length === node.fields.length)) {
+            return { kind: "Unknown" };
+        }
+        let fields: ArrayElement[] = [];
+        let position: number = 0;
+        while (position < payload.fields.length) {
+            const original: ArrayElement = copyArrayElement(langruntime.indexStruct(payload.fields, langruntime.checkedIndex(position), copyArrayElement));
+            const checked: ArrayElement = rangeProfiledValueAt(copyArrayElement(original), profile, langruntime.indexStruct(node.fields, langruntime.checkedIndex(position), copyRangeBoundField).child);
+            if (checked.kind === "Error") {
+                const error: SqlError = checked.value;
+                return { kind: "Error", value: error };
+            }
+            if (checked.kind === "Unknown") {
+                let partial: boolean = false;
+                if (original.kind === "Unknown") {
+                    partial = langruntime.checkedBool(true);
+                }
+                if (partial === false) {
+                    return { kind: "Unknown" };
+                }
+            }
+            langruntime.pushStruct(fields, checked, copyArrayElement);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return arrayElementFromComposite(makeCompositeValue({ typeName: payload.typeName, fields: fields }));
     }
     if (input.kind === "Array") {
         const payload: ArrayPayload = copyArrayPayload(input.value);
@@ -9550,7 +9663,7 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
     }
     if (input.kind === "Range") {
         const payload: RangePayload = copyRangePayload(input.value);
-        const child: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile);
+        const child: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile));
         if (!(payload.typeName === node.typeName) || !(payload.elementType === node.elementType) || !(payload.elementKind === child.kind)) {
             return { kind: "Unknown" };
         }
@@ -9566,8 +9679,8 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
     }
     if (input.kind === "Multirange") {
         const payload: MultirangePayload = copyMultirangePayload(input.value);
-        const member: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile);
-        const child: RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(member.child), copyRangeBoundProfile);
+        const member: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile));
+        const child: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(member.child), copyRangeBoundProfile));
         if (!(payload.typeName === node.typeName) || !(payload.rangeType === node.elementType) || !(payload.elementType === member.elementType) || !(payload.elementKind === child.kind)) {
             return { kind: "Unknown" };
         }
@@ -9582,7 +9695,7 @@ function rangeProfiledValueAt(input: ArrayElement, profile: RangeBoundContext, i
         return arrayElementFromMultirange(multirangeFromProfiledRanges(payload.typeName, payload.rangeType, payload.elementType, payload.elementKind, ranges, makeRangeSupport(child.comparison, member.canonical)));
     }
     if (rangeBoundValueValid(copyArrayElement(input), node.typeName === "pg_catalog.cidr") && rangeEnumBoundValid(copyArrayElement(input), node.enumCount)) {
-        return input;
+        return compositePrepareScalarCell(input);
     }
     return { kind: "Unknown" };
 }

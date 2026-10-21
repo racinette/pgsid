@@ -33083,13 +33083,41 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
     if (index >= profile.nodes.length || otherIndex >= other.nodes.length) {
         return { kind: "Unknown" };
     }
-    const node: checkruntime.RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile);
-    const peer: checkruntime.RangeBoundProfile = langruntime.indexStruct(other.nodes, langruntime.checkedIndex(otherIndex), checkruntime.copyRangeBoundProfile);
+    const node: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile));
+    const peer: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(other.nodes, langruntime.checkedIndex(otherIndex), checkruntime.copyRangeBoundProfile));
     if (!(node.kind === peer.kind) || !(node.comparison === peer.comparison) || !(node.missingComparison === peer.missingComparison)) {
         return { kind: "Unknown" };
     }
     if (node.missingComparison) {
         return { kind: "Error", value: checkruntime.makeSqlError(rangeArrayComparisonUndefined) };
+    }
+    if (node.kind === 44) {
+        if (!(node.comparison === 44) || !(node.typeName === peer.typeName)) {
+            return { kind: "Unknown" };
+        }
+        const left: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(lower);
+        const right: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(upper);
+        const frame: checkruntime.ArrayComparisonPayload = prepareRecordComparison(left, right, node.typeName, peer.typeName, langruntime.checkedI32(langruntime.checkedIndex(node.fields.length)), langruntime.checkedI32(langruntime.checkedIndex(peer.fields.length)));
+        let result: checkruntime.Int4Value = checkruntime.arrayComparisonInitial(frame);
+        let position: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+        let field: number = 0;
+        while (checkruntime.arrayComparisonContinues(frame, position, result)) {
+            const a: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(frame, position, false);
+            const b: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(frame, position, true);
+            const entry: checkruntime.RangeBoundField = langruntime.indexStruct(node.fields, langruntime.checkedIndex(field), checkruntime.copyRangeBoundField);
+            const otherEntry: checkruntime.RangeBoundField = langruntime.indexStruct(peer.fields, langruntime.checkedIndex(field), checkruntime.copyRangeBoundField);
+            let available: number = 0;
+            if (entry.comparisonAvailable && otherEntry.comparisonAvailable) {
+                available = langruntime.checkedI32(1);
+            }
+            result = recordComparisonPair(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), entry.typeName === otherEntry.typeName, available, false);
+            if (checkruntime.arrayPairRequiresScalar(result)) {
+                result = checkruntime.arrayOrderStep(rangeProfiledCompare(a, b, profile, entry.child, other, otherEntry.child));
+            }
+            field = langruntime.checkedAdd(field, 1);
+            position = checkruntime.arrayTextNextIndex(position);
+        }
+        return finishRecordComparison(frame, result);
     }
     if (node.kind === 42 || node.kind === 43) {
         if (!(node.typeName === peer.typeName) || !(node.elementType === peer.elementType) || !(node.canonical === peer.canonical) || !(node.comparison === node.kind)) {
@@ -33120,7 +33148,7 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
     while (checkruntime.arrayComparisonContinues(plan, position, result)) {
         const a: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, false);
         const b: checkruntime.ArrayElement = checkruntime.arrayComparisonElementAt(plan, position, true);
-        result = rangeProfiledCompare(a, b, profile, node.child, other, peer.child);
+        result = checkruntime.arrayOrderStep(rangeProfiledCompare(a, b, profile, node.child, other, peer.child));
         position = checkruntime.arrayTextNextIndex(position);
     }
     return checkruntime.finishArrayComparison(plan, result);
@@ -33135,7 +33163,7 @@ function rangeTypedCompare(lower: checkruntime.ArrayElement, upper: checkruntime
     if (upper.kind === "Null") {
         return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
     }
-    if (comparison >= 41 && comparison <= 43) {
+    if (comparison >= 41 && comparison <= 44) {
         return rangeProfiledCompare(lower, upper, profile, 0, other, 0);
     }
     return rangeBuiltinCompare(lower, upper, comparison);
@@ -33500,7 +33528,7 @@ export function rangeConstructTyped(typeName: string, elementType: string, kind:
         }
         let lower1: checkruntime.ArrayElement = lower;
         let upper1: checkruntime.ArrayElement = upper;
-        if (kind >= 41 && kind <= 43) {
+        if (kind >= 41 && kind <= 44) {
             lower1 = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(lower1, boundProfile));
             if (lower1.kind === "Error") {
                 const error: checkruntime.SqlError = lower1.value;
@@ -34516,7 +34544,7 @@ function rangeProfiledBoundOutput(input: checkruntime.ArrayElement, profile: che
     if (index >= profile.nodes.length) {
         return { kind: "Unknown" };
     }
-    const node: checkruntime.RangeBoundProfile = langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile);
+    const node: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile));
     if (node.kind === 42) {
         return rangeToText(checkruntime.arrayElementToRange(input));
     }

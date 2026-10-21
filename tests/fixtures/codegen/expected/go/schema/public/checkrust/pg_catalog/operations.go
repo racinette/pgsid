@@ -32953,13 +32953,41 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 	if index >= len(profile.Nodes) || otherIndex >= len(other.Nodes) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
-	node := profile.Nodes[index]
-	peer := other.Nodes[otherIndex]
+	node := checkruntime.CopyRangeBoundProfile(profile.Nodes[index])
+	peer := checkruntime.CopyRangeBoundProfile(other.Nodes[otherIndex])
 	if node.Kind != peer.Kind || node.Comparison != peer.Comparison || node.MissingComparison != peer.MissingComparison {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if node.MissingComparison {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(rangeArrayComparisonUndefined)}
+	}
+	if node.Kind == 44 {
+		if node.Comparison != 44 || node.TypeName != peer.TypeName {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		left := checkruntime.ArrayElementToComposite(lower)
+		right := checkruntime.ArrayElementToComposite(upper)
+		frame := PrepareRecordComparison(left, right, node.TypeName, peer.TypeName, int(int32(len(node.Fields))), int(int32(len(peer.Fields))))
+		result := checkruntime.ArrayComparisonInitial(&frame)
+		position := checkruntime.MakeInt4Value(0)
+		field := 0
+		for checkruntime.ArrayComparisonContinues(&frame, position, result) {
+			a := checkruntime.ArrayComparisonElementAt(&frame, position, false)
+			b := checkruntime.ArrayComparisonElementAt(&frame, position, true)
+			entry := node.Fields[field]
+			otherEntry := peer.Fields[field]
+			available := 0
+			if entry.ComparisonAvailable && otherEntry.ComparisonAvailable {
+				available = langruntime.CheckedI32(1)
+			}
+			result = RecordComparisonPair(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), entry.TypeName == otherEntry.TypeName, available, false)
+			if checkruntime.ArrayPairRequiresScalar(result) {
+				result = checkruntime.ArrayOrderStep(rangeProfiledCompare(a, b, profile, entry.Child, other, otherEntry.Child))
+			}
+			field = langruntime.CheckedAdd(field, 1)
+			position = checkruntime.ArrayTextNextIndex(position)
+		}
+		return FinishRecordComparison(&frame, result)
 	}
 	if node.Kind == 42 || node.Kind == 43 {
 		if node.TypeName != peer.TypeName || node.ElementType != peer.ElementType || node.Canonical != peer.Canonical || node.Comparison != node.Kind {
@@ -32990,7 +33018,7 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 	for checkruntime.ArrayComparisonContinues(&plan, position, result) {
 		a := checkruntime.ArrayComparisonElementAt(&plan, position, false)
 		b := checkruntime.ArrayComparisonElementAt(&plan, position, true)
-		result = rangeProfiledCompare(a, b, profile, node.Child, other, peer.Child)
+		result = checkruntime.ArrayOrderStep(rangeProfiledCompare(a, b, profile, node.Child, other, peer.Child))
 		position = checkruntime.ArrayTextNextIndex(position)
 	}
 	return checkruntime.FinishArrayComparison(&plan, result)
@@ -33005,7 +33033,7 @@ func rangeTypedCompare(lower checkruntime.ArrayElement, upper checkruntime.Array
 	if upper.Kind == checkruntime.ArrayElementNull {
 		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
 	}
-	if comparison >= 41 && comparison <= 43 {
+	if comparison >= 41 && comparison <= 44 {
 		return rangeProfiledCompare(lower, upper, profile, 0, other, 0)
 	}
 	return rangeBuiltinCompare(lower, upper, comparison)
@@ -33368,7 +33396,7 @@ func RangeConstructTyped(typeName string, elementType string, kind int, lower ch
 		}
 		lower := lower
 		upper := upper
-		if kind >= 41 && kind <= 43 {
+		if kind >= 41 && kind <= 44 {
 			lower = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(lower, &boundProfile))
 			if lower.Kind == checkruntime.ArrayElementError {
 				error := lower.Error
@@ -34372,7 +34400,7 @@ func rangeProfiledBoundOutput(input checkruntime.ArrayElement, profile *checkrun
 	if index >= len(profile.Nodes) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
-	node := profile.Nodes[index]
+	node := checkruntime.CopyRangeBoundProfile(profile.Nodes[index])
 	if node.Kind == 42 {
 		return RangeToText(checkruntime.ArrayElementToRange(input))
 	}

@@ -8823,7 +8823,9 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 		return ArrayElementFromArray(MakeArrayValue(ArrayPayload{NullBitmap: payload.NullBitmap, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements}))
 	}
 	profile := node.BoundProfile
-	checked := RangePrepareProfiledBound(input, &profile)
+	return RangePrepareProfiledBound(input, &profile)
+}
+func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	if checked.Kind == ArrayElementEnum {
 		payload := checked.Enum
 		return ArrayElementFromEnum(MakeEnumValue(payload.Ordinal))
@@ -9094,7 +9096,7 @@ func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
 }
 func RangeSupportValid(input RangeSupport, kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	comparison := input.Comparison == 0 || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 6 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39 || kind == 41 || kind == 42 || kind == 43))
+	comparison := input.Comparison == 0 || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 6 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39 || kind == 41 || kind == 42 || kind == 43 || kind == 44))
 	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
 	return comparison && canonical
 }
@@ -9130,6 +9132,16 @@ func RangeOidAliasMode(input RangeSupport, elementType string) int {
 	return 0
 }
 
+type RangeBoundField struct {
+	TypeName            string
+	Child               int
+	ComparisonAvailable bool
+}
+
+func copyRangeBoundField(value RangeBoundField) RangeBoundField {
+	return RangeBoundField{TypeName: langruntime.CheckedString(value.TypeName), Child: langruntime.CheckedIndex(value.Child), ComparisonAvailable: value.ComparisonAvailable}
+}
+
 type RangeBoundProfile struct {
 	TypeName          string
 	Kind              int
@@ -9140,10 +9152,11 @@ type RangeBoundProfile struct {
 	Child             int
 	EnumLabels        string
 	EnumCount         int
+	Fields            []RangeBoundField
 }
 
-func copyRangeBoundProfile(value RangeBoundProfile) RangeBoundProfile {
-	return RangeBoundProfile{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), Comparison: langruntime.CheckedI32(value.Comparison), Canonical: langruntime.CheckedI32(value.Canonical), MissingComparison: value.MissingComparison, ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), EnumLabels: langruntime.CheckedString(value.EnumLabels), EnumCount: langruntime.CheckedI32(value.EnumCount)}
+func CopyRangeBoundProfile(value RangeBoundProfile) RangeBoundProfile {
+	return RangeBoundProfile{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), Comparison: langruntime.CheckedI32(value.Comparison), Canonical: langruntime.CheckedI32(value.Canonical), MissingComparison: value.MissingComparison, ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), EnumLabels: langruntime.CheckedString(value.EnumLabels), EnumCount: langruntime.CheckedI32(value.EnumCount), Fields: langruntime.CheckedStructs(value.Fields, copyRangeBoundField)}
 }
 
 type RangeBoundContext struct {
@@ -9151,7 +9164,7 @@ type RangeBoundContext struct {
 }
 
 func CopyRangeBoundContext(value RangeBoundContext) RangeBoundContext {
-	return RangeBoundContext{Nodes: langruntime.CheckedStructs(value.Nodes, copyRangeBoundProfile)}
+	return RangeBoundContext{Nodes: langruntime.CheckedStructs(value.Nodes, CopyRangeBoundProfile)}
 }
 func EmptyRangeBoundContext() RangeBoundContext {
 	nodes := []RangeBoundProfile{}
@@ -9162,7 +9175,7 @@ func RangeBoundContextSnapshot(input *RangeBoundContext) RangeBoundContext {
 	index := 0
 	for index < len(input.Nodes) {
 		langruntime.CheckedAdd(len(nodes), 1)
-		nodes = append(nodes, input.Nodes[index])
+		nodes = append(nodes, CopyRangeBoundProfile(CopyRangeBoundProfile(input.Nodes[index])))
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	return RangeBoundContext{Nodes: nodes}
@@ -9189,8 +9202,25 @@ func AppendRangeBoundProfileWithCanonical(input RangeBoundContext, typeName stri
 	enumLabels = langruntime.CheckedString(enumLabels)
 	enumCount = langruntime.CheckedI32(enumCount)
 	nodes := input.Nodes
+	fields := []RangeBoundField{}
 	langruntime.CheckedAdd(len(nodes), 1)
-	nodes = append(nodes, RangeBoundProfile{TypeName: typeName, Kind: kind, Comparison: comparison, Canonical: canonical, MissingComparison: missingComparison, ElementType: elementType, Child: langruntime.IndexFromI32(child, 2147483647), EnumLabels: enumLabels, EnumCount: enumCount})
+	nodes = append(nodes, CopyRangeBoundProfile(RangeBoundProfile{TypeName: typeName, Kind: kind, Comparison: comparison, Canonical: canonical, MissingComparison: missingComparison, ElementType: elementType, Child: langruntime.IndexFromI32(child, 2147483647), EnumLabels: enumLabels, EnumCount: enumCount, Fields: fields}))
+	return RangeBoundContext{Nodes: nodes}
+}
+func AppendRangeBoundField(input RangeBoundContext, parent int, child int, typeName string, comparisonAvailable bool) RangeBoundContext {
+	input = CopyRangeBoundContext(input)
+	parent = langruntime.CheckedI32(parent)
+	child = langruntime.CheckedI32(child)
+	typeName = langruntime.CheckedString(typeName)
+	nodes := input.Nodes
+	index := langruntime.IndexFromI32(parent, len(nodes))
+	if index < len(nodes) {
+		node := CopyRangeBoundProfile(nodes[index])
+		fields := node.Fields
+		langruntime.CheckedAdd(len(fields), 1)
+		fields = append(fields, RangeBoundField{TypeName: typeName, Child: langruntime.IndexFromI32(child, len(nodes)), ComparisonAvailable: comparisonAvailable})
+		nodes[index] = CopyRangeBoundProfile(RangeBoundProfile{TypeName: node.TypeName, Kind: node.Kind, Comparison: node.Comparison, Canonical: node.Canonical, MissingComparison: node.MissingComparison, ElementType: node.ElementType, Child: node.Child, EnumLabels: node.EnumLabels, EnumCount: node.EnumCount, Fields: fields})
+	}
 	return RangeBoundContext{Nodes: nodes}
 }
 
@@ -9325,11 +9355,11 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 	profile = langruntime.CheckedBorrowed(profile, CopyRangeBoundContext)
 	index := 0
 	for index < len(profile.Nodes) {
-		node := profile.Nodes[index]
-		if node.TypeName == "" || node.Kind < 1 || node.Kind > 43 {
+		node := CopyRangeBoundProfile(profile.Nodes[index])
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 44 {
 			return false
 		}
-		if node.Kind >= 41 {
+		if node.Kind >= 41 && node.Kind <= 43 {
 			if node.ElementType == "" || node.Child <= index || node.Child >= len(profile.Nodes) || (node.Comparison != 0 && node.Comparison != node.Kind) {
 				return false
 			}
@@ -9337,7 +9367,7 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 				return false
 			}
 			if node.Kind == 42 {
-				child := profile.Nodes[node.Child]
+				child := CopyRangeBoundProfile(profile.Nodes[node.Child])
 				if RangeSupportValid(MakeRangeSupport(child.Comparison, node.Canonical), child.Kind) == false {
 					return false
 				}
@@ -9353,6 +9383,17 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 			} else if RangeSupportValid(MakeRangeSupport(node.Comparison, 1), node.Kind) == false {
 				return false
 			}
+		}
+		if len(node.Fields) > 2147483647 || (node.Kind != 44 && len(node.Fields) != 0) {
+			return false
+		}
+		field := 0
+		for field < len(node.Fields) {
+			entry := node.Fields[field]
+			if entry.TypeName == "" || entry.Child <= index || entry.Child >= len(profile.Nodes) {
+				return false
+			}
+			field = langruntime.CheckedAdd(field, 1)
 		}
 		if node.MissingComparison && node.Comparison != 0 {
 			return false
@@ -9379,10 +9420,22 @@ func RangeBoundProfilesEqual(left *RangeBoundContext, right *RangeBoundContext) 
 	}
 	index := 0
 	for index < len(left.Nodes) {
-		a := left.Nodes[index]
-		b := right.Nodes[index]
+		a := CopyRangeBoundProfile(left.Nodes[index])
+		b := CopyRangeBoundProfile(right.Nodes[index])
 		if a.TypeName != b.TypeName || a.Kind != b.Kind || a.Comparison != b.Comparison || a.Canonical != b.Canonical || a.MissingComparison != b.MissingComparison || a.ElementType != b.ElementType || a.Child != b.Child || a.EnumLabels != b.EnumLabels || a.EnumCount != b.EnumCount {
 			return false
+		}
+		if len(a.Fields) != len(b.Fields) {
+			return false
+		}
+		field := 0
+		for field < len(a.Fields) {
+			x := a.Fields[field]
+			y := b.Fields[field]
+			if x.TypeName != y.TypeName || x.Child != y.Child || x.ComparisonAvailable != y.ComparisonAvailable {
+				return false
+			}
+			field = langruntime.CheckedAdd(field, 1)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
@@ -9405,22 +9458,58 @@ func RangeWithBoundProfile(input RangeValue, profile RangeBoundContext) RangeVal
 func RangeBoundContextBranch(profile *RangeBoundContext, start int) RangeBoundContext {
 	profile = langruntime.CheckedBorrowed(profile, CopyRangeBoundContext)
 	start = langruntime.CheckedIndex(start)
-	if start >= len(profile.Nodes) {
+	if start >= len(profile.Nodes) || RangeBoundProfileValid(profile) == false {
 		return EmptyRangeBoundContext()
 	}
 	if profile.Nodes[start].Kind < 41 {
 		return EmptyRangeBoundContext()
 	}
-	nodes := []RangeBoundProfile{}
-	index := start
+	indices := []int{}
+	index := 0
 	for index < len(profile.Nodes) {
-		node := profile.Nodes[index]
-		child := 0
-		if node.Kind >= 41 {
-			child = langruntime.CheckedIndex(langruntime.CheckedSubtract(node.Child, start))
+		langruntime.CheckedAdd(len(indices), 1)
+		indices = append(indices, langruntime.CheckedIndex(len(profile.Nodes)))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	indices[start] = langruntime.CheckedIndex(0)
+	index = langruntime.CheckedIndex(start)
+	count := 0
+	for index < len(profile.Nodes) {
+		if indices[index] < len(profile.Nodes) {
+			indices[index] = langruntime.CheckedIndex(count)
+			count = langruntime.CheckedAdd(count, 1)
+			node := CopyRangeBoundProfile(profile.Nodes[index])
+			if node.Kind >= 41 && node.Kind <= 43 {
+				indices[node.Child] = langruntime.CheckedIndex(0)
+			}
+			field := 0
+			for field < len(node.Fields) {
+				indices[node.Fields[field].Child] = langruntime.CheckedIndex(0)
+				field = langruntime.CheckedAdd(field, 1)
+			}
 		}
-		langruntime.CheckedAdd(len(nodes), 1)
-		nodes = append(nodes, RangeBoundProfile{TypeName: node.TypeName, Kind: node.Kind, Comparison: node.Comparison, Canonical: node.Canonical, MissingComparison: node.MissingComparison, ElementType: node.ElementType, Child: child, EnumLabels: node.EnumLabels, EnumCount: node.EnumCount})
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	nodes := []RangeBoundProfile{}
+	index = langruntime.CheckedIndex(start)
+	for index < len(profile.Nodes) {
+		if indices[index] < len(profile.Nodes) {
+			node := CopyRangeBoundProfile(profile.Nodes[index])
+			child := 0
+			if node.Kind >= 41 && node.Kind <= 43 {
+				child = langruntime.CheckedIndex(indices[node.Child])
+			}
+			fields := []RangeBoundField{}
+			field := 0
+			for field < len(node.Fields) {
+				entry := node.Fields[field]
+				langruntime.CheckedAdd(len(fields), 1)
+				fields = append(fields, RangeBoundField{TypeName: entry.TypeName, Child: indices[entry.Child], ComparisonAvailable: entry.ComparisonAvailable})
+				field = langruntime.CheckedAdd(field, 1)
+			}
+			langruntime.CheckedAdd(len(nodes), 1)
+			nodes = append(nodes, CopyRangeBoundProfile(RangeBoundProfile{TypeName: node.TypeName, Kind: node.Kind, Comparison: node.Comparison, Canonical: node.Canonical, MissingComparison: node.MissingComparison, ElementType: node.ElementType, Child: child, EnumLabels: node.EnumLabels, EnumCount: node.EnumCount, Fields: fields}))
+		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	return RangeBoundContext{Nodes: nodes}
@@ -9440,9 +9529,38 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 	if index >= len(profile.Nodes) {
 		return ArrayElement{Kind: ArrayElementUnknown}
 	}
-	node := profile.Nodes[index]
+	node := CopyRangeBoundProfile(profile.Nodes[index])
 	if ArrayElementFamily(CopyArrayElement(input)) != node.Kind {
 		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	if input.Kind == ArrayElementComposite {
+		payload := CopyCompositePayload(input.Composite)
+		if node.Kind != 44 || payload.TypeName != node.TypeName || len(payload.Fields) != len(node.Fields) {
+			return ArrayElement{Kind: ArrayElementUnknown}
+		}
+		fields := []ArrayElement{}
+		position := 0
+		for position < len(payload.Fields) {
+			original := CopyArrayElement(payload.Fields[position])
+			checked := rangeProfiledValueAt(CopyArrayElement(original), profile, node.Fields[position].Child)
+			if checked.Kind == ArrayElementError {
+				error := checked.Error
+				return ArrayElement{Kind: ArrayElementError, Error: error}
+			}
+			if checked.Kind == ArrayElementUnknown {
+				partial := false
+				if original.Kind == ArrayElementUnknown {
+					partial = true
+				}
+				if partial == false {
+					return ArrayElement{Kind: ArrayElementUnknown}
+				}
+			}
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, CopyArrayElement(checked))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return ArrayElementFromComposite(MakeCompositeValue(CompositePayload{TypeName: payload.TypeName, Fields: fields}))
 	}
 	if input.Kind == ArrayElementArray {
 		payload := CopyArrayPayload(input.Array)
@@ -9471,7 +9589,7 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 	}
 	if input.Kind == ArrayElementRange {
 		payload := CopyRangePayload(input.Range)
-		child := profile.Nodes[node.Child]
+		child := CopyRangeBoundProfile(profile.Nodes[node.Child])
 		if payload.TypeName != node.TypeName || payload.ElementType != node.ElementType || payload.ElementKind != child.Kind {
 			return ArrayElement{Kind: ArrayElementUnknown}
 		}
@@ -9487,8 +9605,8 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 	}
 	if input.Kind == ArrayElementMultirange {
 		payload := CopyMultirangePayload(input.Multirange)
-		member := profile.Nodes[node.Child]
-		child := profile.Nodes[member.Child]
+		member := CopyRangeBoundProfile(profile.Nodes[node.Child])
+		child := CopyRangeBoundProfile(profile.Nodes[member.Child])
 		if payload.TypeName != node.TypeName || payload.RangeType != node.ElementType || payload.ElementType != member.ElementType || payload.ElementKind != child.Kind {
 			return ArrayElement{Kind: ArrayElementUnknown}
 		}
@@ -9504,7 +9622,7 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 		return ArrayElementFromMultirange(MultirangeFromProfiledRanges(payload.TypeName, payload.RangeType, payload.ElementType, payload.ElementKind, ranges, MakeRangeSupport(child.Comparison, member.Canonical)))
 	}
 	if rangeBoundValueValid(CopyArrayElement(input), node.TypeName == "pg_catalog.cidr") && RangeEnumBoundValid(CopyArrayElement(input), node.EnumCount) {
-		return input
+		return CompositePrepareScalarCell(input)
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
 }

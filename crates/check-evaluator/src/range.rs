@@ -120,7 +120,8 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 39
                 || kind == 41
                 || kind == 42
-                || kind == 43));
+                || kind == 43
+                || kind == 44));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
@@ -150,6 +151,13 @@ pub fn range_oid_alias_mode(input: RangeSupport, element_type: &str) -> i32 {
 }
 
 #[derive(Clone)]
+pub struct RangeBoundField {
+    pub type_name: String,
+    pub child: usize,
+    pub comparison_available: bool,
+}
+
+#[derive(Clone)]
 pub struct RangeBoundProfile {
     pub type_name: String,
     pub kind: i32,
@@ -160,6 +168,7 @@ pub struct RangeBoundProfile {
     pub child: usize,
     pub enum_labels: String,
     pub enum_count: i32,
+    pub fields: Vec<RangeBoundField>,
 }
 
 #[derive(Clone)]
@@ -190,10 +199,44 @@ pub fn append_range_bound_profile_with_canonical(input: RangeBoundContext, type_
     comparison: i32, canonical: i32, missing_comparison: bool, element_type: &str, child: i32,
     enum_labels: &str, enum_count: i32) -> RangeBoundContext {
     let mut nodes = input.nodes;
+    let fields: Vec<RangeBoundField> = Vec::new();
     nodes.push(RangeBoundProfile {type_name:type_name.to_owned(),kind,comparison,canonical,missing_comparison,
         element_type:element_type.to_owned(),child:usize::try_from(child).unwrap_or(2147483647),
-        enum_labels:enum_labels.to_owned(),enum_count});
+        enum_labels:enum_labels.to_owned(),enum_count,fields});
     RangeBoundContext {nodes}
+}
+
+pub fn append_range_bound_field(
+    input: RangeBoundContext,
+    parent: i32,
+    child: i32,
+    type_name: &str,
+    comparison_available: bool,
+) -> RangeBoundContext {
+    let mut nodes = input.nodes;
+    let index = usize::try_from(parent).unwrap_or(nodes.len());
+    if index < nodes.len() {
+        let node = nodes[index].clone();
+        let mut fields = node.fields;
+        fields.push(RangeBoundField {
+            type_name: type_name.to_owned(),
+            child: usize::try_from(child).unwrap_or(nodes.len()),
+            comparison_available,
+        });
+        nodes[index] = RangeBoundProfile {
+            type_name: node.type_name,
+            kind: node.kind,
+            comparison: node.comparison,
+            canonical: node.canonical,
+            missing_comparison: node.missing_comparison,
+            element_type: node.element_type,
+            child: node.child,
+            enum_labels: node.enum_labels,
+            enum_count: node.enum_count,
+            fields,
+        };
+    };
+    RangeBoundContext { nodes }
 }
 
 #[derive(Clone)]
@@ -311,30 +354,71 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
     let mut index: usize = 0;
     while index < profile.nodes.len() {
         let node = profile.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 1 || node.kind > 43 { return false; };
-        if node.kind >= 41 {
-            if node.element_type.as_str() == "" || node.child <= index || node.child >= profile.nodes.len()
-                || (node.comparison != 0 && node.comparison != node.kind) {
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 44 {
+            return false;
+        };
+        if node.kind >= 41 && node.kind <= 43 {
+            if node.element_type.as_str() == ""
+                || node.child <= index
+                || node.child >= profile.nodes.len()
+                || (node.comparison != 0 && node.comparison != node.kind)
+            {
                 return false;
             };
-            if node.kind == 43 && (profile.nodes[node.child].kind != 42
-                || node.element_type != profile.nodes[node.child].type_name) { return false; };
+            if node.kind == 43
+                && (profile.nodes[node.child].kind != 42
+                    || node.element_type != profile.nodes[node.child].type_name)
+            {
+                return false;
+            };
             if node.kind == 42 {
                 let child = profile.nodes[node.child].clone();
-                if range_support_valid(make_range_support(child.comparison,node.canonical),child.kind) == false { return false; };
+                if range_support_valid(
+                    make_range_support(child.comparison, node.canonical),
+                    child.kind,
+                ) == false
+                {
+                    return false;
+                };
             };
         } else {
-            if node.child != 0 || node.element_type.as_str() != "" { return false; };
+            if node.child != 0 || node.element_type.as_str() != "" {
+                return false;
+            };
             if node.missing_comparison {
-                if node.comparison != 0 { return false; };
-            } else if range_support_valid(make_range_support(node.comparison, 1), node.kind) == false {
+                if node.comparison != 0 {
+                    return false;
+                };
+            } else if range_support_valid(make_range_support(node.comparison, 1), node.kind)
+                == false
+            {
                 return false;
             };
         };
-        if node.missing_comparison && node.comparison != 0 { return false; };
-        if node.kind != 42 && node.canonical != 1 { return false; };
+        if node.fields.len() > 2147483647 || (node.kind != 44 && node.fields.len() != 0) {
+            return false;
+        };
+        let mut field: usize = 0;
+        while field < node.fields.len() {
+            let entry = node.fields[field].clone();
+            if entry.type_name.as_str() == ""
+                || entry.child <= index
+                || entry.child >= profile.nodes.len()
+            {
+                return false;
+            };
+            field += 1;
+        }
+        if node.missing_comparison && node.comparison != 0 {
+            return false;
+        };
+        if node.kind != 42 && node.canonical != 1 {
+            return false;
+        };
         if node.kind == 6 {
-            if range_enum_definition_valid(node.enum_labels.as_str(), node.enum_count) == false { return false; };
+            if range_enum_definition_valid(node.enum_labels.as_str(), node.enum_count) == false {
+                return false;
+            };
         } else if node.enum_labels.as_str() != "" || node.enum_count != -1 {
             return false;
         };
@@ -344,15 +428,40 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
 }
 
 pub fn range_bound_profiles_equal(left: &RangeBoundContext, right: &RangeBoundContext) -> bool {
-    if left.nodes.len() != right.nodes.len() { return false; };
+    if left.nodes.len() != right.nodes.len() {
+        return false;
+    };
     let mut index: usize = 0;
     while index < left.nodes.len() {
         let a = left.nodes[index].clone();
         let b = right.nodes[index].clone();
-        if a.type_name != b.type_name || a.kind != b.kind || a.comparison != b.comparison || a.canonical != b.canonical || a.missing_comparison != b.missing_comparison
-            || a.element_type != b.element_type || a.child != b.child || a.enum_labels != b.enum_labels || a.enum_count != b.enum_count {
+        if a.type_name != b.type_name
+            || a.kind != b.kind
+            || a.comparison != b.comparison
+            || a.canonical != b.canonical
+            || a.missing_comparison != b.missing_comparison
+            || a.element_type != b.element_type
+            || a.child != b.child
+            || a.enum_labels != b.enum_labels
+            || a.enum_count != b.enum_count
+        {
             return false;
         };
+        if a.fields.len() != b.fields.len() {
+            return false;
+        };
+        let mut field: usize = 0;
+        while field < a.fields.len() {
+            let x = a.fields[field].clone();
+            let y = b.fields[field].clone();
+            if x.type_name != y.type_name
+                || x.child != y.child
+                || x.comparison_available != y.comparison_available
+            {
+                return false;
+            };
+            field += 1;
+        }
         index += 1;
     }
     true
@@ -382,31 +491,135 @@ pub fn range_with_bound_profile(input: RangeValue, profile: RangeBoundContext) -
 }
 
 pub fn range_bound_context_branch(profile: &RangeBoundContext, start: usize) -> RangeBoundContext {
-    if start >= profile.nodes.len() { return empty_range_bound_context(); };
-    if profile.nodes[start].kind < 41 { return empty_range_bound_context(); };
-    let mut nodes: Vec<RangeBoundProfile> = Vec::new();
-    let mut index = start;
+    if start >= profile.nodes.len() || range_bound_profile_valid(profile) == false {
+        return empty_range_bound_context();
+    };
+    if profile.nodes[start].kind < 41 {
+        return empty_range_bound_context();
+    };
+    let mut indices: Vec<usize> = Vec::new();
+    let mut index: usize = 0;
     while index < profile.nodes.len() {
-        let node = profile.nodes[index].clone();
-        let mut child: usize = 0;
-        if node.kind >= 41 { child = node.child - start; };
-        nodes.push(RangeBoundProfile {type_name:node.type_name,kind:node.kind,
-            comparison:node.comparison,canonical:node.canonical,missing_comparison:node.missing_comparison,
-            element_type:node.element_type,child,enum_labels:node.enum_labels,enum_count:node.enum_count});
+        indices.push(profile.nodes.len());
         index += 1;
     }
-    RangeBoundContext {nodes}
+    indices[start] = 0;
+    index = start;
+    let mut count: usize = 0;
+    while index < profile.nodes.len() {
+        if indices[index] < profile.nodes.len() {
+            indices[index] = count;
+            count += 1;
+            let node = profile.nodes[index].clone();
+            if node.kind >= 41 && node.kind <= 43 {
+                indices[node.child] = 0;
+            };
+            let mut field: usize = 0;
+            while field < node.fields.len() {
+                indices[node.fields[field].child] = 0;
+                field += 1;
+            }
+        };
+        index += 1;
+    }
+    let mut nodes: Vec<RangeBoundProfile> = Vec::new();
+    index = start;
+    while index < profile.nodes.len() {
+        if indices[index] < profile.nodes.len() {
+            let node = profile.nodes[index].clone();
+            let mut child: usize = 0;
+            if node.kind >= 41 && node.kind <= 43 {
+                child = indices[node.child];
+            };
+            let mut fields: Vec<RangeBoundField> = Vec::new();
+            let mut field: usize = 0;
+            while field < node.fields.len() {
+                let entry = node.fields[field].clone();
+                fields.push(RangeBoundField {
+                    type_name: entry.type_name,
+                    child: indices[entry.child],
+                    comparison_available: entry.comparison_available,
+                });
+                field += 1;
+            }
+            nodes.push(RangeBoundProfile {
+                type_name: node.type_name,
+                kind: node.kind,
+                comparison: node.comparison,
+                canonical: node.canonical,
+                missing_comparison: node.missing_comparison,
+                element_type: node.element_type,
+                child,
+                enum_labels: node.enum_labels,
+                enum_count: node.enum_count,
+                fields,
+            });
+        };
+        index += 1;
+    }
+    RangeBoundContext { nodes }
 }
 
-fn range_profiled_value_at(input: ArrayElement, profile: &RangeBoundContext, index: usize) -> ArrayElement {
-    if let ArrayElement::Null = input { return input; };
-    if let ArrayElement::Unknown = input { return input; };
-    if let ArrayElement::Error(_) = input { return input; };
-    if index >= profile.nodes.len() { return ArrayElement::Unknown; };
+fn range_profiled_value_at(
+    input: ArrayElement,
+    profile: &RangeBoundContext,
+    index: usize,
+) -> ArrayElement {
+    if let ArrayElement::Null = input {
+        return input;
+    };
+    if let ArrayElement::Unknown = input {
+        return input;
+    };
+    if let ArrayElement::Error(_) = input {
+        return input;
+    };
+    if index >= profile.nodes.len() {
+        return ArrayElement::Unknown;
+    };
     let node = profile.nodes[index].clone();
-    if array_element_family(input.clone()) != node.kind { return ArrayElement::Unknown; };
+    if array_element_family(input.clone()) != node.kind {
+        return ArrayElement::Unknown;
+    };
+    if let ArrayElement::Composite(payload) = input {
+        if node.kind != 44
+            || payload.type_name != node.type_name
+            || payload.fields.len() != node.fields.len()
+        {
+            return ArrayElement::Unknown;
+        };
+        let mut fields: Vec<ArrayElement> = Vec::new();
+        let mut position: usize = 0;
+        while position < payload.fields.len() {
+            let original = payload.fields[position].clone();
+            let checked =
+                range_profiled_value_at(original.clone(), profile, node.fields[position].child);
+            if let ArrayElement::Error(error) = checked {
+                return ArrayElement::Error(error);
+            };
+            if let ArrayElement::Unknown = checked {
+                let mut partial = false;
+                if let ArrayElement::Unknown = original {
+                    partial = true;
+                };
+                if partial == false {
+                    return ArrayElement::Unknown;
+                };
+            };
+            fields.push(checked);
+            position += 1;
+        }
+        return array_element_from_composite(make_composite_value(CompositePayload {
+            type_name: payload.type_name,
+            fields,
+        }));
+    };
     if let ArrayElement::Array(payload) = input {
-        if payload.element_type != node.element_type || payload.element_kind != profile.nodes[node.child].kind { return ArrayElement::Unknown; };
+        if payload.element_type != node.element_type
+            || payload.element_kind != profile.nodes[node.child].kind
+        {
+            return ArrayElement::Unknown;
+        };
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut position: usize = 0;
         while position < payload.elements.len() {
@@ -414,53 +627,86 @@ fn range_profiled_value_at(input: ArrayElement, profile: &RangeBoundContext, ind
             let prepared = range_profiled_value_at(original.clone(), profile, node.child);
             if let ArrayElement::Unknown = prepared {
                 let mut partial = false;
-                if let ArrayElement::Unknown = original { partial = true; };
-                if partial == false { return ArrayElement::Unknown; };
+                if let ArrayElement::Unknown = original {
+                    partial = true;
+                };
+                if partial == false {
+                    return ArrayElement::Unknown;
+                };
             };
             elements.push(prepared);
             position += 1;
         }
         return array_element_from_array(make_array_value(ArrayPayload {
-            null_bitmap:payload.null_bitmap,element_type:payload.element_type,element_kind:payload.element_kind,
-            dimensions:payload.dimensions,elements}));
+            null_bitmap: payload.null_bitmap,
+            element_type: payload.element_type,
+            element_kind: payload.element_kind,
+            dimensions: payload.dimensions,
+            elements,
+        }));
     };
     if let ArrayElement::Range(payload) = input {
         let child = profile.nodes[node.child].clone();
-        if payload.type_name != node.type_name || payload.element_type != node.element_type
-            || payload.element_kind != child.kind { return ArrayElement::Unknown; };
+        if payload.type_name != node.type_name
+            || payload.element_type != node.element_type
+            || payload.element_kind != child.kind
+        {
+            return ArrayElement::Unknown;
+        };
         let mut labels = String::new();
         let mut count = -1;
-        if child.kind == 6 {labels = child.enum_labels;count = child.enum_count;};
-        let context = range_bound_context_branch(profile,node.child);
+        if child.kind == 6 {
+            labels = child.enum_labels;
+            count = child.enum_count;
+        };
+        let context = range_bound_context_branch(profile, node.child);
         let value = make_coerced_range_value(RangePayload {
-            type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,
-            enum_labels:labels,enum_count:count,bound_profile:context,
-            support:make_range_support(child.comparison,node.canonical),
-            empty:payload.empty,lower_inclusive:payload.lower_inclusive,
-            upper_inclusive:payload.upper_inclusive,bounds:payload.bounds});
+            type_name: payload.type_name,
+            element_type: payload.element_type,
+            element_kind: payload.element_kind,
+            enum_labels: labels,
+            enum_count: count,
+            bound_profile: context,
+            support: make_range_support(child.comparison, node.canonical),
+            empty: payload.empty,
+            lower_inclusive: payload.lower_inclusive,
+            upper_inclusive: payload.upper_inclusive,
+            bounds: payload.bounds,
+        });
         return array_element_from_range(value);
     };
     if let ArrayElement::Multirange(payload) = input {
         let member = profile.nodes[node.child].clone();
         let child = profile.nodes[member.child].clone();
-        if payload.type_name != node.type_name || payload.range_type != node.element_type
-            || payload.element_type != member.element_type || payload.element_kind != child.kind {
+        if payload.type_name != node.type_name
+            || payload.range_type != node.element_type
+            || payload.element_type != member.element_type
+            || payload.element_kind != child.kind
+        {
             return ArrayElement::Unknown;
         };
-        let mut ranges:Vec<RangeValue> = Vec::new();
-        let mut position:usize = 0;
+        let mut ranges: Vec<RangeValue> = Vec::new();
+        let mut position: usize = 0;
         while position < payload.ranges.len() {
             let original = array_element_from_range(payload.ranges[position].clone());
-            let prepared = range_profiled_value_at(original,profile,node.child);
+            let prepared = range_profiled_value_at(original, profile, node.child);
             ranges.push(array_element_to_range(prepared));
             position += 1;
         }
         return array_element_from_multirange(multirange_from_profiled_ranges(
-            payload.type_name.as_str(),payload.range_type.as_str(),payload.element_type.as_str(),
-            payload.element_kind,ranges,make_range_support(child.comparison,member.canonical)));
+            payload.type_name.as_str(),
+            payload.range_type.as_str(),
+            payload.element_type.as_str(),
+            payload.element_kind,
+            ranges,
+            make_range_support(child.comparison, member.canonical),
+        ));
     };
-    if range_bound_value_valid(input.clone(),node.type_name.as_str() == "pg_catalog.cidr")
-        && range_enum_bound_valid(input.clone(),node.enum_count) { return input; };
+    if range_bound_value_valid(input.clone(), node.type_name.as_str() == "pg_catalog.cidr")
+        && range_enum_bound_valid(input.clone(), node.enum_count)
+    {
+        return composite_prepare_scalar_cell(input);
+    };
     ArrayElement::Unknown
 }
 

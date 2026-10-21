@@ -220,6 +220,7 @@ export type RangeInputBoundProfile = {
   child: number
   enumLabels: string
   enumCount: number
+  fields?: { typeName: string; child: number; comparisonAvailable: boolean }[]
 }
 
 export type RangeInputPayload = {
@@ -241,7 +242,7 @@ export function rangeRustInput(payload: RangeInputPayload): string {
   const profile = (payload.boundProfile?.nodes ?? [])
     .map(
       (node) =>
-        `RangeBoundProfile {type_name:${rustStringLiteral(node.typeName)}.to_owned(),kind:${node.kind},comparison:${node.comparison},canonical:${node.canonical ?? 1},missing_comparison:${node.missingComparison},element_type:${rustStringLiteral(node.elementType)}.to_owned(),child:${node.child},enum_labels:${rustStringLiteral(node.enumLabels)}.to_owned(),enum_count:${node.enumCount}}`,
+        `RangeBoundProfile {type_name:${rustStringLiteral(node.typeName)}.to_owned(),kind:${node.kind},comparison:${node.comparison},canonical:${node.canonical ?? 1},missing_comparison:${node.missingComparison},element_type:${rustStringLiteral(node.elementType)}.to_owned(),child:${node.child},enum_labels:${rustStringLiteral(node.enumLabels)}.to_owned(),enum_count:${node.enumCount},fields:vec![${(node.fields ?? []).map((field) => `RangeBoundField {type_name:${rustStringLiteral(field.typeName)}.to_owned(),child:${field.child},comparison_available:${field.comparisonAvailable}}`).join(',')}]}`,
     )
     .join(',')
   return `make_coerced_range_value(RangePayload {bound_profile:RangeBoundContext {nodes:vec![${profile}]},enum_labels:${rustStringLiteral(payload.enumLabels ?? '')}.to_owned(),enum_count:${payload.enumCount ?? -1},type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.typeName)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
@@ -274,6 +275,22 @@ export function rangeGoInput(payload: RangeInputPayload): GoExpression {
                   go.keyValue('Child', go.number(node.child)),
                   go.keyValue('EnumLabels', go.string(node.enumLabels)),
                   go.keyValue('EnumCount', go.number(node.enumCount)),
+                  go.keyValue(
+                    'Fields',
+                    go.composite(
+                      go.slice(runtime('RangeBoundField')),
+                      (node.fields ?? []).map((field) =>
+                        go.composite(runtime('RangeBoundField'), [
+                          go.keyValue('TypeName', go.string(field.typeName)),
+                          go.keyValue('Child', go.number(field.child)),
+                          go.keyValue(
+                            'ComparisonAvailable',
+                            go.ident(String(field.comparisonAvailable)),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
                 ]),
               ),
             ),
@@ -332,6 +349,7 @@ export function rangeTypescriptInput(payload: RangeInputPayload, runtime: RangeS
       nodes: (payload.boundProfile?.nodes ?? []).map((node) => ({
         ...node,
         canonical: node.canonical ?? 1,
+        fields: (node.fields ?? []).map((field) => ({ ...field })),
       })),
     },
     support:
