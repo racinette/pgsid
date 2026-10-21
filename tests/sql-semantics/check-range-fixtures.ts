@@ -84,6 +84,7 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
     'pg_catalog."char"': 'charsend',
     'pg_catalog.inet': 'inet_send',
     'pg_catalog.cidr': 'cidr_send',
+    'pg_catalog.bpchar': 'bpcharsend',
     'pg_catalog.macaddr': 'macaddr_send',
     'pg_catalog.macaddr8': 'macaddr8_send',
     'pg_catalog.uuid': 'uuid_send',
@@ -95,7 +96,10 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
-  if (subtype === 'pg_catalog.text') return { kind: 'Text', value }
+  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(subtype))
+    return { kind: 'Text', value }
+  if (subtype === 'pg_catalog.bpchar')
+    return { kind: 'Text', value: Buffer.from(value, 'hex').toString('utf8') }
   if (subtype === 'pg_catalog.int2') return { kind: 'Int2', value: Number(value) }
   if (subtype === 'pg_catalog.bool') return { kind: 'Bool', value: value === 'true' }
   if (subtype === 'pg_catalog."bit"' || subtype === 'pg_catalog.varbit')

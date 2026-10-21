@@ -15,7 +15,11 @@ import {
   builtinTypeIO,
 } from '../../src/postgres/builtins/inventory.js'
 import { runCheckParity, type Outcome } from '../../tools/check-rust/parity.js'
-import { scalarRangeBackends, scalarRangeText } from './check-scalar-range-fixtures.js'
+import {
+  scalarRangeBackends,
+  scalarRangeComparison,
+  scalarRangeText,
+} from './check-scalar-range-fixtures.js'
 
 it('reuses represented scalar range backends for exact bounds, constructors, relations, sets and multirange normalization across targets', async () => {
   const pg = await PGlite.create(),
@@ -102,6 +106,7 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
       })
     }
     for (const [index, profile] of scalarRangeBackends.entries()) {
+      if (profile.type === 'pg_catalog.name') continue
       const [a, b, c] = profile.values,
         span = `scalar_span_${index}`,
         multi = `scalar_set_${index}`,
@@ -286,7 +291,7 @@ it('reuses represented scalar range backends for exact bounds, constructors, rel
         path: 'tests/scalar_range_values.rs',
         source: `
 fn scalar_range_input(input:TextValue,profile:i32)->RangeValue {
-${scalarRangeBackends.map((p, i) => `if profile==${i} {return range_from_text_with_support(input,"public.scalar_span_${i}",${rustStringLiteral(p.type)},${p.kind},make_range_support(${p.kind},1));};`).join('\n')}
+${scalarRangeBackends.map((p, i) => `if profile==${i} {return range_from_text_with_support(input,"public.scalar_span_${i}",${rustStringLiteral(p.type)},${p.kind},make_range_support(${scalarRangeComparison(p)},1));};`).join('\n')}
 RangeValue::Unknown
 }
 fn scalar_range_bound_wire(input:ArrayElement,profile:i32)->ByteaValue {
@@ -375,8 +380,16 @@ ${cases.map((item, index) => `if selected==${index}{return ${item.rust};};`).joi
     await mkdir('artifacts/scalar-range-values', { recursive: true })
     await writeFile(
       'artifacts/scalar-range-values/report.json',
-      JSON.stringify({ profiles: scalarRangeBackends, fixtures: fixtures.length, cases }, null, 2) +
-        '\n',
+      JSON.stringify(
+        {
+          profiles: scalarRangeBackends,
+          deferredTextInputTypes: ['pg_catalog.name'],
+          fixtures: fixtures.length,
+          cases,
+        },
+        null,
+        2,
+      ) + '\n',
     )
     await runCheckParity(directory, 'scalarrangevalues', group, ['probe'], fixtures)
   } finally {

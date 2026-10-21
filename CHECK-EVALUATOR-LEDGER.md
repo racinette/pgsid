@@ -101,7 +101,7 @@ explicit. Do not use target-native date or numeric parsers to supply SQL behavio
 ## Model explicit execution context
 
 - [ ] Enumerate operations requiring session settings or collation providers.
-- [x] Establish client-encoding requirements for text and name binary output, retaining portable ASCII bytes.
+- [x] Establish client-encoding requirements for text, varchar, bpchar and name binary output, retaining portable ASCII bytes.
 - [x] Declare database encoding for character codes and construction; defer dependent non-ASCII results without UTF8.
 - [ ] Design a portable context boundary before implementing those operations.
 - [ ] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior.
@@ -142,8 +142,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish interval scaling, calendar arithmetic, precision-aware literals, and clock input/output.
 - [x] Establish temporal field extraction, hashes, interval truncation, timestamp binning, and local calendar age.
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.
-- [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone
-      requirement for instant calendar age.
+- [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [x] Establish point payloads, SQL-coerced public inputs, construction,
       geometric equality, binary output and composition; establish the scalar
@@ -258,6 +257,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Reproduce missing subtype hash support errors for ranges, multiranges and recursive/domain arrays, including empty and all-NULL collections. Preserve strict seeds, partial bounds, input errors, constant preparation and lazy branches; verify native/Rust/Go/TypeScript INSERT parity without deployment OIDs.
 - [x] Verify admitted scalar range/multirange output, widths, binary send, hashes and JSON conversion through recursive/domain arrays and VARIADIC builders. Preserve exact bounds, signed zero, NaNs, key/error order, NULL and lazy branches with source/stored and native/Rust/Go/TypeScript INSERT parity; retain scalar formatting and hash build/context requirements.
 - [x] Admit CIDR ranges/multiranges and subtype domains through captured profiles and binary hash casts; retain host-bit validation and full-width network output with unavailable comparators. Verify constructors, literals, ordered input, public payloads, arrays, JSON, wire, hashes, snapshots and native/Rust/Go/TypeScript INSERT parity.
+- [x] Admit varchar, bpchar and name range/multirange subtypes with captured C/UTF8 comparators, padded bounds, selected hashes, wire output, arrays, JSON and source/stored literals. Preserve subtype-domain widths, ownership, callback deferrals and public inputs; retain identifier-limit and client-encoding requirements with native/Rust/Go/TypeScript INSERT parity.
 - [ ] Extend range/multirange support to remaining SQL-admissible represented subtype carriers; preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

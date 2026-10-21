@@ -565,7 +565,15 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
-    ['textsend', 'namesend', 'json_send', 'jsonb_send', 'jsonpath_send'].includes(item.name)
+    [
+      'textsend',
+      'namesend',
+      'varcharsend',
+      'bpcharsend',
+      'json_send',
+      'jsonb_send',
+      'jsonpath_send',
+    ].includes(item.name)
   )
     categories.push('session-setting:client_encoding')
   if (
