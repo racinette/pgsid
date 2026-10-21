@@ -7337,3 +7337,99 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,'17',NULL,false);
 -- name: network_block_skipped
 INSERT INTO lane_network_block_allocations (block_window, block_group, window_label, group_label, fingerprint, group_fingerprint, hash_seed, window_wire, bypass)
 VALUES('[10.0.0.1/32,::1/128]','{}','!different!','!different!',0,'0','17','!different!',true);
+
+-- name: fixed_route_padded_input
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[a,b]','["a  ","b  "]',false);
+
+-- name: fixed_route_equal_spaces
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[a,"a ")','empty',false);
+
+-- name: fixed_route_excess_spaces
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('["a    ",b]','["a  ","b  "]',false);
+
+-- name: fixed_route_width_error
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[alpha,zeta]','bad',false);
+
+-- name: fixed_route_domain_error
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[bad,z]','bad',false);
+
+-- name: fixed_route_wrong_label
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[a,b]','!different!',false);
+
+-- name: fixed_route_null
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES(NULL,NULL,false);
+
+-- name: fixed_route_skipped_error
+INSERT INTO lane_fixed_route_requests (payload, expected_label, bypass)
+VALUES('[alpha,zeta]','bad',true);
+
+-- name: label_window_equal_spaces
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,454226846,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_excluded_spaces
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a ")','[a,"a ")','[a,"a ")','empty','[a,"a ")','[a,"a ")',484847245,-547967086,-547967086,'01','020000000161000000026120','020000000161000000026120',false);
+
+-- name: label_window_full
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('["alpha ","zeta "]','["alpha ","zeta "]','["alpha ","zeta "]','["alpha ","zeta "]','["alpha ","zeta "]','["alpha ","zeta "]',1136027543,600445740,600445740,'0600000006616c70686120000000057a65746120','0600000006616c70686120000000057a65746120','0600000006616c70686120000000057a65746120',false);
+
+-- name: label_window_empty
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('empty','empty','empty','empty','empty','empty',484847245,484847245,484847245,'01','01','01',false);
+
+-- name: label_window_unbounded
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)',1061745599,1061745599,1061745599,'18','18','18',false);
+
+-- name: label_window_wrong_padded_label
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','!different!','[a,"a "]','[a,"a "]',-2092141517,454226846,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_padded_hash
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',0,454226846,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_padded_wire
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,454226846,454226846,'!different!','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_flexible_label
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','!different!','[a,"a "]',-2092141517,454226846,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_flexible_hash
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,0,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_flexible_wire
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,454226846,454226846,'060000000161000000026120','!different!','060000000161000000026120',false);
+
+-- name: label_window_wrong_named_label
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','!different!',-2092141517,454226846,454226846,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_named_hash
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,454226846,0,'060000000161000000026120','060000000161000000026120','060000000161000000026120',false);
+
+-- name: label_window_wrong_named_wire
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]','[a,"a "]',-2092141517,454226846,454226846,'060000000161000000026120','060000000161000000026120','!different!',false);
+
+-- name: label_window_null
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: label_window_skipped
+INSERT INTO lane_label_window_records (padded_window, flexible_window, named_window, padded_label, flexible_label, named_label, padded_hash, flexible_hash, named_hash, padded_wire, flexible_wire, named_wire, bypass)
+VALUES('[a,"a "]','[a,"a "]','[a,"a "]','!different!','[a,"a "]','[a,"a "]',-2092141517,0,454226846,'060000000161000000026120','060000000161000000026120','!different!',true);

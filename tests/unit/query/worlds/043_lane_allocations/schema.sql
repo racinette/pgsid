@@ -2779,3 +2779,44 @@ CREATE TABLE lane_network_block_requests (
   bypass boolean,
   CONSTRAINT masked_block_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_masked_block_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
 );
+
+CREATE TYPE lane_padded_label_window AS RANGE(subtype=bpchar,collation="C");
+CREATE TYPE lane_flexible_label_window AS RANGE(subtype=varchar,collation="C");
+CREATE TYPE lane_named_label_window AS RANGE(subtype=name);
+CREATE DOMAIN lane_fixed_route_code AS bpchar(3) CHECK(VALUE<>'bad');
+CREATE TYPE lane_fixed_route_window AS RANGE(subtype=lane_fixed_route_code,collation="C");
+
+CREATE TABLE lane_label_window_records (
+  padded_window lane_padded_label_window,
+  flexible_window lane_flexible_label_window,
+  named_window lane_named_label_window,
+  padded_label text,
+  flexible_label text,
+  named_label text,
+  padded_hash integer,
+  flexible_hash integer,
+  named_hash integer,
+  padded_wire text,
+  flexible_wire text,
+  named_wire text,
+  bypass boolean,
+  CONSTRAINT padded_label CHECK(CASE WHEN bypass THEN true ELSE padded_window::text COLLATE "C" IS NOT DISTINCT FROM padded_label COLLATE "C" END),
+  CONSTRAINT flexible_label CHECK(CASE WHEN bypass THEN true ELSE flexible_window::text COLLATE "C" IS NOT DISTINCT FROM flexible_label COLLATE "C" END),
+  CONSTRAINT named_label CHECK(CASE WHEN bypass THEN true ELSE named_window::text COLLATE "C" IS NOT DISTINCT FROM named_label COLLATE "C" END),
+  CONSTRAINT padded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(padded_window) IS NOT DISTINCT FROM padded_hash END),
+  CONSTRAINT flexible_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(flexible_window) IS NOT DISTINCT FROM flexible_hash END),
+  CONSTRAINT named_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(named_window) IS NOT DISTINCT FROM named_hash END),
+  CONSTRAINT padded_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(padded_window),'hex') COLLATE "C" IS NOT DISTINCT FROM padded_wire COLLATE "C" END),
+  CONSTRAINT flexible_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(flexible_window),'hex') COLLATE "C" IS NOT DISTINCT FROM flexible_wire COLLATE "C" END),
+  CONSTRAINT named_wire CHECK(CASE WHEN bypass THEN true ELSE encode(range_send(named_window),'hex') COLLATE "C" IS NOT DISTINCT FROM named_wire COLLATE "C" END),
+  CONSTRAINT padded_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(padded_window) IS NOT DISTINCT FROM to_jsonb(padded_label) END),
+  CONSTRAINT flexible_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(flexible_window) IS NOT DISTINCT FROM to_jsonb(flexible_label) END),
+  CONSTRAINT named_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(named_window) IS NOT DISTINCT FROM to_jsonb(named_label) END)
+);
+
+CREATE TABLE lane_fixed_route_requests (
+  payload text,
+  expected_label text,
+  bypass boolean,
+  CONSTRAINT fixed_route_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_fixed_route_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);

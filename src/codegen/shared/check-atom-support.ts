@@ -77,12 +77,17 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
-        ['namesend', 'textsend'].includes(implementation.name) &&
+        ['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
         implementation.strict &&
         !implementation.returnsSet &&
         implementation.args.length === 1 &&
         implementation.args[0] ===
-          (implementation.name === 'namesend' ? 'pg_catalog.name' : 'pg_catalog.text') &&
+          {
+            namesend: 'pg_catalog.name',
+            textsend: 'pg_catalog.text',
+            varcharsend: 'pg_catalog."varchar"',
+            bpcharsend: 'pg_catalog.bpchar',
+          }[implementation.name] &&
         implementation.result === 'pg_catalog.bytea' &&
         rustNames.has(implementation.rustName))) &&
     ((go.has(signature) && typescript.has(signature)) ||

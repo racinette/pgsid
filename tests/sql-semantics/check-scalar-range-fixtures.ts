@@ -81,7 +81,20 @@ export const scalarRangeBackends = [
     prefix: 'network',
     values: ['10.0.0.0/8', '10.0.0.1/32', '::1/128'],
   },
+  { type: 'pg_catalog."varchar"', kind: 8, prefix: 'text', values: ['alpha ', 'beta', 'zeta  '] },
+  { type: 'pg_catalog.bpchar', kind: 8, prefix: 'text', values: ['alpha ', 'beta  ', 'zeta '] },
+  { type: 'pg_catalog.name', kind: 8, prefix: 'text', values: ['alpha ', 'beta', 'zeta '] },
 ] as const
+
+export function scalarRangeComparison(profile: (typeof scalarRangeBackends)[number]): number {
+  return profile.type === 'pg_catalog.bpchar'
+    ? 108
+    : profile.type === 'pg_catalog.name'
+      ? 208
+      : profile.type === 'pg_catalog.cidr'
+        ? 113
+        : profile.kind
+}
 
 export const scalarRangeText = (lower: string | null, upper: string | null, flags = '[]') => {
   const quote = (value: string | null) =>

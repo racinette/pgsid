@@ -200,7 +200,12 @@ it('validates public scalar range payloads, compiled support and snapshots indep
           value: false,
         })
         const bad = structuredClone(row)
-        Object.assign(bad.v.value.bounds[0]!, { kind: 'Text', value: 'wrong carrier' })
+        Object.assign(
+          bad.v.value.bounds[0]!,
+          backend.kind === 8
+            ? { kind: 'Int4', value: 0 }
+            : { kind: 'Text', value: 'wrong carrier' },
+        )
         expect(map(evaluate(bad)).range_order).toMatchObject({ certain: false })
         for (const r of Object.values(map(evaluate({ ...bad, bypass: true }))))
           expect(r).toEqual({ certain: true, value: true })
@@ -287,7 +292,7 @@ it('validates public scalar range payloads, compiled support and snapshots indep
       }
       checks.push(`{
         row:=scalarFixture${index}();for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"known",c)}}
-        original:=checkruntime.CopyRangeValue(row.V.V);bad:=checkruntime.CopyRangeValue(original);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementText,Text:"wrong carrier"};row.V=KnownCheckValue(bad)
+        original:=checkruntime.CopyRangeValue(row.V.V);bad:=checkruntime.CopyRangeValue(original);bad.Value.Bounds[0]=checkruntime.ArrayElement{Kind:${backend.kind === 8 ? 'checkruntime.ArrayElementInt4,Int4:0' : 'checkruntime.ArrayElementText,Text:"wrong carrier"'}};row.V=KnownCheckValue(bad)
         for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if c.Constraint=="range_order"&&c.Result.Certain{t.Fatal(${index},"malformed",c)}}
         skip:=true;row.Bypass=KnownCheckValue(&skip);for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal(${index},"skip",c)}}
         row=scalarFixture${index}();row.V,row.W=row.W,row.V;for _,c:=range EvaluatePublicScalarPayload${index}Checks(row){if c.Constraint=="range_order"&&(!c.Result.Certain||!c.Result.Value.Valid||c.Result.Value.Value){t.Fatal(${index},"wrong order",c)}}

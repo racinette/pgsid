@@ -35,24 +35,31 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
           index,
           checked,
           values:
-            checked && (backend.kind === 19 || backend.kind === 20)
-              ? ['-3', '0', '3']
-              : checked && backend.kind === 14 && backend.type === 'pg_catalog."bit"'
-                ? ['000', '010', '111']
-                : checked && backend.kind === 31
-                  ? ['-1', '0', '1']
-                  : checked && backend.kind === 22
-                    ? ['00:00:00+00', '01:00:00.123456+00', '00:00:00-02']
-                    : checked && backend.kind === 23
-                      ? ['0 days', '1 mon 0.123456 seconds', '60 days']
-                      : [...backend.values],
+            checked && ['pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(backend.type)
+              ? ['aaa', 'b', 'ccc']
+              : checked && (backend.kind === 19 || backend.kind === 20)
+                ? ['-3', '0', '3']
+                : checked && backend.kind === 14 && backend.type === 'pg_catalog."bit"'
+                  ? ['000', '010', '111']
+                  : checked && backend.kind === 31
+                    ? ['-1', '0', '1']
+                    : checked && backend.kind === 22
+                      ? ['00:00:00+00', '01:00:00.123456+00', '00:00:00-02']
+                      : checked && backend.kind === 23
+                        ? ['0 days', '1 mon 0.123456 seconds', '60 days']
+                        : [...backend.values],
           name: `input_span_${index}_${Number(checked)}`,
           multiName: `input_set_${index}_${Number(checked)}`,
         }))
       })
       for (const p of profiles) {
         const subtype = p.checked ? `input_bound_${p.index}` : p.backend.type
-        const modifier = p.backend.kind === 14 || [21, 22, 23].includes(p.backend.kind) ? '(3)' : ''
+        const modifier =
+          p.backend.kind === 14 ||
+          [21, 22, 23].includes(p.backend.kind) ||
+          ['pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(p.backend.type)
+            ? '(3)'
+            : ''
         const declaration = p.backend.kind === 23 ? 'interval(3)' : p.backend.type + modifier
         if (p.checked)
           await pg.exec(
@@ -177,6 +184,12 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
                 '::ffff:192.0.2.1/128',
               ].map((text) => wrap(scalarRangeText(text, text)))
             : []
+        const textForms =
+          form.backend.kind === 8 && form.backend.type !== 'pg_catalog.name'
+            ? ['', 'a', 'a ', 'alpha', 'longer', 'é', '𐍈'].map((text) =>
+                wrap(scalarRangeText(text, text)),
+              )
+            : []
         const contextualForms =
           form.backend.kind === 22 ? [wrap(scalarRangeText('12:00', '13:00'))] : []
         const samples = form.constant
@@ -186,6 +199,7 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
               wrap('empty'),
               wrap('(,)'),
               ...cidrForms,
+              ...textForms,
               wrap(scalarRangeText(b!, c!)),
               wrap(scalarRangeText(a!, c!)),
               wrap(scalarRangeText(c!, b!)),
@@ -259,7 +273,25 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
                     wrap(scalarRangeText(c!, b!)),
                     wrap(scalarRangeText(null, c!)),
                   ].includes(sample)
+                const sourceName =
+                  form.backend.type === 'pg_catalog.name' &&
+                  form.constant &&
+                  !form.invalid &&
+                  plan.identity.constraint === 'source'
+                const runtimeName =
+                  form.backend.type === 'pg_catalog.name' &&
+                  ['runtime', 'array'].includes(form.name) &&
+                  sample !== null &&
+                  ![wrap('empty'), wrap('(,)'), wrap('[a,b,c]'), 'bad'].includes(sample)
+                const textWire =
+                  form.backend.kind === 8 &&
+                  ['runtime', 'array'].includes(form.name) &&
+                  sample !== null &&
+                  /[^\x00-\x7f]/u.test(sample) &&
+                  native.kind !== 'Error'
                 const result: Outcome =
+                  sourceName ||
+                  (!bypass && (runtimeName || textWire)) ||
                   sourceMoney ||
                   (!bypass &&
                     (sourceMoney ||

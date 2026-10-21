@@ -83,10 +83,15 @@ export function supportsTextCallableCollation(signature: string, collation?: str
   const textWire =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
-    metadata.name === 'textsend' &&
+    ['textsend', 'varcharsend', 'bpcharsend'].includes(metadata.name) &&
     metadata.strict &&
     metadata.args.length === 1 &&
-    metadata.args[0] === 'pg_catalog.text' &&
+    metadata.args[0] ===
+      {
+        textsend: 'pg_catalog.text',
+        varcharsend: 'pg_catalog."varchar"',
+        bpcharsend: 'pg_catalog.bpchar',
+      }[metadata.name] &&
     metadata.result === 'pg_catalog.bytea'
   const characterCode =
     metadata.kind === 'function' &&

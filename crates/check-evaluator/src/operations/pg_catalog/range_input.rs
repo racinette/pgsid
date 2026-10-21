@@ -4,8 +4,9 @@ fn range_input_space(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\x0b' || ch == '\x0c'
 }
 
-fn range_input_bound(input: TextValue, kind: i32, cidr: bool) -> ArrayElement {
+fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool) -> ArrayElement {
     if kind == 8 {
+        if name { return array_element_from_text(name_from_text(input)); };
         return array_element_from_text(input);
     };
     if kind == 1 || kind == 2 || kind == 3 {
@@ -381,7 +382,8 @@ pub fn range_from_text_with_support(
     };
     let lower_text = range_text_bound(plan.clone(), false);
     let cidr = range_support_is_cidr(support) || element_type == "pg_catalog.cidr";
-    let lower = range_input_bound(lower_text, kind, cidr);
+    let name = support.comparison == 200 || support.comparison == 208 || element_type == "pg_catalog.name";
+    let lower = range_input_bound(lower_text, kind, cidr, name);
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -389,7 +391,7 @@ pub fn range_from_text_with_support(
         return RangeValue::Unknown;
     };
     let upper_text = range_text_bound(plan.clone(), true);
-    let upper = range_input_bound(upper_text, kind, cidr);
+    let upper = range_input_bound(upper_text, kind, cidr, name);
     if let ArrayElement::Error(error) = upper {
         return RangeValue::Error(error);
     };

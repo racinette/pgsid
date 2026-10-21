@@ -86,6 +86,7 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
         || (kind == 13 && range_support_is_cidr(input))
+        || (kind == 8 && (input.comparison == 108 || input.comparison == 200 || input.comparison == 208))
         || (input.comparison == kind
             && (kind == 2
                 || kind == 3

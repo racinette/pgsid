@@ -3674,6 +3674,12 @@ func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValu
 func TextsendMgfj(input checkruntime.TextValue) checkruntime.ByteaValue {
 	return textWireWithoutContext(input)
 }
+func VarcharsendJov8(input checkruntime.TextValue) checkruntime.ByteaValue {
+	return textWireWithoutContext(input)
+}
+func BpcharsendH9zn(input checkruntime.TextValue) checkruntime.ByteaValue {
+	return textWireWithoutContext(input)
+}
 func binarySendBits(input checkruntime.Int8Value, width int) checkruntime.ByteaValue {
 	width = langruntime.CheckedI32(width)
 	if input.Kind == checkruntime.Int8ValueError {
@@ -32555,6 +32561,16 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToTimestamptz(upper)
 		return TimestamptzCmpCa0r(left, right)
 	}
+	if kind == 108 {
+		left := checkruntime.ArrayElementToText(lower)
+		right := checkruntime.ArrayElementToText(upper)
+		return BpcharcmpB8vl(left, right)
+	}
+	if kind == 208 {
+		left := checkruntime.ArrayElementToText(lower)
+		right := checkruntime.ArrayElementToText(upper)
+		return Btnamecmp9x5j(left, right)
+	}
 	if kind == 8 {
 		left := checkruntime.ArrayElementToText(lower)
 		right := checkruntime.ArrayElementToText(upper)
@@ -33068,9 +33084,12 @@ func rangeInputSpace(ch rune) bool {
 	ch = langruntime.CheckedChar(ch)
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
-func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool) checkruntime.ArrayElement {
+func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name bool) checkruntime.ArrayElement {
 	kind = langruntime.CheckedI32(kind)
 	if kind == 8 {
+		if name {
+			return checkruntime.ArrayElementFromText(NameFromText(input))
+		}
 		return checkruntime.ArrayElementFromText(input)
 	}
 	if kind == 1 || kind == 2 || kind == 3 {
@@ -33400,7 +33419,8 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 	}
 	lowerText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), false)
 	cidr := checkruntime.RangeSupportIsCidr(support) || elementType == "pg_catalog.cidr"
-	lower := rangeInputBound(lowerText, kind, cidr)
+	name := support.Comparison == 200 || support.Comparison == 208 || elementType == "pg_catalog.name"
+	lower := rangeInputBound(lowerText, kind, cidr, name)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -33409,7 +33429,7 @@ func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, ele
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	upperText := RangeTextBound(checkruntime.CopyRangeTextPlan(plan), true)
-	upper := rangeInputBound(upperText, kind, cidr)
+	upper := rangeInputBound(upperText, kind, cidr, name)
 	if upper.Kind == checkruntime.ArrayElementError {
 		error := upper.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}

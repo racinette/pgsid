@@ -40,6 +40,16 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
         let right = array_element_to_timestamptz(upper);
         return sql__pg_catalog__timestamptz_cmp__ca0r(left, right);
     };
+    if kind == 108 {
+        let left = array_element_to_text(lower);
+        let right = array_element_to_text(upper);
+        return sql__pg_catalog__bpcharcmp__b8vl(left, right);
+    };
+    if kind == 208 {
+        let left = array_element_to_text(lower);
+        let right = array_element_to_text(upper);
+        return sql__pg_catalog__btnamecmp__9x5j(left, right);
+    };
     if kind == 8 {
         let left = array_element_to_text(lower);
         let right = array_element_to_text(upper);

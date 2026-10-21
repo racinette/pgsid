@@ -1933,11 +1933,16 @@ export function emitCheckRustEvaluator(
           !jsonBuilder &&
           !jsonpathTimezone &&
           !(
-            (['namesend', 'textsend'].includes(implementation.name) &&
+            (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
               implementation.args.length === 1 &&
               implementation.args[0] ===
-                (implementation.name === 'namesend' ? 'pg_catalog.name' : 'pg_catalog.text') &&
+                {
+                  namesend: 'pg_catalog.name',
+                  textsend: 'pg_catalog.text',
+                  varcharsend: 'pg_catalog."varchar"',
+                  bpcharsend: 'pg_catalog.bpchar',
+                }[implementation.name] &&
               implementation.result === 'pg_catalog.bytea') ||
             (isOidAliasType(implementation.result) &&
               (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
@@ -2246,8 +2251,14 @@ export function emitCheckRustEvaluator(
             !(
               rangeBinarySend &&
               scalar.schema === 'pg_catalog' &&
-              scalar.name === 'textsend' &&
-              scalar.args[0] === 'pg_catalog.text' &&
+              ['textsend', 'namesend', 'varcharsend', 'bpcharsend'].includes(scalar.name) &&
+              scalar.args[0] ===
+                {
+                  namesend: 'pg_catalog.name',
+                  textsend: 'pg_catalog.text',
+                  varcharsend: 'pg_catalog."varchar"',
+                  bpcharsend: 'pg_catalog.bpchar',
+                }[scalar.name] &&
               scalar.volatility === 's'
             )) ||
           scalar.result !== call.type ||
@@ -2263,7 +2274,9 @@ export function emitCheckRustEvaluator(
           )
         const deferredTextHash =
           !rangeBinarySend &&
-          range.elementType === 'pg_catalog.text' &&
+          ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+            range.elementType,
+          ) &&
           range.collationDeterministic !== true
         const bounds = (deferredTextHash ? [] : [false, true]).map((upper) => {
           const cell = bindRange(`range_bound(${ownedOperand(input)}, ${upper})`)
@@ -4269,7 +4282,10 @@ export function emitCheckRustEvaluator(
           preparationDepth = 0
           let value: { name: string; type: string }
           try {
-            value = emitScalar(conversion, lines, used)
+            value =
+              stored && range.elementType === 'pg_catalog.name'
+                ? { name: text, type: range.elementType }
+                : emitScalar(conversion, lines, used)
           } finally {
             if (outer) localInputs.set(key, outer)
             else localInputs.delete(key)

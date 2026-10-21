@@ -38,6 +38,9 @@ it.each(Array.from({ length: Math.ceil(scalarRangeBackends.length / 5) }, (_, i)
         if (backend.type === 'pg_catalog.cidr')
           await pg.exec(`CREATE DOMAIN io_cidr_bound_${index} AS cidr CHECK(masklen(VALUE)>=8);
             CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_cidr_bound_${index},multirange_type_name=io_domain_set_${index})`)
+        if (backend.kind === 8)
+          await pg.exec(`CREATE DOMAIN io_text_bound_${index} AS ${backend.type} CHECK(VALUE IS DISTINCT FROM 'forbidden'::${backend.type});
+            CREATE TYPE io_domain_span_${index} AS RANGE(subtype=io_text_bound_${index},multirange_type_name=io_domain_set_${index})`)
       }
       const initial = await snapshotCatalog(pg),
         families = customRangeProfiles(initial).flatMap((profile, index) =>

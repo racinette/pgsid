@@ -22,6 +22,9 @@ const subtypeKinds = {
   'pg_catalog.timestamptz': 5,
   'pg_catalog.date': 7,
   'pg_catalog.text': 8,
+  'pg_catalog."varchar"': 8,
+  'pg_catalog.bpchar': 8,
+  'pg_catalog.name': 8,
   'pg_catalog.bool': 9,
   'pg_catalog."numeric"': 10,
   'pg_catalog.inet': 13,
@@ -274,7 +277,19 @@ export function rangeProfileSupport(
         : 0
   return {
     comparison:
-      profile.elementType === 'pg_catalog.cidr' ? (comparison === 13 ? 113 : 100) : comparison,
+      profile.elementType === 'pg_catalog.cidr'
+        ? comparison === 13
+          ? 113
+          : 100
+        : profile.elementType === 'pg_catalog.bpchar'
+          ? comparison === 8
+            ? 108
+            : 0
+          : profile.elementType === 'pg_catalog.name'
+            ? comparison === 8
+              ? 208
+              : 200
+            : comparison,
     canonical,
   }
 }

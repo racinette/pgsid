@@ -75,3 +75,12 @@ fn text_wire_without_context(input: TextValue) -> ByteaValue {
 pub fn sql__pg_catalog__textsend__mgfj(input: TextValue) -> ByteaValue {
     text_wire_without_context(input)
 }
+
+
+pub fn sql__pg_catalog__varcharsend__jov8(input: TextValue) -> ByteaValue {
+    text_wire_without_context(input)
+}
+
+pub fn sql__pg_catalog__bpcharsend__h9zn(input: TextValue) -> ByteaValue {
+    text_wire_without_context(input)
+}
