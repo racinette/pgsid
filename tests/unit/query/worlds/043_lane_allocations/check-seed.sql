@@ -6801,3 +6801,147 @@ VALUES(NULL,NULL,false);
 -- name: budget_quote_skipped
 INSERT INTO lane_budget_quotes (quoted_cost, credit_limit, bypass)
 VALUES(1,3000,true);
+
+-- name: sensor_import_valid
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_reject_density
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','empty','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_reject_temperature
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','[-0,3]','[-0,3]','empty','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_reject_capacity
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','empty','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_reject_clock
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','empty','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_reject_delay
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('[-0,3]','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','empty',false);
+
+-- name: sensor_import_invalid
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('bad','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',false);
+
+-- name: sensor_import_null
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: sensor_import_skipped
+INSERT INTO lane_sensor_imports (density_text, density_window, temperature_text, temperature_window, capacity_text, capacity_window, clock_text, clock_window, delay_text, delay_window, bypass)
+VALUES('bad','[-0,3]','[-0,3]','[-0,3]','[-32768,32767]','[-32768,32767]','[00:00:00,24:00:00]','[00:00:00,24:00:00]','["0 days","60 days"]','["0 days","60 days"]',true);
+
+-- name: network_import_valid
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_reject_address
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','empty','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_reject_nic
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','empty','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_reject_eui
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','empty','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_reject_device
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','empty','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_reject_zoned_clock
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('[10.0.0.0/8,::1]','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','empty',false);
+
+-- name: network_import_invalid
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('bad','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',false);
+
+-- name: network_import_null
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: network_import_skipped
+INSERT INTO lane_network_imports (address_text, address_window, nic_text, nic_window, eui_text, eui_window, device_text, device_window, zoned_clock_text, zoned_clock_window, bypass)
+VALUES('bad','[10.0.0.0/8,::1]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00,ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00:00:00:00:00:00:00:00,ff:ff:ff:ff:ff:ff:ff:ff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00000000-0000-0000-0000-000000000000,ffffffff-ffff-ffff-ffff-ffffffffffff]','[00:00:00+00,00:00:00-02]','[00:00:00+00,00:00:00-02]',true);
+
+-- name: protocol_import_valid
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','[f,t]','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_reject_activity
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','empty','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_reject_fixed_mask
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','[f,t]','[000,100]','empty','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_reject_variable_mask
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','[f,t]','[000,100]','[000,100]','[000,100]','empty','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_reject_payload
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','[f,t]','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','empty','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_reject_status
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('[f,t]','[f,t]','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','empty',false);
+
+-- name: protocol_import_invalid
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('bad','[f,t]','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',false);
+
+-- name: protocol_import_null
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: protocol_import_skipped
+INSERT INTO lane_protocol_imports (activity_text, activity_window, fixed_mask_text, fixed_mask_window, variable_mask_text, variable_mask_window, payload_text, payload_window, status_text, status_window, bypass)
+VALUES('bad','[f,t]','[000,100]','[000,100]','[000,100]','[000,100]','["\\x00","\\xff"]','["\\x00","\\xff"]','[A,Z]','[A,Z]',true);
+
+-- name: audit_import_valid
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_reject_cost
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','empty','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_reject_object
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','[0,0]','[2147483648,4294967295]','empty','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_reject_transaction
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','empty','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_reject_log
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','empty','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_reject_record
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('[0,0]','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','empty',false);
+
+-- name: audit_import_invalid
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('bad','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',false);
+
+-- name: audit_import_null
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: audit_import_skipped
+INSERT INTO lane_audit_imports (cost_text, cost_window, object_text, object_window, transaction_text, transaction_window, log_text, log_window, record_text, record_window, bypass)
+VALUES('bad','[0,0]','[2147483648,4294967295]','[2147483648,4294967295]','[9223372036854775808,18446744073709551615]','[9223372036854775808,18446744073709551615]','[80000000/0,FFFFFFFF/FFFFFFFF]','[80000000/0,FFFFFFFF/FFFFFFFF]','["(0,0)","(4294967295,65535)"]','["(0,0)","(4294967295,65535)"]',true);
