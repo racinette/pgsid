@@ -1,6 +1,9 @@
 import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
+  arrayRangeProfile,
+  arrayMultirangeProfile,
+  rangeBoundProfiles,
   arrayElementIdentity,
   arrayInputPlan,
 } from '../../shared/check-array-types.js'
@@ -165,6 +168,31 @@ export function renderGoSchemaCheckArtifacts(
     : null
   if (rustGroup?.source && !rustImportPath)
     throw new Error('Go Rust CHECK module requires an import path')
+  const boundContext = (type: string): GoExpression => {
+    const profile =
+      rangeTypeProfile(type) ??
+      multirangeTypeProfile(type) ??
+      (type.startsWith('array:') ? (arrayRangeProfile(type) ?? arrayMultirangeProfile(type)) : null)
+    const nodes = profile ? rangeBoundProfiles(profile, config.sql.codegen?.checks) : []
+    if (!nodes) throw new Error('Missing compiled array-bound range context')
+    const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+    const records = nodes.map((node) => {
+      const fields = Object.entries(node).map(([key, value]) =>
+        go.keyValue(
+          key[0]!.toUpperCase() + key.slice(1),
+          typeof value === 'string'
+            ? go.string(value)
+            : typeof value === 'boolean'
+              ? go.ident(String(value))
+              : go.number(value),
+        ),
+      )
+      return go.composite(runtime('RangeBoundProfile'), fields)
+    })
+    return go.composite(runtime('RangeBoundContext'), [
+      go.keyValue('Nodes', go.composite(go.slice(runtime('RangeBoundProfile')), records)),
+    ])
+  }
   let rustIndex = 0
   const row = go.ident('row')
   const inputHelpers = new Set<string>()
@@ -458,6 +486,7 @@ export function renderGoSchemaCheckArtifacts(
             rustInputAdapters.add('checkRustArray')
             rustInputAdapters.add('checkRustArrayProfileWord')
             rustInputAdapters.add('checkRustArrayTree')
+            rustInputAdapters.add('checkRustArrayTypedMetadata')
             rustInputAdapters.add('checkRustArrayElement')
           }
           if (
@@ -529,12 +558,16 @@ export function renderGoSchemaCheckArtifacts(
               ? [
                   go.string(enumDefinition?.values.join('\0') ?? ''),
                   go.number(enumDefinition?.values.length ?? -1),
+                  ...(rangeBoundProfiles((range ?? multirange)!, config.sql.codegen?.checks)?.length
+                    ? [boundContext(item.type)]
+                    : []),
                 ]
               : []),
             ...(item.type.startsWith('array:')
               ? [
                   go.string(arrayElementIdentity(item.type.slice('array:'.length))),
                   go.number(arrayElementFamily(item.type.slice('array:'.length))!),
+                  boundContext(item.type),
                   ...arrayInputPlan(item.type).map((value) => go.string(value)),
                 ]
               : []),
@@ -764,13 +797,13 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   }
 }
 
-const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,tree...)) }
+const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,boundProfile checkruntime.RangeBoundContext,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,boundProfile,tree...)) }
 func checkRustArrayProfileWord(input string) int {
   word,width:=utf8.DecodeRuneInString(input)
   if width==0 || width!=len(input) || (word==utf8.RuneError && width==1) { return -1 }
   return int(word)
 }
-func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int,tree ...string) checkruntime.ArrayValue {
+func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int,boundProfile checkruntime.RangeBoundContext,tree ...string) checkruntime.ArrayValue {
   if !field.Set { return checkruntime.ArrayUnknown() }
   if field.Null { return checkruntime.ArrayNull() }
   input,ok:=any(field.V).(checkruntime.ArrayValue)
@@ -779,7 +812,13 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   if input.Kind!=checkruntime.ArrayValueValue || input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind { return checkruntime.ArrayUnknown() }
   depth:=0
   if len(tree)>=2 { depth=len(tree[1])-1 }
-  if !checkRustArrayTree(input,depth,tree...) { return checkruntime.ArrayUnknown() }
+  if !checkRustArrayTree(input,depth,boundProfile,tree...) { return checkruntime.ArrayUnknown() }
+  input=checkRustArrayTypedMetadata(input,boundProfile,tree...)
+  if len(boundProfile.Nodes)>0 {
+    if len(tree)==7 { return checkruntime.ArrayFromCoercedRangeTypedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),boundProfile) }
+    if len(tree)==8 { return checkruntime.ArrayFromCoercedMultirangeTypedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),boundProfile) }
+    return checkruntime.ArrayUnknown()
+  }
   if len(tree)==9 { count,err:=strconv.Atoi(tree[8]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedRangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),tree[7],count) }
   if len(tree)==10 { count,err:=strconv.Atoi(tree[9]);if err!=nil { return checkruntime.ArrayUnknown() };return checkruntime.ArrayFromCoercedMultirangeDefinedProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6]),checkRustArrayProfileWord(tree[7]),tree[8],count) }
   if len(tree)==7 && checkRustArrayProfileWord(tree[4])>=0 && checkRustArrayProfileWord(tree[5])>=0 && checkRustArrayProfileWord(tree[6])>=0 { return checkruntime.ArrayFromCoercedRangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],checkRustArrayProfileWord(tree[4]),checkRustArrayProfileWord(tree[5]),checkRustArrayProfileWord(tree[6])) }
@@ -787,19 +826,39 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   if len(tree)>=2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
   return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
 }
-func checkRustArrayTree(input checkruntime.ArrayValue,depth int,tree ...string) bool {
+func checkRustArrayTypedMetadata(input checkruntime.ArrayValue,boundProfile checkruntime.RangeBoundContext,tree ...string) checkruntime.ArrayValue {
+  if input.Kind!=checkruntime.ArrayValueValue || len(tree)<5 { return input }
+  payload:=input.Value
+  elements:=make([]checkruntime.ArrayElement,len(payload.Elements));copy(elements,payload.Elements)
+  labels:="";count:=-1
+  if len(tree)==9 { labels=tree[7];count,_=strconv.Atoi(tree[8]) }
+  if len(tree)==10 { labels=tree[8];count,_=strconv.Atoi(tree[9]) }
+  for i,element:=range elements {
+    if element.Kind==checkruntime.ArrayElementArray { nested:=checkRustArrayTypedMetadata(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:element.Array},boundProfile,tree...);element.Array=nested.Value }
+    if element.Kind==checkruntime.ArrayElementRange { span:=element.Range;span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;element.Range=span }
+    if element.Kind==checkruntime.ArrayElementMultirange {
+      multi:=element.Multirange;ranges:=make([]checkruntime.RangeValue,len(multi.Ranges));copy(ranges,multi.Ranges)
+      for j,rangeValue:=range ranges { if rangeValue.Kind==checkruntime.RangeValueValue { span:=rangeValue.Value;span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;rangeValue.Value=span;ranges[j]=rangeValue } }
+      multi.Ranges=ranges;multi.Support=checkruntime.RangeBuiltinSupport(multi.RangeType,multi.ElementType,multi.ElementKind);element.Multirange=multi
+    }
+    elements[i]=element
+  }
+  payload.Elements=elements
+  return checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:payload}
+}
+func checkRustArrayTree(input checkruntime.ArrayValue,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
   if input.Kind!=checkruntime.ArrayValueValue { return false }
   if len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return false }
   for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return false } }
-  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth,tree...) { return false } }
+  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth,boundProfile,tree...) { return false } }
   return true
 }
-func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,tree ...string) bool {
+func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
   if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementMultirange { return false }
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
   if input.Kind==checkruntime.ArrayElementArray {
     if depth<1 || family!=41 { return false }
-    return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,tree...)
+    return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,boundProfile,tree...)
   }
   if input.Kind==checkruntime.ArrayElementMultirange {
     if family!=43 || (len(tree)!=6 && len(tree)!=8 && len(tree)!=10) || checkRustArrayProfileWord(tree[5])<0 { return false }
@@ -807,7 +866,7 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     if p.TypeName!=tree[2] || p.RangeType!=tree[3] || p.ElementType!=tree[4] || p.ElementKind!=checkRustArrayProfileWord(tree[5]) || len(p.Ranges)>2147483647 { return false }
     for _,span:=range p.Ranges {
       if span.Kind==checkruntime.RangeValueUnknown || span.Kind==checkruntime.RangeValueNull || span.Kind==checkruntime.RangeValueError { continue }
-      if span.Kind!=checkruntime.RangeValueValue || !checkRustArrayElement(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:span.Value},42,0,tree[0],tree[1],tree[3],tree[4],tree[5]) { return false }
+      if span.Kind!=checkruntime.RangeValueValue || !checkRustArrayElement(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:span.Value},42,0,boundProfile,tree[0],tree[1],tree[3],tree[4],tree[5]) { return false }
     }
     return true
   }
@@ -815,7 +874,8 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     if family!=42 || (len(tree)!=5 && len(tree)!=7 && len(tree)!=9) || checkRustArrayProfileWord(tree[4])<0 { return false }
     p:=input.Range
     if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=checkRustArrayProfileWord(tree[4]) || len(p.Bounds)>2 { return false }
-    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,0) { return false } }
+    boundDepth:=0;for _,node:=range boundProfile.Nodes {if node.Kind==41 {boundDepth++}}
+    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) { return false } }
     return true
   }
   if input.Kind==checkruntime.ArrayElementInt2 {
@@ -1046,7 +1106,8 @@ func checkRustJson[T any](field CheckOptional[T]) checkruntime.JsonValue {
   }
   return checkruntime.JsonUnknown()
 }
-func checkRustMultirange[T any](field CheckOptional[T], typeName string, rangeType string, elementType string, elementKind int, enumLabels string, enumCount int) checkruntime.MultirangeValue {
+func checkRustMultirange[T any](field CheckOptional[T], typeName string, rangeType string, elementType string, elementKind int, enumLabels string, enumCount int, profiles ...checkruntime.RangeBoundContext) checkruntime.MultirangeValue {
+  boundProfile:=checkruntime.RangeBoundContext{};if len(profiles)>0 {boundProfile=profiles[0]}
   if !field.Set { return checkruntime.MultirangeUnknown() }
   if field.Null { return checkruntime.MultirangeNull() }
   value,ok:=any(field.V).(checkruntime.MultirangeValue)
@@ -1058,7 +1119,7 @@ func checkRustMultirange[T any](field CheckOptional[T], typeName string, rangeTy
   ranges:=make([]checkruntime.RangeValue,len(p.Ranges))
   for i,span:=range p.Ranges {
     if span.Kind==checkruntime.RangeValueValue && (span.Value.TypeName!=rangeType || span.Value.ElementType!=elementType || span.Value.ElementKind!=elementKind) { return checkruntime.MultirangeUnknown() }
-    checked:=checkRustRange(CheckOptional[checkruntime.RangeValue]{Set:true,V:span},enumLabels,enumCount)
+    checked:=checkRustRange(CheckOptional[checkruntime.RangeValue]{Set:true,V:span},enumLabels,enumCount,boundProfile)
     if checked.Kind==checkruntime.RangeValueUnknown { return checkruntime.MultirangeUnknown() }
     if checked.Kind==checkruntime.RangeValueError { return checkruntime.MultirangeValue{Kind:checkruntime.MultirangeValueError,Error:checked.Error} }
     if checked.Kind!=checkruntime.RangeValueValue || checked.Value.Empty { return checkruntime.MultirangeUnknown() }
@@ -1068,7 +1129,8 @@ func checkRustMultirange[T any](field CheckOptional[T], typeName string, rangeTy
   p.Support=checkruntime.RangeBuiltinSupport(rangeType,elementType,elementKind)
   return checkruntime.MakeCoercedMultirangeValue(p)
 }
-func checkRustRange[T any](field CheckOptional[T], enumLabels string, enumCount int) checkruntime.RangeValue {
+func checkRustRange[T any](field CheckOptional[T], enumLabels string, enumCount int, profiles ...checkruntime.RangeBoundContext) checkruntime.RangeValue {
+  boundProfile:=checkruntime.RangeBoundContext{};if len(profiles)>0 {boundProfile=profiles[0]}
   if !field.Set { return checkruntime.RangeUnknown() }
   if field.Null { return checkruntime.RangeNull() }
   value,ok:=any(field.V).(checkruntime.RangeValue)
@@ -1077,8 +1139,10 @@ func checkRustRange[T any](field CheckOptional[T], enumLabels string, enumCount 
   if value.Kind!=checkruntime.RangeValueValue { return checkruntime.RangeUnknown() }
   p:=value.Value
   if !utf8.ValidString(p.TypeName) || strings.IndexByte(p.TypeName,0)>=0 || !utf8.ValidString(p.ElementType) || strings.IndexByte(p.ElementType,0)>=0 || p.ElementKind < 1 || p.ElementKind > 2147483647 || len(p.Bounds)>2 { return checkruntime.RangeUnknown() }
-  for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,0) { return checkruntime.RangeUnknown() } }
+  boundDepth:=0;for _,node:=range boundProfile.Nodes {if node.Kind==41 {boundDepth++}}
+    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) { return checkruntime.RangeUnknown() } }
   p.Support=checkruntime.RangeBuiltinSupport(p.TypeName,p.ElementType,p.ElementKind)
+  p.BoundProfile=boundProfile
   p.EnumLabels=enumLabels
   p.EnumCount=enumCount
   return checkruntime.MakeCoercedRangeValue(p)

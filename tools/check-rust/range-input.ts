@@ -24,6 +24,7 @@ export type RangeJsonbPayload = {
 export type RangeInputCell =
   | { kind: 'Array'; value: OwnedArrayInputPayload }
   | { kind: 'Jsonb'; value: RangeJsonbPayload }
+  | { kind: 'Json'; value: { source: string; kind: number; depth: number } }
   | { kind: 'Enum'; value: { ordinal: number; labelOid: bigint } }
   | { kind: 'Null' | 'Unknown' | 'Float4UnspecifiedNan' | 'Float8UnspecifiedNan' }
   | { kind: 'Error'; value: { state: number } }
@@ -80,6 +81,7 @@ export type RangeInputCell =
     }
 
 const cellRecords = {
+  Json: 'JsonPayload',
   Enum: 'EnumPayload',
   Timetz: 'TimetzPayload',
   Interval: 'IntervalPayload',

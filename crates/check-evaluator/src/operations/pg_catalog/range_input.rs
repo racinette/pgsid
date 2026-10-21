@@ -418,6 +418,31 @@ pub fn finish_range_stored_text_defined(
     RangeValue::Unknown
 }
 
+pub fn finish_range_text_typed(plan: RangeTextPlan, type_name: &str, element_type: &str,
+    kind: i32, support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
+    bound_profile: RangeBoundContext) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        return range_with_bound_profile(range_text_initial(plan,type_name,element_type,kind,support),bound_profile);
+    };
+    let flags=range_text_flags(plan);
+    range_construct_typed(type_name,element_type,kind,lower,upper,flags,support,"",-1,bound_profile)
+}
+
+pub fn finish_range_stored_text_typed(plan: RangeTextPlan, type_name: &str, element_type: &str,
+    kind: i32, support: RangeSupport, lower: ArrayElement, upper: ArrayElement,
+    bound_profile: RangeBoundContext) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        return range_with_bound_profile(range_stored_text_initial(plan,type_name,element_type,kind,support),bound_profile);
+    };
+    let flags=range_text_flags(plan);
+    if let TextValue::Value(text)=flags {
+        return range_from_typed_bounds(type_name,element_type,kind,false,
+            text.as_str()=="[]" || text.as_str()=="[)",text.as_str()=="[]" || text.as_str()=="(]",
+            range_stored_text_bound(lower),range_stored_text_bound(upper),support,"",-1,bound_profile);
+    };
+    RangeValue::Unknown
+}
+
 pub fn range_from_text_with_support(
     input: TextValue,
     type_name: &str,

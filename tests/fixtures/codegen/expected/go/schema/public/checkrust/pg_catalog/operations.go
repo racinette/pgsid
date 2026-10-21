@@ -33626,6 +33626,38 @@ func FinishRangeStoredTextDefined(plan checkruntime.RangeTextPlan, typeName stri
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 }
+func FinishRangeTextTyped(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	boundProfile = checkruntime.CopyRangeBoundContext(boundProfile)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
+		return checkruntime.RangeWithBoundProfile(RangeTextInitial(plan, typeName, elementType, kind, support), boundProfile)
+	}
+	flags := RangeTextFlags(plan)
+	return RangeConstructTyped(typeName, elementType, kind, lower, upper, flags, support, "", langruntime.CheckedSignedNegate(1), boundProfile)
+}
+func FinishRangeStoredTextTyped(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	boundProfile = checkruntime.CopyRangeBoundContext(boundProfile)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
+		return checkruntime.RangeWithBoundProfile(RangeStoredTextInitial(plan, typeName, elementType, kind, support), boundProfile)
+	}
+	flags := RangeTextFlags(plan)
+	if flags.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(flags.Value)
+		return checkruntime.RangeFromTypedBounds(typeName, elementType, kind, false, text == "[]" || text == "[)", text == "[]" || text == "(]", RangeStoredTextBound(lower), RangeStoredTextBound(upper), support, "", langruntime.CheckedSignedNegate(1), boundProfile)
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
 func RangeFromTextWithSupport(input checkruntime.TextValue, typeName string, elementType string, kind int, support checkruntime.RangeSupport) checkruntime.RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
@@ -33822,6 +33854,21 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 	}
 	if kind == 6 {
 		return EnumToText(checkruntime.ArrayElementToEnum(input), enumLabels, enumCount)
+	}
+	if kind == 11 {
+		return JsonToText(checkruntime.ArrayElementToJson(input))
+	}
+	if kind == 34 {
+		return XidToText(checkruntime.ArrayElementToXid(input))
+	}
+	if kind == 35 {
+		return CidToText(checkruntime.ArrayElementToCid(input))
+	}
+	if kind == 36 {
+		return SnapshotToText(checkruntime.ArrayElementToSnapshot(input))
+	}
+	if kind == 40 {
+		return JsonpathToText(checkruntime.ArrayElementToJsonpath(input))
 	}
 	if kind == 12 {
 		return JsonbTextContext(checkruntime.ArrayElementToJsonb(input), utf8)

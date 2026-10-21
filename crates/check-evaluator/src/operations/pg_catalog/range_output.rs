@@ -112,6 +112,11 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
     if kind == 6 {
         return enum_to_text(array_element_to_enum(input), enum_labels, enum_count);
     };
+    if kind == 11 { return json_to_text(array_element_to_json(input)); };
+    if kind == 34 { return xid_to_text(array_element_to_xid(input)); };
+    if kind == 35 { return cid_to_text(array_element_to_cid(input)); };
+    if kind == 36 { return snapshot_to_text(array_element_to_snapshot(input)); };
+    if kind == 40 { return jsonpath_to_text(array_element_to_jsonpath(input)); };
     if kind == 12 {
         return jsonb_text_context(array_element_to_jsonb(input), utf8);
     };

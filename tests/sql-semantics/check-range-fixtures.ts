@@ -1,12 +1,21 @@
 import type { PGlite } from '@electric-sql/pglite'
 import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
-import type { RangeType } from '../../src/sql-semantics/expressions.js'
-import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
+import {
+  arrayElementBaseType,
+  domainElementDefinition,
+  type RangeType,
+} from '../../src/sql-semantics/expressions.js'
+import {
+  arrayElementFamily,
+  arrayElementIdentity,
+  rangeBoundProfiles,
+} from '../../src/codegen/shared/check-array-types.js'
 import type {
   RangeInputCell,
   RangeInputPayload,
   RangeJsonbPayload,
 } from '../../tools/check-rust/range-input.js'
+import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 
 const jsonbBounds = new WeakMap<PGlite, Map<string, Promise<RangeJsonbPayload>>>()
 
@@ -14,7 +23,47 @@ export async function readRangeBoundCell(
   pg: PGlite,
   subtype: string,
   value: string | null,
+  sqlType?: string,
 ): Promise<RangeInputCell> {
+  if (subtype.startsWith('array:') && value !== null)
+    return {
+      kind: 'Array',
+      value: (await readArrayBoundFixture(pg, subtype, sqlType ?? arraySqlType(subtype), value))!,
+    }
+  if (subtype === 'pg_catalog."json"' && value !== null) {
+    const type = (await pg.query<{ type: string }>('SELECT json_typeof($1::json) type', [value]))
+      .rows[0]!.type
+    let depth = 0,
+      maximum = 0,
+      quoted = false,
+      escaped = false
+    for (const ch of value) {
+      if (quoted) {
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === '"') quoted = false
+      } else if (ch === '"') quoted = true
+      else if (ch === '[' || ch === '{') {
+        depth++
+        maximum = Math.max(maximum, depth)
+      } else if (ch === ']' || ch === '}') depth--
+    }
+    return {
+      kind: 'Json',
+      value: {
+        source: value,
+        kind:
+          type === 'boolean'
+            ? value.trim() === 'true'
+              ? 2
+              : 1
+            : ({ null: 0, number: 3, string: 4, array: 5, object: 6 } as Record<string, number>)[
+                type
+              ]!,
+        depth: maximum,
+      },
+    }
+  }
   if (subtype.startsWith('enum:') && value !== null) {
     const names = JSON.parse(subtype.slice(5)) as string[]
     const identity = names.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.')
@@ -92,6 +141,78 @@ export async function readRangeBoundCell(
     cache.set(value, pending)
   }
   return { kind: 'Jsonb', value: structuredClone(await pending) }
+}
+
+const arraySqlType = (type: string): string => {
+  const element = type.slice(6),
+    domain = domainElementDefinition(element)
+  const quoted = (parts: string[]) =>
+    parts.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.')
+  return (
+    (domain
+      ? quoted([domain.schema, domain.name])
+      : element.startsWith('enum:')
+        ? quoted(JSON.parse(element.slice(5)) as string[])
+        : element) + '[]'
+  )
+}
+const arrayBounds = new WeakMap<PGlite, Map<string, Promise<OwnedArrayInputPayload>>>()
+export async function readArrayBoundFixture(
+  pg: PGlite,
+  type: string,
+  sqlType: string,
+  text: string | null,
+): Promise<OwnedArrayInputPayload | null> {
+  if (text === null) return null
+  let cache = arrayBounds.get(pg)
+  if (!cache) arrayBounds.set(pg, (cache = new Map()))
+  const key = JSON.stringify([type, sqlType, text])
+  let pending = cache.get(key)
+  if (!pending) {
+    pending = (async () => {
+      const element = type.slice(6),
+        base = arrayElementBaseType(element)
+      const shape = (
+        await pg.query<{ lower: number; length: number }>(
+          `SELECT array_lower($1::${sqlType},d) lower,array_length($1::${sqlType},d) length FROM generate_series(1,array_ndims($1::${sqlType})) d`,
+          [text],
+        )
+      ).rows
+      const nativeElement = (
+        await pg.query<{ identity: string }>(
+          `WITH RECURSIVE bases(oid) AS (SELECT $1::regtype::oid UNION SELECT t.typbasetype FROM bases b JOIN pg_type t ON t.oid=b.oid WHERE t.typtype='d') SELECT format('%I.%I',n.nspname,e.typname) identity FROM bases b JOIN pg_type t ON t.oid=b.oid JOIN pg_type e ON e.oid=t.typelem JOIN pg_namespace n ON n.oid=e.typnamespace`,
+          [sqlType],
+        )
+      ).rows[0]!.identity
+      const rows = (
+        await pg.query<{ value: string | null }>(
+          `SELECT ${base.startsWith('array:') ? 'value::text' : rangeBoundProjection('value', base)} value FROM unnest($1::${sqlType}) WITH ORDINALITY AS cells(value,position) ORDER BY position`,
+          [text],
+        )
+      ).rows
+      const elements: OwnedArrayInputPayload['elements'] = []
+      for (const row of rows)
+        elements.push(
+          row.value === null
+            ? { kind: 'Null' }
+            : base.startsWith('array:')
+              ? {
+                  kind: 'Array',
+                  value: (await readArrayBoundFixture(pg, base, nativeElement, row.value))!,
+                }
+              : await readRangeBoundCell(pg, base, row.value, nativeElement),
+        )
+      return {
+        elementType: arrayElementIdentity(element),
+        elementKind: arrayElementFamily(element)!,
+        dimensions: shape,
+        elements,
+        nullBitmap: { kind: 'Value', value: rows.some((row) => row.value === null) },
+      }
+    })()
+    cache.set(key, pending)
+  }
+  return structuredClone(await pending)
 }
 
 export function rangeCoreSamples(type: RangeType): {
@@ -293,6 +414,13 @@ export async function readRangeFixture(
     typeName: metadata.identity,
     elementType: metadata.subtype,
     elementKind: arrayElementFamily(metadata.elementType)!,
+    ...(metadata.elementType.startsWith('array:')
+      ? {
+          boundProfile: {
+            nodes: rangeBoundProfiles(metadata, { defaultCollation: 'C', serverEncoding: 'UTF8' })!,
+          },
+        }
+      : {}),
     ...(metadata.subtypeEnum
       ? {
           enumLabels: metadata.subtypeEnum.values.join('\0'),
@@ -305,8 +433,8 @@ export async function readRangeFixture(
     bounds: row.empty
       ? []
       : await Promise.all([
-          readRangeBoundCell(pg, metadata.elementType, row.lo),
-          readRangeBoundCell(pg, metadata.elementType, row.hi),
+          readRangeBoundCell(pg, metadata.elementType, row.lo, metadata.subtype),
+          readRangeBoundCell(pg, metadata.elementType, row.hi, metadata.subtype),
         ]),
   }
 }

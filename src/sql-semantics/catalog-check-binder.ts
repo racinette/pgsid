@@ -1,4 +1,7 @@
 import {
+  rangeSubtypeCarrierIdentity,
+  rangeSubtypeIsDomain,
+  rangeArraySubtype,
   capturedRangeType,
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -135,6 +138,18 @@ export function catalogArrayType(
   }
   const builtin = catalogScalarType(name)
   if (builtin?.startsWith('array:')) return builtin as ArrayType
+  for (const profile of rangeTypes) {
+    const node = profile.subtypeDefinitions?.find(
+      (node) => rangeCallTypeKey(node.identity) === rangeCallTypeKey(name),
+    )
+    if (node?.element) {
+      const captured = rangeArraySubtype({
+        subtype: node.identity,
+        subtypeDefinitions: profile.subtypeDefinitions,
+      })
+      if (captured) return captured
+    }
+  }
   const relative =
     !name.endsWith('[]') &&
     rangeTypes.find(
@@ -233,13 +248,18 @@ function capturedCatalogRange(
   )
   const element = profile.subtypeEnum
     ? enumType(profile.subtypeEnum)
-    : catalogBaseScalarType(profile.subtype, subtypeDomain?.oid, domains)
+    : (rangeArraySubtype(profile) ??
+      catalogBaseScalarType(profile.subtype, subtypeDomain?.oid, domains))
   const type = element ? capturedRangeType(profile, element) : null
   return type && multi ? multirangeTypeProfile(`multirange:${type.slice(6)}`)!.multirangeType : type
 }
 
 function rangeSubtypeIdentity(profile: RangeProfile): ScalarType {
-  if (profile.subtype === profile.elementType) return profile.elementType
+  if (
+    profile.subtype === profile.elementType ||
+    (profile.elementType.startsWith('array:') && !rangeSubtypeIsDomain(profile))
+  )
+    return profile.elementType
   const names = catalogTypeNames(profile.subtype)
   if (
     profile.subtypeEnum &&
@@ -5346,7 +5366,7 @@ export function bindCatalogCheck(
     const names =
       stored && profile.subtypeEnum
         ? [profile.subtypeEnum.schema, profile.subtypeEnum.name]
-        : catalogTypeNames(stored ? profile.elementType : profile.subtype)
+        : catalogTypeNames(stored ? rangeSubtypeCarrierIdentity(profile) : profile.subtype)
     if (!names) return null
     const converted = bindCatalogCheck(
       [

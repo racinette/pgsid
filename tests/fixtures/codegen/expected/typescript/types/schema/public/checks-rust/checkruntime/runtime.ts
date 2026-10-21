@@ -8666,6 +8666,29 @@ export function emptyRangeBoundContext(): RangeBoundContext {
     const nodes: RangeBoundProfile[] = [];
     return { nodes: nodes };
 }
+export function rangeBoundContextSnapshot(input: RangeBoundContext): RangeBoundContext {
+    let nodes: RangeBoundProfile[] = [];
+    let index: number = 0;
+    while (index < input.nodes.length) {
+        langruntime.pushStruct(nodes, langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile), copyRangeBoundProfile);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { nodes: nodes };
+}
+export function appendRangeBoundProfile(input: RangeBoundContext, typeName: string, kind: number, comparison: number, missingComparison: boolean, elementType: string, child: number, enumLabels: string, enumCount: number): RangeBoundContext {
+    input = copyRangeBoundContext(input);
+    typeName = langruntime.checkedString(typeName);
+    kind = langruntime.checkedI32(kind);
+    comparison = langruntime.checkedI32(comparison);
+    missingComparison = langruntime.checkedBool(missingComparison);
+    elementType = langruntime.checkedString(elementType);
+    child = langruntime.checkedI32(child);
+    enumLabels = langruntime.checkedString(enumLabels);
+    enumCount = langruntime.checkedI32(enumCount);
+    let nodes: RangeBoundProfile[] = input.nodes;
+    langruntime.pushStruct(nodes, { typeName: typeName, kind: kind, comparison: comparison, missingComparison: missingComparison, elementType: elementType, child: langruntime.indexFromI32(child, 2147483647), enumLabels: enumLabels, enumCount: enumCount }, copyRangeBoundProfile);
+    return { nodes: nodes };
+}
 export interface RangePayload {
     readonly typeName: string;
     readonly elementType: string;
@@ -9200,6 +9223,24 @@ export function rangeFromCoercedDefinedProfile(input: RangeValue, typeName: stri
     }
     return input;
 }
+export function rangeFromCoercedTypedProfile(input: RangeValue, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number, boundProfile: RangeBoundContext): RangeValue {
+    input = copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    boundProfile = copyRangeBoundContext(boundProfile);
+    if (input.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        const typed: RangePayload = rangePayloadWithBoundProfile(payload, boundProfile);
+        return makeCoercedRangeValue(rangePayloadWithSupport(typed, makeRangeSupport(comparison, canonical)));
+    }
+    return input;
+}
 export function rangeRequireSupport(input: RangeValue, expected: RangeSupport): RangeValue {
     input = copyRangeValue(input);
     if (input.kind === "Value") {
@@ -9466,6 +9507,30 @@ export function multirangeFromCoercedDefinedProfile(input: MultirangeValue, type
             index = langruntime.checkedAdd(index, 1);
         }
         return multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, { comparison: comparison, canonical: canonical });
+    }
+    return input;
+}
+export function multirangeFromCoercedTypedProfile(input: MultirangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, boundProfile: RangeBoundContext): MultirangeValue {
+    input = copyMultirangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    boundProfile = copyRangeBoundContext(boundProfile);
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        let ranges: RangeValue[] = payload.ranges;
+        let index: number = 0;
+        while (index < ranges.length) {
+            ranges[langruntime.checkedIndexIn(ranges, index)] = copyRangeValue(rangeFromCoercedTypedProfile(copyRangeValue(langruntime.indexStruct(ranges, langruntime.checkedIndex(index), copyRangeValue)), rangeType, elementType, elementKind, comparison, canonical, copyRangeBoundContext(boundProfile)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, makeRangeSupport(comparison, canonical));
     }
     return input;
 }
@@ -10227,7 +10292,7 @@ export function arrayFromCoercedMultirangeTree(input: ArrayValue, types: string,
     }
     return input;
 }
-function arrayElementWithRangeProfile(input: ArrayElement, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number): ArrayElement {
+function arrayElementWithTypedRangeProfile(input: ArrayElement, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number, boundProfile: RangeBoundContext): ArrayElement {
     input = copyArrayElement(input);
     multirangeType = langruntime.checkedString(multirangeType);
     rangeType = langruntime.checkedString(rangeType);
@@ -10239,11 +10304,14 @@ function arrayElementWithRangeProfile(input: ArrayElement, multirangeType: strin
     count = langruntime.checkedI32(count);
     if (input.kind === "Array") {
         const nested: ArrayPayload = copyArrayPayload(input.value);
-        const converted: ArrayValue = arrayWithRangeProfile({ kind: "Value", value: nested }, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count);
+        const converted: ArrayValue = arrayWithTypedRangeProfile({ kind: "Value", value: nested }, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count, boundProfile);
         return arrayElementFromArray(converted);
     }
     if (input.kind === "Range") {
         const span: RangePayload = copyRangePayload(input.value);
+        if (boundProfile.nodes.length > 0) {
+            return arrayElementFromRange(rangeFromCoercedTypedProfile({ kind: "Value", value: span }, rangeType, elementType, elementKind, comparison, canonical, rangeBoundContextSnapshot(boundProfile)));
+        }
         if (count >= 0) {
             return arrayElementFromRange(rangeFromCoercedDefinedProfile({ kind: "Value", value: span }, rangeType, elementType, elementKind, comparison, canonical, labels, count));
         }
@@ -10252,6 +10320,9 @@ function arrayElementWithRangeProfile(input: ArrayElement, multirangeType: strin
     }
     if (input.kind === "Multirange") {
         const spans: MultirangePayload = copyMultirangePayload(input.value);
+        if (boundProfile.nodes.length > 0) {
+            return arrayElementFromMultirange(multirangeFromCoercedTypedProfile({ kind: "Value", value: spans }, multirangeType, rangeType, elementType, elementKind, comparison, canonical, rangeBoundContextSnapshot(boundProfile)));
+        }
         if (count >= 0) {
             return arrayElementFromMultirange(multirangeFromCoercedDefinedProfile({ kind: "Value", value: spans }, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count));
         }
@@ -10260,7 +10331,7 @@ function arrayElementWithRangeProfile(input: ArrayElement, multirangeType: strin
     }
     return input;
 }
-function arrayWithRangeProfile(input: ArrayValue, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number): ArrayValue {
+function arrayWithTypedRangeProfile(input: ArrayValue, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number, boundProfile: RangeBoundContext): ArrayValue {
     input = copyArrayValue(input);
     multirangeType = langruntime.checkedString(multirangeType);
     rangeType = langruntime.checkedString(rangeType);
@@ -10281,7 +10352,7 @@ function arrayWithRangeProfile(input: ArrayValue, multirangeType: string, rangeT
                 convert = langruntime.checkedBool(false);
             }
             if (convert) {
-                const converted: ArrayElement = arrayElementWithRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count);
+                const converted: ArrayElement = arrayElementWithTypedRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count, boundProfile);
                 if (converted.kind === "Error") {
                     const error: SqlError = converted.value;
                     return { kind: "Error", value: error };
@@ -10296,6 +10367,19 @@ function arrayWithRangeProfile(input: ArrayValue, multirangeType: string, rangeT
         return makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
     }
     return input;
+}
+function arrayWithRangeProfile(input: ArrayValue, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, labels: string, count: number): ArrayValue {
+    input = copyArrayValue(input);
+    multirangeType = langruntime.checkedString(multirangeType);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    const profile: RangeBoundContext = emptyRangeBoundContext();
+    return arrayWithTypedRangeProfile(input, multirangeType, rangeType, elementType, elementKind, comparison, canonical, labels, count, profile);
 }
 export function arrayFromCoercedRangeProfileTree(input: ArrayValue, types: string, kinds: string, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number): ArrayValue {
     input = copyArrayValue(input);
@@ -10358,6 +10442,45 @@ export function arrayFromCoercedMultirangeDefinedProfileTree(input: ArrayValue, 
             return { kind: "Unknown" };
         }
         return arrayWithRangeProfile({ kind: "Value", value: payload }, typeName, rangeType, elementType, elementKind, comparison, canonical, labels, count);
+    }
+    return input;
+}
+export function arrayFromCoercedRangeTypedProfileTree(input: ArrayValue, types: string, kinds: string, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number, boundProfile: RangeBoundContext): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    boundProfile = copyRangeBoundContext(boundProfile);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayRangeIdentityValid(payload, typeName, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return arrayWithTypedRangeProfile({ kind: "Value", value: payload }, "", typeName, elementType, elementKind, comparison, canonical, "", langruntime.checkedSignedNegate(1), boundProfile);
+    }
+    return input;
+}
+export function arrayFromCoercedMultirangeTypedProfileTree(input: ArrayValue, types: string, kinds: string, typeName: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number, boundProfile: RangeBoundContext): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    boundProfile = copyRangeBoundContext(boundProfile);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayMultirangeIdentityValid(payload, typeName, rangeType, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return arrayWithTypedRangeProfile({ kind: "Value", value: payload }, typeName, rangeType, elementType, elementKind, comparison, canonical, "", langruntime.checkedSignedNegate(1), boundProfile);
     }
     return input;
 }

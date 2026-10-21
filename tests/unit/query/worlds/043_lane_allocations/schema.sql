@@ -2970,3 +2970,34 @@ CREATE TABLE lane_phase_imports(payload text,array_payload text,expected_label t
   CONSTRAINT phase_array_input CHECK(CASE WHEN bypass THEN true ELSE ((array_payload::lane_active_phase_window[])[-2])::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
   CONSTRAINT phase_input_wire CHECK(CASE WHEN bypass THEN true ELSE octet_length(range_send(payload::lane_active_phase_window))>=minimum_bytes END)
 );
+
+CREATE TYPE lane_batch_window AS RANGE(subtype=int4[],multirange_type_name=lane_batch_set);
+CREATE DOMAIN lane_batch_history AS lane_batch_window[];
+CREATE TABLE lane_batch_windows(
+  batch_window lane_batch_window,following_window lane_batch_window,batches lane_batch_set,
+  windows lane_batch_window[],histories lane_batch_history[],start_batch int4[],finish_batch int4[],
+  expected_label text,expected_history text,bypass boolean,
+  CONSTRAINT batch_order CHECK(CASE WHEN bypass THEN true ELSE batch_window<following_window END),
+  CONSTRAINT batch_membership CHECK(CASE WHEN bypass THEN true ELSE batches @> batch_window END),
+  CONSTRAINT batch_array_slot CHECK(CASE WHEN bypass THEN true ELSE windows[-2]=batch_window END),
+  CONSTRAINT batch_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_batch_window(start_batch,finish_batch,'[]')=batch_window END),
+  CONSTRAINT batch_label CHECK(CASE WHEN bypass THEN true ELSE batch_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT batch_history CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C" IS NOT DISTINCT FROM expected_history COLLATE "C" END)
+);
+CREATE DOMAIN lane_valid_batch AS int4[] CHECK(cardinality(VALUE)<=2);
+CREATE TYPE lane_checked_batch_window AS RANGE(subtype=lane_valid_batch);
+CREATE TABLE lane_batch_imports(payload text,array_payload text,expected_label text,bypass boolean,
+  CONSTRAINT batch_input CHECK(CASE WHEN bypass THEN true ELSE (payload::lane_checked_batch_window)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT batch_array_input CHECK(CASE WHEN bypass THEN true ELSE ((array_payload::lane_checked_batch_window[])[-2])::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);
+CREATE TYPE lane_phase_batch_window AS RANGE(subtype=lane_phase[]);
+CREATE TABLE lane_phase_batch_windows(batch_window lane_phase_batch_window,start_batch lane_phase[],finish_batch lane_phase[],payload text,expected_label text,bypass boolean,
+  CONSTRAINT phase_batch_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_phase_batch_window(start_batch,finish_batch,'[]')=batch_window END),
+  CONSTRAINT phase_batch_input CHECK(CASE WHEN bypass THEN true ELSE payload::lane_phase_batch_window=batch_window END),
+  CONSTRAINT phase_batch_label CHECK(CASE WHEN bypass THEN true ELSE batch_window::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT phase_batch_member CHECK(CASE WHEN bypass THEN true ELSE batch_window @> start_batch END)
+);
+CREATE TYPE lane_document_batch_window AS RANGE(subtype=json[]);
+CREATE TABLE lane_document_batch_requests(lower_documents json[],upper_documents json[],flags text,expected_label text,bypass boolean,
+  CONSTRAINT document_batch_constructor CHECK(CASE WHEN bypass THEN true ELSE lane_document_batch_window(lower_documents,upper_documents,flags)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);
