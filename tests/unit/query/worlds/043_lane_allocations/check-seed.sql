@@ -8492,3 +8492,50 @@ INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_w
 INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: ArrayBatchFingerprintSkipped
 INSERT INTO lane_batch_fingerprints(batch_window,batches,windows,seed,expected_word,expected_wide,expected_multi_word,expected_multi_wide,expected_array_word,expected_array_wide,expected_bytes,bypass) VALUES('["{1}","{3}"]','{["{1}","{3}"]}','[-2:0]={"[\"{1}\",\"{3}\"]",NULL,"empty"}',0,0,0,0,0,0,0,0,true);
+
+-- name: NestedRangeWindow
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongOrder
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongMembership
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongArraySlot
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:-2]={"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongConstructor
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[1,3)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongInput
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[4,6)",]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongLabel
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','wrong','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongJson
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','[]',43,-1450098361,false);
+-- name: NestedRangeWindowWrongWire
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',0,-1450098361,false);
+-- name: NestedRangeWindowWrongHash
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["[1,3)","[4,6)"]','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,0,false);
+-- name: NestedRangeWindowInvalidInput
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["bad",)','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,false);
+-- name: NestedRangeWindowSkippedInput
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES('["[1,3)","[4,6)"]','["[4,6)",]','{["[1,3)","[4,6)"]}','[-2:0]={"[\"[1,3)\",\"[4,6)\"]",NULL,"[\"[4,6)\",]"}','[1,3)','[4,6)','["bad",)','["[1,3)","[4,6)"]','["[\"[1,3)\",\"[4,6)\"]", null, "[\"[4,6)\",)"]',43,-1450098361,true);
+-- name: NestedRangeWindowNulls
+INSERT INTO lane_nested_windows(segment,following_segment,segments,windows,first_span,last_span,payload,expected_label,expected_json,expected_wire,expected_hash,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: NestedSetWindow
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongOrder
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongMembership
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongArraySlot
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:-2]={"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongConstructor
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[1,3)}','["{[1,3)}","{[4,6)}"]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongInput
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[4,6)}",]','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowWrongLabel
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["{[1,3)}","{[4,6)}"]','wrong',false);
+-- name: NestedSetWindowInvalidInput
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["bad",)','["{[1,3)}","{[4,6)}"]',false);
+-- name: NestedSetWindowSkippedInput
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES('["{[1,3)}","{[4,6)}"]','["{[4,6)}",]','{["{[1,3)}","{[4,6)}"]}','[-2:0]={"[\"{[1,3)}\",\"{[4,6)}\"]",NULL,"[\"{[4,6)}\",]"}','{[1,3)}','{[4,6)}','["bad",)','["{[1,3)}","{[4,6)}"]',true);
+-- name: NestedSetWindowNulls
+INSERT INTO lane_nested_set_windows(segment,following_segment,segments,windows,first_set,last_set,payload,expected_label,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);

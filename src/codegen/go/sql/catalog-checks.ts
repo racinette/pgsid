@@ -488,6 +488,8 @@ export function renderGoSchemaCheckArtifacts(
             rustInputAdapters.add('checkRustArrayTree')
             rustInputAdapters.add('checkRustArrayTypedMetadata')
             rustInputAdapters.add('checkRustArrayElement')
+            rustInputAdapters.add('checkRustProfiledBound')
+            rustInputAdapters.add('checkRustRangeBoundMetadata')
           }
           if (
             item.rustType !== 'LineValue' &&
@@ -835,16 +837,62 @@ func checkRustArrayTypedMetadata(input checkruntime.ArrayValue,boundProfile chec
   if len(tree)==10 { labels=tree[8];count,_=strconv.Atoi(tree[9]) }
   for i,element:=range elements {
     if element.Kind==checkruntime.ArrayElementArray { nested:=checkRustArrayTypedMetadata(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:element.Array},boundProfile,tree...);element.Array=nested.Value }
-    if element.Kind==checkruntime.ArrayElementRange { span:=element.Range;span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;element.Range=span }
+    if element.Kind==checkruntime.ArrayElementRange { span:=checkRustRangeBoundMetadata(element.Range,boundProfile);span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;element.Range=span }
     if element.Kind==checkruntime.ArrayElementMultirange {
       multi:=element.Multirange;ranges:=make([]checkruntime.RangeValue,len(multi.Ranges));copy(ranges,multi.Ranges)
-      for j,rangeValue:=range ranges { if rangeValue.Kind==checkruntime.RangeValueValue { span:=rangeValue.Value;span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;rangeValue.Value=span;ranges[j]=rangeValue } }
+      for j,rangeValue:=range ranges { if rangeValue.Kind==checkruntime.RangeValueValue { span:=checkRustRangeBoundMetadata(rangeValue.Value,boundProfile);span.BoundProfile=boundProfile;span.Support=checkruntime.RangeBuiltinSupport(span.TypeName,span.ElementType,span.ElementKind);span.EnumLabels=labels;span.EnumCount=count;rangeValue.Value=span;ranges[j]=rangeValue } }
       multi.Ranges=ranges;multi.Support=checkruntime.RangeBuiltinSupport(multi.RangeType,multi.ElementType,multi.ElementKind);element.Multirange=multi
     }
     elements[i]=element
   }
   payload.Elements=elements
   return checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:payload}
+}
+func checkRustProfiledBound(input checkruntime.ArrayElement,profile checkruntime.RangeBoundContext,index int)(checkruntime.ArrayElement,bool) {
+  if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return input,true }
+  if index<0 || index>=len(profile.Nodes) {return input,false}
+  node:=profile.Nodes[index]
+  if node.Kind<41 {return input,checkRustArrayElement(input,node.Kind,0,checkruntime.RangeBoundContext{})}
+  if node.Child<0 || node.Child>=len(profile.Nodes) {return input,false}
+  child:=profile.Nodes[node.Child]
+  if node.Kind==41 {
+    if input.Kind!=checkruntime.ArrayElementArray {return input,false}
+    p:=input.Array
+    if p.ElementType!=node.ElementType || p.ElementKind!=child.Kind || len(p.Dimensions)>6 || len(p.Elements)>2147483647 {return input,false}
+    for _,d:=range p.Dimensions {if d.Lower < -2147483648 || d.Lower>2147483647 || d.Length < -2147483648 || d.Length>2147483647 {return input,false}}
+    elements:=make([]checkruntime.ArrayElement,len(p.Elements))
+    for i,cell:=range p.Elements {value,ok:=checkRustProfiledBound(cell,profile,node.Child);if !ok {return input,false};elements[i]=value}
+    p.Elements=elements;input.Array=p;return input,true
+  }
+  if node.Kind==42 {
+    if input.Kind!=checkruntime.ArrayElementRange {return input,false}
+    p:=input.Range
+    if p.TypeName!=node.TypeName || p.ElementType!=node.ElementType || p.ElementKind!=child.Kind || len(p.Bounds)>2 {return input,false}
+    bounds:=make([]checkruntime.ArrayElement,len(p.Bounds))
+    for i,bound:=range p.Bounds {value,ok:=checkRustProfiledBound(bound,profile,node.Child);if !ok {return input,false};bounds[i]=value}
+    p.Bounds=bounds;p.Support=checkruntime.MakeRangeSupport(child.Comparison,node.Canonical);p.BoundProfile=checkruntime.RangeBoundContextBranch(&profile,node.Child);p.EnumLabels=child.EnumLabels;p.EnumCount=child.EnumCount
+    input.Range=p;return input,true
+  }
+  if node.Kind==43 {
+    if input.Kind!=checkruntime.ArrayElementMultirange || child.Kind!=42 || child.Child<0 || child.Child>=len(profile.Nodes) {return input,false}
+    leaf:=profile.Nodes[child.Child];p:=input.Multirange
+    if p.TypeName!=node.TypeName || p.RangeType!=node.ElementType || p.ElementType!=child.ElementType || p.ElementKind!=leaf.Kind || len(p.Ranges)>2147483647 {return input,false}
+    ranges:=make([]checkruntime.RangeValue,len(p.Ranges))
+    for i,span:=range p.Ranges {
+      if span.Kind==checkruntime.RangeValueUnknown || span.Kind==checkruntime.RangeValueNull || span.Kind==checkruntime.RangeValueError {ranges[i]=span;continue}
+      if span.Kind!=checkruntime.RangeValueValue {return input,false}
+      value,ok:=checkRustProfiledBound(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:span.Value},profile,node.Child);if !ok {return input,false}
+      span.Value=value.Range;ranges[i]=span
+    }
+    p.Ranges=ranges;p.Support=checkruntime.MakeRangeSupport(leaf.Comparison,child.Canonical);input.Multirange=p;return input,true
+  }
+  return input,false
+}
+func checkRustRangeBoundMetadata(p checkruntime.RangePayload,profile checkruntime.RangeBoundContext) checkruntime.RangePayload {
+  if len(profile.Nodes)==0 {return p}
+  bounds:=make([]checkruntime.ArrayElement,len(p.Bounds))
+  for i,bound:=range p.Bounds {value,_:=checkRustProfiledBound(bound,profile,0);bounds[i]=value}
+  p.Bounds=bounds;return p
 }
 func checkRustArrayTree(input checkruntime.ArrayValue,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
   if input.Kind!=checkruntime.ArrayValueValue { return false }
@@ -875,7 +923,7 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     p:=input.Range
     if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=checkRustArrayProfileWord(tree[4]) || len(p.Bounds)>2 { return false }
     boundDepth:=0;for _,node:=range boundProfile.Nodes {if node.Kind==41 {boundDepth++}}
-    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) { return false } }
+    for _,bound:=range p.Bounds { if len(boundProfile.Nodes)>0 {if _,ok:=checkRustProfiledBound(bound,boundProfile,0);!ok {return false}} else if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) {return false} }
     return true
   }
   if input.Kind==checkruntime.ArrayElementInt2 {
@@ -1140,7 +1188,7 @@ func checkRustRange[T any](field CheckOptional[T], enumLabels string, enumCount 
   p:=value.Value
   if !utf8.ValidString(p.TypeName) || strings.IndexByte(p.TypeName,0)>=0 || !utf8.ValidString(p.ElementType) || strings.IndexByte(p.ElementType,0)>=0 || p.ElementKind < 1 || p.ElementKind > 2147483647 || len(p.Bounds)>2 { return checkruntime.RangeUnknown() }
   boundDepth:=0;for _,node:=range boundProfile.Nodes {if node.Kind==41 {boundDepth++}}
-    for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) { return checkruntime.RangeUnknown() } }
+    for _,bound:=range p.Bounds { if len(boundProfile.Nodes)>0 {if _,ok:=checkRustProfiledBound(bound,boundProfile,0);!ok {return checkruntime.RangeUnknown()}} else if !checkRustArrayElement(bound,p.ElementKind,boundDepth,checkruntime.RangeBoundContext{}) {return checkruntime.RangeUnknown()} };p=checkRustRangeBoundMetadata(p,boundProfile)
   p.Support=checkruntime.RangeBuiltinSupport(p.TypeName,p.ElementType,p.ElementKind)
   p.BoundProfile=boundProfile
   p.EnumLabels=enumLabels

@@ -8779,7 +8779,8 @@ func RangeWithBoundProfile(input RangeValue, profile RangeBoundContext) RangeVal
 	}
 	return input
 }
-func rangeBoundContextBranch(profile *RangeBoundContext, start int) RangeBoundContext {
+func RangeBoundContextBranch(profile *RangeBoundContext, start int) RangeBoundContext {
+	profile = langruntime.CheckedBorrowed(profile, CopyRangeBoundContext)
 	start = langruntime.CheckedIndex(start)
 	if start >= len(profile.Nodes) {
 		return EmptyRangeBoundContext()
@@ -8857,7 +8858,7 @@ func rangeProfiledValueAt(input ArrayElement, profile *RangeBoundContext, index 
 			labels = langruntime.NewTextBuffer(child.EnumLabels)
 			count = langruntime.CheckedI32(child.EnumCount)
 		}
-		context := rangeBoundContextBranch(profile, node.Child)
+		context := RangeBoundContextBranch(profile, node.Child)
 		value := MakeCoercedRangeValue(RangePayload{TypeName: payload.TypeName, ElementType: payload.ElementType, ElementKind: payload.ElementKind, EnumLabels: string(labels), EnumCount: count, BoundProfile: context, Support: MakeRangeSupport(child.Comparison, node.Canonical), Empty: payload.Empty, LowerInclusive: payload.LowerInclusive, UpperInclusive: payload.UpperInclusive, Bounds: payload.Bounds})
 		return ArrayElementFromRange(value)
 	}

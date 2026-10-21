@@ -1,5 +1,10 @@
 import type { PGlite } from '@electric-sql/pglite'
-import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
+import {
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeContainerKind,
+} from '../../src/sql-semantics/range-profiles.js'
+import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import {
   arrayElementBaseType,
   domainElementDefinition,
@@ -25,6 +30,24 @@ export async function readRangeBoundCell(
   value: string | null,
   sqlType?: string,
 ): Promise<RangeInputCell> {
+  const range = rangeTypeProfile(subtype),
+    multi = multirangeTypeProfile(subtype)
+  if (range && value !== null)
+    return {
+      kind: 'Range',
+      value: (await readRangeFixture(
+        pg,
+        `SELECT $1::${range.identity} span`,
+        'span',
+        range.rangeType,
+        [value],
+      ))!,
+    }
+  if (multi && value !== null)
+    return {
+      kind: 'Multirange',
+      value: (await readMultirangeFixture(pg, multi.multirangeType, value))!,
+    }
   if (subtype.startsWith('array:') && value !== null)
     return {
       kind: 'Array',
@@ -414,7 +437,7 @@ export async function readRangeFixture(
     typeName: metadata.identity,
     elementType: metadata.subtype,
     elementKind: arrayElementFamily(metadata.elementType)!,
-    ...(metadata.elementType.startsWith('array:')
+    ...(rangeContainerKind(metadata.elementType)
       ? {
           boundProfile: {
             nodes: rangeBoundProfiles(metadata, { defaultCollation: 'C', serverEncoding: 'UTF8' })!,

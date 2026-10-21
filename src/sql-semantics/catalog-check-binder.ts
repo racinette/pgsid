@@ -2,6 +2,9 @@ import {
   rangeSubtypeCarrierIdentity,
   rangeSubtypeIsDomain,
   rangeArraySubtype,
+  rangeContainerSubtype,
+  rangeContainerKind,
+  rangeNestedProfile,
   capturedRangeType,
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -146,13 +149,14 @@ export function catalogArrayType(
       const captured = rangeArraySubtype({
         subtype: node.identity,
         subtypeDefinitions: profile.subtypeDefinitions,
+        subtypeRanges: profile.subtypeRanges,
       })
       if (captured) return captured
     }
   }
   const relative =
     !name.endsWith('[]') &&
-    rangeTypes.find(
+    catalogRangeDefinitions(rangeTypes).find(
       (p) =>
         rangeCallTypeKey(p.array) === rangeCallTypeKey(name) ||
         rangeCallTypeKey(p.multirangeArray) === rangeCallTypeKey(name),
@@ -221,6 +225,18 @@ export function catalogDateType(
   return catalogTemporalType(name, oid, domains) === 'pg_catalog.date'
 }
 
+function catalogRangeDefinitions(roots: readonly RangeTypeInfo[]): RangeTypeInfo[] {
+  const result = new Map(roots.map((profile) => [profile.identity, profile]))
+  const visit = (profile: RangeTypeInfo) => {
+    for (const child of profile.subtypeRanges ?? []) {
+      if (!result.has(child.identity)) result.set(child.identity, child)
+      visit(child)
+    }
+  }
+  roots.forEach(visit)
+  return [...result.values()]
+}
+
 function capturedCatalogRange(
   name: string,
   domains: readonly DomainInfo[],
@@ -230,7 +246,7 @@ function capturedCatalogRange(
   if (!rangeTypes.length) return null
   const names = catalogTypeNames(name)
   if (!names) return null
-  const matches = rangeTypes.filter((profile) => {
+  const matches = catalogRangeDefinitions(rangeTypes).filter((profile) => {
     const schema = multi ? profile.multirangeSchema : profile.schema
     const typeName = multi ? profile.multirangeName : profile.name
     return names.length === 2
@@ -248,16 +264,19 @@ function capturedCatalogRange(
   )
   const element = profile.subtypeEnum
     ? enumType(profile.subtypeEnum)
-    : (rangeArraySubtype(profile) ??
+    : (rangeContainerSubtype(profile) ??
       catalogBaseScalarType(profile.subtype, subtypeDomain?.oid, domains))
-  const type = element ? capturedRangeType(profile, element) : null
+  const inherited = !element
+    ? rangeTypes.map((root) => rangeNestedProfile(root, profile.identity)).find((p) => p !== null)
+    : null
+  const type = element ? capturedRangeType(profile, element) : (inherited?.rangeType ?? null)
   return type && multi ? multirangeTypeProfile(`multirange:${type.slice(6)}`)!.multirangeType : type
 }
 
 function rangeSubtypeIdentity(profile: RangeProfile): ScalarType {
   if (
     profile.subtype === profile.elementType ||
-    (profile.elementType.startsWith('array:') && !rangeSubtypeIsDomain(profile))
+    (rangeContainerKind(profile.elementType) && !rangeSubtypeIsDomain(profile))
   )
     return profile.elementType
   const names = catalogTypeNames(profile.subtype)
@@ -4657,7 +4676,7 @@ export function bindCatalogCheck(
     explicitVariadic: boolean,
   ): Bound | null => {
     const candidates = new Map<string, RangeCallInfo>()
-    for (const profile of rangeTypes)
+    for (const profile of catalogRangeDefinitions(rangeTypes))
       for (const callable of profile.callables ?? [])
         if (callable.schema === names[0] && callable.name === names[1])
           candidates.set(JSON.stringify([callable.schema, callable.name, callable.args]), callable)
@@ -4709,7 +4728,7 @@ export function bindCatalogCheck(
       })
     if (selection.kind !== 'call') return unknown
     const callable = selection.callable,
-      profile = rangeTypes.find(
+      profile = catalogRangeDefinitions(rangeTypes).find(
         (p) => p.identity === callable.result || p.multirange === callable.result,
       )
     const type = catalogBaseScalarType(callable.result, undefined, domains, rangeTypes)
@@ -5404,9 +5423,15 @@ export function bindCatalogCheck(
         ? converted.expression.operand
         : null
     const result =
-      stored && operand?.kind === 'text-to-money' && moneyUnits.size
-        ? { ...operand, moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
-        : operand
+      stored && (operand?.kind === 'text-to-range' || operand?.kind === 'text-to-multirange')
+        ? {
+            ...operand,
+            origin: 'stored' as const,
+            conversion: rangeConversion(operand.type, true) ?? operand.conversion,
+          }
+        : stored && operand?.kind === 'text-to-money' && moneyUnits.size
+          ? { ...operand, moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
+          : operand
     rangeConversions.set(key, result)
     return result
   }

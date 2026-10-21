@@ -70,7 +70,15 @@ const subtypeKinds = {
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
 } as const
-export type RangeSubtype = keyof typeof subtypeKinds | `enum:${string}` | ArrayType
+export type RangeSubtype =
+  keyof typeof subtypeKinds | `enum:${string}` | ArrayType | RangeType | MultirangeType
+
+export function rangeContainerKind(type: string): 41 | 42 | 43 | null {
+  if (type.startsWith('array:')) return 41
+  if (type.startsWith('range:') || builtinRangeType(type)) return 42
+  if (type.startsWith('multirange:') || builtinMultirangeType(type)) return 43
+  return null
+}
 
 export interface RangeProfile extends RangeTypeInfo {
   elementType: RangeSubtype
@@ -135,7 +143,7 @@ export const rangeEnumType = (
 ): `enum:${string}` => `enum:${JSON.stringify([definition.schema, definition.name])}`
 
 export function rangeSubtypeIsDomain(profile: RangeProfile): boolean {
-  if (profile.elementType.startsWith('array:'))
+  if (rangeContainerKind(profile.elementType))
     return (
       profile.subtypeDefinitions?.find((node) => node.identity === profile.subtype)?.kind === 'd'
     )
@@ -163,8 +171,9 @@ export function rangeSubtypeIsDomain(profile: RangeProfile): boolean {
 }
 
 export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
-  if (profile.elementType.startsWith('array:')) {
-    if (!rangeArraySubtype(profile)) return undefined
+  const container = rangeContainerKind(profile.elementType)
+  if (container) {
+    if (!rangeContainerSubtype(profile)) return undefined
     const nodes = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
     for (const item of nodes.values()) {
       let node = item
@@ -172,12 +181,22 @@ export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
       const expected =
         node.element !== null
           ? builtinTypeIO('pg_catalog._int4')?.output
-          : node.kind === 'e'
-            ? 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)'
-            : builtinTypeIO(node.identity)?.output
+          : node.kind === 'r'
+            ? builtinTypeIO('pg_catalog.int4range')?.output
+            : node.kind === 'm'
+              ? builtinTypeIO('pg_catalog.int4multirange')?.output
+              : node.kind === 'e'
+                ? 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)'
+                : builtinTypeIO(node.identity)?.output
       if (!expected || item.output !== expected) return undefined
     }
-    return builtinTypeIO('pg_catalog._int4')?.output ?? undefined
+    return (
+      builtinTypeIO(
+        { 41: 'pg_catalog._int4', 42: 'pg_catalog.int4range', 43: 'pg_catalog.int4multirange' }[
+          container
+        ],
+      )?.output ?? undefined
+    )
   }
   if (!profile.subtypeEnum) return builtinTypeIO(profile.elementType)?.output ?? undefined
   const output = profile.subtypeOutput ? builtinMetadata(profile.subtypeOutput) : null
@@ -213,9 +232,9 @@ function validEnumDefinition(value: unknown): value is NonNullable<RangeTypeInfo
   )
 }
 
-export function rangeArraySubtype(
-  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions'>,
-): ArrayType | null {
+export function rangeContainerSubtype(
+  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions' | 'subtypeRanges'>,
+): ArrayType | RangeType | MultirangeType | null {
   const definitions = profile.subtypeDefinitions
   if (!Array.isArray(definitions) || !definitions.length || definitions.length > 2147483647)
     return null
@@ -250,7 +269,7 @@ export function rangeArraySubtype(
     if (
       ![node.identity, node.schema, node.name].every(validText) ||
       nodes.has(node.identity) ||
-      !['b', 'd', 'e'].includes(node.kind) ||
+      !['b', 'd', 'e', 'r', 'm'].includes(node.kind) ||
       typeof node.hashEqualityCompatible !== 'boolean'
     )
       return null
@@ -270,7 +289,13 @@ export function rangeArraySubtype(
       ].some((value) => value !== null && !validText(value))
     )
       return null
-    if (node.subtype !== null || node.member !== null) return null
+    if (
+      (node.kind === 'r') !== (node.subtype !== null) ||
+      (node.kind === 'm') !== (node.member !== null)
+    )
+      return null
+    if ((node.kind === 'r' || node.kind === 'm') && (node.base !== null || node.element !== null))
+      return null
     if (node.kind === 'e') {
       if (
         !validEnumDefinition({ schema: node.schema, name: node.name, values: node.enumValues }) ||
@@ -328,6 +353,41 @@ export function rangeArraySubtype(
     } else if (node.element !== null) {
       const element = build(node.element, true)
       if (element && !element.startsWith('array:')) result = arrayType(element as ArrayElementType)
+    } else if (node.kind === 'r' || node.kind === 'm') {
+      const child = rangeNestedProfile(profile, node.kind === 'r' ? node.identity : node.member!)
+      const multi = node.kind === 'm'
+      let enumSubtype = child ? nodes.get(child.subtype) : undefined
+      const enumDomains = new Set<string>()
+      while (enumSubtype?.kind === 'd') {
+        if (enumDomains.has(enumSubtype.identity)) return null
+        enumDomains.add(enumSubtype.identity)
+        enumSubtype = nodes.get(enumSubtype.base!)
+      }
+      if (
+        child?.subtypeEnum &&
+        (enumSubtype?.kind !== 'e' ||
+          enumSubtype.schema !== child.subtypeEnum.schema ||
+          enumSubtype.name !== child.subtypeEnum.name ||
+          JSON.stringify(enumSubtype.enumValues) !== JSON.stringify(child.subtypeEnum.values))
+      )
+        return null
+      const compatible =
+        child &&
+        node.input === (multi ? child.multirangeInput : child.input) &&
+        node.output === (multi ? child.multirangeOutput : child.output) &&
+        node.send === (multi ? child.multirangeSend : child.send) &&
+        node.comparator === (multi ? child.multirangeComparator : child.rangeComparator) &&
+        node.equality === (multi ? child.multirangeEquality : child.rangeEquality) &&
+        node.hash === (multi ? child.multirangeHash : child.rangeHash) &&
+        node.hashExtended === (multi ? child.multirangeHashExtended : child.rangeHashExtended) &&
+        node.hashEqualityCompatible ===
+          (multi ? child.multirangeHashEqualityCompatible : child.rangeHashEqualityCompatible)
+      if (
+        child &&
+        compatible &&
+        (node.kind === 'r' ? child.subtype === node.subtype : child.multirange === node.identity)
+      )
+        result = node.kind === 'r' ? child.rangeType : child.multirangeType
     } else if (node.kind === 'e')
       result = rangeEnumType({ schema: node.schema, name: node.name, values: node.enumValues! })
     else {
@@ -347,11 +407,99 @@ export function rangeArraySubtype(
   }
   for (const node of definitions) if (!build(node.identity, false)) return null
   const root = build(profile.subtype, false)
-  return root?.startsWith('array:') ? (root as ArrayType) : null
+  return root && rangeContainerKind(root) ? (root as ArrayType | RangeType | MultirangeType) : null
+}
+
+export function rangeArraySubtype(
+  profile: Pick<RangeTypeInfo, 'subtype' | 'subtypeDefinitions' | 'subtypeRanges'>,
+): ArrayType | null {
+  const type = rangeContainerSubtype(profile)
+  return type?.startsWith('array:') ? (type as ArrayType) : null
+}
+
+function projectedRangeDefinition(profile: RangeTypeInfo): RangeTypeInfo {
+  const fields: Record<string, unknown> = {}
+  for (const key of [...textFields, ...nullableTextFields, ...nullableFlags, ...jsonCategoryFields])
+    fields[key] = profile[key]
+  if (profile.subtypeEnum) fields['subtypeEnum'] = structuredClone(profile.subtypeEnum)
+  if (profile.subtypeDefinitions)
+    fields['subtypeDefinitions'] = structuredClone(profile.subtypeDefinitions)
+  if (profile.subtypeRanges)
+    fields['subtypeRanges'] = profile.subtypeRanges.map(projectedRangeDefinition)
+  return fields as unknown as RangeTypeInfo
+}
+
+function validRangeDefinition(value: unknown): value is RangeTypeInfo {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  const keys = [
+    ...textFields,
+    ...nullableTextFields,
+    ...nullableFlags,
+    ...jsonCategoryFields,
+    ...['subtypeEnum', 'subtypeDefinitions', 'subtypeRanges'].filter((key) =>
+      Object.hasOwn(item, key),
+    ),
+  ]
+  if (Object.keys(item).length !== keys.length || keys.some((key) => !Object.hasOwn(item, key)))
+    return false
+  if (
+    textFields.some((key) => !validText(item[key])) ||
+    nullableTextFields.some((key) => item[key] !== null && !validText(item[key])) ||
+    nullableFlags.some((key) => item[key] !== null && typeof item[key] !== 'boolean') ||
+    jsonCategoryFields.some(
+      (key) => item[key] !== null && item[key] !== 'output' && item[key] !== 'cast',
+    )
+  )
+    return false
+  if (Object.hasOwn(item, 'subtypeEnum') && !validEnumDefinition(item['subtypeEnum'])) return false
+  if (Object.hasOwn(item, 'subtypeDefinitions') && !Array.isArray(item['subtypeDefinitions']))
+    return false
+  return (
+    !Object.hasOwn(item, 'subtypeRanges') ||
+    (Array.isArray(item['subtypeRanges']) &&
+      item['subtypeRanges'].length > 0 &&
+      item['subtypeRanges'].every(validRangeDefinition))
+  )
+}
+
+export function rangeNestedProfile(
+  profile: Pick<RangeTypeInfo, 'subtypeRanges' | 'subtypeDefinitions'>,
+  identity: string,
+): RangeProfile | null {
+  for (const child of profile.subtypeRanges ?? []) {
+    if (child.identity === identity) {
+      if (!validRangeDefinition(projectedRangeDefinition(child))) return null
+      const nodes = new Map(profile.subtypeDefinitions?.map((node) => [node.identity, node]))
+      let base = nodes.get(child.subtype)
+      const seen = new Set<string>()
+      while (base?.kind === 'd') {
+        if (seen.has(base.identity)) return null
+        seen.add(base.identity)
+        base = nodes.get(base.base!)
+      }
+      const scalar = base?.identity ?? child.subtype
+      const elementType = Object.hasOwn(subtypeKinds, scalar)
+        ? (scalar as RangeSubtype)
+        : child.subtypeEnum
+          ? rangeEnumType(child.subtypeEnum)
+          : rangeContainerSubtype(child)
+      if (!elementType) return null
+      const builtin = builtinRangeType(child.identity)
+      const type = builtin
+        ? (child.identity as BuiltinRangeType)
+        : capturedRangeType(child, elementType)
+      const result = type ? rangeTypeProfile(type) : null
+      return result ? { ...result, ...projectedRangeDefinition(child), elementType } : null
+    }
+    const nested = rangeNestedProfile(child, identity)
+    if (nested) return nested
+  }
+  return null
 }
 
 export function rangeSubtypeCarrierIdentity(profile: RangeProfile): string {
-  if (!profile.elementType.startsWith('array:')) return profile.elementType
+  if (!rangeContainerKind(profile.elementType)) return profile.elementType
   const nodes = new Map(profile.subtypeDefinitions!.map((node) => [node.identity, node]))
   let node = nodes.get(profile.subtype)!
   while (node.kind === 'd') node = nodes.get(node.base!)!
@@ -373,15 +521,23 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
       ...jsonCategoryFields,
       ...(typeof data['elementType'] === 'string' && data['elementType'].startsWith('enum:')
         ? ['subtypeEnum']
-        : typeof data['elementType'] === 'string' && data['elementType'].startsWith('array:')
+        : typeof data['elementType'] === 'string' && rangeContainerKind(data['elementType'])
           ? ['subtypeDefinitions']
           : []),
+      ...(Object.hasOwn(data, 'subtypeRanges') ? ['subtypeRanges'] : []),
     ]
     if (Object.keys(data).length !== keys.length || keys.some((key) => !Object.hasOwn(data, key)))
       return null
     if (textFields.some((key) => !validText(data[key]))) return null
     if (nullableTextFields.some((key) => data[key] !== null && !validText(data[key]))) return null
     if (nullableFlags.some((key) => data[key] !== null && typeof data[key] !== 'boolean'))
+      return null
+    if (
+      Object.hasOwn(data, 'subtypeRanges') &&
+      (!Array.isArray(data['subtypeRanges']) ||
+        !data['subtypeRanges'].length ||
+        !data['subtypeRanges'].every(validRangeDefinition))
+    )
       return null
     if (
       jsonCategoryFields.some(
@@ -395,8 +551,8 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
         Object.hasOwn(subtypeKinds, data['elementType']) ||
         (validEnumDefinition(data['subtypeEnum']) &&
           data['elementType'] === rangeEnumType(data['subtypeEnum'])) ||
-        (data['elementType'].startsWith('array:') &&
-          rangeArraySubtype(data as unknown as RangeTypeInfo) === data['elementType'])
+        (rangeContainerKind(data['elementType']) &&
+          rangeContainerSubtype(data as unknown as RangeTypeInfo) === data['elementType'])
       )
     )
       return null
@@ -408,6 +564,13 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
     if (
       builtinRangeType(data['identity'] as string) ||
       builtinMultirangeType(data['multirange'] as string)
+    )
+      return null
+    if (
+      Array.isArray(data['subtypeDefinitions']) &&
+      data['subtypeDefinitions'].some(
+        (node) => node.identity === data['identity'] || node.identity === data['multirange'],
+      )
     )
       return null
     return data as unknown as RangeTypeInfo & { elementType: RangeSubtype }
@@ -425,14 +588,16 @@ export function capturedRangeType(
     !(
       validEnumDefinition(profile.subtypeEnum) && elementType === rangeEnumType(profile.subtypeEnum)
     ) &&
-    !(elementType.startsWith('array:') && rangeArraySubtype(profile) === elementType)
+    !(rangeContainerKind(elementType) && rangeContainerSubtype(profile) === elementType)
   )
     return null
   const fields: Record<string, unknown> = { elementType }
   for (const key of [...textFields, ...nullableTextFields, ...nullableFlags, ...jsonCategoryFields])
     fields[key] = profile[key]
   if (elementType.startsWith('enum:')) fields['subtypeEnum'] = profile.subtypeEnum
-  if (elementType.startsWith('array:')) fields['subtypeDefinitions'] = profile.subtypeDefinitions
+  if (rangeContainerKind(elementType)) fields['subtypeDefinitions'] = profile.subtypeDefinitions
+  if (profile.subtypeRanges)
+    fields['subtypeRanges'] = profile.subtypeRanges.map(projectedRangeDefinition)
   const result: CapturedRangeType = `range:${JSON.stringify(fields)}`
   return capturedDefinition(result) ? result : null
 }
@@ -530,8 +695,9 @@ export function rangeProfileSupport(
   comparison: number
   canonical: number
 } {
-  const kind = profile.elementType.startsWith('array:')
-    ? 41
+  const container = rangeContainerKind(profile.elementType)
+  const kind = container
+    ? container
     : profile.subtypeEnum
       ? 6
       : subtypeKinds[profile.elementType as keyof typeof subtypeKinds]
@@ -539,8 +705,12 @@ export function rangeProfileSupport(
     profile.comparator !== null &&
     profile.comparator ===
       builtinTypeComparison(
-        profile.elementType.startsWith('array:')
-          ? 'pg_catalog.anyarray'
+        container
+          ? {
+              41: 'pg_catalog.anyarray',
+              42: 'pg_catalog.int4range',
+              43: 'pg_catalog.int4multirange',
+            }[container]
           : profile.subtypeEnum
             ? 'pg_catalog.anyenum'
             : profile.elementType,

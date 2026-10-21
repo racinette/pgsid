@@ -6,6 +6,8 @@ import {
   rangeTypeProfile,
   multirangeTypeProfile,
   rangeProfileSupport,
+  rangeContainerKind,
+  rangeNestedProfile,
   type RangeProfile,
   type RangeSubtype,
 } from '../../sql-semantics/range-profiles.js'
@@ -108,6 +110,7 @@ export interface RangeBoundProfilePlan {
 export interface RangeArrayHashPlan {
   element: RangeSubtypeDefinition
   child: RangeArrayHashPlan | null
+  range?: RangeProfile | null
 }
 
 export function rangeArrayHashPlan(profile: RangeProfile): RangeArrayHashPlan | null {
@@ -118,7 +121,13 @@ export function rangeArrayHashPlan(profile: RangeProfile): RangeArrayHashPlan | 
     while (node.kind === 'd') node = definitions.get(node.base!)!
     if (node.element === null) return null
     const element = definitions.get(node.element)!
-    return { element, child: build(element.identity) }
+    let physical = element
+    while (physical.kind === 'd') physical = definitions.get(physical.base!)!
+    const range =
+      physical.kind === 'r' || physical.kind === 'm'
+        ? rangeNestedProfile(profile, physical.kind === 'r' ? physical.identity : physical.member!)
+        : null
+    return { element, child: build(element.identity), range }
   }
   return build(profile.subtype)
 }
@@ -127,11 +136,16 @@ export function rangeBoundProfiles(
   profile: RangeProfile,
   context: { defaultCollation?: 'C'; serverEncoding?: 'UTF8' } = {},
 ): RangeBoundProfilePlan[] | null {
-  if (!profile.elementType.startsWith('array:')) return []
+  if (!rangeContainerKind(profile.elementType)) return []
   if (!profile.subtypeDefinitions) return null
   const definitions = new Map(profile.subtypeDefinitions.map((node) => [node.identity, node]))
   const result: RangeBoundProfilePlan[] = []
-  const append = (identity: string, type: string): boolean => {
+  const append = (
+    identity: string,
+    type: string,
+    owner: RangeProfile,
+    override?: { comparison: number; missing: boolean },
+  ): boolean => {
     const selected = definitions.get(identity)
     if (!selected) return false
     let node = selected
@@ -143,10 +157,10 @@ export function rangeBoundProfiles(
     }
     const base = arrayElementBaseType(type),
       kind = arrayElementFamily(base)
-    if (kind === null || kind > 41) return false
+    if (kind === null) return false
     const support = rangeProfileSupport(
       {
-        ...profile,
+        ...owner,
         elementType: base as RangeSubtype,
         subtype: node.identity,
         subtypeEnum:
@@ -159,20 +173,46 @@ export function rangeBoundProfiles(
       context,
     )
     const index = result.length
+    const nested =
+      kind === 42 || kind === 43
+        ? rangeNestedProfile(profile, kind === 42 ? node.identity : node.member!)
+        : null
+    if ((kind === 42 || kind === 43) && !nested) return false
+    const nestedSupport = nested ? rangeProfileSupport(nested, context) : null
+    const labels =
+      node.kind === 'e'
+        ? owner.subtypeEnum?.schema === node.schema && owner.subtypeEnum.name === node.name
+          ? owner.subtypeEnum.values
+          : node.enumValues!
+        : null
     result.push({
       typeName: node.identity,
       kind,
-      comparison: index === 0 ? 41 : support.comparison,
-      canonical: 1,
-      missingComparison: index !== 0 && selected.comparator === null,
-      elementType: kind === 41 ? arrayElementIdentity(base.slice(6)) : '',
-      child: kind === 41 ? index + 1 : 0,
-      enumLabels: node.kind === 'e' ? node.enumValues!.join('\0') : '',
-      enumCount: node.kind === 'e' ? node.enumValues!.length : -1,
+      comparison: index === 0 ? kind : (override?.comparison ?? support.comparison),
+      canonical: kind === 42 ? nestedSupport!.canonical : 1,
+      missingComparison: index !== 0 && (override?.missing ?? selected.comparator === null),
+      elementType:
+        kind === 41
+          ? arrayElementIdentity(base.slice(6))
+          : kind === 42
+            ? nested!.subtype
+            : kind === 43
+              ? nested!.identity
+              : '',
+      child: kind >= 41 ? index + 1 : 0,
+      enumLabels: labels?.join('\0') ?? '',
+      enumCount: labels?.length ?? -1,
     })
-    return kind !== 41 || (node.element !== null && append(node.element, base.slice(6)))
+    if (kind === 41) return node.element !== null && append(node.element, base.slice(6), owner)
+    if (kind === 42)
+      return append(nested!.subtype, nested!.elementType, nested!, {
+        comparison: nestedSupport!.comparison,
+        missing: nested!.comparator === null,
+      })
+    if (kind === 43) return append(nested!.identity, nested!.rangeType, owner)
+    return true
   }
-  return append(profile.subtype, profile.elementType) ? result : null
+  return append(profile.subtype, profile.elementType, profile) ? result : null
 }
 
 export function arrayElementDelimiter(type: string): ',' | ';' {
