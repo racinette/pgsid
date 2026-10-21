@@ -116,6 +116,7 @@ it('captures user range and multirange support in snapshots with selected identi
     })
     expect(snapshot.rangeTypes.find((r) => r.name === 'ratings')).toMatchObject({
       subtype: '"Range.Types".rating',
+      subtypeEnum: { schema: 'Range.Types', name: 'rating', values: ['low', 'high'] },
       comparator: 'function:["pg_catalog","enum_cmp"](pg_catalog.anyenum,pg_catalog.anyenum)',
       subtypeOutput: 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)',
     })
@@ -126,8 +127,13 @@ it('captures user range and multirange support in snapshots with selected identi
     })
     expect(
       snapshot.rangeTypes.every(
-        ({ callables, callResolution: _resolution, ...profile }) =>
+        ({ callables, callResolution: _resolution, subtypeEnum, ...profile }) =>
           Array.isArray(callables) &&
+          (!subtypeEnum ||
+            (typeof subtypeEnum.schema === 'string' &&
+              typeof subtypeEnum.name === 'string' &&
+              subtypeEnum.values.every((value) => typeof value === 'string') &&
+              Object.keys(subtypeEnum).sort().join(',') === 'name,schema,values')) &&
           Object.values(profile).every(
             (v) => v === null || typeof v === 'string' || typeof v === 'boolean',
           ),

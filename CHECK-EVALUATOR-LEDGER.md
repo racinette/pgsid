@@ -145,8 +145,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [x] Establish point payloads, SQL-coerced public inputs, construction, geometric equality, binary output and composition; establish the scalar square-root primitive and classify geometric text rendering requirements.
-- [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts;
-      preserve semantic NaN values while classifying computed binary precision.
+- [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts; preserve semantic NaN values while classifying computed binary precision.
 - [x] Establish line coefficient payloads, geometric equality, orientation,
       binary output, domains, SQL-coerced public inputs and composition.
 - [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs
@@ -259,6 +258,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit captured JSONB range/multirange SQL types through owned logical bounds, subtype domains, constructors, source/stored literals, arrays, validated public payloads, I/O, JSON and hashes. Retain UTF8 input/output independently of unavailable comparison, require C/UTF8 ordering, preserve exact scales, ownership and error order, and verify native/Rust/Go/TypeScript INSERT parity.
 - [x] Preserve exact Unicode JSONB sort ties across scalar, range/multirange and nested domain arrays through stored logical representations; pass declared UTF8 through direct array input, retain missing-encoding and unequal-display-scale deferrals, and verify source/stored composition and native/Rust/Go/TypeScript INSERT parity.
 - [ ] Extend range/multirange support to enums and recursive subtype carriers; reuse established scalar backends, preserve nominal/polymorphic identities and retain unavailable callback, catalog and execution-context requirements.
+- [x] Capture nominal enum range subtype definitions and catalog label order through domain chains, including empty enums and inserted labels; preserve legacy metadata views, search-path independence, independent snapshots and comparable schema state without retaining deployment label OIDs. Runtime enum range admission remains pending.
 - [ ] Composite values, including field identity, access, row NULL semantics and JSON record conversion.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.

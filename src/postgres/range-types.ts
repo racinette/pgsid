@@ -213,6 +213,7 @@ async function readRangeTypeInfos(
       identity: string
       array: string
       subtype: string
+      subtype_enum: RangeTypeInfo['subtypeEnum'] | null
       multirange: string
       multirange_array: string
       collation: string | null
@@ -245,6 +246,14 @@ async function readRangeTypeInfos(
         (${typeIdentity} r.rngtypid) AS identity,
         (${typeIdentity} rt.typarray) AS array,
         (${typeIdentity} r.rngsubtype) AS subtype,
+        (WITH RECURSIVE bases(type) AS (
+          SELECT r.rngsubtype
+          UNION
+          SELECT t.typbasetype FROM bases b JOIN pg_type t ON t.oid=b.type WHERE t.typtype='d'
+        ) SELECT json_build_object('schema',en.nspname,'name',et.typname,'values',ARRAY(
+          SELECT e.enumlabel FROM pg_enum e WHERE e.enumtypid=et.oid ORDER BY e.enumsortorder
+        )) FROM bases b JOIN pg_type et ON et.oid=b.type AND et.typtype='e'
+          JOIN pg_namespace en ON en.oid=et.typnamespace) AS subtype_enum,
         (${typeIdentity} r.rngmultitypid) AS multirange,
         (${typeIdentity} mt.typarray) AS multirange_array,
         (SELECT quote_ident(cn.nspname)||'.'||quote_ident(c.collname)
@@ -308,6 +317,7 @@ async function readRangeTypeInfos(
   )
   const callResolution = rows.length ? await readRangeCallResolution(pg, callables) : undefined
   return rows.map((row) => ({
+    ...(row.subtype_enum ? { subtypeEnum: row.subtype_enum } : {}),
     schema: row.schema,
     name: row.name,
     multirangeSchema: row.multirange_schema,
@@ -372,6 +382,7 @@ export async function readRangeTypes(
   const rows = await readRangeTypeInfos(pg, schema, null)
   return rows.map(
     ({
+      subtypeEnum: _subtypeEnum,
       schema: _schema,
       name: _name,
       multirangeSchema: _multirangeSchema,

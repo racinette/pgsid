@@ -727,6 +727,7 @@ export interface RangeCallResolution {
 }
 
 export interface RangeTypeInfo extends RangeTypeMetadata {
+  subtypeEnum?: Pick<EnumInfo, 'schema' | 'name' | 'values'>
   schema: string
   name: string
   multirangeSchema: string
