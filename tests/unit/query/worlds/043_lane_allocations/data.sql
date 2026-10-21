@@ -308,3 +308,6 @@ VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","
 INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass) VALUES ('[1,3)','[1,3)','\x0200000004000000010000000400000003',0,false);
 INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass) VALUES ('{[1,3),[5,7)}','{[1,3),[5,7)}','\x00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000007',0,false);
 INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass) VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,active]','[-2:-2]={"[queued,active]"}','[queued,active]',0,false);

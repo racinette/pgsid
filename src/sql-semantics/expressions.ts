@@ -866,13 +866,8 @@ export function emitSqlExpression<Ast>(
       definition.name.length === 0 ||
       invalidUtf8(definition.schema) ||
       invalidUtf8(definition.name) ||
-      new TextEncoder().encode(definition.schema).length >= 64 ||
-      new TextEncoder().encode(definition.name).length >= 64 ||
-      definition.values.length === 0 ||
       new Set(definition.values).size !== definition.values.length ||
-      definition.values.some(
-        (value) => invalidUtf8(value) || new TextEncoder().encode(value).length >= 64,
-      )
+      definition.values.some(invalidUtf8)
     )
       throw new Error('Invalid enum definition')
     return enumType(definition)

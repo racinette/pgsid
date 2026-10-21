@@ -15,6 +15,17 @@ export async function readRangeBoundCell(
   subtype: string,
   value: string | null,
 ): Promise<RangeInputCell> {
+  if (subtype.startsWith('enum:') && value !== null) {
+    const names = JSON.parse(subtype.slice(5)) as string[]
+    const identity = names.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.')
+    const ordinal = (
+      await pg.query<{ ordinal: number }>(
+        `SELECT array_position(enum_range(NULL::${identity}),$1::${identity})-1 AS ordinal`,
+        [value],
+      )
+    ).rows[0]!.ordinal
+    return { kind: 'Enum', value: { ordinal, labelOid: 0n } }
+  }
   if (subtype !== 'pg_catalog.jsonb' || value === null) return rangeBoundCell(subtype, value)
   let cache = jsonbBounds.get(pg)
   if (!cache) jsonbBounds.set(pg, (cache = new Map()))
@@ -282,6 +293,12 @@ export async function readRangeFixture(
     typeName: metadata.identity,
     elementType: metadata.subtype,
     elementKind: arrayElementFamily(metadata.elementType)!,
+    ...(metadata.subtypeEnum
+      ? {
+          enumLabels: metadata.subtypeEnum.values.join('\0'),
+          enumCount: metadata.subtypeEnum.values.length,
+        }
+      : {}),
     empty: row.empty,
     lowerInclusive: row.lower_inc,
     upperInclusive: row.upper_inc,

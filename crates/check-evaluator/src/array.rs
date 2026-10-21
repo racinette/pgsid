@@ -636,6 +636,8 @@ fn array_element_with_range_profile(
     element_kind: i32,
     comparison: i32,
     canonical: i32,
+    labels: &str,
+    count: i32,
 ) -> ArrayElement {
     if let ArrayElement::Array(nested) = input {
         let converted = array_with_range_profile(
@@ -646,10 +648,15 @@ fn array_element_with_range_profile(
             element_kind,
             comparison,
             canonical,
+            labels,
+            count,
         );
         return array_element_from_array(converted);
     };
     if let ArrayElement::Range(span) = input {
+        if count >= 0 {
+            return array_element_from_range(range_from_coerced_defined_profile(RangeValue::Value(span), range_type, element_type, element_kind, comparison, canonical, labels, count));
+        };
         let converted = range_from_coerced_profile(
             RangeValue::Value(span),
             range_type,
@@ -661,6 +668,9 @@ fn array_element_with_range_profile(
         return array_element_from_range(converted);
     };
     if let ArrayElement::Multirange(spans) = input {
+        if count >= 0 {
+            return array_element_from_multirange(multirange_from_coerced_defined_profile(MultirangeValue::Value(spans), multirange_type, range_type, element_type, element_kind, comparison, canonical, labels, count));
+        };
         let converted = multirange_from_coerced_profile(
             MultirangeValue::Value(spans),
             multirange_type,
@@ -683,6 +693,8 @@ fn array_with_range_profile(
     element_kind: i32,
     comparison: i32,
     canonical: i32,
+    labels: &str,
+    count: i32,
 ) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         let mut elements = payload.elements;
@@ -702,6 +714,8 @@ fn array_with_range_profile(
                     element_kind,
                     comparison,
                     canonical,
+                    labels,
+                    count,
                 );
                 if let ArrayElement::Error(error) = converted {
                     return ArrayValue::Error(error);
@@ -734,6 +748,21 @@ pub fn array_from_coerced_range_profile_tree(
     comparison: i32,
     canonical: i32,
 ) -> ArrayValue {
+    array_from_coerced_range_defined_profile_tree(input, types, kinds, type_name, element_type, element_kind, comparison, canonical, "", -1)
+}
+
+pub fn array_from_coerced_range_defined_profile_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+    labels: &str,
+    count: i32,
+) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         if array_tree_identity_valid(&payload, types, kinds, 0) == false
             || array_range_identity_valid(&payload, type_name, element_type, element_kind) == false
@@ -748,6 +777,8 @@ pub fn array_from_coerced_range_profile_tree(
             element_kind,
             comparison,
             canonical,
+            labels,
+            count,
         );
     };
     input
@@ -763,6 +794,22 @@ pub fn array_from_coerced_multirange_profile_tree(
     element_kind: i32,
     comparison: i32,
     canonical: i32,
+) -> ArrayValue {
+    array_from_coerced_multirange_defined_profile_tree(input, types, kinds, type_name, range_type, element_type, element_kind, comparison, canonical, "", -1)
+}
+
+pub fn array_from_coerced_multirange_defined_profile_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+    labels: &str,
+    count: i32,
 ) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         if array_tree_identity_valid(&payload, types, kinds, 0) == false
@@ -784,6 +831,8 @@ pub fn array_from_coerced_multirange_profile_tree(
             element_kind,
             comparison,
             canonical,
+            labels,
+            count,
         );
     };
     input

@@ -136,6 +136,9 @@ export function arrayInputPlan(type: string): string[] {
         ? [
             String.fromCharCode(rangeProfileSupport(multi).comparison),
             String.fromCharCode(rangeProfileSupport(multi).canonical),
+            ...(multi.subtypeEnum
+              ? [multi.subtypeEnum.values.join('\0'), String(multi.subtypeEnum.values.length)]
+              : []),
           ]
         : []),
     ]
@@ -151,6 +154,9 @@ export function arrayInputPlan(type: string): string[] {
           ? [
               String.fromCharCode(rangeProfileSupport(range).comparison),
               String.fromCharCode(rangeProfileSupport(range).canonical),
+              ...(range.subtypeEnum
+                ? [range.subtypeEnum.values.join('\0'), String(range.subtypeEnum.values.length)]
+                : []),
             ]
           : []),
       ]

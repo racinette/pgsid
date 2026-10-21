@@ -1,4 +1,4 @@
-import { multirangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
+import { multirangeTypeProfile, rangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import {
   arrayElementFamily,
   arrayElementIdentity,
@@ -425,6 +425,8 @@ export function renderTypescriptSchemaCheckArtifacts(
                         : 'checkInputBoolean',
             )
           const multirange = multirangeTypeProfile(item.type)
+          const range = rangeTypeProfile(item.type)
+          const enumDefinition = (range ?? multirange)?.subtypeEnum
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
@@ -434,6 +436,17 @@ export function renderTypescriptSchemaCheckArtifacts(
                   factory.createStringLiteral(multirange.identity),
                   factory.createStringLiteral(multirange.subtype),
                   factory.createNumericLiteral(arrayElementFamily(multirange.elementType)!),
+                ]
+              : []),
+            ...(range || multirange
+              ? [
+                  factory.createStringLiteral(enumDefinition?.values.join('\0') ?? ''),
+                  enumDefinition
+                    ? factory.createNumericLiteral(enumDefinition.values.length)
+                    : factory.createPrefixUnaryExpression(
+                        ts.SyntaxKind.MinusToken,
+                        factory.createNumericLiteral(1),
+                      ),
                 ]
               : []),
             ...(item.type.startsWith('array:')
@@ -841,6 +854,8 @@ function checkRustArrayValue(input: unknown, elementType: string, elementKind: n
   }
   const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
   if(nested) return result
+  if(tree.length===9) return _checkRust.arrayFromCoercedRangeDefinedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!,Number(tree[8]))
+  if(tree.length===10) return _checkRust.arrayFromCoercedMultirangeDefinedProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!,tree[8]!,Number(tree[9]))
   if(tree.length===7 && tree[4]!.length===1 && tree[5]!.length===1 && tree[6]!.length===1) return _checkRust.arrayFromCoercedRangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!.codePointAt(0)!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!)
   if(tree.length===8 && tree[5]!.length===1 && tree[6]!.length===1 && tree[7]!.length===1) return _checkRust.arrayFromCoercedMultirangeProfileTree(result,tree[0]!,tree[1]!,tree[2]!,tree[3]!,tree[4]!,tree[5]!.codePointAt(0)!,tree[6]!.codePointAt(0)!,tree[7]!.codePointAt(0)!)
   return tree.length>=2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
@@ -857,7 +872,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     return result.kind==='Value' ? {kind:'Array',value:result.value} : null
   }
   if(input.kind==='Multirange') {
-    if(family!==43 || (tree.length!==6 && tree.length!==8) || tree[5]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    if(family!==43 || (tree.length!==6 && tree.length!==8 && tree.length!==10) || tree[5]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const p=input.value,kind=tree[5]!.codePointAt(0)!
     if(!('typeName' in p) || p.typeName!==tree[2] || !('rangeType' in p) || p.rangeType!==tree[3] || !('elementType' in p) || p.elementType!==tree[4] || !('elementKind' in p) || p.elementKind!==kind || !('ranges' in p) || !Array.isArray(p.ranges) || p.ranges.length>2147483647) return null
     const ranges:_checkRust.RangeValue[]=[]
@@ -869,14 +884,14 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
         ranges.push({kind:'Error',value:span.value as _checkRust.SqlError});continue
       }
       if(span.kind!=='Value' || !('value' in span)) return null
-      const value=checkRustArrayElement({kind:'Range',value:span.value},42,0,[tree[0]!,tree[1]!,tree[3]!,tree[4]!,tree[5]!])
+      const value=checkRustArrayElement({kind:'Range',value:span.value},42,0,[tree[0]!,tree[1]!,tree[3]!,tree[4]!,tree[5]!,...(tree.length===10 ? [tree[6]!,tree[7]!,tree[8]!,tree[9]!] : [])])
       if(value===null || value.kind!=='Range') return null
       ranges.push({kind:'Value',value:value.value})
     }
     return {kind:'Multirange',value:{typeName:tree[2]!,rangeType:tree[3]!,elementType:tree[4]!,elementKind:kind,support:_checkRust.rangeBuiltinSupport(tree[3]!,tree[4]!,kind),ranges}}
   }
   if(input.kind==='Range') {
-    if(family!==42 || (tree.length!==5 && tree.length!==7) || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    if(family!==42 || (tree.length!==5 && tree.length!==7 && tree.length!==9) || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const p=input.value
     const kind=tree[4]!.codePointAt(0)!
     if(!('typeName' in p) || p.typeName!==tree[2] || !('elementType' in p) || p.elementType!==tree[3] || !('elementKind' in p) || p.elementKind!==kind || !('empty' in p) || typeof p.empty!=='boolean' || !('lowerInclusive' in p) || typeof p.lowerInclusive!=='boolean' || !('upperInclusive' in p) || typeof p.upperInclusive!=='boolean' || !('bounds' in p) || !Array.isArray(p.bounds) || p.bounds.length>2) return null
@@ -886,7 +901,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
       if(cell===null) return null
       bounds.push(cell)
     }
-    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,enumLabels:'',enumCount:-1,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
+    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,enumLabels:tree.length===9 ? tree[7]! : '',enumCount:tree.length===9 ? Number(tree[8]) : -1,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
   }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}
@@ -1045,7 +1060,7 @@ function checkRustJson(row: object, name: string): _checkRust.JsonValue {
   if (source.includes(String.fromCharCode(0)) || /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(source)) return _checkRust.jsonUnknown()
   return _checkRust.makeJsonValue(source)
 }
-function checkRustMultirange(row: object, name: string, typeName: string, rangeType: string, elementType: string, elementKind: number): _checkRust.MultirangeValue {
+function checkRustMultirange(row: object, name: string, typeName: string, rangeType: string, elementType: string, elementKind: number, enumLabels: string, enumCount: number): _checkRust.MultirangeValue {
   const input=Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.multirangeUnknown()
   if (input===null) return _checkRust.multirangeNull()
@@ -1060,13 +1075,13 @@ function checkRustMultirange(row: object, name: string, typeName: string, rangeT
     if (span && typeof span==='object' && 'kind' in span && span.kind==='Value') {
       if (!('value' in span) || !span.value || typeof span.value!=='object' || !('typeName' in span.value) || span.value.typeName!==rangeType || !('elementType' in span.value) || span.value.elementType!==elementType || !('elementKind' in span.value) || span.value.elementKind!==elementKind) return _checkRust.multirangeUnknown()
     }
-    const value=checkRustRange({span},'span')
+    const value=checkRustRange({span},'span',enumLabels,enumCount)
     ranges.push(value)
     if(value.kind==='Unknown' || value.kind==='Error') break
   }
   return _checkRust.makeCoercedMultirangeValue({typeName,rangeType,elementType,elementKind,support:_checkRust.rangeBuiltinSupport(rangeType,elementType,elementKind),ranges})
 }
-function checkRustRange(row: object, name: string): _checkRust.RangeValue {
+function checkRustRange(row: object, name: string, enumLabels: string, enumCount: number): _checkRust.RangeValue {
   const input=Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input===undefined) return _checkRust.rangeUnknown()
   if (input===null) return _checkRust.rangeNull()
@@ -1082,7 +1097,7 @@ function checkRustRange(row: object, name: string): _checkRust.RangeValue {
     if (cell===null) return _checkRust.rangeUnknown()
     bounds.push(cell)
   }
-  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels:'',enumCount:-1,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
+  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,enumLabels,enumCount,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)

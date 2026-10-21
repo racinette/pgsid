@@ -8362,3 +8362,51 @@ VALUES('[-2:-1][4:5]={{"{\"aa\":1.2300,\"é\":2.00}","{\"é\":2.00,\"aa\":1.2300
 -- name: document_sort_matrix_1_1_wrong_expected_groups
 INSERT INTO lane_document_sort_ties (documents, windows, window_sets, window_groups, descending, nulls_first, expected_documents, expected_windows, expected_sets, expected_groups, bypass)
 VALUES('[-2:-1][4:5]={{"{\"aa\":1.2300,\"é\":2.00}","{\"é\":2.00,\"aa\":1.2300}"},{"{\"aa\":1.2300,\"é\":2.00}","{\"é\":2.00,\"aa\":1.2300}"}}','[-2:-1][4:5]={{"[\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\",\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\"]","[\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\",\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\"]"},{"[\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\",\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\"]","[\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\",\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\"]"}}','[-2:-1][4:5]={{"{[\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\",\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\"]}","{[\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\",\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\"]}"},{"{[\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\",\"{\\\"aa\\\":1.2300,\\\"é\\\":2.00}\"]}","{[\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\",\"{\\\"é\\\":2.00,\\\"aa\\\":1.2300}\"]}"}}','[-2:-1][4:5]={{"[-3:-2]={\"[\\\"{\\\\\\\"aa\\\\\\\":1.2300,\\\\\\\"é\\\\\\\":2.00}\\\",\\\"{\\\\\\\"aa\\\\\\\":1.2300,\\\\\\\"é\\\\\\\":2.00}\\\"]\",NULL}","[-3:-2]={\"[\\\"{\\\\\\\"é\\\\\\\":2.00,\\\\\\\"aa\\\\\\\":1.2300}\\\",\\\"{\\\\\\\"é\\\\\\\":2.00,\\\\\\\"aa\\\\\\\":1.2300}\\\"]\",NULL}"},{"[-3:-2]={\"[\\\"{\\\\\\\"aa\\\\\\\":1.2300,\\\\\\\"é\\\\\\\":2.00}\\\",\\\"{\\\\\\\"aa\\\\\\\":1.2300,\\\\\\\"é\\\\\\\":2.00}\\\"]\",NULL}","[-3:-2]={\"[\\\"{\\\\\\\"é\\\\\\\":2.00,\\\\\\\"aa\\\\\\\":1.2300}\\\",\\\"{\\\\\\\"é\\\\\\\":2.00,\\\\\\\"aa\\\\\\\":1.2300}\\\"]\",NULL}"}}',true,true,'[-2:-1][4:5]={{"{\"aa\": 1.2300, \"é\": 2.00}","{\"aa\": 1.2300, \"é\": 2.00}"},{"{\"aa\": 1.2300, \"é\": 2.00}","{\"aa\": 1.2300, \"é\": 2.00}"}}','[-2:-1][4:5]={{"[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]","[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]"},{"[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]","[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]"}}','[-2:-1][4:5]={{"{[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]}","{[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]}"},{"{[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]}","{[\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\",\"{\"\"aa\"\": 1.2300, \"\"é\"\": 2.00}\"]}"}}','!different!',false);
+
+-- name: EnumPhaseSchedule
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: EnumPhaseWrongOrder
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[queued,active]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: EnumPhaseWrongArray
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[active,complete]",NULL,"[queued,active]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: EnumPhaseWrongConstructor
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','complete','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: EnumPhaseWrongLabel
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','wrong','[["[queued,active]", null, "[active,complete]"], null]',false);
+
+-- name: EnumPhaseWrongHistory
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[queued,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[]',false);
+
+-- name: EnumPhaseNulls
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: EnumPhaseInput
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,active]','[-2:-2]={"[queued,active]"}','[queued,active]',0,false);
+
+-- name: EnumPhaseUnknownLabel
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[missing,active]','[-2:-2]={"[queued,active]"}','[queued,active]',0,false);
+
+-- name: EnumPhaseDomainViolation
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,complete]','[-2:-2]={"[queued,active]"}','[queued,active]',0,false);
+
+-- name: EnumPhaseArrayLabel
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,active]','[-2:-2]={"[queued,missing]"}','[queued,active]',0,false);
+
+-- name: EnumPhaseWireLength
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,active]','[-2:-2]={"[queued,active]"}','[queued,active]',100,false);
+
+-- name: EnumPhaseInputWrongLabel
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('[queued,active]','[-2:-2]={"[queued,active]"}','wrong',0,false);
+
+-- name: EnumPhaseSkippedInput
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES('bad','bad','ignored',0,true);
+
+-- name: EnumPhaseNullInput
+INSERT INTO lane_phase_imports(payload,array_payload,expected_label,minimum_bytes,bypass) VALUES(NULL,NULL,NULL,0,false);
+
+-- name: EnumPhaseMissingMembership
+INSERT INTO lane_phase_schedules(phase_window,following_window,phases,windows,histories,start_phase,finish_phase,expected_label,expected_history,bypass) VALUES('[queued,active]','[active,complete]','{[active,complete]}','[-2:0]={"[queued,active]",NULL,"[active,complete]"}','{"[-2:0]={\"[queued,active]\",NULL,\"[active,complete]\"}",NULL}','queued','active','[queued,active]','[["[queued,active]", null, "[active,complete]"], null]',false);
