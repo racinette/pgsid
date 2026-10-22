@@ -8572,15 +8572,15 @@ export function copyCompositePayload(value: CompositePayload): CompositePayload 
     return { typeName: langruntime.checkedString(value.typeName), fields: langruntime.checkedStructs(value.fields, copyArrayElement) };
 }
 export type CompositeValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 } | {
-    kind: "Value";
-    value: CompositePayload;
+    readonly kind: "Value";
+    readonly value: CompositePayload;
 };
 export function copyCompositeValue(value: CompositeValue): CompositeValue {
     switch (value.kind) {

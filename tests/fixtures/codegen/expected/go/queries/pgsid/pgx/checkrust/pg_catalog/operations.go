@@ -9423,6 +9423,24 @@ func DatePartYjvq(units checkruntime.TextValue, input checkruntime.TimetzValue) 
 func DatePartFb3a(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.Float8Value {
 	return clockFieldsLegacy(units, clockFieldInput{value: input, zone: 0, family: 3})
 }
+func RecordSendYv22(input checkruntime.CompositeValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyCompositeValue(input)
+	checked := checkruntime.CompositeFromCoercedValue(input)
+	if checked.Kind == checkruntime.CompositeValueError {
+		error := checked.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if checked.Kind == checkruntime.CompositeValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if checked.Kind == checkruntime.CompositeValueValue {
+		value := checkruntime.CopyCompositePayload(checked.Value)
+		if len(value.Fields) == 0 {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: "00000000"}
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 
 const recordComparisonTypeMismatch = 6822148
 const recordComparisonUndefined = 6822435

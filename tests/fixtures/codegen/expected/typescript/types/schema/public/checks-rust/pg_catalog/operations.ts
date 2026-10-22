@@ -9477,6 +9477,24 @@ export function datePartYjvq(units: checkruntime.TextValue, input: checkruntime.
 export function datePartFb3a(units: checkruntime.TextValue, input: checkruntime.IntervalValue): checkruntime.Float8Value {
     return clockFieldsLegacy(units, { value: input, zone: 0, family: 3 });
 }
+export function recordSendYv22(input: checkruntime.CompositeValue): checkruntime.ByteaValue {
+    input = checkruntime.copyCompositeValue(input);
+    const checked: checkruntime.CompositeValue = checkruntime.compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: checkruntime.SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    if (checked.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checked.kind === "Value") {
+        const value: checkruntime.CompositePayload = checkruntime.copyCompositePayload(checked.value);
+        if (value.fields.length === 0) {
+            return { kind: "Value", value: "00000000" };
+        }
+    }
+    return { kind: "Unknown" };
+}
 const recordComparisonTypeMismatch = 6822148;
 const recordComparisonUndefined = 6822435;
 const recordComparisonCollation = 6844250;
