@@ -241,3 +241,18 @@ INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,m
 INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('empty','(,)','bad','wrong',99,99,false,true);
 -- name: BandEnvelopeRejected
 INSERT INTO inspection_bands(reading_band,previous_band,encoded,canonical_text,minimum_score,expected_order,expected_equal,bypass) VALUES ('["(3,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(3,abc)","(4,xyz)")','["(3,abc)","(4,xyz)")',1,1,false,false);
+
+-- name: DocumentNullDatum
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (NULL,NULL,NULL,false,false);
+-- name: DocumentNullFields
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(NULL,NULL,NULL)::inspection_packet,E'{"current_reading":null,"previous_reading":null,"history":null}',E'{"current_reading":null,"previous_reading":null,"history":null}',false,false);
+-- name: DocumentNested
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',false,false);
+-- name: DocumentPretty
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},\n "previous_reading":null,\n "history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',true,false);
+-- name: DocumentWrongText
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'{}',E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',false,false);
+-- name: DocumentWrongValue
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',E'{}',false,false);
+-- name: DocumentBypassed
+INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'wrong',E'{}',false,true);

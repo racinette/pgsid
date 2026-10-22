@@ -71,7 +71,8 @@ export async function readCatalogCompositeTypes(
         LEFT JOIN pg_catalog.pg_namespace cn ON cn.oid=co.collnamespace
         WHERE t.typtype='c' AND a.attrelid=t.typrelid AND a.attnum>0 AND NOT a.attisdropped),'[]'::json) AS fields,
       ${functionIdentity('t.typinput')} AS input,${functionIdentity('t.typoutput')} AS output,
-      ${functionIdentity('t.typreceive')} AS receive,${functionIdentity('t.typsend')} AS send
+      ${functionIdentity('t.typreceive')} AS receive,${functionIdentity('t.typsend')} AS send,
+      ${functionIdentity("(SELECT castfunc FROM pg_catalog.pg_cast WHERE castsource=t.oid AND casttarget='pg_catalog.json'::regtype AND castmethod='f')")} AS "jsonCast"
     FROM needed d JOIN pg_catalog.pg_type t ON t.oid=d.type
     JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
     LEFT JOIN pg_catalog.pg_class c ON t.typtype='c' AND c.oid=t.typrelid

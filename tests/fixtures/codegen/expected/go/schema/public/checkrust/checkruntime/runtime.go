@@ -905,6 +905,37 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 	panic("unknown enum variant")
 }
 
+type JsonRecordInputPayload struct {
+	State    int
+	Error    SqlError
+	Fields   []ArrayElement
+	Values   []JsonbInput
+	Position int
+}
+
+func CopyJsonRecordInputPayload(value JsonRecordInputPayload) JsonRecordInputPayload {
+	return JsonRecordInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
+}
+
+type JsonRecordInputPlanKind uint8
+
+const (
+	JsonRecordInputPlanValue JsonRecordInputPlanKind = iota
+)
+
+type JsonRecordInputPlan struct {
+	Kind  JsonRecordInputPlanKind
+	Value JsonRecordInputPayload
+}
+
+func CopyJsonRecordInputPlan(value JsonRecordInputPlan) JsonRecordInputPlan {
+	switch value.Kind {
+	case JsonRecordInputPlanValue:
+		return JsonRecordInputPlan{Kind: JsonRecordInputPlanValue, Value: CopyJsonRecordInputPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+
 type JsonbArgumentPayload struct {
 	Values []JsonbInput
 }

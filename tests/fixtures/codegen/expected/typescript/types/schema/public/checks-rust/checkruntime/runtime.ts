@@ -923,6 +923,25 @@ export function copyJsonbInput(value: JsonbInput): JsonbInput {
         case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
     }
 }
+export interface JsonRecordInputPayload {
+    readonly state: number;
+    readonly error: SqlError;
+    readonly fields: ArrayElement[];
+    readonly values: JsonbInput[];
+    readonly position: number;
+}
+export function copyJsonRecordInputPayload(value: JsonRecordInputPayload): JsonRecordInputPayload {
+    return { state: langruntime.checkedI32(value.state), error: value.error, fields: langruntime.checkedStructs(value.fields, copyArrayElement), values: langruntime.checkedStructs(value.values, copyJsonbInput), position: langruntime.checkedIndex(value.position) };
+}
+export type JsonRecordInputPlan = {
+    readonly kind: "Value";
+    readonly value: JsonRecordInputPayload;
+};
+export function copyJsonRecordInputPlan(value: JsonRecordInputPlan): JsonRecordInputPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyJsonRecordInputPayload(value.value) };
+    }
+}
 export interface JsonbArgumentPayload {
     readonly values: JsonbInput[];
 }

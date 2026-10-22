@@ -850,6 +850,20 @@ pub enum JsonbInput {
 }
 
 #[derive(Clone)]
+pub struct JsonRecordInputPayload {
+    pub state: i32,
+    pub error: SqlError,
+    pub fields: Vec<ArrayElement>,
+    pub values: Vec<JsonbInput>,
+    pub position: usize,
+}
+
+#[derive(Clone)]
+pub enum JsonRecordInputPlan {
+    Value(JsonRecordInputPayload),
+}
+
+#[derive(Clone)]
 pub struct JsonbArgumentPayload {
     pub values: Vec<JsonbInput>,
 }

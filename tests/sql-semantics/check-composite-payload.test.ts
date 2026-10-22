@@ -56,6 +56,9 @@ CONSTRAINT history CHECK(CASE WHEN bypass THEN true ELSE ((v).history[1]).score>
 CONSTRAINT row_null CHECK(CASE WHEN bypass THEN true ELSE (v IS NULL)=expected_null END),
 CONSTRAINT row_not_null CHECK(CASE WHEN bypass THEN true ELSE (v IS NOT NULL)=expected_not_null END),
 CONSTRAINT coalesced CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(v,w)).child.score>=2 END),
+CONSTRAINT json_score CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(v)#>>'{child,score}')::int4>=2 END),
+CONSTRAINT json_phase CHECK(CASE WHEN bypass THEN true ELSE (to_json(v)::jsonb#>>'{child,phase}')<>'a' END),
+CONSTRAINT json_row CHECK(CASE WHEN bypass THEN true ELSE (row_to_json(v,true)::jsonb#>'{child,doc}') ? 'ok' END),
 CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score>=2));`)
     const leaf = async (
       score = 2,
@@ -331,7 +334,9 @@ CONSTRAINT selected CHECK((CASE WHEN choose_first THEN v ELSE w END).child.score
           ).rows[0]!.value
           expected[c.name] = { certain: true, value }
         }
+        const saved = structuredClone(row)
         expect(evaluate(row), sample.name + ' ' + wrong).toEqual(expected)
+        expect(row).toEqual(saved)
         const insert = pg.query(`INSERT INTO records VALUES(${v},${w},$1,$2,$3,$4)`, [
           row.expected_null,
           row.expected_not_null,
@@ -428,6 +433,7 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
     const bad = structuredClone(base)
     bad.v.value.fields.pop()
     expect(evaluate(bad).score).toMatchObject({ certain: false })
+    expect(evaluate(bad).json_score).toMatchObject({ certain: false })
     for (const c of Object.values(evaluate({ ...bad, bypass: true })))
       expect(c).toMatchObject({ certain: true, value: true })
     const invalid = structuredClone(base)
@@ -435,6 +441,7 @@ fn native_w_${nativeIndex}()->CompositeValue {${rustWrapper(sample.w?.value ?? n
     if (inner.kind !== 'Composite') throw new Error('Expected child')
     inner.value.fields[2] = { kind: 'Enum', value: { ordinal: 999, labelOid: 0n } }
     expect(evaluate(invalid).score).toMatchObject({ certain: false })
+    expect(evaluate(invalid).json_phase).toMatchObject({ certain: false })
     await writeFile(
       join(root, 'schema/public/composite_test.go'),
       `package public

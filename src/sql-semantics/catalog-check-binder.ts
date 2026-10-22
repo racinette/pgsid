@@ -1356,31 +1356,33 @@ const candidate = (
             ? coerce(arg, compatibleArray!, definition)
             : item.args[index] === 'pg_catalog.anycompatible'
               ? coerce(arg, compatibleType!, definition)
-              : item.args[index] === 'pg_catalog.anyarray'
-                ? materialize(arg, arrayIdentity!)
-                : item.args[index] === 'pg_catalog.anymultirange'
-                  ? materialize(arg, multirangeIdentity!)
-                  : item.args[index] === 'pg_catalog.anyrange'
-                    ? materialize(arg, rangeIdentity!)
-                    : item.args[index] === 'pg_catalog.anyelement'
-                      ? coerce(arg, elementType!, arg.enum)
-                      : catalogScalarType(item.args[index]!)?.startsWith('array:')
-                        ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                        : isIntegerType(item.args[index]!)
-                          ? materializeInteger(arg, item.args[index]! as ScalarType)
-                          : concreteArrayParameters && catalogScalarType(item.args[index]!)
-                            ? implicitOperand(
-                                arg,
-                                catalogScalarType(item.args[index]!)!,
-                                definition,
-                              )
-                            : materialize(
-                                arg,
-                                item.args[index] === 'pg_catalog.anyenum'
-                                  ? enumType(definition!)
-                                  : (item.args[index]! as ScalarType),
-                                definition,
-                              ),
+              : item.args[index] === 'pg_catalog.record' && compositeProfile(boundType(arg) ?? '')
+                ? materialize(arg, boundType(arg)!)
+                : item.args[index] === 'pg_catalog.anyarray'
+                  ? materialize(arg, arrayIdentity!)
+                  : item.args[index] === 'pg_catalog.anymultirange'
+                    ? materialize(arg, multirangeIdentity!)
+                    : item.args[index] === 'pg_catalog.anyrange'
+                      ? materialize(arg, rangeIdentity!)
+                      : item.args[index] === 'pg_catalog.anyelement'
+                        ? coerce(arg, elementType!, arg.enum)
+                        : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                          ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                          : isIntegerType(item.args[index]!)
+                            ? materializeInteger(arg, item.args[index]! as ScalarType)
+                            : concreteArrayParameters && catalogScalarType(item.args[index]!)
+                              ? implicitOperand(
+                                  arg,
+                                  catalogScalarType(item.args[index]!)!,
+                                  definition,
+                                )
+                              : materialize(
+                                  arg,
+                                  item.args[index] === 'pg_catalog.anyenum'
+                                    ? enumType(definition!)
+                                    : (item.args[index]! as ScalarType),
+                                  definition,
+                                ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [

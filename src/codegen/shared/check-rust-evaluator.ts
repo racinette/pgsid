@@ -196,14 +196,14 @@ export const supportsJsonbConversion = (type: string): boolean => {
     if (arrayElementFamily(type.slice(6)) === null) return false
     type = arrayElementBaseType(type.slice(6))
   }
-  return jsonbConversionHelper(type) !== undefined
+  return compositeProfile(type) !== null || jsonbConversionHelper(type) !== undefined
 }
 
 export const isJsonConversion = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & {
   kind: 'function'
-  name: 'to_json' | 'array_to_json'
+  name: 'to_json' | 'array_to_json' | 'row_to_json'
 } =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -212,6 +212,8 @@ export const isJsonConversion = (
   !item.returnsSet &&
   item.volatility === 's' &&
   ((item.name === 'to_json' && item.args.join(',') === 'pg_catalog.anyelement') ||
+    (item.name === 'row_to_json' &&
+      ['pg_catalog.record', 'pg_catalog.record,pg_catalog.bool'].includes(item.args.join(','))) ||
     (item.name === 'array_to_json' &&
       ['pg_catalog.anyarray', 'pg_catalog.anyarray,pg_catalog.bool'].includes(item.args.join(','))))
 
@@ -2293,7 +2295,8 @@ export function emitCheckRustEvaluator(
                       operands[index]?.type === rangeSubtype
                     ? false
                     : type === 'pg_catalog.record' &&
-                        isRecordComparison(implementation) &&
+                        (isRecordComparison(implementation) ||
+                          (jsonConversion && implementation.name === 'row_to_json')) &&
                         compositeProfile(operands[index]?.type ?? '')
                       ? false
                       : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
@@ -3615,10 +3618,26 @@ export function emitCheckRustEvaluator(
           original: { name: string; type: string },
           key: boolean | string,
           lines: string[],
+          enumOverride?: EnumDefinition,
         ): string => {
           let operand = { ...original, type: arrayElementBaseType(original.type) }
           if (operand.type.startsWith('array:'))
-            return arrayValueInput(operand, key === true, lines)
+            return arrayValueInput(operand, key === true, lines, enumOverride)
+          if (compositeProfile(operand.type)) {
+            if (key === true) {
+              const carrier = fresh('json_record_key')
+              lines.push(`let ${carrier}=json_record_key_input(${ownedOperand(operand)});`)
+              return carrier
+            }
+            const pretty = fresh('json_record_compact')
+            lines.push(`let ${pretty}=make_bool_value(false);`)
+            const plan = recordInputs(operand, pretty, lines),
+              carrier = fresh('json_record_value')
+            lines.push(
+              `let ${carrier}=${rawJson ? 'json_record_input' : 'jsonb_record_input'}(${plan}${rawJson ? ', ' + String(executionContext.serverEncoding === 'UTF8') : ''});`,
+            )
+            return carrier
+          }
           const range = rangeTypeProfile(operand.type),
             multirange = multirangeTypeProfile(operand.type),
             profile = range ?? multirange
@@ -3639,13 +3658,24 @@ export function emitCheckRustEvaluator(
                     : 0,
               carrier = fresh('jsonb_range_input'),
               helper = range ? 'jsonb_range_input_category' : 'jsonb_multirange_input_category'
-            lines.push(`let ${carrier} = ${helper}(${ownedOperand(operand)}, ${category}, ${key});`)
+            if (category === 1 && profile.subtypeCompositeGraph) {
+              const rendered = renderRangeOutput(operand.name, profile, !!multirange, lines),
+                text = fresh('json_record_range_text')
+              lines.push(
+                `let ${text}=${rendered};`,
+                `let ${carrier}=jsonb_input_from_text(${text});`,
+              )
+            } else
+              lines.push(
+                `let ${carrier} = ${helper}(${ownedOperand(operand)}, ${category}, ${key});`,
+              )
             return carrier
           }
           const definition =
-            call.kind === 'cast'
+            enumOverride ??
+            (call.kind === 'cast'
               ? undefined
-              : call.inputEnums?.find((item) => enumType(item) === operand.type)
+              : call.inputEnums?.find((item) => enumType(item) === operand.type))
           if (
             operand.type.startsWith('enum:') &&
             definition &&
@@ -3758,6 +3788,7 @@ export function emitCheckRustEvaluator(
           operand: { name: string; type: string },
           object: boolean,
           lines = destination,
+          enumOverride?: EnumDefinition,
         ): string => {
           const elementType = operand.type.slice(6)
           const baseType = arrayElementBaseType(elementType)
@@ -3780,20 +3811,22 @@ export function emitCheckRustEvaluator(
           const input = { name: scalar, type: baseType }
           const castEnum =
             call.kind !== 'cast' &&
-            call.inputEnums?.some(
-              (item) => enumType(item) === baseType && item.jsonConversion === 'cast',
-            )
+            (enumOverride?.jsonConversion === 'cast' ||
+              call.inputEnums?.some(
+                (item) => enumType(item) === baseType && item.jsonConversion === 'cast',
+              ))
           if (
             object &&
             (baseType.startsWith('array:') ||
+              compositeProfile(baseType) ||
               castEnum ||
               rangeTypeProfile(baseType)?.captured ||
               multirangeTypeProfile(baseType)?.captured)
           ) {
             const keyLines: string[] = [],
               valueLines: string[] = []
-            const keyCarrier = scalarInput(input, true, keyLines)
-            const valueCarrier = scalarInput(input, false, valueLines)
+            const keyCarrier = scalarInput(input, true, keyLines, enumOverride)
+            const valueCarrier = scalarInput(input, false, valueLines, enumOverride)
             body.push(
               `if jsonb_array_input_is_key(&${cursor}) {`,
               ...indent(keyLines),
@@ -3813,7 +3846,7 @@ export function emitCheckRustEvaluator(
               key = fresh('jsonb_array_key')
               body.push(`let ${key} = jsonb_array_input_is_key(&${cursor});`)
             }
-            const carrier = scalarInput(input, key, body)
+            const carrier = scalarInput(input, key, body, enumOverride)
             body.push(`${cursor} = append_jsonb_array_input(${cursor}, ${carrier});`)
           }
           lines.push(`while jsonb_array_input_continues(&${cursor}) {`, ...indent(body), '}')
@@ -3823,13 +3856,14 @@ export function emitCheckRustEvaluator(
           operand: { name: string; type: string },
           key: boolean,
           lines: string[],
+          enumOverride?: EnumDefinition,
         ): string => {
           const carrier = fresh('jsonb_array_input')
           if (key) {
             lines.push(`let ${carrier} = jsonb_array_key_input(${ownedOperand(operand)});`)
             return carrier
           }
-          const cursor = arrayInputs(operand, false, lines),
+          const cursor = arrayInputs(operand, false, lines, enumOverride),
             value = fresh('jsonb_array_value')
           if (rawJson) {
             const compact = fresh('json_array_compact')
@@ -3844,6 +3878,75 @@ export function emitCheckRustEvaluator(
               `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
             )
           return carrier
+        }
+        const recordInputs = (
+          operand: { name: string; type: string },
+          pretty: string,
+          lines: string[],
+        ): string => {
+          const profile = compositeProfile(operand.type),
+            definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+          if (!profile || !definition)
+            throw new UnsupportedCheckRustExpression(
+              'JSON record conversion requires captured field identities',
+            )
+          const initial = fresh('json_record_initial'),
+            cursor = fresh('json_record_cursor')
+          lines.push(
+            `let ${initial}=prepare_json_record(${ownedOperand(operand)},${pretty},${rustStringLiteral(profile.identity)},${definition.fields.length});`,
+            `let mut ${cursor}:JsonRecordInputPayload=${initial};`,
+          )
+          for (const field of definition.fields) {
+            const cell = fresh('json_record_field'),
+              scalar = fresh('json_record_scalar'),
+              body = [`let ${cell}=json_record_field(&${cursor});`]
+            const type = compositeFieldType(profile, field.type)
+            let carrier: string | undefined
+            if (type) {
+              let leaf = compositePhysicalType(profile, field.type)
+              while (leaf?.element) leaf = compositePhysicalType(profile, leaf.element)
+              const enumDefinition: EnumDefinition | undefined =
+                leaf?.kind === 'e' && leaf.jsonCast !== undefined
+                  ? {
+                      schema: leaf.schema,
+                      name: leaf.name,
+                      values: leaf.enumLabels ?? [],
+                      outputFunction: leaf.output ?? undefined,
+                      jsonConversion: leaf.jsonCast === null ? 'label' : 'cast',
+                    }
+                  : undefined
+              try {
+                const prefix = rustValuePrefix(rustType(type)),
+                  conversion = [`let ${scalar}=array_element_to_${prefix}(${cell}.clone());`]
+                carrier = scalarInput({ name: scalar, type }, false, conversion, enumDefinition)
+                body.push(...conversion)
+              } catch (error) {
+                if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+              }
+            }
+            if (!carrier) {
+              carrier = fresh('json_record_unknown')
+              body.push(`let ${carrier}=json_record_opaque_input(${cell});`)
+            }
+            body.push(
+              `${cursor}=append_json_record(${cursor},${rustStringLiteral(field.name)},${carrier});`,
+            )
+            lines.push(`if json_record_has_field(&${cursor}) {`, ...indent(body), '}')
+          }
+          return cursor
+        }
+        if (jsonConversion && implementation.name === 'row_to_json') {
+          const pretty = operands[1]?.name ?? fresh('json_record_pretty')
+          if (!operands[1]) destination.push(`let ${pretty}=make_bool_value(false);`)
+          const cursor = recordInputs(operands[0]!, pretty, destination),
+            plan = fresh('json_record_plan'),
+            name = fresh('value')
+          destination.push(`let ${plan}=finish_json_record_plan(${cursor});`)
+          destination.push(
+            `let ${name}=${implementation.rustName}(${plan}${operands[1] ? ', ' + pretty : ''},${executionContext.serverEncoding === 'UTF8'});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
         }
         if (jsonConversion && implementation.name === 'array_to_json') {
           const cursor = arrayInputs(operands[0]!, false)

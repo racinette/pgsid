@@ -227,7 +227,7 @@ it('matches heterogeneous JSONB builders, scalar keys, eager arguments, normaliz
                 : Buffer.from(coerced.wire, 'hex').readBigInt64BE()
         const deferred =
           value !== null &&
-          ((['alias', 'bytes', 'enum'].includes(target.name) &&
+          ((['alias', 'bytes'].includes(target.name) &&
             !(target.name === 'alias' && value === '0')) ||
             (isFloat && String(value).startsWith('1.234')))
         for (const prefix of ['array_', 'object_']) {

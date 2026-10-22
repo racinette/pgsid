@@ -14017,7 +14017,7 @@ func jsonBuildKey(input checkruntime.JsonbInput) checkruntime.TextValue {
 	}
 	return jsonbBuildKey(input)
 }
-func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkruntime.JsonValue {
+func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, record bool, pretty bool) checkruntime.JsonValue {
 	input = checkruntime.CopyJsonbArguments(input)
 	if input.Kind == checkruntime.JsonbArgumentsError {
 		error := input.Error
@@ -14051,7 +14051,15 @@ func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkr
 		index = langruntime.CheckedIndex(0)
 		for index < len(batch.Values) {
 			if index > 0 {
-				output = append(output, ", "...)
+				if record {
+					if pretty {
+						output = append(output, ",\n "...)
+					} else {
+						output = append(output, string(langruntime.CheckedChar(','))...)
+					}
+				} else {
+					output = append(output, ", "...)
+				}
 			}
 			if object {
 				key := jsonBuildKey(checkruntime.CopyJsonbInput(batch.Values[index]))
@@ -14064,7 +14072,11 @@ func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkr
 					value := langruntime.CheckedString(key.Value)
 					quoted := checkruntime.JsonQuoteString(value)
 					output = append(output, quoted...)
-					output = append(output, " : "...)
+					if record {
+						output = append(output, string(langruntime.CheckedChar(':'))...)
+					} else {
+						output = append(output, " : "...)
+					}
 					ready = true
 				}
 				if ready == false {
@@ -14098,6 +14110,10 @@ func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkr
 	}
 	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
 }
+func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	return jsonBuildLayout(input, object, utf8, false, false)
+}
 func JsonArrayValueInput(input checkruntime.ArrayValue, converted checkruntime.JsonValue) checkruntime.JsonbInput {
 	if input.Kind == checkruntime.ArrayValueError {
 		error := input.Error
@@ -14122,6 +14138,181 @@ func JsonBuildObjectQfmu(input checkruntime.JsonbArguments, utf8 bool) checkrunt
 }
 func JsonBuildObjectNqz6() checkruntime.JsonValue {
 	return checkruntime.MakeJsonValue("{}")
+}
+func PrepareJsonRecord(input checkruntime.CompositeValue, pretty checkruntime.BoolValue, typeName string, count int) checkruntime.JsonRecordInputPayload {
+	state := langruntime.CheckedSignedNegate(1)
+	error := checkruntime.MakeSqlError(0)
+	fields := []checkruntime.ArrayElement{}
+	values := []checkruntime.JsonbInput{}
+	if input.Kind == checkruntime.CompositeValueError {
+		value := input.Error
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+		error = value
+	}
+	if pretty.Kind == checkruntime.BoolValueError {
+		value := pretty.Error
+		if state != langruntime.CheckedSignedNegate(2) {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+			error = value
+		}
+	}
+	if state != langruntime.CheckedSignedNegate(2) {
+		if input.Kind == checkruntime.CompositeValueNull {
+			state = langruntime.CheckedI32(0)
+		}
+		if pretty.Kind == checkruntime.BoolValueNull {
+			state = langruntime.CheckedI32(0)
+		}
+		if input.Kind == checkruntime.CompositeValueValue {
+			value := checkruntime.CopyCompositePayload(input.Value)
+			if pretty.Kind == checkruntime.BoolValueValue {
+				flag := pretty.Value
+				_ = flag
+				expected := langruntime.IndexFromI32(count, langruntime.CheckedAdd(len(value.Fields), 1))
+				if value.TypeName == typeName && len(value.Fields) == expected {
+					return checkruntime.JsonRecordInputPayload{State: 1, Error: error, Fields: value.Fields, Values: values, Position: 0}
+				}
+			}
+		}
+	}
+	return checkruntime.JsonRecordInputPayload{State: state, Error: error, Fields: fields, Values: values, Position: 0}
+}
+func jsonRecordConversionStopped(input *checkruntime.JsonRecordInputPayload) bool {
+	if len(input.Values) > 0 {
+		last := checkruntime.CopyJsonbInput(input.Values[langruntime.CheckedSubtract(len(input.Values), 1)])
+		if last.Kind == checkruntime.JsonbInputUnknown {
+			return true
+		}
+		if last.Kind == checkruntime.JsonbInputConvertedError {
+			error := last.ConvertedError
+			_ = error
+			return true
+		}
+		if last.Kind == checkruntime.JsonbInputError {
+			error := last.Error
+			_ = error
+			return true
+		}
+	}
+	return false
+}
+func JsonRecordHasField(input *checkruntime.JsonRecordInputPayload) bool {
+	return input.State == 1 && input.Position < len(input.Fields) && jsonRecordConversionStopped(input) == false
+}
+func JsonRecordField(input *checkruntime.JsonRecordInputPayload) checkruntime.ArrayElement {
+	if input.Position < len(input.Fields) {
+		return checkruntime.CopyArrayElement(input.Fields[input.Position])
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+func AppendJsonRecord(input checkruntime.JsonRecordInputPayload, name string, value checkruntime.JsonbInput) checkruntime.JsonRecordInputPayload {
+	values := input.Values
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: name}))
+	converted := value
+	if converted.Kind == checkruntime.JsonbInputError {
+		error := converted.Error
+		converted = checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error})
+	}
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, checkruntime.CopyJsonbInput(converted))
+	return checkruntime.JsonRecordInputPayload{State: input.State, Error: input.Error, Fields: input.Fields, Values: values, Position: langruntime.CheckedAdd(input.Position, 1)}
+}
+func jsonRecordArguments(input checkruntime.JsonRecordInputPayload) checkruntime.JsonbArguments {
+	input = checkruntime.CopyJsonRecordInputPayload(input)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsNull}
+	}
+	if len(input.Values) > 2147483647 || input.Position > 2147483647 {
+		return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsUnknown}
+	}
+	count := int(int32(len(input.Values)))
+	position := int(int32(input.Position))
+	if input.State != 1 || (input.Position != len(input.Fields) && jsonRecordConversionStopped(&input) == false) || langruntime.CheckedSignedRemainder(count, 2) != 0 || langruntime.CheckedSignedDivide(count, 2) != position {
+		return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsUnknown}
+	}
+	return checkruntime.JsonbArguments{Kind: checkruntime.JsonbArgumentsValues, Values: checkruntime.JsonbArgumentPayload{Values: input.Values}}
+}
+func jsonRecordValue(input checkruntime.JsonRecordInputPayload, pretty checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonRecordInputPayload(input)
+	batch := jsonRecordArguments(input)
+	spaced := false
+	if pretty.Kind == checkruntime.BoolValueValue {
+		value := pretty.Value
+		spaced = value
+	}
+	return jsonBuildLayout(batch, true, utf8, true, spaced)
+}
+func JsonRecordInput(input checkruntime.JsonRecordInputPayload, utf8 bool) checkruntime.JsonbInput {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: input.Error}
+	}
+	pretty := checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	converted := jsonRecordValue(input, pretty, utf8)
+	if converted.Kind == checkruntime.JsonValueError {
+		error := converted.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error}
+	}
+	return checkruntime.JsonbInputFromJson(converted)
+}
+func JsonbRecordInput(input checkruntime.JsonRecordInputPayload) checkruntime.JsonbInput {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: input.Error}
+	}
+	batch := jsonRecordArguments(input)
+	converted := jsonbBuild(batch, true)
+	if converted.Kind == checkruntime.JsonbValueError {
+		error := converted.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error}
+	}
+	return checkruntime.JsonbInputFromJsonb(converted)
+}
+func JsonRecordOpaqueInput(input checkruntime.ArrayElement) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonRecordKeyInput(input checkruntime.CompositeValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.CompositeValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input.Kind == checkruntime.CompositeValueNull {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.CompositeValueUnknown {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+	}
+	marker := checkruntime.MakeJsonbValue("{}")
+	return checkruntime.JsonbInputFromJsonb(marker)
+}
+func FinishJsonRecordPlan(input checkruntime.JsonRecordInputPayload) checkruntime.JsonRecordInputPlan {
+	return checkruntime.JsonRecordInputPlan{Kind: checkruntime.JsonRecordInputPlanValue, Value: input}
+}
+func jsonRecordPlanValue(input checkruntime.JsonRecordInputPlan, pretty checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonRecordInputPlan(input)
+	if input.Kind == checkruntime.JsonRecordInputPlanValue {
+		value := checkruntime.CopyJsonRecordInputPayload(input.Value)
+		return jsonRecordValue(value, pretty, utf8)
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func RowToJson99i2(input checkruntime.JsonRecordInputPlan, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonRecordInputPlan(input)
+	pretty := checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	return jsonRecordPlanValue(input, pretty, utf8)
+}
+func RowToJsonDjs5(input checkruntime.JsonRecordInputPlan, pretty checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonRecordInputPlan(input)
+	return jsonRecordPlanValue(input, pretty, utf8)
 }
 func jsonbOrderedValue(input checkruntime.JsonbValue) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbValue(input)

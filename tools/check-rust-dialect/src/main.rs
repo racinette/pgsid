@@ -364,7 +364,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("JsonRecordInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -872,10 +872,22 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     fn composite_field_selection_keeps_owned_parameters_narrow() {
         let source = "pub fn evaluate_check(input: CompositeValue) -> CheckOutcome { let position = make_int4_value(0); let field = composite_field_at(input.clone(), position); let value = array_element_to_int4(field); let nullness = int4_is_null(value); check_from_bool(nullness) }";
         assert!(check_source(source).is_ok());
-        for ty in ["CompositePayload", "CompositeTypePlan", "CompositeValue<String>", "&CompositeValue", "Vec<CompositeValue>"] {
-            assert!(check_source(&source.replace("input: CompositeValue", &format!("input: {ty}"))).is_err());
+        for ty in [
+            "CompositePayload",
+            "CompositeTypePlan",
+            "CompositeValue<String>",
+            "&CompositeValue",
+            "Vec<CompositeValue>",
+        ] {
+            assert!(check_source(
+                &source.replace("input: CompositeValue", &format!("input: {ty}"))
+            )
+            .is_err());
         }
-        assert!(check_source(&source.replace("input: CompositeValue", "mut input: CompositeValue")).is_err());
+        assert!(check_source(
+            &source.replace("input: CompositeValue", "mut input: CompositeValue")
+        )
+        .is_err());
         assert!(check_source(&source.replace("input.clone()", "input.fields")).is_err());
     }
 
@@ -1279,6 +1291,36 @@ pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
         check_source(source).unwrap();
         for invalid in [
             source.replace("input: ArrayValue", "input: ArraySortPayload"),
+            source.replace("&plan", "&mut plan"),
+            source.replace("&plan", "&missing"),
+            source.replace("let mut plan", "let plan"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn json_record_inputs_are_internal_mutable_records() {
+        let source = r#"
+pub fn evaluate_check(input: CompositeValue) -> CheckOutcome {
+    let pretty = make_bool_value(false);
+    let initial = prepare_json_record(input, pretty, "public.item", 1);
+    let mut plan: JsonRecordInputPayload = initial;
+    if json_record_has_field(&plan) {
+        let field = json_record_field(&plan);
+        let scalar = array_element_to_text(field);
+        let value = jsonb_input_from_text(scalar);
+        plan = append_json_record(plan, "label", value);
+    }
+    let prepared = finish_json_record_plan(plan);
+    let value = sql__pg_catalog__row_to_json__99i2(prepared, true);
+    let result = json_is_null(value);
+    check_from_bool(result)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: CompositeValue", "input: JsonRecordInputPayload"),
             source.replace("&plan", "&mut plan"),
             source.replace("&plan", "&missing"),
             source.replace("let mut plan", "let plan"),
