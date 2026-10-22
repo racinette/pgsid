@@ -70,3 +70,21 @@ CREATE TABLE parcel_centers (
  CONSTRAINT parcel_mean_radius CHECK(CASE WHEN bypass THEN true ELSE radius(circle(boundary))=expected_radius END),
  CONSTRAINT parcel_center_consistency CHECK(CASE WHEN bypass THEN true ELSE (point(boundary) ~= point(circle(boundary)))=expected_consistent END)
 );
+CREATE TABLE parcel_envelopes (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES parcel_plans(id),
+ label text NOT NULL,
+ source circle,
+ vertex_count integer,
+ expected_points integer,
+ expected_size integer,
+ expected_default_points integer,
+ sample_wire bytea,
+ bounds_wire bytea,
+ bypass boolean NOT NULL,
+ CONSTRAINT parcel_sample_count CHECK(CASE WHEN bypass THEN true ELSE npoints(polygon(vertex_count,source))=expected_points END),
+ CONSTRAINT parcel_sample_size CHECK(CASE WHEN bypass THEN true ELSE length(poly_send(polygon(vertex_count,source)))=expected_size END),
+ CONSTRAINT parcel_sample_wire CHECK(CASE WHEN bypass THEN true ELSE sample_wire IS NULL OR poly_send(polygon(vertex_count,source))=sample_wire END),
+ CONSTRAINT parcel_sample_bounds CHECK(CASE WHEN bypass THEN true ELSE bounds_wire IS NULL OR box_send(box(polygon(vertex_count,source)))=bounds_wire END),
+ CONSTRAINT parcel_default_vertices CHECK(CASE WHEN bypass THEN true ELSE npoints(source::imported_boundary)=expected_default_points END)
+);

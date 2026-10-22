@@ -99,3 +99,44 @@ INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,exp
 INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'center division below float range','((5e-324,0),(0,0))',NULL,NULL,NULL,NULL,false);
 -- name: parcel_center_bypassed_radius_overflow
 INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'skipped overflowing radius sum','((1e308,0),(-1e308,0))','\x00','\x00',1,false,true);
+
+-- name: parcel_envelope_two_vertices
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'diameter envelope','<(0,0),1>',2,2,36,12,'\x00000002bff000000000000000000000000000003ff00000000000003ca1a62633145c07','\x3ff00000000000003ca1a62633145c07bff00000000000000000000000000000',false);
+-- name: parcel_envelope_four_vertices
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'quadrilateral envelope','<(0,0),1>',4,4,68,12,'\x00000004bff00000000000000000000000000000bc91a62633145c073ff00000000000003ff00000000000003ca1a62633145c073caa79394c9e8a0abff0000000000000','\x3ff00000000000003ff0000000000000bff0000000000000bff0000000000000',false);
+-- name: parcel_envelope_negative_radius
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'stored reversed radius',pg_catalog.circle('(0,0)'::point,'-2'::float8),2,2,36,12,'\x0000000240000000000000000000000000000000c000000000000000bcb1a62633145c07','\x40000000000000000000000000000000c000000000000000bcb1a62633145c07',false);
+-- name: parcel_envelope_eleven_vertices
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'eleven survey bearings','<(3,4),2>',11,11,180,12,NULL,NULL,false);
+-- name: parcel_envelope_nan_metadata
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'shape metadata with NaN center','<(NaN,1),3>',3,3,52,12,NULL,NULL,false);
+-- name: parcel_envelope_null_circle
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'missing envelope circle',NULL,4,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_null_count
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'missing vertex count','<(0,0),1>',NULL,NULL,NULL,12,NULL,NULL,false);
+-- name: parcel_envelope_wrong_count
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'incorrect vertex report','<(0,0),1>',2,3,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_wrong_size
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'incorrect wire size','<(0,0),1>',2,NULL,35,NULL,NULL,NULL,false);
+-- name: parcel_envelope_wrong_default_count
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'incorrect default vertex count','<(0,0),1>',2,NULL,NULL,13,NULL,NULL,false);
+-- name: parcel_envelope_wrong_wire
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'incorrect vertex bytes','<(0,0),1>',2,NULL,NULL,NULL,'\x00',NULL,false);
+-- name: parcel_envelope_wrong_bounds
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'incorrect cached bounds','<(0,0),1>',2,NULL,NULL,NULL,NULL,'\x00',false);
+-- name: parcel_envelope_zero_before_bad_count
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'zero radius before invalid count','<(0,0),0>',0,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_tolerance_zero
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'radius at geometric zero tolerance','<(0,0),0.000001>',2,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_above_zero_tolerance
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'radius above geometric zero tolerance','<(0,0),0.0000010000000000000002>',2,2,36,12,NULL,NULL,false);
+-- name: parcel_envelope_too_few_vertices
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'one requested vertex','<(0,0),1>',1,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_point_limit
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'native point count limit','<(0,0),1>',134217726,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_first_vertex_overflow
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'first vertex exceeds coordinate range','<(-1e308,0),1e308>',4,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_later_vertex_overflow
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'later vertex exceeds coordinate range','<(1e308,1e308),1e308>',4,NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_envelope_bypassed_error
+INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'skipped invalid circle conversion','<(0,0),0>',0,1,1,1,'\x00','\x00',true);

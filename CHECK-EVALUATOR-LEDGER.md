@@ -139,8 +139,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish line-segment intersections, containment, distances and closest points.
 - [x] Establish box corner payloads, public inputs, parsing, construction, comparisons, dimensions, centers and diagonal conversion.
 - [x] Establish box relations, intersection, bounding union, arithmetic and closest points.
-- [x] Establish circle center/radius payloads, public inputs, parsing, construction,
-      comparisons, box conversions, relations, distances and arithmetic.
+- [x] Establish circle center/radius payloads, public inputs, parsing, construction, comparisons, box conversions, relations, distances and arithmetic.
 - [x] Establish owned path payloads, cardinality comparisons, counts, binary output,
       opening/closing, checked length and area, portable input, literals,
       unconstrained-domain casts and SQL-coerced public inputs.
@@ -154,7 +153,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       defer ambiguous omitted bounds while retaining known nullness and lengths.
 - [x] Admit polygon vertex-mean centers and radii, catalog circle/point casts and center aliases; preserve vertex order, radius computation before center selection, reached floating errors, semantic NaNs, precise selected components, domains, lazy composition and INSERT parity.
 - [x] Establish bounded portable fdlibm sine/cosine kernels for circle angles, including cancellation refinement, exact IEEE operation order and native/Rust/Go/TypeScript parity; preserve source notices in generated modules.
-- [ ] Geometry, including circle-to-polygon construction with a declared trigonometric build profile, and remaining polygon relations/distances, after public floating-point support.
+- [x] Admit counted/default circle-to-polygon construction and catalog casts through a declared trigonometric profile, domains and recursive arrays; preserve geometric-zero/count limits, ordered coordinate errors, exact vertices/bounds, semantic NaNs, missing-profile diagnostics, literal preparation, lazy branches and INSERT parity.
+- [ ] Geometry, including remaining polygon relations and distances, after public floating-point support.
 - [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.

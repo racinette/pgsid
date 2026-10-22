@@ -80,7 +80,7 @@ import {
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
-import { verifiedCatalog } from './catalog.js'
+import { verifiedCatalog, trigonometryValueRequirements } from './catalog.js'
 import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
@@ -761,6 +761,7 @@ export async function measureCoercions(pg: PGlite) {
       missingTypes,
       implementationPresent,
       implementationBoundary,
+      valueRequirements: implementation ? trigonometryValueRequirements(implementation) : null,
       probe: missingTypes.length ? null : await probe(cast.source, cast.target),
     })
   }
@@ -786,6 +787,9 @@ export async function measureCoercions(pg: PGlite) {
       ...cast,
       sourceArray,
       targetArray,
+      valueRequirements: cast.implementation
+        ? trigonometryValueRequirements(builtinMetadata(cast.implementation))
+        : null,
       probe: await probe(sourceArray, targetArray, true),
     })
   }

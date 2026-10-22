@@ -256,6 +256,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       const unknownMessage = checkUnknownMessage(
         plan.expression,
         prepared?.kind === 'unsupported' ? prepared.reason : undefined,
+        options.executionContext,
       )
       if (prepared?.kind === 'supported') {
         const args = prepared.inputs.map((item) => {

@@ -36,6 +36,14 @@ catalog identities or session settings.
 Floating NaN hashes remain uncertain because byte order does not establish the
 PostgreSQL build's canonical NaN bits.
 
+Circle-to-polygon conversion also depends on the PostgreSQL build's sine and
+cosine implementation. Declare `trigonometry: fdlibm` when the deployment uses
+the fdlibm kernels with binary64 arithmetic and rounding to nearest. This
+selects shared arithmetic in every generated language. It describes PostgreSQL,
+independently of the math library on the client machine. Without a declared
+profile, reached coordinate generation stays uncertain; context-independent
+NULL results, input errors and skipped branches remain available.
+
 ## Row-rewriting triggers
 
 PostgreSQL applies row-level BEFORE triggers before testing the resulting row

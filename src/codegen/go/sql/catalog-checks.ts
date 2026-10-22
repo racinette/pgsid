@@ -394,6 +394,7 @@ export function renderGoSchemaCheckArtifacts(
       const unknownMessage = checkUnknownMessage(
         plan.expression,
         prepared?.kind === 'unsupported' ? prepared.reason : undefined,
+        config.sql.codegen?.checks,
       )
       if (prepared?.kind === 'supported') {
         const arguments_ = prepared.inputs.map((item) => {

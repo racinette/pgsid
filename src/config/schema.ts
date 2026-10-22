@@ -310,6 +310,7 @@ export const codegenSchema = z
         defaultCtype: z.enum(['C', 'C.UTF-8']).optional(),
         serverEncoding: z.literal('UTF8').optional(),
         nativeByteOrder: z.enum(['little', 'big']).optional(),
+        trigonometry: z.literal('fdlibm').optional(),
         arrayNulls: z.boolean().optional(),
       })
       .strict()
