@@ -1849,7 +1849,7 @@ func ArrayReverseIwk0(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 		width := langruntime.CheckedSignedDivide((int(int32(len(value.Elements)))), rows)
 		elements := []checkruntime.ArrayElement{}
 		row := 0
-		for row < rows {
+		for row < rows && width > 0 {
 			column := 0
 			for column < width {
 				offset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rows, row), 1)), width), column)
@@ -1860,8 +1860,17 @@ func ArrayReverseIwk0(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 			}
 			row = langruntime.CheckedI32(langruntime.CheckedSignedAdd(row, 1))
 		}
+		dimensions := []checkruntime.ArrayDimension{}
+		if width > 0 {
+			dimension := 0
+			for dimension < len(value.Dimensions) {
+				langruntime.CheckedAdd(len(dimensions), 1)
+				dimensions = append(dimensions, value.Dimensions[dimension])
+				dimension = langruntime.CheckedAdd(dimension, 1)
+			}
+		}
 		nullBitmap := checkruntime.ArrayReconstructionBitmap(&value)
-		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements})
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: elements})
 	}
 	return input
 }
@@ -1898,13 +1907,15 @@ func arraySortPayload(value checkruntime.ArrayPayload, state int, error checkrun
 	width := 0
 	if len(value.Dimensions) > 0 {
 		rows = langruntime.CheckedI32(value.Dimensions[0].Length)
-		width = langruntime.CheckedI32(langruntime.CheckedSignedDivide((int(int32(len(value.Elements)))), rows))
+		if rows > 0 {
+			width = langruntime.CheckedI32(langruntime.CheckedSignedDivide((int(int32(len(value.Elements)))), rows))
+		}
 	}
 	order := []int{}
 	buffer := []int{}
 	ties := []int{}
 	index := 0
-	for index < rows {
+	for index < rows && state == 1 {
 		position := langruntime.IndexFromI32(index, 0)
 		langruntime.CheckedAdd(len(order), 1)
 		order = append(order, langruntime.CheckedIndex(position))
@@ -1962,6 +1973,8 @@ func PrepareArraySort(input checkruntime.ArrayValue, descending checkruntime.Boo
 					if len(value.Dimensions) > 1 {
 						error = checkruntime.MakeSqlError(arraySortArrayMissing)
 					}
+				} else if len(value.Elements) == 0 {
+					state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 				}
 				return arraySortPayload(value, state, error, reverse, nullOrder)
 			}
@@ -2679,7 +2692,7 @@ func arrayTransformFinish(input checkruntime.ArrayPayload, boundAdjustment int) 
 		if position == 0 {
 			adjustment = int64(langruntime.CheckedI32(boundAdjustment))
 		}
-		if length <= int64(0) || count > langruntime.CheckedI64Divide(int64(2147483647), length) || langruntime.CheckedI64Subtract(end, adjustment) > int64(2147483647) {
+		if length < int64(0) || (length > int64(0) && count > langruntime.CheckedI64Divide(int64(2147483647), length)) || langruntime.CheckedI64Subtract(end, adjustment) > int64(2147483647) {
 			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformLimit)}
 		}
 		count = langruntime.CheckedI64Multiply(count, length)
@@ -15618,9 +15631,10 @@ func JsonbArrayInputValue(input checkruntime.JsonbArrayInputPayload) checkruntim
 		dimensions = append(dimensions, input.Dimensions[dimension])
 		dimension = langruntime.CheckedAdd(dimension, 1)
 	}
+	empty := len(input.Elements) == 0
 	batch := checkruntime.JsonbArrayInputArguments(input)
 	flat := JsonbBuildArrayGfm5(batch)
-	if len(dimensions) < 2 {
+	if len(dimensions) < 2 || empty {
 		return flat
 	}
 	if flat.Kind == checkruntime.JsonbValueValue {

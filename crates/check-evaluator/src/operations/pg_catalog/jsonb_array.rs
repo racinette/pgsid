@@ -25,9 +25,10 @@ pub(crate) fn jsonb_array_input_value(input: JsonbArrayInputPayload) -> JsonbVal
         dimensions.push(input.dimensions[dimension]);
         dimension += 1;
     }
+    let empty = input.elements.len() == 0;
     let batch = jsonb_array_input_arguments(input);
     let flat = sql__pg_catalog__jsonb_build_array__gfm5(batch);
-    if dimensions.len() < 2 {
+    if dimensions.len() < 2 || empty {
         return flat;
     };
     if let JsonbValue::Value(value) = flat {

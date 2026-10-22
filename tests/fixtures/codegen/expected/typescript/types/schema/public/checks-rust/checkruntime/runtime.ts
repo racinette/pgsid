@@ -10872,12 +10872,15 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
     position = langruntime.checkedIndex(0);
     while (position < input.dimensions.length) {
         const dimension: ArrayDimension = langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(position), copyArrayDimension);
-        if (dimension.length <= 0) {
+        if (dimension.length < 0) {
             return { kind: "Unknown" };
         }
         const length: bigint = BigInt(langruntime.checkedI32(dimension.length));
         const end: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), length);
-        if (end > 2147483648n || count > langruntime.checkedI64Divide(2147483647n, length)) {
+        if (end > 2147483648n || (length > 0n && count > langruntime.checkedI64Divide(2147483647n, length))) {
+            return { kind: "Unknown" };
+        }
+        if (length === 0n && dimension.lower === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
             return { kind: "Unknown" };
         }
         count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
@@ -10940,19 +10943,6 @@ export function catalogVectorFromCoerced(input: ArrayValue, oid: boolean): Array
         }
         if (!(value.elementType === identity) || !(value.elementKind === kind)) {
             return { kind: "Unknown" };
-        }
-        if (value.dimensions.length === 1 && langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), copyArrayDimension).length === 0) {
-            if (!(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), copyArrayDimension).lower === 0) || !(value.elements.length === 0)) {
-                return { kind: "Unknown" };
-            }
-            if (equalBoolValue(value.nullBitmap, { kind: "Null" })) {
-                return { kind: "Unknown" };
-            }
-            const bitmap: BoolValue = value.nullBitmap;
-            if (bitmap.kind === "Error") {
-                return { kind: "Unknown" };
-            }
-            return { kind: "Value", value: value };
         }
         return makeArrayValue(value);
     }
@@ -12759,10 +12749,18 @@ export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayA
             return { kind: "Unknown" };
         }
         let nullBitmap: BoolValue = value.nullBitmap;
+        let dimensions: ArrayDimension[] = [];
+        if (binary || value.elements.length > 0) {
+            let position: number = 0;
+            while (position < input.dimensions.length) {
+                langruntime.pushStruct(dimensions, langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(position), copyArrayDimension), copyArrayDimension);
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
         if (binary) {
             nullBitmap = input.nullBitmap;
         }
-        return makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: input.dimensions, elements: value.elements });
+        return makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements });
     }
     return { kind: "Unknown" };
 }
@@ -13097,7 +13095,7 @@ export function prepareArrayRewrite(input: ArrayValue, needle: ArrayElement, rep
     }
     if (input.kind === "Value") {
         const array: ArrayPayload = copyArrayPayload(input.value);
-        if (array.dimensions.length === 0) {
+        if (array.elements.length === 0) {
             return arrayComparisonState(2, makeSqlError(0), 0);
         }
         if (remove && array.dimensions.length > 1) {

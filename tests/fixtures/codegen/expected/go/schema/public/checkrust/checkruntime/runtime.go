@@ -10852,12 +10852,15 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 	position = langruntime.CheckedIndex(0)
 	for position < len(input.Dimensions) {
 		dimension := input.Dimensions[position]
-		if dimension.Length <= 0 {
+		if dimension.Length < 0 {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		length := int64(langruntime.CheckedI32(dimension.Length))
 		end := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), length)
-		if end > int64(2147483648) || count > langruntime.CheckedI64Divide(int64(2147483647), length) {
+		if end > int64(2147483648) || (length > int64(0) && count > langruntime.CheckedI64Divide(int64(2147483647), length)) {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		if length == int64(0) && dimension.Lower == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		count = langruntime.CheckedI64Multiply(count, length)
@@ -10919,19 +10922,6 @@ func CatalogVectorFromCoerced(input ArrayValue, oid bool) ArrayValue {
 		}
 		if value.ElementType != string(identity) || value.ElementKind != kind {
 			return ArrayValue{Kind: ArrayValueUnknown}
-		}
-		if len(value.Dimensions) == 1 && value.Dimensions[0].Length == 0 {
-			if value.Dimensions[0].Lower != 0 || len(value.Elements) != 0 {
-				return ArrayValue{Kind: ArrayValueUnknown}
-			}
-			if value.NullBitmap == (BoolValue{Kind: BoolValueNull}) {
-				return ArrayValue{Kind: ArrayValueUnknown}
-			}
-			bitmap := value.NullBitmap
-			if bitmap.Kind == BoolValueError {
-				return ArrayValue{Kind: ArrayValueUnknown}
-			}
-			return ArrayValue{Kind: ArrayValueValue, Value: value}
 		}
 		return MakeArrayValue(value)
 	}
@@ -12806,10 +12796,19 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments, bin
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		nullBitmap := value.NullBitmap
+		dimensions := []ArrayDimension{}
+		if binary || len(value.Elements) > 0 {
+			position := 0
+			for position < len(input.Dimensions) {
+				langruntime.CheckedAdd(len(dimensions), 1)
+				dimensions = append(dimensions, input.Dimensions[position])
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
 		if binary {
 			nullBitmap = input.NullBitmap
 		}
-		return MakeArrayValue(ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: input.Dimensions, Elements: value.Elements})
+		return MakeArrayValue(ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements})
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
@@ -13143,7 +13142,7 @@ func PrepareArrayRewrite(input ArrayValue, needle ArrayElement, replacement Arra
 	}
 	if input.Kind == ArrayValueValue {
 		array := CopyArrayPayload(input.Value)
-		if len(array.Dimensions) == 0 {
+		if len(array.Elements) == 0 {
 			return arrayComparisonState(2, MakeSqlError(0), 0)
 		}
 		if remove && len(array.Dimensions) > 1 {

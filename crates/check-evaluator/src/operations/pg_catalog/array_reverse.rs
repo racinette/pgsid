@@ -17,7 +17,7 @@ pub fn sql__pg_catalog__array_reverse__iwk0(input: ArrayValue) -> ArrayValue {
         let width = (value.elements.len() as i32) / rows;
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut row: i32 = 0;
-        while row < rows {
+        while row < rows && width > 0 {
             let mut column: i32 = 0;
             while column < width {
                 let offset = (rows - row - 1) * width + column;
@@ -27,12 +27,20 @@ pub fn sql__pg_catalog__array_reverse__iwk0(input: ArrayValue) -> ArrayValue {
             }
             row = row + 1;
         }
+        let mut dimensions: Vec<ArrayDimension> = Vec::new();
+        if width > 0 {
+            let mut dimension: usize = 0;
+            while dimension < value.dimensions.len() {
+                dimensions.push(value.dimensions[dimension]);
+                dimension += 1;
+            }
+        };
         let null_bitmap = array_reconstruction_bitmap(&value);
         return make_array_value(ArrayPayload {
             null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
-            dimensions: value.dimensions,
+            dimensions: dimensions,
             elements: elements,
         });
     };

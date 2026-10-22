@@ -459,7 +459,7 @@ fn vector_owned_states(oid:bool)->BoolValue {
  };
  let empty=catalog_vector_from_text(make_text_value(""),oid);
  let empty_owned=empty.clone();if let ArrayValue::Value(payload)=empty_owned {
-  if array_is_null(make_array_value(payload))!=BoolValue::Unknown {return BoolValue::Value(false);};
+  if array_is_null(make_array_value(payload))!=BoolValue::Value(false) {return BoolValue::Value(false);};
  };
  if sql__pg_catalog__array_ndims__8wu3(empty.clone())!=make_int4_value(1) {return BoolValue::Value(false);};
  if sql__pg_catalog__array_length__pebh(empty.clone(),make_int4_value(1))!=make_int4_value(0) {return BoolValue::Value(false);};

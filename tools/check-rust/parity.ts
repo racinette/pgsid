@@ -606,10 +606,9 @@ export async function runCheckParity(
             multirangeTypescriptInput(value.value as MultirangeInputPayload, generated),
           )
         if (input.type.startsWith('array:') && value.kind === 'Value')
-          return {
-            kind: value.kind,
-            value: arrayTypescriptInput(value.value as OwnedArrayInputPayload, generated),
-          }
+          return generated.makeArrayValue(
+            arrayTypescriptInput(value.value as OwnedArrayInputPayload, generated),
+          )
         if (input.type === 'pg_catalog.jsonpath' && value.kind === 'Value')
           return operations.jsonpathFromCoercedSourceUtf8(generated.makeTextValue(value.value))
         if (input.type === 'pg_catalog.jsonb' && value.kind === 'Value')
