@@ -97,9 +97,8 @@ Do not use target-native date or numeric parsers to supply SQL behavior.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
 - [ ] Assess locale-sensitive ordering, casing, and nondeterministic collations.
 
-Done when required context is explicit and shared Rust owns behavior across
-targets. Missing context must produce a diagnostic Unknown. A catalog immutable
-flag alone is insufficient evidence that an implementation is session-free.
+Done when required context is explicit and shared Rust owns behavior across targets. Missing context must produce a diagnostic Unknown.
+A catalog immutable flag alone is insufficient evidence that an implementation is session-free.
 
 ## Assess excluded callable categories
 
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit direct anonymous ROW projection, captured ROW stars and paired source/stored function-style fields, computed-column calls and domain type-name coercions. Preserve native field/function/cast choices across later shadowing, qualified owners, dropped fields, domains, enums, arrays, unknown field types, collations, discarded-field preparation and empty expansion. Verify native/Rust/Go/TypeScript public INSERT parity; defer absent binding evidence and selected unavailable callbacks.
 - [x] Admit explicit child-to-ancestor row casts through captured qualified inheritance paths and live field names/types/modifiers. Preserve reordered/dropped fields, multiple/transitive parents, source domains, separately cast target domains, datum NULL, partial fields, owned snapshots and discarded child errors. Verify constructors, comparisons, text/JSON, converted-row arrays, hashes, binary output and native/Rust/Go/TypeScript public INSERT parity without deployment OIDs.
 - [x] Admit named whole-table rows, qualified stars and native column-name precedence through captured live descriptors. Preserve dropped-field row NULL semantics, empty rows, direct projections without unrelated carriers, owned arrays/JSON/text, inherited casts and source/stored native function choices. Verify native/Rust/Go/TypeScript public INSERT parity and isolated constant Boolean preparation; retain missing-owner/type requirements.
-- [ ] Complete inherited array/implicit coercions and remaining row projection, star and source/stored syntax alignment; audit recursive container composition and preserve explicit catalog/context requirements.
+- [x] Resolve captured child/ancestor common row types in CASE, COALESCE, extrema, constructors and compatible-array functions/operators. Preserve source domains, inferred record literals, selected NULL/data states, errors, lazy branches and direct record/ANY comparison semantics through shared coercions and native/Rust/Go/TypeScript public INSERT parity. Retain native rejections for existing-array inheritance casts and unrelated siblings; defer selected unavailable custom overloads without substituting builtins.
+- [ ] Complete typed-table and remaining row coercion, projection, star and source/stored syntax alignment; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

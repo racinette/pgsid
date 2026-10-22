@@ -623,7 +623,11 @@ const implicitTypeCast = (source: string, target: string): boolean => {
     return implicitTypeCast(source.slice(6), target.slice(6))
   const from = arrayElementBaseType(source),
     to = arrayElementBaseType(target)
-  return from === to || builtinCast(from, to)?.context === 'i'
+  return (
+    from === to ||
+    compositeAncestorMapping(from, to) !== null ||
+    builtinCast(from, to)?.context === 'i'
+  )
 }
 
 const commonNominalDomain = (args: readonly Bound[]): string | undefined => {
@@ -1534,7 +1538,11 @@ const commonType = (args: readonly Bound[]): ScalarType | null => {
   if (anonymous) return anonymous
   types = types.map((type) => arrayElementBaseType(type) as ScalarType)
   const resolution = (type: ScalarType) =>
-    type.startsWith('array:') ? { category: 'A', preferred: false } : builtinTypeResolution(type)
+    type.startsWith('array:')
+      ? { category: 'A', preferred: false }
+      : compositeProfile(type)
+        ? { category: 'C', preferred: false }
+        : builtinTypeResolution(type)
   let selected = types[0]!
   for (const type of types.slice(1)) {
     if (type === selected) continue
@@ -1555,6 +1563,8 @@ const implicitOperand = (
   const source = boundType(arg)
   const value = materialize(arg, source ?? target, definition)
   if (!value || source === null || source === target) return value
+  const mapping = compositeAncestorMapping(source, target)
+  if (mapping) return { kind: 'composite-coerce', type: target, operand: value, mapping }
   if (canRelabelAnonymousRecords(source, target))
     return {
       kind: 'call',
@@ -2130,6 +2140,8 @@ export function bindCatalogCheck(
     node?: unknown,
     definition = arg.enum,
   ): EvalExpression | null => {
+    if (compositeProfile(target) && arg.literal?.kind === 'string' && node !== undefined)
+      return bind({ TypeCast: { arg: node, typeName: elementTypeName(target) } }).value
     const domain = domainElementDefinition(target)
     if (domain) {
       if (nominalScalarType(arg) === target) return implicitOperand(arg, domain.base, definition)
@@ -2760,6 +2772,7 @@ export function bindCatalogCheck(
         (arg) =>
           arg.type?.startsWith('array:') ||
           anonymousRecordProfile(arg.type ?? '') !== null ||
+          compositeProfile(arg.type ?? '') !== null ||
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
           arg.type === 'pg_catalog."numeric"' ||
@@ -2837,6 +2850,7 @@ export function bindCatalogCheck(
         (arm) =>
           arm.type?.startsWith('array:') ||
           anonymousRecordProfile(arm.type ?? '') !== null ||
+          compositeProfile(arm.type ?? '') !== null ||
           arm.type === 'pg_catalog.float4' ||
           arm.type === 'pg_catalog.float8' ||
           arm.type === 'pg_catalog."numeric"' ||
@@ -5442,6 +5456,18 @@ export function bindCatalogCheck(
       const names = strings(call['funcname'])
       const args0 = call['args'],
         selected = rowFieldBindings?.get(call)
+      if (
+        selected?.kind === 'function' &&
+        selected.names.length > 1 &&
+        selected.names[0] !== 'pg_catalog'
+      )
+        return Array.isArray(args0 ?? [])
+          ? (bindRangeCall(
+              selected.names,
+              (args0 as unknown[]) ?? [],
+              call['func_variadic'] === true,
+            ) ?? unknown)
+          : unknown
       let boundArgs: readonly Bound[] | undefined
       if (selected?.kind === 'cast' && Array.isArray(args0) && args0.length === 1) {
         if (
