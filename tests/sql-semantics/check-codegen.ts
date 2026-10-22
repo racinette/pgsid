@@ -15,11 +15,12 @@ import { rangeGoInput, type RangeInputPayload } from '../../tools/check-rust/ran
 type ArrayFixturePayload = {
   elementType: string
   elementKind: number
+  nullBitmap?: { kind: 'Value'; value: boolean } | { kind: 'Unknown' }
   dimensions: { lower: number; length: number }[]
   elements: (
     | { kind: 'Null' }
     | { kind: 'Int2' | 'Int4' | 'Float4' | 'Enum'; value: number }
-    | { kind: 'Int8' | 'Float8'; value: bigint }
+    | { kind: 'Int8' | 'Float8' | 'Oid'; value: bigint }
     | { kind: 'Text' | 'Numeric' | 'Json' | 'Jsonb'; value: string }
     | { kind: 'Bool'; value: boolean }
     | { kind: 'Range'; value: RangeInputPayload }
@@ -183,6 +184,17 @@ export function renderGoCheckTests(
         const payload = (value as { value: ArrayFixturePayload }).value
         const renderPayload = (payload: ArrayFixturePayload): GoExpression =>
           go.composite(runtime('ArrayPayload'), [
+            ...(payload.nullBitmap?.kind === 'Value'
+              ? [
+                  go.keyValue(
+                    'NullBitmap',
+                    go.composite(runtime('BoolValue'), [
+                      go.keyValue('Kind', runtime('BoolValueValue')),
+                      go.keyValue('Value', go.ident(String(payload.nullBitmap.value))),
+                    ]),
+                  ),
+                ]
+              : []),
             go.keyValue('ElementType', go.string(payload.elementType)),
             go.keyValue('ElementKind', go.number(payload.elementKind)),
             go.keyValue(

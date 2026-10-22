@@ -3,6 +3,7 @@ import {
   compositeContainerProfile,
 } from '../../src/sql-semantics/composite-profiles.js'
 import { readCompositeFixture, readCompositeArrayFixture } from './check-composite-fixtures.js'
+import { decodeCatalogVector } from './check-catalog-vector-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -24,6 +25,9 @@ import {
   arrayElementBaseType,
   isRangeType,
   isMultirangeType,
+  isCatalogVectorType,
+  isArrayLikeType,
+  arrayLikeElementType,
 } from '../../src/sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
@@ -39,6 +43,7 @@ import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
 import {
   catalogDateType,
   catalogArrayType,
+  catalogVectorType,
   catalogRangeType,
   catalogMultirangeType,
   catalogTemporalType,
@@ -668,6 +673,13 @@ describe('world CHECK INSERT parity', () => {
             ) !== null,
         )
         .map((column) => column.name)
+      const vectorColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogVectorType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const multirangeColumns = table.columns
         .filter(
           (column) =>
@@ -870,6 +882,20 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
+      for (const name of vectorColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const oid =
+          catalogVectorType(column.typeName, column.typeOid, catalog.domains) ===
+          'pg_catalog.oidvector'
+        const wire = (
+          await pg.query<{ wire: string | null }>(
+            `SELECT encode(${oid ? 'oid' : 'int2'}vectorsend(${quote(name)}),'hex') wire FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.wire
+        const value = decodeCatalogVector(wire, oid)
+        portableRow[name] = value.kind === 'Null' ? null : value
+        goRow[name] = value.kind === 'Null' ? null : value
+      }
       for (const name of arrayColumns) {
         const column = table.columns.find((column) => column.name === name)!
         const type = catalogArrayType(
@@ -922,10 +948,10 @@ describe('world CHECK INSERT parity', () => {
           ranges: CapturedRange[]
         }
         const profileFor = (arrayType: string) => {
-          const elementType = arrayType.slice(6)
+          const elementType = arrayLikeElementType(arrayType)!
           const baseElementType = arrayElementBaseType(elementType)
           const definition = catalog.enums.find((item) => enumType(item) === baseElementType)
-          const profile = baseElementType.startsWith('array:')
+          const profile = isArrayLikeType(baseElementType)
             ? { kind: 'Array', family: 41 }
             : definition
               ? { kind: 'Enum', family: 6 }
@@ -955,8 +981,9 @@ describe('world CHECK INSERT parity', () => {
           const multirangeValue = multirange
             ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.elementType)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
             : ''
-          const scalar =
-            profile.kind === 'Array'
+          const scalar = isCatalogVectorType(baseElementType)
+            ? `encode(${baseElementType === 'pg_catalog.oidvector' ? 'oid' : 'int2'}vectorsend(${alias}),'hex')`
+            : profile.kind === 'Array'
               ? captureSql(alias, baseElementType, depth + 1)
               : profile.kind === 'Multirange'
                 ? `CASE WHEN ${alias} IS NULL THEN NULL ELSE ${multirangeValue} END`
@@ -1077,6 +1104,14 @@ describe('world CHECK INSERT parity', () => {
           }))
           const elements = raw.elements.map((value) => {
             if (value === null) return { kind: 'Null' }
+            if (isCatalogVectorType(baseElementType)) {
+              const vector = decodeCatalogVector(
+                value as string,
+                baseElementType === 'pg_catalog.oidvector',
+              )
+              if (vector.kind !== 'Value') throw Error('Non-NULL vector array cell became NULL')
+              return { kind: 'Array', value: vector.value }
+            }
             if (profile.kind === 'Array')
               return {
                 kind: 'Array',
@@ -1487,7 +1522,7 @@ describe('world CHECK INSERT parity', () => {
         jsonColumns,
         jsonbColumns,
         jsonpathColumns,
-        arrayColumns,
+        arrayColumns: [...arrayColumns, ...vectorColumns],
         rangeColumns,
         compositeColumns,
         multirangeColumns,

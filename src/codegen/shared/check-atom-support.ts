@@ -9,6 +9,7 @@ import {
   isJsonbBuilder,
   isJsonBuilder,
   isJsonpathTimezoneCallable,
+  isCatalogVectorTypeNames,
   isArrayStringIO,
   isArrayBinarySend,
   isRecordBinarySend,
@@ -61,6 +62,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         rustNames.has(implementation.rustName)) ||
       (rust &&
         isJsonpathTimezoneCallable(implementation) &&
+        rustNames.has(implementation.rustName)) ||
+      (rust &&
+        implementation.kind === 'function' &&
+        isCatalogVectorTypeNames(implementation) &&
         rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isJsonBuilder(implementation) && rustNames.has(implementation.rustName)) ||
@@ -160,6 +165,7 @@ export function portableCheckAtoms(
       value.kind === 'text-to-multirange' ||
       value.kind === 'text-to-json' ||
       value.kind === 'text-to-oid' ||
+      value.kind === 'text-to-vector' ||
       value.kind === 'text-to-circle' ||
       value.kind === 'text-to-box' ||
       value.kind === 'text-to-uuid' ||

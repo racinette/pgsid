@@ -27,6 +27,7 @@ import {
   catalogScalarType,
   catalogTemporalType,
   catalogArrayType,
+  catalogVectorType,
 } from '../../sql-semantics/catalog-check-binder.js'
 
 export type CheckColumnSource =
@@ -258,6 +259,7 @@ export function planCheckInputs(
       )
     )
       return []
+    if (catalogVectorType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

@@ -10,6 +10,7 @@ import type {
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
+import { alignStoredArrayConstructors } from './array-constructor-sites.js'
 
 export interface CatalogCheckPlan {
   name: string
@@ -40,7 +41,13 @@ type CheckTable = {
 }
 type CheckConstraint = Pick<
   ConstraintInfo,
-  'name' | 'type' | 'definition' | 'moneyLiterals' | 'coercionContext' | 'rowCoercionContext'
+  | 'name'
+  | 'type'
+  | 'definition'
+  | 'moneyLiterals'
+  | 'coercionContext'
+  | 'rowCoercionContext'
+  | 'arrayConstructorContext'
 >
 
 const names = (value: unknown): string[] | null => {
@@ -285,6 +292,10 @@ export function lowerTableCheck(
       ? constraint.rowCoercionContext
       : undefined,
     rowCoercionSites,
+    literalOrigin === 'stored' &&
+      constraint.arrayConstructorContext?.definition === constraint.definition
+      ? alignStoredArrayConstructors(check['raw_expr'], constraint.arrayConstructorContext)
+      : undefined,
   )
   return { name: constraint.name, ...bound }
 }

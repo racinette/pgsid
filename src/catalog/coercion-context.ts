@@ -1,4 +1,8 @@
-import type { StoredDomainCoercionContext, StoredRowCoercionContext } from './types.js'
+import type {
+  StoredDomainCoercionContext,
+  StoredRowCoercionContext,
+  StoredArrayConstructorContext,
+} from './types.js'
 
 type Value = string | Value[] | Tree
 type Tree = { kind: string; fields: Record<string, Value[]> }
@@ -79,17 +83,20 @@ const scalar = (node: Tree, name: string): string | null => {
   return values?.length === 1 && typeof values[0] === 'string' ? values[0] : null
 }
 
-export function captureRowCoercionContext(
+function captureExpressionCoercions(
   source: string | null,
   definition: string,
   identities: ReadonlyMap<number, RowCoercionIdentity>,
-): StoredRowCoercionContext | undefined {
+  arrayIdentities: ReadonlyMap<number, string>,
+): { row?: StoredRowCoercionContext; arrays?: StoredArrayConstructorContext } {
   if (
     !source ||
-    !/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source)
+    (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
+      !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)))
   )
-    return undefined
+    return {}
   const casts: StoredRowCoercionContext['casts'] = []
+  const constructors: StoredArrayConstructorContext['constructors'] = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -133,6 +140,25 @@ export function captureRowCoercionContext(
       }
       const node = tree(value)
       if (!node) return
+      if (node.kind === 'ARRAYEXPR') {
+        const type = arrayIdentities.get(Number(expressionType(node)))
+        if (type === 'pg_catalog.int2vector' || type === 'pg_catalog.oidvector') {
+          const elementType = arrayIdentities.get(Number(scalar(node, 'element_typeid')))
+          const dimensions = scalar(node, 'multidims')
+          if (site === undefined || !elementType || !['true', 'false'].includes(dimensions ?? ''))
+            complete = false
+          else
+            constructors.push({
+              site,
+              type,
+              elementType,
+              multidimensional: dimensions === 'true',
+              members: Array.isArray(node.fields['elements']?.[0])
+                ? node.fields['elements'][0].length
+                : 0,
+            })
+        }
+      }
       const isCast =
         ['COERCEVIAIO', 'CONVERTROWTYPEEXPR', 'ARRAYCOERCEEXPR'].includes(node.kind) ||
         (node.kind === 'FUNCEXPR' && ['1', '2'].includes(scalar(node, 'funcformat') ?? ''))
@@ -272,7 +298,26 @@ export function captureRowCoercionContext(
   } catch {
     complete = false
   }
-  return casts.length || !complete ? { definition, complete, casts } : undefined
+  return {
+    ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
+    ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
+  }
+}
+
+export function captureRowCoercionContext(
+  source: string | null,
+  definition: string,
+  identities: ReadonlyMap<number, RowCoercionIdentity>,
+): StoredRowCoercionContext | undefined {
+  return captureExpressionCoercions(source, definition, identities, new Map()).row
+}
+
+export function captureArrayConstructorContext(
+  source: string | null,
+  definition: string,
+  identities: ReadonlyMap<number, string>,
+): StoredArrayConstructorContext | undefined {
+  return captureExpressionCoercions(source, definition, new Map(), identities).arrays
 }
 
 export function captureDomainCoercionContext(

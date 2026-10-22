@@ -125,9 +125,22 @@ export interface StoredRowCoercionContext {
   }[]
 }
 
+export interface StoredArrayConstructorContext {
+  definition: string
+  complete: boolean
+  constructors: {
+    site: string
+    type: string
+    elementType: string
+    multidimensional: boolean
+    members: number
+  }[]
+}
+
 export interface ConstraintInfo {
   coercionContext?: StoredDomainCoercionContext
   rowCoercionContext?: StoredRowCoercionContext
+  arrayConstructorContext?: StoredArrayConstructorContext
   moneyLiterals?: MoneyLiteralInfo[]
   name: string
   type: ConstraintType
@@ -607,6 +620,7 @@ export interface DomainInfo {
     moneyLiterals?: MoneyLiteralInfo[]
     coercionContext?: StoredDomainCoercionContext
     rowCoercionContext?: StoredRowCoercionContext
+    arrayConstructorContext?: StoredArrayConstructorContext
   }[]
 }
 

@@ -4,7 +4,12 @@ import {
   compositeTypescriptInput,
   type CompositeInputPayload,
 } from './composite-input.js'
-import { isOidType, isRangeType, isMultirangeType } from '../../src/sql-semantics/expressions.js'
+import {
+  isOidType,
+  isRangeType,
+  isMultirangeType,
+  isArrayLikeType,
+} from '../../src/sql-semantics/expressions.js'
 import {
   rangeRustInput,
   rangeGoInput,
@@ -115,7 +120,7 @@ export async function runCheckParity(
         ? 'range'
         : type.startsWith('composite:')
           ? 'composite'
-          : type.startsWith('array:')
+          : isArrayLikeType(type)
             ? 'array'
             : type === 'pg_catalog.jsonpath'
               ? 'jsonpath'
@@ -605,7 +610,7 @@ export async function runCheckParity(
           return generated.makeCoercedMultirangeValue(
             multirangeTypescriptInput(value.value as MultirangeInputPayload, generated),
           )
-        if (input.type.startsWith('array:') && value.kind === 'Value')
+        if (isArrayLikeType(input.type) && value.kind === 'Value')
           return generated.makeArrayValue(
             arrayTypescriptInput(value.value as OwnedArrayInputPayload, generated),
           )

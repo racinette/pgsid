@@ -269,6 +269,17 @@ export const PG18_TYPE_COMPARISONS = {
     hash: 'function:["pg_catalog","hashint2"](pg_catalog.int2)',
     hashExtended: 'function:["pg_catalog","hashint2extended"](pg_catalog.int2,pg_catalog.int8)',
   },
+  'pg_catalog.int2vector': {
+    identity: 'pg_catalog.int2vector',
+    collation: null,
+    btreeClass: 'pg_catalog.array_ops',
+    hashClass: 'pg_catalog.array_ops',
+    equality: 'operator:["pg_catalog","="](pg_catalog.anyarray,pg_catalog.anyarray)',
+    comparator: 'function:["pg_catalog","btarraycmp"](pg_catalog.anyarray,pg_catalog.anyarray)',
+    hash: 'function:["pg_catalog","hash_array"](pg_catalog.anyarray)',
+    hashExtended:
+      'function:["pg_catalog","hash_array_extended"](pg_catalog.anyarray,pg_catalog.int8)',
+  },
   'pg_catalog.int4': {
     identity: 'pg_catalog.int4',
     collation: null,
@@ -449,6 +460,18 @@ export const PG18_TYPE_COMPARISONS = {
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
     hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
     hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
+  },
+  'pg_catalog.oidvector': {
+    identity: 'pg_catalog.oidvector',
+    collation: null,
+    btreeClass: 'pg_catalog.oidvector_ops',
+    hashClass: 'pg_catalog.oidvector_ops',
+    equality: 'operator:["pg_catalog","="](pg_catalog.oidvector,pg_catalog.oidvector)',
+    comparator:
+      'function:["pg_catalog","btoidvectorcmp"](pg_catalog.oidvector,pg_catalog.oidvector)',
+    hash: 'function:["pg_catalog","hashoidvector"](pg_catalog.oidvector)',
+    hashExtended:
+      'function:["pg_catalog","hashoidvectorextended"](pg_catalog.oidvector,pg_catalog.int8)',
   },
   'pg_catalog.path': {
     identity: 'pg_catalog.path',

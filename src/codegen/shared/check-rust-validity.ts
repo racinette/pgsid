@@ -407,7 +407,6 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'coalesce':
     case 'boolean-logic':
     case 'check':
-    case 'io-to-text':
     case 'array-to-text':
     case 'clock-to-text':
     case 'uuid-to-text':
@@ -416,6 +415,8 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'refcursor-text-coercion':
     case 'array-subscript':
       return false
+    case 'io-to-text':
+      return ['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(typeOf(node.operand))
     case 'call': {
       if (safePathTranslation(node) || safeFloatEncoding(node)) return false
       if (node.call.signature !== null && node.operands.length === 3) {

@@ -18,6 +18,7 @@ import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
   catalogTemporalType,
   catalogArrayType,
+  catalogVectorType,
   catalogRangeType,
   catalogMultirangeType,
   catalogNumericType,
@@ -41,7 +42,13 @@ import {
   catalogCircleType,
   catalogBoxType,
 } from '../../../sql-semantics/catalog-check-binder.js'
-import { enumType, isRangeType, isMultirangeType } from '../../../sql-semantics/expressions.js'
+import {
+  enumType,
+  isRangeType,
+  isMultirangeType,
+  isArrayLikeType,
+  arrayLikeElementType,
+} from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
@@ -136,6 +143,7 @@ export function renderGoSchemaCheckArtifacts(
     if (catalogCidType(name, oid, domains)) return 'CidValue'
     if (catalogPgLsnType(name, oid, domains)) return 'PgLsnValue'
     if (catalogInternalCharType(name, oid, domains)) return 'InternalCharValue'
+    if (catalogVectorType(name, oid, domains)) return 'ArrayValue'
     if (catalogTidType(name, oid, domains)) return 'TidValue'
     if (catalogXid8Type(name, oid, domains)) return 'Xid8Value'
     if (catalogSnapshotType(name, oid, domains)) return 'SnapshotValue'
@@ -448,14 +456,15 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const compositeArray =
-            item.type.startsWith('array:') && compositeContainerProfile(item.type.slice(6))
+            isArrayLikeType(item.type) &&
+            compositeContainerProfile(arrayLikeElementType(item.type)!)
           const helper = compositeArray
             ? item.nullness
               ? 'checkRustCompositeArrayNullness'
               : 'checkRustCompositeArray'
             : item.rustType === 'CompositeValue'
               ? 'checkRustComposite'
-              : item.type.startsWith('array:')
+              : isArrayLikeType(item.type)
                 ? item.nullness
                   ? 'checkRustArrayNullness'
                   : 'checkRustArray'
@@ -575,7 +584,7 @@ export function renderGoSchemaCheckArtifacts(
           if (item.rustType === 'Float4Value' || item.rustType === 'Float8Value')
             inputHelpers.add('checkInputFloat')
           if (
-            item.type.startsWith('array:') ||
+            isArrayLikeType(item.type) ||
             item.rustType === 'RangeValue' ||
             item.rustType === 'MultirangeValue' ||
             item.rustType === 'CompositeValue'
@@ -648,9 +657,11 @@ export function renderGoSchemaCheckArtifacts(
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
             ...(item.rustType === 'CompositeValue' || compositeArray
-              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
+              ? [compositeContext(compositeArray ? arrayLikeElementType(item.type)! : item.type)]
               : []),
-            ...(compositeArray ? [go.string(arrayElementIdentity(item.type.slice(6)))] : []),
+            ...(compositeArray
+              ? [go.string(arrayElementIdentity(arrayLikeElementType(item.type)!))]
+              : []),
             ...(multirange
               ? [
                   go.string(multirange.multirange),
@@ -668,10 +679,10 @@ export function renderGoSchemaCheckArtifacts(
                     : []),
                 ]
               : []),
-            ...(item.type.startsWith('array:') && !compositeArray
+            ...(isArrayLikeType(item.type) && !compositeArray
               ? [
-                  go.string(arrayElementIdentity(item.type.slice('array:'.length))),
-                  go.number(arrayElementFamily(item.type.slice('array:'.length))!),
+                  go.string(arrayElementIdentity(arrayLikeElementType(item.type)!)),
+                  go.number(arrayElementFamily(arrayLikeElementType(item.type)!)!),
                   boundContext(item.type),
                   ...arrayInputPlan(item.type).map((value) => go.string(value)),
                 ]

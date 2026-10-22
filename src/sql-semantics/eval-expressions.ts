@@ -198,7 +198,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-constructor'
-      type: ArrayType
+      type: ArrayType | 'pg_catalog.int2vector' | 'pg_catalog.oidvector'
       elementType: ArrayElementType
       multidimensional: boolean
       operands: readonly EvalExpression[]
@@ -282,6 +282,12 @@ export type EvalExpression =
   | { kind: 'text-to-oid'; type: OidType; operand: EvalExpression }
   | { kind: 'text-to-polygon'; type: 'pg_catalog.polygon'; operand: EvalExpression }
   | { kind: 'text-to-path'; type: 'pg_catalog.path'; operand: EvalExpression }
+  | {
+      kind: 'text-to-vector'
+      type: 'pg_catalog.int2vector' | 'pg_catalog.oidvector'
+      operand: EvalExpression
+      literal?: true
+    }
   | {
       kind: 'text-to-range'
       type: RangeType
@@ -656,6 +662,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-oid' ||
       node.kind === 'text-to-polygon' ||
       node.kind === 'text-to-path' ||
+      node.kind === 'text-to-vector' ||
       node.kind === 'text-to-range' ||
       node.kind === 'text-to-multirange' ||
       node.kind === 'text-to-circle' ||
