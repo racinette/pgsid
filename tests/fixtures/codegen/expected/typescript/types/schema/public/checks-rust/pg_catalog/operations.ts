@@ -8369,6 +8369,496 @@ function byteaUtf8Character(output: string, character: string): string {
     }
     return result;
 }
+const vectorDatatypeMismatch = 6822148;
+function catalogVectorStatus(value: checkruntime.ArrayPayload, oid: boolean): checkruntime.BoolValue {
+    oid = langruntime.checkedBool(oid);
+    let identity: string = "pg_catalog.int2";
+    let kind: number = 1;
+    if (oid) {
+        identity = langruntime.checkedString("pg_catalog.oid");
+        kind = langruntime.checkedI32(33);
+    }
+    if (!(value.elementType === identity) || !(value.elementKind === kind)) {
+        return { kind: "Unknown" };
+    }
+    if (!(value.dimensions.length === 1) || checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: true })) {
+        return { kind: "Error", value: checkruntime.makeSqlError(vectorDatatypeMismatch) };
+    }
+    if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false }))) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function catalogVectorUnits(input: checkruntime.ArrayElement, oid: boolean): checkruntime.Int8Value {
+    input = checkruntime.copyArrayElement(input);
+    oid = langruntime.checkedBool(oid);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (oid) {
+        return oidUnits(checkruntime.arrayElementToOid(input));
+    }
+    if (input.kind === "Int2") {
+        const value: number = langruntime.checkedI32(input.value);
+        return checkruntime.makeInt8Value(BigInt(langruntime.checkedI32(value)));
+    }
+    return { kind: "Unknown" };
+}
+export function catalogVectorToText(input: checkruntime.ArrayValue, oid: boolean): checkruntime.TextValue {
+    input = checkruntime.copyArrayValue(input);
+    oid = langruntime.checkedBool(oid);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        const status: checkruntime.BoolValue = catalogVectorStatus(value, oid);
+        if (status.kind === "Error") {
+            const error: checkruntime.SqlError = status.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+            return { kind: "Unknown" };
+        }
+        let output: string = "";
+        let index: number = 0;
+        while (index < value.elements.length) {
+            const text: checkruntime.TextValue = int8ToText(catalogVectorUnits(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)), oid));
+            if (text.kind === "Error") {
+                const error: checkruntime.SqlError = text.value;
+                return { kind: "Error", value: error };
+            }
+            let appended: boolean = false;
+            if (text.kind === "Value") {
+                const part: string = langruntime.checkedString(text.value);
+                if (index > 0) {
+                    output = output + langruntime.checkedChar(" ");
+                }
+                output = output + part;
+                appended = langruntime.checkedBool(true);
+            }
+            if (appended === false) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return checkruntime.makeTextValue(output);
+    }
+    return { kind: "Unknown" };
+}
+export function catalogVectorFromText(input: checkruntime.TextValue, oid: boolean): checkruntime.ArrayValue {
+    oid = langruntime.checkedBool(oid);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        let elements: checkruntime.ArrayElement[] = [];
+        let position: number = 0;
+        while (position < chars.length) {
+            while (position < chars.length && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (position === chars.length) {
+                break;
+            }
+            const start: number = position;
+            let negative: boolean = false;
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-") {
+                negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-");
+                position = langruntime.checkedAdd(position, 1);
+            }
+            let radix: bigint = 10n;
+            if (oid && position < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "0") {
+                radix = langruntime.checkedI64(8n);
+                if (langruntime.checkedAdd(position, 1) < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "X")) {
+                    if (langruntime.checkedAdd(position, 2) === chars.length) {
+                        return { kind: "Unknown" };
+                    }
+                    const next: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2)));
+                    if (oidInputSpace(next) || next === "+" || next === "-") {
+                        return { kind: "Unknown" };
+                    }
+                }
+                if (langruntime.checkedAdd(position, 2) < chars.length) {
+                    const next: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)));
+                    const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))));
+                    if ((next === "x" || next === "X") && digit >= 0n && digit < 16n) {
+                        radix = langruntime.checkedI64(16n);
+                        position = langruntime.checkedAdd(position, 2);
+                    }
+                    if ((next === "b" || next === "B") && (digit === 0n || digit === 1n)) {
+                        return { kind: "Unknown" };
+                    }
+                }
+            }
+            const digitsStart: number = position;
+            let small: bigint = 0n;
+            while (position < chars.length) {
+                const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+                if (digit < 0n || digit >= radix) {
+                    break;
+                }
+                if (oid === false && small <= 32768n) {
+                    small = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(small, 10n), digit));
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (position === digitsStart) {
+                return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+            }
+            if (oid) {
+                let token: string = "";
+                let cursor: number = start;
+                while (cursor < position) {
+                    token = token + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(cursor)));
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+                const value: checkruntime.OidValue = oidFromText(checkruntime.makeTextValue(token));
+                if (value.kind === "Error") {
+                    const error: checkruntime.SqlError = value.value;
+                    return { kind: "Error", value: error };
+                }
+                if (value.kind === "Value") {
+                    const units: bigint = langruntime.checkedI64(value.value);
+                    langruntime.pushStruct(elements, { kind: "Oid", value: units }, checkruntime.copyArrayElement);
+                }
+                if (checkruntime.equalOidValue(value, { kind: "Unknown" })) {
+                    return { kind: "Unknown" };
+                }
+            }
+            else {
+                if (small > 32768n || (negative === false && small > 32767n)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+                }
+                if (position < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === " ")) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+                }
+                if (negative) {
+                    small = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, small));
+                }
+                langruntime.pushStruct(elements, { kind: "Int2", value: Number(BigInt.asIntN(32, langruntime.checkedI64(small))) }, checkruntime.copyArrayElement);
+            }
+        }
+        let dimensions: checkruntime.ArrayDimension[] = [];
+        langruntime.pushStruct(dimensions, { lower: 0, length: langruntime.checkedI32(langruntime.checkedIndex(elements.length)) }, checkruntime.copyArrayDimension);
+        let identity: string = "pg_catalog.int2";
+        let kind: number = 1;
+        if (oid) {
+            identity = langruntime.checkedString("pg_catalog.oid");
+            kind = langruntime.checkedI32(33);
+        }
+        return { kind: "Value", value: { nullBitmap: { kind: "Value", value: false }, elementType: identity, elementKind: kind, dimensions: dimensions, elements: elements } };
+    }
+    return { kind: "Unknown" };
+}
+export function btoidvectorcmp6oyf(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.Int4Value {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(right.value);
+            const first: checkruntime.BoolValue = catalogVectorStatus(a, true);
+            if (first.kind === "Error") {
+                const error: checkruntime.SqlError = first.value;
+                return { kind: "Error", value: error };
+            }
+            if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: true }))) {
+                return { kind: "Unknown" };
+            }
+            const second: checkruntime.BoolValue = catalogVectorStatus(b, true);
+            if (second.kind === "Error") {
+                const error: checkruntime.SqlError = second.value;
+                return { kind: "Error", value: error };
+            }
+            if (!(checkruntime.equalBoolValue(second, { kind: "Value", value: true }))) {
+                return { kind: "Unknown" };
+            }
+            if (!(a.elements.length === b.elements.length)) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(a.elements.length))), (langruntime.checkedI32(langruntime.checkedIndex(b.elements.length)))));
+            }
+            let index: number = 0;
+            while (index < a.elements.length) {
+                const comparison: checkruntime.Int4Value = oidCompare(checkruntime.arrayElementToOid(checkruntime.copyArrayElement(langruntime.indexStruct(a.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement))), checkruntime.arrayElementToOid(checkruntime.copyArrayElement(langruntime.indexStruct(b.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement))));
+                if (!(checkruntime.equalInt4Value(comparison, { kind: "Value", value: 0 }))) {
+                    return comparison;
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return checkruntime.makeInt4Value(0);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function oidvectoreqBpvf(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 3);
+}
+export function oidvectorne5v7o(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 6);
+}
+export function oidvectorlt6p1s(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 1);
+}
+export function oidvectorle3fct(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 2);
+}
+export function oidvectorgtKevo(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 5);
+}
+export function oidvectorgeBgvu(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.BoolValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arrayComparisonBoolean(btoidvectorcmp6oyf(left, right), 4);
+}
+export function oidvectortypesW22j(input: checkruntime.ArrayValue): checkruntime.TextValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        const status: checkruntime.BoolValue = catalogVectorStatus(value, true);
+        if (status.kind === "Error") {
+            const error: checkruntime.SqlError = status.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+            return { kind: "Unknown" };
+        }
+        let output: string = "";
+        let index: number = 0;
+        while (index < value.elements.length) {
+            const name: checkruntime.TextValue = oidAliasToText(checkruntime.arrayElementToOid(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement))), true);
+            if (name.kind === "Error") {
+                const error: checkruntime.SqlError = name.value;
+                return { kind: "Error", value: error };
+            }
+            if (!(checkruntime.equalTextValue(name, checkruntime.makeTextValue("-")))) {
+                return { kind: "Unknown" };
+            }
+            if (index > 0) {
+                output = output + ", ";
+            }
+            output = output + langruntime.checkedChar("-");
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return checkruntime.makeTextValue(output);
+    }
+    return { kind: "Unknown" };
+}
+interface VectorHashBytes {
+    bytes: checkruntime.HashByte[];
+    state: checkruntime.CheckOutcome;
+}
+function copyVectorHashBytes(value: VectorHashBytes): VectorHashBytes {
+    return { bytes: langruntime.checkedStructs(value.bytes, checkruntime.copyHashByte), state: value.state };
+}
+function catalogVectorHashBytes(input: checkruntime.ArrayValue): VectorHashBytes {
+    input = checkruntime.copyArrayValue(input);
+    let bytes: checkruntime.HashByte[] = [];
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { bytes: bytes, state: { kind: "Error", value: error } };
+    }
+    if (input.kind === "Null") {
+        return { bytes: bytes, state: { kind: "Null" } };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        const status: checkruntime.BoolValue = catalogVectorStatus(value, true);
+        if (status.kind === "Error") {
+            const error: checkruntime.SqlError = status.value;
+            return { bytes: bytes, state: { kind: "Error", value: error } };
+        }
+        if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+            return { bytes: bytes, state: { kind: "Unknown" } };
+        }
+        let index: number = 0;
+        while (index < value.elements.length) {
+            const cell: checkruntime.Int8Value = catalogVectorUnits(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)), true);
+            if (cell.kind === "Error") {
+                const error: checkruntime.SqlError = cell.value;
+                return { bytes: bytes, state: { kind: "Error", value: error } };
+            }
+            if (cell.kind === "Value") {
+                const units: bigint = langruntime.checkedI64(cell.value);
+                let word: bigint = units;
+                let octet: number = 0;
+                while (octet < 4) {
+                    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(word, 256n) }, checkruntime.copyHashByte);
+                    word = langruntime.checkedI64(langruntime.checkedI64Divide(word, 256n));
+                    octet = langruntime.checkedI32(langruntime.checkedSignedAdd(octet, 1));
+                }
+            }
+            if (checkruntime.equalInt8Value(cell, { kind: "Unknown" }) || checkruntime.equalInt8Value(cell, { kind: "Null" })) {
+                return { bytes: bytes, state: { kind: "Unknown" } };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { bytes: bytes, state: { kind: "True" } };
+    }
+    return { bytes: bytes, state: { kind: "Unknown" } };
+}
+export function hashoidvectorHb8d(input: checkruntime.ArrayValue): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    const plan: VectorHashBytes = catalogVectorHashBytes(input);
+    const state: checkruntime.CheckOutcome = plan.state;
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCheckOutcome(plan.state, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (!(checkruntime.equalCheckOutcome(plan.state, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.makeInt4Value(checkruntime.hashBytes32(plan.bytes));
+}
+export function hashoidvectorextendedHlbf(input: checkruntime.ArrayValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const plan: VectorHashBytes = catalogVectorHashBytes(input);
+    const state: checkruntime.CheckOutcome = plan.state;
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (!(checkruntime.equalCheckOutcome(plan.state, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    if (seed.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(seed.value);
+        return checkruntime.makeInt8Value(checkruntime.hashBytes64(plan.bytes, value));
+    }
+    return { kind: "Unknown" };
+}
+function catalogVectorSend(input: checkruntime.ArrayValue, oid: boolean): checkruntime.ByteaValue {
+    input = checkruntime.copyArrayValue(input);
+    oid = langruntime.checkedBool(oid);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let kind: number = 1;
+        let width: bigint = 2n;
+        if (oid) {
+            kind = langruntime.checkedI32(33);
+            width = langruntime.checkedI64(4n);
+        }
+        if (!(value.elementKind === kind)) {
+            return { kind: "Unknown" };
+        }
+        let length: bigint = langruntime.checkedI64Add(12n, langruntime.checkedI64Multiply(BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(value.dimensions.length))))), 8n));
+        let index: number = 0;
+        while (index < value.elements.length) {
+            const cell: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+            if (cell.kind === "Error") {
+                const error: checkruntime.SqlError = cell.value;
+                return { kind: "Error", value: error };
+            }
+            let nullCell: boolean = false;
+            if (cell.kind === "Null") {
+                nullCell = langruntime.checkedBool(true);
+            }
+            if (cell.kind === "Unknown") {
+                if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false }))) {
+                    return { kind: "Unknown" };
+                }
+            }
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 4n));
+            if (nullCell === false) {
+                length = langruntime.checkedI64(langruntime.checkedI64Add(length, width));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (length > 2147483647n) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Unspecified", value: Number(BigInt.asIntN(32, langruntime.checkedI64(length))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int2vectorsend4kiy(input: checkruntime.ArrayValue): checkruntime.ByteaValue {
+    input = checkruntime.copyArrayValue(input);
+    return catalogVectorSend(input, false);
+}
+export function oidvectorsendL5tl(input: checkruntime.ArrayValue): checkruntime.ByteaValue {
+    input = checkruntime.copyArrayValue(input);
+    return catalogVectorSend(input, true);
+}
 function bpcharCodepointCompare(left: string, right: string): number {
     left = langruntime.checkedString(left);
     right = langruntime.checkedString(right);

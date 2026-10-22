@@ -10927,6 +10927,37 @@ export function arrayFromCoercedValue(input: ArrayValue, elementType: string, el
     }
     return input;
 }
+export function catalogVectorFromCoerced(input: ArrayValue, oid: boolean): ArrayValue {
+    input = copyArrayValue(input);
+    oid = langruntime.checkedBool(oid);
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let identity: string = "pg_catalog.int2";
+        let kind: number = 1;
+        if (oid) {
+            identity = langruntime.checkedString("pg_catalog.oid");
+            kind = langruntime.checkedI32(33);
+        }
+        if (!(value.elementType === identity) || !(value.elementKind === kind)) {
+            return { kind: "Unknown" };
+        }
+        if (value.dimensions.length === 1 && langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), copyArrayDimension).length === 0) {
+            if (!(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), copyArrayDimension).lower === 0) || !(value.elements.length === 0)) {
+                return { kind: "Unknown" };
+            }
+            if (equalBoolValue(value.nullBitmap, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            const bitmap: BoolValue = value.nullBitmap;
+            if (bitmap.kind === "Error") {
+                return { kind: "Unknown" };
+            }
+            return { kind: "Value", value: value };
+        }
+        return makeArrayValue(value);
+    }
+    return input;
+}
 function arrayTreeTypeAt(types: string, level: number): string {
     types = langruntime.checkedString(types);
     level = langruntime.checkedIndex(level);

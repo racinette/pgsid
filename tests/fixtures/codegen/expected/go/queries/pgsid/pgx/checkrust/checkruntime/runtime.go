@@ -10907,6 +10907,36 @@ func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int
 	}
 	return input
 }
+func CatalogVectorFromCoerced(input ArrayValue, oid bool) ArrayValue {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		identity := langruntime.NewTextBuffer("pg_catalog.int2")
+		kind := 1
+		if oid {
+			identity = langruntime.NewTextBuffer("pg_catalog.oid")
+			kind = langruntime.CheckedI32(33)
+		}
+		if value.ElementType != string(identity) || value.ElementKind != kind {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		if len(value.Dimensions) == 1 && value.Dimensions[0].Length == 0 {
+			if value.Dimensions[0].Lower != 0 || len(value.Elements) != 0 {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			if value.NullBitmap == (BoolValue{Kind: BoolValueNull}) {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			bitmap := value.NullBitmap
+			if bitmap.Kind == BoolValueError {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			return ArrayValue{Kind: ArrayValueValue, Value: value}
+		}
+		return MakeArrayValue(value)
+	}
+	return input
+}
 func arrayTreeTypeAt(types string, level int) string {
 	types = langruntime.CheckedString(types)
 	level = langruntime.CheckedIndex(level)

@@ -39,9 +39,7 @@ Done when a fresh checkout can regenerate the reports without recovering scripts
 - [x] Row comparisons, including element ordering and NULL behavior.
 - [x] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
-Verify each form independently, including NULL, Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs explicit partial-input cases in addition to database comparisons.
-
-Done per form when the binder produces a meaningful expression, production evaluators execute it in every target, and expression probes plus world INSERT cases demonstrate the supported boundary. Broader row/composite representations are a separate prerequisite if a row-comparison slice requires them.
+Verify each form independently, including NULL, Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs explicit partial-input cases in addition to database comparisons. Done per form when the binder produces a meaningful expression, production evaluators execute it in every target, and expression probes plus world INSERT cases demonstrate the supported boundary. Broader row/composite representations are a separate prerequisite if a row-comparison slice requires them.
 
 ## Resolve uncertain corpus expressions
 
@@ -180,7 +178,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       visibility, domains, literals, composition and SQL-coerced public inputs;
       retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
-- [ ] Catalog/system values, including specialized integer/OID vectors, separating portable payload operations from database lookup.
+- [x] Establish shared array-backed integer/OID vector values before SQL admission: retain zero-based and empty-vector dimensions, constructed malformed shapes, native text grammar, length-first OID ordering, portable word hashes, owned partial states and binary lengths without deployment OIDs. Verify native INSERTs and Rust/Go/TypeScript parity; retain platform input and catalog-name requirements.
+- [ ] Catalog/system values, including SQL/public admission of specialized integer/OID vectors, separating portable payload operations from database lookup.
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, captured enum ranges/endpoints, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain element identities.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
