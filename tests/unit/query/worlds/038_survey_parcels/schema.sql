@@ -54,3 +54,19 @@ CREATE TABLE parcel_conversions (
  CONSTRAINT parcel_from_route CHECK(CASE WHEN enabled THEN poly_send(polygon(route))=route_wire ELSE true END),
  CONSTRAINT parcel_from_box CHECK(CASE WHEN enabled THEN poly_send(polygon(rectangle))=rectangle_wire ELSE true END)
 );
+CREATE TABLE parcel_centers (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES parcel_plans(id),
+ label text NOT NULL,
+ boundary imported_boundary,
+ center_wire bytea,
+ circle_wire bytea,
+ expected_radius float8,
+ expected_consistent boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT parcel_mean_center CHECK(CASE WHEN bypass THEN true ELSE point_send(boundary::point)=center_wire END),
+ CONSTRAINT parcel_center_alias CHECK(CASE WHEN bypass THEN true ELSE point_send(@@ boundary)=center_wire END),
+ CONSTRAINT parcel_mean_circle CHECK(CASE WHEN bypass THEN true ELSE circle_send(boundary::circle)=circle_wire END),
+ CONSTRAINT parcel_mean_radius CHECK(CASE WHEN bypass THEN true ELSE radius(circle(boundary))=expected_radius END),
+ CONSTRAINT parcel_center_consistency CHECK(CASE WHEN bypass THEN true ELSE (point(boundary) ~= point(circle(boundary)))=expected_consistent END)
+);

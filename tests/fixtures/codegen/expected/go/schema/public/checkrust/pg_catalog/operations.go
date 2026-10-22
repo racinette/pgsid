@@ -32450,6 +32450,65 @@ func PointDistance2haq(left checkruntime.PointValue, right checkruntime.PointVal
 func SlopeXxph(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.Float8Value {
 	return pointMeasurement(left, right, true)
 }
+func polygonCircle(input checkruntime.PolygonValue) checkruntime.CircleValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueValue {
+		value := checkruntime.CopyPolygonPayload(input.Value)
+		if len(value.Points) == 0 {
+			return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+		}
+		center := PointDb27(checkruntime.MakeFloat8Value(float64(0.0)), checkruntime.MakeFloat8Value(float64(0.0)))
+		index := 0
+		for index < len(value.Points) {
+			center = PointAddGn1v(center, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: value.Points[index]})
+			if center.Kind == checkruntime.PointValueError {
+				error := center.Error
+				return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		count := checkruntime.MakeFloat8Value(float64(int(int32(len(value.Points)))))
+		if center.Kind == checkruntime.PointValueValue {
+			point := center.Value
+			center = pointArithmeticResult(Float8divKumj(lineOriginCoordinate(point, false), count), Float8divKumj(lineOriginCoordinate(point, true), count))
+		}
+		if center.Kind == checkruntime.PointValueError {
+			error := center.Error
+			return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+		}
+		radius := checkruntime.MakeFloat8Value(float64(0.0))
+		index = langruntime.CheckedIndex(0)
+		for index < len(value.Points) {
+			radius = Float8plG3ou(radius, PointDistance2haq(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: value.Points[index]}, center))
+			if radius.Kind == checkruntime.Float8ValueError {
+				error := radius.Error
+				return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return circleFromCenterRadius(center, Float8divKumj(radius, count))
+	}
+	return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+}
+func CircleJtgz(input checkruntime.PolygonValue) checkruntime.CircleValue {
+	input = checkruntime.CopyPolygonValue(input)
+	return polygonCircle(input)
+}
+func PolyCenterRocl(input checkruntime.PolygonValue) checkruntime.PointValue {
+	input = checkruntime.CopyPolygonValue(input)
+	return circleCenterValue(polygonCircle(input))
+}
+func Point0ix9(input checkruntime.PolygonValue) checkruntime.PointValue {
+	input = checkruntime.CopyPolygonValue(input)
+	return PolyCenterRocl(input)
+}
 func PolyNpointsQi4n(input checkruntime.PolygonValue) checkruntime.Int4Value {
 	input = checkruntime.CopyPolygonValue(input)
 	if input.Kind == checkruntime.PolygonValueError {

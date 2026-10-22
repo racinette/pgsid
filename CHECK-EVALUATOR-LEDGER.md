@@ -53,8 +53,7 @@ Done per form when the binder produces a meaningful expression, production evalu
 
 Use the surface report's constraint identities and bound expressions to locate each case. A cast, collation restriction, unavailable input, and missing implementation require different fixes. Existing formatters do not prove that the binder reaches them through every cast path.
 
-Done when each case either evaluates with parity or has an explicit, tested context/input requirement. Do not replace an unsupported operation with an
-assumption about server settings.
+Done when each case either evaluates with parity or has an explicit, tested context/input requirement. Do not replace an unsupported operation with an assumption about server settings.
 
 ## Expand world INSERT coverage
 
@@ -154,7 +153,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish polygon point lists, cached bounds, public inputs, portable parsing,
       counts, binary output, geometric equality, containment and path/box conversions;
       defer ambiguous omitted bounds while retaining known nullness and lengths.
-- [ ] Geometry, including polygon center/circle conversion and circle-to-polygon construction, after public floating-point support.
+- [x] Admit polygon vertex-mean centers and radii, catalog circle/point casts and center aliases; preserve vertex order, radius computation before center selection, reached floating errors, semantic NaNs, precise selected components, domains, lazy composition and INSERT parity.
+- [ ] Geometry, including circle-to-polygon construction and remaining polygon relations/distances, after public floating-point support.
 - [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
