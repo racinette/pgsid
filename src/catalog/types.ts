@@ -648,6 +648,10 @@ export interface CompositeTypeDefinition {
     comparator: string | null
     equalityAvailable: boolean
     comparisonAvailable: boolean
+    hash?: string | null
+    hashExtended?: string | null
+    hashAvailable?: boolean
+    hashExtendedAvailable?: boolean
   }
 }
 

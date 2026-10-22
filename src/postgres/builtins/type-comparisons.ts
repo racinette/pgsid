@@ -16,6 +16,8 @@ export interface CapturedTypeComparison extends BuiltinTypeComparison {
   equalityImplementation: string | null
   equalityAvailable?: boolean
   comparisonAvailable?: boolean
+  hashAvailable?: boolean
+  hashExtendedAvailable?: boolean
 }
 
 type Support = {
@@ -63,6 +65,7 @@ export async function readTypeComparisons(
   for (const { identity, collation } of types) {
     const supports: Record<string, Support | null> = { btree: null, hash: null }
     let equalityAvailable: boolean | undefined, comparisonAvailable: boolean | undefined
+    let hashAvailable: boolean | undefined, hashExtendedAvailable: boolean | undefined
     for (const method of ['btree', 'hash']) {
       try {
         await pg.transaction(async (tx) => {
@@ -100,6 +103,31 @@ export async function readTypeComparisons(
               await tx.exec('RELEASE SAVEPOINT _pgsid_comparison_availability')
               if (operation === 'record_eq') equalityAvailable = available
               else comparisonAvailable = available
+            }
+          }
+          if (captureAvailability && method === 'hash') {
+            for (const operation of ['hash_record', 'hash_record_extended']) {
+              await tx.exec('SAVEPOINT _pgsid_hash_availability')
+              let available = true
+              try {
+                await tx.exec(
+                  `SELECT pg_catalog.${operation}(
+                    ROW((SELECT value FROM _pgsid_type_comparison_probe LIMIT 1))${operation === 'hash_record_extended' ? ',0::pg_catalog.int8' : ''})`,
+                )
+              } catch (error) {
+                if (
+                  !error ||
+                  typeof error !== 'object' ||
+                  !('code' in error) ||
+                  error.code !== '42883'
+                )
+                  throw error
+                await tx.exec('ROLLBACK TO SAVEPOINT _pgsid_hash_availability')
+                available = false
+              }
+              await tx.exec('RELEASE SAVEPOINT _pgsid_hash_availability')
+              if (operation === 'hash_record') hashAvailable = available
+              else hashExtendedAvailable = available
             }
           }
           await tx.exec(
@@ -152,7 +180,9 @@ export async function readTypeComparisons(
       equalityImplementation: equality?.equality_function_name
         ? `function:${JSON.stringify([equality.equality_function_schema, equality.equality_function_name])}(${(equality.equality_function_args ?? []).join(',')})`
         : null,
-      ...(captureAvailability ? { equalityAvailable, comparisonAvailable } : {}),
+      ...(captureAvailability
+        ? { equalityAvailable, comparisonAvailable, hashAvailable, hashExtendedAvailable }
+        : {}),
       comparator: btree?.comparator_name
         ? `function:${JSON.stringify([btree.comparator_schema, btree.comparator_name])}(${(btree.comparator_args ?? []).join(',')})`
         : null,
