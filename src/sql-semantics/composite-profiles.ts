@@ -6,6 +6,7 @@ import type {
 } from '../catalog/types.js'
 import {
   catalogScalarType,
+  isCatalogVectorType,
   arrayType,
   domainElementType,
   arrayElementBaseType,
@@ -29,6 +30,7 @@ export function catalogCompositeArrayType(
   rangeTypes: readonly RangeTypeInfo[] = [],
 ): ArrayType | null {
   if (!graph) return null
+  if (!name.endsWith('[]') && isCatalogVectorType(catalogScalarType(name))) return null
   const explicit = name.endsWith('[]'),
     parts = names(explicit ? name.replace(/(?:\[\])+$/u, '') : name)
   if (!parts) return null
@@ -47,6 +49,8 @@ export function catalogCompositeArrayType(
     visiting.add(identity)
     const node = graph.definitions.find((n) => n.identity === identity)
     if (!node) return null
+    const builtin = catalogScalarType(identity)
+    if (isCatalogVectorType(builtin)) return builtin
     if (node.kind === 'c') return catalogCompositeType(identity, graph, rangeTypes)
     if (node.kind === 'd' && node.base) {
       const base = build(node.base)
@@ -250,6 +254,8 @@ export function compositeFieldType(
 ): ScalarType | null {
   const n = p.graph.definitions.find((n) => n.identity === identity)
   if (!n) return null
+  const builtin = catalogScalarType(identity)
+  if (isCatalogVectorType(builtin)) return builtin
   if (n.kind === 'd') {
     const base = compositePhysicalType(p, n.identity)
     if (!base) return null

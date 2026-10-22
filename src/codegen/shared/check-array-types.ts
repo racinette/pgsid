@@ -6,7 +6,12 @@ import {
   compositePhysicalType,
 } from '../../sql-semantics/composite-profiles.js'
 import type { RangeSubtypeDefinition } from '../../catalog/types.js'
-import { isRangeType, isMultirangeType } from '../../sql-semantics/expressions.js'
+import {
+  isRangeType,
+  isMultirangeType,
+  isArrayLikeType,
+  arrayLikeElementType,
+} from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
@@ -42,7 +47,7 @@ export function arrayElementIdentity(type: string): string {
 
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
-  if (type.startsWith('array:')) return 41
+  if (isArrayLikeType(type)) return 41
   if (compositeProfile(type) || anonymousRecordProfile(type)) return 44
   if (type.startsWith('enum:')) return 6
   if (rangeTypeProfile(type)) return 42
@@ -299,8 +304,8 @@ export function arrayElementDelimiter(type: string): ',' | ';' {
 export function arrayIdentityPlan(type: string): { types: string; kinds: string } | null {
   const types: string[] = [],
     kinds: number[] = []
-  while (type.startsWith('array:')) {
-    const element = type.slice(6),
+  while (isArrayLikeType(type)) {
+    const element = arrayLikeElementType(type)!,
       family = arrayElementFamily(element)
     if (family === null) return null
     types.push(arrayElementIdentity(element))

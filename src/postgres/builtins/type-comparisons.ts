@@ -46,7 +46,8 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
     }>(`SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname) AS identity,
     (SELECT quote_ident(cn.nspname)||'.'||quote_ident(c.collname) FROM pg_collation c JOIN pg_namespace cn ON cn.oid=c.collnamespace WHERE c.oid=t.typcollation) AS collation
     FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
-    WHERE n.nspname='pg_catalog' AND t.typtype<>'p' AND t.typcategory<>'A' ORDER BY 1`)
+    WHERE n.nspname='pg_catalog' AND t.typtype<>'p'
+      AND (t.typcategory<>'A' OR NOT EXISTS(SELECT 1 FROM pg_type e WHERE e.oid=t.typelem AND e.typarray=t.oid)) ORDER BY 1`)
   ).rows
   const comparisons = await readTypeComparisons(pg, [
     ...types,

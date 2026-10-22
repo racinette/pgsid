@@ -43,7 +43,7 @@ export function alignStoredRowCoercions(
       : null
   }
   const groups = new Map<string, { node: unknown; target: Identity; source: Identity | null }[]>()
-  const visit = (node: unknown, site: string): void => {
+  walkStoredExpression(root, (node, site) => {
     const wrapper = fields(node)
     if (!wrapper) return
     const cast = fields(wrapper['TypeCast'])
@@ -62,6 +62,53 @@ export function alignStoredRowCoercions(
         group.push({ node, target: to, source: from })
         groups.set(site, group)
       }
+    }
+  })
+  for (const [site, nodes] of groups) {
+    const casts = context.casts.filter((c) => c.site === site)
+    if (!casts.length) continue
+    const match = (i: number, j: number) => {
+      const cast = casts[i]!,
+        node = nodes[j]!
+      return (
+        cast.target === node.target.identity &&
+        cast.depth === node.target.depth &&
+        (!node.source || (cast.source === node.source.identity && cast.depth === node.source.depth))
+      )
+    }
+    const earliest: number[] = [],
+      latest: number[] = []
+    let index = 0
+    for (let i = 0; i < casts.length; i++) {
+      while (index < nodes.length && !match(i, index)) index++
+      if (index === nodes.length) break
+      earliest.push(index++)
+    }
+    if (earliest.length !== casts.length) continue
+    index = nodes.length - 1
+    for (let i = casts.length - 1; i >= 0; i--) {
+      while (index >= 0 && !match(i, index)) index--
+      if (index < 0) break
+      latest[i] = index--
+    }
+    if (latest.length !== casts.length) continue
+    casts.forEach((cast, i) => {
+      if (earliest[i] === latest[i]) result.set(nodes[earliest[i]!]!.node, [cast])
+    })
+  }
+  return result
+}
+
+export function walkStoredExpression(
+  root: unknown,
+  inspect: (node: unknown, site: string) => void,
+): void {
+  const visit = (node: unknown, site: string): void => {
+    const wrapper = fields(node)
+    if (!wrapper) return
+    inspect(node, site)
+    const cast = fields(wrapper['TypeCast'])
+    if (cast) {
       visit(cast['arg'], site)
       return
     }
@@ -143,37 +190,4 @@ export function alignStoredRowCoercions(
     }
   }
   visit(root, '')
-  for (const [site, nodes] of groups) {
-    const casts = context.casts.filter((c) => c.site === site)
-    if (!casts.length) continue
-    const match = (i: number, j: number) => {
-      const cast = casts[i]!,
-        node = nodes[j]!
-      return (
-        cast.target === node.target.identity &&
-        cast.depth === node.target.depth &&
-        (!node.source || (cast.source === node.source.identity && cast.depth === node.source.depth))
-      )
-    }
-    const earliest: number[] = [],
-      latest: number[] = []
-    let index = 0
-    for (let i = 0; i < casts.length; i++) {
-      while (index < nodes.length && !match(i, index)) index++
-      if (index === nodes.length) break
-      earliest.push(index++)
-    }
-    if (earliest.length !== casts.length) continue
-    index = nodes.length - 1
-    for (let i = casts.length - 1; i >= 0; i--) {
-      while (index >= 0 && !match(i, index)) index--
-      if (index < 0) break
-      latest[i] = index--
-    }
-    if (latest.length !== casts.length) continue
-    casts.forEach((cast, i) => {
-      if (earliest[i] === latest[i]) result.set(nodes[earliest[i]!]!.node, [cast])
-    })
-  }
-  return result
 }

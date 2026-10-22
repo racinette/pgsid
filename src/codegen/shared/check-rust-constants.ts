@@ -314,6 +314,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-oid' ||
     expression.kind === 'text-to-polygon' ||
     expression.kind === 'text-to-path' ||
+    expression.kind === 'text-to-vector' ||
     expression.kind === 'text-to-circle' ||
     expression.kind === 'text-to-box' ||
     expression.kind === 'text-to-uuid' ||

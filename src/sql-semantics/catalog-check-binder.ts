@@ -33,6 +33,10 @@ import type { CompositeTypeGraph } from '../catalog/types.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
 import {
+  alignStoredArrayConstructors,
+  type ArrayConstructorBindings,
+} from './array-constructor-sites.js'
+import {
   rangeConstructorImplementation,
   rangeCallTypeKey,
   resolveRangeCall,
@@ -72,6 +76,10 @@ import {
   capturedEnumSupport,
   catalogScalarType,
   arrayType,
+  isCatalogVectorType,
+  isArrayLikeType,
+  arrayLikeElementType,
+  type CatalogVectorType,
   domainElementType,
   domainElementDefinition,
   arrayElementBaseType,
@@ -378,6 +386,15 @@ function catalogBaseScalarType(
   )
 }
 
+export function catalogVectorType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): CatalogVectorType | null {
+  const type = catalogBaseScalarType(name, oid, domains)
+  return isCatalogVectorType(type) ? type : null
+}
+
 export function catalogPointType(
   name: string,
   oid: number | undefined,
@@ -623,8 +640,8 @@ const nominalScalarType = (arg: Bound): ScalarType | null => {
 
 const implicitTypeCast = (source: string, target: string): boolean => {
   if (source === target) return true
-  if (source.startsWith('array:') && target.startsWith('array:'))
-    return implicitTypeCast(source.slice(6), target.slice(6))
+  if (isArrayLikeType(source) && target.startsWith('array:'))
+    return implicitTypeCast(arrayLikeElementType(source)!, target.slice(6))
   const from = arrayElementBaseType(source),
     to = arrayElementBaseType(target)
   return (
@@ -812,6 +829,16 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (isCatalogVectorType(type) && ['string', 'null'].includes(bound.literal.kind))
+      return {
+        kind: 'text-to-vector',
+        type,
+        literal: true,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
     if (type === 'pg_catalog.bool' && bound.literal.kind === 'string')
       return {
         kind: 'text-to-boolean',
@@ -1283,9 +1310,7 @@ const candidate = (
     if (elementTypes.length && (!elementType || elementTypes.some((type) => type !== elementType)))
       return []
     const arrayTypes = fullArgs.flatMap((arg, index) =>
-      item.args[index] === 'pg_catalog.anyarray' && arg.type?.startsWith('array:')
-        ? [arg.type]
-        : [],
+      item.args[index] === 'pg_catalog.anyarray' && isArrayLikeType(arg.type) ? [arg.type] : [],
     )
     const arrayIdentity = arrayTypes[0]
     if (
@@ -1293,7 +1318,8 @@ const candidate = (
       (!arrayIdentity || arrayTypes.some((type) => type !== arrayIdentity))
     )
       return []
-    if (arrayIdentity && elementType && arrayIdentity !== `array:${elementType}`) return []
+    if (arrayIdentity && elementType && arrayLikeElementType(arrayIdentity) !== elementType)
+      return []
     const capturedEnum = capturedEnumSupport(item)
       ? fullArgs.find((arg) => arg.enum)?.enum
       : undefined
@@ -1325,7 +1351,7 @@ const candidate = (
       return [
         {
           ...arg,
-          type: source?.startsWith('array:') ? (source.slice(6) as ArrayElementType) : null,
+          type: arrayLikeElementType(source),
         },
       ]
     })
@@ -1335,7 +1361,7 @@ const candidate = (
         (arg, index) =>
           item.args[index] === 'pg_catalog.anycompatiblearray' &&
           boundType(arg) !== null &&
-          !boundType(arg)!.startsWith('array:'),
+          !isArrayLikeType(boundType(arg)),
       )
     )
       return []
@@ -1575,8 +1601,8 @@ const implicitOperand = (
       call: { kind: 'cast', signature: null, type: target },
       operands: [value],
     }
-  if (source.startsWith('array:') && target.startsWith('array:'))
-    return coerceArray(value, source as ArrayType, target as ArrayType, 'i')
+  if (isArrayLikeType(source) && target.startsWith('array:'))
+    return coerceArray(value, source, target as ArrayType, 'i')
   const conversion = builtinCast(source, target)
   if (conversion?.context !== 'i') return null
   if (conversion.method === 'b')
@@ -1615,16 +1641,22 @@ const implicitOperand = (
 
 const coerceArray = (
   operand: EvalExpression,
-  source: ArrayType,
+  source: ArrayType | CatalogVectorType,
   target: ArrayType,
   context: 'i' | 'e',
   modifier = -1,
   enums: readonly EnumInfo[] = [],
 ): EvalExpression | null => {
   if (source === target) return operand
-  const from = source.slice(6) as ArrayElementType,
+  const from = arrayLikeElementType(source)!,
     to = target.slice(6) as ArrayElementType,
     conversion = builtinCast(from, to)
+  if (from === to)
+    return {
+      kind: 'call',
+      call: { kind: 'cast', signature: null, type: target },
+      operands: [operand],
+    }
   const sourceBase = arrayElementBaseType(from)
   if (from.startsWith('domain:') && sourceBase !== from && !sourceBase.startsWith('array:')) {
     const definition = enums.find((item) => enumType(item) === sourceBase)
@@ -1751,7 +1783,7 @@ const comparisonCandidate = (
   }
   const definition = args.find((arg) => arg.enum)?.enum
   const enumIdentity = definition ? enumType(definition) : null
-  const arrayTypes = types.filter((type): type is ArrayType => type?.startsWith('array:') === true)
+  const arrayTypes = types.filter(isArrayLikeType)
   const arrayIdentity =
     arrayTypes.length && arrayTypes.every((type) => type === arrayTypes[0]) ? arrayTypes[0]! : null
   const multirangeTypes = types.filter(isMultirangeType)
@@ -1820,11 +1852,18 @@ const comparisonCandidate = (
   const exact = viable.filter(({ item }) =>
     item.args.every((type, index) => concrete(type, index) === assumed[index]),
   )
+  const declaredExact = viable.filter(({ item }) =>
+    item.args.every((type, index) => type === assumed[index]),
+  )
   const scores = viable.map(
     ({ item }) => item.args.filter((type, index) => concrete(type, index) === types[index]).length,
   )
   const maximum = Math.max(-1, ...scores)
-  let best = exact.length ? exact : viable.filter((_, index) => scores[index] === maximum)
+  let best = declaredExact.length
+    ? declaredExact
+    : exact.length
+      ? exact
+      : viable.filter((_, index) => scores[index] === maximum)
   if (best.length > 1) {
     const preferred = best.map(
       ({ item }) =>
@@ -1973,6 +2012,7 @@ export function bindCatalogCheck(
   rowFieldBindings?: ReadonlyMap<unknown, RowFieldBinding>,
   rowCoercionContext?: StoredRowCoercionContext,
   rowCoercionSites?: RowCoercionSites,
+  arrayConstructorBindings?: ArrayConstructorBindings,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   if (rowCoercionContext && !rowCoercionContext.complete)
     return { expression: { kind: 'uncertain' }, inputs: [] }
@@ -2351,6 +2391,12 @@ export function bindCatalogCheck(
   ): Bound => {
     const array = fields(fields(node)?.['A_ArrayExpr'])
     if (!array) return unknown
+    const selected = arrayConstructorBindings?.get(node)
+    if (selected) {
+      const element = arrayLikeElementType(selected.type)!
+      if (target && target.type !== element) return unknown
+      target ??= { type: element, name: elementTypeName(element) }
+    }
     const members = Array.isArray(array['elements']) ? array['elements'] : []
     if (members.length === 0 && !target) return unknown
     const args = members.map((member) =>
@@ -2441,13 +2487,26 @@ export function bindCatalogCheck(
       return value
     })
     if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
+    if (
+      selected &&
+      (selected.multidimensional !== multidimensional ||
+        arrayLikeElementType(selected.type) !== element)
+    )
+      return unknown
+    const resultType = selected?.type ?? type
     return {
-      type,
+      type: resultType,
       collation:
         (multidimensional
           ? arrayCollations(args.map((arg) => arg.collation))
           : combineCollations(args.map((arg) => arg.collation))) ?? arrayElementCollation(element),
-      value: { kind: 'array-constructor', type, elementType: element, multidimensional, operands },
+      value: {
+        kind: 'array-constructor',
+        type: resultType,
+        elementType: element,
+        multidimensional,
+        operands,
+      },
     }
   }
   const arrayOutputEnum = (type: string): EnumInfo | undefined => {
@@ -2728,7 +2787,7 @@ export function bindCatalogCheck(
         }
       }
       const operand = bind(indirection['arg'])
-      if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+      if (!isArrayLikeType(operand.type) || !operand.value) return unknown
       const items = indirection['indirection']
       if (!Array.isArray(items) || items.length === 0 || items.length > 6) return unknown
       const indices = items.map((item) => fields(fields(item)?.['A_Indices']))
@@ -2786,13 +2845,13 @@ export function bindCatalogCheck(
           lower.push(low)
         }
       }
-      const elementType = operand.type.slice(6) as ArrayElementType
+      const elementType = arrayLikeElementType(operand.type)!
       const definition = arrayElementBaseType(elementType).startsWith('enum:')
         ? enums.find((item) => enumType(item) === arrayElementBaseType(elementType))
         : undefined
       const domain = domainElementDefinition(elementType)
       const type = slice
-        ? (operand.type as ArrayType)
+        ? arrayType(elementType)
         : (arrayElementBaseType(elementType) as ScalarType)
       return {
         type,
@@ -3569,15 +3628,8 @@ export function bindCatalogCheck(
               element as ArrayElementType,
               elementTypeName(element as ArrayElementType),
             ).value
-          if (!value && operand.value && operand.type?.startsWith('array:'))
-            value = coerceArray(
-              operand.value,
-              operand.type as ArrayType,
-              type,
-              'e',
-              modifier,
-              enums,
-            )
+          if (!value && operand.value && isArrayLikeType(operand.type))
+            value = coerceArray(operand.value, operand.type, type, 'e', modifier, enums)
           if (
             !value &&
             operand.value &&
@@ -3829,6 +3881,13 @@ export function bindCatalogCheck(
                     undefined,
                     check.rowCoercionContext?.definition === check.definition
                       ? check.rowCoercionContext
+                      : undefined,
+                    undefined,
+                    check.arrayConstructorContext?.definition === check.definition
+                      ? alignStoredArrayConstructors(
+                          constraint['raw_expr'],
+                          check.arrayConstructorContext,
+                        )
                       : undefined,
                   ).expression
               } catch {
@@ -4221,6 +4280,16 @@ export function bindCatalogCheck(
         castType['typmods'].length
       )
         return unknown
+      if (isCatalogVectorType(type) && fields(fields(cast['arg'])?.['A_ArrayExpr'])) {
+        const element = arrayLikeElementType(type)!
+        const constructed = bindArray(cast['arg'], {
+          type: element,
+          name: elementTypeName(element),
+        })
+        return constructed.value?.kind === 'array-constructor'
+          ? { ...constructed, type, value: { ...constructed.value, type } }
+          : unknown
+      }
       let operand = castOperand()
       const source = boundType(operand)
       if (
@@ -4348,6 +4417,7 @@ export function bindCatalogCheck(
           source === 'pg_catalog.jsonb' ||
           source === 'pg_catalog.jsonpath' ||
           isSnapshotType(source) ||
+          isCatalogVectorType(source) ||
           isRangeType(source) ||
           isMultirangeType(source) ||
           isOidAliasType(source) ||
@@ -4688,6 +4758,22 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-point', type, operand: text } } : unknown
+      }
+      if (
+        isCatalogVectorType(type) &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      ) {
+        const text =
+          operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
+            ? operand.value
+            : materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-vector', type, operand: text } } : unknown
       }
       if (
         type === 'pg_catalog.line' &&
@@ -5392,8 +5478,8 @@ export function bindCatalogCheck(
         (array.literal && !inferred.startsWith('array:')
           ? arrayType(inferred as ArrayElementType)
           : null)
-      if (!sourceType?.startsWith('array:')) return unknown
-      const sourceElement = sourceType.slice(6) as ArrayElementType
+      if (!isArrayLikeType(sourceType)) return unknown
+      const sourceElement = arrayLikeElementType(sourceType)!
       const baseElement = arrayElementBaseType(sourceElement) as ScalarType
       const definition = array.enum ?? subject.enum
       const value = materialize(array, sourceType, definition)

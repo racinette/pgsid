@@ -16,11 +16,18 @@ import {
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo, RangeTypeInfo } from '../../../catalog/types.js'
-import { enumType, isRangeType, isMultirangeType } from '../../../sql-semantics/expressions.js'
+import {
+  enumType,
+  isRangeType,
+  isMultirangeType,
+  isArrayLikeType,
+  arrayLikeElementType,
+} from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
   catalogTemporalType,
   catalogArrayType,
+  catalogVectorType,
   catalogRangeType,
   catalogMultirangeType,
   catalogNumericType,
@@ -124,6 +131,7 @@ export function renderTypescriptSchemaCheckArtifacts(
     if (catalogCidType(name, oid, domains)) return 'CidValue'
     if (catalogPgLsnType(name, oid, domains)) return 'PgLsnValue'
     if (catalogInternalCharType(name, oid, domains)) return 'InternalCharValue'
+    if (catalogVectorType(name, oid, domains)) return 'ArrayValue'
     if (catalogTidType(name, oid, domains)) return 'TidValue'
     if (catalogXid8Type(name, oid, domains)) return 'Xid8Value'
     if (catalogOidType(name, oid, domains)) return 'OidValue'
@@ -310,14 +318,15 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const compositeArray =
-            item.type.startsWith('array:') && compositeContainerProfile(item.type.slice(6))
+            isArrayLikeType(item.type) &&
+            compositeContainerProfile(arrayLikeElementType(item.type)!)
           const helper = compositeArray
             ? item.nullness
               ? 'checkRustCompositeArrayNullness'
               : 'checkRustCompositeArray'
             : item.rustType === 'CompositeValue'
               ? 'checkRustComposite'
-              : item.type.startsWith('array:')
+              : isArrayLikeType(item.type)
                 ? item.nullness
                   ? 'checkRustArrayNullness'
                   : 'checkRustArray'
@@ -436,7 +445,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             rustInputAdapters.add('checkRustBox')
           }
           if (
-            item.type.startsWith('array:') ||
+            isArrayLikeType(item.type) ||
             item.rustType === 'RangeValue' ||
             item.rustType === 'MultirangeValue' ||
             item.rustType === 'CompositeValue'
@@ -509,7 +518,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           const compiledProfile =
             range ??
             multirange ??
-            (item.type.startsWith('array:')
+            (isArrayLikeType(item.type)
               ? (arrayRangeProfile(item.type) ?? arrayMultirangeProfile(item.type))
               : null)
           const nodes = compiledProfile
@@ -524,10 +533,14 @@ export function renderTypescriptSchemaCheckArtifacts(
             row,
             factory.createStringLiteral(item.name),
             ...(item.rustType === 'CompositeValue' || compositeArray
-              ? [compositeContext(compositeArray ? item.type.slice(6) : item.type)]
+              ? [compositeContext(compositeArray ? arrayLikeElementType(item.type)! : item.type)]
               : []),
             ...(compositeArray
-              ? [factory.createStringLiteral(arrayElementIdentity(item.type.slice(6)))]
+              ? [
+                  factory.createStringLiteral(
+                    arrayElementIdentity(arrayLikeElementType(item.type)!),
+                  ),
+                ]
               : []),
             ...(multirange
               ? [
@@ -549,13 +562,13 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ]
               : []),
             ...(range || multirange ? (nodes.length ? [boundContext] : []) : []),
-            ...(item.type.startsWith('array:') && !compositeArray
+            ...(isArrayLikeType(item.type) && !compositeArray
               ? [
                   factory.createStringLiteral(
-                    arrayElementIdentity(item.type.slice('array:'.length)),
+                    arrayElementIdentity(arrayLikeElementType(item.type)!),
                   ),
                   factory.createNumericLiteral(
-                    arrayElementFamily(item.type.slice('array:'.length))!,
+                    arrayElementFamily(arrayLikeElementType(item.type)!)!,
                   ),
                   boundContext,
                   ...arrayInputPlan(item.type).map((value) => factory.createStringLiteral(value)),

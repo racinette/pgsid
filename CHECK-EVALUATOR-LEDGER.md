@@ -172,15 +172,15 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish catalog OID aliases with nominal SQL identity, numeric operations, catalog-resolved casts and explicit deferral without deployment catalog access.
 - [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
       inputs and explicit build-limit requirements for text truncation.
-- [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals,
-      composition and SQL-coerced public inputs; retain session requirements for portals.
+- [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals, composition and SQL-coerced public inputs; retain session requirements for portals.
 - [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds,
       visibility, domains, literals, composition and SQL-coerced public inputs;
       retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
 - [x] Establish shared array-backed integer/OID vector values before SQL admission: retain zero-based and empty-vector dimensions, constructed malformed shapes, native text grammar, length-first OID ordering, portable word hashes, owned partial states and binary lengths without deployment OIDs. Verify native INSERTs and Rust/Go/TypeScript parity; retain platform input and catalog-name requirements.
 - [x] Admit shaped-empty ordinary arrays produced by vector and ARRAY operations; preserve zero-sized dimensions, native cast/rewrite/reverse rules, nested domain/record JSON conversion, public validation and Rust/Go/TypeScript INSERT parity. Retain a tested native zero-width-sort deferral before specialized vector SQL admission.
-- [ ] Catalog/system values, including SQL/public admission of specialized integer/OID vectors, separating portable payload operations from database lookup.
+- [x] Admit nominal integer/OID vector SQL values, generic array operations, literals, captured source/stored ARRAY constructors, catalog I/O, domains, record fields, recursive arrays, JSON and selected hashes through shared backends. Preserve native header errors, qualified identities, function/cast shadowing, eager preparation, public payload validation and ownership, raw parameter deferral and native/Rust/Go/TypeScript world INSERT parity; retain reached catalog/platform requirements.
+- [ ] Complete catalog/system integration, including captured integer/OID-vector range and multirange subtypes with their selected comparison semantics; keep portable payload operations separate from database lookup and audit recursive containers.
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, captured enum ranges/endpoints, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain element identities.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.

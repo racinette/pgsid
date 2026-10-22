@@ -34,14 +34,14 @@ export async function readCatalogCompositeTypes(
         OR n.nspname=ANY($1::text[]))
       UNION
       SELECT d.type,child.type FROM domain_bases d JOIN pg_catalog.pg_type t ON t.oid=d.base
-      LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND e.typarray=t.oid
+      LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND (e.typarray=t.oid OR EXISTS(SELECT 1 FROM pg_catalog.pg_namespace vector_ns WHERE vector_ns.oid=t.typnamespace AND vector_ns.nspname='pg_catalog' AND t.typname IN ('int2vector','oidvector')))
       CROSS JOIN LATERAL (SELECT t.typbasetype AS type WHERE t.typtype='d' UNION SELECT e.oid) child
       WHERE child.type IS NOT NULL AND child.type<>0
     ),needed(type) AS (
       SELECT type FROM roots UNION
       SELECT d.type FROM domain_bases d JOIN pg_catalog.pg_type t ON t.oid=d.base WHERE t.typtype='c' UNION
       SELECT child.type FROM needed parent JOIN pg_catalog.pg_type t ON t.oid=parent.type
-      LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND e.typarray=t.oid
+      LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND (e.typarray=t.oid OR EXISTS(SELECT 1 FROM pg_catalog.pg_namespace vector_ns WHERE vector_ns.oid=t.typnamespace AND vector_ns.nspname='pg_catalog' AND t.typname IN ('int2vector','oidvector')))
       LEFT JOIN pg_catalog.pg_range r ON r.rngtypid=t.oid
       LEFT JOIN pg_catalog.pg_range m ON m.rngmultitypid=t.oid
       CROSS JOIN LATERAL (
@@ -95,7 +95,7 @@ export async function readCatalogCompositeTypes(
     FROM needed d JOIN pg_catalog.pg_type t ON t.oid=d.type
     JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
     LEFT JOIN pg_catalog.pg_class c ON t.typtype='c' AND c.oid=t.typrelid
-    LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND e.typarray=t.oid
+    LEFT JOIN pg_catalog.pg_type e ON e.oid=t.typelem AND (e.typarray=t.oid OR EXISTS(SELECT 1 FROM pg_catalog.pg_namespace vector_ns WHERE vector_ns.oid=t.typnamespace AND vector_ns.nspname='pg_catalog' AND t.typname IN ('int2vector','oidvector')))
     LEFT JOIN pg_catalog.pg_range r ON r.rngtypid=t.oid
     LEFT JOIN pg_catalog.pg_range m ON m.rngmultitypid=t.oid
     ORDER BY n.nspname COLLATE pg_catalog."C",t.typname COLLATE pg_catalog."C"`,

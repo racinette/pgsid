@@ -19,7 +19,8 @@ import {
   readRangeFixture,
   rangeBoundProjection,
 } from './check-range-fixtures.js'
-import { arrayElementBaseType } from '../../src/sql-semantics/expressions.js'
+import { arrayElementBaseType, isCatalogVectorType } from '../../src/sql-semantics/expressions.js'
+import { decodeCatalogVector } from './check-catalog-vector-fixtures.js'
 import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
@@ -51,6 +52,17 @@ async function readCompositeCellFixture(
       )
     ).rows[0]!.missing
     if (missing) return { kind: 'Null' }
+    if (isCatalogVectorType(logical)) {
+      const wire = (
+        await pg.query<{ wire: string }>(
+          `SELECT encode(${logical === 'pg_catalog.oidvector' ? 'oid' : 'int2'}vectorsend(${expression}),'hex') wire ${from}`,
+          parameters,
+        )
+      ).rows[0]!.wire
+      const value = decodeCatalogVector(wire, logical === 'pg_catalog.oidvector')
+      if (value.kind !== 'Value') throw Error('Non-NULL vector field became NULL')
+      return { kind: 'Array', value: value.value }
+    }
     if (definition.kind === 'c') {
       const fields: CompositeInputCell[] = []
       for (const field of definition.fields)

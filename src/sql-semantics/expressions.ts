@@ -56,6 +56,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     bool: 'pg_catalog.bool',
     smallint: 'pg_catalog.int2',
     int2: 'pg_catalog.int2',
+    int2vector: 'pg_catalog.int2vector',
+    oidvector: 'pg_catalog.oidvector',
     integer: 'pg_catalog.int4',
     int4: 'pg_catalog.int4',
     bigint: 'pg_catalog.int8',
@@ -218,8 +220,10 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
 ] as const
 export type ArrayElementType = NonArrayScalarType
 export type ArrayType = `array:${ArrayElementType}`
+export type CatalogVectorType = 'pg_catalog.int2vector' | 'pg_catalog.oidvector'
 export type DomainElementType = `domain:${string}`
 export type NonArrayScalarType =
+  | CatalogVectorType
   | AnonymousRecordType
   | CompositeType
   | DomainElementType
@@ -296,6 +300,27 @@ export function capturedEnumSupport(item: CallableMetadata): boolean {
 
 export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
+}
+
+export function isCatalogVectorType(type: string | null | undefined): type is CatalogVectorType {
+  return type === 'pg_catalog.int2vector' || type === 'pg_catalog.oidvector'
+}
+
+export function arrayLikeElementType(type: string | null | undefined): ArrayElementType | null {
+  if (type === 'pg_catalog.int2vector') return 'pg_catalog.int2'
+  if (type === 'pg_catalog.oidvector') return 'pg_catalog.oid'
+  return type?.startsWith('array:') ? (type.slice(6) as ArrayElementType) : null
+}
+
+export function isArrayLikeType(
+  type: string | null | undefined,
+): type is ArrayType | CatalogVectorType {
+  return arrayLikeElementType(type) !== null
+}
+
+export function arrayPhysicalType(type: string): ArrayType | null {
+  const element = arrayLikeElementType(type)
+  return element === null ? null : arrayType(element)
 }
 
 export function domainElementType(
@@ -377,7 +402,7 @@ function operandMatchesDeclared(declared: string, actual: string): boolean {
 
 function isArrayElementType(type: string): type is ArrayElementType {
   return (
-    (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) ||
+    catalogScalarType(type) === type ||
     isRangeType(type) ||
     isMultirangeType(type) ||
     type.startsWith('enum:') ||
@@ -421,15 +446,16 @@ export function resolveArrayPolymorphicType(
 ): ScalarType | null {
   if (declaredArguments.length !== concreteArguments.length) return null
   let elementType: ArrayElementType | undefined
+  let arrayIdentity: ArrayType | CatalogVectorType | undefined
   for (let index = 0; index < declaredArguments.length; index++) {
     const declared = declaredArguments[index]!
     const concrete = concreteArguments[index]!
     const array = declared === 'pg_catalog.anyarray' || declared === 'pg_catalog.anycompatiblearray'
-    const candidate = array
-      ? concrete.startsWith('array:')
-        ? concrete.slice('array:'.length)
-        : null
-      : concrete
+    if (declared === 'pg_catalog.anyarray') {
+      if (!isArrayLikeType(concrete) || (arrayIdentity && arrayIdentity !== concrete)) return null
+      arrayIdentity = concrete
+    }
+    const candidate = array ? arrayLikeElementType(concrete) : concrete
     if (!candidate || !isArrayElementType(candidate)) return null
     if (elementType === undefined) elementType = candidate
     else if (candidate !== elementType) {
@@ -448,7 +474,9 @@ export function resolveArrayPolymorphicType(
     declaredResult === 'pg_catalog.anyarray' ||
     declaredResult === 'pg_catalog.anycompatiblearray'
   )
-    return arrayType(elementType)
+    return declaredResult === 'pg_catalog.anyarray'
+      ? (arrayIdentity ?? arrayType(elementType))
+      : arrayType(elementType)
   if (declaredResult === 'pg_catalog.anyelement' || declaredResult === 'pg_catalog.anycompatible')
     return elementType
   return declaredResult

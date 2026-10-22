@@ -4,6 +4,7 @@ import { catalogIdentifierSql } from '../postgres/catalog-identities.js'
 import {
   captureDomainCoercionContext,
   captureRowCoercionContext,
+  captureArrayConstructorContext,
   type DomainCoercionIdentity,
   type RowCoercionIdentity,
 } from './coercion-context.js'
@@ -807,6 +808,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       })
   }
   const constraintsByRel = new Map<number, ConstraintInfo[]>()
+  const typeIdentities = new Map(typeRows.map((t) => [t.oid, t.identity]))
   const typesByOid = new Map(typeRows.map((row) => [row.oid, row])),
     rowIdentities = new Map<number, RowCoercionIdentity>()
   const rowIdentity = (oid: number, seen = new Set<number>()): RowCoercionIdentity | null => {
@@ -839,7 +841,13 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       con.definition,
       rowIdentities,
     )
+    const arrayConstructorContext = captureArrayConstructorContext(
+      con.coercion_tree,
+      con.definition,
+      typeIdentities,
+    )
     const ci: ConstraintInfo = {
+      ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
       name: con.name,
       type: mapConstraintType(con.contype),
       columns: resolveAttnums(con.conrelid, toNumArray(con.conkey), attnumIdx),
@@ -1118,9 +1126,15 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
           check.definition,
           rowIdentities,
         )
+        const arrayConstructorContext = captureArrayConstructorContext(
+          check.coercion_tree,
+          check.definition,
+          typeIdentities,
+        )
         return {
           name: check.name,
           definition: check.definition,
+          ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
           ...(coercionContext ? { coercionContext } : {}),
           ...(rowCoercionContext ? { rowCoercionContext } : {}),
         }

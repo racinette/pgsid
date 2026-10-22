@@ -87,6 +87,10 @@ import {
 import {
   enumType,
   arrayElementBaseType,
+  isCatalogVectorType,
+  isArrayLikeType,
+  arrayLikeElementType,
+  arrayPhysicalType,
   capturedEnumSupport,
   catalogScalarType,
   isOidType,
@@ -198,9 +202,10 @@ export const jsonbConversionHelper = (type: string): string | undefined =>
 
 export const supportsJsonbConversion = (type: string): boolean => {
   type = arrayElementBaseType(type)
-  while (type.startsWith('array:')) {
-    if (arrayElementFamily(type.slice(6)) === null) return false
-    type = arrayElementBaseType(type.slice(6))
+  while (isArrayLikeType(type)) {
+    const element = arrayLikeElementType(type)!
+    if (arrayElementFamily(element) === null) return false
+    type = arrayElementBaseType(element)
   }
   return (
     compositeProfile(type) !== null ||
@@ -208,6 +213,16 @@ export const supportsJsonbConversion = (type: string): boolean => {
     jsonbConversionHelper(type) !== undefined
   )
 }
+
+export const isCatalogVectorTypeNames = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'oidvectortypes' &&
+  item.args.join(',') === 'pg_catalog.oidvector' &&
+  item.result === 'pg_catalog.text' &&
+  item.strict &&
+  item.volatility === 's' &&
+  !item.returnsSet
 
 export const isJsonConversion = (
   item: ReturnType<typeof builtinMetadata>,
@@ -358,7 +373,9 @@ const arrayElementOutput = (
     throw new UnsupportedCheckRustExpression('Array output requires its element catalog identity')
   const prefix = rustValuePrefix(rustType(elementType))
   let conversion: string | null = null
-  if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
+  if (isCatalogVectorType(elementType))
+    conversion = `catalog_vector_to_text(${scalar},${elementType === 'pg_catalog.oidvector'})`
+  else if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
   else if (family === 6) {
     if (!definition || definition.values.some((label) => label.includes('\0')))
       throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
@@ -641,7 +658,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
-  if (type.startsWith('array:')) return 'ArrayValue'
+  if (isArrayLikeType(type)) return 'ArrayValue'
   if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
   if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
@@ -1139,6 +1156,27 @@ export function emitCheckRustEvaluator(
     const family = arrayElementFamily(elementType)
     if (family === null)
       throw new UnsupportedCheckRustExpression('Missing array input element carrier')
+    if (isCatalogVectorType(elementType) && !inputConversion) {
+      const signature = builtinTypeIO(elementType)?.input
+      const input = signature ? builtinMetadata(signature) : null
+      if (
+        input?.kind !== 'function' ||
+        input.result !== elementType ||
+        input.args.join(',') !== 'pg_catalog.cstring' ||
+        !input.strict ||
+        input.returnsSet
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Vector array input requires its catalog I/O identity',
+        )
+      const value = fresh('vector_array_input')
+      const element = fresh('vector_array_element')
+      destination.push(
+        `let ${value}=catalog_vector_from_text(${event},${elementType === 'pg_catalog.oidvector'});`,
+        `let ${element}=array_element_from_array(${value});`,
+      )
+      return element
+    }
     if (family === 41 || family === 44 || inputConversion) {
       if (!inputConversion || !used)
         throw new UnsupportedCheckRustExpression(
@@ -1258,6 +1296,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'text-to-integer' && node.literal === true) ||
         (node.kind === 'text-to-enum' && node.literal === true) ||
         (node.kind === 'text-to-boolean' && node.literal === true) ||
+        (node.kind === 'text-to-vector' && node.literal === true) ||
         (node.kind === 'text-to-range' && node.literal === true) ||
         (node.kind === 'text-to-multirange' && node.literal === true) ||
         (node.kind === 'text-to-composite' && node.literal === true) ||
@@ -1660,11 +1699,12 @@ export function emitCheckRustEvaluator(
       const family = arrayElementFamily(node.elementType)
       if (
         family === null ||
-        operand.type !== 'array:' + node.elementType ||
+        arrayLikeElementType(operand.type) !== node.elementType ||
         node.upper.length === 0 ||
         node.upper.length > 6 ||
         node.lower.length !== (node.slice ? node.upper.length : 0) ||
-        node.type !== (node.slice ? operand.type : arrayElementBaseType(node.elementType)) ||
+        node.type !==
+          (node.slice ? arrayPhysicalType(operand.type) : arrayElementBaseType(node.elementType)) ||
         (!node.slice && node.upper.some((bound) => bound === null))
       )
         throw new UnsupportedCheckRustExpression(
@@ -2043,6 +2083,39 @@ export function emitCheckRustEvaluator(
       arrayHashPlan?: RangeArrayHashPlan,
       rangeOverride?: RangeProfile,
     ): { name: string; type: string } => {
+      const metadata = call.signature === null ? null : builtinMetadata(call.signature)
+      const physical = operands.map((operand, index) =>
+        isCatalogVectorType(operand.type) &&
+        ['pg_catalog.anyarray', 'pg_catalog.anycompatiblearray'].includes(
+          metadata?.args[index] ?? '',
+        )
+          ? { ...operand, type: arrayPhysicalType(operand.type)! }
+          : operand,
+      )
+      const normalized =
+        isCatalogVectorType(call.type) && metadata?.result === 'pg_catalog.anyarray'
+          ? { ...call, type: arrayPhysicalType(call.type)! }
+          : call
+      const result = emitCallCore(
+        normalized,
+        physical,
+        destination,
+        folded,
+        hashByteOrder,
+        arrayHashPlan,
+        rangeOverride,
+      )
+      return { ...result, type: call.type }
+    }
+    const emitCallCore = (
+      call: Extract<EvalExpression, { kind: 'call' }>['call'],
+      operands: readonly { name: string; type: string }[],
+      destination = bindings,
+      folded?: { name: string; type: string },
+      hashByteOrder?: number,
+      arrayHashPlan?: RangeArrayHashPlan,
+      rangeOverride?: RangeProfile,
+    ): { name: string; type: string } => {
       if (call.kind === 'cast' && call.signature === null) {
         if (operands.length === 1 && builtinCast(operands[0]!.type, call.type)?.method === 'b') {
           const input = operands[0]!
@@ -2065,6 +2138,10 @@ export function emitCheckRustEvaluator(
             !isBinaryTextRelabel(operands[0]!.type, call.type) &&
             !isBinaryBitRelabel(operands[0]!.type, call.type) &&
             !canRelabelAnonymousRecords(operands[0]!.type, call.type) &&
+            !(
+              isCatalogVectorType(operands[0]!.type) &&
+              arrayPhysicalType(operands[0]!.type) === call.type
+            ) &&
             !(
               isOidType(operands[0]!.type) &&
               isOidType(call.type) &&
@@ -2089,6 +2166,7 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      const vectorTypeNames = isCatalogVectorTypeNames(implementation)
       const arrayRegex = isRegexArrayCallable(call.signature)
       if (
         implementation.kind === 'function' &&
@@ -2212,6 +2290,7 @@ export function emitCheckRustEvaluator(
           !isJsonbSetLax(implementation) &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !vectorTypeNames &&
           !enumSupport &&
           !arrayBinarySend &&
           !recordBinarySend &&
@@ -2857,7 +2936,7 @@ export function emitCheckRustEvaluator(
           scalar.args[0] !== 'pg_catalog.anyenum' &&
           !(scalar.args[0] === 'pg_catalog.anyrange' && isRangeType(baseType)) &&
           !(scalar.args[0] === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) &&
-          !(scalar.args[0] === 'pg_catalog.anyarray' && baseType.startsWith('array:')) &&
+          !(scalar.args[0] === 'pg_catalog.anyarray' && isArrayLikeType(baseType)) &&
           !(
             scalar.args[0] === 'pg_catalog.record' &&
             (compositeProfile(baseType) || anonymousRecordProfile(baseType))
@@ -3424,7 +3503,7 @@ export function emitCheckRustEvaluator(
                 target === 'pg_catalog.anyenum' ||
                 (target === 'pg_catalog.anyrange' && isRangeType(baseType)) ||
                 (target === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) ||
-                (target === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
+                (target === 'pg_catalog.anyarray' && isArrayLikeType(baseType))
               )
                 return { name, type: baseType }
               if (!target || builtinCast(baseType, target)?.method !== 'b')
@@ -3825,6 +3904,8 @@ export function emitCheckRustEvaluator(
           enumOverride?: EnumDefinition,
         ): string => {
           let operand = { ...original, type: arrayElementBaseType(original.type) }
+          if (isCatalogVectorType(operand.type))
+            operand = { ...operand, type: arrayPhysicalType(operand.type)! }
           if (operand.type.startsWith('array:'))
             return arrayValueInput(operand, key === true, lines, enumOverride)
           if (compositeProfile(operand.type) || anonymousRecordProfile(operand.type)) {
@@ -4319,7 +4400,7 @@ export function emitCheckRustEvaluator(
         : (rangeTypeInput(node.elementType) ?? builtinTypeIO(node.elementType)?.input) ===
           node.input
       if (
-        operand.type !== `array:${node.sourceElementType}` ||
+        arrayPhysicalType(operand.type) !== `array:${node.sourceElementType}` ||
         node.type !== `array:${node.elementType}` ||
         family === null ||
         !Number.isInteger(node.modifier) ||
@@ -4413,7 +4494,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'array-domain-coerce') {
       const operand = emitScalar(node.operand, bindings, used)
       const family = arrayElementFamily(node.elementType)
-      if (operand.type !== 'array:' + node.sourceElementType || family === null)
+      if (arrayPhysicalType(operand.type) !== 'array:' + node.sourceElementType || family === null)
         throw new UnsupportedCheckRustExpression(
           'Domain array conversion requires concrete element carriers',
         )
@@ -4473,7 +4554,7 @@ export function emitCheckRustEvaluator(
       const family = arrayElementFamily(node.elementType)
       const castLink = builtinCast(node.sourceElementType, node.elementType)
       if (
-        operand.type !== sourceType ||
+        arrayPhysicalType(operand.type) !== sourceType ||
         node.type !== `array:${node.elementType}` ||
         family === null ||
         node.conversion.kind !== 'cast' ||
@@ -4589,6 +4670,13 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'input') {
       const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
+      if (isCatalogVectorType(node.type))
+        return {
+          name: bind(
+            `catalog_vector_from_coerced(${item.rustName}.clone(), ${node.type === 'pg_catalog.oidvector'})`,
+          ),
+          type: node.type,
+        }
       if (compositeProfile(node.type)) {
         const plan = compositePlanExpression(node.type, executionContext, bind)
         if (!plan)
@@ -4749,6 +4837,13 @@ export function emitCheckRustEvaluator(
                 : operand.type)
       )
         throw new UnsupportedCheckRustExpression('Unsupported text output function')
+      if (isCatalogVectorType(operand.type))
+        return {
+          name: bind(
+            `catalog_vector_to_text(${ownedOperand(operand)}, ${operand.type === 'pg_catalog.oidvector'})`,
+          ),
+          type: node.type,
+        }
       if (multirange) {
         const memberOutput = multirange.output
         const subtypeOutput = multirange.subtypeOutput
@@ -5056,6 +5151,25 @@ export function emitCheckRustEvaluator(
           isOidAliasType(node.type)
             ? `oid_alias_from_text(${ownedOperand(operand)}, ${dash}, ${grammar})`
             : `oid_from_text(${ownedOperand(operand)})`,
+        ),
+        type: node.type,
+      }
+    }
+    if (node.kind === 'text-to-vector') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const identity = builtinTypeIO(node.type)?.input
+      const callable = identity ? builtinMetadata(identity) : null
+      if (
+        callable?.kind !== 'function' ||
+        callable.result !== node.type ||
+        callable.args.join(',') !== 'pg_catalog.cstring' ||
+        !callable.strict ||
+        callable.returnsSet
+      )
+        throw new UnsupportedCheckRustExpression('Vector input requires its catalog I/O identity')
+      return {
+        name: bind(
+          `catalog_vector_from_text(${ownedOperand(operand)}, ${node.type === 'pg_catalog.oidvector'})`,
         ),
         type: node.type,
       }
@@ -6055,7 +6169,7 @@ export function emitCheckRustEvaluator(
                 ? 'enum_in'
                 : physical?.kind === 'c'
                   ? 'record_in'
-                  : physical?.element
+                  : physical?.element && !isCatalogVectorType(arrayElementBaseType(fieldType))
                     ? 'array_in'
                     : null
           const selected = name
@@ -6080,7 +6194,7 @@ export function emitCheckRustEvaluator(
               ? 'enum_out'
               : physical?.kind === 'c'
                 ? 'record_out'
-                : physical?.element
+                : physical?.element && !isCatalogVectorType(arrayElementBaseType(fieldType))
                   ? 'array_out'
                   : null
           const selected = name
@@ -6680,7 +6794,7 @@ export function emitCheckRustEvaluator(
       } finally {
         arrayValidityScope = outer
       }
-      if (array.type !== `array:${node.elementType}`)
+      if (arrayLikeElementType(array.type) !== node.elementType)
         throw new UnsupportedCheckRustExpression('Array quantifier element identity differs')
       const nullness = bind(
         `${rustValuePrefix(rustType(subject.type))}_is_null(${ownedOperand(subject)})`,
