@@ -36,6 +36,7 @@ export type EvalExpression =
   | {
       kind: 'composite-constructor'
       type: ScalarType
+      anonymousIdentity?: string
       operands: readonly EvalExpression[]
       projectable: readonly (boolean | null)[]
     }

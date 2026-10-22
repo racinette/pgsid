@@ -14139,7 +14139,7 @@ func JsonBuildObjectQfmu(input checkruntime.JsonbArguments, utf8 bool) checkrunt
 func JsonBuildObjectNqz6() checkruntime.JsonValue {
 	return checkruntime.MakeJsonValue("{}")
 }
-func PrepareJsonRecord(input checkruntime.CompositeValue, pretty checkruntime.BoolValue, typeName string, count int) checkruntime.JsonRecordInputPayload {
+func PrepareJsonRecordPending(input checkruntime.CompositeValue, pretty checkruntime.BoolValue) checkruntime.JsonRecordInputPayload {
 	state := langruntime.CheckedSignedNegate(1)
 	error := checkruntime.MakeSqlError(0)
 	fields := []checkruntime.ArrayElement{}
@@ -14168,14 +14168,26 @@ func PrepareJsonRecord(input checkruntime.CompositeValue, pretty checkruntime.Bo
 			if pretty.Kind == checkruntime.BoolValueValue {
 				flag := pretty.Value
 				_ = flag
-				expected := langruntime.IndexFromI32(count, langruntime.CheckedAdd(len(value.Fields), 1))
-				if value.TypeName == typeName && len(value.Fields) == expected {
-					return checkruntime.JsonRecordInputPayload{State: 1, Error: error, Fields: value.Fields, Values: values, Position: 0}
-				}
+				return checkruntime.JsonRecordInputPayload{State: 3, Error: error, TypeName: value.TypeName, Fields: value.Fields, Values: values, Position: 0}
 			}
 		}
 	}
-	return checkruntime.JsonRecordInputPayload{State: state, Error: error, Fields: fields, Values: values, Position: 0}
+	return checkruntime.JsonRecordInputPayload{State: state, Error: error, TypeName: "", Fields: fields, Values: values, Position: 0}
+}
+func JsonRecordLayoutMatches(input *checkruntime.JsonRecordInputPayload, typeName string, count int) bool {
+	expected := langruntime.IndexFromI32(count, langruntime.CheckedAdd(len(input.Fields), 1))
+	return input.State == 3 && input.TypeName == typeName && len(input.Fields) == expected
+}
+func SelectJsonRecordLayout(input checkruntime.JsonRecordInputPayload, typeName string, count int) checkruntime.JsonRecordInputPayload {
+	state := input.State
+	if JsonRecordLayoutMatches(&input, typeName, count) {
+		state = langruntime.CheckedI32(1)
+	}
+	return checkruntime.JsonRecordInputPayload{State: state, Error: input.Error, TypeName: input.TypeName, Fields: input.Fields, Values: input.Values, Position: input.Position}
+}
+func PrepareJsonRecord(input checkruntime.CompositeValue, pretty checkruntime.BoolValue, typeName string, count int) checkruntime.JsonRecordInputPayload {
+	pending := PrepareJsonRecordPending(input, pretty)
+	return SelectJsonRecordLayout(pending, typeName, count)
 }
 func jsonRecordConversionStopped(input *checkruntime.JsonRecordInputPayload) bool {
 	if len(input.Values) > 0 {
@@ -14200,7 +14212,7 @@ func JsonRecordHasField(input *checkruntime.JsonRecordInputPayload) bool {
 	return input.State == 1 && input.Position < len(input.Fields) && jsonRecordConversionStopped(input) == false
 }
 func JsonRecordField(input *checkruntime.JsonRecordInputPayload) checkruntime.ArrayElement {
-	if input.Position < len(input.Fields) {
+	if JsonRecordHasField(input) {
 		return checkruntime.CopyArrayElement(input.Fields[input.Position])
 	}
 	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
@@ -14216,7 +14228,7 @@ func AppendJsonRecord(input checkruntime.JsonRecordInputPayload, name string, va
 	}
 	langruntime.CheckedAdd(len(values), 1)
 	values = append(values, checkruntime.CopyJsonbInput(converted))
-	return checkruntime.JsonRecordInputPayload{State: input.State, Error: input.Error, Fields: input.Fields, Values: values, Position: langruntime.CheckedAdd(input.Position, 1)}
+	return checkruntime.JsonRecordInputPayload{State: input.State, Error: input.Error, TypeName: input.TypeName, Fields: input.Fields, Values: values, Position: langruntime.CheckedAdd(input.Position, 1)}
 }
 func jsonRecordArguments(input checkruntime.JsonRecordInputPayload) checkruntime.JsonbArguments {
 	input = checkruntime.CopyJsonRecordInputPayload(input)

@@ -130,11 +130,9 @@ pub fn sql__pg_catalog__json_build_object__nqz6() -> JsonValue {
     make_json_value("{}")
 }
 
-pub(crate) fn prepare_json_record(
+pub(crate) fn prepare_json_record_pending(
     input: CompositeValue,
     pretty: BoolValue,
-    type_name: &str,
-    count: i32,
 ) -> JsonRecordInputPayload {
     let mut state: i32 = -1;
     let mut error = make_sql_error(0);
@@ -159,15 +157,13 @@ pub(crate) fn prepare_json_record(
         };
         if let CompositeValue::Value(value) = input {
             if let BoolValue::Value(_flag) = pretty {
-                let expected = usize::try_from(count).unwrap_or(value.fields.len() + 1);
-                if value.type_name.as_str() == type_name && value.fields.len() == expected {
-                    return JsonRecordInputPayload {
-                        state: 1,
-                        error: error,
-                        fields: value.fields,
-                        values: values,
-                        position: 0,
-                    };
+                return JsonRecordInputPayload {
+                    state: 3,
+                    error: error,
+                    type_name: value.type_name,
+                    fields: value.fields,
+                    values: values,
+                    position: 0,
                 };
             };
         };
@@ -175,10 +171,49 @@ pub(crate) fn prepare_json_record(
     JsonRecordInputPayload {
         state: state,
         error: error,
+        type_name: String::new(),
         fields: fields,
         values: values,
         position: 0,
     }
+}
+
+pub(crate) fn json_record_layout_matches(
+    input: &JsonRecordInputPayload,
+    type_name: &str,
+    count: i32,
+) -> bool {
+    let expected = usize::try_from(count).unwrap_or(input.fields.len() + 1);
+    input.state == 3 && input.type_name.as_str() == type_name && input.fields.len() == expected
+}
+
+pub(crate) fn select_json_record_layout(
+    input: JsonRecordInputPayload,
+    type_name: &str,
+    count: i32,
+) -> JsonRecordInputPayload {
+    let mut state = input.state;
+    if json_record_layout_matches(&input, type_name, count) {
+        state = 1;
+    };
+    JsonRecordInputPayload {
+        state: state,
+        error: input.error,
+        type_name: input.type_name,
+        fields: input.fields,
+        values: input.values,
+        position: input.position,
+    }
+}
+
+pub(crate) fn prepare_json_record(
+    input: CompositeValue,
+    pretty: BoolValue,
+    type_name: &str,
+    count: i32,
+) -> JsonRecordInputPayload {
+    let pending = prepare_json_record_pending(input, pretty);
+    select_json_record_layout(pending, type_name, count)
 }
 
 fn json_record_conversion_stopped(input: &JsonRecordInputPayload) -> bool {
@@ -204,7 +239,7 @@ pub(crate) fn json_record_has_field(input: &JsonRecordInputPayload) -> bool {
 }
 
 pub(crate) fn json_record_field(input: &JsonRecordInputPayload) -> ArrayElement {
-    if input.position < input.fields.len() {
+    if json_record_has_field(input) {
         return input.fields[input.position].clone();
     };
     ArrayElement::Unknown
@@ -225,6 +260,7 @@ pub(crate) fn append_json_record(
     JsonRecordInputPayload {
         state: input.state,
         error: input.error,
+        type_name: input.type_name,
         fields: input.fields,
         values: values,
         position: input.position + 1,

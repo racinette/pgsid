@@ -906,6 +906,7 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 }
 
 type JsonRecordInputPayload struct {
+	TypeName string
 	State    int
 	Error    SqlError
 	Fields   []ArrayElement
@@ -914,7 +915,7 @@ type JsonRecordInputPayload struct {
 }
 
 func CopyJsonRecordInputPayload(value JsonRecordInputPayload) JsonRecordInputPayload {
-	return JsonRecordInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
+	return JsonRecordInputPayload{TypeName: langruntime.CheckedString(value.TypeName), State: langruntime.CheckedI32(value.State), Error: value.Error, Fields: langruntime.CheckedStructs(value.Fields, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
 }
 
 type JsonRecordInputPlanKind uint8

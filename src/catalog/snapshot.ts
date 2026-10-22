@@ -1,5 +1,6 @@
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
 import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
+import { catalogIdentifierSql } from '../postgres/catalog-identities.js'
 import { captureDomainCoercionContext, type DomainCoercionIdentity } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
@@ -1945,11 +1946,11 @@ async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
   const res = await pg.query<EnumTypeRow>(
     `SELECT t.oid, n.nspname AS schema, t.typname AS name,
        pn.nspname AS output_schema, p.proname AS output_name,
-       (SELECT array_agg(quote_ident(an.nspname) || '.' || quote_ident(a.typname) ORDER BY u.ord)
+       (SELECT array_agg(${catalogIdentifierSql('an.nspname')} || '.' || ${catalogIdentifierSql('a.typname')} ORDER BY u.ord)
         FROM unnest(p.proargtypes) WITH ORDINALITY u(oid, ord)
         JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS output_args,
        pin.nspname AS input_schema, pi.proname AS input_name,
-       (SELECT array_agg(quote_ident(an.nspname) || '.' || quote_ident(a.typname) ORDER BY u.ord)
+       (SELECT array_agg(${catalogIdentifierSql('an.nspname')} || '.' || ${catalogIdentifierSql('a.typname')} ORDER BY u.ord)
         FROM unnest(pi.proargtypes) WITH ORDINALITY u(oid, ord)
         JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS input_args,
        ARRAY(SELECT source.name FROM (VALUES

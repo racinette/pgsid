@@ -6,6 +6,10 @@ import {
   type CompositeProfile,
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
+import {
+  anonymousRecordProfile,
+  canRelabelAnonymousRecords,
+} from '../../sql-semantics/anonymous-records.js'
 import type { ArrayElementType, ScalarType } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
@@ -196,7 +200,11 @@ export const supportsJsonbConversion = (type: string): boolean => {
     if (arrayElementFamily(type.slice(6)) === null) return false
     type = arrayElementBaseType(type.slice(6))
   }
-  return compositeProfile(type) !== null || jsonbConversionHelper(type) !== undefined
+  return (
+    compositeProfile(type) !== null ||
+    anonymousRecordProfile(type) !== null ||
+    jsonbConversionHelper(type) !== undefined
+  )
 }
 
 export const isJsonConversion = (
@@ -604,7 +612,7 @@ export const isJsonpathTimezoneCallable = (
 
 const rustType = (type: string): string => {
   type = arrayElementBaseType(type)
-  if (compositeProfile(type)) return 'CompositeValue'
+  if (compositeProfile(type) || anonymousRecordProfile(type)) return 'CompositeValue'
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
@@ -2029,6 +2037,7 @@ export function emitCheckRustEvaluator(
           (operands[0]!.type !== call.type &&
             !isBinaryTextRelabel(operands[0]!.type, call.type) &&
             !isBinaryBitRelabel(operands[0]!.type, call.type) &&
+            !canRelabelAnonymousRecords(operands[0]!.type, call.type) &&
             !(
               isOidType(operands[0]!.type) &&
               isOidType(call.type) &&
@@ -2297,7 +2306,8 @@ export function emitCheckRustEvaluator(
                     : type === 'pg_catalog.record' &&
                         (isRecordComparison(implementation) ||
                           (jsonConversion && implementation.name === 'row_to_json')) &&
-                        compositeProfile(operands[index]?.type ?? '')
+                        (compositeProfile(operands[index]?.type ?? '') ||
+                          anonymousRecordProfile(operands[index]?.type ?? ''))
                       ? false
                       : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
                         ? false
@@ -3623,7 +3633,7 @@ export function emitCheckRustEvaluator(
           let operand = { ...original, type: arrayElementBaseType(original.type) }
           if (operand.type.startsWith('array:'))
             return arrayValueInput(operand, key === true, lines, enumOverride)
-          if (compositeProfile(operand.type)) {
+          if (compositeProfile(operand.type) || anonymousRecordProfile(operand.type)) {
             if (key === true) {
               const carrier = fresh('json_record_key')
               lines.push(`let ${carrier}=json_record_key_input(${ownedOperand(operand)});`)
@@ -3819,6 +3829,7 @@ export function emitCheckRustEvaluator(
             object &&
             (baseType.startsWith('array:') ||
               compositeProfile(baseType) ||
+              anonymousRecordProfile(baseType) ||
               castEnum ||
               rangeTypeProfile(baseType)?.captured ||
               multirangeTypeProfile(baseType)?.captured)
@@ -3885,53 +3896,90 @@ export function emitCheckRustEvaluator(
           lines: string[],
         ): string => {
           const profile = compositeProfile(operand.type),
-            definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
-          if (!profile || !definition)
+            definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
+            anonymous = anonymousRecordProfile(operand.type)
+          const layouts =
+            anonymous?.map((layout) => ({
+              identity: layout.identity,
+              fields: layout.fields.map((field, index) => ({
+                name: 'f' + (index + 1),
+                type: field.type as string | null,
+                enum: field.enum as EnumDefinition | undefined,
+              })),
+            })) ??
+            (profile && definition
+              ? [
+                  {
+                    identity: profile.identity,
+                    fields: definition.fields.map((field) => {
+                      let leaf = compositePhysicalType(profile, field.type)
+                      while (leaf?.element) leaf = compositePhysicalType(profile, leaf.element)
+                      const enumDefinition: EnumDefinition | undefined =
+                        leaf?.kind === 'e' && leaf.jsonCast !== undefined
+                          ? {
+                              schema: leaf.schema,
+                              name: leaf.name,
+                              values: leaf.enumLabels ?? [],
+                              outputFunction: leaf.output ?? undefined,
+                              jsonConversion: leaf.jsonCast === null ? 'label' : 'cast',
+                            }
+                          : undefined
+                      return {
+                        name: field.name,
+                        type: compositeFieldType(profile, field.type),
+                        enum: enumDefinition,
+                      }
+                    }),
+                  },
+                ]
+              : null)
+          if (!layouts)
             throw new UnsupportedCheckRustExpression(
-              'JSON record conversion requires captured field identities',
+              'JSON record conversion requires field descriptors',
             )
           const initial = fresh('json_record_initial'),
             cursor = fresh('json_record_cursor')
           lines.push(
-            `let ${initial}=prepare_json_record(${ownedOperand(operand)},${pretty},${rustStringLiteral(profile.identity)},${definition.fields.length});`,
+            `let ${initial}=prepare_json_record_pending(${ownedOperand(operand)},${pretty});`,
             `let mut ${cursor}:JsonRecordInputPayload=${initial};`,
           )
-          for (const field of definition.fields) {
-            const cell = fresh('json_record_field'),
-              scalar = fresh('json_record_scalar'),
-              body = [`let ${cell}=json_record_field(&${cursor});`]
-            const type = compositeFieldType(profile, field.type)
-            let carrier: string | undefined
-            if (type) {
-              let leaf = compositePhysicalType(profile, field.type)
-              while (leaf?.element) leaf = compositePhysicalType(profile, leaf.element)
-              const enumDefinition: EnumDefinition | undefined =
-                leaf?.kind === 'e' && leaf.jsonCast !== undefined
-                  ? {
-                      schema: leaf.schema,
-                      name: leaf.name,
-                      values: leaf.enumLabels ?? [],
-                      outputFunction: leaf.output ?? undefined,
-                      jsonConversion: leaf.jsonCast === null ? 'label' : 'cast',
-                    }
-                  : undefined
-              try {
-                const prefix = rustValuePrefix(rustType(type)),
-                  conversion = [`let ${scalar}=array_element_to_${prefix}(${cell}.clone());`]
-                carrier = scalarInput({ name: scalar, type }, false, conversion, enumDefinition)
-                body.push(...conversion)
-              } catch (error) {
-                if (!(error instanceof UnsupportedCheckRustExpression)) throw error
-              }
-            }
-            if (!carrier) {
-              carrier = fresh('json_record_unknown')
-              body.push(`let ${carrier}=json_record_opaque_input(${cell});`)
-            }
-            body.push(
-              `${cursor}=append_json_record(${cursor},${rustStringLiteral(field.name)},${carrier});`,
+          for (const layout of layouts) {
+            lines.push(
+              `if json_record_layout_matches(&${cursor},${rustStringLiteral(layout.identity)},${layout.fields.length}) {`,
+              `    ${cursor}=select_json_record_layout(${cursor},${rustStringLiteral(layout.identity)},${layout.fields.length});`,
+              '}',
             )
-            lines.push(`if json_record_has_field(&${cursor}) {`, ...indent(body), '}')
+            for (const field of layout.fields) {
+              const cell = fresh('json_record_field'),
+                scalar = fresh('json_record_scalar'),
+                body = [`let ${cell}=json_record_field(&${cursor});`],
+                type = field.type
+              let carrier: string | undefined
+              if (type) {
+                const outerValidity = arrayValidityScope
+                arrayValidityScope = null
+                try {
+                  const prefix = rustValuePrefix(rustType(type)),
+                    conversion = [`let ${scalar}=array_element_to_${prefix}(${cell}.clone());`]
+                  carrier = scalarInput({ name: scalar, type }, false, conversion, field.enum)
+                  body.push(...conversion)
+                } catch (error) {
+                  if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+                } finally {
+                  arrayValidityScope = outerValidity
+                }
+              }
+              if (!carrier) {
+                carrier = fresh('json_record_unknown')
+                body.push(`let ${carrier}=json_record_opaque_input(${cell});`)
+              }
+              lines.push(
+                ...body,
+                `if json_record_has_field(&${cursor}) {`,
+                `    ${cursor}=append_json_record(${cursor},${rustStringLiteral(field.name)},${carrier});`,
+                '}',
+              )
+            }
           }
           return cursor
         }
@@ -6041,10 +6089,14 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'composite-null') return { name: bind('composite_null()'), type: node.type }
     if (node.kind === 'composite-constructor') {
       const profile = compositeProfile(node.type)
-      if (!profile)
+      const anonymous = anonymousRecordProfile(node.type)
+      const identity =
+        profile?.identity ??
+        anonymous?.find((layout) => layout.identity === node.anonymousIdentity)?.identity
+      if (!identity)
         throw new UnsupportedCheckRustExpression('Missing composite constructor profile')
       const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
-      let value = bind(`make_composite_fields(${rustStringLiteral(profile.identity)})`)
+      let value = bind(`make_composite_fields(${rustStringLiteral(identity)})`)
       for (const operand of operands) {
         const cell = bind(
           `array_element_from_${rustValuePrefix(rustType(operand.type))}(${ownedOperand(operand)})`,
@@ -6053,15 +6105,23 @@ export function emitCheckRustEvaluator(
       }
       return { name: value, type: node.type }
     }
-    if (node.kind === 'null-test' && !node.datum && compositeProfile(scalarType(node.operand))) {
+    if (
+      node.kind === 'null-test' &&
+      !node.datum &&
+      (compositeProfile(scalarType(node.operand)) ||
+        anonymousRecordProfile(scalarType(node.operand)))
+    ) {
       if (
         node.operand.kind === 'composite-constructor' &&
         !constantScalarExpression(node.operand)
       ) {
-        const profile = compositeProfile(node.operand.type)!
-        const definition = profile.graph.definitions.find(
+        const profile = compositeProfile(node.operand.type)
+        const definition = profile?.graph.definitions.find(
           (node) => node.identity === profile.identity,
-        )!
+        ) ?? {
+          attributeCount: node.operand.operands.length,
+          fields: node.operand.operands.map((_, index) => ({ position: index + 1 })),
+        }
         if (
           typeof definition.attributeCount !== 'number' ||
           !Number.isInteger(definition.attributeCount) ||

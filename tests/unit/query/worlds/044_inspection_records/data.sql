@@ -8,3 +8,4 @@ INSERT INTO inspection_approved_batches VALUES (ARRAY[ROW(2,'abc')::approved_dra
 INSERT INTO inspection_nested_batches VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch], ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, ARRAY[ARRAY[ROW(2,'abc')::approved_draft]::inspection_batch]::text, 1, 0, false);
 INSERT INTO inspection_bands VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")',2,0,true,false);
 INSERT INTO inspection_documents VALUES (NULL,NULL,NULL,false,false);
+INSERT INTO inspection_projections VALUES (NULL,NULL,'{"f1":null,"f2":null}',true,false);

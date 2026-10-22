@@ -851,6 +851,7 @@ pub enum JsonbInput {
 
 #[derive(Clone)]
 pub struct JsonRecordInputPayload {
+    pub type_name: String,
     pub state: i32,
     pub error: SqlError,
     pub fields: Vec<ArrayElement>,

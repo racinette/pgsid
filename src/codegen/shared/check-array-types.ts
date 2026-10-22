@@ -1,4 +1,5 @@
 import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import { anonymousRecordProfile } from '../../sql-semantics/anonymous-records.js'
 import {
   compositeProfile,
   compositeFieldType,
@@ -28,6 +29,7 @@ const capturedArrayLeaf = (type: string): boolean => {
 }
 
 export function arrayElementIdentity(type: string): string {
+  if (anonymousRecordProfile(type)) return 'pg_catalog.record'
   const composite = compositeProfile(type)
   if (composite) return composite.identity
   const domain = domainElementDefinition(type)
@@ -41,7 +43,7 @@ export function arrayElementIdentity(type: string): string {
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
   if (type.startsWith('array:')) return 41
-  if (compositeProfile(type)) return 44
+  if (compositeProfile(type) || anonymousRecordProfile(type)) return 44
   if (type.startsWith('enum:')) return 6
   if (rangeTypeProfile(type)) return 42
   if (multirangeTypeProfile(type)) return 43
