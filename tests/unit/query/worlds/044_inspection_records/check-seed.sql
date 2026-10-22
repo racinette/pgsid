@@ -256,3 +256,18 @@ INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,b
 INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'{"current_reading":{"score":2,"label":"ok","span":"[1,3)"},"previous_reading":null,"history":[{"score":2,"label":"ok","span":"[1,3)"},null]}',E'{}',false,false);
 -- name: DocumentBypassed
 INSERT INTO inspection_documents(packet,expected_text,expected_document,pretty,bypass) VALUES (ROW(ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading,ARRAY[ROW(2,'ok','[1,3)'::int4range)::inspection_reading,NULL::inspection_reading])::inspection_packet,E'wrong',E'{}',false,true);
+
+-- name: ProjectionDetailed
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (2,'ok','{"f1":2,"f2":"ok"}',true,false);
+-- name: ProjectionCompact
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (2,'ok','{"f1":"ok"}',false,false);
+-- name: ProjectionNullFields
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (NULL,NULL,'{"f1":null,"f2":null}',true,false);
+-- name: ProjectionQuoted
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (2,'snow😊"','{"f1":"snow😊\""}',false,false);
+-- name: ProjectionWrongLayout
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (2,'ok','{"f1":"ok"}',true,false);
+-- name: ProjectionNegative
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (-1,'ok','{"f1":"ok"}',false,false);
+-- name: ProjectionBypassed
+INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (-1,'ok','{}',true,true);

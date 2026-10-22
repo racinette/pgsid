@@ -924,6 +924,7 @@ export function copyJsonbInput(value: JsonbInput): JsonbInput {
     }
 }
 export interface JsonRecordInputPayload {
+    readonly typeName: string;
     readonly state: number;
     readonly error: SqlError;
     readonly fields: ArrayElement[];
@@ -931,7 +932,7 @@ export interface JsonRecordInputPayload {
     readonly position: number;
 }
 export function copyJsonRecordInputPayload(value: JsonRecordInputPayload): JsonRecordInputPayload {
-    return { state: langruntime.checkedI32(value.state), error: value.error, fields: langruntime.checkedStructs(value.fields, copyArrayElement), values: langruntime.checkedStructs(value.values, copyJsonbInput), position: langruntime.checkedIndex(value.position) };
+    return { typeName: langruntime.checkedString(value.typeName), state: langruntime.checkedI32(value.state), error: value.error, fields: langruntime.checkedStructs(value.fields, copyArrayElement), values: langruntime.checkedStructs(value.values, copyJsonbInput), position: langruntime.checkedIndex(value.position) };
 }
 export type JsonRecordInputPlan = {
     readonly kind: "Value";

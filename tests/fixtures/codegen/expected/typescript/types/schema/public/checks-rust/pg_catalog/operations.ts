@@ -14227,7 +14227,7 @@ export function jsonBuildObjectQfmu(input: checkruntime.JsonbArguments, utf8: bo
 export function jsonBuildObjectNqz6(): checkruntime.JsonValue {
     return checkruntime.makeJsonValue("{}");
 }
-export function prepareJsonRecord(input: checkruntime.CompositeValue, pretty: checkruntime.BoolValue, typeName: string, count: number): checkruntime.JsonRecordInputPayload {
+export function prepareJsonRecordPending(input: checkruntime.CompositeValue, pretty: checkruntime.BoolValue): checkruntime.JsonRecordInputPayload {
     let state: number = langruntime.checkedSignedNegate(1);
     let error: checkruntime.SqlError = checkruntime.makeSqlError(0);
     const fields: checkruntime.ArrayElement[] = [];
@@ -14255,14 +14255,26 @@ export function prepareJsonRecord(input: checkruntime.CompositeValue, pretty: ch
             const value: checkruntime.CompositePayload = checkruntime.copyCompositePayload(input.value);
             if (pretty.kind === "Value") {
                 const flag: boolean = langruntime.checkedBool(pretty.value);
-                const expected: number = langruntime.indexFromI32(count, langruntime.checkedAdd(value.fields.length, 1));
-                if (value.typeName === typeName && value.fields.length === expected) {
-                    return { state: 1, error: error, fields: value.fields, values: values, position: 0 };
-                }
+                return { state: 3, error: error, typeName: value.typeName, fields: value.fields, values: values, position: 0 };
             }
         }
     }
-    return { state: state, error: error, fields: fields, values: values, position: 0 };
+    return { state: state, error: error, typeName: "", fields: fields, values: values, position: 0 };
+}
+export function jsonRecordLayoutMatches(input: checkruntime.JsonRecordInputPayload, typeName: string, count: number): boolean {
+    const expected: number = langruntime.indexFromI32(count, langruntime.checkedAdd(input.fields.length, 1));
+    return input.state === 3 && input.typeName === typeName && input.fields.length === expected;
+}
+export function selectJsonRecordLayout(input: checkruntime.JsonRecordInputPayload, typeName: string, count: number): checkruntime.JsonRecordInputPayload {
+    let state: number = input.state;
+    if (jsonRecordLayoutMatches(input, typeName, count)) {
+        state = langruntime.checkedI32(1);
+    }
+    return { state: state, error: input.error, typeName: input.typeName, fields: input.fields, values: input.values, position: input.position };
+}
+export function prepareJsonRecord(input: checkruntime.CompositeValue, pretty: checkruntime.BoolValue, typeName: string, count: number): checkruntime.JsonRecordInputPayload {
+    const pending: checkruntime.JsonRecordInputPayload = prepareJsonRecordPending(input, pretty);
+    return selectJsonRecordLayout(pending, typeName, count);
 }
 function jsonRecordConversionStopped(input: checkruntime.JsonRecordInputPayload): boolean {
     if (input.values.length > 0) {
@@ -14285,7 +14297,7 @@ export function jsonRecordHasField(input: checkruntime.JsonRecordInputPayload): 
     return input.state === 1 && input.position < input.fields.length && jsonRecordConversionStopped(input) === false;
 }
 export function jsonRecordField(input: checkruntime.JsonRecordInputPayload): checkruntime.ArrayElement {
-    if (input.position < input.fields.length) {
+    if (jsonRecordHasField(input)) {
         return checkruntime.copyArrayElement(langruntime.indexStruct(input.fields, langruntime.checkedIndex(input.position), checkruntime.copyArrayElement));
     }
     return { kind: "Unknown" };
@@ -14299,7 +14311,7 @@ export function appendJsonRecord(input: checkruntime.JsonRecordInputPayload, nam
         converted = checkruntime.copyJsonbInput({ kind: "ConvertedError", value: error });
     }
     langruntime.pushStruct(values, converted, checkruntime.copyJsonbInput);
-    return { state: input.state, error: input.error, fields: input.fields, values: values, position: langruntime.checkedAdd(input.position, 1) };
+    return { state: input.state, error: input.error, typeName: input.typeName, fields: input.fields, values: values, position: langruntime.checkedAdd(input.position, 1) };
 }
 function jsonRecordArguments(input: checkruntime.JsonRecordInputPayload): checkruntime.JsonbArguments {
     input = checkruntime.copyJsonRecordInputPayload(input);

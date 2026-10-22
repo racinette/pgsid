@@ -87,6 +87,31 @@ pub fn json_record_state_probe(input:Int4Value)->BoolValue {
    let third=append_json_record(second,"extra",JsonbInput::Null);
    return record_probe_unknown(record_probe_value(third));
   };
+  if mode==14 {
+   let pending=prepare_json_record_pending(record,compact);
+   let hidden=json_record_field(&pending);
+   if let ArrayElement::Unknown=hidden {
+    let selected=select_json_record_layout(pending,"public.sample",2);
+    let visible=json_record_field(&selected);
+    if let ArrayElement::Null=visible {return make_bool_value(true);};
+   };
+   return make_bool_value(false);
+  };
+  if mode==15 {
+   let mut source=make_composite_fields("public.sample");
+   source=append_composite_field(source,ArrayElement::Null);
+   source=append_composite_field(source,ArrayElement::Int4(7));
+   let initial=prepare_json_record(source,compact,"public.sample",2);
+   let stopped=append_json_record(initial,"first",JsonbInput::Unknown);
+   let hidden=json_record_field(&stopped);
+   if let ArrayElement::Unknown=hidden {return make_bool_value(true);};
+   return make_bool_value(false);
+  };
+  if mode==16 {
+   let empty=make_composite_fields("public.empty");
+   let pending=prepare_json_record_pending(empty,compact);
+   return record_probe_unknown(record_probe_value(pending));
+  };
  };
  BoolValue::Unknown
 }`,
@@ -111,7 +136,7 @@ pub fn json_record_state_probe(input:Int4Value)->BoolValue {
       'compositejsonstates',
       group,
       ['states'],
-      Array.from({ length: 14 }, (_, mode) => ({
+      Array.from({ length: 17 }, (_, mode) => ({
         name: 'states',
         row: { mode: { kind: 'Value' as const, value: mode } },
         expected: { kind: 'True' as const },

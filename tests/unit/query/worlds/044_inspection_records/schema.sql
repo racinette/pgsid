@@ -156,3 +156,13 @@ CREATE TABLE inspection_documents (
   CONSTRAINT document_text CHECK (CASE WHEN bypass THEN true ELSE row_to_json(packet,pretty)::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
   CONSTRAINT document_normalized CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(packet) IS NOT DISTINCT FROM expected_document END)
 );
+
+CREATE TABLE inspection_projections (
+  score integer,
+  label text,
+  expected_document jsonb,
+  detailed boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT projected_document CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(CASE WHEN detailed THEN ROW(score,label) ELSE ROW(label) END) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT projected_score CHECK (CASE WHEN bypass THEN true ELSE (to_jsonb(ARRAY[ROW(score),ROW(label)])#>>'{0,f1}')::int4>=0 END)
+);

@@ -9,6 +9,7 @@ import {
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
 import { compositeProfile, type CompositeType } from './composite-profiles.js'
+import { anonymousRecordProfile, type AnonymousRecordType } from './anonymous-records.js'
 export type { CompositeType } from './composite-profiles.js'
 import {
   isCapturedRangeType,
@@ -21,6 +22,8 @@ import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './sig
 import { equalityOperation, supportsTextCallableCollation } from './collation.js'
 
 export const catalogScalarType = (name: string): ScalarType | null => {
+  if (name.startsWith('anonymous-record:'))
+    return anonymousRecordProfile(name) ? (name as AnonymousRecordType) : null
   if (name.startsWith('composite:')) return compositeProfile(name) ? (name as CompositeType) : null
   if (isCapturedRangeType(name) || isCapturedMultirangeType(name)) return name
   const range = builtinRangeType(name.startsWith('pg_catalog.') ? name : 'pg_catalog.' + name)
@@ -217,6 +220,7 @@ export type ArrayElementType = NonArrayScalarType
 export type ArrayType = `array:${ArrayElementType}`
 export type DomainElementType = `domain:${string}`
 export type NonArrayScalarType =
+  | AnonymousRecordType
   | CompositeType
   | DomainElementType
   | RefcursorType

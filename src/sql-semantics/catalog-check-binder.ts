@@ -19,6 +19,13 @@ import {
   compositeFieldType,
   compositePhysicalType,
 } from './composite-profiles.js'
+import {
+  anonymousRecordType,
+  anonymousRecordProfile,
+  commonAnonymousRecordType,
+  canRelabelAnonymousRecords,
+  type AnonymousRecordField,
+} from './anonymous-records.js'
 import type { CompositeTypeGraph } from '../catalog/types.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
 import {
@@ -767,7 +774,7 @@ const materialize = (
   type: ScalarType,
   definition = bound.enum,
 ): EvalExpression | null => {
-  if (compositeProfile(type) && bound.literal?.kind === 'null')
+  if ((compositeProfile(type) || anonymousRecordProfile(type)) && bound.literal?.kind === 'null')
     return { kind: 'composite-null', type }
   if (
     type === 'pg_catalog."numeric"' &&
@@ -1356,7 +1363,9 @@ const candidate = (
             ? coerce(arg, compatibleArray!, definition)
             : item.args[index] === 'pg_catalog.anycompatible'
               ? coerce(arg, compatibleType!, definition)
-              : item.args[index] === 'pg_catalog.record' && compositeProfile(boundType(arg) ?? '')
+              : item.args[index] === 'pg_catalog.record' &&
+                  (compositeProfile(boundType(arg) ?? '') ||
+                    anonymousRecordProfile(boundType(arg) ?? ''))
                 ? materialize(arg, boundType(arg)!)
                 : item.args[index] === 'pg_catalog.anyarray'
                   ? materialize(arg, arrayIdentity!)
@@ -1513,6 +1522,8 @@ const commonType = (args: readonly Bound[]): ScalarType | null => {
   let types = args.map(boundType).filter((type): type is ScalarType => type !== null)
   if (!types.length) return 'pg_catalog.text'
   if (types.every((type) => type === types[0])) return types[0]!
+  const anonymous = commonAnonymousRecordType(types)
+  if (anonymous) return anonymous
   types = types.map((type) => arrayElementBaseType(type) as ScalarType)
   const resolution = (type: ScalarType) =>
     type.startsWith('array:') ? { category: 'A', preferred: false } : builtinTypeResolution(type)
@@ -1536,6 +1547,12 @@ const implicitOperand = (
   const source = boundType(arg)
   const value = materialize(arg, source ?? target, definition)
   if (!value || source === null || source === target) return value
+  if (canRelabelAnonymousRecords(source, target))
+    return {
+      kind: 'call',
+      call: { kind: 'cast', signature: null, type: target },
+      operands: [value],
+    }
   if (source.startsWith('array:') && target.startsWith('array:'))
     return coerceArray(value, source as ArrayType, target as ArrayType, 'i')
   const conversion = builtinCast(source, target)
@@ -2279,6 +2296,48 @@ export function bindCatalogCheck(
   const bind = (node: unknown, expectedType?: ScalarType, implicitDomainInput?: boolean): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const row = fields(wrapper['RowExpr'])
+    if (row) {
+      const args = row['args'] ?? []
+      if (!Array.isArray(args)) return unknown
+      const descriptors: AnonymousRecordField[] = [],
+        operands: EvalExpression[] = []
+      for (const arg of args) {
+        const bound = bind(arg),
+          type = nominalScalarType(bound) ?? 'pg_catalog.text'
+        const value = materialize(bound, boundType(bound) ?? type)
+        if (!value) return unknown
+        const definition = arrayOutputEnum(type)
+        descriptors.push({
+          type,
+          ...(boundType(bound) === null ? { unknown: true as const } : {}),
+          ...(definition
+            ? {
+                enum: {
+                  schema: definition.schema,
+                  name: definition.name,
+                  values: [...definition.values],
+                  outputFunction: definition.outputFunction,
+                  jsonConversion: definition.jsonConversion,
+                },
+              }
+            : {}),
+        })
+        operands.push(value)
+      }
+      const type = anonymousRecordType(descriptors),
+        layout = anonymousRecordProfile(type)![0]!
+      return {
+        type,
+        value: {
+          kind: 'composite-constructor',
+          type,
+          anonymousIdentity: layout.identity,
+          operands,
+          projectable: operands.map(() => true),
+        },
+      }
+    }
     const indirection = fields(wrapper['A_Indirection'])
     if (indirection) {
       const items0 = indirection['indirection']
@@ -2526,6 +2585,7 @@ export function bindCatalogCheck(
       const coercedType = args.some(
         (arg) =>
           arg.type?.startsWith('array:') ||
+          anonymousRecordProfile(arg.type ?? '') !== null ||
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
           arg.type === 'pg_catalog."numeric"' ||
@@ -2601,6 +2661,7 @@ export function bindCatalogCheck(
       const coercedType = arms.some(
         (arm) =>
           arm.type?.startsWith('array:') ||
+          anonymousRecordProfile(arm.type ?? '') !== null ||
           arm.type === 'pg_catalog.float4' ||
           arm.type === 'pg_catalog.float8' ||
           arm.type === 'pg_catalog."numeric"' ||
@@ -2743,6 +2804,18 @@ export function bindCatalogCheck(
       let castType = fields(cast['typeName'])
       let names = strings(castType?.['names'])
       let bounds = castType?.['arrayBounds']
+      if (
+        names?.at(-1) === 'record' &&
+        (names.length === 1 || names[0] === 'pg_catalog') &&
+        (!Array.isArray(bounds) || bounds.length === 0)
+      ) {
+        const operand = bind(cast['arg'])
+        if (operand.literal?.kind === 'null') {
+          const type = 'anonymous-record:[]' as const
+          return { type, value: { kind: 'composite-null', type } }
+        }
+        if (anonymousRecordProfile(operand.type ?? '')) return operand
+      }
       if (names?.length === 2 && (!Array.isArray(bounds) || bounds.length === 0)) {
         const catalogType =
           (names[0] === 'pg_catalog' ? catalogScalarType(names.join('.')) : null) ??
