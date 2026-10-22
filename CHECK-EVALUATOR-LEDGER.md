@@ -84,9 +84,8 @@ unexercised cases explicitly rather than treating them as passes.
       conversion separately from already SQL-coerced row inputs.
 - [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
 
-Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity,
-unsupported forms remain distinguishable, and the public input contract is
-explicit. Do not use target-native date or numeric parsers to supply SQL behavior.
+Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, unsupported forms remain distinguishable, and the public input contract is explicit.
+Do not use target-native date or numeric parsers to supply SQL behavior.
 
 ## Model explicit execution context
 
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit record binary send for named/anonymous and dropped-field-empty records, preserving strict NULLs, row errors, selected branches, domain/input preparation and public INSERT parity. Retain deployment field-OID requirements for every nonempty record, including NULL fields; verify shifted catalog identities without embedding them and classify receive as an internal server interface.
 - [x] Admit direct anonymous ROW projection, captured ROW stars and paired source/stored function-style fields, computed-column calls and domain type-name coercions. Preserve native field/function/cast choices across later shadowing, qualified owners, dropped fields, domains, enums, arrays, unknown field types, collations, discarded-field preparation and empty expansion. Verify native/Rust/Go/TypeScript public INSERT parity; defer absent binding evidence and selected unavailable callbacks.
 - [x] Admit explicit child-to-ancestor row casts through captured qualified inheritance paths and live field names/types/modifiers. Preserve reordered/dropped fields, multiple/transitive parents, source domains, separately cast target domains, datum NULL, partial fields, owned snapshots and discarded child errors. Verify constructors, comparisons, text/JSON, converted-row arrays, hashes, binary output and native/Rust/Go/TypeScript public INSERT parity without deployment OIDs.
-- [ ] Complete whole-table row binding, inherited array/implicit coercions and remaining row projection, star and source/stored syntax alignment; audit recursive container composition and preserve explicit catalog/context requirements.
+- [x] Admit named whole-table rows, qualified stars and native column-name precedence through captured live descriptors. Preserve dropped-field row NULL semantics, empty rows, direct projections without unrelated carriers, owned arrays/JSON/text, inherited casts and source/stored native function choices. Verify native/Rust/Go/TypeScript public INSERT parity and isolated constant Boolean preparation; retain missing-owner/type requirements.
+- [ ] Complete inherited array/implicit coercions and remaining row projection, star and source/stored syntax alignment; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

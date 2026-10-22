@@ -3,6 +3,87 @@ import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 
+it('preserves named whole-row overloads, column shadowing and schema-qualified owners in parsed oracles', async () => {
+  const pg = await PGlite.create(),
+    oracles = new WorldCheckOracles()
+  try {
+    await pg.exec('CREATE SCHEMA "Oracle.Rows";SET search_path="Oracle.Rows",public')
+    await oracles.load(
+      pg,
+      `CREATE TABLE "Rows.Name"(n int4,"__pgsid_row" text,
+      CONSTRAINT old_builtin CHECK(to_jsonb("Rows.Name") IS NOT NULL),
+      CONSTRAINT qualified CHECK((to_jsonb("Oracle.Rows"."Rows.Name".*)->>'n')::int4>=0),
+      CONSTRAINT expanded CHECK((to_jsonb(ROW("Oracle.Rows"."Rows.Name".*))->>'f1')::int4>=0));
+      CREATE FUNCTION to_jsonb("Rows.Name") RETURNS jsonb LANGUAGE SQL IMMUTABLE STRICT AS 'SELECT NULL::jsonb';
+      ALTER TABLE "Rows.Name" ADD CONSTRAINT selected CHECK(to_jsonb("Rows.Name") IS NULL) NOT VALID;
+      CREATE FUNCTION accepted("Rows.Name") RETURNS bool LANGUAGE SQL IMMUTABLE STRICT AS 'SELECT ($1).n>=0';
+      ALTER TABLE "Rows.Name" ADD CONSTRAINT computed CHECK("Rows.Name".accepted) NOT VALID;
+      CREATE TABLE shadow(shadow int4,n int4,
+        CONSTRAINT scalar CHECK(to_jsonb(shadow) IS NOT NULL),
+        CONSTRAINT whole CHECK((pg_catalog.to_jsonb(shadow.*)->>'n')::int4>=0));
+      CREATE TABLE tableoid(n int4,CONSTRAINT system_value CHECK((to_jsonb(tableoid)->>'n')::int4>=0),CONSTRAINT whole_value CHECK((to_jsonb(tableoid.*)->>'n')::int4>=0));
+      CREATE TABLE system_parent(n int4,CONSTRAINT system_present CHECK(tableoid='"Oracle.Rows".system_parent'::regclass));
+      CREATE TABLE system_child(extra int4) INHERITS(system_parent);`,
+      'Oracle.Rows',
+    )
+    for (const [n, label, results] of [
+      [1, 'x', [true, true, true, true, true]],
+      [-1, 'x', [true, false, false, true, false]],
+      [null, null, [true, null, null, true, null]],
+    ] as const) {
+      const sql = ['old_builtin', 'qualified', 'expanded', 'selected', 'computed']
+          .map(
+            (c, i) => oracles.expression('Oracle.Rows.Rows.Name.' + c, 'candidate') + ' AS c' + i,
+          )
+          .join(','),
+        result = (
+          await pg.query<Record<string, boolean | null>>(
+            `SELECT ${sql} FROM (SELECT $1::int4 n,$2::text AS "__pgsid_row") candidate`,
+            [n, label],
+          )
+        ).rows[0]!
+      expect(Object.values(result)).toEqual(results)
+      const insert = pg.query('INSERT INTO "Rows.Name" VALUES($1,$2)', [n, label])
+      if (n !== null && n < 0) await expect(insert).rejects.toMatchObject({ code: '23514' })
+      else await insert
+    }
+    const scalar = oracles.expression('Oracle.Rows.shadow.scalar', 'candidate'),
+      whole = oracles.expression('Oracle.Rows.shadow.whole', 'candidate'),
+      result = (
+        await pg.query<{ scalar: boolean; whole: boolean }>(
+          `SELECT ${scalar} scalar,${whole} whole FROM(SELECT NULL::int4 shadow,1::int4 n) candidate`,
+        )
+      ).rows[0]!
+    expect(result).toEqual({ scalar: false, whole: true })
+    const system = oracles.expression('Oracle.Rows.tableoid.system_value', 'candidate'),
+      table = oracles.expression('Oracle.Rows.tableoid.whole_value', 'candidate'),
+      systemResult = (
+        await pg.query<{ system: boolean | null; whole: boolean }>(
+          `SELECT ${system} system,${table} whole FROM(SELECT -1::int4 n) candidate`,
+        )
+      ).rows[0]!
+    expect(systemResult).toEqual({ system: null, whole: false })
+    for (const [relation, expected] of [
+      ['system_parent', true],
+      ['system_child', false],
+    ] as const) {
+      const expr = oracles.expression('Oracle.Rows.' + relation + '.system_present', 'candidate')
+      expect(
+        (
+          await pg.query<{ value: boolean }>(
+            `SELECT ${expr} value FROM(SELECT 1::int4 n) candidate`,
+          )
+        ).rows[0]!.value,
+      ).toBe(expected)
+      const insert = pg.exec(`INSERT INTO ${relation}(n) VALUES(1)`)
+      if (expected) await insert
+      else await expect(insert).rejects.toMatchObject({ code: '23514' })
+    }
+  } finally {
+    await pg.close()
+  }
+}, 60_000)
+
 it('retains quoted CHECK row owners for star expansion and qualified fields in parsed oracle bodies', async () => {
   const pg = await PGlite.create()
   try {

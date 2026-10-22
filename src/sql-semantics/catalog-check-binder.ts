@@ -2321,6 +2321,46 @@ export function bindCatalogCheck(
     !!rowOwner &&
     ((names.length === 1 && names[0] === rowOwner.name) ||
       (names.length === 2 && names[0] === rowOwner.schema && names[1] === rowOwner.name))
+  const ownerRowReference = (node: unknown): boolean => {
+    const items = fields(fields(node)?.['ColumnRef'])?.['fields']
+    if (!Array.isArray(items)) return false
+    if (fields(items.at(-1))?.['A_Star']) return ownerMatches(strings(items.slice(0, -1)) ?? [])
+    const names = strings(items)
+    return !!(
+      names?.length === 1 &&
+      ownerMatches(names) &&
+      !['tableoid', 'ctid', 'xmin', 'cmin', 'xmax', 'cmax'].includes(names[0]!) &&
+      !columns.some((c) => c.name === names[0])
+    )
+  }
+  const bindOwnerRow = (): Bound => {
+    if (!rowOwner) return unknown
+    const name = [rowOwner.schema, rowOwner.name]
+        .map((s) => '"' + s.replaceAll('"', '""') + '"')
+        .join('.'),
+      type = catalogCompositeType(name, compositeGraph, rangeTypes),
+      profile = type ? compositeProfile(type) : null,
+      definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+    if (!type || !profile || !definition || definition.fields.length !== columns.length)
+      return unknown
+    const operands: EvalExpression[] = []
+    for (const [i, field] of definition.fields.entries()) {
+      if (field.name !== columns[i]?.name) return unknown
+      const arg = bind({ ColumnRef: { fields: [{ String: { sval: field.name } }] } })
+      if (!arg.value || arg.type !== compositeFieldType(profile, field.type)) return unknown
+      operands.push(arg.value)
+    }
+    return {
+      type,
+      value: {
+        kind: 'composite-constructor',
+        type,
+        wholeRow: true,
+        operands,
+        projectable: operands.map(() => true),
+      },
+    }
+  }
   const anonymousSourceRow = (node: unknown): Fields | null => {
     const wrapper = fields(node)
     if (wrapper?.['RowExpr']) return fields(wrapper['RowExpr'])
@@ -2527,9 +2567,11 @@ export function bindCatalogCheck(
             )
           if (items0.length === 1 && firstString === 0) {
             const name = fields(fields(items0[0])?.['String'])?.['sval'],
-              parent = bind(indirection['arg']),
               selected = rowFieldBindings?.get(indirection)
             if (typeof name !== 'string') return unknown
+            if (ownerRowReference(indirection['arg']) && columns.some((c) => c.name === name))
+              return bind({ ColumnRef: { fields: [{ String: { sval: name } }] } })
+            const parent = bind(indirection['arg'])
             if (hasField(parent, name)) return projectField(parent, name, indirection['arg'])
             return selected?.kind === 'function' &&
               (selected.names.length === 1 || selected.names[0] === 'pg_catalog')
@@ -4882,9 +4924,28 @@ export function bindCatalogCheck(
       }
       return unknown
     }
-    const names = strings(fields(wrapper['ColumnRef'])?.['fields'])
-    if (names && names.length > 1 && ownerMatches(names.slice(0, -1)))
-      return bind({ ColumnRef: { fields: [{ String: { sval: names.at(-1)! } }] } })
+    const reference = fields(wrapper['ColumnRef']),
+      names = strings(reference?.['fields'])
+    if (ownerRowReference(node)) return bindOwnerRow()
+    if (names && names.length > 1 && ownerMatches(names.slice(0, -1))) {
+      const name = names.at(-1)!
+      if (columns.some((c) => c.name === name))
+        return bind({ ColumnRef: { fields: [{ String: { sval: name } }] } })
+      const selected = rowFieldBindings?.get(reference)
+      return selected?.kind === 'function' &&
+        (selected.names.length === 1 || selected.names[0] === 'pg_catalog')
+        ? bindCall('function', selected.names.at(-1)!, [
+            {
+              ColumnRef: {
+                fields: [
+                  ...names.slice(0, -1).map((sval) => ({ String: { sval } })),
+                  { A_Star: {} },
+                ],
+              },
+            },
+          ])
+        : unknown
+    }
     if (names?.length === 1) {
       const column = columns.find((item) => item.name === names[0])
       const domain = column && domains.find((item) => item.oid === column.typeOid)
@@ -5396,6 +5457,23 @@ export function bindCatalogCheck(
         return bind({ TypeCast: { arg: args0[0], typeName: selected.typeName } })
       }
       if (names?.length === 1 && Array.isArray(args0) && args0.length === 1) {
+        if (
+          selected?.kind === 'field' &&
+          ownerRowReference(args0[0]) &&
+          columns.some((c) => c.name === selected.name)
+        ) {
+          if (
+            call['func_variadic'] ||
+            call['agg_order'] ||
+            call['agg_filter'] ||
+            call['agg_star'] ||
+            call['agg_distinct'] ||
+            call['over'] ||
+            call['agg_within_group']
+          )
+            return unknown
+          return bind({ ColumnRef: { fields: [{ String: { sval: selected.name } }] } })
+        }
         const parent = bind(args0[0])
         boundArgs = [parent]
         if (compositeProfile(parent.type ?? '') || anonymousRecordProfile(parent.type ?? '')) {

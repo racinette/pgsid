@@ -79,8 +79,22 @@ function alignRowFieldBindings(source: unknown, stored: unknown): Map<unknown, R
       selectedNames = names(selected?.['funcname']),
       fieldNames = names(field?.['indirection']),
       projectedNames = names(projected?.['indirection']),
+      reference = fields(a['ColumnRef']),
+      referenceNames = names(reference?.['fields']),
+      selectedColumn = names(fields(b['ColumnRef'])?.['fields']),
       cast = fields(b['TypeCast']),
       castNames = names(fields(cast?.['typeName'])?.['names'])
+    if (
+      call &&
+      sourceNames?.length === 1 &&
+      selectedColumn?.length === 1 &&
+      sourceNames[0] === selectedColumn[0] &&
+      Array.isArray(call['args']) &&
+      call['args'].length === 1
+    ) {
+      result.set(call, { kind: 'field', name: selectedColumn[0]! })
+      return
+    }
     if (
       call &&
       sourceNames?.at(-1) === castNames?.at(-1) &&
@@ -106,6 +120,17 @@ function alignRowFieldBindings(source: unknown, stored: unknown): Map<unknown, R
       return
     }
     if (selected && selectedNames) {
+      if (
+        reference &&
+        referenceNames &&
+        referenceNames.length > 1 &&
+        referenceNames.at(-1) === selectedNames.at(-1) &&
+        Array.isArray(selected['args']) &&
+        selected['args'].length === 1
+      ) {
+        result.set(reference, { kind: 'function', names: selectedNames })
+        return
+      }
       if (call && sourceNames?.at(-1) === selectedNames.at(-1)) {
         result.set(call, { kind: 'function', names: selectedNames })
         visit(call['args'], selected['args'])

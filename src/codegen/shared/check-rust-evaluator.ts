@@ -6319,6 +6319,7 @@ export function emitCheckRustEvaluator(
     ) {
       if (
         node.operand.kind === 'composite-constructor' &&
+        !node.operand.wholeRow &&
         !constantScalarExpression(node.operand)
       ) {
         const profile = compositeProfile(node.operand.type)
@@ -7081,6 +7082,15 @@ export function emitCheckRustEvaluator(
 
   type Emitted = { lines: string[]; name: string; inputs: Set<string> }
   const emit = (node: EvalBoolExpression): Emitted => {
+    const outer: string | null = arrayValidityScope
+    if (outer !== null && constantCheckExpression(node)) arrayValidityScope = null
+    try {
+      return emitWithValidity(node)
+    } finally {
+      arrayValidityScope = outer
+    }
+  }
+  const emitWithValidity = (node: EvalBoolExpression): Emitted => {
     if (node.kind === 'eval-test') {
       const operand = emit(node.operand)
       const tested = fresh('test_result')

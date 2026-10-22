@@ -242,3 +242,25 @@ CREATE TABLE inspection_inherited_values (
   CONSTRAINT ancestor_label CHECK(CASE WHEN bypass THEN true ELSE (reading::inspection_origins).label IS NOT DISTINCT FROM expected_label END),
   CONSTRAINT ancestor_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(reading::inspection_origins) IS NOT DISTINCT FROM expected_document END)
 );
+
+CREATE TABLE inspection_whole_rows (
+  score integer,
+  obsolete integer,
+  label text COLLATE "C",
+  minimum_score integer,
+  expected_present boolean,
+  bypass boolean NOT NULL
+);
+ALTER TABLE inspection_whole_rows DROP COLUMN obsolete;
+ALTER TABLE inspection_whole_rows ADD CONSTRAINT whole_score CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(inspection_whole_rows)->>'score')::integer>=minimum_score END);
+ALTER TABLE inspection_whole_rows ADD CONSTRAINT whole_present CHECK(CASE WHEN bypass THEN true ELSE (inspection_whole_rows IS NOT NULL) IS NOT DISTINCT FROM expected_present END);
+ALTER TABLE inspection_whole_rows ADD CONSTRAINT whole_datum CHECK(inspection_whole_rows.* IS DISTINCT FROM NULL);
+
+CREATE TABLE inspection_named_rows (
+  inspection_named_rows integer,
+  score integer,
+  minimum_score integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT named_scalar CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(inspection_named_rows)#>>'{}')::integer>=0 END),
+  CONSTRAINT named_whole CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(inspection_named_rows.*)->>'score')::integer>=minimum_score END)
+);
