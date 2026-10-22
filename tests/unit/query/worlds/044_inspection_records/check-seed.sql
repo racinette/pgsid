@@ -374,3 +374,26 @@ INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,exp
 INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'ok',2,true)::inspection_extensions,1,'ok','{}',false);
 -- name: AncestorBypassed
 INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'bad',-1,true)::inspection_extensions,999,'wrong','{}',true);
+
+-- name: WholeRowNullFields
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (NULL,NULL,NULL,false,false);
+-- name: WholeRowKnown
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (3,'ok',1,true,false);
+-- name: WholeRowMissingLabel
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (3,NULL,1,false,false);
+-- name: WholeRowLowScore
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (-1,'bad',1,true,false);
+-- name: WholeRowWrongPresence
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (3,'ok',1,false,false);
+-- name: WholeRowBypassed
+INSERT INTO inspection_whole_rows(score,label,minimum_score,expected_present,bypass) VALUES (-1,NULL,999,true,true);
+-- name: NamedRowNullColumn
+INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (NULL,3,1,false);
+-- name: NamedRowKnown
+INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (2,3,1,false);
+-- name: NamedRowNegativeColumn
+INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (-1,3,1,false);
+-- name: NamedRowLowScore
+INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (2,3,4,false);
+-- name: NamedRowBypassed
+INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (-1,3,999,true);

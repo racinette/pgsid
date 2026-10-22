@@ -43,6 +43,7 @@ export type EvalExpression =
       kind: 'composite-constructor'
       type: ScalarType
       anonymousIdentity?: string
+      wholeRow?: true
       operands: readonly EvalExpression[]
       projectable: readonly (boolean | null)[]
     }

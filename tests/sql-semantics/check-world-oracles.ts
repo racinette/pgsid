@@ -24,7 +24,10 @@ export class WorldCheckOracles {
     const oracle = this.functions.get(identity)
     if (!oracle) throw new Error(`Missing parsed world CHECK oracle: ${identity}`)
     const row = oracle.columns.map((column) => `${candidate}.${quote(column)}`).join(',')
-    return `${oracle.name}(ROW(${row})::${quote(oracle.schema)}.${quote(oracle.relation)})`
+    const target = `${quote(oracle.ownerSchema)}.${quote(oracle.ownerRelation)}`
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "''")
+    return `${oracle.name}(ROW(${row})::${quote(oracle.schema)}.${quote(oracle.relation)},E'${target}'::pg_catalog.regclass::pg_catalog.oid)`
   }
 
   async load(pg: PGlite, source: string, schema: string): Promise<void> {
@@ -44,7 +47,7 @@ export class WorldCheckOracles {
     for (const raw of parsed.stmts ?? []) {
       const statement = raw.stmt!
       await pg.exec(deparseWorldSql(statement))
-      const checks: { schema: string; relation: string; name: string; expression: string }[] = []
+      const checks: { schema: string; relation: string; name: string; expression: Node }[] = []
       const capture = (
         relation: { relname?: string; schemaname?: string },
         nodes: readonly Node[],
@@ -62,7 +65,7 @@ export class WorldCheckOracles {
               schema: relation.schemaname ?? schema,
               relation: relation.relname,
               name: node.Constraint.conname,
-              expression: deparseWorldSql(node.Constraint.raw_expr),
+              expression: structuredClone(node.Constraint.raw_expr),
             })
         }
       }
@@ -100,12 +103,65 @@ export class WorldCheckOracles {
             [`${quote(check.schema)}.${quote(check.relation)}`],
           )
         ).rows.map((column) => column.name)
+        const fields = (x: unknown): Record<string, unknown> | null =>
+          x !== null && typeof x === 'object' && !Array.isArray(x)
+            ? (x as Record<string, unknown>)
+            : null
+        const rewriteRows = (node: unknown, expand = false): unknown => {
+          if (Array.isArray(node)) return node.map((n) => rewriteRows(n, expand))
+          const wrapper = fields(node)
+          if (!wrapper) return node
+          const ref = fields(wrapper['ColumnRef']),
+            items = ref?.['fields']
+          if (Array.isArray(items)) {
+            const star = !!fields(items.at(-1))?.['A_Star'],
+              names = items.map((n) => fields(fields(n)?.['String'])?.['sval']),
+              qualifier = names.slice(0, -1),
+              own = (ns: unknown[]) =>
+                (ns.length === 1 && ns[0] === check.relation) ||
+                (ns.length === 2 && ns[0] === check.schema && ns[1] === check.relation)
+            if (
+              !star &&
+              names.at(-1) === 'tableoid' &&
+              !columns.includes('tableoid') &&
+              (names.length === 1 || own(qualifier))
+            )
+              return { ParamRef: { number: 2 } }
+            if (
+              (star && own(qualifier) && !expand) ||
+              (!star &&
+                names.length === 1 &&
+                names[0] === check.relation &&
+                !['tableoid', 'ctid', 'xmin', 'cmin', 'xmax', 'cmax'].includes(check.relation) &&
+                !columns.includes(check.relation))
+            )
+              return { ParamRef: { number: 1 } }
+            if (own(qualifier)) {
+              if (!star && !columns.includes(names.at(-1) as string))
+                return {
+                  A_Indirection: { arg: { ParamRef: { number: 1 } }, indirection: [items.at(-1)] },
+                }
+              return {
+                ColumnRef: { ...ref, fields: [{ String: { sval: check.relation } }, items.at(-1)] },
+              }
+            }
+          }
+          const row = fields(wrapper['RowExpr'])
+          if (row)
+            return {
+              RowExpr: Object.fromEntries(
+                Object.entries(row).map(([k, v]) => [k, rewriteRows(v, k === 'args')]),
+              ),
+            }
+          return Object.fromEntries(Object.entries(wrapper).map(([k, v]) => [k, rewriteRows(v)]))
+        }
+        const expression = deparseWorldSql(rewriteRows(check.expression) as Node)
         // SQL-standard bodies retain parsed constants across later domain changes.
         // Materialization prevents argument values from pruning earlier input errors.
-        await pg.exec(`CREATE FUNCTION ${name}(__pgsid_row ${quote(check.schema)}.${quote(check.relation)})
+        await pg.exec(`CREATE FUNCTION ${name}(__pgsid_row ${quote(check.schema)}.${quote(check.relation)},__pgsid_tableoid pg_catalog.oid)
           RETURNS boolean LANGUAGE SQL BEGIN ATOMIC
-            WITH candidate AS MATERIALIZED (SELECT (__pgsid_row).*)
-            SELECT (${check.expression})::boolean FROM candidate AS ${quote(check.relation)};
+            WITH candidate AS MATERIALIZED (SELECT ($1).*)
+            SELECT (${expression})::boolean FROM candidate AS ${quote(check.relation)};
           END`)
         this.functions.set(`${check.schema}.${check.relation}.${check.name}`, {
           name,
