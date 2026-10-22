@@ -84,8 +84,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Expand temporal text parsing in bounded, independently testable slices.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter
       conversion separately from already SQL-coerced row inputs.
-- [ ] Verify casts through catalog links, including domains and mixed-type
-      expressions, without selecting overloads by implementation availability.
+- [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
 
 Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity,
 unsupported forms remain distinguishable, and the public input contract is
@@ -261,7 +260,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit root record arrays, captured comparisons/searches/sorting/quantifiers, dimensions/subscripts, owned composition, shared source/stored text I/O and whole-array domains. Validate compiled record fields before public copies, preserve partial cells and raw parameter deferral, and verify native/Rust/Go/TypeScript and world INSERT parity.
 - [x] Admit composite-domain element arrays and nested domain/array containers through captured chains and base record support; retain nominal headers, physical record payloads, constructors, casts, source/stored provenance, owned public adapters and reached callback/NULL/error behavior. Capture declared container dependencies across schema filters without OIDs; verify native/Rust/Go/TypeScript and world INSERT parity.
 - [x] Admit captured composite range/multirange SQL and public rows, constructors, endpoints, comparisons, recursive containers and record text I/O. Capture child range profiles through composite fields, domains, arrays and multiranges with stable qualified identities. Preserve compiled contexts, enum ordinals, snapshots, partial states, eager source versus stored preparation, subtype-domain checks and native/Rust/Go/TypeScript world INSERT parity.
-- [ ] Complete JSON record conversion and record binary/hash boundaries; audit recursive container composition and preserve explicit catalog/context requirements.
+- [x] Convert captured named records through JSON/JSONB scalar, row and argument builders, nested arrays/domains/ranges, constructors and text recovery. Preserve field names, raw layout, pretty flags, enum labels and reached custom-cast requirements, record-key errors, strict/partial states and owned snapshots with native/Rust/Go/TypeScript public and world INSERT parity.
+- [ ] Complete anonymous ROW JSON descriptors and record binary/hash boundaries; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.

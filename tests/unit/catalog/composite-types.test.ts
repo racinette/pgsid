@@ -22,6 +22,44 @@ const oidKey = (value: unknown): boolean =>
   typeof value === 'object' &&
   Object.entries(value).some(([key, child]) => /oid/i.test(key) || oidKey(child))
 
+it('captures qualified JSON casts on closed record dependencies without retaining deployment identities', async () => {
+  const first = await PGlite.create(),
+    second = await PGlite.create()
+  const ddl = `CREATE SCHEMA "JSON.Types";CREATE SCHEMA selected;
+CREATE TYPE "JSON.Types".phase AS ENUM('z','a');
+CREATE FUNCTION "JSON.Types"."as JSON"("JSON.Types".phase) RETURNS json LANGUAGE sql IMMUTABLE STRICT AS $$SELECT to_json($1::text)$$;
+CREATE CAST("JSON.Types".phase AS json) WITH FUNCTION "JSON.Types"."as JSON"("JSON.Types".phase);
+CREATE DOMAIN "JSON.Types".label AS "JSON.Types".phase;
+CREATE TYPE selected.sample AS(item "JSON.Types".label,items "JSON.Types".phase[]);`
+  try {
+    await first.exec(ddl)
+    await second.exec(
+      `CREATE TYPE shifted AS ENUM('x');${ddl}SET search_path=pg_catalog;SET quote_all_identifiers=on;`,
+    )
+    const left = await readCatalogCompositeTypes(first, ['selected']),
+      right = await readCatalogCompositeTypes(second, ['selected'])
+    expect(left).toEqual(right)
+    expect(oidKey(left)).toBe(false)
+    const phase = left.definitions.find((n) => n.identity === '"JSON.Types".phase')!
+    expect(phase.jsonCast).toBe('function:["JSON.Types","as JSON"]("JSON.Types".phase)')
+    expect(left.definitions.find((n) => n.identity === '"JSON.Types".label')!.jsonCast).toBeNull()
+    expect(left.definitions.find((n) => n.identity === '"JSON.Types"._phase')!.jsonCast).toBeNull()
+    phase.jsonCast = null
+    expect(
+      right.definitions.find((n) => n.identity === '"JSON.Types".phase')!.jsonCast,
+    ).not.toBeNull()
+    await first.exec('DROP CAST("JSON.Types".phase AS json)')
+    expect(
+      (await readCatalogCompositeTypes(first, ['selected'])).definitions.find(
+        (n) => n.identity === '"JSON.Types".phase',
+      )!.jsonCast,
+    ).toBeNull()
+  } finally {
+    await first.close()
+    await second.close()
+  }
+}, 60_000)
+
 it('captures table, view and standalone composite roots with closed field dependencies and no deployment OIDs', async () => {
   const pg = await PGlite.create()
   try {

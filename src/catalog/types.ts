@@ -639,6 +639,7 @@ export interface CompositeTypeDefinition {
   output: string | null
   receive: string | null
   send: string | null
+  jsonCast?: string | null
   comparison?: {
     btreeClass: string | null
     hashClass: string | null

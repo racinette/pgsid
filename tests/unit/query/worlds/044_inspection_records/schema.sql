@@ -146,3 +146,13 @@ CREATE TABLE inspection_bands (
   CONSTRAINT band_envelope CHECK (CASE WHEN bypass THEN true ELSE inspection_envelope(ROW(reading_band)::inspection_bounds,NULL) @> ROW(previous_band)::inspection_bounds END),
   CONSTRAINT envelope_output CHECK (CASE WHEN bypass THEN true ELSE length(inspection_envelope(ROW(reading_band)::inspection_bounds,NULL)::text)>0 END)
 );
+
+CREATE TABLE inspection_documents (
+  packet inspection_packet,
+  expected_text text,
+  expected_document jsonb,
+  pretty boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT document_text CHECK (CASE WHEN bypass THEN true ELSE row_to_json(packet,pretty)::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT document_normalized CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(packet) IS NOT DISTINCT FROM expected_document END)
+);
