@@ -62,6 +62,12 @@ pub fn append_composite_field(input: CompositeValue, field: ArrayElement) -> Com
     input
 }
 
+pub fn prepare_composite_row_coercion(input: CompositeValue, type_name: &str) -> CompositeValue {
+    let checked = composite_from_coerced_value(input);
+    if let CompositeValue::Value(_) = checked { return make_composite_fields(type_name); };
+    checked
+}
+
 pub fn composite_field_count(input: CompositeValue) -> Int4Value {
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return Int4Value::Error(error); };

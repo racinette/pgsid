@@ -32,6 +32,12 @@ export type EvalExpression =
     }
   | { kind: 'composite-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'composite-field'; type: ScalarType; operand: EvalExpression; index: number }
+  | {
+      kind: 'composite-coerce'
+      type: ScalarType
+      operand: EvalExpression
+      mapping: readonly number[]
+    }
   | { kind: 'composite-null'; type: ScalarType }
   | {
       kind: 'composite-constructor'
@@ -592,6 +598,7 @@ export function emitEvalExpression<Ast>(
     if (
       node.kind === 'uncertain' ||
       node.kind === 'composite-field' ||
+      node.kind === 'composite-coerce' ||
       node.kind === 'text-to-composite' ||
       node.kind === 'composite-to-text' ||
       node.kind === 'composite-null' ||

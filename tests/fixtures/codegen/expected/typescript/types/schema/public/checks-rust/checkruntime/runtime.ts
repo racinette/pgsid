@@ -8659,6 +8659,15 @@ export function appendCompositeField(input: CompositeValue, field: ArrayElement)
     }
     return input;
 }
+export function prepareCompositeRowCoercion(input: CompositeValue, typeName: string): CompositeValue {
+    input = copyCompositeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Value") {
+        return makeCompositeFields(typeName);
+    }
+    return checked;
+}
 export function compositeFieldCount(input: CompositeValue): Int4Value {
     input = copyCompositeValue(input);
     const checked: CompositeValue = compositeFromCoercedValue(input);

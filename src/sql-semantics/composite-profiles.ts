@@ -108,6 +108,7 @@ function closure(identity: string, graph: CompositeTypeGraph): CompositeTypeGrap
       n.element,
       n.subtype,
       n.member,
+      ...(n.parents ?? []),
       ...n.fields.map((f) => f.type),
     ])
       if (ref && !visit(ref)) return false
@@ -145,6 +146,30 @@ export function compositeProfile(type: string): CompositeProfile | null {
   } catch {
     return null
   }
+}
+
+export function compositeAncestorMapping(source: string, target: string): number[] | null {
+  const from = compositeProfile(source),
+    to = compositeProfile(target)
+  if (!from || !to || from.identity === to.identity) return null
+  const nodes = new Map(from.graph.definitions.map((n) => [n.identity, n])),
+    seen = new Set<string>()
+  const inherits = (identity: string): boolean => {
+    if (identity === to.identity) return true
+    if (seen.has(identity)) return false
+    seen.add(identity)
+    return nodes.get(identity)?.parents?.some(inherits) ?? false
+  }
+  if (!inherits(from.identity)) return null
+  const child = nodes.get(from.identity),
+    parent = to.graph.definitions.find((n) => n.identity === to.identity)
+  if (!child || !parent) return null
+  const mapping = parent.fields.map((f) =>
+    child.fields.findIndex(
+      (c) => c.name === f.name && c.type === f.type && c.typeMod === f.typeMod,
+    ),
+  )
+  return mapping.every((i) => i >= 0) ? mapping : null
 }
 
 export function compositeContainerProfile(type: string): CompositeProfile | null {

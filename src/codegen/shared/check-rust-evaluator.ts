@@ -5958,6 +5958,20 @@ export function emitCheckRustEvaluator(
         type: node.type,
       }
     }
+    if (node.kind === 'composite-coerce') {
+      const profile = compositeProfile(node.type)
+      if (!profile) throw new UnsupportedCheckRustExpression('Missing ancestor record profile')
+      const operand = emitScalar(node.operand, bindings, used)
+      let value = bind(
+        `prepare_composite_row_coercion(${ownedOperand(operand)},${rustStringLiteral(profile.identity)})`,
+      )
+      for (const index of node.mapping) {
+        const position = bind(`make_int4_value(${index})`),
+          cell = bind(`composite_field_at(${ownedOperand(operand)},${position})`)
+        value = bind(`append_composite_field(${value},${cell})`)
+      }
+      return { name: value, type: node.type }
+    }
     if (node.kind === 'composite-field') {
       if (
         node.operand.kind === 'composite-constructor' &&

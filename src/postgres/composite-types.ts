@@ -49,12 +49,18 @@ export async function readCatalogCompositeTypes(
         UNION SELECT r.rngsubtype UNION SELECT r.rngmultitypid UNION SELECT m.rngtypid
         UNION SELECT a.atttypid FROM pg_catalog.pg_attribute a
           WHERE t.typtype='c' AND a.attrelid=t.typrelid AND a.attnum>0 AND NOT a.attisdropped
+        UNION SELECT p.reltype FROM pg_catalog.pg_inherits i
+          JOIN pg_catalog.pg_class p ON p.oid=i.inhparent
+          WHERE t.typtype='c' AND i.inhrelid=t.typrelid
       ) child WHERE child.type IS NOT NULL AND child.type<>0
     ) SELECT t.oid IN(SELECT type FROM roots) root,
       ${typeIdentity('t.oid')} identity,n.nspname AS schema,t.typname AS name,t.typtype AS kind,
       (SELECT ${identifier('ccn.nspname')}||'.'||${identifier('cc.collname')} FROM pg_catalog.pg_collation cc
         JOIN pg_catalog.pg_namespace ccn ON ccn.oid=cc.collnamespace WHERE cc.oid=t.typcollation) AS "comparisonCollation",
       c.relkind AS "relationKind",c.relnatts::integer AS "attributeCount",${typeIdentity('t.typarray')} AS array,
+      ARRAY(SELECT ${typeIdentity('p.reltype')} FROM pg_catalog.pg_inherits i
+        JOIN pg_catalog.pg_class p ON p.oid=i.inhparent
+        WHERE t.typtype='c' AND i.inhrelid=t.typrelid ORDER BY i.inhseqno) AS parents,
       ${typeIdentity('t.typbasetype')} AS base,t.typtypmod AS "baseTypeMod",t.typnotnull AS "notNull",
       ${typeIdentity('e.oid')} AS element,${typeIdentity('r.rngsubtype')} AS subtype,
       ${typeIdentity('m.rngtypid')} AS member,
@@ -94,33 +100,36 @@ export async function readCatalogCompositeTypes(
   )
   return {
     roots: rows.filter((row) => row.root).map((row) => row.identity),
-    definitions: rows.map(({ root: _root, comparisonCollation: _collation, ...definition }) => {
-      const support = comparisons.get(definition.identity)!
-      if (
-        support.equalityAvailable === undefined ||
-        support.comparisonAvailable === undefined ||
-        support.hashAvailable === undefined ||
-        support.hashExtendedAvailable === undefined
-      )
-        throw new Error(
-          'Composite type-cache support availability was not captured: ' + definition.identity,
+    definitions: rows.map(
+      ({ root: _root, comparisonCollation: _collation, parents, ...definition }) => {
+        const support = comparisons.get(definition.identity)!
+        if (
+          support.equalityAvailable === undefined ||
+          support.comparisonAvailable === undefined ||
+          support.hashAvailable === undefined ||
+          support.hashExtendedAvailable === undefined
         )
-      return {
-        ...definition,
-        comparison: {
-          btreeClass: support.btreeClass,
-          hashClass: support.hashClass,
-          equality: support.equality,
-          equalityImplementation: support.equalityImplementation,
-          comparator: support.comparator,
-          equalityAvailable: support.equalityAvailable,
-          comparisonAvailable: support.comparisonAvailable,
-          hash: support.hash,
-          hashExtended: support.hashExtended,
-          hashAvailable: support.hashAvailable,
-          hashExtendedAvailable: support.hashExtendedAvailable,
-        },
-      }
-    }),
+          throw new Error(
+            'Composite type-cache support availability was not captured: ' + definition.identity,
+          )
+        return {
+          ...definition,
+          ...(parents?.length ? { parents } : {}),
+          comparison: {
+            btreeClass: support.btreeClass,
+            hashClass: support.hashClass,
+            equality: support.equality,
+            equalityImplementation: support.equalityImplementation,
+            comparator: support.comparator,
+            equalityAvailable: support.equalityAvailable,
+            comparisonAvailable: support.comparisonAvailable,
+            hash: support.hash,
+            hashExtended: support.hashExtended,
+            hashAvailable: support.hashAvailable,
+            hashExtendedAvailable: support.hashExtendedAvailable,
+          },
+        }
+      },
+    ),
   }
 }
