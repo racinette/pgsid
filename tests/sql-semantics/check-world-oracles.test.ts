@@ -3,6 +3,45 @@ import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 
+it('retains quoted CHECK row owners for star expansion and qualified fields in parsed oracle bodies', async () => {
+  const pg = await PGlite.create()
+  try {
+    const oracles = new WorldCheckOracles()
+    await pg.exec('CREATE SCHEMA "Oracle.Owner";SET search_path="Oracle.Owner",public')
+    await oracles.load(
+      pg,
+      `CREATE TABLE "Rows.Name"(n int4,expected int4,bypass bool,
+      CONSTRAINT expanded CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(ROW("Rows.Name".*))->>'f1')::int4 IS NOT DISTINCT FROM expected END),
+      CONSTRAINT qualified CHECK(CASE WHEN bypass THEN true ELSE "Rows.Name".n>=0 END));`,
+      'Oracle.Owner',
+    )
+    for (const [n, expected, bypass, results] of [
+      [1, 1, false, [true, true]],
+      [1, 2, false, [false, true]],
+      [-1, -1, false, [true, false]],
+      [null, null, false, [true, null]],
+      [-1, 2, true, [true, true]],
+    ] as const) {
+      const expressions = ['expanded', 'qualified'].map((name) =>
+          oracles.expression('Oracle.Owner.Rows.Name.' + name, 'candidate'),
+        ),
+        row = (
+          await pg.query<Record<string, boolean | null>>(
+            `SELECT ${expressions.map((e, i) => e + ' AS result' + i).join(',')} FROM (SELECT $1::int4 n,$2::int4 expected,$3::bool bypass) candidate`,
+            [n, expected, bypass],
+          )
+        ).rows[0]!
+      expect(Object.values(row)).toEqual(results)
+      const insert = pg.query('INSERT INTO "Rows.Name" VALUES($1,$2,$3)', [n, expected, bypass])
+      if (results.some((v) => v === false))
+        await expect(insert).rejects.toMatchObject({ code: '23514' })
+      else await insert
+    }
+  } finally {
+    await pg.close()
+  }
+})
+
 it('retains CHECK constants parsed before domain changes in table and column constraints and ALTER additions', async () => {
   const pg = await PGlite.create()
   try {

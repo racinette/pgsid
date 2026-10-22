@@ -105,7 +105,7 @@ export class WorldCheckOracles {
         await pg.exec(`CREATE FUNCTION ${name}(__pgsid_row ${quote(check.schema)}.${quote(check.relation)})
           RETURNS boolean LANGUAGE SQL BEGIN ATOMIC
             WITH candidate AS MATERIALIZED (SELECT (__pgsid_row).*)
-            SELECT (${check.expression})::boolean FROM candidate;
+            SELECT (${check.expression})::boolean FROM candidate AS ${quote(check.relation)};
           END`)
         this.functions.set(`${check.schema}.${check.relation}.${check.name}`, {
           name,

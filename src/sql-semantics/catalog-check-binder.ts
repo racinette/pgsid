@@ -598,6 +598,7 @@ type Bound = {
   enum?: EnumInfo
   enumDomain?: number
   nominalDomain?: string
+  unknownField?: true
 }
 
 const nominalScalarType = (arg: Bound): ScalarType | null => {
@@ -1519,6 +1520,7 @@ const candidate = (
 }
 
 const commonType = (args: readonly Bound[]): ScalarType | null => {
+  if (args.some((arg) => arg.unknownField)) return null
   let types = args.map(boundType).filter((type): type is ScalarType => type !== null)
   if (!types.length) return 'pg_catalog.text'
   if (types.every((type) => type === types[0])) return types[0]!
@@ -1710,7 +1712,10 @@ const comparisonCandidate = (
   kind: 'operator' | 'function' = 'operator',
   predicate = true,
 ): ResolvedCallable | null => {
-  if ((predicate && args.length !== 2) || args.some((arg) => !arg.value && !arg.literal))
+  if (
+    (predicate && args.length !== 2) ||
+    args.some((arg) => arg.unknownField || (!arg.value && !arg.literal))
+  )
     return null
   let types = args.map(boundType)
   if (types.every((type) => type === null)) {
@@ -1944,6 +1949,7 @@ export function bindCatalogCheck(
   preparedArrayDomainInput?: string,
   rangeTypes: readonly RangeTypeInfo[] = [],
   compositeGraph?: CompositeTypeGraph,
+  rowOwner?: { schema: string; name: string },
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -2207,6 +2213,17 @@ export function bindCatalogCheck(
     const args = members.map((member) =>
       fields(fields(member)?.['A_ArrayExpr']) ? bindArray(member, target) : bind(member),
     )
+    if (
+      args.some((arg) => arg.unknownField) &&
+      (!target ||
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(arrayElementBaseType(target.type)))
+    )
+      return unknown
     const multidimensional =
       args.some((arg) => arg.nominalDomain === undefined && arg.type?.startsWith('array:')) ||
       members.some((member) => fields(fields(member)?.['A_ArrayExpr']))
@@ -2293,13 +2310,138 @@ export function bindCatalogCheck(
     type.startsWith('array:enum:')
       ? enums.find((item) => enumType(item) === type.slice(6))
       : args.find((arg) => arg.enum)?.enum
+  const ownerMatches = (names: readonly string[]): boolean =>
+    !!rowOwner &&
+    ((names.length === 1 && names[0] === rowOwner.name) ||
+      (names.length === 2 && names[0] === rowOwner.schema && names[1] === rowOwner.name))
+  const anonymousSourceRow = (node: unknown): Fields | null => {
+    const wrapper = fields(node)
+    if (wrapper?.['RowExpr']) return fields(wrapper['RowExpr'])
+    const cast = fields(wrapper?.['TypeCast'])
+    return cast ? anonymousSourceRow(cast['arg']) : null
+  }
+  const expandRowArguments = (args: readonly unknown[]): unknown[] | null => {
+    const expanded: unknown[] = []
+    for (const arg of args) {
+      const wrapper = fields(arg),
+        column = fields(wrapper?.['ColumnRef']),
+        names = column?.['fields']
+      if (Array.isArray(names) && fields(names.at(-1))?.['A_Star']) {
+        const qualifier = strings(names.slice(0, -1))
+        if (!qualifier || !ownerMatches(qualifier)) return null
+        expanded.push(
+          ...columns.map((c) => ({ ColumnRef: { fields: [{ String: { sval: c.name } }] } })),
+        )
+        continue
+      }
+      const indirect = fields(wrapper?.['A_Indirection']),
+        items = indirect?.['indirection']
+      if (!Array.isArray(items) || !fields(items.at(-1))?.['A_Star']) {
+        expanded.push(arg)
+        continue
+      }
+      const source =
+          items.length === 1
+            ? indirect!['arg']
+            : { A_Indirection: { arg: indirect!['arg'], indirection: items.slice(0, -1) } },
+        parent = bind(source),
+        profile = parent.type ? compositeProfile(parent.type) : null,
+        root = profile?.graph.definitions.find((n) => n.identity === profile.identity),
+        anonymous = anonymousRecordProfile(parent.type ?? '')
+      const fields0 =
+        root?.fields.map((f) => f.name) ??
+        (parent.value?.kind === 'composite-constructor' && anonymous?.length === 1
+          ? anonymous[0]!.fields.map((_, i) => 'f' + (i + 1))
+          : null)
+      if (!fields0) return null
+      expanded.push(
+        ...fields0.map((name) => ({
+          A_Indirection: { arg: source, indirection: [{ String: { sval: name } }] },
+        })),
+      )
+    }
+    return expanded
+  }
+  const projectField = (parent: Bound, name: string, source: unknown): Bound => {
+    const anonymous = anonymousRecordProfile(parent.type ?? '')
+    if (anonymous) {
+      if (
+        anonymous.length !== 1 ||
+        parent.value?.kind !== 'composite-constructor' ||
+        !/^f[1-9][0-9]*$/.test(name)
+      )
+        return unknown
+      const index = Number(name.slice(1)) - 1,
+        descriptor = anonymous[0]!.fields[index],
+        row = anonymousSourceRow(source),
+        raw = row?.['args'] ?? [],
+        args = Array.isArray(raw) ? expandRowArguments(raw) : null
+      if (!descriptor || !args || index >= args.length) return unknown
+      const selected = bind(args[index]),
+        type = arrayElementBaseType(descriptor.type) as ScalarType,
+        domain = domainElementDefinition(descriptor.type)
+      return {
+        type,
+        value: { kind: 'composite-field', type, operand: parent.value, index },
+        ...(selected.collation ? { collation: selected.collation } : {}),
+        ...(descriptor.enum
+          ? { enum: { ...descriptor.enum, values: [...descriptor.enum.values] } }
+          : {}),
+        ...(domain ? { nominalDomain: JSON.stringify([domain.schema, domain.name]) } : {}),
+        ...(selected.enumDomain !== undefined ? { enumDomain: selected.enumDomain } : {}),
+        ...(descriptor.unknown ? { unknownField: true as const } : {}),
+      }
+    }
+    const profile = parent.type ? compositeProfile(parent.type) : null
+    const root = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+    const index = root?.fields.findIndex((f) => f.name === name) ?? -1,
+      field = root?.fields[index]
+    const type = profile && field ? compositeFieldType(profile, field.type) : null
+    if (!parent.value || !type || !profile || !field) return unknown
+    const declared = profile.graph.definitions.find((n) => n.identity === field.type),
+      physical = compositePhysicalType(profile, field.type)
+    const definition =
+      physical?.kind === 'e'
+        ? {
+            schema: physical.schema,
+            name: physical.name,
+            values: physical.enumLabels ?? [],
+          }
+        : undefined
+    return {
+      type,
+      value: { kind: 'composite-field', type, operand: parent.value, index },
+      ...(definition ? { enum: definition } : {}),
+      ...(declared?.kind === 'd'
+        ? { nominalDomain: JSON.stringify([declared.schema, declared.name]) }
+        : {}),
+      ...(field.collation
+        ? {
+            collation: {
+              kind: field.collationIsC
+                ? 'C'
+                : field.collationDeterministic
+                  ? 'deterministic'
+                  : 'other',
+              identity: field.collationIsC
+                ? 'C'
+                : field.collationIsDefault
+                  ? 'default'
+                  : field.collation,
+              ...(field.collationIsDefault ? { default: true as const } : {}),
+            },
+          }
+        : {}),
+    }
+  }
   const bind = (node: unknown, expectedType?: ScalarType, implicitDomainInput?: boolean): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
     const row = fields(wrapper['RowExpr'])
     if (row) {
-      const args = row['args'] ?? []
-      if (!Array.isArray(args)) return unknown
+      const raw = row['args'] ?? []
+      const args = Array.isArray(raw) ? expandRowArguments(raw) : null
+      if (!args) return unknown
       const descriptors: AnonymousRecordField[] = [],
         operands: EvalExpression[] = []
       for (const arg of args) {
@@ -2313,7 +2455,7 @@ export function bindCatalogCheck(
           ...(bound.collation
             ? { collation: bound.collation.default ? ('default' as const) : bound.collation.kind }
             : {}),
-          ...(boundType(bound) === null ? { unknown: true as const } : {}),
+          ...(boundType(bound) === null || bound.unknownField ? { unknown: true as const } : {}),
           ...(definition
             ? {
                 enum: {
@@ -2364,49 +2506,10 @@ export function bindCatalogCheck(
               implicitDomainInput,
             )
           if (items0.length === 1 && firstString === 0) {
-            const parent = bind(indirection['arg']),
-              profile = parent.type ? compositeProfile(parent.type) : null
             const name = fields(fields(items0[0])?.['String'])?.['sval']
-            const root = profile?.graph.definitions.find((n) => n.identity === profile.identity)
-            const index = root?.fields.findIndex((f) => f.name === name) ?? -1,
-              field = root?.fields[index]
-            const type = profile && field ? compositeFieldType(profile, field.type) : null
-            if (!parent.value || !type || !profile || !field) return unknown
-            const declared = profile.graph.definitions.find((n) => n.identity === field.type),
-              physical = compositePhysicalType(profile, field.type)
-            const definition =
-              physical?.kind === 'e'
-                ? {
-                    schema: physical.schema,
-                    name: physical.name,
-                    values: physical.enumLabels ?? [],
-                  }
-                : undefined
-            return {
-              type,
-              value: { kind: 'composite-field', type, operand: parent.value, index },
-              ...(definition ? { enum: definition } : {}),
-              ...(declared?.kind === 'd'
-                ? { nominalDomain: JSON.stringify([declared.schema, declared.name]) }
-                : {}),
-              ...(field.collation
-                ? {
-                    collation: {
-                      kind: field.collationIsC
-                        ? 'C'
-                        : field.collationDeterministic
-                          ? 'deterministic'
-                          : 'other',
-                      identity: field.collationIsC
-                        ? 'C'
-                        : field.collationIsDefault
-                          ? 'default'
-                          : field.collation,
-                      ...(field.collationIsDefault ? { default: true as const } : {}),
-                    },
-                  }
-                : {}),
-            }
+            return typeof name === 'string'
+              ? projectField(bind(indirection['arg']), name, indirection['arg'])
+              : unknown
           }
         }
       }
@@ -2584,6 +2687,7 @@ export function bindCatalogCheck(
       const nodes = coalesce['args']
       if (!Array.isArray(nodes) || !nodes.length) return unknown
       const args = nodes.map((arg) => bind(arg))
+      if (args.some((arg) => arg.unknownField)) return unknown
       if (args.some((arg) => !arg.value && !arg.literal)) return unknown
       const coercedType = args.some(
         (arg) =>
@@ -2661,6 +2765,7 @@ export function bindCatalogCheck(
         ? bind(caseExpression['defresult'])
         : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
       const arms = [...results, otherwise]
+      if (arms.some((arm) => arm.unknownField)) return unknown
       const coercedType = arms.some(
         (arm) =>
           arm.type?.startsWith('array:') ||
@@ -2807,12 +2912,31 @@ export function bindCatalogCheck(
       let castType = fields(cast['typeName'])
       let names = strings(castType?.['names'])
       let bounds = castType?.['arrayBounds']
+      const castOperand = (): Bound => {
+        const operand = bind(cast['arg'])
+        if (!operand.unknownField) return operand
+        const name = names?.map((part) => '"' + part.replaceAll('"', '""') + '"').join('.'),
+          target =
+            (name ? catalogBaseScalarType(name, undefined, domains, rangeTypes) : null) ??
+            (names && (names.length === 1 || names[0] === 'pg_catalog')
+              ? catalogScalarType(names.at(-1)!)
+              : null)
+        return (!Array.isArray(bounds) || bounds.length === 0) &&
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(target ?? '')
+          ? { ...operand, unknownField: undefined }
+          : unknown
+      }
       if (
         names?.at(-1) === 'record' &&
         (names.length === 1 || names[0] === 'pg_catalog') &&
         (!Array.isArray(bounds) || bounds.length === 0)
       ) {
-        const operand = bind(cast['arg'])
+        const operand = castOperand()
         if (operand.literal?.kind === 'null') {
           const type = 'anonymous-record:[]' as const
           return { type, value: { kind: 'composite-null', type } }
@@ -2857,7 +2981,7 @@ export function bindCatalogCheck(
               name: elementTypeName(compositeElement),
             })
           const type = arrayType(compositeElement),
-            operand = bind(cast['arg'])
+            operand = castOperand()
           if (operand.type === type && operand.value) return operand
           if (
             operand.type?.startsWith('array:') &&
@@ -2985,7 +3109,7 @@ export function bindCatalogCheck(
               type: element as ArrayElementType,
               name: { ...castType, arrayBounds: [] },
             })
-          const operand = bind(cast['arg'])
+          const operand = castOperand()
           if (operand.type === type && operand.value) return operand
           if (operand.literal?.kind === 'null') return { type, value: materialize(operand, type) }
           if (
@@ -3205,7 +3329,7 @@ export function bindCatalogCheck(
             name: { ...castType, arrayBounds: [] },
           })
         else {
-          const operand = bind(cast['arg'])
+          const operand = castOperand()
           let value = materialize(operand, type, definition)
           if (!value && operand.type?.startsWith('array:domain:'))
             value = bindArrayElementCoercion(
@@ -3273,7 +3397,7 @@ export function bindCatalogCheck(
         (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')) &&
         fields(fields(cast['arg'])?.['A_Const'])?.['isnull'] === true
       )
-        return bind(cast['arg'])
+        return castOperand()
       const definitions = enums.filter((item) =>
         names?.length === 2
           ? item.schema === names[0] && item.name === names[1]
@@ -3285,7 +3409,7 @@ export function bindCatalogCheck(
           : definitions.find((item) => enumType(item) === expectedType)
       if (definition) {
         const type = enumType(definition)
-        const operand = bind(cast['arg'])
+        const operand = castOperand()
         let value = materialize(operand, type, definition)
         if (
           !value &&
@@ -3329,7 +3453,7 @@ export function bindCatalogCheck(
           (Array.isArray(castType?.['typmods']) && castType['typmods'].length)
         )
           return unknown
-        const operand = bind(cast['arg'])
+        const operand = castOperand()
         if (operand.nominalDomain === identity) return operand
         const chain: DomainInfo[] = []
         let layer: DomainInfo | undefined = target
@@ -3500,8 +3624,9 @@ export function bindCatalogCheck(
         )!
         const row = fields(fields(cast['arg'])?.['RowExpr'])
         if (row) {
-          const args = row['args'] ?? []
-          if (!Array.isArray(args) || args.length !== definition.fields.length) return unknown
+          const raw = row['args'] ?? []
+          const args = Array.isArray(raw) ? expandRowArguments(raw) : null
+          if (!args || args.length !== definition.fields.length) return unknown
           const operands: EvalExpression[] = []
           const projectable: (boolean | null)[] = []
           for (const [index, field] of definition.fields.entries()) {
@@ -3556,7 +3681,7 @@ export function bindCatalogCheck(
             value: { kind: 'composite-constructor', type: composite, operands, projectable },
           }
         }
-        const operand = bind(cast['arg'])
+        const operand = castOperand()
         if (operand.literal?.kind === 'null')
           return { type: composite, value: { kind: 'composite-null', type: composite } }
         if (
@@ -3763,7 +3888,7 @@ export function bindCatalogCheck(
         )
           return unknown
         const modifier = range * 65536 + (precision === 65535 ? 65535 : Math.min(precision, 6))
-        const original = bind(cast['arg'])
+        const original = castOperand()
         if (original.literal?.kind === 'string' && original.literal.value !== null)
           return {
             type,
@@ -3835,7 +3960,7 @@ export function bindCatalogCheck(
         castType['typmods'].length
       )
         return unknown
-      let operand = bind(cast['arg'])
+      let operand = castOperand()
       const source = boundType(operand)
       if (
         source &&
@@ -4723,6 +4848,8 @@ export function bindCatalogCheck(
       return unknown
     }
     const names = strings(fields(wrapper['ColumnRef'])?.['fields'])
+    if (names && names.length > 1 && ownerMatches(names.slice(0, -1)))
+      return bind({ ColumnRef: { fields: [{ String: { sval: names.at(-1)! } }] } })
     if (names?.length === 1) {
       const column = columns.find((item) => item.name === names[0])
       const domain = column && domains.find((item) => item.oid === column.typeOid)
@@ -5131,7 +5258,11 @@ export function bindCatalogCheck(
       )
       if (nullIndex !== -1 && operator['kind'] !== 'AEXPR_NULLIF') {
         const operand = bind(nodes[1 - nullIndex])
-        if (operand.type && operand.value && compositeProfile(operand.type))
+        if (
+          operand.type &&
+          operand.value &&
+          (compositeProfile(operand.type) || operand.unknownField)
+        )
           return {
             type: 'pg_catalog.bool',
             value: {
@@ -5472,6 +5603,19 @@ export function bindCatalogCheck(
     explicitVariadic = false,
   ): Bound => {
     let args = nodes.map((node) => bind(node))
+    if (
+      args.some((arg) => arg.unknownField) &&
+      !(
+        kind === 'function' &&
+        [
+          'json_build_array',
+          'jsonb_build_array',
+          'json_build_object',
+          'jsonb_build_object',
+        ].includes(name)
+      )
+    )
+      return unknown
     const enumArgument = args.find((arg) => arg.enum)
     if (enumArgument?.type)
       args = args.map((arg, index) =>

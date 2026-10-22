@@ -305,3 +305,24 @@ INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass
 INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES (NULL,NULL,NULL,false,false);
 -- name: FrameBypassed
 INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00',3,false,true);
+
+-- name: ExpansionNull
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (NULL,NULL,NULL,'{"f1":null,"f2":null}',NULL,false);
+-- name: ExpansionFields
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (2,'abc',2,'{"f1":2,"f2":"abc"}','abc',false);
+-- name: ExpansionWidth
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (2,'abcdef',2,'{"f1":2,"f2":"abc"}','abc',false);
+-- name: ExpansionQuoted
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (2,'a"😊',2,'{"f1":2,"f2":"a\"😊"}','a"😊',false);
+-- name: ExpansionLowScore
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (-1,'abc',0,'{"f1":-1,"f2":"abc"}','abc',false);
+-- name: ExpansionWrongDocument
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (2,'abc',2,'{}','abc',false);
+-- name: ExpansionWrongLabel
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (2,'abc',2,'{"f1":2,"f2":"abc"}','wrong',false);
+-- name: ExpansionWrongOwner
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (3,'abc',2,'{"f1":3,"f2":"abc"}','abc',false);
+-- name: ExpansionOverflow
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (70000,'abc',70000,'{}','abc',false);
+-- name: ExpansionBypassed
+INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (70000,'abcdef',99999,'{}','wrong',true);

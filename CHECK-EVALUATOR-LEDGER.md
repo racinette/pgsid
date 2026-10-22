@@ -110,8 +110,7 @@ flag alone is insufficient evidence that an implementation is session-free.
       that require database state; assess volatile functions independently.
 - [ ] Assess custom-schema functions and source-module setup as a separate slice.
 
-Done per admitted category when its execution contract, NULL/error behavior,
-binding, and parity are established. Aggregates, windows, set-returning calls, and internal/cstring interfaces are not an automatic CHECK implementation queue.
+Done per admitted category when its execution contract, NULL/error behavior, binding, and parity are established. Aggregates, windows, set-returning calls, and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 - [x] Cache parsed source assets with independent mutable containers and share immutable source text; verify unchanged world source graphs and Go fixture cache reuse.
 
@@ -261,6 +260,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Convert captured named and expression-owned anonymous records through JSON/JSONB scalar, row and argument builders, nested arrays/domains/ranges, constructors and text recovery. Preserve field names, unioned layouts, heterogeneous arrays, CASE/COALESCE, unresolved NULL versus empty rows, structured descriptors, raw/pretty layout, enum labels, reached casts, key/error order and owned partial states with native/Rust/Go/TypeScript public and world INSERT parity.
 - [x] Capture qualified field hash/extended-hash functions and support observations through domains, arrays and nested records. Admit named/anonymous record and record-array hashes with wrapping folds, signed seeds, dropped fields, ordered support checks before NULLs, owned partial states, correlated endian alternatives, UTF8/collation requirements and native/Rust/Go/TypeScript/world INSERT parity. Preserve default-class selection and deployment-independent identities; defer reached custom callbacks, enum label OIDs and unresolved cache/catalog discrepancies.
 - [x] Admit record binary send for named/anonymous and dropped-field-empty records, preserving strict NULLs, row errors, selected branches, domain/input preparation and public INSERT parity. Retain deployment field-OID requirements for every nonempty record, including NULL fields; verify shifted catalog identities without embedding them and classify receive as an internal server interface.
+- [x] Admit direct anonymous ROW field projection and captured ROW star expansion, including qualified table owners, dropped attributes, positional casts, domains, enums, arrays and empty expansion. Preserve unknown field types, explicit string coercion, field collations, discarded-field preparation, NULL/data distinctions, source/stored admission and native/Rust/Go/TypeScript public INSERT parity.
 - [ ] Complete remaining row coercion, projection and star expansion; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
