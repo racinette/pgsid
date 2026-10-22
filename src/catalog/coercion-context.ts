@@ -3,7 +3,7 @@ import type { StoredDomainCoercionContext, StoredRowCoercionContext } from './ty
 type Value = string | Value[] | Tree
 type Tree = { kind: string; fields: Record<string, Value[]> }
 export type DomainCoercionIdentity = { schema: string; name: string; array: boolean }
-export type RowCoercionIdentity = { identity: string; depth: number }
+export type RowCoercionIdentity = { identity: string; depth: number; fields?: number[] }
 
 function parseTree(source: string): Value {
   const tokens: string[] = []
@@ -84,7 +84,10 @@ export function captureRowCoercionContext(
   definition: string,
   identities: ReadonlyMap<number, RowCoercionIdentity>,
 ): StoredRowCoercionContext | undefined {
-  if (!source || !/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR)\s/u.test(source))
+  if (
+    !source ||
+    !/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source)
+  )
     return undefined
   const casts: StoredRowCoercionContext['casts'] = []
   let complete = true
@@ -123,16 +126,16 @@ export function captureRowCoercionContext(
     return null
   }
   try {
-    const visit = (value: Value): void => {
+    const visit = (value: Value, site?: string): void => {
       if (Array.isArray(value)) {
-        value.forEach(visit)
+        value.forEach((v) => visit(v))
         return
       }
       const node = tree(value)
       if (!node) return
       const isCast =
         ['COERCEVIAIO', 'CONVERTROWTYPEEXPR', 'ARRAYCOERCEEXPR'].includes(node.kind) ||
-        (node.kind === 'FUNCEXPR' && ['1', '2', '3'].includes(scalar(node, 'funcformat') ?? ''))
+        (node.kind === 'FUNCEXPR' && ['1', '2'].includes(scalar(node, 'funcformat') ?? ''))
       let arrayConversion = false
       if (isCast) {
         const target = identities.get(Number(expressionType(node))),
@@ -150,15 +153,122 @@ export function captureRowCoercionContext(
               target: target.identity,
               depth: target.depth,
               kind,
+              ...(site === undefined ? {} : { site }),
             })
             arrayConversion = node.kind === 'ARRAYCOERCEEXPR'
           }
         }
       }
-      for (const [key, values] of Object.entries(node.fields))
-        if (!arrayConversion || key !== 'elemexpr') values.forEach(visit)
+      const at = (part: string) => (site === undefined ? undefined : site + '/' + part),
+        child = (name: string, path = site) => node.fields[name]?.forEach((v) => visit(v, path)),
+        list = (name: string): Value[] =>
+          Array.isArray(node.fields[name]?.[0]) ? (node.fields[name]![0] as Value[]) : [],
+        args = list('args')
+      if (isCast || ['RELABELTYPE', 'COERCETODOMAIN', 'COLLATEEXPR'].includes(node.kind)) {
+        if (node.kind === 'FUNCEXPR') {
+          if (args[0]) visit(args[0], site)
+        } else child('arg')
+        if (node.kind === 'ARRAYCOERCEEXPR' && !arrayConversion)
+          node.fields['elemexpr']?.forEach((v) => visit(v))
+        return
+      }
+      if (['OPEXPR', 'DISTINCTEXPR', 'NULLIFEXPR', 'SCALARARRAYOPEXPR'].includes(node.kind)) {
+        args.forEach((v, i) => visit(v, at('operator/' + i)))
+        return
+      }
+      if (node.kind === 'BOOLEXPR') {
+        const op = scalar(node, 'boolop')
+        if (op === 'not' && args.length === 1 && tree(args[0])?.kind === 'DISTINCTEXPR')
+          visit(args[0]!, site)
+        else args.forEach((v, i) => visit(v, at('boolean/' + op + '/' + i)))
+        return
+      }
+      if (node.kind === 'CASEEXPR') {
+        child('arg', at('case/arg'))
+        const simple = tree(node.fields['arg']?.[0]) !== null
+        args.forEach((v, i) => {
+          const when = tree(v)
+          if (!when) return
+          const condition = when.fields['expr']?.[0],
+            expr = tree(condition),
+            operands = expr?.fields['args']?.[0]
+          visit(
+            simple &&
+              expr?.kind === 'OPEXPR' &&
+              Array.isArray(operands) &&
+              tree(operands[0])?.kind === 'CASETESTEXPR'
+              ? operands[1]!
+              : condition!,
+            at('case/when/' + i + '/condition'),
+          )
+          when.fields['result']?.forEach((v) => visit(v, at('case/when/' + i + '/result')))
+        })
+        child('defresult', at('case/else'))
+        return
+      }
+      if (['COALESCEEXPR', 'MINMAXEXPR', 'FUNCEXPR', 'ARRAYEXPR', 'ROWEXPR'].includes(node.kind)) {
+        const role: Record<string, string> = {
+            COALESCEEXPR: 'coalesce',
+            MINMAXEXPR: 'minmax',
+            FUNCEXPR: 'call',
+            ARRAYEXPR: 'array',
+            ROWEXPR: 'row',
+          },
+          values = node.kind === 'ARRAYEXPR' ? list('elements') : args,
+          live =
+            node.kind === 'ROWEXPR'
+              ? identities.get(Number(expressionType(node)))?.fields
+              : undefined
+        if (
+          live &&
+          values.some(
+            (value, index) =>
+              !live.includes(index) &&
+              (tree(value)?.kind !== 'CONST' || scalar(tree(value)!, 'constisnull') !== 'true'),
+          )
+        )
+          complete = false
+        ;(live ? live.map((i) => values[i]!) : values).forEach((v, i) => {
+          if (v !== undefined) visit(v, at(role[node.kind] + '/' + i))
+        })
+        return
+      }
+      if (['FIELDSELECT', 'NULLTEST', 'BOOLEANTEST', 'NAMEDARGEXPR'].includes(node.kind)) {
+        child(
+          'arg',
+          node.kind === 'NAMEDARGEXPR'
+            ? site
+            : at(
+                (
+                  { FIELDSELECT: 'field', NULLTEST: 'nulltest', BOOLEANTEST: 'booltest' } as Record<
+                    string,
+                    string
+                  >
+                )[node.kind]!,
+              ),
+        )
+        return
+      }
+      if (node.kind === 'SUBSCRIPTINGREF') {
+        child('refexpr', at('subscript/base'))
+        for (const [field, role] of [
+          ['refupperindexpr', 'upper'],
+          ['reflowerindexpr', 'lower'],
+        ] as const)
+          list(field).forEach((v, i) => visit(v, at('subscript/' + i + '/' + role)))
+        return
+      }
+      if (node.kind === 'ROWCOMPAREEXPR') {
+        for (const [name, index] of [
+          ['largs', 0],
+          ['rargs', 1],
+        ] as const)
+          list(name).forEach((v, i) => visit(v, at('operator/' + index + '/row/' + i)))
+        return
+      }
+      for (const values of Object.values(node.fields)) values.forEach((v) => visit(v))
     }
-    visit(parseTree(source))
+    visit(parseTree(source), '')
   } catch {
     complete = false
   }

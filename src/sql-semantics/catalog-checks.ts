@@ -9,6 +9,7 @@ import type {
 } from '../catalog/types.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
+import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
 
 export interface CatalogCheckPlan {
   name: string
@@ -48,7 +49,11 @@ const names = (value: unknown): string[] | null => {
   return result.every((n): n is string => typeof n === 'string') ? result : null
 }
 
-function alignRowFieldBindings(source: unknown, stored: unknown): Map<unknown, RowFieldBinding> {
+function alignRowFieldBindings(
+  source: unknown,
+  stored: unknown,
+  align?: (source: unknown, stored: unknown) => void,
+): Map<unknown, RowFieldBinding> {
   const result = new Map<unknown, RowFieldBinding>()
   const visit = (source: unknown, stored: unknown): void => {
     if (Array.isArray(source) && Array.isArray(stored)) {
@@ -58,6 +63,7 @@ function alignRowFieldBindings(source: unknown, stored: unknown): Map<unknown, R
     const a = fields(source),
       b = fields(stored)
     if (!a || !b) return
+    align?.(source, stored)
     const operator = fields(a['A_Expr']),
       negation = fields(b['BoolExpr']),
       args = negation?.['args']
@@ -156,6 +162,28 @@ function alignRowFieldBindings(source: unknown, stored: unknown): Map<unknown, R
       visit(source, fields(b['TypeCast'])?.['arg'])
       return
     }
+    const sourceCast = fields(a['TypeCast'])
+    if (sourceCast && cast) {
+      const sourceType = names(fields(sourceCast['typeName'])?.['names']),
+        same = (left: string[] | null, right: string[] | null) =>
+          !!left &&
+          !!right &&
+          left.at(-1) === right.at(-1) &&
+          (left.length === 1 || right.length === 1 || left[0] === right[0]),
+        innerStored = fields(fields(cast['arg'])?.['TypeCast']),
+        innerSource = fields(fields(sourceCast['arg'])?.['TypeCast'])
+      if (
+        !same(sourceType, castNames) &&
+        same(sourceType, names(fields(innerStored?.['typeName'])?.['names']))
+      ) {
+        visit(source, cast['arg'])
+        return
+      }
+      if (innerSource && same(sourceType, names(fields(innerSource['typeName'])?.['names']))) {
+        visit(sourceCast['arg'], stored)
+        return
+      }
+    }
     for (const key of Object.keys(a))
       if (key !== 'location' && key !== 'stmt_location' && key in b) visit(a[key], b[key])
   }
@@ -210,13 +238,27 @@ export function lowerTableCheck(
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let check: Fields | null
   let rowFieldBindings: ReadonlyMap<unknown, RowFieldBinding> | undefined
+  let rowCoercionSites: RowCoercionSites | undefined
   try {
     check = parseCheck(sourceDefinition ?? constraint.definition)
-    if (sourceDefinition !== undefined && literalOrigin === 'source')
+    const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),
+      context = constraint.rowCoercionContext
+    const sites =
+      context?.definition === constraint.definition
+        ? alignStoredRowCoercions(stored?.['raw_expr'], context, compositeGraph)
+        : undefined
+    if (sourceDefinition !== undefined && literalOrigin === 'source') {
+      const aligned = new Map<unknown, readonly NonNullable<typeof context>['casts'][number][]>()
       rowFieldBindings = alignRowFieldBindings(
         check?.['raw_expr'],
-        parseCheck(constraint.definition)?.['raw_expr'],
+        stored?.['raw_expr'],
+        (source, stored) => {
+          const casts = sites?.get(stored)
+          if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])
+        },
       )
+      rowCoercionSites = aligned
+    } else rowCoercionSites = sites
   } catch {
     return { name: constraint.name, expression: { kind: 'uncertain' }, inputs: [] }
   }
@@ -242,6 +284,7 @@ export function lowerTableCheck(
     constraint.rowCoercionContext?.definition === constraint.definition
       ? constraint.rowCoercionContext
       : undefined,
+    rowCoercionSites,
   )
   return { name: constraint.name, ...bound }
 }

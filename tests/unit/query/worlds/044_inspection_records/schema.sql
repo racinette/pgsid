@@ -315,7 +315,7 @@ CREATE TABLE inspection_import_batches (
   CONSTRAINT imported_batch_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[reading,fallback]) IS NOT DISTINCT FROM expected_batch END)
 );
 
-CREATE CAST (inspection_extensions AS inspection_origins) WITH INOUT AS IMPLICIT;
+CREATE CAST (inspection_extensions AS inspection_origins) WITH INOUT;
 CREATE TABLE inspection_record_rechecks (
   reading inspection_extensions,
   minimum_score integer,
@@ -323,4 +323,16 @@ CREATE TABLE inspection_record_rechecks (
   bypass boolean NOT NULL,
   CONSTRAINT rechecked_score CHECK(CASE WHEN bypass THEN true ELSE (reading::inspection_origins).score>=minimum_score END),
   CONSTRAINT rechecked_empty CHECK(CASE WHEN bypass THEN true ELSE (reading IS NULL) IS NOT DISTINCT FROM expected_empty END)
+);
+
+
+CREATE TABLE inspection_mixed_conversions (
+  reading inspection_extensions,
+  fallback inspection_origins,
+  minimum_score integer,
+  expected_document jsonb,
+  use_text boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT mixed_conversion_score CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN use_text THEN reading::inspection_origins ELSE COALESCE(reading,fallback) END).score>=minimum_score END),
+  CONSTRAINT mixed_conversion_document CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN use_text THEN to_jsonb(reading::inspection_origins) ELSE to_jsonb(COALESCE(reading,fallback)) END) IS NOT DISTINCT FROM expected_document END)
 );
