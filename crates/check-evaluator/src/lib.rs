@@ -59,6 +59,7 @@ pub mod checkruntime {
 pub use checkruntime::*;
 
 pub mod pg_catalog {
+    include!("operations/pg_catalog/catalog_vectors.rs");
     use super::*;
 
     include!("operations/pg_catalog/boolean.rs");

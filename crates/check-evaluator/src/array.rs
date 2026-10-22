@@ -422,6 +422,24 @@ pub fn array_from_coerced_value(
     input
 }
 
+pub fn catalog_vector_from_coerced(input: ArrayValue, oid: bool) -> ArrayValue {
+    if let ArrayValue::Value(value) = input {
+        let mut identity = "pg_catalog.int2".to_owned();
+        let mut kind: i32 = 1;
+        if oid { identity = "pg_catalog.oid".to_owned(); kind = 33; };
+        if value.element_type != identity || value.element_kind != kind { return ArrayValue::Unknown; };
+        if value.dimensions.len() == 1 && value.dimensions[0].length == 0 {
+            if value.dimensions[0].lower != 0 || value.elements.len() != 0 { return ArrayValue::Unknown; };
+            if value.null_bitmap == BoolValue::Null { return ArrayValue::Unknown; };
+            let bitmap = value.null_bitmap;
+            if let BoolValue::Error(_) = bitmap { return ArrayValue::Unknown; };
+            return ArrayValue::Value(value);
+        };
+        return make_array_value(value);
+    };
+    input
+}
+
 fn array_tree_type_at(types: &str, level: usize) -> String {
     let characters: Vec<char> = types.chars().collect();
     let mut current: usize = 0;

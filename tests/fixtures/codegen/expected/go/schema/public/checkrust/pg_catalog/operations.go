@@ -8319,6 +8319,498 @@ func byteaUtf8Character(output string, character rune) string {
 	}
 	return string(result)
 }
+
+const vectorDatatypeMismatch = 6822148
+
+func catalogVectorStatus(value *checkruntime.ArrayPayload, oid bool) checkruntime.BoolValue {
+	identity := langruntime.NewTextBuffer("pg_catalog.int2")
+	kind := 1
+	if oid {
+		identity = langruntime.NewTextBuffer("pg_catalog.oid")
+		kind = langruntime.CheckedI32(33)
+	}
+	if value.ElementType != string(identity) || value.ElementKind != kind {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if len(value.Dimensions) != 1 || value.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(vectorDatatypeMismatch)}
+	}
+	if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func catalogVectorUnits(input checkruntime.ArrayElement, oid bool) checkruntime.Int8Value {
+	input = checkruntime.CopyArrayElement(input)
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if oid {
+		return oidUnits(checkruntime.ArrayElementToOid(input))
+	}
+	if input.Kind == checkruntime.ArrayElementInt2 {
+		value := langruntime.CheckedI32(input.Int2)
+		return checkruntime.MakeInt8Value(int64(langruntime.CheckedI32(value)))
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func CatalogVectorToText(input checkruntime.ArrayValue, oid bool) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		status := catalogVectorStatus(&value, oid)
+		if status.Kind == checkruntime.BoolValueError {
+			error := status.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(value.Elements) {
+			text := Int8ToText(catalogVectorUnits(checkruntime.CopyArrayElement(value.Elements[index]), oid))
+			if text.Kind == checkruntime.TextValueError {
+				error := text.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			appended := false
+			if text.Kind == checkruntime.TextValueValue {
+				part := langruntime.CheckedString(text.Value)
+				if index > 0 {
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+				}
+				output = append(output, part...)
+				appended = true
+			}
+			if appended == false {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.MakeTextValue(string(output))
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func CatalogVectorFromText(input checkruntime.TextValue, oid bool) checkruntime.ArrayValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		elements := []checkruntime.ArrayElement{}
+		position := 0
+		for position < len(chars) {
+			for position < len(chars) && oidInputSpace(chars[position]) {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if position == len(chars) {
+				break
+			}
+			start := position
+			negative := false
+			if chars[position] == '+' || chars[position] == '-' {
+				negative = chars[position] == '-'
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			radix := int64(10)
+			if oid && position < len(chars) && chars[position] == '0' {
+				radix = int64(8)
+				if langruntime.CheckedAdd(position, 1) < len(chars) && (chars[langruntime.CheckedAdd(position, 1)] == 'x' || chars[langruntime.CheckedAdd(position, 1)] == 'X') {
+					if langruntime.CheckedAdd(position, 2) == len(chars) {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+					}
+					next := chars[langruntime.CheckedAdd(position, 2)]
+					if oidInputSpace(next) || next == '+' || next == '-' {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+					}
+				}
+				if langruntime.CheckedAdd(position, 2) < len(chars) {
+					next := chars[langruntime.CheckedAdd(position, 1)]
+					digit := oidInputDigit(chars[langruntime.CheckedAdd(position, 2)])
+					if (next == 'x' || next == 'X') && digit >= int64(0) && digit < int64(16) {
+						radix = int64(16)
+						position = langruntime.CheckedAdd(position, 2)
+					}
+					if (next == 'b' || next == 'B') && (digit == int64(0) || digit == int64(1)) {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+					}
+				}
+			}
+			digitsStart := position
+			small := int64(0)
+			for position < len(chars) {
+				digit := oidInputDigit(chars[position])
+				if digit < int64(0) || digit >= radix {
+					break
+				}
+				if oid == false && small <= int64(32768) {
+					small = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(small, int64(10)), digit)
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if position == digitsStart {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+			}
+			if oid {
+				token := langruntime.NewTextBuffer("")
+				cursor := start
+				for cursor < position {
+					token = append(token, string(langruntime.CheckedChar(chars[cursor]))...)
+					cursor = langruntime.CheckedAdd(cursor, 1)
+				}
+				value := OidFromText(checkruntime.MakeTextValue(string(token)))
+				if value.Kind == checkruntime.OidValueError {
+					error := value.Error
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+				}
+				if value.Kind == checkruntime.OidValueValue {
+					units := value.Value
+					langruntime.CheckedAdd(len(elements), 1)
+					elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementOid, Oid: units}))
+				}
+				if value == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+				}
+			} else {
+				if small > int64(32768) || (negative == false && small > int64(32767)) {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+				}
+				if position < len(chars) && chars[position] != ' ' {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+				}
+				if negative {
+					small = langruntime.CheckedI64Subtract(int64(0), small)
+				}
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt2, Int2: int(int32(small))}))
+			}
+		}
+		dimensions := []checkruntime.ArrayDimension{}
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 0, Length: int(int32(len(elements)))})
+		identity := langruntime.NewTextBuffer("pg_catalog.int2")
+		kind := 1
+		if oid {
+			identity = langruntime.NewTextBuffer("pg_catalog.oid")
+			kind = langruntime.CheckedI32(33)
+		}
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: checkruntime.ArrayPayload{NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}, ElementType: string(identity), ElementKind: kind, Dimensions: dimensions, Elements: elements}}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func Btoidvectorcmp6oyf(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.Int4Value {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	if left.Kind == checkruntime.ArrayValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ArrayValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if right.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.ArrayValueValue {
+		a := checkruntime.CopyArrayPayload(left.Value)
+		if right.Kind == checkruntime.ArrayValueValue {
+			b := checkruntime.CopyArrayPayload(right.Value)
+			first := catalogVectorStatus(&a, true)
+			if first.Kind == checkruntime.BoolValueError {
+				error := first.Error
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+			}
+			if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+			second := catalogVectorStatus(&b, true)
+			if second.Kind == checkruntime.BoolValueError {
+				error := second.Error
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+			}
+			if second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+			if len(a.Elements) != len(b.Elements) {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract((int(int32(len(a.Elements)))), (int(int32(len(b.Elements))))))
+			}
+			index := 0
+			for index < len(a.Elements) {
+				comparison := oidCompare(checkruntime.ArrayElementToOid(checkruntime.CopyArrayElement(a.Elements[index])), checkruntime.ArrayElementToOid(checkruntime.CopyArrayElement(b.Elements[index])))
+				if comparison != (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}) {
+					return comparison
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.MakeInt4Value(0)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func OidvectoreqBpvf(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 3)
+}
+func Oidvectorne5v7o(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 6)
+}
+func Oidvectorlt6p1s(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 1)
+}
+func Oidvectorle3fct(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 2)
+}
+func OidvectorgtKevo(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 5)
+}
+func OidvectorgeBgvu(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arrayComparisonBoolean(Btoidvectorcmp6oyf(left, right), 4)
+}
+func OidvectortypesW22j(input checkruntime.ArrayValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		status := catalogVectorStatus(&value, true)
+		if status.Kind == checkruntime.BoolValueError {
+			error := status.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(value.Elements) {
+			name := OidAliasToText(checkruntime.ArrayElementToOid(checkruntime.CopyArrayElement(value.Elements[index])), true)
+			if name.Kind == checkruntime.TextValueError {
+				error := name.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			if name != checkruntime.MakeTextValue("-") {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			if index > 0 {
+				output = append(output, ", "...)
+			}
+			output = append(output, string(langruntime.CheckedChar('-'))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.MakeTextValue(string(output))
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+type vectorHashBytes struct {
+	bytes []checkruntime.HashByte
+	state checkruntime.CheckOutcome
+}
+
+func copyvectorHashBytes(value vectorHashBytes) vectorHashBytes {
+	return vectorHashBytes{bytes: langruntime.CheckedStructs(value.bytes, checkruntime.CopyHashByte), state: value.state}
+}
+func catalogVectorHashBytes(input checkruntime.ArrayValue) vectorHashBytes {
+	input = checkruntime.CopyArrayValue(input)
+	bytes := []checkruntime.HashByte{}
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		status := catalogVectorStatus(&value, true)
+		if status.Kind == checkruntime.BoolValueError {
+			error := status.Error
+			return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}}
+		}
+		if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}}
+		}
+		index := 0
+		for index < len(value.Elements) {
+			cell := catalogVectorUnits(checkruntime.CopyArrayElement(value.Elements[index]), true)
+			if cell.Kind == checkruntime.Int8ValueError {
+				error := cell.Error
+				return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}}
+			}
+			if cell.Kind == checkruntime.Int8ValueValue {
+				units := cell.Value
+				word := units
+				octet := 0
+				for octet < 4 {
+					langruntime.CheckedAdd(len(bytes), 1)
+					bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(word, int64(256))}))
+					word = langruntime.CheckedI64Divide(word, int64(256))
+					octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octet, 1))
+				}
+			}
+			if cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || cell == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+				return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}}
+	}
+	return vectorHashBytes{bytes: bytes, state: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}}
+}
+func HashoidvectorHb8d(input checkruntime.ArrayValue) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	plan := catalogVectorHashBytes(input)
+	state := plan.state
+	if state.Kind == checkruntime.CheckOutcomeError {
+		error := state.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if plan.state == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if plan.state != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return checkruntime.MakeInt4Value(checkruntime.HashBytes32(plan.bytes))
+}
+func HashoidvectorextendedHlbf(input checkruntime.ArrayValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	plan := catalogVectorHashBytes(input)
+	state := plan.state
+	if state.Kind == checkruntime.CheckOutcomeError {
+		error := state.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if plan.state != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if seed.Kind == checkruntime.Int8ValueValue {
+		value := seed.Value
+		return checkruntime.MakeInt8Value(checkruntime.HashBytes64(plan.bytes, value))
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func catalogVectorSend(input checkruntime.ArrayValue, oid bool) checkruntime.ByteaValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		kind := 1
+		width := int64(2)
+		if oid {
+			kind = langruntime.CheckedI32(33)
+			width = int64(4)
+		}
+		if value.ElementKind != kind {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		length := langruntime.CheckedI64Add(int64(12), langruntime.CheckedI64Multiply(int64(langruntime.CheckedI32((int(int32(len(value.Dimensions)))))), int64(8)))
+		index := 0
+		for index < len(value.Elements) {
+			cell := checkruntime.CopyArrayElement(value.Elements[index])
+			if cell.Kind == checkruntime.ArrayElementError {
+				error := cell.Error
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+			}
+			nullCell := false
+			if cell.Kind == checkruntime.ArrayElementNull {
+				nullCell = true
+			}
+			if cell.Kind == checkruntime.ArrayElementUnknown {
+				if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+				}
+			}
+			length = langruntime.CheckedI64Add(length, int64(4))
+			if nullCell == false {
+				length = langruntime.CheckedI64Add(length, width)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if length > int64(2147483647) {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: int(int32(length))}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func Int2vectorsend4kiy(input checkruntime.ArrayValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyArrayValue(input)
+	return catalogVectorSend(input, false)
+}
+func OidvectorsendL5tl(input checkruntime.ArrayValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyArrayValue(input)
+	return catalogVectorSend(input, true)
+}
 func bpcharCodepointCompare(left string, right string) int {
 	left = langruntime.CheckedString(left)
 	right = langruntime.CheckedString(right)
