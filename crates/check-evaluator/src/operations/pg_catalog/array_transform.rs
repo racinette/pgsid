@@ -15,7 +15,7 @@ fn array_transform_finish(input: ArrayPayload, bound_adjustment: i32) -> ArrayVa
         if position == 0 {
             adjustment = bound_adjustment as i64;
         };
-        if length <= 0i64 || count > 2147483647i64 / length || end - adjustment > 2147483647i64 {
+        if length < 0i64 || (length > 0i64 && count > 2147483647i64 / length) || end - adjustment > 2147483647i64 {
             return ArrayValue::Error(make_sql_error(ARRAY_TRANSFORM_LIMIT));
         };
         count = count * length;

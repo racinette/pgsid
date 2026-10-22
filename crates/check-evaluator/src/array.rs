@@ -359,12 +359,15 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
     position = 0;
     while position < input.dimensions.len() {
         let dimension = input.dimensions[position];
-        if dimension.length <= 0 {
+        if dimension.length < 0 {
             return ArrayValue::Unknown;
         };
         let length = dimension.length as i64;
         let end = (dimension.lower as i64) + length;
-        if end > 2147483648i64 || count > 2147483647i64 / length {
+        if end > 2147483648i64 || (length > 0i64 && count > 2147483647i64 / length) {
+            return ArrayValue::Unknown;
+        };
+        if length == 0i64 && dimension.lower == -2147483647 - 1 {
             return ArrayValue::Unknown;
         };
         count = count * length;
@@ -428,13 +431,6 @@ pub fn catalog_vector_from_coerced(input: ArrayValue, oid: bool) -> ArrayValue {
         let mut kind: i32 = 1;
         if oid { identity = "pg_catalog.oid".to_owned(); kind = 33; };
         if value.element_type != identity || value.element_kind != kind { return ArrayValue::Unknown; };
-        if value.dimensions.len() == 1 && value.dimensions[0].length == 0 {
-            if value.dimensions[0].lower != 0 || value.elements.len() != 0 { return ArrayValue::Unknown; };
-            if value.null_bitmap == BoolValue::Null { return ArrayValue::Unknown; };
-            let bitmap = value.null_bitmap;
-            if let BoolValue::Error(_) = bitmap { return ArrayValue::Unknown; };
-            return ArrayValue::Value(value);
-        };
         return make_array_value(value);
     };
     input
@@ -2497,6 +2493,14 @@ pub fn finish_array_coercion(
             return ArrayValue::Unknown;
         };
         let mut null_bitmap = value.null_bitmap;
+        let mut dimensions: Vec<ArrayDimension> = Vec::new();
+        if binary || value.elements.len() > 0 {
+            let mut position: usize = 0;
+            while position < input.dimensions.len() {
+                dimensions.push(input.dimensions[position]);
+                position += 1;
+            }
+        };
         if binary {
             null_bitmap = input.null_bitmap;
         };
@@ -2504,7 +2508,7 @@ pub fn finish_array_coercion(
             null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
-            dimensions: input.dimensions,
+            dimensions: dimensions,
             elements: value.elements,
         });
     };
@@ -2866,7 +2870,7 @@ pub fn prepare_array_rewrite(
         return array_comparison_state(0, make_sql_error(0), 0);
     };
     if let ArrayValue::Value(array) = input {
-        if array.dimensions.len() == 0 {
+        if array.elements.len() == 0 {
             return array_comparison_state(2, make_sql_error(0), 0);
         };
         if remove && array.dimensions.len() > 1 {

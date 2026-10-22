@@ -911,8 +911,26 @@ it('owns typed flattened array values, bounds, NULL elements and metadata in eve
         },
         expected: { kind: 'True' },
       })
+    for (const family of Array.from({ length: 40 }, (_, index) => index + 1)) {
+      const row: Row = {
+        shape: value('[[1,0]]'),
+        count: value(0),
+        family: value(family),
+        dimension: value(1),
+        expected: value(''),
+      }
+      for (const [index, output] of ['0', '1', '0', '1', '0', '[1:0]'].entries())
+        fixtures.push({
+          name: modes[index]!,
+          row: { ...row, expected: value(output) },
+          expected: { kind: 'True' },
+        })
+      fixtures.push(
+        { name: 'nullness', row, expected: { kind: 'False' } },
+        { name: 'ownership', row, expected: { kind: 'True' } },
+      )
+    }
     for (const shape of [
-      [[1, 0]],
       [[1, -1]],
       [[2147483647, 1]],
       [[2147483646, 2]],

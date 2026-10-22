@@ -284,6 +284,42 @@ evaluatePublicFamily2Checks(supplied)
         `{builder:=checkruntime.MakeArrayArguments(${JSON.stringify(elementType)},${family});builder=checkruntime.AppendArrayDimension(builder,-2,2);builder=checkruntime.AppendArrayArgument(builder,${goExpression(expressions[index]!)});builder=checkruntime.AppendArrayArgument(builder,checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull});value:=checkruntime.FinishArrayArguments(builder);result:=EvaluatePublicFamily${family}Checks(PublicFamily${family}CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))});if len(result)!=1 || !result[0].Result.Certain || !result[0].Result.Value.Valid || !result[0].Result.Value.Value {t.Fatalf("family ${family}: %+v",result)}}`,
       )
     }
+    const shapedEmpty = "array_cat(''::int2vector,''::int2vector)"
+    for (const [sql, dimensions] of [
+      [shapedEmpty, [{ lower: 0, length: 0 }]],
+      [
+        `ARRAY[${shapedEmpty},${shapedEmpty}]`,
+        [
+          { lower: 1, length: 2 },
+          { lower: 0, length: 0 },
+        ],
+      ],
+      [
+        `ARRAY[ARRAY[${shapedEmpty}]]`,
+        [
+          { lower: 1, length: 1 },
+          { lower: 1, length: 1 },
+          { lower: 0, length: 0 },
+        ],
+      ],
+    ] as const) {
+      const native = (
+        await pg.query<{ count: number; rank: number }>(
+          `SELECT cardinality(${sql}) count,array_ndims(${sql}) rank`,
+        )
+      ).rows[0]!
+      expect(native).toEqual({ count: 0, rank: dimensions.length })
+      const value = {
+        kind: 'Value',
+        value: { elementType: 'pg_catalog.int2', elementKind: 1, dimensions, elements: [] },
+      }
+      expect(
+        generated.evaluatePublicFamily1Checks({ value, expected_count: native.count })[0].result,
+      ).toEqual({ certain: true, value: true })
+      goCases.push(
+        `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int2",ElementKind:1,Dimensions:[]checkruntime.ArrayDimension{${dimensions.map((dimension) => `{Lower:${dimension.lower},Length:${dimension.length}}`).join(',')}},Elements:[]checkruntime.ArrayElement{}}};result:=EvaluatePublicFamily1Checks(PublicFamily1CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(0))})[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("shaped-empty public array",result)}}`,
+      )
+    }
     const outcomes: unknown[] = []
     for (const [literal, dimensions, elements] of [
       ['{}', [], []],

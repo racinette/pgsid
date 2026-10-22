@@ -16,13 +16,15 @@ fn array_sort_payload(
     let mut width: i32 = 0;
     if value.dimensions.len() > 0 {
         rows = value.dimensions[0].length;
-        width = (value.elements.len() as i32) / rows;
+        if rows > 0 {
+            width = (value.elements.len() as i32) / rows;
+        };
     };
     let mut order: Vec<usize> = Vec::new();
     let mut buffer: Vec<usize> = Vec::new();
     let mut ties: Vec<usize> = Vec::new();
     let mut index: i32 = 0;
-    while index < rows {
+    while index < rows && state == 1 {
         let position = usize::try_from(index).unwrap_or(0);
         order.push(position);
         buffer.push(position);
@@ -105,6 +107,8 @@ pub(crate) fn prepare_array_sort(
                     if value.dimensions.len() > 1 {
                         error = make_sql_error(ARRAY_SORT_ARRAY_MISSING);
                     };
+                } else if value.elements.len() == 0 {
+                    state = -1;
                 };
                 return array_sort_payload(value, state, error, reverse, null_order);
             };

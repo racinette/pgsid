@@ -1849,7 +1849,7 @@ export function arrayReverseIwk0(input: checkruntime.ArrayValue): checkruntime.A
         const width: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(value.elements.length))), rows);
         let elements: checkruntime.ArrayElement[] = [];
         let row: number = 0;
-        while (row < rows) {
+        while (row < rows && width > 0) {
             let column: number = 0;
             while (column < width) {
                 const offset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(rows, row), 1)), width), column);
@@ -1859,8 +1859,16 @@ export function arrayReverseIwk0(input: checkruntime.ArrayValue): checkruntime.A
             }
             row = langruntime.checkedI32(langruntime.checkedSignedAdd(row, 1));
         }
+        let dimensions: checkruntime.ArrayDimension[] = [];
+        if (width > 0) {
+            let dimension: number = 0;
+            while (dimension < value.dimensions.length) {
+                langruntime.pushStruct(dimensions, langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension), checkruntime.copyArrayDimension);
+                dimension = langruntime.checkedAdd(dimension, 1);
+            }
+        }
         const nullBitmap: checkruntime.BoolValue = checkruntime.arrayReconstructionBitmap(value);
-        return checkruntime.makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements });
+        return checkruntime.makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: elements });
     }
     return input;
 }
@@ -1897,13 +1905,15 @@ function arraySortPayload(value: checkruntime.ArrayPayload, state: number, error
     let width: number = 0;
     if (value.dimensions.length > 0) {
         rows = langruntime.checkedI32(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length);
-        width = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(value.elements.length))), rows));
+        if (rows > 0) {
+            width = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(value.elements.length))), rows));
+        }
     }
     let order: number[] = [];
     let buffer: number[] = [];
     let ties: number[] = [];
     let index: number = 0;
-    while (index < rows) {
+    while (index < rows && state === 1) {
         const position: number = langruntime.indexFromI32(index, 0);
         langruntime.pushIndex(order, position);
         langruntime.pushIndex(buffer, position);
@@ -1959,6 +1969,9 @@ export function prepareArraySort(input: checkruntime.ArrayValue, descending: che
                     if (value.dimensions.length > 1) {
                         error = checkruntime.makeSqlError(arraySortArrayMissing);
                     }
+                }
+                else if (value.elements.length === 0) {
+                    state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
                 }
                 return arraySortPayload(value, state, error, reverse, nullOrder);
             }
@@ -2683,7 +2696,7 @@ function arrayTransformFinish(input: checkruntime.ArrayPayload, boundAdjustment:
         if (position === 0) {
             adjustment = langruntime.checkedI64(BigInt(langruntime.checkedI32(boundAdjustment)));
         }
-        if (length <= 0n || count > langruntime.checkedI64Divide(2147483647n, length) || langruntime.checkedI64Subtract(end, adjustment) > 2147483647n) {
+        if (length < 0n || (length > 0n && count > langruntime.checkedI64Divide(2147483647n, length)) || langruntime.checkedI64Subtract(end, adjustment) > 2147483647n) {
             return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformLimit) };
         }
         count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
@@ -15711,9 +15724,10 @@ export function jsonbArrayInputValue(input: checkruntime.JsonbArrayInputPayload)
         langruntime.pushStruct(dimensions, langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension), checkruntime.copyArrayDimension);
         dimension = langruntime.checkedAdd(dimension, 1);
     }
+    const empty: boolean = input.elements.length === 0;
     const batch: checkruntime.JsonbArguments = checkruntime.jsonbArrayInputArguments(input);
     const flat: checkruntime.JsonbValue = jsonbBuildArrayGfm5(batch);
-    if (dimensions.length < 2) {
+    if (dimensions.length < 2 || empty) {
         return flat;
     }
     if (flat.kind === "Value") {
