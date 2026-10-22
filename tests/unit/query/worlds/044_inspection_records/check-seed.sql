@@ -397,3 +397,18 @@ INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypa
 INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (2,3,4,false);
 -- name: NamedRowBypassed
 INSERT INTO inspection_named_rows(inspection_named_rows,score,minimum_score,bypass) VALUES (-1,3,999,true);
+
+-- name: CommonRowSelected
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,ROW(7,'fallback')::inspection_origins,ARRAY[ROW(1,'a')::inspection_origins],1,'{"score":3,"label":"ok"}','[{"score":1,"label":"a"},{"score":3,"label":"ok"}]',false);
+-- name: CommonRowFallback
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (NULL,ROW(3,'ok')::inspection_origins,NULL,1,'{"score":3,"label":"ok"}','[null]',false);
+-- name: CommonRowLiveNulls
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,NULL,NULL,false)::inspection_extensions,ROW(3,'fallback')::inspection_origins,ARRAY[]::inspection_origins[],1,'{"score":null,"label":null}','[{"score":null,"label":null}]',false);
+-- name: CommonRowLowScore
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'ok',0,true)::inspection_extensions,NULL,ARRAY[]::inspection_origins[],1,'{"score":0,"label":"ok"}','[{"score":0,"label":"ok"}]',false);
+-- name: CommonRowWrongDocument
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,ARRAY[]::inspection_origins[],1,'{}','[{"score":3,"label":"ok"}]',false);
+-- name: CommonRowWrongBatch
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,ARRAY[]::inspection_origins[],1,'{"score":3,"label":"ok"}','[]',false);
+-- name: CommonRowBypassed
+INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'bad',-1,true)::inspection_extensions,NULL,NULL,999,NULL,NULL,true);

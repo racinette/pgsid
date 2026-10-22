@@ -264,3 +264,16 @@ CREATE TABLE inspection_named_rows (
   CONSTRAINT named_scalar CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(inspection_named_rows)#>>'{}')::integer>=0 END),
   CONSTRAINT named_whole CHECK(CASE WHEN bypass THEN true ELSE (to_jsonb(inspection_named_rows.*)->>'score')::integer>=minimum_score END)
 );
+
+CREATE TABLE inspection_common_values (
+  reading inspection_extensions,
+  fallback inspection_origins,
+  readings inspection_origins[],
+  minimum_score integer,
+  expected_document jsonb,
+  expected_batch jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT common_score CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(reading,fallback)).score>=minimum_score END),
+  CONSTRAINT common_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(CASE WHEN reading IS DISTINCT FROM NULL THEN reading ELSE fallback END) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT common_batch CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(array_append(readings,reading)) IS NOT DISTINCT FROM expected_batch END)
+);
