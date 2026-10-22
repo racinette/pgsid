@@ -627,6 +627,13 @@ export interface CompositeTypeDefinition {
   relationKind: string | null
   attributeCount?: number | null
   parents?: string[]
+  typedOf?: string
+  rowCasts?: {
+    target: string
+    context: 'i' | 'a' | 'e'
+    method: 'f' | 'i' | 'b'
+    function: string | null
+  }[]
   array: string | null
   base: string | null
   baseTypeMod: number

@@ -19,6 +19,7 @@ import {
   compositeFieldType,
   compositePhysicalType,
   compositeAncestorMapping,
+  compositeRowCoercion,
 } from './composite-profiles.js'
 import {
   anonymousRecordType,
@@ -625,7 +626,7 @@ const implicitTypeCast = (source: string, target: string): boolean => {
     to = arrayElementBaseType(target)
   return (
     from === to ||
-    compositeAncestorMapping(from, to) !== null ||
+    compositeRowCoercion(from, to, 'i') !== null ||
     builtinCast(from, to)?.context === 'i'
   )
 }
@@ -1563,7 +1564,7 @@ const implicitOperand = (
   const source = boundType(arg)
   const value = materialize(arg, source ?? target, definition)
   if (!value || source === null || source === target) return value
-  const mapping = compositeAncestorMapping(source, target)
+  const mapping = compositeAncestorMapping(source, target, 'i')
   if (mapping) return { kind: 'composite-coerce', type: target, operand: value, mapping }
   if (canRelabelAnonymousRecords(source, target))
     return {
