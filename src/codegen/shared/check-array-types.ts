@@ -381,8 +381,8 @@ export const arrayElementComparison = (type: string) => {
           hashClass: support.hashClass,
           equality: support.equalityImplementation,
           comparator: support.comparator,
-          hash: null,
-          hashExtended: null,
+          hash: support.hash ?? null,
+          hashExtended: support.hashExtended ?? null,
         }
       : null
   }

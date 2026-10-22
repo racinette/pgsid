@@ -9599,6 +9599,101 @@ export function recordGe69vm(input: checkruntime.Int4Value): checkruntime.BoolVa
 export function btrecordcmpM4or(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
 }
+const recordHashUndefined = 6822435;
+function recordHashState(state: number, error: checkruntime.SqlError): checkruntime.ArrayComparisonPayload {
+    state = langruntime.checkedI32(state);
+    const left: checkruntime.ArrayElement[] = [];
+    const right: checkruntime.ArrayElement[] = [];
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: 0 };
+}
+export function prepareRecordHash(input: checkruntime.CompositeValue, seed: checkruntime.Int8Value, typeName: string, count: number): checkruntime.ArrayComparisonPayload {
+    const checked: checkruntime.CompositeValue = checkruntime.compositeFromCoercedValue(input);
+    if (checked.kind === "Error") {
+        const error: checkruntime.SqlError = checked.value;
+        return recordHashState(langruntime.checkedSignedNegate(2), error);
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return recordHashState(langruntime.checkedSignedNegate(2), error);
+    }
+    if (checked.kind === "Null") {
+        return recordHashState(0, checkruntime.makeSqlError(0));
+    }
+    if (seed.kind === "Null") {
+        return recordHashState(0, checkruntime.makeSqlError(0));
+    }
+    if (seed.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(seed.value);
+        if (checked.kind === "Value") {
+            const value1: checkruntime.CompositePayload = checkruntime.copyCompositePayload(checked.value);
+            const expected: number = langruntime.indexFromI32(count, langruntime.checkedAdd(value1.fields.length, 1));
+            if (value1.typeName === typeName && value1.fields.length === expected) {
+                const right: checkruntime.ArrayElement[] = [];
+                return { left: value1.fields, right: right, limit: expected, state: 1, error: checkruntime.makeSqlError(0), tail: 0, value: 0 };
+            }
+        }
+    }
+    return recordHashState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+}
+export function recordHashReady(input: checkruntime.ArrayComparisonPayload): boolean {
+    return input.state === 1;
+}
+export function prepareRecordArrayHash(input: checkruntime.ArrayValue, seed: checkruntime.Int8Value, availability: number): checkruntime.ArrayComparisonPayload {
+    const result: checkruntime.ArrayComparisonPayload = checkruntime.prepareArrayHash(input, seed, true);
+    if (result.state === 1 && !(availability === 1)) {
+        if (availability === 0) {
+            return recordHashState(langruntime.checkedSignedNegate(2), checkruntime.makeSqlError(recordHashUndefined));
+        }
+        return recordHashState(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+    }
+    return result;
+}
+export function recordHashInitial64(input: checkruntime.ArrayComparisonPayload): checkruntime.Int8Value {
+    const initial: checkruntime.Int4Value = checkruntime.arrayComparisonInitial(input);
+    if (initial.kind === "Error") {
+        const error: checkruntime.SqlError = initial.value;
+        return { kind: "Error", value: error };
+    }
+    if (initial.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (initial.kind === "Value") {
+        const value: number = langruntime.checkedI32(initial.value);
+        return { kind: "Value", value: BigInt(langruntime.checkedI32(value)) };
+    }
+    return { kind: "Unknown" };
+}
+export function recordHashCell32(input: checkruntime.ArrayElement, availability: number): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (availability === 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(recordHashUndefined) };
+    }
+    if (!(availability === 1)) {
+        return { kind: "Unknown" };
+    }
+    return arrayHashCell32(checkruntime.arrayElementBitmap(input));
+}
+export function recordHashCell64(input: checkruntime.ArrayElement, availability: number): checkruntime.Int8Value {
+    const value: checkruntime.Int4Value = recordHashCell32(input, availability);
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Value") {
+        const payload: number = langruntime.checkedI32(value.value);
+        return { kind: "Value", value: BigInt(langruntime.checkedI32(payload)) };
+    }
+    return { kind: "Unknown" };
+}
+export function hashRecord5xrm(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
+export function hashRecordExtendedNz67(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    return input;
+}
 const compositeTextSyntax = 3484946;
 function compositeTextSpace(ch: string): boolean {
     ch = langruntime.checkedChar(ch);

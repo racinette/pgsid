@@ -9546,6 +9546,104 @@ func BtrecordcmpM4or(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
 }
 
+const recordHashUndefined = 6822435
+
+func recordHashState(state int, error checkruntime.SqlError) checkruntime.ArrayComparisonPayload {
+	state = langruntime.CheckedI32(state)
+	left := []checkruntime.ArrayElement{}
+	right := []checkruntime.ArrayElement{}
+	return checkruntime.ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: 0}
+}
+func PrepareRecordHash(input checkruntime.CompositeValue, seed checkruntime.Int8Value, typeName string, count int) checkruntime.ArrayComparisonPayload {
+	checked := checkruntime.CompositeFromCoercedValue(input)
+	if checked.Kind == checkruntime.CompositeValueError {
+		error := checked.Error
+		return recordHashState(langruntime.CheckedSignedNegate(2), error)
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return recordHashState(langruntime.CheckedSignedNegate(2), error)
+	}
+	if checked.Kind == checkruntime.CompositeValueNull {
+		return recordHashState(0, checkruntime.MakeSqlError(0))
+	}
+	if seed.Kind == checkruntime.Int8ValueNull {
+		return recordHashState(0, checkruntime.MakeSqlError(0))
+	}
+	if seed.Kind == checkruntime.Int8ValueValue {
+		value := seed.Value
+		_ = value
+		if checked.Kind == checkruntime.CompositeValueValue {
+			value := checkruntime.CopyCompositePayload(checked.Value)
+			expected := langruntime.IndexFromI32(count, langruntime.CheckedAdd(len(value.Fields), 1))
+			if value.TypeName == typeName && len(value.Fields) == expected {
+				right := []checkruntime.ArrayElement{}
+				return checkruntime.ArrayComparisonPayload{Left: value.Fields, Right: right, Limit: expected, State: 1, Error: checkruntime.MakeSqlError(0), Tail: 0, Value: 0}
+			}
+		}
+	}
+	return recordHashState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+}
+func RecordHashReady(input *checkruntime.ArrayComparisonPayload) bool {
+	return input.State == 1
+}
+func PrepareRecordArrayHash(input checkruntime.ArrayValue, seed checkruntime.Int8Value, availability int) checkruntime.ArrayComparisonPayload {
+	result := checkruntime.PrepareArrayHash(input, seed, true)
+	if result.State == 1 && availability != 1 {
+		if availability == 0 {
+			return recordHashState(langruntime.CheckedSignedNegate(2), checkruntime.MakeSqlError(recordHashUndefined))
+		}
+		return recordHashState(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+	}
+	return result
+}
+func RecordHashInitial64(input *checkruntime.ArrayComparisonPayload) checkruntime.Int8Value {
+	initial := checkruntime.ArrayComparisonInitial(input)
+	if initial.Kind == checkruntime.Int4ValueError {
+		error := initial.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if initial.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if initial.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(initial.Value)
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func RecordHashCell32(input checkruntime.ArrayElement, availability int) checkruntime.Int4Value {
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if availability == 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordHashUndefined)}
+	}
+	if availability != 1 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return ArrayHashCell32(checkruntime.ArrayElementBitmap(input))
+}
+func RecordHashCell64(input checkruntime.ArrayElement, availability int) checkruntime.Int8Value {
+	value := RecordHashCell32(input, availability)
+	if value.Kind == checkruntime.Int4ValueError {
+		error := value.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if value.Kind == checkruntime.Int4ValueValue {
+		payload := langruntime.CheckedI32(value.Value)
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(payload))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func HashRecord5xrm(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+func HashRecordExtendedNz67(input checkruntime.Int8Value) checkruntime.Int8Value {
+	return input
+}
+
 const compositeTextSyntax = 3484946
 
 func compositeTextSpace(ch rune) bool {

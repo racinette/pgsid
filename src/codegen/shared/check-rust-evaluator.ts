@@ -6,6 +6,7 @@ import {
   type CompositeProfile,
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
+import { recordHashLayouts, recordFieldHashSupport } from './check-record-hash.js'
 import {
   anonymousRecordProfile,
   canRelabelAnonymousRecords,
@@ -446,6 +447,18 @@ export const isRecordComparison = (item: ReturnType<typeof builtinMetadata>): bo
     : ['record_eq', 'record_ne', 'record_lt', 'record_le', 'record_gt', 'record_ge'].includes(
         item.name,
       ) && item.result === 'pg_catalog.bool')
+
+export const isRecordHash = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args[0] === 'pg_catalog.record' &&
+  ((item.name === 'hash_record' && item.args.length === 1 && item.result === 'pg_catalog.int4') ||
+    (item.name === 'hash_record_extended' &&
+      item.args.join(',') === 'pg_catalog.record,pg_catalog.int8' &&
+      item.result === 'pg_catalog.int8'))
 
 const isArrayExtremum = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
@@ -1277,7 +1290,8 @@ export function emitCheckRustEvaluator(
             isRecordComparison(implementation) ||
             isArrayExtremum(implementation) ||
             isArrayBucket(implementation) ||
-            isArrayHash(implementation)))) &&
+            isArrayHash(implementation) ||
+            isRecordHash(implementation)))) &&
       preparationDepth === 0 &&
       node.kind !== 'certain' &&
       constantScalarExpression(node)
@@ -2305,6 +2319,7 @@ export function emitCheckRustEvaluator(
                     ? false
                     : type === 'pg_catalog.record' &&
                         (isRecordComparison(implementation) ||
+                          isRecordHash(implementation) ||
                           (jsonConversion && implementation.name === 'row_to_json')) &&
                         (compositeProfile(operands[index]?.type ?? '') ||
                           anonymousRecordProfile(operands[index]?.type ?? ''))
@@ -2704,11 +2719,16 @@ export function emitCheckRustEvaluator(
           family = arrayElementFamily(elementType)
         let leaf = arrayElementBaseType(elementType)
         while (leaf.startsWith('array:')) leaf = arrayElementBaseType(leaf.slice(6))
-        if (compositeProfile(leaf))
-          throw new UnsupportedCheckRustExpression(
-            'Composite array hashes require captured record hash implementations',
-          )
-        const defaults = arrayHashPlan?.element ?? arrayElementComparison(elementType)
+        const recordLeaf = compositeProfile(leaf) !== null || anonymousRecordProfile(leaf) !== null
+        const defaults =
+          arrayHashPlan?.element ??
+          arrayElementComparison(elementType) ??
+          (anonymousRecordProfile(arrayElementBaseType(elementType))
+            ? {
+                hash: recordFieldHashSupport(elementType, false).signature,
+                hashExtended: recordFieldHashSupport(elementType, true).signature,
+              }
+            : null)
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
             'Array hashing requires captured element support metadata',
@@ -2776,7 +2796,7 @@ export function emitCheckRustEvaluator(
         const orders =
           hashByteOrder !== undefined
             ? [hashByteOrder]
-            : nativeContext && executionContext.nativeByteOrder === undefined
+            : (nativeContext || recordLeaf) && executionContext.nativeByteOrder === undefined
               ? [1, 2]
               : [
                   executionContext.nativeByteOrder === 'big'
@@ -2793,7 +2813,9 @@ export function emitCheckRustEvaluator(
           start = fresh('array_hash_start')
         const results = orders.map(() => fresh('array_hash_result'))
         destination.push(
-          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null && !missingRangeHash});`,
+          recordLeaf
+            ? `let ${payload} = prepare_record_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${anonymousRecordProfile(arrayElementBaseType(elementType)) ? 1 : recordFieldHashSupport(elementType, extended).availability});`
+            : `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null && !missingRangeHash});`,
           `let ${initial} = ${extended ? 'array_hash_initial64' : 'array_comparison_initial'}(&${payload});`,
           `let ${start} = make_int4_value(0);`,
           `let mut ${index}: Int4Value = ${start};`,
@@ -2819,7 +2841,11 @@ export function emitCheckRustEvaluator(
           scalar.args[0] !== 'pg_catalog.anyenum' &&
           !(scalar.args[0] === 'pg_catalog.anyrange' && isRangeType(baseType)) &&
           !(scalar.args[0] === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) &&
-          !(scalar.args[0] === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
+          !(scalar.args[0] === 'pg_catalog.anyarray' && baseType.startsWith('array:')) &&
+          !(
+            scalar.args[0] === 'pg_catalog.record' &&
+            (compositeProfile(baseType) || anonymousRecordProfile(baseType))
+          )
         ) {
           const target = scalar.args[0]
           if (!target || builtinCast(baseType, target)?.method !== 'b')
@@ -2835,7 +2861,12 @@ export function emitCheckRustEvaluator(
             `if array_hash_requires_scalar${width}(${hash}) {`,
           )
           if (!deferred && scalar) {
-            if (isArrayHash(scalar) || isRangeHash(scalar) || isMultirangeHash(scalar)) {
+            if (
+              isArrayHash(scalar) ||
+              isRangeHash(scalar) ||
+              isMultirangeHash(scalar) ||
+              isRecordHash(scalar)
+            ) {
               const nested: string[] = []
               const result = emitCallInner(
                 {
@@ -2976,6 +3007,153 @@ export function emitCheckRustEvaluator(
             `let ${name} = ${implementation.rustName}(${args.join(', ')}, ${rustStringLiteral(arrayElementIdentity(elementType))}, ${family});`,
           )
         }
+        return { name, type: call.type }
+      }
+      if (isRecordHash(implementation)) {
+        const extended = implementation.args.length === 2,
+          width = extended ? '64' : '32',
+          kind = extended ? 'Int8Value' : 'Int4Value',
+          operand = operands[0]!,
+          layouts = recordHashLayouts(operand.type, extended)
+        if (!layouts)
+          throw new UnsupportedCheckRustExpression('Record hashing requires field descriptors')
+        const seed = operands[1]?.name ?? fresh('record_hash_seed')
+        if (!operands[1]) destination.push(`let ${seed}=make_int8_value(0i64);`)
+        const initial = fresh('record_hash_unresolved'),
+          result = fresh('record_hash_result'),
+          initialHelper = extended ? 'record_hash_initial64' : 'array_comparison_initial'
+        destination.push(
+          `let ${initial}=prepare_record_hash(${ownedOperand(operand)},${seed},"",-1);`,
+          `let mut ${result}:${kind}=${initialHelper}(&${initial});`,
+        )
+        const orders =
+          hashByteOrder !== undefined
+            ? [hashByteOrder]
+            : executionContext.nativeByteOrder
+              ? [executionContext.nativeByteOrder === 'little' ? 1 : 2]
+              : [1, 2]
+        for (const layout of layouts) {
+          const frame = fresh('record_hash_frame'),
+            basis = fresh('record_hash_basis'),
+            totals = orders.map(() => fresh('record_hash_total'))
+          destination.push(
+            `let ${frame}=prepare_record_hash(${ownedOperand(operand)},${seed},${rustStringLiteral(layout.identity)},${layout.fields.length});`,
+            `if record_hash_ready(&${frame}) {`,
+          )
+          const lines = [
+            `let ${basis}=${initialHelper}(&${frame});`,
+            ...totals.map((total) => `let mut ${total}:${kind}=${basis};`),
+          ]
+          for (const [index, field] of layout.fields.entries()) {
+            const position = fresh('record_hash_position'),
+              cell = fresh('record_hash_field_element')
+            lines.push(
+              `let ${position}=make_int4_value(${index});`,
+              `if array_hash_continues${width}(&${frame},${position},${totals[0]},${totals[1] ?? totals[0]}) {`,
+              `    let ${cell}=array_comparison_element_at(&${frame},${position},false);`,
+            )
+            for (const [i, order] of orders.entries()) {
+              const hash = fresh('record_field_hash'),
+                body: string[] = []
+              lines.push(
+                `    let mut ${hash}:${kind}=record_hash_cell${width}(${cell}.clone(),${field.availability});`,
+                `    if array_hash_requires_scalar${width}(${hash}) {`,
+              )
+              try {
+                if (!field.type || !field.signature)
+                  throw new UnsupportedCheckRustExpression('Unimplemented record field hash')
+                const scalar = builtinCallables().find(
+                    (item) => callableIdentity(item) === field.signature,
+                  ),
+                  type = arrayElementBaseType(field.type),
+                  collation =
+                    field.collation === 'default'
+                      ? executionContext.defaultCollation
+                      : field.collation
+                if (
+                  !scalar ||
+                  scalar.kind !== 'function' ||
+                  scalar.schema !== 'pg_catalog' ||
+                  !scalar.strict ||
+                  scalar.volatility !== 'i' ||
+                  scalar.returnsSet ||
+                  scalar.result !== call.type ||
+                  !checkRustCallableNames().has(scalar.rustName) ||
+                  type.startsWith('enum:')
+                )
+                  throw new UnsupportedCheckRustExpression(
+                    'Record field hashing requires its selected implementation',
+                  )
+                const text = scalar.args.some((type) =>
+                  ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(type),
+                )
+                if (text && !supportsTextCallableCollation(field.signature, collation))
+                  throw new UnsupportedCheckRustExpression(
+                    'Record field hashing requires its collation',
+                  )
+                const value = fresh('record_hash_scalar')
+                body.push(
+                  `let ${value}=array_element_to_${rustValuePrefix(rustType(type))}(${cell}.clone());`,
+                )
+                let argument = { name: value, type }
+                const target = scalar.args[0]!
+                if (
+                  ![
+                    type,
+                    'pg_catalog.anyarray',
+                    'pg_catalog.anyrange',
+                    'pg_catalog.anymultirange',
+                    'pg_catalog.record',
+                  ].includes(target)
+                ) {
+                  if (builtinCast(type, target)?.method !== 'b')
+                    throw new UnsupportedCheckRustExpression(
+                      'Record hash field requires its binary relabel',
+                    )
+                  argument = emitCall(
+                    { kind: 'cast', signature: null, type: target },
+                    [argument],
+                    body,
+                  )
+                }
+                if (
+                  isRecordHash(scalar) ||
+                  isArrayHash(scalar) ||
+                  isRangeHash(scalar) ||
+                  isMultirangeHash(scalar)
+                ) {
+                  const value = emitCallInner(
+                    { kind: 'function', signature: field.signature, type: call.type, collation },
+                    [argument, ...(extended ? [{ name: seed, type: 'pg_catalog.int8' }] : [])],
+                    body,
+                    undefined,
+                    order,
+                  )
+                  body.push(`${hash}=${value.name};`)
+                } else {
+                  const args = [ownedOperand(argument), ...(extended ? [seed] : [])],
+                    context = nativeHashContext(scalar)
+                  if (context) args.push(String(order))
+                  if (context === 'text')
+                    args.push(String(executionContext.serverEncoding === 'UTF8'))
+                  body.push(`${hash}=${scalar.rustName}(${args.join(',')});`)
+                  callables.add(scalar.rustName)
+                }
+                lines.push(...body.map((line) => '        ' + line))
+              } catch (error) {
+                if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+                lines.push(`        ${hash}=${extended ? 'int8' : 'int4'}_unknown();`)
+              }
+              lines.push('    }', `    ${totals[i]}=array_hash_step${width}(${totals[i]},${hash});`)
+            }
+            lines.push('}')
+          }
+          lines.push(`${result}=array_hash_finish${width}(${totals[0]},${totals[1] ?? totals[0]});`)
+          destination.push(...indent(lines), '}')
+        }
+        const name = fresh('value')
+        destination.push(`let ${name}=${implementation.rustName}(${result});`)
+        callables.add(implementation.rustName)
         return { name, type: call.type }
       }
       if (isRecordComparison(implementation)) {

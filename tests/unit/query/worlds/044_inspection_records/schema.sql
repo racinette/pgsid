@@ -166,3 +166,15 @@ CREATE TABLE inspection_projections (
   CONSTRAINT projected_document CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(CASE WHEN detailed THEN ROW(score,label) ELSE ROW(label) END) IS NOT DISTINCT FROM expected_document END),
   CONSTRAINT projected_score CHECK (CASE WHEN bypass THEN true ELSE (to_jsonb(ARRAY[ROW(score),ROW(label)])#>>'{0,f1}')::int4>=0 END)
 );
+
+CREATE TABLE inspection_hashes (
+  draft draft_reading,
+  seed bigint,
+  expected_hash integer,
+  expected_extended bigint,
+  expected_batch integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT draft_hash CHECK (CASE WHEN bypass THEN true ELSE hash_record(draft) IS NOT DISTINCT FROM expected_hash END),
+  CONSTRAINT draft_hash_extended CHECK (CASE WHEN bypass THEN true ELSE hash_record_extended(draft,seed) IS NOT DISTINCT FROM expected_extended END),
+  CONSTRAINT draft_batch_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(ARRAY[draft,NULL::draft_reading]) IS NOT DISTINCT FROM expected_batch END)
+);

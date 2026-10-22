@@ -4,6 +4,7 @@ export type AnonymousRecordType = `anonymous-record:${string}`
 export interface AnonymousRecordField {
   type: ScalarType
   unknown?: true
+  collation?: 'C' | 'deterministic' | 'other' | 'default'
   enum?: Pick<EnumDefinition, 'schema' | 'name' | 'values' | 'outputFunction' | 'jsonConversion'>
 }
 export interface AnonymousRecordLayout {
@@ -39,6 +40,11 @@ export function anonymousRecordProfile(type: string): readonly AnonymousRecordLa
       const fields: AnonymousRecordField[] = []
       for (const raw of layout as AnonymousRecordField[]) {
         if (!raw || (raw.unknown !== undefined && raw.unknown !== true)) return null
+        if (
+          raw.collation !== undefined &&
+          !['C', 'deterministic', 'other', 'default'].includes(raw.collation)
+        )
+          return null
         let fieldType: unknown = raw.type
         if (fieldType && typeof fieldType === 'object') {
           const nested = fieldType as { record?: unknown; arrays?: unknown }

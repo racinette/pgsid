@@ -22,6 +22,9 @@ it('distinguishes unresolved NULL records, empty rows and unknown fields while p
   expect(anonymousRecordProfile(empty)).toHaveLength(1)
   expect(anonymousRecordProfile(empty)![0]!.fields).toHaveLength(0)
   expect(text).not.toBe(unknown)
+  const collated = anonymousRecordType([{ type: 'pg_catalog.text', collation: 'C' }])
+  expect(collated).not.toBe(text)
+  expect(anonymousRecordProfile(collated)![0]!.fields[0]!.collation).toBe('C')
   const fields = [{ type: 'pg_catalog.int4' as const }],
     type = anonymousRecordType(fields)
   fields.push({ type: 'pg_catalog.int4' })
@@ -62,6 +65,8 @@ it('rejects malformed layouts and enum descriptors containing deployment OIDs', 
     'anonymous-record:[[{}]]',
     'anonymous-record:[[{"type":""}]]',
     'anonymous-record:[[{"type":"pg_catalog.text","unknown":false}]]',
+    'anonymous-record:[[{"type":"pg_catalog.text","collation":"en_US"}]]',
+    'anonymous-record:[[{"type":"pg_catalog.text","collation":null}]]',
     'anonymous-record:[[{"type":"enum:x","enum":{"schema":"public","name":"phase","values":["x"],"oid":1}}]]',
   ])
     expect(anonymousRecordProfile(value), value).toBeNull()
