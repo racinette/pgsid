@@ -96,9 +96,14 @@ export async function readCatalogCompositeTypes(
     roots: rows.filter((row) => row.root).map((row) => row.identity),
     definitions: rows.map(({ root: _root, comparisonCollation: _collation, ...definition }) => {
       const support = comparisons.get(definition.identity)!
-      if (support.equalityAvailable === undefined || support.comparisonAvailable === undefined)
+      if (
+        support.equalityAvailable === undefined ||
+        support.comparisonAvailable === undefined ||
+        support.hashAvailable === undefined ||
+        support.hashExtendedAvailable === undefined
+      )
         throw new Error(
-          'Composite comparison availability was not captured: ' + definition.identity,
+          'Composite type-cache support availability was not captured: ' + definition.identity,
         )
       return {
         ...definition,
@@ -110,6 +115,10 @@ export async function readCatalogCompositeTypes(
           comparator: support.comparator,
           equalityAvailable: support.equalityAvailable,
           comparisonAvailable: support.comparisonAvailable,
+          hash: support.hash,
+          hashExtended: support.hashExtended,
+          hashAvailable: support.hashAvailable,
+          hashExtendedAvailable: support.hashExtendedAvailable,
         },
       }
     }),

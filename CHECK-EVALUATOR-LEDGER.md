@@ -75,8 +75,7 @@ unexercised cases explicitly rather than treating them as passes.
 
 ## Complete parsing and coercion boundaries
 
-- [x] Measure explicit catalog cast pairs on represented values and their runtime
-      text input/output paths, separating PostgreSQL admission from raw/stored binding.
+- [x] Measure explicit catalog cast pairs on represented values and their runtime text input/output paths, separating PostgreSQL admission from raw/stored binding.
 - [x] Bind Boolean/network character casts and integer/numeric text I/O through catalog identities, including actual argument types, integer radix/underscore grammar, width/precision modifiers, numeric CASE/COALESCE, mixed numeric overloads, literal preparation and composition.
 - [x] Admit scalar-domain casts and domain arrays with inherited modifiers, ordered constraints, nominal polymorphic results and original INSERT parity; capture implicit/explicit conversion context during catalog generation and defer missing or ambiguous context.
 - [ ] Inventory unsupported input forms and coercions for represented types.
@@ -261,6 +260,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit composite-domain element arrays and nested domain/array containers through captured chains and base record support; retain nominal headers, physical record payloads, constructors, casts, source/stored provenance, owned public adapters and reached callback/NULL/error behavior. Capture declared container dependencies across schema filters without OIDs; verify native/Rust/Go/TypeScript and world INSERT parity.
 - [x] Admit captured composite range/multirange SQL and public rows, constructors, endpoints, comparisons, recursive containers and record text I/O. Capture child range profiles through composite fields, domains, arrays and multiranges with stable qualified identities. Preserve compiled contexts, enum ordinals, snapshots, partial states, eager source versus stored preparation, subtype-domain checks and native/Rust/Go/TypeScript world INSERT parity.
 - [x] Convert captured named and expression-owned anonymous records through JSON/JSONB scalar, row and argument builders, nested arrays/domains/ranges, constructors and text recovery. Preserve field names, unioned layouts, heterogeneous arrays, CASE/COALESCE, unresolved NULL versus empty rows, structured descriptors, raw/pretty layout, enum labels, reached casts, key/error order and owned partial states with native/Rust/Go/TypeScript public and world INSERT parity.
+- [x] Capture qualified field hash/extended-hash functions and native support observations through domains, arrays and nested records. Preserve default-class selection, NULL-before-callback probes, independent snapshots and deployment-independent identities; retain cache/catalog discrepancies as explicit requirements.
 - [ ] Complete record binary/hash boundaries and remaining row coercion, projection and star expansion; audit recursive container composition and preserve explicit catalog/context requirements.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
