@@ -32579,6 +32579,65 @@ export function pointDistance2haq(left: checkruntime.PointValue, right: checkrun
 export function slopeXxph(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.Float8Value {
     return pointMeasurement(left, right, true);
 }
+function polygonCircle(input: checkruntime.PolygonValue): checkruntime.CircleValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        if (value.points.length === 0) {
+            return { kind: "Unknown" };
+        }
+        let center: checkruntime.PointValue = pointDb27(checkruntime.makeFloat8Value(0.0), checkruntime.makeFloat8Value(0.0));
+        let index: number = 0;
+        while (index < value.points.length) {
+            center = pointAddGn1v(center, { kind: "Value", value: langruntime.indexStruct(value.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) });
+            if (center.kind === "Error") {
+                const error: checkruntime.SqlError = center.value;
+                return { kind: "Error", value: error };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const count: checkruntime.Float8Value = checkruntime.makeFloat8Value(Number(langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(value.points.length)))));
+        if (center.kind === "Value") {
+            const point: checkruntime.PointPayload = center.value;
+            center = pointArithmeticResult(float8divKumj(lineOriginCoordinate(point, false), count), float8divKumj(lineOriginCoordinate(point, true), count));
+        }
+        if (center.kind === "Error") {
+            const error: checkruntime.SqlError = center.value;
+            return { kind: "Error", value: error };
+        }
+        let radius: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+        index = langruntime.checkedIndex(0);
+        while (index < value.points.length) {
+            radius = float8plG3ou(radius, pointDistance2haq({ kind: "Value", value: langruntime.indexStruct(value.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) }, center));
+            if (radius.kind === "Error") {
+                const error: checkruntime.SqlError = radius.value;
+                return { kind: "Error", value: error };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return circleFromCenterRadius(center, float8divKumj(radius, count));
+    }
+    return { kind: "Unknown" };
+}
+export function circleJtgz(input: checkruntime.PolygonValue): checkruntime.CircleValue {
+    input = checkruntime.copyPolygonValue(input);
+    return polygonCircle(input);
+}
+export function polyCenterRocl(input: checkruntime.PolygonValue): checkruntime.PointValue {
+    input = checkruntime.copyPolygonValue(input);
+    return circleCenterValue(polygonCircle(input));
+}
+export function point0ix9(input: checkruntime.PolygonValue): checkruntime.PointValue {
+    input = checkruntime.copyPolygonValue(input);
+    return polyCenterRocl(input);
+}
 export function polyNpointsQi4n(input: checkruntime.PolygonValue): checkruntime.Int4Value {
     input = checkruntime.copyPolygonValue(input);
     if (input.kind === "Error") {

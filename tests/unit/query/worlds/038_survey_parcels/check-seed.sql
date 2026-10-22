@@ -70,3 +70,32 @@ INSERT INTO parcel_conversions(id,plan_id,label,route,rectangle,route_wire,recta
 INSERT INTO parcel_conversions(id,plan_id,label,route,rectangle,route_wire,rectangle_wire,enabled) VALUES(101,1,'wrong converted box',NULL,'(0,0),(0,0)',NULL,'\x00',true);
 -- name: parcel_conversion_box
 INSERT INTO parcel_conversions(id,plan_id,label,route,rectangle,route_wire,rectangle_wire,enabled) VALUES(101,1,'box point boundary',NULL,'(0,0),(0,0)',NULL,'\x0000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',true);
+
+-- name: parcel_center_single_vertex
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'single survey vertex','((3,4))','\x40080000000000004010000000000000','\x400800000000000040100000000000000000000000000000',0,true,false);
+-- name: parcel_center_two_vertices
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'endpoints of survey line','((0,0),(6,0))','\x40080000000000000000000000000000','\x400800000000000000000000000000004008000000000000',3,true,false);
+-- name: parcel_center_triangle
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'triangular survey mean','((0,0),(2,0),(0,2))','\x3fe55555555555553fe5555555555555','\x3fe55555555555553fe55555555555553ff4ede2d9f8addf',1.308077670527261,true,false);
+-- name: parcel_center_duplicate_vertex
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'repeated survey observation','((0,0),(0,0),(6,0))','\x40000000000000000000000000000000','\x400000000000000000000000000000004005555555555555',2.6666666666666665,true,false);
+-- name: parcel_center_signed_zero
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'signed origin observation','((-0,-0))','\x00000000000000000000000000000000','\x000000000000000000000000000000000000000000000000',0,true,false);
+-- name: parcel_center_null_boundary
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'missing boundary',NULL,NULL,NULL,NULL,NULL,false);
+-- name: parcel_center_wrong_point
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'incorrect center report','((3,4))','\x00',NULL,NULL,NULL,false);
+-- name: parcel_center_wrong_circle
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'incorrect circle report','((3,4))',NULL,'\x00',NULL,NULL,false);
+-- name: parcel_center_wrong_radius
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'incorrect radius report','((3,4))',NULL,NULL,1,NULL,false);
+-- name: parcel_center_wrong_consistency
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'incorrect center consistency report','((3,4))',NULL,NULL,NULL,false,false);
+-- name: parcel_center_sum_overflow
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'center sum exceeds float range','((1e308,0),(1e308,0),(-1e308,0))',NULL,NULL,NULL,NULL,false);
+-- name: parcel_center_radius_overflow
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'finite center with overflowing radius sum','((1e308,0),(-1e308,0))',NULL,NULL,NULL,NULL,false);
+-- name: parcel_center_division_underflow
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'center division below float range','((5e-324,0),(0,0))',NULL,NULL,NULL,NULL,false);
+-- name: parcel_center_bypassed_radius_overflow
+INSERT INTO parcel_centers(id,plan_id,label,boundary,center_wire,circle_wire,expected_radius,expected_consistent,bypass) VALUES(101,1,'skipped overflowing radius sum','((1e308,0),(-1e308,0))','\x00','\x00',1,false,true);
