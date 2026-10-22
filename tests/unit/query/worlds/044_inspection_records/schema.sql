@@ -178,3 +178,15 @@ CREATE TABLE inspection_hashes (
   CONSTRAINT draft_hash_extended CHECK (CASE WHEN bypass THEN true ELSE hash_record_extended(draft,seed) IS NOT DISTINCT FROM expected_extended END),
   CONSTRAINT draft_batch_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(ARRAY[draft,NULL::draft_reading]) IS NOT DISTINCT FROM expected_batch END)
 );
+
+CREATE TYPE vacant_inspection AS();
+CREATE TABLE inspection_frames (
+  vacant vacant_inspection,
+  expected bytea,
+  expected_length integer,
+  use_primary boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT frame_bytes CHECK (CASE WHEN bypass THEN true ELSE record_send(vacant) IS NOT DISTINCT FROM expected END),
+  CONSTRAINT frame_length CHECK (CASE WHEN bypass THEN true ELSE octet_length(record_send(vacant)) IS NOT DISTINCT FROM expected_length END),
+  CONSTRAINT selected_frame CHECK (CASE WHEN bypass THEN true ELSE record_send(CASE WHEN use_primary THEN vacant ELSE ROW()::vacant_inspection END) IS NOT DISTINCT FROM expected END)
+);

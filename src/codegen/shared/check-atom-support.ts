@@ -11,6 +11,7 @@ import {
   isJsonpathTimezoneCallable,
   isArrayStringIO,
   isArrayBinarySend,
+  isRecordBinarySend,
   isRangeBinarySend,
   isMultirangeBinarySend,
 } from './check-rust-evaluator.js'
@@ -54,6 +55,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         implementation.kind === 'function' &&
         (isArrayStringIO(implementation) ||
           isArrayBinarySend(implementation) ||
+          isRecordBinarySend(implementation) ||
           isRangeBinarySend(implementation) ||
           isMultirangeBinarySend(implementation)) &&
         rustNames.has(implementation.rustName)) ||

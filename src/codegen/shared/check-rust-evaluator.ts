@@ -522,6 +522,17 @@ export const isArrayTrim = (item: ReturnType<typeof builtinMetadata>): boolean =
   item.args[0] === 'pg_catalog.anyarray' &&
   item.args[1] === 'pg_catalog.int4'
 
+export const isRecordBinarySend = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'record_send' &&
+  item.strict &&
+  item.volatility === 's' &&
+  !item.returnsSet &&
+  item.args.length === 1 &&
+  item.args[0] === 'pg_catalog.record' &&
+  item.result === 'pg_catalog.bytea'
+
 export const isArrayBinarySend = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -2119,6 +2130,7 @@ export function emitCheckRustEvaluator(
       const arrayExtremum = isArrayExtremum(implementation)
       const arrayBucket = isArrayBucket(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
+      const recordBinarySend = isRecordBinarySend(implementation)
       const rangeBinarySend = isRangeBinarySend(implementation)
       const multirangeBinarySend = isMultirangeBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
@@ -2200,6 +2212,7 @@ export function emitCheckRustEvaluator(
         (implementation.volatility !== 'i' &&
           !enumSupport &&
           !arrayBinarySend &&
+          !recordBinarySend &&
           !rangeBinarySend &&
           !multirangeBinarySend &&
           !arrayStringIO &&
@@ -2320,6 +2333,7 @@ export function emitCheckRustEvaluator(
                     : type === 'pg_catalog.record' &&
                         (isRecordComparison(implementation) ||
                           isRecordHash(implementation) ||
+                          recordBinarySend ||
                           (jsonConversion && implementation.name === 'row_to_json')) &&
                         (compositeProfile(operands[index]?.type ?? '') ||
                           anonymousRecordProfile(operands[index]?.type ?? ''))

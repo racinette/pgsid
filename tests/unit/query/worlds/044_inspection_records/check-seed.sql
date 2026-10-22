@@ -290,3 +290,18 @@ INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expecte
 INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,-1854282447,-916189391165704617,0,false);
 -- name: HashBypassed
 INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,0,0,0,true);
+
+-- name: FrameNull
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES (NULL,NULL,NULL,true,false);
+-- name: FrameEmpty
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00000000',4,true,false);
+-- name: FrameFallback
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00000000',4,false,false);
+-- name: FrameBytesWrong
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00',4,true,false);
+-- name: FrameLengthWrong
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00000000',3,true,false);
+-- name: FrameSelectionWrong
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES (NULL,NULL,NULL,false,false);
+-- name: FrameBypassed
+INSERT INTO inspection_frames(vacant,expected,expected_length,use_primary,bypass) VALUES ('()','\x00',3,false,true);
