@@ -31,6 +31,7 @@ import {
 } from './anonymous-records.js'
 import type { CompositeTypeGraph } from '../catalog/types.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
+import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
 import {
   rangeConstructorImplementation,
   rangeCallTypeKey,
@@ -1971,7 +1972,13 @@ export function bindCatalogCheck(
   rowOwner?: { schema: string; name: string },
   rowFieldBindings?: ReadonlyMap<unknown, RowFieldBinding>,
   rowCoercionContext?: StoredRowCoercionContext,
+  rowCoercionSites?: RowCoercionSites,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
+  if (rowCoercionContext && !rowCoercionContext.complete)
+    return { expression: { kind: 'uncertain' }, inputs: [] }
+  rowCoercionSites ??= rowCoercionContext
+    ? alignStoredRowCoercions(root, rowCoercionContext, compositeGraph)
+    : undefined
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
       ? alignStoredDomainCoercions(root, coercionContext, domains)
@@ -2026,12 +2033,14 @@ export function bindCatalogCheck(
     target: string,
     context: 'i' | 'e',
     depth = 0,
+    site?: unknown,
   ): { kind: 'io' } | { kind: 'row'; mapping: number[] } | null => {
     if (rowCoercionContext) {
       if (!rowCoercionContext.complete) return null
       const sourceIdentity = compositeProfile(source)?.identity,
         targetIdentity = compositeProfile(target)?.identity,
-        matches = rowCoercionContext.casts.filter(
+        observed = rowCoercionSites?.get(site),
+        matches = (observed?.length ? observed : rowCoercionContext.casts).filter(
           (c) => c.source === sourceIdentity && c.target === targetIdentity && c.depth === depth,
         ),
         kinds = new Set(matches.map((c) => c.kind))
@@ -2093,6 +2102,7 @@ export function bindCatalogCheck(
     targetName: Fields,
     inputContext = false,
     preparedInput?: string,
+    site?: unknown,
   ): Bound => {
     if (!operand.type?.startsWith('array:') || !operand.value) return unknown
     const sourceElementType = operand.type.slice(6) as ArrayElementType
@@ -2152,7 +2162,7 @@ export function bindCatalogCheck(
       rowCoercionContext
         ? {
             ...rowCoercionContext,
-            casts: rowCoercionContext.casts
+            casts: (rowCoercionSites?.get(site) ?? rowCoercionContext.casts)
               .filter((c) => c.depth > 0)
               .map((c) => ({ ...c, depth: c.depth - 1 })),
           }
@@ -2224,7 +2234,7 @@ export function bindCatalogCheck(
       return bind({ TypeCast: { arg: node, typeName: elementTypeName(target) } }).value
     const source = boundType(arg)
     if (source && arg.value && compositeProfile(target)) {
-      const coercion = selectedRowCoercion(source, target, 'i')
+      const coercion = selectedRowCoercion(source, target, 'i', 0, node)
       if (coercion?.kind === 'io') return compositeIoOperand(arg.value, target)
       if (coercion?.kind === 'row')
         return {
@@ -2239,13 +2249,16 @@ export function bindCatalogCheck(
       const from = arrayElementBaseType(source.slice(6)),
         to = arrayElementBaseType(target.slice(6))
       if (from !== to && compositeProfile(from) && compositeProfile(to)) {
-        const coercion = selectedRowCoercion(from, to, 'i', 1)
+        const coercion = selectedRowCoercion(from, to, 'i', 1, node)
         return coercion?.kind === 'io'
           ? bindArrayElementCoercion(
               arg,
               target as ArrayType,
               target.slice(6) as ArrayElementType,
               elementTypeName(target.slice(6) as ScalarType),
+              false,
+              undefined,
+              node,
             ).value
           : null
       }
@@ -2258,6 +2271,7 @@ export function bindCatalogCheck(
         { TypeCast: { arg: node, typeName: elementTypeName(target as ArrayElementType) } },
         undefined,
         true,
+        node,
       ).value
     }
     if (
@@ -2273,6 +2287,8 @@ export function bindCatalogCheck(
           element,
           elementTypeName(element),
           true,
+          undefined,
+          node,
         ).value
       if (node === undefined) return null
       return bind(
@@ -2408,7 +2424,13 @@ export function bindCatalogCheck(
             }).value
           : coerceBound(arg, type, member)
       }
-      if (target) arg = bind({ TypeCast: { arg: member, typeName: target.name } })
+      if (target)
+        arg = bind(
+          { TypeCast: { arg: member, typeName: target.name } },
+          undefined,
+          undefined,
+          member,
+        )
       if (arg.literal?.kind === 'string' && element !== 'pg_catalog.text')
         arg = bind({ TypeCast: { arg: member, typeName: elementTypeName(element) } })
       let value = coerceBound(arg, arrayElementBaseType(element) as ScalarType, member, definition)
@@ -2614,7 +2636,12 @@ export function bindCatalogCheck(
       )
     )
   }
-  const bind = (node: unknown, expectedType?: ScalarType, implicitDomainInput?: boolean): Bound => {
+  const bind = (
+    node: unknown,
+    expectedType?: ScalarType,
+    implicitDomainInput?: boolean,
+    rowSite = node,
+  ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
     const row = fields(wrapper['RowExpr'])
@@ -3177,6 +3204,7 @@ export function bindCatalogCheck(
                   compositeElement,
                   'e',
                   1,
+                  rowSite,
                 )
               : null
           if (operand.type === type && operand.value) return operand
@@ -3191,6 +3219,9 @@ export function bindCatalogCheck(
               type,
               compositeElement,
               elementTypeName(compositeElement),
+              false,
+              undefined,
+              rowSite,
             )
           if (operand.literal?.kind === 'null') {
             const value = materialize(operand, type)
@@ -3466,6 +3497,8 @@ export function bindCatalogCheck(
               arrayBounds: [],
             },
             castInput ?? false,
+            undefined,
+            rowSite,
           )
         }
         const modifiers = castType?.['typmods']
@@ -3685,7 +3718,8 @@ export function bindCatalogCheck(
           const targetRow = compositeProfile(scalarType),
             sourceRow = compositeProfile(operand.type ?? '')
           if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) {
-            if (selectedRowCoercion(operand.type!, scalarType, 'e')?.kind !== 'io') return unknown
+            if (selectedRowCoercion(operand.type!, scalarType, 'e', 0, rowSite)?.kind !== 'io')
+              return unknown
           }
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
@@ -3710,17 +3744,22 @@ export function bindCatalogCheck(
                 name: elementTypeName(scalarType.slice(6) as ArrayElementType),
                 modifiers: memberModifiers,
               })
-            : bind({
-                TypeCast: {
-                  ...cast,
-                  typeName: scalarType.startsWith('array:')
-                    ? {
-                        ...elementTypeName(scalarType.slice(6) as ArrayElementType),
-                        arrayBounds: [{ Integer: { ival: -1 } }],
-                      }
-                    : elementTypeName(scalarType as ArrayElementType),
+            : bind(
+                {
+                  TypeCast: {
+                    ...cast,
+                    typeName: scalarType.startsWith('array:')
+                      ? {
+                          ...elementTypeName(scalarType.slice(6) as ArrayElementType),
+                          arrayBounds: [{ Integer: { ival: -1 } }],
+                        }
+                      : elementTypeName(scalarType as ArrayElementType),
+                  },
                 },
-              })
+                undefined,
+                undefined,
+                rowSite,
+              )
           if (!base.value || base.type !== scalarType) return unknown
           let value: EvalExpression = base.value
           for (const item of [...chain].reverse()) {
@@ -4021,7 +4060,9 @@ export function bindCatalogCheck(
           }
         }
         if (operand.type === composite && operand.value) return operand
-        const coercion = operand.type ? selectedRowCoercion(operand.type, composite, 'e') : null
+        const coercion = operand.type
+          ? selectedRowCoercion(operand.type, composite, 'e', 0, rowSite)
+          : null
         if (coercion?.kind === 'io' && operand.value) {
           const value = compositeIoOperand(operand.value, composite)
           return value ? { type: composite, value } : unknown
@@ -5609,7 +5650,12 @@ export function bindCatalogCheck(
           call['agg_within_group']
         )
           return unknown
-        return bind({ TypeCast: { arg: args0[0], typeName: selected.typeName } })
+        return bind(
+          { TypeCast: { arg: args0[0], typeName: selected.typeName } },
+          undefined,
+          undefined,
+          rowSite,
+        )
       }
       if (names?.length === 1 && Array.isArray(args0) && args0.length === 1) {
         if (

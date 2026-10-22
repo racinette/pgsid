@@ -116,7 +116,13 @@ export interface StoredDomainCoercionContext {
 export interface StoredRowCoercionContext {
   definition: string
   complete: boolean
-  casts: { source: string; target: string; depth: number; kind: 'io' | 'row' | 'function' }[]
+  casts: {
+    source: string
+    target: string
+    depth: number
+    kind: 'io' | 'row' | 'function'
+    site?: string
+  }[]
 }
 
 export interface ConstraintInfo {

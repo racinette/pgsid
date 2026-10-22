@@ -178,7 +178,7 @@ it('preserves array coercion depth and explicit source/stored evidence requireme
   }
 }, 60_000)
 
-it('defers multiple stored conversion choices for the same row pair until syntax alignment can disambiguate them', async () => {
+it('aligns multiple stored conversion choices for the same row pair to their expression sites', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(`CREATE TABLE p(n int4);CREATE TABLE c(extra int4) INHERITS(p);CREATE CAST(c AS p) WITH INOUT;
@@ -187,6 +187,26 @@ it('defers multiple stored conversion choices for the same row pair until syntax
       t = catalog.tables.find((t) => t.name === 'q')!,
       constraint = t.constraints[0]!
     expect(constraint.rowCoercionContext!.casts.map((c) => c.kind)).toEqual(['io', 'row'])
+    const legacy = {
+      ...constraint,
+      rowCoercionContext: {
+        ...constraint.rowCoercionContext!,
+        casts: constraint.rowCoercionContext!.casts.map(({ site: _site, ...cast }) => cast),
+      },
+    }
+    expect(
+      uncertain(
+        lowerTableCheck(
+          t,
+          legacy,
+          catalog.enums,
+          catalog.domains,
+          'stored',
+          catalog.rangeTypes,
+          catalog.compositeTypeGraph,
+        )!.expression,
+      ),
+    ).toBe(true)
     for (const origin of ['source', 'stored'] as const)
       expect(
         uncertain(
@@ -203,7 +223,7 @@ it('defers multiple stored conversion choices for the same row pair until syntax
               : undefined,
           )!.expression,
         ),
-      ).toBe(true)
+      ).toBe(false)
     await pg.exec('INSERT INTO q VALUES(ROW(1,2)::c,NULL,true)')
     await expect(pg.exec('INSERT INTO q VALUES(ROW(1,2)::c,NULL,false)')).rejects.toMatchObject({
       code: '22P02',
@@ -227,7 +247,7 @@ it('marks malformed or untyped native coercion trees incomplete without retainin
   ).toEqual({
     definition: 'CHECK(true)',
     complete: true,
-    casts: [{ source: 'public.s', target: 'public.t', depth: 0, kind: 'io' }],
+    casts: [{ source: 'public.s', target: 'public.t', depth: 0, kind: 'io', site: '' }],
   })
   expect(
     captureRowCoercionContext(
@@ -259,6 +279,37 @@ it('reports a native row conversion change when a replacement CHECK prints the s
     expect(old.rowCoercionContext!.casts[0]!.kind).toBe('row')
     expect(fresh.rowCoercionContext!.casts[0]!.kind).toBe('io')
     expect(diffCatalogs(before, after).modified.map((m) => m.entityId)).toContain('public.changing')
+  } finally {
+    await pg.close()
+  }
+}, 60_000)
+
+it('defers stored row constructors whose dropped expressions disappeared from SQL but still affect native row NULL tests', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(
+      `CREATE TYPE pair AS(a int4,b int4);CREATE TABLE changing(n int4,CONSTRAINT valid CHECK((ROW(n,1/n)::pair) IS NOT NULL));ALTER TYPE pair DROP ATTRIBUTE b`,
+    )
+    const c = await snapshotCatalog(pg),
+      t = c.tables.find((t) => t.name === 'changing')!,
+      constraint = t.constraints[0]!
+    expect(constraint.definition).not.toContain('/')
+    expect(constraint.rowCoercionContext?.complete).toBe(false)
+    expect(
+      uncertain(
+        lowerTableCheck(
+          t,
+          constraint,
+          c.enums,
+          c.domains,
+          'stored',
+          c.rangeTypes,
+          c.compositeTypeGraph,
+        )!.expression,
+      ),
+    ).toBe(true)
+    await expect(pg.exec('INSERT INTO changing VALUES(0)')).rejects.toMatchObject({ code: '22012' })
+    await pg.exec('INSERT INTO changing VALUES(1)')
   } finally {
     await pg.close()
   }

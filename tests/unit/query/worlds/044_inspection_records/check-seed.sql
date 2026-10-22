@@ -462,3 +462,22 @@ INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypa
 INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_extensions,1,true,false);
 -- name: RecheckedRecordBypassed
 INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (ROW(9,'bad',-1,false)::inspection_extensions,999,false,true);
+
+-- name: MixedConversionRowKnown
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,1,'{"score":3,"label":"ok"}',false,false);
+-- name: MixedConversionRowFallback
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (NULL,ROW(3,'fallback')::inspection_origins,1,'{"score":3,"label":"fallback"}',false,false);
+-- name: MixedConversionRowLiveNulls
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_extensions,NULL,1,'{"score":null,"label":null}',false,false);
+-- name: MixedConversionRowLowScore
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'low',0,true)::inspection_extensions,NULL,1,'{"score":0,"label":"low"}',false,false);
+-- name: MixedConversionRowWrongDocument
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,1,'{}',false,false);
+-- name: MixedConversionTextTooWide
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,1,NULL,true,false);
+-- name: MixedConversionTextNull
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (NULL,ROW(3,'fallback')::inspection_origins,1,NULL,true,false);
+-- name: MixedConversionTextLiveNulls
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_extensions,NULL,1,NULL,true,false);
+-- name: MixedConversionBypassed
+INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'bad',-1,false)::inspection_extensions,NULL,999,'{}',true,true);

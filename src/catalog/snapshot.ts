@@ -814,7 +814,12 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     seen.add(oid)
     const t = typesByOid.get(oid)
     if (!t) return null
-    if (t.kind === 'c') return { identity: t.identity, depth: 0 }
+    if (t.kind === 'c') {
+      const fields = compositeTypeGraph.definitions
+        .find((n) => n.identity === t.identity)
+        ?.fields.map((f) => f.position - 1)
+      return { identity: t.identity, depth: 0, ...(fields ? { fields } : {}) }
+    }
     if (t.kind === 'd') return rowIdentity(t.base, seen)
     const element = t.element ? rowIdentity(t.element, seen) : null
     return element ? { ...element, depth: element.depth + 1 } : null
