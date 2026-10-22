@@ -187,6 +187,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/box_core.rs");
     include!("operations/pg_catalog/circle_core.rs");
     include!("operations/pg_catalog/circle_polygon_math.rs");
+    include!("operations/pg_catalog/circle_polygon.rs");
     include!("operations/pg_catalog/path_core.rs");
     include!("operations/pg_catalog/path_operations.rs");
     include!("operations/pg_catalog/path_distance.rs");

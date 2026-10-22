@@ -609,6 +609,18 @@ describe('CHECK measurement boundaries', () => {
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
     const report = await measureCoercions(pg)
+    const circleCast = report.casts.find(
+      (c) => c.source === 'pg_catalog.circle' && c.target === 'pg_catalog.polygon',
+    )!
+    expect(circleCast.implementationPresent).toBe(true)
+    expect(circleCast.valueRequirements).toMatchObject([
+      { kind: 'platform', owner: 'tests/sql-semantics/check-circle-polygon.test.ts' },
+    ])
+    expect(
+      report.arrayElementCasts.find(
+        (c) => c.source === 'pg_catalog.circle' && c.target === 'pg_catalog.polygon',
+      )?.valueRequirements,
+    ).toEqual(circleCast.valueRequirements)
     for (const cast of report.casts.filter(
       (c) => c.implementationBoundary === 'missing-immutable-function',
     )) {

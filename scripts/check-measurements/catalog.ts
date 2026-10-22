@@ -5,6 +5,7 @@ import {
   nativeHashContext,
 } from '../../src/codegen/shared/check-hash-context.js'
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
+import { circlePolygonTrigonometry } from '../../src/codegen/shared/check-trigonometry-context.js'
 import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
@@ -207,6 +208,19 @@ export function hashValueRequirements(item: BuiltinCallable) {
         ]
       : []),
   ]
+}
+
+export function trigonometryValueRequirements(item: BuiltinCallable) {
+  return circlePolygonTrigonometry(item)
+    ? [
+        {
+          kind: 'platform',
+          requirement:
+            'Circle coordinate generation requires the declared PostgreSQL fdlibm binary64 trigonometry profile; target-language math libraries do not establish that profile.',
+          owner: 'tests/sql-semantics/check-circle-polygon.test.ts',
+        },
+      ]
+    : null
 }
 
 export function characterValueRequirements(item: BuiltinCallable) {
@@ -556,6 +570,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (item.kind === 'aggregate' || item.kind === 'window') categories.push(item.kind)
   if (item.returnsSet) categories.push('set-returning')
   if (rangeValueRequirements(item)) categories.push('aggregate-execution-context')
+  if (circlePolygonTrigonometry(item)) categories.push('platform-setting:trigonometry')
   if (types.some((type) => ['pg_catalog.internal', 'pg_catalog.cstring'].includes(type)))
     categories.push('internal-interface')
   if (item.volatility === 's') categories.push('session-or-database-state')

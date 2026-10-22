@@ -32,6 +32,7 @@ import {
   rangeHashSupport,
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
+import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
 import { jsonbTextRenderingContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
@@ -697,6 +698,7 @@ export type CheckExecutionContext = {
   defaultCtype?: 'C' | 'C.UTF-8'
   serverEncoding?: 'UTF8'
   nativeByteOrder?: 'little' | 'big'
+  trigonometry?: 'fdlibm'
   arrayNulls?: boolean
 }
 
@@ -4253,6 +4255,8 @@ export function emitCheckRustEvaluator(
           ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
           : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (circlePolygonTrigonometry(implementation))
+        arguments_.push(String(executionContext.trigonometry === 'fdlibm'))
       if (jsonbTextRenderingContext(implementation))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (

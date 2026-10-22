@@ -9207,6 +9207,87 @@ export function ptContainedCircleLlnp(point: checkruntime.PointValue, input: che
     }
     return circleHasPoint(input, point);
 }
+const circlePolygonZeroRadius = 466560;
+const circlePolygonPointLimit = 8584704;
+function circlePolygonVertex(value: checkruntime.CirclePayload, radius: checkruntime.Float8Value, cosine: number, sine: number): checkruntime.PointValue {
+    cosine = langruntime.checkedF64(cosine);
+    sine = langruntime.checkedF64(sine);
+    const center: checkruntime.PointPayload = { x: value.x, y: value.y, wireKnown: value.wireKnown };
+    return pointArithmeticResult(float8miR1nu(lineOriginCoordinate(center, false), float8mulD3nd(radius, checkruntime.makeFloat8Value(cosine))), float8plG3ou(lineOriginCoordinate(center, true), float8mulD3nd(radius, checkruntime.makeFloat8Value(sine))));
+}
+export function polygon9juc(count: checkruntime.Int4Value, input: checkruntime.CircleValue, fdlibm: boolean): checkruntime.PolygonValue {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    if (count.kind === "Error") {
+        const error: checkruntime.SqlError = count.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(count, { kind: "Unknown" }) || checkruntime.equalCircleValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(count, { kind: "Null" }) || checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (count.kind === "Value") {
+        const n: number = langruntime.checkedI32(count.value);
+        if (input.kind === "Value") {
+            const value: checkruntime.CirclePayload = input.value;
+            if (langruntime.f64Abs(checkruntime.float8Number(value.radius)) <= 0.000001) {
+                return { kind: "Error", value: checkruntime.makeSqlError(circlePolygonZeroRadius) };
+            }
+            if (n < 2) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+            }
+            if (n > 134217725) {
+                return { kind: "Error", value: checkruntime.makeSqlError(circlePolygonPointLimit) };
+            }
+            const radius: checkruntime.Float8Value = circleRadiusValue(input);
+            const first: checkruntime.PointValue = circlePolygonVertex(value, radius, 1.0, 0.0);
+            if (first.kind === "Error") {
+                const error: checkruntime.SqlError = first.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalPointValue(first, { kind: "Unknown" }) || checkruntime.equalPointValue(first, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            if (fdlibm === false) {
+                return { kind: "Unknown" };
+            }
+            let points: checkruntime.PointPayload[] = [];
+            if (first.kind === "Value") {
+                const point: checkruntime.PointPayload = first.value;
+                langruntime.pushStruct(points, point, checkruntime.copyPointPayload);
+            }
+            const step: number = langruntime.f64Divide(6.283185307179586, (Number(langruntime.checkedI32(n))));
+            let index: number = 1;
+            while (index < n) {
+                const angle: number = langruntime.f64Multiply(step, (Number(langruntime.checkedI32(index))));
+                const point: checkruntime.PointValue = circlePolygonVertex(value, radius, circleTrigonometry(angle, true), circleTrigonometry(angle, false));
+                if (point.kind === "Error") {
+                    const error: checkruntime.SqlError = point.value;
+                    return { kind: "Error", value: error };
+                }
+                if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Null" })) {
+                    return { kind: "Unknown" };
+                }
+                if (point.kind === "Value") {
+                    const payload: checkruntime.PointPayload = point.value;
+                    langruntime.pushStruct(points, payload, checkruntime.copyPointPayload);
+                }
+                index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+            }
+            return checkruntime.makePolygonPoints({ points: points, bounds: { kind: "Unknown" } });
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function polygonH16h(input: checkruntime.CircleValue, fdlibm: boolean): checkruntime.PolygonValue {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return polygon9juc(checkruntime.makeInt4Value(12), input, fdlibm);
+}
 interface CircleAngleReduction {
     head: bigint;
     tail: bigint;

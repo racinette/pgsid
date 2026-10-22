@@ -8,6 +8,11 @@ describe('config schema', () => {
       'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8 }\n',
     )
     expect(config.sql.codegen?.checks).toEqual({ defaultCollation: 'C', serverEncoding: 'UTF8' })
+    expect(
+      parseConfigString(
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { trigonometry: fdlibm }\n',
+      ).sql.codegen?.checks,
+    ).toEqual({ trigonometry: 'fdlibm' })
     for (const nativeByteOrder of ['little', 'big'])
       expect(
         parseConfigString(
@@ -39,6 +44,8 @@ describe('config schema', () => {
       '{ arrayNulls: unknown }',
       '{ nativeByteOrder: native }',
       '{ nativeByteOrder: LE }',
+      '{ trigonometry: native }',
+      '{ trigonometry: glibc }',
     ])
       expect(() =>
         parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n'),

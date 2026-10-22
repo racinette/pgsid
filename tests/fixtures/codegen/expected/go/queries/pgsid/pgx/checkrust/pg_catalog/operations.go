@@ -9152,6 +9152,87 @@ func PtContainedCircleLlnp(point checkruntime.PointValue, input checkruntime.Cir
 	return circleHasPoint(input, point)
 }
 
+const circlePolygonZeroRadius = 466560
+const circlePolygonPointLimit = 8584704
+
+func circlePolygonVertex(value checkruntime.CirclePayload, radius checkruntime.Float8Value, cosine float64, sine float64) checkruntime.PointValue {
+	center := checkruntime.PointPayload{X: value.X, Y: value.Y, WireKnown: value.WireKnown}
+	return pointArithmeticResult(Float8miR1nu(lineOriginCoordinate(center, false), Float8mulD3nd(radius, checkruntime.MakeFloat8Value(cosine))), Float8plG3ou(lineOriginCoordinate(center, true), Float8mulD3nd(radius, checkruntime.MakeFloat8Value(sine))))
+}
+func Polygon9juc(count checkruntime.Int4Value, input checkruntime.CircleValue, fdlibm bool) checkruntime.PolygonValue {
+	if count.Kind == checkruntime.Int4ValueError {
+		error := count.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}) {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+	}
+	if count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueNull}
+	}
+	if count.Kind == checkruntime.Int4ValueValue {
+		n := langruntime.CheckedI32(count.Value)
+		if input.Kind == checkruntime.CircleValueValue {
+			value := input.Value
+			if langruntime.F64Abs(checkruntime.Float8Number(value.Radius)) <= float64(0.000001) {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(circlePolygonZeroRadius)}
+			}
+			if n < 2 {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+			}
+			if n > 134217725 {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(circlePolygonPointLimit)}
+			}
+			radius := circleRadiusValue(input)
+			first := circlePolygonVertex(value, radius, float64(1.0), float64(0.0))
+			if first.Kind == checkruntime.PointValueError {
+				error := first.Error
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+			}
+			if first == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || first == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+			}
+			if fdlibm == false {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+			}
+			points := []checkruntime.PointPayload{}
+			if first.Kind == checkruntime.PointValueValue {
+				point := first.Value
+				langruntime.CheckedAdd(len(points), 1)
+				points = append(points, point)
+			}
+			step := langruntime.F64Divide(float64(6.283185307179586), (float64(n)))
+			index := 1
+			for index < n {
+				angle := langruntime.F64Multiply(step, (float64(index)))
+				point := circlePolygonVertex(value, radius, circleTrigonometry(angle, true), circleTrigonometry(angle, false))
+				if point.Kind == checkruntime.PointValueError {
+					error := point.Error
+					return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+				}
+				if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+					return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+				}
+				if point.Kind == checkruntime.PointValueValue {
+					payload := point.Value
+					langruntime.CheckedAdd(len(points), 1)
+					points = append(points, payload)
+				}
+				index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+			}
+			return checkruntime.MakePolygonPoints(checkruntime.PolygonPayload{Points: points, Bounds: checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}})
+		}
+	}
+	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+func PolygonH16h(input checkruntime.CircleValue, fdlibm bool) checkruntime.PolygonValue {
+	return Polygon9juc(checkruntime.MakeInt4Value(12), input, fdlibm)
+}
+
 type circleAngleReduction struct {
 	head     int64
 	tail     int64
