@@ -190,3 +190,16 @@ CREATE TABLE inspection_frames (
   CONSTRAINT frame_length CHECK (CASE WHEN bypass THEN true ELSE octet_length(record_send(vacant)) IS NOT DISTINCT FROM expected_length END),
   CONSTRAINT selected_frame CHECK (CASE WHEN bypass THEN true ELSE record_send(CASE WHEN use_primary THEN vacant ELSE ROW()::vacant_inspection END) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE inspection_expansions (
+  score integer,
+  label text COLLATE "C",
+  minimum_score integer,
+  expected_document jsonb,
+  expected_label text COLLATE "C",
+  bypass boolean NOT NULL,
+  CONSTRAINT expansion_score CHECK (CASE WHEN bypass THEN true ELSE (ROW(score,label)).f1>=minimum_score END),
+  CONSTRAINT expansion_document CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(ROW((ROW(score,label)::draft_reading).*)) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT expansion_label CHECK (CASE WHEN bypass THEN true ELSE (ROW((ROW(score,label)::draft_reading).*)::draft_reading).label IS NOT DISTINCT FROM expected_label END),
+  CONSTRAINT expansion_owner CHECK (CASE WHEN bypass THEN true ELSE (to_jsonb(ROW(inspection_expansions.*))->>'f1')::int4 IS NOT DISTINCT FROM minimum_score END)
+);

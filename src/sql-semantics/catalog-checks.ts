@@ -34,6 +34,8 @@ const fields = (value: unknown): Fields | null =>
 
 type CheckTable = {
   columns: readonly CheckColumn[]
+  schema?: string
+  name?: string
 }
 type CheckConstraint = Pick<
   ConstraintInfo,
@@ -80,6 +82,7 @@ export function lowerTableCheck(
     undefined,
     rangeTypes,
     compositeGraph,
+    table.schema && table.name ? { schema: table.schema, name: table.name } : undefined,
   )
   return { name: constraint.name, ...bound }
 }
