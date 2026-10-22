@@ -271,3 +271,22 @@ INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass
 INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (-1,'ok','{"f1":"ok"}',false,false);
 -- name: ProjectionBypassed
 INSERT INTO inspection_projections(score,label,expected_document,detailed,bypass) VALUES (-1,'ok','{}',true,true);
+
+-- name: HashNullDatum
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (NULL,7,NULL,NULL,961,false);
+-- name: HashNullFields
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(NULL,NULL)::draft_reading,7,0,0,961,false);
+-- name: HashNestedBatch
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,-1854282447,-916189391165704617,-1648180048,false);
+-- name: HashNegative
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(-3,'abc')::draft_reading,7,1202743094,1168319434305396557,-1369668789,false);
+-- name: HashNullSeed
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,NULL,-1854282447,NULL,-1648180048,false);
+-- name: HashWrong
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,0,-916189391165704617,-1648180048,false);
+-- name: HashExtendedWrong
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,-1854282447,0,-1648180048,false);
+-- name: HashBatchWrong
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,-1854282447,-916189391165704617,0,false);
+-- name: HashBypassed
+INSERT INTO inspection_hashes(draft,seed,expected_hash,expected_extended,expected_batch,bypass) VALUES (ROW(2,'ok')::draft_reading,7,0,0,0,true);

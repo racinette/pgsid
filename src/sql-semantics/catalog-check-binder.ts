@@ -2310,6 +2310,9 @@ export function bindCatalogCheck(
         const definition = arrayOutputEnum(type)
         descriptors.push({
           type,
+          ...(bound.collation
+            ? { collation: bound.collation.default ? ('default' as const) : bound.collation.kind }
+            : {}),
           ...(boundType(bound) === null ? { unknown: true as const } : {}),
           ...(definition
             ? {
