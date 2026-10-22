@@ -6,6 +6,21 @@ import { splitCheckTypescript } from '../../../tools/check-transpiler/typescript
 import { checkRustAsset } from './check-rust-assets.js'
 import type { CheckRustSource } from './check-rust-source.js'
 
+function sourceNotices(source: string | CheckRustSource, module?: string): string {
+  const files =
+    typeof source === 'string'
+      ? [{ source }]
+      : source.modules
+          .filter((item) => !module || item.name === module)
+          .flatMap((item) => item.files)
+  const notices = new Set<string>()
+  for (const file of files) {
+    const header = file.source.match(/^(?:\s*\/\*[\s\S]*?\*\/|\s*\/\/[^\n]*(?:\n|$))*/u)?.[0].trim()
+    if (header && /copyright|SPDX-License-Identifier/iu.test(header)) notices.add(header)
+  }
+  return notices.size ? [...notices].join('\n\n') + '\n' : ''
+}
+
 type RustType = {
   kind: string
   inner?: RustType
@@ -118,13 +133,14 @@ export function transpileCheckRust(source: string | CheckRustSource): {
   )
   const document = JSON.parse(ast) as Parameters<typeof transpile>[0]
   const options = checkValueOptions(document.items)
+  const notices = sourceNotices(source)
   return {
-    typescript: transpile(
-      document,
-      options,
-      checkRustAsset('check-ts-prelude.ts').toString('utf8'),
-    ),
-    go: transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), options),
+    typescript:
+      notices +
+      transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
+    go:
+      notices +
+      transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), options),
   }
 }
 
@@ -151,5 +167,15 @@ export function transpileCheckRustFiles(
   const go = JSON.parse(
     transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), options),
   ) as { regex: string; operations: string; runtime: string; language: string; checks: string }
+  for (const [part, module] of [
+    ['regex', 'regex_engine'],
+    ['operations', 'pg_catalog'],
+    ['runtime', 'checkruntime'],
+    ['checks', 'checks'],
+  ] as const) {
+    const notices = sourceNotices(source, module)
+    typescript[part] = notices + typescript[part]
+    go[part] = notices + go[part]
+  }
   return { typescript, go }
 }

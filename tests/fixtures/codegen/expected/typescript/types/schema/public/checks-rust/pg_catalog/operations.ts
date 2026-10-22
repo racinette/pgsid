@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
+// Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
 function addressAndWord(left: number, right: number): number {
@@ -9197,6 +9206,141 @@ export function ptContainedCircleLlnp(point: checkruntime.PointValue, input: che
         return { kind: "Error", value: error };
     }
     return circleHasPoint(input, point);
+}
+interface CircleAngleReduction {
+    head: bigint;
+    tail: bigint;
+    quadrant: number;
+}
+function copyCircleAngleReduction(value: CircleAngleReduction): CircleAngleReduction {
+    return { head: langruntime.checkedI64(value.head), tail: langruntime.checkedI64(value.tail), quadrant: langruntime.checkedI32(value.quadrant) };
+}
+function circleMathHighWord(value: number): number {
+    value = langruntime.checkedF64(value);
+    let bits: bigint = langruntime.f64ToI64Bits(value);
+    if (bits < 0n) {
+        bits = langruntime.checkedI64(langruntime.checkedI64Subtract(bits, -9223372036854775808n));
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(bits, 4294967296n)))));
+}
+function circleSineKernel(x: number, y: number, tail: boolean): number {
+    x = langruntime.checkedF64(x);
+    y = langruntime.checkedF64(y);
+    tail = langruntime.checkedBool(tail);
+    const z: number = langruntime.f64Multiply(x, x);
+    const w: number = langruntime.f64Multiply(z, z);
+    const r: number = langruntime.f64Add(langruntime.f64Add(8.33333333332248946124e-03, langruntime.f64Multiply(z, (langruntime.f64Add(-1.98412698298579493134e-04, langruntime.f64Multiply(z, 2.75573137070700676789e-06))))), langruntime.f64Multiply(langruntime.f64Multiply(z, w), (langruntime.f64Add(-2.50507602534068634195e-08, langruntime.f64Multiply(z, 1.58969099521155010221e-10)))));
+    const v: number = langruntime.f64Multiply(z, x);
+    if (tail === false) {
+        return langruntime.f64Add(x, langruntime.f64Multiply(v, (langruntime.f64Add(-1.66666666666666324348e-01, langruntime.f64Multiply(z, r)))));
+    }
+    return langruntime.f64Subtract(x, (langruntime.f64Subtract((langruntime.f64Subtract(langruntime.f64Multiply(z, (langruntime.f64Subtract(langruntime.f64Multiply(0.5, y), langruntime.f64Multiply(v, r)))), y)), langruntime.f64Multiply(v, -1.66666666666666324348e-01))));
+}
+function circleCosineKernel(x: number, y: number): number {
+    x = langruntime.checkedF64(x);
+    y = langruntime.checkedF64(y);
+    const z: number = langruntime.f64Multiply(x, x);
+    let w: number = langruntime.f64Multiply(z, z);
+    const r: number = langruntime.f64Add(langruntime.f64Multiply(z, (langruntime.f64Add(4.16666666666666019037e-02, langruntime.f64Multiply(z, (langruntime.f64Add(-1.38888888888741095749e-03, langruntime.f64Multiply(z, 2.48015872894767294178e-05))))))), langruntime.f64Multiply(langruntime.f64Multiply(w, w), (langruntime.f64Add(-2.75573143513906633035e-07, langruntime.f64Multiply(z, (langruntime.f64Add(2.08757232129817482790e-09, langruntime.f64Multiply(z, -1.13596475577881948265e-11))))))));
+    const half: number = langruntime.f64Multiply(0.5, z);
+    w = langruntime.checkedF64(langruntime.f64Subtract(1.0, half));
+    return langruntime.f64Add(w, (langruntime.f64Add((langruntime.f64Subtract((langruntime.f64Subtract(1.0, w)), half)), (langruntime.f64Subtract(langruntime.f64Multiply(z, r), langruntime.f64Multiply(x, y))))));
+}
+function circleReduceAngle(x: number): CircleAngleReduction {
+    x = langruntime.checkedF64(x);
+    const high: number = circleMathHighWord(x);
+    let quadrant: number = 0;
+    if (high <= 1074752122) {
+        if (!(langruntime.checkedSignedRemainder(high, 1048576) === 598523)) {
+            quadrant = langruntime.checkedI32(1);
+            if (high > 1073928572) {
+                quadrant = langruntime.checkedI32(2);
+            }
+        }
+    }
+    else if (high <= 1075183036) {
+        if (!(high === 1074977148)) {
+            quadrant = langruntime.checkedI32(3);
+        }
+    }
+    else if (!(high === 1075388923)) {
+        quadrant = langruntime.checkedI32(4);
+    }
+    if (!(quadrant === 0)) {
+        const count: number = Number(langruntime.checkedI32(quadrant));
+        const first: number = langruntime.f64Subtract(x, langruntime.f64Multiply(count, 1.57079632673412561417));
+        const head: number = langruntime.f64Subtract(first, langruntime.f64Multiply(count, 6.07710050650619224932e-11));
+        const tail: number = langruntime.f64Subtract((langruntime.f64Subtract(first, head)), langruntime.f64Multiply(count, 6.07710050650619224932e-11));
+        return { head: langruntime.f64ToI64Bits(head), tail: langruntime.f64ToI64Bits(tail), quadrant: quadrant };
+    }
+    let count: number = langruntime.f64Subtract((langruntime.f64Add(langruntime.f64Multiply(x, 6.36619772367581382433e-01), 6755399441055744.0)), 6755399441055744.0);
+    quadrant = langruntime.checkedI32(langruntime.f64ToI32(count));
+    let first: number = langruntime.f64Subtract(x, langruntime.f64Multiply(count, 1.57079632673412561417));
+    let correction: number = langruntime.f64Multiply(count, 6.07710050650619224932e-11);
+    if (langruntime.f64Subtract(first, correction) < -0.7853981633974483) {
+        quadrant = langruntime.checkedI32(langruntime.checkedSignedSubtract(quadrant, 1));
+        count = langruntime.checkedF64(langruntime.f64Subtract(count, 1.0));
+        first = langruntime.checkedF64(langruntime.f64Subtract(x, langruntime.f64Multiply(count, 1.57079632673412561417)));
+        correction = langruntime.checkedF64(langruntime.f64Multiply(count, 6.07710050650619224932e-11));
+    }
+    else if (langruntime.f64Subtract(first, correction) > 0.7853981633974483) {
+        quadrant = langruntime.checkedI32(langruntime.checkedSignedAdd(quadrant, 1));
+        count = langruntime.checkedF64(langruntime.f64Add(count, 1.0));
+        first = langruntime.checkedF64(langruntime.f64Subtract(x, langruntime.f64Multiply(count, 1.57079632673412561417)));
+        correction = langruntime.checkedF64(langruntime.f64Multiply(count, 6.07710050650619224932e-11));
+    }
+    let head: number = langruntime.f64Subtract(first, correction);
+    const exponent: number = langruntime.checkedSignedDivide(high, 1048576);
+    if (langruntime.checkedSignedSubtract(exponent, langruntime.checkedSignedDivide(circleMathHighWord(head), 1048576)) > 16) {
+        const previous: number = first;
+        correction = langruntime.checkedF64(langruntime.f64Multiply(count, 6.07710050630396597660e-11));
+        first = langruntime.checkedF64(langruntime.f64Subtract(previous, correction));
+        correction = langruntime.checkedF64(langruntime.f64Subtract(langruntime.f64Multiply(count, 2.02226624879595063154e-21), (langruntime.f64Subtract((langruntime.f64Subtract(previous, first)), correction))));
+        head = langruntime.checkedF64(langruntime.f64Subtract(first, correction));
+        if (langruntime.checkedSignedSubtract(exponent, langruntime.checkedSignedDivide(circleMathHighWord(head), 1048576)) > 49) {
+            const previous1: number = first;
+            correction = langruntime.checkedF64(langruntime.f64Multiply(count, 2.02226624871116645580e-21));
+            first = langruntime.checkedF64(langruntime.f64Subtract(previous1, correction));
+            correction = langruntime.checkedF64(langruntime.f64Subtract(langruntime.f64Multiply(count, 8.47842766036889956997e-32), (langruntime.f64Subtract((langruntime.f64Subtract(previous1, first)), correction))));
+            head = langruntime.checkedF64(langruntime.f64Subtract(first, correction));
+        }
+    }
+    const tail: number = langruntime.f64Subtract((langruntime.f64Subtract(first, head)), correction);
+    return { head: langruntime.f64ToI64Bits(head), tail: langruntime.f64ToI64Bits(tail), quadrant: quadrant };
+}
+function circleTrigonometry(angle: number, cosine: boolean): number {
+    angle = langruntime.checkedF64(angle);
+    cosine = langruntime.checkedBool(cosine);
+    const high: number = circleMathHighWord(angle);
+    if (high <= 1072243195) {
+        if (cosine) {
+            if (high < 1044381696) {
+                return 1.0;
+            }
+            return circleCosineKernel(angle, 0.0);
+        }
+        if (high < 1045430272) {
+            return angle;
+        }
+        return circleSineKernel(angle, 0.0, false);
+    }
+    const reduced: CircleAngleReduction = copyCircleAngleReduction(circleReduceAngle(angle));
+    const head: number = langruntime.f64FromI64Bits(reduced.head);
+    const tail: number = langruntime.f64FromI64Bits(reduced.tail);
+    let quadrant: number = langruntime.checkedSignedRemainder(reduced.quadrant, 4);
+    if (cosine) {
+        quadrant = langruntime.checkedI32(langruntime.checkedSignedRemainder((langruntime.checkedSignedAdd(quadrant, 1)), 4));
+    }
+    if (quadrant === 0) {
+        return circleSineKernel(head, tail, true);
+    }
+    if (quadrant === 1) {
+        return circleCosineKernel(head, tail);
+    }
+    if (quadrant === 2) {
+        return langruntime.f64Negate(circleSineKernel(head, tail, true));
+    }
+    return langruntime.f64Negate(circleCosineKernel(head, tail));
 }
 interface ClockFieldInput {
     value: checkruntime.IntervalValue;

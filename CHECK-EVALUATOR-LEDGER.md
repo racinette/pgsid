@@ -131,8 +131,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish point payloads, SQL-coerced public inputs, construction, geometric equality, binary output and composition; establish the scalar square-root primitive and classify geometric text rendering requirements.
 - [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts; preserve semantic NaN values while classifying computed binary precision.
 - [x] Establish line coefficient payloads, geometric equality, orientation, binary output, domains, SQL-coerced public inputs and composition.
-- [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs across comparisons, casts and composition while deferring unavailable
-      binary precision.
+- [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs across comparisons, casts and composition while deferring unavailable binary precision.
 - [x] Establish line text input, point construction, literals and catalog I/O
       casts through unconstrained domains.
 - [x] Establish line relations, intersections, distances, point containment and closest-point projection.
@@ -154,7 +153,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       counts, binary output, geometric equality, containment and path/box conversions;
       defer ambiguous omitted bounds while retaining known nullness and lengths.
 - [x] Admit polygon vertex-mean centers and radii, catalog circle/point casts and center aliases; preserve vertex order, radius computation before center selection, reached floating errors, semantic NaNs, precise selected components, domains, lazy composition and INSERT parity.
-- [ ] Geometry, including circle-to-polygon construction and remaining polygon relations/distances, after public floating-point support.
+- [x] Establish bounded portable fdlibm sine/cosine kernels for circle angles, including cancellation refinement, exact IEEE operation order and native/Rust/Go/TypeScript parity; preserve source notices in generated modules.
+- [ ] Geometry, including circle-to-polygon construction with a declared trigonometric build profile, and remaining polygon relations/distances, after public floating-point support.
 - [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
