@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
+// Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 package pg_catalog
 
 import (
@@ -9141,6 +9150,131 @@ func PtContainedCircleLlnp(point checkruntime.PointValue, input checkruntime.Cir
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
 	return circleHasPoint(input, point)
+}
+
+type circleAngleReduction struct {
+	head     int64
+	tail     int64
+	quadrant int
+}
+
+func copycircleAngleReduction(value circleAngleReduction) circleAngleReduction {
+	return circleAngleReduction{head: value.head, tail: value.tail, quadrant: langruntime.CheckedI32(value.quadrant)}
+}
+func circleMathHighWord(value float64) int {
+	bits := langruntime.F64ToI64Bits(value)
+	if bits < int64(0) {
+		bits = langruntime.CheckedI64Subtract(bits, int64(-9223372036854775808))
+	}
+	return int(int32((langruntime.CheckedI64Divide(bits, int64(4294967296)))))
+}
+func circleSineKernel(x float64, y float64, tail bool) float64 {
+	z := langruntime.F64Multiply(x, x)
+	w := langruntime.F64Multiply(z, z)
+	r := langruntime.F64Add(langruntime.F64Add(float64(8.33333333332248946124e-03), langruntime.F64Multiply(z, (langruntime.F64Add(float64(-1.98412698298579493134e-04), langruntime.F64Multiply(z, float64(2.75573137070700676789e-06)))))), langruntime.F64Multiply(langruntime.F64Multiply(z, w), (langruntime.F64Add(float64(-2.50507602534068634195e-08), langruntime.F64Multiply(z, float64(1.58969099521155010221e-10))))))
+	v := langruntime.F64Multiply(z, x)
+	if tail == false {
+		return langruntime.F64Add(x, langruntime.F64Multiply(v, (langruntime.F64Add(float64(-1.66666666666666324348e-01), langruntime.F64Multiply(z, r)))))
+	}
+	return langruntime.F64Subtract(x, (langruntime.F64Subtract((langruntime.F64Subtract(langruntime.F64Multiply(z, (langruntime.F64Subtract(langruntime.F64Multiply(float64(0.5), y), langruntime.F64Multiply(v, r)))), y)), langruntime.F64Multiply(v, float64(-1.66666666666666324348e-01)))))
+}
+func circleCosineKernel(x float64, y float64) float64 {
+	z := langruntime.F64Multiply(x, x)
+	w := langruntime.F64Multiply(z, z)
+	r := langruntime.F64Add(langruntime.F64Multiply(z, (langruntime.F64Add(float64(4.16666666666666019037e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(-1.38888888888741095749e-03), langruntime.F64Multiply(z, float64(2.48015872894767294178e-05)))))))), langruntime.F64Multiply(langruntime.F64Multiply(w, w), (langruntime.F64Add(float64(-2.75573143513906633035e-07), langruntime.F64Multiply(z, (langruntime.F64Add(float64(2.08757232129817482790e-09), langruntime.F64Multiply(z, float64(-1.13596475577881948265e-11)))))))))
+	half := langruntime.F64Multiply(float64(0.5), z)
+	w = langruntime.F64Subtract(float64(1.0), half)
+	return langruntime.F64Add(w, (langruntime.F64Add((langruntime.F64Subtract((langruntime.F64Subtract(float64(1.0), w)), half)), (langruntime.F64Subtract(langruntime.F64Multiply(z, r), langruntime.F64Multiply(x, y))))))
+}
+func circleReduceAngle(x float64) circleAngleReduction {
+	high := circleMathHighWord(x)
+	quadrant := 0
+	if high <= 1074752122 {
+		if langruntime.CheckedSignedRemainder(high, 1048576) != 598523 {
+			quadrant = langruntime.CheckedI32(1)
+			if high > 1073928572 {
+				quadrant = langruntime.CheckedI32(2)
+			}
+		}
+	} else if high <= 1075183036 {
+		if high != 1074977148 {
+			quadrant = langruntime.CheckedI32(3)
+		}
+	} else if high != 1075388923 {
+		quadrant = langruntime.CheckedI32(4)
+	}
+	if quadrant != 0 {
+		count := float64(quadrant)
+		first := langruntime.F64Subtract(x, langruntime.F64Multiply(count, float64(1.57079632673412561417)))
+		head := langruntime.F64Subtract(first, langruntime.F64Multiply(count, float64(6.07710050650619224932e-11)))
+		tail := langruntime.F64Subtract((langruntime.F64Subtract(first, head)), langruntime.F64Multiply(count, float64(6.07710050650619224932e-11)))
+		return circleAngleReduction{head: langruntime.F64ToI64Bits(head), tail: langruntime.F64ToI64Bits(tail), quadrant: quadrant}
+	}
+	count := langruntime.F64Subtract((langruntime.F64Add(langruntime.F64Multiply(x, float64(6.36619772367581382433e-01)), float64(6755399441055744.0))), float64(6755399441055744.0))
+	quadrant = langruntime.CheckedI32(langruntime.F64ToI32(count))
+	first := langruntime.F64Subtract(x, langruntime.F64Multiply(count, float64(1.57079632673412561417)))
+	correction := langruntime.F64Multiply(count, float64(6.07710050650619224932e-11))
+	if langruntime.F64Subtract(first, correction) < float64(-0.7853981633974483) {
+		quadrant = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(quadrant, 1))
+		count = langruntime.F64Subtract(count, float64(1.0))
+		first = langruntime.F64Subtract(x, langruntime.F64Multiply(count, float64(1.57079632673412561417)))
+		correction = langruntime.F64Multiply(count, float64(6.07710050650619224932e-11))
+	} else if langruntime.F64Subtract(first, correction) > float64(0.7853981633974483) {
+		quadrant = langruntime.CheckedI32(langruntime.CheckedSignedAdd(quadrant, 1))
+		count = langruntime.F64Add(count, float64(1.0))
+		first = langruntime.F64Subtract(x, langruntime.F64Multiply(count, float64(1.57079632673412561417)))
+		correction = langruntime.F64Multiply(count, float64(6.07710050650619224932e-11))
+	}
+	head := langruntime.F64Subtract(first, correction)
+	exponent := langruntime.CheckedSignedDivide(high, 1048576)
+	if langruntime.CheckedSignedSubtract(exponent, langruntime.CheckedSignedDivide(circleMathHighWord(head), 1048576)) > 16 {
+		previous := first
+		correction = langruntime.F64Multiply(count, float64(6.07710050630396597660e-11))
+		first = langruntime.F64Subtract(previous, correction)
+		correction = langruntime.F64Subtract(langruntime.F64Multiply(count, float64(2.02226624879595063154e-21)), (langruntime.F64Subtract((langruntime.F64Subtract(previous, first)), correction)))
+		head = langruntime.F64Subtract(first, correction)
+		if langruntime.CheckedSignedSubtract(exponent, langruntime.CheckedSignedDivide(circleMathHighWord(head), 1048576)) > 49 {
+			previous := first
+			correction = langruntime.F64Multiply(count, float64(2.02226624871116645580e-21))
+			first = langruntime.F64Subtract(previous, correction)
+			correction = langruntime.F64Subtract(langruntime.F64Multiply(count, float64(8.47842766036889956997e-32)), (langruntime.F64Subtract((langruntime.F64Subtract(previous, first)), correction)))
+			head = langruntime.F64Subtract(first, correction)
+		}
+	}
+	tail := langruntime.F64Subtract((langruntime.F64Subtract(first, head)), correction)
+	return circleAngleReduction{head: langruntime.F64ToI64Bits(head), tail: langruntime.F64ToI64Bits(tail), quadrant: quadrant}
+}
+func circleTrigonometry(angle float64, cosine bool) float64 {
+	high := circleMathHighWord(angle)
+	if high <= 1072243195 {
+		if cosine {
+			if high < 1044381696 {
+				return float64(1.0)
+			}
+			return circleCosineKernel(angle, float64(0.0))
+		}
+		if high < 1045430272 {
+			return angle
+		}
+		return circleSineKernel(angle, float64(0.0), false)
+	}
+	reduced := circleReduceAngle(angle)
+	head := langruntime.F64FromI64Bits(reduced.head)
+	tail := langruntime.F64FromI64Bits(reduced.tail)
+	quadrant := langruntime.CheckedSignedRemainder(reduced.quadrant, 4)
+	if cosine {
+		quadrant = langruntime.CheckedI32(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedAdd(quadrant, 1)), 4))
+	}
+	if quadrant == 0 {
+		return circleSineKernel(head, tail, true)
+	}
+	if quadrant == 1 {
+		return circleCosineKernel(head, tail)
+	}
+	if quadrant == 2 {
+		return langruntime.F64Negate(circleSineKernel(head, tail, true))
+	}
+	return langruntime.F64Negate(circleCosineKernel(head, tail))
 }
 
 type clockFieldInput struct {
