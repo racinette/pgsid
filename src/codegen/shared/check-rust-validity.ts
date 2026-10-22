@@ -137,6 +137,31 @@ export function rustCallCanFail(
   if (!call.signature) return true
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
+  const boundary = hash.kind === 'operator' ? builtinMetadata(hash.implementation) : hash
+  if (
+    boundary.kind === 'function' &&
+    boundary.schema === 'pg_catalog' &&
+    boundary.strict &&
+    boundary.volatility === 'i' &&
+    !boundary.returnsSet &&
+    types.length === boundary.args.length &&
+    ((boundary.result === 'pg_catalog.bool' &&
+      boundary.args.join(',') === 'pg_catalog.polygon,pg_catalog.polygon' &&
+      [
+        'poly_left',
+        'poly_overleft',
+        'poly_right',
+        'poly_overright',
+        'poly_below',
+        'poly_overbelow',
+        'poly_above',
+        'poly_overabove',
+      ].includes(boundary.name)) ||
+      (boundary.name === 'spg_poly_quad_compress' &&
+        boundary.args.join(',') === 'pg_catalog.polygon' &&
+        boundary.result === 'pg_catalog.box'))
+  )
+    return false
   if (isRangeHash(hash) || isMultirangeHash(hash)) {
     const range = isMultirangeHash(hash)
       ? multirangeTypeProfile(types[0] ?? '')

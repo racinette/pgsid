@@ -140,3 +140,53 @@ INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_point
 INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'later vertex exceeds coordinate range','<(1e308,1e308),1e308>',4,NULL,NULL,NULL,NULL,NULL,false);
 -- name: parcel_envelope_bypassed_error
 INSERT INTO parcel_envelopes(id,plan_id,label,source,vertex_count,expected_points,expected_size,expected_default_points,sample_wire,bounds_wire,bypass) VALUES(101,1,'skipped invalid circle conversion','<(0,0),0>',0,1,1,1,'\x00','\x00',true);
+
+-- name: parcel_relation_separated
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'northeast survey point','((0,0),(4,0),(4,4),(0,4))','((5,5))',ARRAY[true,true,false,false,true,true,false,false],false,false,false,'\x4010000000000000401000000000000000000000000000000000000000000000',false);
+-- name: parcel_relation_exact_direction
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'direction uses exact coordinate comparison','((0,0),(4,0),(4,4),(0,4))','((4.000000000000001,0))',ARRAY[true,true,false,false,false,false,false,true],true,true,false,NULL,false);
+-- name: parcel_relation_identical
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'identical outlines','((0,0),(4,0),(4,4),(0,4))','((0,0),(4,0),(4,4),(0,4))',ARRAY[false,true,false,true,false,true,false,true],true,true,true,NULL,false);
+-- name: parcel_relation_nested
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'nested triangle','((0,0),(4,0),(4,4),(0,4))','((1,1),(2,1),(1,2))',ARRAY[false,false,false,false,false,false,false,false],true,true,false,NULL,false);
+-- name: parcel_relation_notch_crossing
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'endpoints inside but edge crosses notch','((0,0),(6,0),(6,6),(4,6),(4,2),(2,2),(2,6),(0,6))','((1,4),(5,4))',NULL,true,false,false,NULL,false);
+-- name: parcel_relation_disjoint_interiors
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'overlapping bounds with disjoint interiors','((0,0),(4,0),(0,4))','((4,4),(4,3),(3,4))',NULL,false,false,false,NULL,false);
+-- name: parcel_relation_collinear
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'shared boundary segment','((0,0),(4,0),(4,4),(0,4))','((1,0),(3,0))',NULL,true,true,false,NULL,false);
+-- name: parcel_relation_wrong_directions
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'incorrect directional observations','((0,0),(4,0),(4,4),(0,4))','((0,0),(4,0),(4,4),(0,4))',ARRAY[true,false,true,false,true,false,true,false],true,true,true,NULL,false);
+-- name: parcel_relation_wrong_overlap
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'incorrect intersection observation','((0,0),(4,0),(4,4),(0,4))','((1,1))',NULL,false,true,false,NULL,false);
+-- name: parcel_relation_wrong_containment
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'incorrect enclosing observations','((0,0),(4,0),(4,4),(0,4))','((0,0),(4,0),(4,4),(0,4))',NULL,true,false,false,NULL,false);
+-- name: parcel_relation_wrong_compression
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'incorrect cached bounds','((0,0))','((0,0))',NULL,true,true,true,'\x00',false);
+-- name: parcel_relation_null
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'missing outline',NULL,'((0,0))',ARRAY[true,true,true,true,true,true,true,true],true,true,true,'\x00',false);
+-- name: parcel_relation_overflow
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'reached extreme edge arithmetic','((1e308,1e308),(-1e308,-1e308))','((0,0),(1,1))',NULL,true,true,false,NULL,false);
+-- name: parcel_relation_skipped_overflow
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'skipped extreme edge arithmetic','((1e308,1e308),(-1e308,-1e308))','((0,0),(1,1))',NULL,true,true,false,'\x00',true);
+-- name: parcel_relation_bounds_skip_edges
+INSERT INTO parcel_relations(id,plan_id,label,boundary,reference,directions,expected_overlap,expected_contains,expected_contained,bounds_wire,bypass) VALUES(101,1,'disjoint bounds avoid overflowing edge arithmetic','((1e308,0),(-1e308,0))','((0,5))',NULL,false,false,false,NULL,false);
+
+-- name: parcel_clearance_interior
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'inside area has zero clearance','((0,0),(4,0),(4,4),(0,4))','((1,1),(2,1),(1,2))','(2,2)','<(2,2),1>',0,0,0,false);
+-- name: parcel_clearance_outside
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'three four five projection','((0,0),(4,0),(4,4),(0,4))','((7,8))','(7,8)','<(7,8),2>',5,3,5,false);
+-- name: parcel_clearance_negative_radius
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'stored negative radius increases clearance','((0,0),(4,0),(4,4),(0,4))','((2,2))','(2,2)',pg_catalog.circle('(2,2)'::point,'-2'::float8),0,2,0,false);
+-- name: parcel_clearance_wrong_marker
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'incorrect marker clearance','((0,0),(4,0),(4,4),(0,4))','((2,2))','(2,2)','<(2,2),1>',1,0,0,false);
+-- name: parcel_clearance_wrong_circle
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'incorrect exclusion clearance','((0,0),(4,0),(4,4),(0,4))','((2,2))','(2,2)','<(2,2),1>',0,1,0,false);
+-- name: parcel_clearance_wrong_boundary
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'incorrect boundary clearance','((0,0),(4,0),(4,4),(0,4))','((2,2))','(2,2)','<(2,2),1>',0,0,1,false);
+-- name: parcel_clearance_null
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'missing outline',NULL,'((2,2))','(2,2)','<(2,2),1>',1,1,1,false);
+-- name: parcel_clearance_overflow
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'reached coordinate subtraction overflow','((1e308,1e308))','((-1e308,-1e308))','(-1e308,-1e308)','<(-1e308,-1e308),1>',1,1,1,false);
+-- name: parcel_clearance_skipped_overflow
+INSERT INTO parcel_clearances(id,plan_id,label,boundary,reference,marker,exclusion,marker_distance,exclusion_distance,boundary_distance,bypass) VALUES(101,1,'skipped coordinate subtraction overflow','((1e308,1e308))','((-1e308,-1e308))','(-1e308,-1e308)','<(-1e308,-1e308),1>',1,1,1,true);

@@ -31528,8 +31528,7 @@ func PathAdd7wkx(left checkruntime.PathValue, right checkruntime.PathValue) chec
 	}
 	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
 }
-func pathBounds(path checkruntime.PathPayload) checkruntime.BoxValue {
-	path = checkruntime.CopyPathPayload(path)
+func pathBounds(path *checkruntime.PathPayload) checkruntime.BoxValue {
 	if len(path.Points) == 0 {
 		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
 	}
@@ -31584,7 +31583,7 @@ func PathInter6pqp(left checkruntime.PathValue, right checkruntime.PathValue) ch
 		a := checkruntime.CopyPathPayload(left.Value)
 		if right.Kind == checkruntime.PathValueValue {
 			b := checkruntime.CopyPathPayload(right.Value)
-			overlap := BoxOverlapKe99(pathBounds(checkruntime.CopyPathPayload(a)), pathBounds(checkruntime.CopyPathPayload(b)))
+			overlap := BoxOverlapKe99(pathBounds(&a), pathBounds(&b))
 			if overlap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
 				return overlap
 			}
@@ -31690,8 +31689,7 @@ func pathAxisCrossing(x float64, y float64, previousX float64, previousY float64
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func closedPathContains(point checkruntime.PointPayload, path checkruntime.PathPayload) checkruntime.BoolValue {
-	path = checkruntime.CopyPathPayload(path)
+func closedPathContains(point checkruntime.PointPayload, path *checkruntime.PathPayload) checkruntime.BoolValue {
 	first := PointSubO53k(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[0]}, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: point})
 	if first.Kind == checkruntime.PointValueError {
 		error := first.Error
@@ -31773,7 +31771,7 @@ func OnPpath8fo6(point checkruntime.PointValue, input checkruntime.PathValue) ch
 		if point.Kind == checkruntime.PointValueValue {
 			position := point.Value
 			if path.Closed {
-				return closedPathContains(position, path)
+				return closedPathContains(position, &path)
 			}
 			previous := PointDistance2haq(point, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[0]})
 			if previous.Kind == checkruntime.Float8ValueError {
@@ -32956,6 +32954,166 @@ func PolyContainPtJvrw(input checkruntime.PolygonValue, point checkruntime.Point
 	}
 	return PtContainedPolyC1l4(point, input)
 }
+func polygonPointDistance(point checkruntime.PointPayload, polygon *checkruntime.PathPayload) checkruntime.Float8Value {
+	if len(polygon.Points) == 0 {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	inside := closedPathContains(point, polygon)
+	if inside.Kind == checkruntime.BoolValueError {
+		error := inside.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if inside == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.MakeFloat8Value(float64(0.0))
+	}
+	if inside != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	closing := pathSegment(polygon.Points[0], polygon.Points[langruntime.CheckedSubtract(len(polygon.Points), 1)])
+	distance := DistSp3dia(closing, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: point})
+	if distance.Kind == checkruntime.Float8ValueError {
+		error := distance.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	index := 0
+	for langruntime.CheckedAdd(index, 1) < len(polygon.Points) {
+		edge := pathSegment(polygon.Points[index], polygon.Points[langruntime.CheckedAdd(index, 1)])
+		candidate := DistSp3dia(edge, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: point})
+		distance = pathMinDistance(distance, candidate, false)
+		if distance.Kind == checkruntime.Float8ValueError {
+			error := distance.Error
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+		}
+		if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return boxComputedScalar(distance)
+}
+func DistPpolyR23k(point checkruntime.PointValue, input checkruntime.PolygonValue) checkruntime.Float8Value {
+	input = checkruntime.CopyPolygonValue(input)
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if input.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if point.Kind == checkruntime.PointValueValue {
+		position := point.Value
+		if input.Kind == checkruntime.PolygonValueValue {
+			value := checkruntime.CopyPolygonPayload(input.Value)
+			path := checkruntime.PathPayload{Closed: true, Points: value.Points}
+			return polygonPointDistance(position, &path)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func DistPolyp7ghe(input checkruntime.PolygonValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	return DistPpolyR23k(point, input)
+}
+func DistCpoly8q0w(input checkruntime.CircleValue, polygon checkruntime.PolygonValue) checkruntime.Float8Value {
+	polygon = checkruntime.CopyPolygonValue(polygon)
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if polygon.Kind == checkruntime.PolygonValueError {
+		error := polygon.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if polygon.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if polygon.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	distance := DistPpolyR23k(circleCenterValue(input), polygon)
+	return circleClampDistance(Float8miR1nu(distance, circleRadiusValue(input)))
+}
+func DistPolyc4bju(polygon checkruntime.PolygonValue, input checkruntime.CircleValue) checkruntime.Float8Value {
+	polygon = checkruntime.CopyPolygonValue(polygon)
+	if polygon.Kind == checkruntime.PolygonValueError {
+		error := polygon.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	return DistCpoly8q0w(input, polygon)
+}
+func PolyDistanceHh70(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.Float8Value {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	if left.Kind == checkruntime.PolygonValueError {
+		error := left.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PolygonValueError {
+		error := right.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if right.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if left.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if right.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if left.Kind == checkruntime.PolygonValueValue {
+		a := checkruntime.CopyPolygonPayload(left.Value)
+		if right.Kind == checkruntime.PolygonValueValue {
+			b := checkruntime.CopyPolygonPayload(right.Value)
+			aBounds := a.Bounds
+			bBounds := b.Bounds
+			aPath := checkruntime.PathPayload{Closed: true, Points: a.Points}
+			bPath := checkruntime.PathPayload{Closed: true, Points: b.Points}
+			overlap := polygonPathsOverlap(&aPath, &bPath, aBounds, bBounds)
+			if overlap.Kind == checkruntime.BoolValueError {
+				error := overlap.Error
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+			}
+			if overlap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.MakeFloat8Value(float64(0.0))
+			}
+			if overlap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+			}
+			return PathDistance3309(checkruntime.PathValue{Kind: checkruntime.PathValueValue, Value: aPath}, checkruntime.PathValue{Kind: checkruntime.PathValueValue, Value: bPath})
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
 func polygonParse(value string) checkruntime.PolygonValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
@@ -33002,6 +33160,339 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 		return polygonParse(value)
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+func polygonPathBounds(bounds checkruntime.BoxValue, path *checkruntime.PathPayload) checkruntime.BoxValue {
+	if bounds == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNonNull}) || bounds == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) {
+		return pathBounds(path)
+	}
+	return bounds
+}
+func polygonDirection(left checkruntime.PolygonValue, right checkruntime.PolygonValue, mode int) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	mode = langruntime.CheckedI32(mode)
+	if left.Kind == checkruntime.PolygonValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PolygonValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PolygonValueValue {
+		a := checkruntime.CopyPolygonPayload(left.Value)
+		if right.Kind == checkruntime.PolygonValueValue {
+			b := checkruntime.CopyPolygonPayload(right.Value)
+			aBounds := a.Bounds
+			bBounds := b.Bounds
+			aPath := checkruntime.PathPayload{Closed: true, Points: a.Points}
+			bPath := checkruntime.PathPayload{Closed: true, Points: b.Points}
+			first := polygonPathBounds(aBounds, &aPath)
+			second := polygonPathBounds(bBounds, &bPath)
+			status := boxPairStatus(first, second)
+			if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return status
+			}
+			if first.Kind == checkruntime.BoxValueValue {
+				x := first.Value
+				if second.Kind == checkruntime.BoxValueValue {
+					y := second.Value
+					if mode == 0 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.HighX) < checkruntime.Float8Number(y.LowX))
+					}
+					if mode == 1 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.HighX) <= checkruntime.Float8Number(y.HighX))
+					}
+					if mode == 2 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.LowX) > checkruntime.Float8Number(y.HighX))
+					}
+					if mode == 3 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.LowX) >= checkruntime.Float8Number(y.LowX))
+					}
+					if mode == 4 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.HighY) < checkruntime.Float8Number(y.LowY))
+					}
+					if mode == 5 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.HighY) <= checkruntime.Float8Number(y.HighY))
+					}
+					if mode == 6 {
+						return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.LowY) > checkruntime.Float8Number(y.HighY))
+					}
+					return checkruntime.MakeBoolValue(checkruntime.Float8Number(x.LowY) >= checkruntime.Float8Number(y.LowY))
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func polygonPathsOverlap(a *checkruntime.PathPayload, b *checkruntime.PathPayload, aBounds checkruntime.BoxValue, bBounds checkruntime.BoxValue) checkruntime.BoolValue {
+	if len(a.Points) == 0 || len(b.Points) == 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	bounds := BoxOverlapKe99(polygonPathBounds(aBounds, a), polygonPathBounds(bBounds, b))
+	if bounds != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return bounds
+	}
+	beforeI := langruntime.CheckedSubtract(len(a.Points), 1)
+	i := 0
+	for i < len(a.Points) {
+		first := pathSegment(a.Points[beforeI], a.Points[i])
+		beforeJ := langruntime.CheckedSubtract(len(b.Points), 1)
+		j := 0
+		for j < len(b.Points) {
+			second := pathSegment(b.Points[beforeJ], b.Points[j])
+			crossing := LsegIntersectOvab(first, second)
+			if crossing != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				return crossing
+			}
+			beforeJ = langruntime.CheckedIndex(j)
+			j = langruntime.CheckedAdd(j, 1)
+		}
+		beforeI = langruntime.CheckedIndex(i)
+		i = langruntime.CheckedAdd(i, 1)
+	}
+	inside := closedPathContains(a.Points[0], b)
+	if inside != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return inside
+	}
+	return closedPathContains(b.Points[0], a)
+}
+func polygonTouchedSegment(a checkruntime.PointPayload, b checkruntime.PointPayload, edgeStart checkruntime.PointPayload, edgeEnd checkruntime.PointPayload, polygon *checkruntime.PathPayload, start int) checkruntime.BoolValue {
+	start = langruntime.CheckedIndex(start)
+	segment := pathSegment(a, b)
+	if pointSameValue(a, edgeStart) {
+		contains := segmentContainsPoint(segment, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: edgeEnd})
+		if contains == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return polygonSegmentInside(b, edgeEnd, polygon, start)
+		}
+		if contains != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			return contains
+		}
+		return checkruntime.MakeBoolValue(true)
+	}
+	if pointSameValue(a, edgeEnd) {
+		contains := segmentContainsPoint(segment, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: edgeStart})
+		if contains == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return polygonSegmentInside(b, edgeStart, polygon, start)
+		}
+		if contains != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			return contains
+		}
+		return checkruntime.MakeBoolValue(true)
+	}
+	first := segmentContainsPoint(segment, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: edgeStart})
+	if first == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return polygonSegmentInside(b, edgeStart, polygon, start)
+	}
+	if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return first
+	}
+	second := segmentContainsPoint(segment, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: edgeEnd})
+	if second == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return polygonSegmentInside(b, edgeEnd, polygon, start)
+	}
+	if second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return second
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func polygonSegmentInside(a checkruntime.PointPayload, b checkruntime.PointPayload, polygon *checkruntime.PathPayload, start int) checkruntime.BoolValue {
+	start = langruntime.CheckedIndex(start)
+	segment := pathSegment(a, b)
+	previous := langruntime.CheckedSubtract(len(polygon.Points), 1)
+	if start > 0 {
+		previous = langruntime.CheckedIndex(langruntime.CheckedSubtract(start, 1))
+	}
+	result := checkruntime.MakeBoolValue(true)
+	intersection := false
+	index := start
+	for index < len(polygon.Points) && result == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		edgeStart := polygon.Points[previous]
+		edgeEnd := polygon.Points[index]
+		edge := pathSegment(edgeStart, edgeEnd)
+		first := segmentContainsPoint(edge, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: a})
+		if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) && first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return first
+		}
+		second := segmentContainsPoint(edge, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: b})
+		if second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) && second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return second
+		}
+		if first == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			if second == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.MakeBoolValue(true)
+			}
+			result = polygonTouchedSegment(a, b, edgeStart, edgeEnd, polygon, langruntime.CheckedAdd(index, 1))
+		} else if second == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			result = polygonTouchedSegment(b, a, edgeStart, edgeEnd, polygon, langruntime.CheckedAdd(index, 1))
+		} else {
+			point := segmentIntersection(segment, edge)
+			if point.Kind == checkruntime.PointValueError {
+				error := point.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			if point.Kind == checkruntime.PointValueValue {
+				crossing := point.Value
+				intersection = true
+				result = polygonSegmentInside(a, crossing, polygon, langruntime.CheckedAdd(index, 1))
+				if result == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+					result = polygonSegmentInside(b, crossing, polygon, langruntime.CheckedAdd(index, 1))
+				}
+			}
+		}
+		previous = langruntime.CheckedIndex(index)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if result != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return result
+	}
+	if intersection == false {
+		center := lsegMidpoint(segment)
+		if center.Kind == checkruntime.PointValueError {
+			error := center.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+		if center.Kind == checkruntime.PointValueValue {
+			point := center.Value
+			return closedPathContains(point, polygon)
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return result
+}
+func polygonRelation(left checkruntime.PolygonValue, right checkruntime.PolygonValue, contains bool) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	if left.Kind == checkruntime.PolygonValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PolygonValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PolygonValueValue {
+		a := checkruntime.CopyPolygonPayload(left.Value)
+		if right.Kind == checkruntime.PolygonValueValue {
+			b := checkruntime.CopyPolygonPayload(right.Value)
+			aBounds := a.Bounds
+			bBounds := b.Bounds
+			aPath := checkruntime.PathPayload{Closed: true, Points: a.Points}
+			bPath := checkruntime.PathPayload{Closed: true, Points: b.Points}
+			if contains == false {
+				return polygonPathsOverlap(&aPath, &bPath, aBounds, bBounds)
+			}
+			status := BoxContainUmn5(polygonPathBounds(aBounds, &aPath), polygonPathBounds(bBounds, &bPath))
+			if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return status
+			}
+			if len(aPath.Points) == 0 || len(bPath.Points) == 0 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			previous := langruntime.CheckedSubtract(len(bPath.Points), 1)
+			index := 0
+			for index < len(bPath.Points) {
+				inside := polygonSegmentInside(bPath.Points[previous], bPath.Points[index], &aPath, 0)
+				if inside != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+					return inside
+				}
+				previous = langruntime.CheckedIndex(index)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.MakeBoolValue(true)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PolyLeftEdyv(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 0)
+}
+func PolyOverleft2595(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 1)
+}
+func PolyRightRfp3(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 2)
+}
+func PolyOverright4ll9(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 3)
+}
+func PolyBelowVrta(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 4)
+}
+func PolyOverbelowEgnd(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 5)
+}
+func PolyAbove9pai(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 6)
+}
+func PolyOveraboveFw3c(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonDirection(left, right, 7)
+}
+func PolyOverlapSaet(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonRelation(left, right, false)
+}
+func PolyContainEas0(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	return polygonRelation(left, right, true)
+}
+func PolyContainedKcqs(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	if left.Kind == checkruntime.PolygonValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return polygonRelation(right, left, true)
+}
+func SpgPolyQuadCompressXme5(input checkruntime.PolygonValue) checkruntime.BoxValue {
+	input = checkruntime.CopyPolygonValue(input)
+	return BoxJ3b7(input)
 }
 func rangeStorageFlags(input *checkruntime.RangePayload) int {
 	if input.Empty {

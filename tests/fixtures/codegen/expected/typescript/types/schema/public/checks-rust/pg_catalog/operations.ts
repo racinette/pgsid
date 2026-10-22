@@ -31657,7 +31657,6 @@ export function pathAdd7wkx(left: checkruntime.PathValue, right: checkruntime.Pa
     return { kind: "Unknown" };
 }
 function pathBounds(path: checkruntime.PathPayload): checkruntime.BoxValue {
-    path = checkruntime.copyPathPayload(path);
     if (path.points.length === 0) {
         return { kind: "Unknown" };
     }
@@ -31712,7 +31711,7 @@ export function pathInter6pqp(left: checkruntime.PathValue, right: checkruntime.
         const a: checkruntime.PathPayload = checkruntime.copyPathPayload(left.value);
         if (right.kind === "Value") {
             const b: checkruntime.PathPayload = checkruntime.copyPathPayload(right.value);
-            const overlap: checkruntime.BoolValue = boxOverlapKe99(pathBounds(checkruntime.copyPathPayload(a)), pathBounds(checkruntime.copyPathPayload(b)));
+            const overlap: checkruntime.BoolValue = boxOverlapKe99(pathBounds(a), pathBounds(b));
             if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: true }))) {
                 return overlap;
             }
@@ -31823,7 +31822,6 @@ function pathAxisCrossing(x: number, y: number, previousX: number, previousY: nu
     return { kind: "Unknown" };
 }
 function closedPathContains(point: checkruntime.PointPayload, path: checkruntime.PathPayload): checkruntime.BoolValue {
-    path = checkruntime.copyPathPayload(path);
     const first: checkruntime.PointValue = pointSubO53k({ kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload) }, { kind: "Value", value: point });
     if (first.kind === "Error") {
         const error: checkruntime.SqlError = first.value;
@@ -33094,6 +33092,166 @@ export function polyContainPtJvrw(input: checkruntime.PolygonValue, point: check
     }
     return ptContainedPolyC1l4(point, input);
 }
+function polygonPointDistance(point: checkruntime.PointPayload, polygon: checkruntime.PathPayload): checkruntime.Float8Value {
+    if (polygon.points.length === 0) {
+        return { kind: "Unknown" };
+    }
+    const inside: checkruntime.BoolValue = closedPathContains(point, polygon);
+    if (inside.kind === "Error") {
+        const error: checkruntime.SqlError = inside.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(inside, { kind: "Value", value: true })) {
+        return checkruntime.makeFloat8Value(0.0);
+    }
+    if (!(checkruntime.equalBoolValue(inside, { kind: "Value", value: false }))) {
+        return { kind: "Unknown" };
+    }
+    const closing: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(polygon.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload), langruntime.indexStruct(polygon.points, langruntime.checkedIndex(langruntime.checkedSubtract(polygon.points.length, 1)), checkruntime.copyPointPayload));
+    let distance: checkruntime.Float8Value = distSp3dia(closing, { kind: "Value", value: point });
+    if (distance.kind === "Error") {
+        const error: checkruntime.SqlError = distance.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (langruntime.checkedAdd(index, 1) < polygon.points.length) {
+        const edge: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(polygon.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), langruntime.indexStruct(polygon.points, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), checkruntime.copyPointPayload));
+        const candidate: checkruntime.Float8Value = distSp3dia(edge, { kind: "Value", value: point });
+        distance = pathMinDistance(distance, candidate, false);
+        if (distance.kind === "Error") {
+            const error: checkruntime.SqlError = distance.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return boxComputedScalar(distance);
+}
+export function distPpolyR23k(point: checkruntime.PointValue, input: checkruntime.PolygonValue): checkruntime.Float8Value {
+    input = checkruntime.copyPolygonValue(input);
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (point.kind === "Value") {
+        const position: checkruntime.PointPayload = point.value;
+        if (input.kind === "Value") {
+            const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+            const path: checkruntime.PathPayload = { closed: true, points: value.points };
+            return polygonPointDistance(position, path);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function distPolyp7ghe(input: checkruntime.PolygonValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return distPpolyR23k(point, input);
+}
+export function distCpoly8q0w(input: checkruntime.CircleValue, polygon: checkruntime.PolygonValue): checkruntime.Float8Value {
+    polygon = checkruntime.copyPolygonValue(polygon);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (polygon.kind === "Error") {
+        const error: checkruntime.SqlError = polygon.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (polygon.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (polygon.kind === "Null") {
+        return { kind: "Null" };
+    }
+    const distance: checkruntime.Float8Value = distPpolyR23k(circleCenterValue(input), polygon);
+    return circleClampDistance(float8miR1nu(distance, circleRadiusValue(input)));
+}
+export function distPolyc4bju(polygon: checkruntime.PolygonValue, input: checkruntime.CircleValue): checkruntime.Float8Value {
+    polygon = checkruntime.copyPolygonValue(polygon);
+    if (polygon.kind === "Error") {
+        const error: checkruntime.SqlError = polygon.value;
+        return { kind: "Error", value: error };
+    }
+    return distCpoly8q0w(input, polygon);
+}
+export function polyDistanceHh70(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.Float8Value {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(right.value);
+            const aBounds: checkruntime.BoxValue = a.bounds;
+            const bBounds: checkruntime.BoxValue = b.bounds;
+            const aPath: checkruntime.PathPayload = { closed: true, points: a.points };
+            const bPath: checkruntime.PathPayload = { closed: true, points: b.points };
+            const overlap: checkruntime.BoolValue = polygonPathsOverlap(aPath, bPath, aBounds, bBounds);
+            if (overlap.kind === "Error") {
+                const error: checkruntime.SqlError = overlap.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalBoolValue(overlap, { kind: "Value", value: true })) {
+                return checkruntime.makeFloat8Value(0.0);
+            }
+            if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: false }))) {
+                return { kind: "Unknown" };
+            }
+            return pathDistance3309({ kind: "Value", value: aPath }, { kind: "Value", value: bPath });
+        }
+    }
+    return { kind: "Unknown" };
+}
 function polygonParse(value: string): checkruntime.PolygonValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
@@ -33140,6 +33298,342 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
         return polygonParse(value);
     }
     return { kind: "Unknown" };
+}
+function polygonPathBounds(bounds: checkruntime.BoxValue, path: checkruntime.PathPayload): checkruntime.BoxValue {
+    if (checkruntime.equalBoxValue(bounds, { kind: "NonNull" }) || checkruntime.equalBoxValue(bounds, { kind: "Unknown" })) {
+        return pathBounds(path);
+    }
+    return bounds;
+}
+function polygonDirection(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue, mode: number): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(right.value);
+            const aBounds: checkruntime.BoxValue = a.bounds;
+            const bBounds: checkruntime.BoxValue = b.bounds;
+            const aPath: checkruntime.PathPayload = { closed: true, points: a.points };
+            const bPath: checkruntime.PathPayload = { closed: true, points: b.points };
+            const first: checkruntime.BoxValue = polygonPathBounds(aBounds, aPath);
+            const second: checkruntime.BoxValue = polygonPathBounds(bBounds, bPath);
+            const status: checkruntime.BoolValue = boxPairStatus(first, second);
+            if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+                return status;
+            }
+            if (first.kind === "Value") {
+                const x: checkruntime.BoxPayload = first.value;
+                if (second.kind === "Value") {
+                    const y: checkruntime.BoxPayload = second.value;
+                    if (mode === 0) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.highX) < checkruntime.float8Number(y.lowX));
+                    }
+                    if (mode === 1) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.highX) <= checkruntime.float8Number(y.highX));
+                    }
+                    if (mode === 2) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.lowX) > checkruntime.float8Number(y.highX));
+                    }
+                    if (mode === 3) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.lowX) >= checkruntime.float8Number(y.lowX));
+                    }
+                    if (mode === 4) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.highY) < checkruntime.float8Number(y.lowY));
+                    }
+                    if (mode === 5) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.highY) <= checkruntime.float8Number(y.highY));
+                    }
+                    if (mode === 6) {
+                        return checkruntime.makeBoolValue(checkruntime.float8Number(x.lowY) > checkruntime.float8Number(y.highY));
+                    }
+                    return checkruntime.makeBoolValue(checkruntime.float8Number(x.lowY) >= checkruntime.float8Number(y.lowY));
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function polygonPathsOverlap(a: checkruntime.PathPayload, b: checkruntime.PathPayload, aBounds: checkruntime.BoxValue, bBounds: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (a.points.length === 0 || b.points.length === 0) {
+        return { kind: "Unknown" };
+    }
+    const bounds: checkruntime.BoolValue = boxOverlapKe99(polygonPathBounds(aBounds, a), polygonPathBounds(bBounds, b));
+    if (!(checkruntime.equalBoolValue(bounds, { kind: "Value", value: true }))) {
+        return bounds;
+    }
+    let beforeI: number = langruntime.checkedSubtract(a.points.length, 1);
+    let i: number = 0;
+    while (i < a.points.length) {
+        const first: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(a.points, langruntime.checkedIndex(beforeI), checkruntime.copyPointPayload), langruntime.indexStruct(a.points, langruntime.checkedIndex(i), checkruntime.copyPointPayload));
+        let beforeJ: number = langruntime.checkedSubtract(b.points.length, 1);
+        let j: number = 0;
+        while (j < b.points.length) {
+            const second: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(b.points, langruntime.checkedIndex(beforeJ), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(j), checkruntime.copyPointPayload));
+            const crossing: checkruntime.BoolValue = lsegIntersectOvab(first, second);
+            if (!(checkruntime.equalBoolValue(crossing, { kind: "Value", value: false }))) {
+                return crossing;
+            }
+            beforeJ = langruntime.checkedIndex(j);
+            j = langruntime.checkedAdd(j, 1);
+        }
+        beforeI = langruntime.checkedIndex(i);
+        i = langruntime.checkedAdd(i, 1);
+    }
+    const inside: checkruntime.BoolValue = closedPathContains(langruntime.indexStruct(a.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload), b);
+    if (!(checkruntime.equalBoolValue(inside, { kind: "Value", value: false }))) {
+        return inside;
+    }
+    return closedPathContains(langruntime.indexStruct(b.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload), a);
+}
+function polygonTouchedSegment(a: checkruntime.PointPayload, b: checkruntime.PointPayload, edgeStart: checkruntime.PointPayload, edgeEnd: checkruntime.PointPayload, polygon: checkruntime.PathPayload, start: number): checkruntime.BoolValue {
+    start = langruntime.checkedIndex(start);
+    const segment: checkruntime.LsegValue = pathSegment(a, b);
+    if (pointSameValue(a, edgeStart)) {
+        const contains: checkruntime.BoolValue = segmentContainsPoint(segment, { kind: "Value", value: edgeEnd });
+        if (checkruntime.equalBoolValue(contains, { kind: "Value", value: true })) {
+            return polygonSegmentInside(b, edgeEnd, polygon, start);
+        }
+        if (!(checkruntime.equalBoolValue(contains, { kind: "Value", value: false }))) {
+            return contains;
+        }
+        return checkruntime.makeBoolValue(true);
+    }
+    if (pointSameValue(a, edgeEnd)) {
+        const contains: checkruntime.BoolValue = segmentContainsPoint(segment, { kind: "Value", value: edgeStart });
+        if (checkruntime.equalBoolValue(contains, { kind: "Value", value: true })) {
+            return polygonSegmentInside(b, edgeStart, polygon, start);
+        }
+        if (!(checkruntime.equalBoolValue(contains, { kind: "Value", value: false }))) {
+            return contains;
+        }
+        return checkruntime.makeBoolValue(true);
+    }
+    const first: checkruntime.BoolValue = segmentContainsPoint(segment, { kind: "Value", value: edgeStart });
+    if (checkruntime.equalBoolValue(first, { kind: "Value", value: true })) {
+        return polygonSegmentInside(b, edgeStart, polygon, start);
+    }
+    if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: false }))) {
+        return first;
+    }
+    const second: checkruntime.BoolValue = segmentContainsPoint(segment, { kind: "Value", value: edgeEnd });
+    if (checkruntime.equalBoolValue(second, { kind: "Value", value: true })) {
+        return polygonSegmentInside(b, edgeEnd, polygon, start);
+    }
+    if (!(checkruntime.equalBoolValue(second, { kind: "Value", value: false }))) {
+        return second;
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function polygonSegmentInside(a: checkruntime.PointPayload, b: checkruntime.PointPayload, polygon: checkruntime.PathPayload, start: number): checkruntime.BoolValue {
+    start = langruntime.checkedIndex(start);
+    const segment: checkruntime.LsegValue = pathSegment(a, b);
+    let previous: number = langruntime.checkedSubtract(polygon.points.length, 1);
+    if (start > 0) {
+        previous = langruntime.checkedIndex(langruntime.checkedSubtract(start, 1));
+    }
+    let result: checkruntime.BoolValue = checkruntime.makeBoolValue(true);
+    let intersection: boolean = false;
+    let index: number = start;
+    while (index < polygon.points.length && checkruntime.equalBoolValue(result, { kind: "Value", value: true })) {
+        const edgeStart: checkruntime.PointPayload = langruntime.indexStruct(polygon.points, langruntime.checkedIndex(previous), checkruntime.copyPointPayload);
+        const edgeEnd: checkruntime.PointPayload = langruntime.indexStruct(polygon.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload);
+        const edge: checkruntime.LsegValue = pathSegment(edgeStart, edgeEnd);
+        const first: checkruntime.BoolValue = segmentContainsPoint(edge, { kind: "Value", value: a });
+        if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: false })) && !(checkruntime.equalBoolValue(first, { kind: "Value", value: true }))) {
+            return first;
+        }
+        const second: checkruntime.BoolValue = segmentContainsPoint(edge, { kind: "Value", value: b });
+        if (!(checkruntime.equalBoolValue(second, { kind: "Value", value: false })) && !(checkruntime.equalBoolValue(second, { kind: "Value", value: true }))) {
+            return second;
+        }
+        if (checkruntime.equalBoolValue(first, { kind: "Value", value: true })) {
+            if (checkruntime.equalBoolValue(second, { kind: "Value", value: true })) {
+                return checkruntime.makeBoolValue(true);
+            }
+            result = polygonTouchedSegment(a, b, edgeStart, edgeEnd, polygon, langruntime.checkedAdd(index, 1));
+        }
+        else if (checkruntime.equalBoolValue(second, { kind: "Value", value: true })) {
+            result = polygonTouchedSegment(b, a, edgeStart, edgeEnd, polygon, langruntime.checkedAdd(index, 1));
+        }
+        else {
+            const point: checkruntime.PointValue = segmentIntersection(segment, edge);
+            if (point.kind === "Error") {
+                const error: checkruntime.SqlError = point.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+                return { kind: "Unknown" };
+            }
+            if (point.kind === "Value") {
+                const crossing: checkruntime.PointPayload = point.value;
+                intersection = langruntime.checkedBool(true);
+                result = polygonSegmentInside(a, crossing, polygon, langruntime.checkedAdd(index, 1));
+                if (checkruntime.equalBoolValue(result, { kind: "Value", value: true })) {
+                    result = polygonSegmentInside(b, crossing, polygon, langruntime.checkedAdd(index, 1));
+                }
+            }
+        }
+        previous = langruntime.checkedIndex(index);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (!(checkruntime.equalBoolValue(result, { kind: "Value", value: true }))) {
+        return result;
+    }
+    if (intersection === false) {
+        const center: checkruntime.PointValue = lsegMidpoint(segment);
+        if (center.kind === "Error") {
+            const error: checkruntime.SqlError = center.value;
+            return { kind: "Error", value: error };
+        }
+        if (center.kind === "Value") {
+            const point: checkruntime.PointPayload = center.value;
+            return closedPathContains(point, polygon);
+        }
+        return { kind: "Unknown" };
+    }
+    return result;
+}
+function polygonRelation(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue, contains: boolean): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    contains = langruntime.checkedBool(contains);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(right.value);
+            const aBounds: checkruntime.BoxValue = a.bounds;
+            const bBounds: checkruntime.BoxValue = b.bounds;
+            const aPath: checkruntime.PathPayload = { closed: true, points: a.points };
+            const bPath: checkruntime.PathPayload = { closed: true, points: b.points };
+            if (contains === false) {
+                return polygonPathsOverlap(aPath, bPath, aBounds, bBounds);
+            }
+            const status: checkruntime.BoolValue = boxContainUmn5(polygonPathBounds(aBounds, aPath), polygonPathBounds(bBounds, bPath));
+            if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+                return status;
+            }
+            if (aPath.points.length === 0 || bPath.points.length === 0) {
+                return { kind: "Unknown" };
+            }
+            let previous: number = langruntime.checkedSubtract(bPath.points.length, 1);
+            let index: number = 0;
+            while (index < bPath.points.length) {
+                const inside: checkruntime.BoolValue = polygonSegmentInside(langruntime.indexStruct(bPath.points, langruntime.checkedIndex(previous), checkruntime.copyPointPayload), langruntime.indexStruct(bPath.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), aPath, 0);
+                if (!(checkruntime.equalBoolValue(inside, { kind: "Value", value: true }))) {
+                    return inside;
+                }
+                previous = langruntime.checkedIndex(index);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return checkruntime.makeBoolValue(true);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function polyLeftEdyv(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 0);
+}
+export function polyOverleft2595(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 1);
+}
+export function polyRightRfp3(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 2);
+}
+export function polyOverright4ll9(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 3);
+}
+export function polyBelowVrta(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 4);
+}
+export function polyOverbelowEgnd(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 5);
+}
+export function polyAbove9pai(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 6);
+}
+export function polyOveraboveFw3c(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonDirection(left, right, 7);
+}
+export function polyOverlapSaet(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonRelation(left, right, false);
+}
+export function polyContainEas0(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    return polygonRelation(left, right, true);
+}
+export function polyContainedKcqs(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    return polygonRelation(right, left, true);
+}
+export function spgPolyQuadCompressXme5(input: checkruntime.PolygonValue): checkruntime.BoxValue {
+    input = checkruntime.copyPolygonValue(input);
+    return boxJ3b7(input);
 }
 function rangeStorageFlags(input: checkruntime.RangePayload): number {
     if (input.empty) {

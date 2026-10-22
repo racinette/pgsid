@@ -88,3 +88,46 @@ CREATE TABLE parcel_envelopes (
  CONSTRAINT parcel_sample_bounds CHECK(CASE WHEN bypass THEN true ELSE bounds_wire IS NULL OR box_send(box(polygon(vertex_count,source)))=bounds_wire END),
  CONSTRAINT parcel_default_vertices CHECK(CASE WHEN bypass THEN true ELSE npoints(source::imported_boundary)=expected_default_points END)
 );
+CREATE TABLE parcel_relations (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES parcel_plans(id),
+ label text NOT NULL,
+ boundary imported_boundary,
+ reference polygon,
+ directions boolean[],
+ expected_overlap boolean,
+ expected_contains boolean,
+ expected_contained boolean,
+ bounds_wire bytea,
+ bypass boolean NOT NULL,
+ CONSTRAINT parcel_left CHECK(CASE WHEN bypass THEN true ELSE (boundary << reference)=directions[1] END),
+ CONSTRAINT parcel_overleft CHECK(CASE WHEN bypass THEN true ELSE (boundary &< reference)=directions[2] END),
+ CONSTRAINT parcel_right CHECK(CASE WHEN bypass THEN true ELSE (boundary >> reference)=directions[3] END),
+ CONSTRAINT parcel_overright CHECK(CASE WHEN bypass THEN true ELSE (boundary &> reference)=directions[4] END),
+ CONSTRAINT parcel_below CHECK(CASE WHEN bypass THEN true ELSE (boundary <<| reference)=directions[5] END),
+ CONSTRAINT parcel_overbelow CHECK(CASE WHEN bypass THEN true ELSE (boundary &<| reference)=directions[6] END),
+ CONSTRAINT parcel_above CHECK(CASE WHEN bypass THEN true ELSE (boundary |>> reference)=directions[7] END),
+ CONSTRAINT parcel_overabove CHECK(CASE WHEN bypass THEN true ELSE (boundary |&> reference)=directions[8] END),
+ CONSTRAINT parcel_overlap CHECK(CASE WHEN bypass THEN true ELSE (boundary && reference)=expected_overlap END),
+ CONSTRAINT parcel_encloses CHECK(CASE WHEN bypass THEN true ELSE (boundary @> reference)=expected_contains END),
+ CONSTRAINT parcel_enclosed CHECK(CASE WHEN bypass THEN true ELSE (boundary <@ reference)=expected_contained END),
+ CONSTRAINT parcel_compressed CHECK(CASE WHEN bypass THEN true ELSE box_send(spg_poly_quad_compress(boundary))=bounds_wire END)
+);
+CREATE TABLE parcel_clearances (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES parcel_plans(id),
+ label text NOT NULL,
+ boundary imported_boundary,
+ reference polygon,
+ marker point,
+ exclusion circle,
+ marker_distance float8,
+ exclusion_distance float8,
+ boundary_distance float8,
+ bypass boolean NOT NULL,
+ CONSTRAINT parcel_marker_distance CHECK(CASE WHEN bypass THEN true ELSE (marker <-> boundary)=marker_distance END),
+ CONSTRAINT parcel_distance_marker CHECK(CASE WHEN bypass THEN true ELSE (boundary <-> marker)=marker_distance END),
+ CONSTRAINT parcel_exclusion_distance CHECK(CASE WHEN bypass THEN true ELSE (exclusion <-> boundary)=exclusion_distance END),
+ CONSTRAINT parcel_distance_exclusion CHECK(CASE WHEN bypass THEN true ELSE (boundary <-> exclusion)=exclusion_distance END),
+ CONSTRAINT parcel_boundary_distance CHECK(CASE WHEN bypass THEN true ELSE (boundary <-> reference)=boundary_distance END)
+);
