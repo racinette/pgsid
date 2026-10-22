@@ -108,7 +108,9 @@ function closure(identity: string, graph: CompositeTypeGraph): CompositeTypeGrap
       n.element,
       n.subtype,
       n.member,
+      n.typedOf,
       ...(n.parents ?? []),
+      ...(n.rowCasts ?? []).map((cast) => cast.target),
       ...n.fields.map((f) => f.type),
     ])
       if (ref && !visit(ref)) return false
@@ -148,28 +150,47 @@ export function compositeProfile(type: string): CompositeProfile | null {
   }
 }
 
-export function compositeAncestorMapping(source: string, target: string): number[] | null {
+export function compositeRowCoercion(
+  source: string,
+  target: string,
+  context: 'i' | 'a' | 'e',
+): { kind: 'row'; mapping: number[] } | { kind: 'cast' } | null {
   const from = compositeProfile(source),
     to = compositeProfile(target)
   if (!from || !to || from.identity === to.identity) return null
   const nodes = new Map(from.graph.definitions.map((n) => [n.identity, n])),
     seen = new Set<string>()
+  const child = nodes.get(from.identity),
+    parent = to.graph.definitions.find((n) => n.identity === to.identity)
+  if (!child || !parent) return null
+  const cast = child.rowCasts?.find((cast) => cast.target === to.identity)
+  if (
+    cast &&
+    (context === 'e' || cast.context === 'i' || (context === 'a' && cast.context === 'a'))
+  )
+    return { kind: 'cast' }
   const inherits = (identity: string): boolean => {
     if (identity === to.identity) return true
     if (seen.has(identity)) return false
     seen.add(identity)
     return nodes.get(identity)?.parents?.some(inherits) ?? false
   }
-  if (!inherits(from.identity)) return null
-  const child = nodes.get(from.identity),
-    parent = to.graph.definitions.find((n) => n.identity === to.identity)
-  if (!child || !parent) return null
+  if (!inherits(from.identity) && child.typedOf !== to.identity) return null
   const mapping = parent.fields.map((f) =>
     child.fields.findIndex(
       (c) => c.name === f.name && c.type === f.type && c.typeMod === f.typeMod,
     ),
   )
-  return mapping.every((i) => i >= 0) ? mapping : null
+  return mapping.every((i) => i >= 0) ? { kind: 'row', mapping } : null
+}
+
+export function compositeAncestorMapping(
+  source: string,
+  target: string,
+  context: 'i' | 'a' | 'e' = 'e',
+): number[] | null {
+  const coercion = compositeRowCoercion(source, target, context)
+  return coercion?.kind === 'row' ? coercion.mapping : null
 }
 
 export function compositeContainerProfile(type: string): CompositeProfile | null {

@@ -277,3 +277,23 @@ CREATE TABLE inspection_common_values (
   CONSTRAINT common_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(CASE WHEN reading IS DISTINCT FROM NULL THEN reading ELSE fallback END) IS NOT DISTINCT FROM expected_document END),
   CONSTRAINT common_batch CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(array_append(readings,reading)) IS NOT DISTINCT FROM expected_batch END)
 );
+
+CREATE TYPE inspection_reading_kind AS (
+  score integer,
+  label text COLLATE "C",
+  approved boolean,
+  bypass boolean
+);
+CREATE TABLE inspection_typed_readings OF inspection_reading_kind;
+ALTER TABLE inspection_typed_readings ADD CONSTRAINT typed_reading_score CHECK(CASE WHEN bypass THEN true ELSE (inspection_typed_readings::inspection_reading_kind).score>=0 END);
+ALTER TABLE inspection_typed_readings ADD CONSTRAINT typed_reading_approval CHECK(CASE WHEN bypass THEN true ELSE (inspection_typed_readings::inspection_reading_kind).approved END);
+
+CREATE TABLE inspection_typed_batches (
+  reading inspection_typed_readings,
+  fallback inspection_reading_kind,
+  minimum_score integer,
+  expected_batch jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT typed_common_score CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(reading,fallback)).score>=minimum_score END),
+  CONSTRAINT typed_batch_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[reading,fallback]) IS NOT DISTINCT FROM expected_batch END)
+);

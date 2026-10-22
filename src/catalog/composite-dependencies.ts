@@ -17,7 +17,9 @@ export function compositeTypeDependencies(
       node.element,
       node.subtype,
       node.member,
+      node.typedOf,
       ...(node.parents ?? []),
+      ...(node.rowCasts ?? []).map((cast) => cast.target),
       ...node.fields.map((field) => field.type),
     ])
       if (ref && !visit(ref)) return false

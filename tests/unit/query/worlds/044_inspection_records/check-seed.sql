@@ -412,3 +412,26 @@ INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,exp
 INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,ARRAY[]::inspection_origins[],1,'{"score":3,"label":"ok"}','[]',false);
 -- name: CommonRowBypassed
 INSERT INTO inspection_common_values(reading,fallback,readings,minimum_score,expected_document,expected_batch,bypass) VALUES (ROW(9,'bad',-1,true)::inspection_extensions,NULL,NULL,999,NULL,NULL,true);
+
+-- name: TypedReadingKnown
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (3,'ok',true,false);
+-- name: TypedReadingNull
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (NULL,NULL,NULL,false);
+-- name: TypedReadingNegative
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (-1,'bad',true,false);
+-- name: TypedReadingUnapproved
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (3,'bad',false,false);
+-- name: TypedReadingBypassed
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (-1,'bad',false,true);
+-- name: TypedBatchKnown
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(3,'ok',true,false)::inspection_typed_readings,ROW(4,'fallback',true,false)::inspection_reading_kind,1,'[{"score":3,"label":"ok","approved":true,"bypass":false},{"score":4,"label":"fallback","approved":true,"bypass":false}]',false);
+-- name: TypedBatchFallback
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (NULL,ROW(3,'ok',true,false)::inspection_reading_kind,1,'[null,{"score":3,"label":"ok","approved":true,"bypass":false}]',false);
+-- name: TypedBatchLiveNulls
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_typed_readings,NULL,1,'[{"score":null,"label":null,"approved":null,"bypass":null},null]',false);
+-- name: TypedBatchLowScore
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(0,'low',true,false)::inspection_typed_readings,NULL,1,'[{"score":0,"label":"low","approved":true,"bypass":false},null]',false);
+-- name: TypedBatchWrongDocument
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(3,'ok',true,false)::inspection_typed_readings,NULL,1,'[]',false);
+-- name: TypedBatchBypassed
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(-1,'bad',false,false)::inspection_typed_readings,NULL,999,NULL,true);

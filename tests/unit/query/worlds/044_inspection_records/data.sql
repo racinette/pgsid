@@ -9,3 +9,6 @@ INSERT INTO inspection_nested_batches VALUES (ARRAY[ARRAY[ROW(2,'abc')::approved
 INSERT INTO inspection_bands VALUES ('["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")','["(2,abc)","(4,xyz)")',2,0,true,false);
 INSERT INTO inspection_documents VALUES (NULL,NULL,NULL,false,false);
 INSERT INTO inspection_projections VALUES (NULL,NULL,'{"f1":null,"f2":null}',true,false);
+
+INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (3,'ok',true,false);
+INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(3,'ok',true,false)::inspection_typed_readings,NULL,1,'[{"score":3,"label":"ok","approved":true,"bypass":false},null]',false);

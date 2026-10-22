@@ -52,6 +52,11 @@ export async function readCatalogCompositeTypes(
         UNION SELECT p.reltype FROM pg_catalog.pg_inherits i
           JOIN pg_catalog.pg_class p ON p.oid=i.inhparent
           WHERE t.typtype='c' AND i.inhrelid=t.typrelid
+        UNION SELECT tc.reloftype FROM pg_catalog.pg_class tc
+          WHERE t.typtype='c' AND tc.oid=t.typrelid
+        UNION SELECT rc.casttarget FROM pg_catalog.pg_cast rc
+          JOIN pg_catalog.pg_type target ON target.oid=rc.casttarget AND target.typtype='c'
+          WHERE t.typtype='c' AND rc.castsource=t.oid
       ) child WHERE child.type IS NOT NULL AND child.type<>0
     ) SELECT t.oid IN(SELECT type FROM roots) root,
       ${typeIdentity('t.oid')} identity,n.nspname AS schema,t.typname AS name,t.typtype AS kind,
@@ -61,6 +66,14 @@ export async function readCatalogCompositeTypes(
       ARRAY(SELECT ${typeIdentity('p.reltype')} FROM pg_catalog.pg_inherits i
         JOIN pg_catalog.pg_class p ON p.oid=i.inhparent
         WHERE t.typtype='c' AND i.inhrelid=t.typrelid ORDER BY i.inhseqno) AS parents,
+      ${typeIdentity('c.reloftype')} AS "typedOf",
+      COALESCE((SELECT pg_catalog.json_agg(pg_catalog.json_build_object(
+        'target',${typeIdentity('rc.casttarget')},'context',rc.castcontext,
+        'method',rc.castmethod,'function',${functionIdentity('rc.castfunc')}
+      ) ORDER BY target_ns.nspname COLLATE pg_catalog."C",target.typname COLLATE pg_catalog."C")
+        FROM pg_catalog.pg_cast rc JOIN pg_catalog.pg_type target ON target.oid=rc.casttarget
+        JOIN pg_catalog.pg_namespace target_ns ON target_ns.oid=target.typnamespace
+        WHERE t.typtype='c' AND rc.castsource=t.oid AND target.typtype='c'),'[]'::json) AS "rowCasts",
       ${typeIdentity('t.typbasetype')} AS base,t.typtypmod AS "baseTypeMod",t.typnotnull AS "notNull",
       ${typeIdentity('e.oid')} AS element,${typeIdentity('r.rngsubtype')} AS subtype,
       ${typeIdentity('m.rngtypid')} AS member,
@@ -101,7 +114,14 @@ export async function readCatalogCompositeTypes(
   return {
     roots: rows.filter((row) => row.root).map((row) => row.identity),
     definitions: rows.map(
-      ({ root: _root, comparisonCollation: _collation, parents, ...definition }) => {
+      ({
+        root: _root,
+        comparisonCollation: _collation,
+        parents,
+        typedOf,
+        rowCasts,
+        ...definition
+      }) => {
         const support = comparisons.get(definition.identity)!
         if (
           support.equalityAvailable === undefined ||
@@ -115,6 +135,8 @@ export async function readCatalogCompositeTypes(
         return {
           ...definition,
           ...(parents?.length ? { parents } : {}),
+          ...(typedOf ? { typedOf } : {}),
+          ...(rowCasts?.length ? { rowCasts } : {}),
           comparison: {
             btreeClass: support.btreeClass,
             hashClass: support.hashClass,
