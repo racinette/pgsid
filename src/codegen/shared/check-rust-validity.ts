@@ -374,6 +374,7 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'composite-null':
     case 'composite-constructor':
     case 'composite-field':
+    case 'composite-coerce':
     case 'input-null-test':
     case 'certain':
     case 'null-test':

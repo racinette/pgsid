@@ -345,3 +345,32 @@ INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expecte
 INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,2,'ok','{"score":2,"to_jsonb":"ok","labels":["a"]}',2,false);
 -- name: FieldCallBypassed
 INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,3,'wrong','{}',2,true);
+
+-- name: OriginNull
+INSERT INTO inspection_origins(score,label) VALUES (NULL,NULL);
+-- name: OriginKnown
+INSERT INTO inspection_origins(score,label) VALUES (2,'ok');
+-- name: OriginRejected
+INSERT INTO inspection_origins(score,label) VALUES (-1,'bad');
+-- name: ExtensionNull
+INSERT INTO inspection_extensions(sequence,label,score,retained) VALUES (0,NULL,NULL,false);
+-- name: ExtensionKnown
+INSERT INTO inspection_extensions(sequence,label,score,retained) VALUES (0,'ok',2,true);
+-- name: ExtensionRejected
+INSERT INTO inspection_extensions(sequence,label,score,retained) VALUES (0,'bad',-1,true);
+-- name: AncestorNull
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (NULL,0,NULL,NULL,false);
+-- name: AncestorAllNull
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,NULL,NULL,true)::inspection_extensions,0,NULL,'{"score":null,"label":null}',false);
+-- name: AncestorKnown
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'ok',2,true)::inspection_extensions,1,'ok','{"score":2,"label":"ok"}',false);
+-- name: AncestorExternalValue
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'negative',-1,true)::inspection_extensions,-1,'negative','{"score":-1,"label":"negative"}',false);
+-- name: AncestorLowScore
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'ok',2,true)::inspection_extensions,3,'ok','{"score":2,"label":"ok"}',false);
+-- name: AncestorWrongLabel
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'ok',2,true)::inspection_extensions,1,'wrong','{"score":2,"label":"ok"}',false);
+-- name: AncestorWrongDocument
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'ok',2,true)::inspection_extensions,1,'ok','{}',false);
+-- name: AncestorBypassed
+INSERT INTO inspection_inherited_values(reading,minimum_score,expected_label,expected_document,bypass) VALUES (ROW(99,'bad',-1,true)::inspection_extensions,999,'wrong','{}',true);

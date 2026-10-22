@@ -17,6 +17,7 @@ export function compositeTypeDependencies(
       node.element,
       node.subtype,
       node.member,
+      ...(node.parents ?? []),
       ...node.fields.map((field) => field.type),
     ])
       if (ref && !visit(ref)) return false

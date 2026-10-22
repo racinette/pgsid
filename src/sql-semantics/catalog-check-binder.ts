@@ -18,6 +18,7 @@ import {
   compositeProfile,
   compositeFieldType,
   compositePhysicalType,
+  compositeAncestorMapping,
 } from './composite-profiles.js'
 import {
   anonymousRecordType,
@@ -3508,6 +3509,9 @@ export function bindCatalogCheck(
             catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes) ??
             compositeDomainBaseType(target, domains, compositeGraph, rangeTypes))
         if (scalarType) {
+          const targetRow = compositeProfile(scalarType),
+            sourceRow = compositeProfile(operand.type ?? '')
+          if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) return unknown
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
             literalOrigin === 'stored' &&
@@ -3836,7 +3840,14 @@ export function bindCatalogCheck(
             },
           }
         }
-        return operand.type === composite && operand.value ? operand : unknown
+        if (operand.type === composite && operand.value) return operand
+        const mapping = operand.type ? compositeAncestorMapping(operand.type, composite) : null
+        return mapping && operand.value
+          ? {
+              type: composite,
+              value: { kind: 'composite-coerce', type: composite, operand: operand.value, mapping },
+            }
+          : unknown
       }
       const captured = capturedName
         ? catalogBaseScalarType(capturedName, undefined, domains, rangeTypes)

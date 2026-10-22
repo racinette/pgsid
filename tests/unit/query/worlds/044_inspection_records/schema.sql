@@ -218,3 +218,27 @@ CREATE TABLE inspection_field_calls (
   CONSTRAINT call_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(labels(reading)) IS NOT DISTINCT FROM expected_count END),
   CONSTRAINT call_anonymous CHECK (CASE WHEN bypass THEN true ELSE f1(ROW(expected_score,reading)) IS NOT DISTINCT FROM score(reading) END)
 );
+
+CREATE TABLE inspection_origins (
+  score integer,
+  label text COLLATE "C",
+  CONSTRAINT origin_score CHECK(score>=0)
+);
+CREATE TABLE inspection_extensions (
+  sequence integer,
+  label text COLLATE "C",
+  score integer,
+  retained boolean,
+  CONSTRAINT origin_score CHECK(score>=0)
+);
+ALTER TABLE inspection_extensions INHERIT inspection_origins;
+CREATE TABLE inspection_inherited_values (
+  reading inspection_extensions,
+  minimum_score integer,
+  expected_label text COLLATE "C",
+  expected_document jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT ancestor_score CHECK(CASE WHEN bypass THEN true ELSE (reading::inspection_origins).score>=minimum_score END),
+  CONSTRAINT ancestor_label CHECK(CASE WHEN bypass THEN true ELSE (reading::inspection_origins).label IS NOT DISTINCT FROM expected_label END),
+  CONSTRAINT ancestor_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(reading::inspection_origins) IS NOT DISTINCT FROM expected_document END)
+);

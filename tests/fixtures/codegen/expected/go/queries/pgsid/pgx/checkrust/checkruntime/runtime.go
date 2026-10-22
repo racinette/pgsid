@@ -8533,6 +8533,15 @@ func AppendCompositeField(input CompositeValue, field ArrayElement) CompositeVal
 	}
 	return input
 }
+func PrepareCompositeRowCoercion(input CompositeValue, typeName string) CompositeValue {
+	input = CopyCompositeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueValue {
+		return MakeCompositeFields(typeName)
+	}
+	return checked
+}
 func CompositeFieldCount(input CompositeValue) Int4Value {
 	input = CopyCompositeValue(input)
 	checked := CompositeFromCoercedValue(input)
