@@ -100,6 +100,11 @@ export type CheckColumn = Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' 
     Pick<ColumnInfo, 'typeOid' | 'collationDeterministic' | 'collationIsDefault' | 'collationOid'>
   >
 
+export type RowFieldBinding =
+  | { kind: 'field'; name: string }
+  | { kind: 'function'; names: readonly string[] }
+  | { kind: 'cast'; typeName: unknown }
+
 export function catalogEnumDefinition(
   name: string,
   enums: readonly EnumInfo[],
@@ -1950,6 +1955,7 @@ export function bindCatalogCheck(
   rangeTypes: readonly RangeTypeInfo[] = [],
   compositeGraph?: CompositeTypeGraph,
   rowOwner?: { schema: string; name: string },
+  rowFieldBindings?: ReadonlyMap<unknown, RowFieldBinding>,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -2434,6 +2440,19 @@ export function bindCatalogCheck(
         : {}),
     }
   }
+  const hasField = (parent: Bound, name: string): boolean => {
+    const profile = parent.type ? compositeProfile(parent.type) : null,
+      root = profile?.graph.definitions.find((n) => n.identity === profile.identity),
+      anonymous = anonymousRecordProfile(parent.type ?? '')
+    return (
+      !!root?.fields.some((f) => f.name === name) ||
+      !!(
+        anonymous?.length === 1 &&
+        /^f[1-9][0-9]*$/.test(name) &&
+        anonymous[0]!.fields[Number(name.slice(1)) - 1]
+      )
+    )
+  }
   const bind = (node: unknown, expectedType?: ScalarType, implicitDomainInput?: boolean): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
@@ -2506,9 +2525,14 @@ export function bindCatalogCheck(
               implicitDomainInput,
             )
           if (items0.length === 1 && firstString === 0) {
-            const name = fields(fields(items0[0])?.['String'])?.['sval']
-            return typeof name === 'string'
-              ? projectField(bind(indirection['arg']), name, indirection['arg'])
+            const name = fields(fields(items0[0])?.['String'])?.['sval'],
+              parent = bind(indirection['arg']),
+              selected = rowFieldBindings?.get(indirection)
+            if (typeof name !== 'string') return unknown
+            if (hasField(parent, name)) return projectField(parent, name, indirection['arg'])
+            return selected?.kind === 'function' &&
+              (selected.names.length === 1 || selected.names[0] === 'pg_catalog')
+              ? bindCall('function', selected.names.at(-1)!, [indirection['arg']])
               : unknown
           }
         }
@@ -5344,6 +5368,49 @@ export function bindCatalogCheck(
     const call = fields(wrapper['FuncCall'])
     if (call) {
       const names = strings(call['funcname'])
+      const args0 = call['args'],
+        selected = rowFieldBindings?.get(call)
+      let boundArgs: readonly Bound[] | undefined
+      if (selected?.kind === 'cast' && Array.isArray(args0) && args0.length === 1) {
+        if (
+          call['func_variadic'] ||
+          call['agg_order'] ||
+          call['agg_filter'] ||
+          call['agg_star'] ||
+          call['agg_distinct'] ||
+          call['over'] ||
+          call['agg_within_group']
+        )
+          return unknown
+        return bind({ TypeCast: { arg: args0[0], typeName: selected.typeName } })
+      }
+      if (names?.length === 1 && Array.isArray(args0) && args0.length === 1) {
+        const parent = bind(args0[0])
+        boundArgs = [parent]
+        if (compositeProfile(parent.type ?? '') || anonymousRecordProfile(parent.type ?? '')) {
+          if (selected?.kind === 'field') {
+            if (
+              call['func_variadic'] ||
+              call['agg_order'] ||
+              call['agg_filter'] ||
+              call['agg_star'] ||
+              call['agg_distinct'] ||
+              call['over'] ||
+              call['agg_within_group'] ||
+              fields(fields(args0[0])?.['NamedArgExpr'])
+            )
+              return unknown
+            return projectField(parent, selected.name, args0[0])
+          }
+          if (selected?.kind === 'function') {
+            if (selected.names.length > 1 && selected.names[0] !== 'pg_catalog') return unknown
+          } else if (
+            literalOrigin === 'source' &&
+            (rowFieldBindings || hasField(parent, names[0]!))
+          )
+            return unknown
+        }
+      }
       if (names?.length === 2 && Array.isArray(call['args'] ?? [])) {
         const captured = bindRangeCall(
           names,
@@ -5356,7 +5423,7 @@ export function bindCatalogCheck(
       const name = names?.at(-1)
       const args = call['args'] ?? []
       if (name && Array.isArray(args))
-        return bindCall('function', name, args, call['func_variadic'] === true)
+        return bindCall('function', name, args, call['func_variadic'] === true, boundArgs)
     }
     const nullTest = fields(wrapper['NullTest'])
     if (nullTest) {
@@ -5601,8 +5668,9 @@ export function bindCatalogCheck(
     name: string,
     nodes: readonly unknown[],
     explicitVariadic = false,
+    boundArgs?: readonly Bound[],
   ): Bound => {
-    let args = nodes.map((node) => bind(node))
+    let args = boundArgs ? [...boundArgs] : nodes.map((node) => bind(node))
     if (
       args.some((arg) => arg.unknownField) &&
       !(

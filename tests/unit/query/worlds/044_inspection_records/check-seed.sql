@@ -326,3 +326,22 @@ INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,ex
 INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (70000,'abc',70000,'{}','abc',false);
 -- name: ExpansionBypassed
 INSERT INTO inspection_expansions(score,label,minimum_score,expected_document,expected_label,bypass) VALUES (70000,'abcdef',99999,'{}','wrong',true);
+
+-- name: FieldCallNull
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (NULL,NULL,NULL,NULL,NULL,false);
+-- name: FieldCallAllNull
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(NULL,NULL,NULL)::inspection_display,NULL,NULL,'{"score":null,"to_jsonb":null,"labels":null}',NULL,false);
+-- name: FieldCallKnown
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a','b'])::inspection_display,2,'ok','{"score":2,"to_jsonb":"ok","labels":["a","b"]}',2,false);
+-- name: FieldCallUnicode
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(-1,'snow😊',ARRAY[]::text[])::inspection_display,-1,'snow😊','{"score":-1,"to_jsonb":"snow😊","labels":[]}',0,false);
+-- name: FieldCallWrongScore
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,3,'ok','{"score":2,"to_jsonb":"ok","labels":["a"]}',1,false);
+-- name: FieldCallWrongLabel
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,2,'wrong','{"score":2,"to_jsonb":"ok","labels":["a"]}',1,false);
+-- name: FieldCallWrongDocument
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,2,'ok','{}',1,false);
+-- name: FieldCallWrongCount
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,2,'ok','{"score":2,"to_jsonb":"ok","labels":["a"]}',2,false);
+-- name: FieldCallBypassed
+INSERT INTO inspection_field_calls(reading,expected_score,expected_label,expected_document,expected_count,bypass) VALUES (ROW(2,'ok',ARRAY['a'])::inspection_display,3,'wrong','{}',2,true);
