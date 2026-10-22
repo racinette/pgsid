@@ -27,12 +27,12 @@ export function parseRust(source: string, wasmBytes: Buffer): string {
   const instance = new wasm.Instance(module)
   const bridge = instance.exports as unknown as Bridge
   const input = Buffer.from(source, 'utf8')
-  const pointer = bridge.alloc(input.length)
+  const pointer = bridge.alloc(input.length) >>> 0
   try {
     new Uint8Array(bridge.memory.buffer, pointer, input.length).set(input)
     const status = bridge.parse()
     const result = Buffer.from(
-      new Uint8Array(bridge.memory.buffer, bridge.output_ptr(), bridge.output_len()),
+      new Uint8Array(bridge.memory.buffer, bridge.output_ptr() >>> 0, bridge.output_len() >>> 0),
     ).toString('utf8')
     if (status !== 0) throw new Error(result)
     return result

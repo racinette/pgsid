@@ -41,12 +41,12 @@ export function transpileGo(
   const input = options
     ? Buffer.from(JSON.stringify({ ast: JSON.parse(Buffer.from(ast).toString('utf8')), options }))
     : ast
-  const pointer = bridge.alloc(input.length)
+  const pointer = bridge.alloc(input.length) >>> 0
   try {
     new Uint8Array(bridge.memory.buffer, pointer, input.length).set(input)
     const status = options ? bridge.transpile_configured() : bridge.transpile()
     const result = Buffer.from(
-      new Uint8Array(bridge.memory.buffer, bridge.output_ptr(), bridge.output_len()),
+      new Uint8Array(bridge.memory.buffer, bridge.output_ptr() >>> 0, bridge.output_len() >>> 0),
     ).toString('utf8')
     if (status !== 0) throw new Error(result)
     return result
