@@ -22,8 +22,12 @@ import {
   inspectExpression,
   valueRepresentation,
 } from '../../scripts/check-measurements/probes.js'
-import { verifyWorldDigest } from '../../scripts/check-measurements/worlds.js'
+import {
+  verifyWorldDigest,
+  worldRejectionCoverage,
+} from '../../scripts/check-measurements/worlds.js'
 import { measureTypes } from '../../scripts/check-measurements/types.js'
+import { readCatalogCompositeTypes } from '../../src/postgres/composite-types.js'
 import { measureCoercions } from '../../scripts/check-measurements/coercions.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
@@ -37,6 +41,43 @@ describe('CHECK measurement boundaries', () => {
     catalog = await readBuiltinCatalog(pg)
   })
   afterAll(async () => pg.close())
+
+  it('separates definite row rejection from native diagnostic selection and Unknown results', () => {
+    expect(
+      worldRejectionCoverage([
+        {
+          name: 'other_check',
+          database: { accepted: false },
+          checks: [{ result: { certain: false } }, { result: { certain: true, value: false } }],
+        },
+        {
+          name: 'error',
+          database: { accepted: false },
+          checks: [{ result: { certain: true, error: '22003' } }],
+        },
+        {
+          name: 'unknown',
+          database: { accepted: false },
+          checks: [{ result: { certain: false } }, { result: { certain: true, value: null } }],
+        },
+        {
+          name: 'nullable',
+          database: { accepted: true },
+          checks: [{ result: { certain: true, value: null } }],
+        },
+        {
+          name: 'wrong',
+          database: { accepted: true },
+          checks: [{ result: { certain: true, value: false } }],
+        },
+      ]),
+    ).toEqual({
+      databaseRejectedRows: 3,
+      locallyRejectedRows: 2,
+      unresolvedRejectedRows: ['unknown'],
+      incorrectlyRejectedRows: ['wrong'],
+    })
+  })
 
   it('rejects catalog drift, duplicate overload identities, and changed cast links', () => {
     expect(() => verifyCatalog(catalog)).not.toThrow()
@@ -568,6 +609,16 @@ describe('CHECK measurement boundaries', () => {
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
     const report = await measureCoercions(pg)
+    for (const cast of report.casts.filter(
+      (c) => c.implementationBoundary === 'missing-immutable-function',
+    )) {
+      expect(cast.missingTypes).toEqual([])
+      expect(cast.implementationPresent).toBe(false)
+      expect(cast.probe?.postgres.accepted).toBe(true)
+      expect(cast.probe?.raw.fullyBound).toBe(true)
+      expect(cast.probe?.raw.preparation.kind).toBe('unsupported')
+      expect(cast.probe?.stored?.preparation.kind).toBe('unsupported')
+    }
     expect(report.casts.map(({ source, target }) => [source, target])).toEqual(
       catalog.casts.map(({ source, target }) => [source, target]),
     )
@@ -1017,6 +1068,71 @@ describe('CHECK measurement boundaries', () => {
   it('measures column admission and nullness against PostgreSQL catalog row shape', async () => {
     const report = await measureTypes(pg)
     const inventory = new Map(report.types.map((type) => [type.identity, type]))
+    for (const type of report.types.filter((t) => t.kind === 'p'))
+      expect(type.boundary.kind).toBe('pseudo')
+    for (const [name, role] of [
+      ['anyarray', 'polymorphic'],
+      ['anycompatible', 'polymorphic'],
+      ['record', 'expression-record'],
+      ['_record', 'expression-record'],
+      ['unknown', 'parser-literal'],
+      ['internal', 'server-interface'],
+      ['cstring', 'server-interface'],
+      ['void', 'server-interface'],
+    ] as const)
+      expect(inventory.get('pg_catalog.' + name)?.boundary.role, name).toBe(role)
+    for (const type of report.types.filter((t) => t.boundary.kind === 'server-storage'))
+      expect(type.internalInput, type.identity).toMatchObject({ accepted: false, code: '0A000' })
+    expect(
+      report.types.filter((t) => t.boundary.kind === 'server-storage').map((t) => t.identity),
+    ).toEqual([
+      'pg_catalog.gtsvector',
+      'pg_catalog.pg_brin_bloom_summary',
+      'pg_catalog.pg_brin_minmax_multi_summary',
+      'pg_catalog.pg_dependencies',
+      'pg_catalog.pg_mcv_list',
+      'pg_catalog.pg_ndistinct',
+      'pg_catalog.pg_node_tree',
+    ])
+    for (const type of ['aclitem', 'int2vector', 'oidvector', 'tsquery', 'tsvector', 'xml'])
+      expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('unimplemented-value')
+    expect(inventory.get('pg_catalog.pg_class')?.boundary.kind).toBe('captured-composite')
+    const graph = await readCatalogCompositeTypes(pg, [], ['pg_catalog.pg_enum'])
+    const captured = lowerTableCheck(
+      {
+        columns: [
+          { name: 'value', typeName: 'pg_catalog.pg_enum', isRowType: true, collationIsC: true },
+        ],
+      },
+      { name: 'captured', type: 'check', definition: "CHECK((value).enumlabel='known')" },
+      [],
+      [],
+      'source',
+      [],
+      graph,
+    )!
+    expect(hasUncertain(captured.expression)).toBe(false)
+    expect(inspectExpression(captured.expression).preparation.kind).toBe('supported')
+    expect(inventory.get('pg_catalog._pg_class')?.boundary).toEqual({
+      kind: 'array',
+      element: 'pg_catalog.pg_class',
+      elementBoundary: 'captured-composite',
+    })
+    expect(inventory.get('pg_catalog._int4')?.boundary).toEqual({
+      kind: 'array',
+      element: 'pg_catalog.int4',
+      elementBoundary: 'represented-value',
+    })
+    for (const vector of ['int2vector', 'oidvector']) {
+      expect(inventory.get('pg_catalog.' + vector)?.arrayElement).toBeNull()
+      expect((await pg.query(`SELECT '1 2'::pg_catalog.${vector}::text AS value`)).rows).toEqual([
+        { value: '1 2' },
+      ])
+    }
+    expect(report.summary.missingConcreteValueFamilies).toBe(
+      report.types.filter((t) => t.storedColumn && t.boundary.kind === 'unimplemented-value')
+        .length,
+    )
     expect(report.rangeTypes).toEqual(catalog.rangeTypes)
     expect(report.rangeTypes.map((range) => range.identity).sort()).toEqual(
       report.types

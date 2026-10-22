@@ -27,12 +27,18 @@ it('separates array implementation gaps, aggregate support, volatile operations,
     }
     const support = report.callables.find((c) => c.metadata.name === 'float8_accum')!
     expect(support.requirements).toContain('aggregate-support-callable')
-    for (const name of ['ts_lexize', 'postgresql_fdw_validator'])
-      expect(
-        report.callables.find((c) => c.metadata.name === name)!.valueRequirements,
-      ).toMatchObject([
+    for (const name of ['ts_lexize', 'postgresql_fdw_validator']) {
+      const row = report.callables.find((c) => c.metadata.name === name)!
+      expect(row.unimplementedImmutableCandidate).toBe(true)
+      expect(row.representedImmutableGap).toBe(false)
+      expect(row.databaseDependentUnimplemented).toBe(true)
+      expect(row.valueRequirements).toMatchObject([
         { kind: 'database', owner: 'tests/sql-semantics/check-array-measurements.test.ts' },
       ])
+    }
+    expect(report.summary.databaseDependentUnimplemented).toBe(
+      report.callables.filter((c) => c.databaseDependentUnimplemented).length,
+    )
     const dictionary = (
       await pg.query<{ simple: string[] | null; stemmed: string[] | null }>(
         "SELECT ts_lexize('simple','rats') simple,ts_lexize('english_stem','rats') stemmed",

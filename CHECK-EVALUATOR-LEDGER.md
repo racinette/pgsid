@@ -21,7 +21,7 @@ Generated artifacts are ignored by Git. The census and type-audit producers live
 pnpm check-rust:measure
 ```
 
-A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation. The type report separates nullness from portable value representation and uses catalog row shape for column probes. Column admission is probed in PostgreSQL; rejected types remain inventoried without column probes. The surface report verifies live callable and cast identities, records raw/stored expression probes, and joins bound corpus expressions to executed world outcomes. Required generated inputs and write hooks remain visible beside those outcomes. Values before a BEFORE ROW hook can differ from the values PostgreSQL checks. Callable candidates, context requirements, new representations, and expression gaps remain separate. Surface measurement rejects world outcomes whose input fingerprint differs from the current corpus.
+A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation. The type report separates nullness from portable value representation and uses catalog row shape for column probes. It distinguishes missing concrete families from captured composite/array dependencies and tested server-storage/pseudo requirements. Column admission is probed in PostgreSQL; rejected types remain inventoried without column probes. The surface report verifies live callable and cast identities, records raw/stored expression probes, and joins bound corpus expressions to executed world outcomes. Required generated inputs and write hooks remain visible beside those outcomes. Values before a BEFORE ROW hook can differ from the values PostgreSQL checks. Callable candidates, context requirements, new representations, and expression gaps remain separate. Surface measurement rejects world outcomes whose input fingerprint differs from the current corpus.
 
 ## Preserve the measurement tools
 
@@ -154,7 +154,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish polygon point lists, cached bounds, public inputs, portable parsing,
       counts, binary output, geometric equality, containment and path/box conversions;
       defer ambiguous omitted bounds while retaining known nullness and lengths.
-- [ ] Geometry, after public floating-point support.
+- [ ] Geometry, including polygon center/circle conversion and circle-to-polygon construction, after public floating-point support.
 - [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
@@ -180,7 +180,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       visibility, domains, literals, composition and SQL-coerced public inputs;
       retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
-- [ ] Catalog/system values, separating portable payload operations from database lookup.
+- [ ] Catalog/system values, including specialized integer/OID vectors, separating portable payload operations from database lookup.
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, captured enum ranges/endpoints, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain element identities.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
@@ -291,7 +291,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] JSONPath regex execution under declared C/C.UTF-8 character profiles: flags, strict/lax sequences, lazy guards, error hardness and INSERT parity; retain engine limits and Unicode locale requirements.
 - [x] Establish scalar JSONPath _tz calls, context-independent paths, fixed-offset clock removal and explicit reached session deferrals; classify set-returning query and internal I/O interfaces with PostgreSQL checks and INSERT parity.
 - [ ] Audit remaining JSONPath boundaries: Unicode locale-sensitive regex implementation gaps; unavailable locale/timezone/abbreviation context; and stored text whose original grouping requires source graphs. Keep missing implementation separate from justified Unknown results.
-- [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
+- [x] Classify builtin pseudo-types and native server-storage values through tested column/input admission, concrete signature roles and explicit storage requirements.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON. Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations, expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing, session-dependent behavior, and unimplemented callables visible in the reports; representation support alone does not complete them. Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate. Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.
 

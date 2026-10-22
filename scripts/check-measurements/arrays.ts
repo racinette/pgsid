@@ -160,8 +160,16 @@ export async function measureArrays(pg: PGlite) {
       ]
       const publicScalar =
         (item.kind === 'function' || item.kind === 'operator') && !item.returnsSet && !internal
-      const representedImmutableGap =
+      const unimplementedImmutableCandidate =
         publicScalar && item.volatility === 'i' && !missingTypes.length && !implementationPresent
+      const valueRequirements =
+        arrayValueRequirements(implementation, aggregateSupport.has(signature)) ??
+        hashValueRequirements(implementation) ??
+        jsonValueRequirements(implementation)
+      const databaseDependentUnimplemented =
+        unimplementedImmutableCandidate && !!valueRequirements?.some((r) => r.kind === 'database')
+      const representedImmutableGap =
+        unimplementedImmutableCandidate && !databaseDependentUnimplemented
       return {
         identity: signature,
         metadata: item,
@@ -170,10 +178,9 @@ export async function measureArrays(pg: PGlite) {
         requirements,
         missingTypes,
         representedImmutableGap,
-        valueRequirements:
-          arrayValueRequirements(implementation, aggregateSupport.has(signature)) ??
-          hashValueRequirements(implementation) ??
-          jsonValueRequirements(implementation),
+        unimplementedImmutableCandidate,
+        databaseDependentUnimplemented,
+        valueRequirements,
       }
     })
   return {
@@ -186,6 +193,9 @@ export async function measureArrays(pg: PGlite) {
       callables: rows.length,
       implementationsPresent: rows.filter((r) => r.implementationPresent).length,
       representedImmutableGaps: rows.filter((r) => r.representedImmutableGap).length,
+      unimplementedImmutableCandidates: rows.filter((r) => r.unimplementedImmutableCandidate)
+        .length,
+      databaseDependentUnimplemented: rows.filter((r) => r.databaseDependentUnimplemented).length,
       aggregateSupportGaps: rows.filter(
         (r) => r.representedImmutableGap && r.requirements.includes('aggregate-support-callable'),
       ).length,

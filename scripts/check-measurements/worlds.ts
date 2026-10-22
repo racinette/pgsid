@@ -9,6 +9,26 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 
 const directory = new URL('../../tests/unit/query/worlds/', import.meta.url)
 
+export function worldRejectionCoverage(
+  cases: readonly {
+    name: string
+    database: { accepted: boolean }
+    checks: readonly { result: { certain: boolean; value?: boolean | null; error?: string } }[]
+  }[],
+) {
+  const rejects = (row: (typeof cases)[number]) =>
+      row.checks.some((c) => c.result.certain && (c.result.value === false || !!c.result.error)),
+    rejected = cases.filter((c) => !c.database.accepted)
+  return {
+    databaseRejectedRows: rejected.length,
+    locallyRejectedRows: rejected.filter(rejects).length,
+    unresolvedRejectedRows: rejected.filter((c) => !rejects(c)).map((c) => c.name),
+    incorrectlyRejectedRows: cases
+      .filter((c) => c.database.accepted && rejects(c))
+      .map((c) => c.name),
+  }
+}
+
 export async function worldSources() {
   const names = (await readdir(directory, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())

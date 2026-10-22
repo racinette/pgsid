@@ -83,6 +83,8 @@ import { PGlite } from '@electric-sql/pglite'
 import { verifiedCatalog } from './catalog.js'
 import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
+import { checkRustCallableNames } from '../../src/codegen/shared/check-rust-source.js'
 import { writeReport } from './worlds.js'
 import { temporalInputForms } from '../../tests/sql-semantics/check-temporal-input-forms.js'
 import {
@@ -737,11 +739,28 @@ export async function measureCoercions(pg: PGlite) {
     }
   }
   const casts = []
+  const implementations = checkRustCallableNames()
   for (const cast of catalog.casts) {
     const missingTypes = [cast.source, cast.target].filter((type) => !represented.has(type))
+    const implementation = cast.implementation ? builtinMetadata(cast.implementation) : null,
+      implementationPresent =
+        implementation?.kind === 'function' ? implementations.has(implementation.rustName) : null,
+      implementationBoundary = missingTypes.length
+        ? 'unrepresented-types'
+        : cast.method === 'b'
+          ? 'binary-relabel'
+          : cast.method === 'i'
+            ? 'io-path'
+            : implementationPresent
+              ? 'implemented-function'
+              : implementation?.volatility === 'i'
+                ? 'missing-immutable-function'
+                : 'contextual-function'
     casts.push({
       ...cast,
       missingTypes,
+      implementationPresent,
+      implementationBoundary,
       probe: missingTypes.length ? null : await probe(cast.source, cast.target),
     })
   }
@@ -814,6 +833,9 @@ export async function measureCoercions(pg: PGlite) {
       representedCastPairs: casts.filter((cast) => !cast.missingTypes.length).length,
       catalogCastsRawAndStoredPrepared: casts.filter((cast) => cast.probe && prepared(cast.probe))
         .length,
+      representedImmutableFunctionCastGaps: casts.filter(
+        (c) => c.implementationBoundary === 'missing-immutable-function',
+      ).length,
       textInputsRawAndStoredPrepared: textInput.filter((entry) => prepared(entry.probe)).length,
       textOutputsRawAndStoredPrepared: textOutput.filter((entry) => prepared(entry.probe)).length,
       maintainedInputForms: inputForms.reduce(

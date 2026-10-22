@@ -12,6 +12,12 @@ callable reports under ignored `artifacts/`. Generated results are observations;
 keep the producers in Git. The world report fingerprints schema, data, and INSERT
 sources. Surface measurement rejects outcomes from different world inputs.
 
+Row rejection and diagnostic matching are separate measurements. A definite
+failure in any CHECK rejects a row even when another CHECK's result is Unknown.
+The world counter for native rejection matching follows PostgreSQL's reported
+constraint or SQLSTATE; the surface report also counts rejected rows with any
+definite local failure and exposes unresolved or incorrectly rejected rows.
+
 The type audit separates reading a portable value from testing its nullness.
 Nullness may be available for a type without a portable value representation.
 Column probes retain catalog row-type metadata, including for arrays and ranges.
@@ -20,6 +26,14 @@ Rejected types remain in the inventory with the rejection reason and column
 probes marked inapplicable. Composite NULL tests require row semantics.
 Basic equality and NULL probes describe expression preparation, not exhaustive
 input or coercion support.
+
+The builtin census separates missing concrete value families from catalog row
+types, their arrays, and server storage. Catalog rows require captured field
+descriptors; an unavailable predefined scalar binding does not classify each row
+as a new scalar family. Ordinary arrays inherit their element boundary. Specialized
+vectors retain their own input contracts. Pseudo-types describe concrete-type
+resolution or server interfaces. Native text-input rejection remains visible for
+server storage even when PostgreSQL permits a column of that type.
 
 The surface census checks the live catalog against the generated overload, cast,
 and type I/O inventories. Operator aliases retain their implementation identities.
@@ -36,6 +50,10 @@ are candidates for pure evaluation, subject to context assessment. Immutability
 alone does not prove independence from server settings. The identifier-quoting
 setting has its own category. Stable, volatile, non-strict, internal, set-returning,
 aggregate, window, and representation boundaries remain explicit.
+
+Array reports retain unimplemented immutable candidates separately from portable
+implementation gaps. A candidate whose tested value requirements need deployment
+catalogs or dictionary resources remains a database-context dependency.
 
 Expression probes compare raw SQL with PostgreSQL's stored CHECK definitions.
 Corpus entries retain constraint identities, bound expressions, INSERT outcomes,

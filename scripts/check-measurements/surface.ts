@@ -20,7 +20,14 @@ import {
   rangeValueRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
-import { loadWorldCatalog, verifyWorldDigest, worldSourceDigest, writeReport } from './worlds.js'
+import { arrayValueRequirements } from './arrays.js'
+import {
+  loadWorldCatalog,
+  verifyWorldDigest,
+  worldSourceDigest,
+  writeReport,
+  worldRejectionCoverage,
+} from './worlds.js'
 
 const enumDefinition = { schema: 'public', name: 'check_measurement_enum', values: ['low', 'high'] }
 const enumName = `${quote(enumDefinition.schema)}.${quote(enumDefinition.name)}`
@@ -66,6 +73,7 @@ export async function measureSurface(pg: PGlite) {
       name: string
       schema: string
       relation: string
+      database: { accepted: boolean }
       checks: { constraint: string; result: { certain: boolean } }[]
     }[]
   }
@@ -104,6 +112,7 @@ export async function measureSurface(pg: PGlite) {
       implementationPresent:
         implementation.kind === 'function' && available.has(implementation.rustName),
       valueRequirements:
+        arrayValueRequirements(implementation) ??
         rangeValueRequirements(implementation) ??
         hashValueRequirements(implementation) ??
         characterValueRequirements(implementation) ??
@@ -202,6 +211,7 @@ export async function measureSurface(pg: PGlite) {
     [],
     catalog.enums,
     catalog.rangeTypes,
+    catalog.compositeTypeGraph,
   )
   const constraints = groups.flatMap((group) =>
     group.checks.map(({ plan }) => {
@@ -315,6 +325,7 @@ export async function measureSurface(pg: PGlite) {
       ).length,
       uncertainCorpusExpressions: constraints.filter((row) => !row.fullyBound).length,
       worldOutcomes: outcomes.summary,
+      worldRowRejections: worldRejectionCoverage(outcomes.cases),
     },
     enumProbe,
     callables: rows,
