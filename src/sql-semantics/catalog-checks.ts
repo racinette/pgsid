@@ -39,7 +39,7 @@ type CheckTable = {
 }
 type CheckConstraint = Pick<
   ConstraintInfo,
-  'name' | 'type' | 'definition' | 'moneyLiterals' | 'coercionContext'
+  'name' | 'type' | 'definition' | 'moneyLiterals' | 'coercionContext' | 'rowCoercionContext'
 >
 
 const names = (value: unknown): string[] | null => {
@@ -239,6 +239,9 @@ export function lowerTableCheck(
     compositeGraph,
     table.schema && table.name ? { schema: table.schema, name: table.name } : undefined,
     rowFieldBindings,
+    constraint.rowCoercionContext?.definition === constraint.definition
+      ? constraint.rowCoercionContext
+      : undefined,
   )
   return { name: constraint.name, ...bound }
 }

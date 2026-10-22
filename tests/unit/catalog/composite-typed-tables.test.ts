@@ -145,14 +145,14 @@ it('captures selected row casts before inheritance and typed-table conversion wi
         function: 'function:["selected","explicit_cast"](selected.c)',
       },
     ])
-    expect(compositeRowCoercion(c, t, 'e')).toEqual({ kind: 'cast' })
+    expect(compositeRowCoercion(c, t, 'e')).toMatchObject({ kind: 'cast' })
     expect(compositeRowCoercion(c, t, 'a')).toEqual({ kind: 'row', mapping: [0] })
     expect(compositeRowCoercion(c, t, 'i')).toEqual({ kind: 'row', mapping: [0] })
     for (const context of ['i', 'a', 'e'] as const)
-      expect(compositeRowCoercion(t, p, context)).toEqual({ kind: 'cast' })
+      expect(compositeRowCoercion(t, p, context)).toMatchObject({ kind: 'cast' })
     expect(compositeRowCoercion(c, u, 'i')).toBeNull()
     for (const context of ['a', 'e'] as const)
-      expect(compositeRowCoercion(c, u, context)).toEqual({ kind: 'cast' })
+      expect(compositeRowCoercion(c, u, context)).toMatchObject({ kind: 'cast' })
     expect(
       (
         await pg.query<{ explicit: number; implicit: number; typed: number }>(
@@ -176,7 +176,7 @@ it('captures selected row casts before inheritance and typed-table conversion wi
   }
 }, 60_000)
 
-it('defers selected function and I/O row casts without replacing them with builtin row conversion', async () => {
+it('separates unavailable function casts from declared I/O casts and absent stored coercion evidence', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(`CREATE TABLE p(n int4);CREATE TABLE c(extra int4) INHERITS(p);

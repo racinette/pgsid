@@ -12,3 +12,6 @@ INSERT INTO inspection_projections VALUES (NULL,NULL,'{"f1":null,"f2":null}',tru
 
 INSERT INTO inspection_typed_readings(score,label,approved,bypass) VALUES (3,'ok',true,false);
 INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(3,'ok',true,false)::inspection_typed_readings,NULL,1,'[{"score":3,"label":"ok","approved":true,"bypass":false},null]',false);
+
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('3','ok','true','false')::inspection_import_fields,NULL,1,'[{"score":3,"label":"ok","approved":true,"bypass":false},null]',false);
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (NULL,1,true,false);

@@ -297,3 +297,30 @@ CREATE TABLE inspection_typed_batches (
   CONSTRAINT typed_common_score CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(reading,fallback)).score>=minimum_score END),
   CONSTRAINT typed_batch_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[reading,fallback]) IS NOT DISTINCT FROM expected_batch END)
 );
+
+CREATE TYPE inspection_import_fields AS (
+  score text,
+  label text,
+  approved text,
+  bypass text
+);
+CREATE CAST (inspection_import_fields AS inspection_reading_kind) WITH INOUT AS IMPLICIT;
+CREATE TABLE inspection_import_batches (
+  reading inspection_import_fields,
+  fallback inspection_reading_kind,
+  minimum_score integer,
+  expected_batch jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT imported_common_score CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(reading,fallback)).score>=minimum_score END),
+  CONSTRAINT imported_batch_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[reading,fallback]) IS NOT DISTINCT FROM expected_batch END)
+);
+
+CREATE CAST (inspection_extensions AS inspection_origins) WITH INOUT AS IMPLICIT;
+CREATE TABLE inspection_record_rechecks (
+  reading inspection_extensions,
+  minimum_score integer,
+  expected_empty boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT rechecked_score CHECK(CASE WHEN bypass THEN true ELSE (reading::inspection_origins).score>=minimum_score END),
+  CONSTRAINT rechecked_empty CHECK(CASE WHEN bypass THEN true ELSE (reading IS NULL) IS NOT DISTINCT FROM expected_empty END)
+);

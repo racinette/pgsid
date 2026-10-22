@@ -154,12 +154,14 @@ export function compositeRowCoercion(
   source: string,
   target: string,
   context: 'i' | 'a' | 'e',
-): { kind: 'row'; mapping: number[] } | { kind: 'cast' } | null {
+):
+  | { kind: 'row'; mapping: number[] }
+  | { kind: 'cast'; cast: NonNullable<CompositeTypeDefinition['rowCasts']>[number] }
+  | null {
   const from = compositeProfile(source),
     to = compositeProfile(target)
   if (!from || !to || from.identity === to.identity) return null
-  const nodes = new Map(from.graph.definitions.map((n) => [n.identity, n])),
-    seen = new Set<string>()
+  const nodes = new Map(from.graph.definitions.map((n) => [n.identity, n]))
   const child = nodes.get(from.identity),
     parent = to.graph.definitions.find((n) => n.identity === to.identity)
   if (!child || !parent) return null
@@ -168,7 +170,20 @@ export function compositeRowCoercion(
     cast &&
     (context === 'e' || cast.context === 'i' || (context === 'a' && cast.context === 'a'))
   )
-    return { kind: 'cast' }
+    return { kind: 'cast', cast }
+  const mapping = compositeStructuralMapping(source, target)
+  return mapping ? { kind: 'row', mapping } : null
+}
+
+export function compositeStructuralMapping(source: string, target: string): number[] | null {
+  const from = compositeProfile(source),
+    to = compositeProfile(target)
+  if (!from || !to || from.identity === to.identity) return null
+  const nodes = new Map(from.graph.definitions.map((n) => [n.identity, n])),
+    seen = new Set<string>(),
+    child = nodes.get(from.identity),
+    parent = to.graph.definitions.find((n) => n.identity === to.identity)
+  if (!child || !parent) return null
   const inherits = (identity: string): boolean => {
     if (identity === to.identity) return true
     if (seen.has(identity)) return false
@@ -181,7 +196,7 @@ export function compositeRowCoercion(
       (c) => c.name === f.name && c.type === f.type && c.typeMod === f.typeMod,
     ),
   )
-  return mapping.every((i) => i >= 0) ? { kind: 'row', mapping } : null
+  return mapping.every((i) => i >= 0) ? mapping : null
 }
 
 export function compositeAncestorMapping(

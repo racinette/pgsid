@@ -1,8 +1,9 @@
-import type { StoredDomainCoercionContext } from './types.js'
+import type { StoredDomainCoercionContext, StoredRowCoercionContext } from './types.js'
 
 type Value = string | Value[] | Tree
 type Tree = { kind: string; fields: Record<string, Value[]> }
 export type DomainCoercionIdentity = { schema: string; name: string; array: boolean }
+export type RowCoercionIdentity = { identity: string; depth: number }
 
 function parseTree(source: string): Value {
   const tokens: string[] = []
@@ -76,6 +77,92 @@ const tree = (value: Value | undefined): Tree | null =>
 const scalar = (node: Tree, name: string): string | null => {
   const values = node.fields[name]
   return values?.length === 1 && typeof values[0] === 'string' ? values[0] : null
+}
+
+export function captureRowCoercionContext(
+  source: string | null,
+  definition: string,
+  identities: ReadonlyMap<number, RowCoercionIdentity>,
+): StoredRowCoercionContext | undefined {
+  if (!source || !/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR)\s/u.test(source))
+    return undefined
+  const casts: StoredRowCoercionContext['casts'] = []
+  let complete = true
+  const expressionType = (node: Tree): string | null => {
+    const field: Record<string, string> = {
+      VAR: 'vartype',
+      CONST: 'consttype',
+      PARAM: 'paramtype',
+      FUNCEXPR: 'funcresulttype',
+      OPEXPR: 'opresulttype',
+      NULLIFEXPR: 'opresulttype',
+      CASEEXPR: 'casetype',
+      COALESCEEXPR: 'coalescetype',
+      MINMAXEXPR: 'minmaxtype',
+      ARRAYEXPR: 'array_typeid',
+      ROWEXPR: 'row_typeid',
+      CASETESTEXPR: 'typeId',
+      COERCETODOMAINVALUE: 'typeId',
+      SQLVALUEFUNCTION: 'type',
+      SUBSCRIPTINGREF: 'refrestype',
+    }
+    if (node.kind === 'COLLATEEXPR') {
+      const arg = tree(node.fields['arg']?.[0])
+      return arg ? expressionType(arg) : null
+    }
+    return scalar(node, field[node.kind] ?? 'resulttype')
+  }
+  const conversionKind = (node: Tree | null): 'io' | 'row' | 'function' | null => {
+    if (!node) return null
+    if (node.kind === 'COERCEVIAIO') return 'io'
+    if (node.kind === 'CONVERTROWTYPEEXPR') return 'row'
+    if (node.kind === 'FUNCEXPR') return 'function'
+    if (node.kind === 'COERCETODOMAIN' || node.kind === 'RELABELTYPE')
+      return conversionKind(tree(node.fields['arg']?.[0]))
+    if (node.kind === 'ARRAYCOERCEEXPR') return conversionKind(tree(node.fields['elemexpr']?.[0]))
+    return null
+  }
+  try {
+    const visit = (value: Value): void => {
+      if (Array.isArray(value)) {
+        value.forEach(visit)
+        return
+      }
+      const node = tree(value)
+      if (!node) return
+      const isCast =
+        ['COERCEVIAIO', 'CONVERTROWTYPEEXPR', 'ARRAYCOERCEEXPR'].includes(node.kind) ||
+        (node.kind === 'FUNCEXPR' && ['1', '2', '3'].includes(scalar(node, 'funcformat') ?? ''))
+      let arrayConversion = false
+      if (isCast) {
+        const target = identities.get(Number(expressionType(node))),
+          args = node.fields['args']?.[0],
+          arg = tree(node.fields['arg']?.[0] ?? (Array.isArray(args) ? args[0] : undefined)),
+          sourceType = arg ? expressionType(arg) : null,
+          from = sourceType === null ? undefined : identities.get(Number(sourceType))
+        if (target && sourceType === null) complete = false
+        if (target && from && (target.identity !== from.identity || target.depth !== from.depth)) {
+          const kind = conversionKind(node)
+          if (!kind || target.depth !== from.depth) complete = false
+          else {
+            casts.push({
+              source: from.identity,
+              target: target.identity,
+              depth: target.depth,
+              kind,
+            })
+            arrayConversion = node.kind === 'ARRAYCOERCEEXPR'
+          }
+        }
+      }
+      for (const [key, values] of Object.entries(node.fields))
+        if (!arrayConversion || key !== 'elemexpr') values.forEach(visit)
+    }
+    visit(parseTree(source))
+  } catch {
+    complete = false
+  }
+  return casts.length || !complete ? { definition, complete, casts } : undefined
 }
 
 export function captureDomainCoercionContext(

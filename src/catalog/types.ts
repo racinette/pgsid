@@ -113,8 +113,15 @@ export interface StoredDomainCoercionContext {
   casts: { schema: string; name: string; array: boolean; input: boolean; constant: boolean }[]
 }
 
+export interface StoredRowCoercionContext {
+  definition: string
+  complete: boolean
+  casts: { source: string; target: string; depth: number; kind: 'io' | 'row' | 'function' }[]
+}
+
 export interface ConstraintInfo {
   coercionContext?: StoredDomainCoercionContext
+  rowCoercionContext?: StoredRowCoercionContext
   moneyLiterals?: MoneyLiteralInfo[]
   name: string
   type: ConstraintType
@@ -593,6 +600,7 @@ export interface DomainInfo {
     definition: string
     moneyLiterals?: MoneyLiteralInfo[]
     coercionContext?: StoredDomainCoercionContext
+    rowCoercionContext?: StoredRowCoercionContext
   }[]
 }
 
