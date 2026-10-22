@@ -203,3 +203,18 @@ CREATE TABLE inspection_expansions (
   CONSTRAINT expansion_label CHECK (CASE WHEN bypass THEN true ELSE (ROW((ROW(score,label)::draft_reading).*)::draft_reading).label IS NOT DISTINCT FROM expected_label END),
   CONSTRAINT expansion_owner CHECK (CASE WHEN bypass THEN true ELSE (to_jsonb(ROW(inspection_expansions.*))->>'f1')::int4 IS NOT DISTINCT FROM minimum_score END)
 );
+
+CREATE TYPE inspection_display AS(score integer, to_jsonb text COLLATE "C", labels text[]);
+CREATE TABLE inspection_field_calls (
+  reading inspection_display,
+  expected_score integer,
+  expected_label text COLLATE "C",
+  expected_document jsonb,
+  expected_count integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT call_score CHECK (CASE WHEN bypass THEN true ELSE score(reading) IS NOT DISTINCT FROM expected_score END),
+  CONSTRAINT call_document CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(reading) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT call_field CHECK (CASE WHEN bypass THEN true ELSE (reading).to_jsonb IS NOT DISTINCT FROM expected_label END),
+  CONSTRAINT call_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(labels(reading)) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT call_anonymous CHECK (CASE WHEN bypass THEN true ELSE f1(ROW(expected_score,reading)) IS NOT DISTINCT FROM score(reading) END)
+);
