@@ -1,7 +1,12 @@
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
 import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
 import { catalogIdentifierSql } from '../postgres/catalog-identities.js'
-import { captureDomainCoercionContext, type DomainCoercionIdentity } from './coercion-context.js'
+import {
+  captureDomainCoercionContext,
+  captureRowCoercionContext,
+  type DomainCoercionIdentity,
+  type RowCoercionIdentity,
+} from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
 import type { PGlite } from '@electric-sql/pglite'
@@ -316,6 +321,10 @@ interface SchemaRow {
 interface TypeNameRow {
   oid: number
   name: string
+  identity: string
+  kind: string
+  base: number
+  element: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -798,11 +807,32 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       })
   }
   const constraintsByRel = new Map<number, ConstraintInfo[]>()
+  const typesByOid = new Map(typeRows.map((row) => [row.oid, row])),
+    rowIdentities = new Map<number, RowCoercionIdentity>()
+  const rowIdentity = (oid: number, seen = new Set<number>()): RowCoercionIdentity | null => {
+    if (seen.has(oid)) return null
+    seen.add(oid)
+    const t = typesByOid.get(oid)
+    if (!t) return null
+    if (t.kind === 'c') return { identity: t.identity, depth: 0 }
+    if (t.kind === 'd') return rowIdentity(t.base, seen)
+    const element = t.element ? rowIdentity(t.element, seen) : null
+    return element ? { ...element, depth: element.depth + 1 } : null
+  }
+  for (const t of typeRows) {
+    const identity = rowIdentity(t.oid)
+    if (identity) rowIdentities.set(t.oid, identity)
+  }
   for (const con of constraintRows) {
     const coercionContext = captureDomainCoercionContext(
       con.coercion_tree,
       con.definition,
       domainIdentities,
+    )
+    const rowCoercionContext = captureRowCoercionContext(
+      con.coercion_tree,
+      con.definition,
+      rowIdentities,
     )
     const ci: ConstraintInfo = {
       name: con.name,
@@ -820,6 +850,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
           : null,
       definition: con.definition,
       ...(coercionContext ? { coercionContext } : {}),
+      ...(rowCoercionContext ? { rowCoercionContext } : {}),
       validated: con.validated,
       enforced: con.enforced,
       noInherit: con.noinherit,
@@ -1077,10 +1108,16 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
           check.definition,
           domainIdentities,
         )
+        const rowCoercionContext = captureRowCoercionContext(
+          check.coercion_tree,
+          check.definition,
+          rowIdentities,
+        )
         return {
           name: check.name,
           definition: check.definition,
           ...(coercionContext ? { coercionContext } : {}),
+          ...(rowCoercionContext ? { rowCoercionContext } : {}),
         }
       }),
     }))
@@ -1243,8 +1280,11 @@ async function queryRelIdsByKind(pg: PGlite, relkind: string): Promise<Map<strin
 /** All type OIDs → canonical names (format_type). Used for arg-type resolution. */
 async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
   const res = await pg.query<TypeNameRow>(
-    `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name
-     FROM pg_type t;`,
+    `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name,
+       ${catalogIdentifierSql('n.nspname')}||'.'||${catalogIdentifierSql('t.typname')} AS identity,
+       t.typtype AS kind,t.typbasetype AS base,e.oid AS element
+     FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+     LEFT JOIN pg_type e ON e.oid=t.typelem AND e.typarray=t.oid;`,
   )
   return res.rows
 }

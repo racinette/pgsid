@@ -435,3 +435,30 @@ INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_bat
 INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(3,'ok',true,false)::inspection_typed_readings,NULL,1,'[]',false);
 -- name: TypedBatchBypassed
 INSERT INTO inspection_typed_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(-1,'bad',false,false)::inspection_typed_readings,NULL,999,NULL,true);
+
+-- name: ImportedBatchKnown
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('3','ok','true','false')::inspection_import_fields,ROW(4,'fallback',true,false)::inspection_reading_kind,1,'[{"score":3,"label":"ok","approved":true,"bypass":false},{"score":4,"label":"fallback","approved":true,"bypass":false}]',false);
+-- name: ImportedBatchFallback
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (NULL,ROW(3,'ok',true,false)::inspection_reading_kind,1,'[null,{"score":3,"label":"ok","approved":true,"bypass":false}]',false);
+-- name: ImportedBatchLiveNulls
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_import_fields,NULL,1,'[{"score":null,"label":null,"approved":null,"bypass":null},null]',false);
+-- name: ImportedBatchLowScore
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('0','low','true','false')::inspection_import_fields,NULL,1,'[{"score":0,"label":"low","approved":true,"bypass":false},null]',false);
+-- name: ImportedBatchWrongDocument
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('3','ok','true','false')::inspection_import_fields,NULL,1,'[]',false);
+-- name: ImportedBatchBadScore
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('bad','ok','true','false')::inspection_import_fields,NULL,1,NULL,false);
+-- name: ImportedBatchBadApproval
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('3','ok','bad','false')::inspection_import_fields,NULL,1,NULL,false);
+-- name: ImportedBatchBypassed
+INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_batch,bypass) VALUES (ROW('bad','bad','bad','bad')::inspection_import_fields,NULL,999,NULL,true);
+-- name: RecheckedRecordNull
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (NULL,1,true,false);
+-- name: RecheckedRecordWrongNull
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (NULL,1,false,false);
+-- name: RecheckedRecordTooWide
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,1,false,false);
+-- name: RecheckedRecordNullFields
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_extensions,1,true,false);
+-- name: RecheckedRecordBypassed
+INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (ROW(9,'bad',-1,false)::inspection_extensions,999,false,true);

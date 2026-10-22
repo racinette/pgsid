@@ -20,6 +20,7 @@ import {
   compositePhysicalType,
   compositeAncestorMapping,
   compositeRowCoercion,
+  compositeStructuralMapping,
 } from './composite-profiles.js'
 import {
   anonymousRecordType,
@@ -43,6 +44,7 @@ import type {
   RangeCallInfo,
   EnumInfo,
   StoredDomainCoercionContext,
+  StoredRowCoercionContext,
 } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
 import {
@@ -1968,6 +1970,7 @@ export function bindCatalogCheck(
   compositeGraph?: CompositeTypeGraph,
   rowOwner?: { schema: string; name: string },
   rowFieldBindings?: ReadonlyMap<unknown, RowFieldBinding>,
+  rowCoercionContext?: StoredRowCoercionContext,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -2018,6 +2021,32 @@ export function bindCatalogCheck(
       moneyUnits.set(literal.text, value.toString())
   }
   const inputs = new Set<string>()
+  const selectedRowCoercion = (
+    source: string,
+    target: string,
+    context: 'i' | 'e',
+    depth = 0,
+  ): { kind: 'io' } | { kind: 'row'; mapping: number[] } | null => {
+    if (rowCoercionContext) {
+      if (!rowCoercionContext.complete) return null
+      const sourceIdentity = compositeProfile(source)?.identity,
+        targetIdentity = compositeProfile(target)?.identity,
+        matches = rowCoercionContext.casts.filter(
+          (c) => c.source === sourceIdentity && c.target === targetIdentity && c.depth === depth,
+        ),
+        kinds = new Set(matches.map((c) => c.kind))
+      if (kinds.size !== 1) return null
+      if (kinds.has('io')) return { kind: 'io' }
+      if (!kinds.has('row')) return null
+      const mapping = compositeStructuralMapping(source, target)
+      return mapping ? { kind: 'row', mapping } : null
+    }
+    const coercion = compositeRowCoercion(source, target, context)
+    if (coercion?.kind === 'row') return coercion
+    return coercion?.kind === 'cast' && coercion.cast.method === 'i' && literalOrigin === 'source'
+      ? { kind: 'io' }
+      : null
+  }
   const elementTypeName = (type: ScalarType): Fields =>
     type.startsWith('array:')
       ? {
@@ -2118,6 +2147,16 @@ export function bindCatalogCheck(
       preparedInput,
       rangeTypes,
       compositeGraph,
+      undefined,
+      undefined,
+      rowCoercionContext
+        ? {
+            ...rowCoercionContext,
+            casts: rowCoercionContext.casts
+              .filter((c) => c.depth > 0)
+              .map((c) => ({ ...c, depth: c.depth - 1 })),
+          }
+        : undefined,
     ).expression
     if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
       return unknown
@@ -2135,6 +2174,46 @@ export function bindCatalogCheck(
       },
     }
   }
+  const compositeIoOperand = (
+    operand: EvalExpression,
+    target: ScalarType,
+  ): EvalExpression | null => {
+    const parsed = bindCatalogCheck(
+      [{ name: '__pgsid_composite_io_text', typeName: 'pg_catalog.text', collationIsC: true }],
+      {
+        NullTest: {
+          nulltesttype: 'IS_NOT_NULL',
+          arg: {
+            TypeCast: {
+              arg: { ColumnRef: { fields: [{ String: { sval: '__pgsid_composite_io_text' } }] } },
+              typeName: elementTypeName(target),
+            },
+          },
+        },
+      },
+      [],
+      enums,
+      domains,
+      moneyLiterals,
+      'source',
+      domainStack,
+      true,
+      undefined,
+      undefined,
+      rangeTypes,
+      compositeGraph,
+    ).expression
+    if (
+      parsed.kind !== 'eval-scalar' ||
+      parsed.expression.kind !== 'null-test' ||
+      parsed.expression.operand.kind !== 'text-to-composite'
+    )
+      return null
+    return {
+      ...parsed.expression.operand,
+      operand: { kind: 'composite-to-text', type: 'pg_catalog.text', operand },
+    }
+  }
   const coerceBound = (
     arg: Bound,
     target: ScalarType,
@@ -2143,6 +2222,34 @@ export function bindCatalogCheck(
   ): EvalExpression | null => {
     if (compositeProfile(target) && arg.literal?.kind === 'string' && node !== undefined)
       return bind({ TypeCast: { arg: node, typeName: elementTypeName(target) } }).value
+    const source = boundType(arg)
+    if (source && arg.value && compositeProfile(target)) {
+      const coercion = selectedRowCoercion(source, target, 'i')
+      if (coercion?.kind === 'io') return compositeIoOperand(arg.value, target)
+      if (coercion?.kind === 'row')
+        return {
+          kind: 'composite-coerce',
+          type: target,
+          operand: arg.value,
+          mapping: coercion.mapping,
+        }
+      if (source !== target && compositeProfile(source)) return null
+    }
+    if (source?.startsWith('array:') && target.startsWith('array:')) {
+      const from = arrayElementBaseType(source.slice(6)),
+        to = arrayElementBaseType(target.slice(6))
+      if (from !== to && compositeProfile(from) && compositeProfile(to)) {
+        const coercion = selectedRowCoercion(from, to, 'i', 1)
+        return coercion?.kind === 'io'
+          ? bindArrayElementCoercion(
+              arg,
+              target as ArrayType,
+              target.slice(6) as ArrayElementType,
+              elementTypeName(target.slice(6) as ScalarType),
+            ).value
+          : null
+      }
+    }
     const domain = domainElementDefinition(target)
     if (domain) {
       if (nominalScalarType(arg) === target) return implicitOperand(arg, domain.base, definition)
@@ -2304,7 +2411,7 @@ export function bindCatalogCheck(
       if (target) arg = bind({ TypeCast: { arg: member, typeName: target.name } })
       if (arg.literal?.kind === 'string' && element !== 'pg_catalog.text')
         arg = bind({ TypeCast: { arg: member, typeName: elementTypeName(element) } })
-      let value = implicitOperand(arg, arrayElementBaseType(element) as ScalarType, definition)
+      let value = coerceBound(arg, arrayElementBaseType(element) as ScalarType, member, definition)
       for (const modifier of target?.modifiers ?? []) {
         if (!value) return null
         value = modifyScalar(value, arrayElementBaseType(element) as ScalarType, modifier, true)
@@ -3063,12 +3170,21 @@ export function bindCatalogCheck(
               name: elementTypeName(compositeElement),
             })
           const type = arrayType(compositeElement),
-            operand = castOperand()
+            operand = castOperand(),
+            elementCoercion = operand.type?.startsWith('array:')
+              ? selectedRowCoercion(
+                  arrayElementBaseType(operand.type.slice(6)),
+                  compositeElement,
+                  'e',
+                  1,
+                )
+              : null
           if (operand.type === type && operand.value) return operand
           if (
             operand.type?.startsWith('array:') &&
             operand.value &&
-            arrayElementBaseType(operand.type.slice(6)) === compositeElement
+            (arrayElementBaseType(operand.type.slice(6)) === compositeElement ||
+              elementCoercion?.kind === 'io')
           )
             return bindArrayElementCoercion(
               operand,
@@ -3568,7 +3684,9 @@ export function bindCatalogCheck(
         if (scalarType) {
           const targetRow = compositeProfile(scalarType),
             sourceRow = compositeProfile(operand.type ?? '')
-          if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) return unknown
+          if (targetRow && sourceRow && targetRow.identity !== sourceRow.identity) {
+            if (selectedRowCoercion(operand.type!, scalarType, 'e')?.kind !== 'io') return unknown
+          }
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
             literalOrigin === 'stored' &&
@@ -3668,6 +3786,11 @@ export function bindCatalogCheck(
                     undefined,
                     rangeTypes,
                     compositeGraph,
+                    undefined,
+                    undefined,
+                    check.rowCoercionContext?.definition === check.definition
+                      ? check.rowCoercionContext
+                      : undefined,
                   ).expression
               } catch {
                 expression = { kind: 'uncertain' }
@@ -3898,7 +4021,12 @@ export function bindCatalogCheck(
           }
         }
         if (operand.type === composite && operand.value) return operand
-        const mapping = operand.type ? compositeAncestorMapping(operand.type, composite) : null
+        const coercion = operand.type ? selectedRowCoercion(operand.type, composite, 'e') : null
+        if (coercion?.kind === 'io' && operand.value) {
+          const value = compositeIoOperand(operand.value, composite)
+          return value ? { type: composite, value } : unknown
+        }
+        const mapping = coercion?.kind === 'row' ? coercion.mapping : null
         return mapping && operand.value
           ? {
               type: composite,

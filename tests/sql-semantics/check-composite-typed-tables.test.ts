@@ -331,12 +331,17 @@ it('preserves selected catalog row-cast deferrals and implicit inheritance fallb
       }),
       group = prepareCheckRustGroup(plans)
     for (const [i, p] of plans.entries()) {
-      expect(uncertain(p.expression), p.name).toBe(p.name !== 'common_source')
+      expect(uncertain(p.expression), p.name).toBe(
+        !['common_source', 'common_stored', 'io_source', 'io_stored'].includes(p.name),
+      )
       expect(group.checks[i]!.kind, p.name).toBe('supported')
     }
     const common = group.checks.find((_, i) => plans[i]!.name === 'common_source')!
     if (common.kind !== 'supported') throw Error('Missing common row check')
-    const type = (name: string) => common.inputs.find((i) => i.name === name)!.type,
+    const type = (name: string) =>
+        group.checks
+          .flatMap((c) => (c.kind === 'supported' ? c.inputs : []))
+          .find((i) => i.name === name)!.type,
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     for (const missing of [false, true]) {
@@ -345,7 +350,8 @@ it('preserves selected catalog row-cast deferrals and implicit inheritance fallb
         `INSERT INTO oracle SELECT ${missing ? 'NULL::child' : 'ROW(1,2)::child'},ROW(1)::parent,ROW(1)::typed,ROW(1)::base,ROW(1,2)::io_child,false`,
       )
       const c = await readCompositeFixture(pg, 'SELECT c FROM oracle', 'c', type('c')),
-        p = await readCompositeFixture(pg, 'SELECT p FROM oracle', 'p', type('p'))
+        p = await readCompositeFixture(pg, 'SELECT p FROM oracle', 'p', type('p')),
+        d = await readCompositeFixture(pg, 'SELECT d FROM oracle', 'd', type('d'))
       for (const [name, sql] of Object.entries(forms)) {
         let value: boolean | null = null,
           error: string | undefined
@@ -374,11 +380,12 @@ it('preserves selected catalog row-cast deferrals and implicit inheritance fallb
               row: {
                 c: c ? { kind: 'Value', value: c } : { kind: 'Null' },
                 p: p ? { kind: 'Value', value: p } : { kind: 'Null' },
+                d: d ? { kind: 'Value', value: d } : { kind: 'Null' },
                 bypass: { kind: 'Value', value: bypass },
               },
               expected: bypass
                 ? { kind: 'True' }
-                : name === 'common' && origin === 'source'
+                : name === 'common' || name === 'io'
                   ? native
                   : { kind: 'Unknown' },
             })
