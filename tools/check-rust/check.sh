@@ -18,7 +18,7 @@ bash scripts/build-check-rust-wasm.sh
 cargo test --quiet --locked --manifest-path crates/check-evaluator/Cargo.toml
 cargo test --quiet --locked --manifest-path tools/check-unicode-data/Cargo.toml
 cargo test --quiet --locked --manifest-path tools/check-catalog-grammar/Cargo.toml
-pnpm exec vitest run tests/sql-semantics/check-polygon-center.test.ts tests/sql-semantics/check-circle-trigonometry.test.ts tests/sql-semantics/check-circle-polygon.test.ts tests/unit/check-rust-notices.test.ts "${vitest_args[@]}"
+pnpm exec vitest run tests/sql-semantics/check-polygon-relations.test.ts tests/sql-semantics/check-polygon-distance.test.ts tests/sql-semantics/check-polygon-center.test.ts tests/sql-semantics/check-circle-trigonometry.test.ts tests/sql-semantics/check-circle-polygon.test.ts tests/unit/check-rust-notices.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-composite*.test.ts tests/sql-semantics/check-nested-composite*.test.ts tests/sql-semantics/check-anonymous-record*.test.ts tests/sql-semantics/check-nested-range*.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-json*.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-array*.test.ts "${vitest_args[@]}"

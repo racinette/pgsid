@@ -195,6 +195,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/path_input.rs");
     include!("operations/pg_catalog/polygon_core.rs");
     include!("operations/pg_catalog/polygon_center.rs");
+    include!("operations/pg_catalog/polygon_relations.rs");
+    include!("operations/pg_catalog/polygon_distance.rs");
     include!("operations/pg_catalog/polygon_input.rs");
     include!("operations/pg_catalog/circle_input.rs");
     include!("operations/pg_catalog/circle_operations.rs");

@@ -1,4 +1,4 @@
-fn path_bounds(path: PathPayload) -> BoxValue {
+fn path_bounds(path: &PathPayload) -> BoxValue {
     if path.points.len() == 0 {
         return BoxValue::Unknown;
     };
@@ -62,7 +62,7 @@ pub fn sql__pg_catalog__path_inter__6pqp(left: PathValue, right: PathValue) -> B
     if let PathValue::Value(a) = left {
         if let PathValue::Value(b) = right {
             let overlap =
-                sql__pg_catalog__box_overlap__ke99(path_bounds(a.clone()), path_bounds(b.clone()));
+                sql__pg_catalog__box_overlap__ke99(path_bounds(&a), path_bounds(&b));
             if overlap != BoolValue::Value(true) {
                 return overlap;
             };
@@ -175,7 +175,7 @@ fn path_axis_crossing(x: f64, y: f64, previous_x: f64, previous_y: f64) -> Int4V
     };
     Int4Value::Unknown
 }
-fn closed_path_contains(point: PointPayload, path: PathPayload) -> BoolValue {
+fn closed_path_contains(point: PointPayload, path: &PathPayload) -> BoolValue {
     let first = sql__pg_catalog__point_sub__o53k(
         PointValue::Value(path.points[0]),
         PointValue::Value(point),
@@ -257,7 +257,7 @@ pub fn sql__pg_catalog__on_ppath__8fo6(point: PointValue, input: PathValue) -> B
         };
         if let PointValue::Value(position) = point {
             if path.closed {
-                return closed_path_contains(position, path);
+                return closed_path_contains(position, &path);
             };
             let mut previous =
                 sql__pg_catalog__point_distance__2haq(point, PointValue::Value(path.points[0]));
