@@ -10,7 +10,7 @@ import type {
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
-import { alignStoredXmlConstants } from './xml-constant-sites.js'
+import { alignStoredXmlConstants, restoreStoredXmlNames } from './xml-constant-sites.js'
 import { alignStoredArrayConstructors } from './array-constructor-sites.js'
 
 export interface CatalogCheckPlan {
@@ -268,6 +268,11 @@ export function lowerTableCheck(
   const xmlConstantBindings = new Map<unknown, string | null>()
   try {
     check = parseCheck(sourceDefinition ?? constraint.definition)
+    if (
+      literalOrigin === 'stored' &&
+      (sourceDefinition === undefined || sourceDefinition === constraint.definition)
+    )
+      restoreStoredXmlNames(check?.['raw_expr'], constraint.definition, constraint.xmlConstants)
     const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),
       context = constraint.rowCoercionContext
     const capturedXml = alignStoredXmlConstants(

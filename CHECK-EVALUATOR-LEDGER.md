@@ -77,8 +77,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [ ] Inventory unsupported input/output forms, coercions and recoverable value facets for represented types, including unmodeled finite generic array/record binary lengths separately from unavailable deployment header OIDs.
 - [x] Share handled and deferred temporal input-form cases between their parity suites and the coercion report, retaining the executing owner of each list.
 - [x] Expand temporal text parsing in bounded, independently testable slices.
-- [x] Assess precision modifiers, assignment coercion, and raw query-parameter
-      conversion separately from already SQL-coerced row inputs.
+- [x] Assess precision modifiers, assignment coercion, and raw query-parameter conversion separately from already SQL-coerced row inputs.
 - [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
 
 Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, unsupported forms remain distinguishable, and the public input contract is explicit.
@@ -157,7 +156,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
 - [x] Establish owned XML storage versus rendered-output facets, explicit UTF8 document/content parsing, text/comment construction, document/null predicates, immutable snapshots, text/output/send behavior and diagnostic errors. Capture original table/domain XML constants at semantic positions without deployment IDs, including erased declarations and behavioral schema differences. Verify native INSERT/Rust/Go/TypeScript parity; retain erased-declaration requirements before SQL/public admission.
 - [x] Admit scalar XML SQL/public values, captured source/stored literals, catalog casts and checked domains, XMLPARSE, IS DOCUMENT and unindented XMLSERIALIZE; preserve storage/output facets, explicit xmloption/client encoding, eager literals, lazy runtime casts, validated payloads and raw writes. Verify native/Rust/Go/TypeScript and manifest INSERT parity; keep missing implementation separate from reached context requirements.
-- [ ] Complete XML constructors, INDENT serialization, recursive containers/JSON integration and query operations; preserve document/content, source provenance and execution-context requirements.
+- [x] Admit XMLCONCAT, XMLROOT, XMLPI and the non-strict binary concat transition through shared Rust, captured original mapped names and catalog assignment/text coercions. Preserve declaration accumulation, Unicode name escaping, source/stored domains, eager errors, NULL/Unknown behavior, document/serialization/wire composition and native/Rust/Go/TypeScript manifest INSERT parity.
+- [ ] Complete XML element/attribute/forest constructors, INDENT serialization, recursive containers/JSON integration and query operations; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts,

@@ -69,6 +69,12 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'xml-constructor') {
+    const prepared = prepareAll(expression.operands)
+    return prepared
+      ? { constant: false, null: false, expressions: prepared.flatMap((p) => p.expressions) }
+      : null
+  }
   if (expression.kind === 'xml-operation') {
     const operand = prepare(expression.operand)
     if (!operand) return null

@@ -287,6 +287,16 @@ pub enum XmlValue {
     Error(SqlError),
 }
 
+#[derive(Clone)]
+pub struct XmlConcatState {
+    pub status: CheckOutcome,
+    pub has_value: bool,
+    pub version: String,
+    pub version_consistent: bool,
+    pub standalone: i32,
+    pub body: String,
+}
+
 pub fn xml_unknown() -> XmlValue {
     XmlValue::Unknown
 }
@@ -431,6 +441,7 @@ const SQL_ERROR_INVALID_XML_DOCUMENT: u32 = 3452566;
 const SQL_ERROR_NOT_XML_DOCUMENT: u32 = 3452565;
 const SQL_ERROR_INVALID_XML_CONTENT: u32 = 3452567;
 const SQL_ERROR_INVALID_XML_COMMENT: u32 = 3452572;
+const SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION: u32 = 3452573;
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
 const SQL_ERROR_INVALID_FRAME_SIZE: u32 = 3452583;
 const SQL_ERROR_SUBSTRING: u32 = 3452581;
@@ -460,6 +471,7 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION { return SqlErrorDescription { message: "invalid XML processing instruction" }; }
     if error.state == SQL_ERROR_NOT_XML_DOCUMENT { return SqlErrorDescription { message: "not an XML document" }; }
     if error.state == SQL_ERROR_INVALID_XML_DOCUMENT {
         return SqlErrorDescription { message: "invalid XML document" };

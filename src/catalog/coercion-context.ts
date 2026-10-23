@@ -146,7 +146,8 @@ function captureExpressionCoercions(
   const xmlCandidate =
     xmlTypes.size > 0 &&
     source !== null &&
-    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => xmlTypes.has(Number(m[1])))
+    ([...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => xmlTypes.has(Number(m[1]))) ||
+      /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source))
   if (
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
@@ -157,6 +158,7 @@ function captureExpressionCoercions(
   const casts: StoredRowCoercionContext['casts'] = []
   const constructors: StoredArrayConstructorContext['constructors'] = []
   const constants: StoredXmlConstantContext['constants'] = []
+  const xmlNames: NonNullable<StoredXmlConstantContext['names']> = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -268,6 +270,11 @@ function captureExpressionCoercions(
         return
       }
       if (node.kind === 'XMLEXPR') {
+        const name = scalar(node, 'name')
+        if (name && name !== '<>') {
+          if (site === undefined) complete = false
+          else xmlNames.push({ site, name })
+        }
         args.forEach((v, i) => visit(v, at('xml/arg/' + i)))
         list('named_args').forEach((v, i) => visit(v, at('xml/named/' + i)))
         return
@@ -371,7 +378,11 @@ function captureExpressionCoercions(
   return {
     ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
-    ...(xmlCandidate ? { xml: { definition, complete, constants } } : {}),
+    ...(xmlCandidate
+      ? {
+          xml: { definition, complete, constants, ...(xmlNames.length ? { names: xmlNames } : {}) },
+        }
+      : {}),
   }
 }
 
@@ -384,7 +395,8 @@ export function captureXmlConstantContext(
 ): StoredXmlConstantContext | undefined {
   if (
     !source ||
-    ![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => types.has(Number(match[1])))
+    (![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => types.has(Number(match[1]))) &&
+      !/\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source))
   )
     return undefined
   return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8).xml

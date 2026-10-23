@@ -371,6 +371,17 @@ export type XmlValue = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
+export interface XmlConcatState {
+    status: CheckOutcome;
+    hasValue: boolean;
+    version: string;
+    versionConsistent: boolean;
+    standalone: number;
+    body: string;
+}
+export function copyXmlConcatState(value: XmlConcatState): XmlConcatState {
+    return { status: value.status, hasValue: langruntime.checkedBool(value.hasValue), version: langruntime.checkedString(value.version), versionConsistent: langruntime.checkedBool(value.versionConsistent), standalone: langruntime.checkedI32(value.standalone), body: langruntime.checkedString(value.body) };
+}
 export function xmlUnknown(): XmlValue {
     return { kind: "Unknown" };
 }
@@ -538,6 +549,7 @@ const sqlErrorInvalidXmlDocument = 3452566;
 const sqlErrorNotXmlDocument = 3452565;
 const sqlErrorInvalidXmlContent = 3452567;
 const sqlErrorInvalidXmlComment = 3452572;
+const sqlErrorInvalidXmlProcessingInstruction = 3452573;
 const sqlErrorDivisionByZero = 3452582;
 const sqlErrorInvalidFrameSize = 3452583;
 const sqlErrorSubstring = 3452581;
@@ -566,6 +578,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorInvalidXmlProcessingInstruction) {
+        return { message: "invalid XML processing instruction" };
+    }
     if (error.state === sqlErrorNotXmlDocument) {
         return { message: "not an XML document" };
     }

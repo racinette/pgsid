@@ -30,7 +30,7 @@ import {
   type AnonymousRecordField,
 } from './anonymous-records.js'
 import type { CompositeTypeGraph } from '../catalog/types.js'
-import { alignStoredXmlConstants } from './xml-constant-sites.js'
+import { alignStoredXmlConstants, restoreStoredXmlNames } from './xml-constant-sites.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
 import {
@@ -2728,10 +2728,108 @@ export function bindCatalogCheck(
     if (xml || serialized) {
       const args = xml?.['args'],
         operation = xml?.['op']
+      const argument = (
+        raw: unknown,
+        target: 'pg_catalog.xml' | 'pg_catalog.text',
+      ): EvalExpression | null => {
+        const bound = bind(raw),
+          direct = materialize(bound, target)
+        if (direct) return direct
+        const source = boundType(bound)
+        if (!source) return null
+        const conversion = builtinCast(source, target)
+        if (conversion && conversion.context !== 'e')
+          return materialize(
+            bind({
+              TypeCast: {
+                arg: raw,
+                typeName: {
+                  names: [
+                    { String: { sval: 'pg_catalog' } },
+                    { String: { sval: target.slice('pg_catalog.'.length) } },
+                  ],
+                },
+              },
+            }),
+            target,
+          )
+        if (target !== 'pg_catalog.text') return null
+        const value = materialize(bound, source)
+        const output =
+          bound.enum?.outputFunction ?? rangeTypeOutput(source) ?? builtinTypeIO(source)?.output
+        return value && output
+          ? {
+              kind: 'io-to-text',
+              type: 'pg_catalog.text',
+              operand: value,
+              output,
+              ...(bound.enum ? { enum: bound.enum } : {}),
+            }
+          : null
+      }
+      if (['IS_XMLCONCAT', 'IS_XMLROOT', 'IS_XMLPI'].includes(operation as string)) {
+        const raw = Array.isArray(args) ? args : []
+        if (operation === 'IS_XMLCONCAT') {
+          const operands = raw.map((arg) => argument(arg, 'pg_catalog.xml'))
+          return raw.length > 0 && operands.every((arg): arg is EvalExpression => arg !== null)
+            ? {
+                type: 'pg_catalog.xml',
+                value: {
+                  kind: 'xml-constructor',
+                  type: 'pg_catalog.xml',
+                  operation: 'concat',
+                  operands,
+                },
+              }
+            : unknown
+        }
+        if (operation === 'IS_XMLROOT') {
+          if (raw.length !== 3) return unknown
+          const operand = argument(raw[0], 'pg_catalog.xml'),
+            version = argument(raw[1], 'pg_catalog.text'),
+            standalone = bind(raw[2])
+          const mode =
+            standalone.literal?.kind === 'integer' ? Number(standalone.literal.value) : -1
+          return operand && version && [0, 1, 2, 3].includes(mode)
+            ? {
+                type: 'pg_catalog.xml',
+                value: {
+                  kind: 'xml-constructor',
+                  type: 'pg_catalog.xml',
+                  operation: 'root',
+                  operands: [operand, version],
+                  standalone: mode,
+                },
+              }
+            : unknown
+        }
+        const name = xml?.['name'],
+          mapped = xml?.['__pgsid_mapped_name']
+        if (typeof name !== 'string' || raw.length > 1) return unknown
+        if (
+          literalOrigin === 'stored' &&
+          typeof mapped !== 'string' &&
+          /_x[0-9A-F]{5,6}_/u.test(name)
+        )
+          return unknown
+        const operand = raw.length ? argument(raw[0], 'pg_catalog.text') : null
+        return !raw.length || operand
+          ? {
+              type: 'pg_catalog.xml',
+              value: {
+                kind: 'xml-constructor',
+                type: 'pg_catalog.xml',
+                operation: 'pi',
+                operands: operand ? [operand] : [],
+                name: typeof mapped === 'string' ? mapped : name,
+                mapped: typeof mapped === 'string',
+              },
+            }
+          : unknown
+      }
       const raw = serialized ? serialized['expr'] : Array.isArray(args) ? args[0] : undefined
       const xmlInput = Boolean(serialized) || operation === 'IS_DOCUMENT'
-      const bound = bind(raw),
-        operand = materialize(bound, xmlInput ? 'pg_catalog.xml' : 'pg_catalog.text')
+      const operand = argument(raw, xmlInput ? 'pg_catalog.xml' : 'pg_catalog.text')
       if (!operand) return unknown
       if (operation === 'IS_DOCUMENT')
         return {
@@ -3933,7 +4031,12 @@ export function bindCatalogCheck(
                 const command = Array.isArray(commands) ? fields(commands[0]) : null
                 const body = fields(command?.['AlterTableCmd'])?.['def']
                 const constraint = fields(fields(body)?.['Constraint'])
-                if (constraint?.['contype'] === 'CONSTR_CHECK')
+                if (constraint?.['contype'] === 'CONSTR_CHECK') {
+                  restoreStoredXmlNames(
+                    constraint['raw_expr'],
+                    check.definition,
+                    check.xmlConstants,
+                  )
                   expression = bindCatalogCheck(
                     [
                       {
@@ -3979,6 +4082,7 @@ export function bindCatalogCheck(
                       check.xmlConstants,
                     ),
                   ).expression
+                }
               } catch {
                 expression = { kind: 'uncertain' }
               }
