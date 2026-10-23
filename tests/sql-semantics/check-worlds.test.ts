@@ -62,6 +62,7 @@ import {
   catalogJsonType,
   catalogJsonbType,
   catalogJsonpathType,
+  catalogXmlType,
   catalogOidType,
   catalogMoneyType,
   catalogPolygonType,
@@ -722,6 +723,13 @@ describe('world CHECK INSERT parity', () => {
             catalogJsonpathType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const xmlColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogXmlType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const jsonbColumns = table.columns
         .filter(
           (column) =>
@@ -1187,6 +1195,16 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = convert(captured, type, true)
         goRow[name] = convert(captured, type, false)
       }
+      for (const name of xmlColumns) {
+        const encoded = (
+          await pg.query<{ source: string | null }>(
+            `SELECT encode(convert_to(${quote(name)}::text,'UTF8'),'hex') AS source FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.source
+        const source = encoded === null ? null : Buffer.from(encoded, 'hex').toString('utf8')
+        portableRow[name] = source === null ? null : jsonbRuntime.makeXmlValue(source)
+        goRow[name] = source
+      }
       for (const name of jsonpathColumns) {
         const source = (
           await pg.query<{ source: string | null }>(
@@ -1522,6 +1540,7 @@ describe('world CHECK INSERT parity', () => {
         jsonColumns,
         jsonbColumns,
         jsonpathColumns,
+        xmlColumns,
         arrayColumns: [...arrayColumns, ...vectorColumns],
         rangeColumns,
         compositeColumns,

@@ -428,6 +428,7 @@ const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
 const SQL_ERROR_INVALID_USE_OF_ESCAPE: u32 = 3452556;
 const SQL_ERROR_INVALID_XML_DOCUMENT: u32 = 3452566;
+const SQL_ERROR_NOT_XML_DOCUMENT: u32 = 3452565;
 const SQL_ERROR_INVALID_XML_CONTENT: u32 = 3452567;
 const SQL_ERROR_INVALID_XML_COMMENT: u32 = 3452572;
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
@@ -459,6 +460,7 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_NOT_XML_DOCUMENT { return SqlErrorDescription { message: "not an XML document" }; }
     if error.state == SQL_ERROR_INVALID_XML_DOCUMENT {
         return SqlErrorDescription { message: "invalid XML document" };
     }

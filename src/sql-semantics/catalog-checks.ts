@@ -10,6 +10,7 @@ import type {
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
+import { alignStoredXmlConstants } from './xml-constant-sites.js'
 import { alignStoredArrayConstructors } from './array-constructor-sites.js'
 
 export interface CatalogCheckPlan {
@@ -48,6 +49,7 @@ type CheckConstraint = Pick<
   | 'coercionContext'
   | 'rowCoercionContext'
   | 'arrayConstructorContext'
+  | 'xmlConstants'
 >
 
 const names = (value: unknown): string[] | null => {
@@ -263,10 +265,18 @@ export function lowerTableCheck(
   let check: Fields | null
   let rowFieldBindings: ReadonlyMap<unknown, RowFieldBinding> | undefined
   let rowCoercionSites: RowCoercionSites | undefined
+  const xmlConstantBindings = new Map<unknown, string | null>()
   try {
     check = parseCheck(sourceDefinition ?? constraint.definition)
     const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),
       context = constraint.rowCoercionContext
+    const capturedXml = alignStoredXmlConstants(
+      stored?.['raw_expr'],
+      constraint.definition,
+      constraint.xmlConstants,
+    )
+    if (sourceDefinition === undefined || literalOrigin === 'stored')
+      for (const [node, text] of capturedXml) xmlConstantBindings.set(node, text)
     const sites =
       context?.definition === constraint.definition
         ? alignStoredRowCoercions(stored?.['raw_expr'], context, compositeGraph)
@@ -277,6 +287,7 @@ export function lowerTableCheck(
         check?.['raw_expr'],
         stored?.['raw_expr'],
         (source, stored) => {
+          if (capturedXml.has(stored)) xmlConstantBindings.set(source, capturedXml.get(stored)!)
           const casts = sites?.get(stored)
           if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])
         },
@@ -313,6 +324,7 @@ export function lowerTableCheck(
       constraint.arrayConstructorContext?.definition === constraint.definition
       ? alignStoredArrayConstructors(check['raw_expr'], constraint.arrayConstructorContext)
       : undefined,
+    xmlConstantBindings,
   )
   return { name: constraint.name, ...bound }
 }

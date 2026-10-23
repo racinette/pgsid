@@ -30,6 +30,7 @@ import {
   type AnonymousRecordField,
 } from './anonymous-records.js'
 import type { CompositeTypeGraph } from '../catalog/types.js'
+import { alignStoredXmlConstants } from './xml-constant-sites.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
 import {
@@ -534,6 +535,14 @@ export function catalogJsonpathType(
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.jsonpath'
 }
 
+export function catalogXmlType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.xml'
+}
+
 export function catalogPolygonType(
   name: string,
   oid: number | undefined,
@@ -616,6 +625,8 @@ type Literal = {
   kind: 'string' | 'integer' | 'null'
   value: string | null
   moneyUnits?: string
+  xmlOrigin?: 'source' | 'stored'
+  xmlStorage?: string
 }
 type Bound = {
   type: ScalarType | null
@@ -664,6 +675,14 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog.xml' && (literal.kind === 'null' || literal.kind === 'string'))
+    return {
+      kind: 'xml',
+      type,
+      value: literal.value,
+      origin: literal.xmlOrigin,
+      ...(literal.xmlStorage !== undefined ? { storage: literal.xmlStorage } : {}),
+    }
   if (isMultirangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'multirange', type, value: literal.value }
   if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
@@ -2013,6 +2032,7 @@ export function bindCatalogCheck(
   rowCoercionContext?: StoredRowCoercionContext,
   rowCoercionSites?: RowCoercionSites,
   arrayConstructorBindings?: ArrayConstructorBindings,
+  xmlConstantBindings?: ReadonlyMap<unknown, string | null>,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   if (rowCoercionContext && !rowCoercionContext.complete)
     return { expression: { kind: 'uncertain' }, inputs: [] }
@@ -2703,6 +2723,70 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const xml = fields(wrapper['XmlExpr']),
+      serialized = fields(wrapper['XmlSerialize'])
+    if (xml || serialized) {
+      const args = xml?.['args'],
+        operation = xml?.['op']
+      const raw = serialized ? serialized['expr'] : Array.isArray(args) ? args[0] : undefined
+      const xmlInput = Boolean(serialized) || operation === 'IS_DOCUMENT'
+      const bound = bind(raw),
+        operand = materialize(bound, xmlInput ? 'pg_catalog.xml' : 'pg_catalog.text')
+      if (!operand) return unknown
+      if (operation === 'IS_DOCUMENT')
+        return {
+          type: 'pg_catalog.bool',
+          value: { kind: 'xml-operation', type: 'pg_catalog.bool', operation: 'document', operand },
+        }
+      if (operation !== 'IS_XMLPARSE' && !serialized) return unknown
+      const option = (serialized ?? xml)?.['xmloption'],
+        mode =
+          option === 'XMLOPTION_DOCUMENT'
+            ? 'document'
+            : option === 'XMLOPTION_CONTENT'
+              ? 'content'
+              : null
+      if (!mode) return unknown
+      if (!serialized)
+        return {
+          type: 'pg_catalog.xml',
+          value: {
+            kind: 'xml-operation',
+            type: 'pg_catalog.xml',
+            operation: 'parse',
+            mode,
+            operand,
+          },
+        }
+      const typeName = fields(serialized['typeName']),
+        names = strings(typeName?.['names'])
+      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+      const type = catalogScalarType(names.at(-1)!)
+      if (!type || !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
+        return unknown
+      const value: EvalExpression = {
+        kind: 'xml-operation',
+        type: 'pg_catalog.text',
+        operation: 'serialize',
+        mode,
+        indent: serialized['indent'] === true,
+        operand,
+      }
+      if (type === 'pg_catalog.text') return { type, value, collation: defaultCollation }
+      return bind({
+        TypeCast: {
+          arg: { __pgsid_xml_serialized: value },
+          typeName,
+          __pgsid_xml_assignment: true,
+        },
+      })
+    }
+    if (wrapper['__pgsid_xml_serialized'])
+      return {
+        type: 'pg_catalog.text',
+        value: wrapper['__pgsid_xml_serialized'] as EvalExpression,
+        collation: defaultCollation,
+      }
     const row = fields(wrapper['RowExpr'])
     if (row) {
       const raw = row['args'] ?? []
@@ -3889,6 +3973,11 @@ export function bindCatalogCheck(
                           check.arrayConstructorContext,
                         )
                       : undefined,
+                    alignStoredXmlConstants(
+                      constraint['raw_expr'],
+                      check.definition,
+                      check.xmlConstants,
+                    ),
                   ).expression
               } catch {
                 expression = { kind: 'uncertain' }
@@ -4292,6 +4381,56 @@ export function bindCatalogCheck(
       }
       let operand = castOperand()
       const source = boundType(operand)
+      if (type === 'pg_catalog.xml') {
+        if (Array.isArray(modifiers) && modifiers.length) return unknown
+        if (source === type) return operand
+        if (operand.literal) {
+          const value = literalValue(operand.literal, type)
+          if (!value || value.kind !== 'xml') return unknown
+          const captured = xmlConstantBindings?.get(cast['arg'])
+          return {
+            type,
+            value: {
+              kind: 'certain',
+              expression: {
+                ...value,
+                origin: literalOrigin,
+                ...(typeof captured === 'string' &&
+                (literalOrigin === 'stored' || value.value === captured)
+                  ? { storage: captured }
+                  : {}),
+              },
+            },
+          }
+        }
+        if (
+          source &&
+          operand.value &&
+          builtinCast(source, type)?.implementation ===
+            builtinCast('pg_catalog.text', type)?.implementation
+        )
+          return {
+            type,
+            value: { kind: 'xml-operation', type, operation: 'cast', operand: operand.value },
+          }
+        return unknown
+      }
+      if (
+        source === 'pg_catalog.xml' &&
+        operand.value &&
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        builtinCast(source, type)?.method === 'b'
+      )
+        operand = {
+          type: 'pg_catalog.text',
+          value: {
+            kind: 'xml-operation',
+            type: 'pg_catalog.text',
+            operation: 'text',
+            operand: operand.value,
+          },
+          collation: defaultCollation,
+        }
       if (
         source &&
         compositeProfile(source) &&
@@ -4544,7 +4683,11 @@ export function bindCatalogCheck(
               },
               {
                 kind: 'certain',
-                expression: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+                expression: {
+                  kind: 'boolean',
+                  type: 'pg_catalog.bool',
+                  value: cast['__pgsid_xml_assignment'] !== true,
+                },
               },
             ],
           },
@@ -5120,7 +5263,11 @@ export function bindCatalogCheck(
     const constant = fields(wrapper['A_Const'])
     if (constant) {
       if (constant['isnull'] === true)
-        return { type: null, value: null, literal: { kind: 'null', value: null } }
+        return {
+          type: null,
+          value: null,
+          literal: { kind: 'null', value: null, xmlOrigin: literalOrigin },
+        }
       const bitNode = fields(constant['bsval'])
       const bit = bitNode?.['bsval']
       if (typeof bit === 'string')
@@ -5142,6 +5289,11 @@ export function bindCatalogCheck(
               kind: 'string',
               value: string,
               moneyUnits: moneyUnits.get(string),
+              xmlOrigin: literalOrigin,
+              ...(typeof xmlConstantBindings?.get(node) === 'string' &&
+              (literalOrigin === 'stored' || xmlConstantBindings.get(node) === string)
+                ? { xmlStorage: xmlConstantBindings.get(node) as string }
+                : {}),
             },
             collation: defaultCollation,
           }
@@ -6078,6 +6230,7 @@ export function bindCatalogCheck(
         aliasType === 'pg_catalog."json"' ||
         aliasType === 'pg_catalog.jsonb' ||
         aliasType === 'pg_catalog.jsonpath' ||
+        aliasType === 'pg_catalog.xml' ||
         isRangeType(aliasType) ||
         (isMultirangeType(aliasType) &&
           !explicitVariadic &&
@@ -6094,6 +6247,7 @@ export function bindCatalogCheck(
           args[0]?.type === 'pg_catalog."json"' ||
           args[0]?.type === 'pg_catalog.jsonb' ||
           args[0]?.type === 'pg_catalog.jsonpath' ||
+          args[0]?.type === 'pg_catalog.xml' ||
           isSnapshotType(args[0]?.type) ||
           isRangeType(args[0]?.type) ||
           isMultirangeType(args[0]?.type)) &&

@@ -16,7 +16,7 @@ import {
   isRangeBinarySend,
   isMultirangeBinarySend,
 } from './check-rust-evaluator.js'
-import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { builtinCast, builtinMetadata, builtinTypeIO } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
 import { typescriptSqlBackend } from '../typescript/sql/registry.js'
@@ -62,6 +62,11 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         rustNames.has(implementation.rustName)) ||
       (rust &&
         isJsonpathTimezoneCallable(implementation) &&
+        rustNames.has(implementation.rustName)) ||
+      (rust &&
+        implementation.kind === 'function' &&
+        (signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation ||
+          signature === builtinTypeIO('pg_catalog.xml')?.send) &&
         rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
@@ -134,6 +139,7 @@ export function portableCheckAtoms(
         lower: value.lower.map((bound) => (bound ? scalar(bound) : null)),
       }
     if (
+      value.kind === 'xml-operation' ||
       value.kind === 'clock-to-text' ||
       value.kind === 'text-to-enum' ||
       value.kind === 'text-to-boolean' ||

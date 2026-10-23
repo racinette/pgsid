@@ -1,6 +1,77 @@
 const SQLSTATE_INVALID_XML_DOCUMENT: u32 = 3452566;
 const SQLSTATE_INVALID_XML_CONTENT: u32 = 3452567;
 const SQLSTATE_INVALID_XML_COMMENT: u32 = 3452572;
+const SQLSTATE_NOT_XML_DOCUMENT: u32 = 3452565;
+
+fn xml_text_encoding_available(input: &str, utf8: bool) -> bool {
+    if utf8 { return true; };
+    let characters: Vec<char> = input.chars().collect();
+    let mut index: usize = 0;
+    while index < characters.len() {
+        if characters[index] as i32 > 127 { return false; };
+        index += 1;
+    }
+    true
+}
+
+pub fn xml_from_text_context(input: TextValue, mode: i32, utf8: bool) -> XmlValue {
+    if let TextValue::Error(error) = input { return XmlValue::Error(error); };
+    if let TextValue::Null = input { return XmlValue::Null; };
+    if let TextValue::Value(value) = input {
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return XmlValue::Unknown; };
+        if mode == 0 {
+            if xml_well_formed(value.as_str(),true) && xml_well_formed(value.as_str(),false) {
+                return make_xml_value(value.as_str());
+            };
+            return XmlValue::Unknown;
+        };
+        if mode != 1 && mode != 2 { return XmlValue::Unknown; };
+        let text = TextValue::Value(value);
+        let document = mode == 1;
+        return xml_from_text_utf8(text,document);
+    };
+    XmlValue::Unknown
+}
+
+pub fn sql__pg_catalog__xml__8nn5(input: TextValue, mode: i32, utf8: bool) -> XmlValue {
+    xml_from_text_context(input,mode,utf8)
+}
+
+pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
+    if utf8 { return xml_is_document_utf8(input); };
+    let stored = input.clone();
+    if let XmlValue::Value(value) = stored {
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return BoolValue::Unknown; };
+    };
+    let rendered = input.clone();
+    if let XmlValue::RenderedText(value) = rendered {
+        if xml_text_encoding_available(value.as_str(),utf8) == false { return BoolValue::Unknown; };
+    };
+    xml_is_document_utf8(input)
+}
+
+pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: bool) -> TextValue {
+    if let XmlValue::Error(error) = input { return TextValue::Error(error); };
+    if let XmlValue::Null = input { return TextValue::Null; };
+    if mode == 1 {
+        let document = xml_is_document_context(input.clone(),utf8);
+        let mut valid = false;
+        if let BoolValue::Value(value) = document {
+            if value == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
+            valid = true;
+        };
+        if valid == false { return TextValue::Unknown; };
+    };
+    if indent { return TextValue::Unknown; };
+    xml_to_text(input)
+}
+
+pub fn sql__pg_catalog__xml_send__uur7(input: XmlValue, client_utf8: bool) -> ByteaValue {
+    if let XmlValue::Error(error) = input { return ByteaValue::Error(error); };
+    if let XmlValue::Null = input { return ByteaValue::Null; };
+    if client_utf8 == false { return ByteaValue::Unknown; };
+    xml_to_bytea_utf8(input)
+}
 
 pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
     if let TextValue::Error(error) = input { return XmlValue::Error(error); };

@@ -138,8 +138,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish box corner payloads, public inputs, parsing, construction, comparisons, dimensions, centers and diagonal conversion.
 - [x] Establish box relations, intersection, bounding union, arithmetic and closest points.
 - [x] Establish circle center/radius payloads, public inputs, parsing, construction, comparisons, box conversions, relations, distances and arithmetic.
-- [x] Establish owned path payloads, cardinality comparisons, counts, binary output,
-      opening/closing, checked length and area, portable input, literals,
+- [x] Establish owned path payloads, cardinality comparisons, counts, binary output, opening/closing, checked length and area, portable input, literals,
       unconstrained-domain casts and SQL-coerced public inputs.
 - [x] Establish open-path concatenation, point transformations, point/path and
       path/path distances; preserve closing-edge order, count limits, reached
@@ -157,7 +156,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
 - [x] Establish owned XML storage versus rendered-output facets, explicit UTF8 document/content parsing, text/comment construction, document/null predicates, immutable snapshots, text/output/send behavior and diagnostic errors. Capture original table/domain XML constants at semantic positions without deployment IDs, including erased declarations and behavioral schema differences. Verify native INSERT/Rust/Go/TypeScript parity; retain erased-declaration requirements before SQL/public admission.
-- [ ] Admit XML SQL/public values, literals/casts, XML syntax, remaining constructors, recursive containers and query operations; preserve document/content, source provenance and execution-context requirements.
+- [x] Admit scalar XML SQL/public values, captured source/stored literals, catalog casts and checked domains, XMLPARSE, IS DOCUMENT and unindented XMLSERIALIZE; preserve storage/output facets, explicit xmloption/client encoding, eager literals, lazy runtime casts, validated payloads and raw writes. Verify native/Rust/Go/TypeScript and manifest INSERT parity; keep missing implementation separate from reached context requirements.
+- [ ] Complete XML constructors, INDENT serialization, recursive containers/JSON integration and query operations; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts,

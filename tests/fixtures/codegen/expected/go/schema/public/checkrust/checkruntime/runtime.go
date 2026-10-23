@@ -491,6 +491,7 @@ const sqlErrorDatetimeFieldOverflow = 3452552
 const sqlErrorTimezoneDisplacement = 3452553
 const sqlErrorInvalidUseOfEscape = 3452556
 const sqlErrorInvalidXmlDocument = 3452566
+const sqlErrorNotXmlDocument = 3452565
 const sqlErrorInvalidXmlContent = 3452567
 const sqlErrorInvalidXmlComment = 3452572
 const sqlErrorDivisionByZero = 3452582
@@ -522,6 +523,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorNotXmlDocument {
+		return SqlErrorDescription{Message: "not an XML document"}
+	}
 	if error.State == sqlErrorInvalidXmlDocument {
 		return SqlErrorDescription{Message: "invalid XML document"}
 	}
@@ -10528,6 +10532,16 @@ func FinishDomainConversion(input ArrayElement, result CheckOutcome) ArrayElemen
 	}
 	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
 		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	return input
+}
+func FinishXmlDomainConversion(input XmlValue, result CheckOutcome) XmlValue {
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return XmlValue{Kind: XmlValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return XmlValue{Kind: XmlValueUnknown}
 	}
 	return input
 }

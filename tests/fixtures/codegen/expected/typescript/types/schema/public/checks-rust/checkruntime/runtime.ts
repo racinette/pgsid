@@ -535,6 +535,7 @@ const sqlErrorDatetimeFieldOverflow = 3452552;
 const sqlErrorTimezoneDisplacement = 3452553;
 const sqlErrorInvalidUseOfEscape = 3452556;
 const sqlErrorInvalidXmlDocument = 3452566;
+const sqlErrorNotXmlDocument = 3452565;
 const sqlErrorInvalidXmlContent = 3452567;
 const sqlErrorInvalidXmlComment = 3452572;
 const sqlErrorDivisionByZero = 3452582;
@@ -565,6 +566,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorNotXmlDocument) {
+        return { message: "not an XML document" };
+    }
     if (error.state === sqlErrorInvalidXmlDocument) {
         return { message: "invalid XML document" };
     }
@@ -10576,6 +10580,16 @@ export function domainConversionCheck(input: CheckOutcome, result: CheckOutcome)
 }
 export function finishDomainConversion(input: ArrayElement, result: CheckOutcome): ArrayElement {
     input = copyArrayElement(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
+export function finishXmlDomainConversion(input: XmlValue, result: CheckOutcome): XmlValue {
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };

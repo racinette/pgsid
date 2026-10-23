@@ -657,6 +657,7 @@ const rustType = (type: string): string => {
   if (compositeProfile(type) || anonymousRecordProfile(type)) return 'CompositeValue'
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
+  if (type === 'pg_catalog.xml') return 'XmlValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
   if (isArrayLikeType(type)) return 'ArrayValue'
   if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
@@ -717,6 +718,8 @@ export type CheckExecutionContext = {
   nativeByteOrder?: 'little' | 'big'
   trigonometry?: 'fdlibm'
   arrayNulls?: boolean
+  xmlOption?: 'document' | 'content'
+  clientEncoding?: 'UTF8'
 }
 
 export function emitCheckRustEvaluator(
@@ -867,6 +870,7 @@ export function emitCheckRustEvaluator(
       'JsonValue',
       'JsonbValue',
       'JsonpathValue',
+      'XmlValue',
       'ArrayValue',
       'SnapshotValue',
       'RangeValue',
@@ -1307,6 +1311,7 @@ export function emitCheckRustEvaluator(
             node.expression.kind === 'json' ||
             node.expression.kind === 'jsonb' ||
             node.expression.kind === 'jsonpath' ||
+            node.expression.kind === 'xml' ||
             (node.expression.kind === 'temporal' &&
               (node.expression.type === 'pg_catalog."interval"' ||
                 node.expression.type === 'pg_catalog."time"' ||
@@ -1459,6 +1464,7 @@ export function emitCheckRustEvaluator(
           'JsonValue',
           'JsonbValue',
           'JsonpathValue',
+          'XmlValue',
           'ArrayValue',
           'SnapshotValue',
           'RangeValue',
@@ -1491,6 +1497,22 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    if (node.kind === 'xml-operation') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const value = ownedOperand(operand),
+        utf8 = executionContext.serverEncoding === 'UTF8'
+      const mode = node.mode ?? executionContext.xmlOption
+      const option = mode === 'document' ? 1 : mode === 'content' ? 2 : 0
+      const helper =
+        node.operation === 'text'
+          ? `xml_to_text(${value})`
+          : node.operation === 'document'
+            ? `xml_is_document_context(${value},${utf8})`
+            : node.operation === 'serialize'
+              ? `xml_serialize_context(${value},${option},${node.indent === true},${utf8})`
+              : `xml_from_text_context(${value},${option},${utf8})`
+      return { name: bind(helper), type: node.type }
     }
     if (node.kind === 'captured-range-call') {
       const profile = rangeTypeProfile(node.type) ?? multirangeTypeProfile(node.type)
@@ -1585,7 +1607,8 @@ export function emitCheckRustEvaluator(
       const array = node.type.startsWith('array:')
       const range = isRangeType(node.type)
       const multirange = isMultirangeType(node.type)
-      if (!array && !range && !multirange && arrayElementFamily(node.type) === null)
+      const xml = node.type === 'pg_catalog.xml'
+      if (!array && !range && !multirange && !xml && arrayElementFamily(node.type) === null)
         throw new UnsupportedCheckRustExpression(
           'Domain conversion requires a represented value carrier',
         )
@@ -1597,7 +1620,7 @@ export function emitCheckRustEvaluator(
       const prefix = rustValuePrefix(rustType(node.type))
       const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
       const element =
-        array || range || multirange
+        array || range || multirange || xml
           ? null
           : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
       const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
@@ -1676,6 +1699,11 @@ export function emitCheckRustEvaluator(
           '};',
         )
       }
+      if (xml)
+        return {
+          name: bind(`finish_xml_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
       if (array)
         return {
           name: bind(`finish_array_domain_conversion(${ownedOperand(operand)}, ${status})`),
@@ -2200,6 +2228,9 @@ export function emitCheckRustEvaluator(
       const builder = jsonbBuilder || jsonBuilder
       const rawJson = jsonConversion || jsonBuilder
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
+      const xmlCast =
+        call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
+      const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
       const rangeConstructor = isBuiltinRangeConstructor(implementation)
       const arraySearch = isArraySearch(implementation)
       const arrayStringIO = isArrayStringIO(implementation)
@@ -2302,6 +2333,8 @@ export function emitCheckRustEvaluator(
           !jsonbBuilder &&
           !jsonBuilder &&
           !jsonpathTimezone &&
+          !xmlCast &&
+          !xmlSend &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -2335,6 +2368,7 @@ export function emitCheckRustEvaluator(
           ].includes(type),
         ) &&
         !arrayRegex &&
+        !xmlCast &&
         !supportsTextCallableCollation(
           call.signature,
           call.kind === 'cast' ? undefined : call.collation,
@@ -4369,6 +4403,18 @@ export function emitCheckRustEvaluator(
                 : 0,
           ),
         )
+      if (xmlCast)
+        arguments_.push(
+          String(
+            executionContext.xmlOption === 'document'
+              ? 1
+              : executionContext.xmlOption === 'content'
+                ? 2
+                : 0,
+          ),
+          String(executionContext.serverEncoding === 'UTF8'),
+        )
+      if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       const hashContext = nativeHashContext(implementation)
       if (hashContext) {
         arguments_.push(
@@ -4819,6 +4865,8 @@ export function emitCheckRustEvaluator(
         builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      if (operand.type === 'pg_catalog.xml')
+        return { name: bind(`xml_to_output_text(${ownedOperand(operand)})`), type: node.type }
       const range = rangeTypeProfile(operand.type)
       const multirange = multirangeTypeProfile(operand.type)
       if (
@@ -5781,6 +5829,23 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'xml') {
+        if (value.value === null) return { name: bind('xml_null()'), type: value.type }
+        if (value.storage !== undefined)
+          return {
+            name: bind(`make_xml_value(${rustStringLiteral(value.storage)})`),
+            type: value.type,
+          }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return {
+          name: bind(
+            value.origin === 'stored'
+              ? `xml_from_rendered_text(${text})`
+              : `xml_from_text_context(${text},${executionContext.xmlOption === 'document' ? 1 : executionContext.xmlOption === 'content' ? 2 : 0},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
+      }
       if (value.kind === 'multirange') {
         if (value.value === null) return { name: bind('multirange_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -6556,6 +6621,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog."json"',
           'pg_catalog.jsonb',
           'pg_catalog.jsonpath',
+          'pg_catalog.xml',
           'pg_catalog.oid',
           'pg_catalog.polygon',
           'pg_catalog.path',
@@ -7100,6 +7166,7 @@ export function emitCheckRustEvaluator(
               'JsonValue',
               'JsonbValue',
               'JsonpathValue',
+              'XmlValue',
               'ArrayValue',
               'SnapshotValue',
               'RangeValue',
@@ -7473,6 +7540,7 @@ export function emitCheckRustEvaluator(
           'JsonValue',
           'JsonbValue',
           'JsonpathValue',
+          'XmlValue',
           'ArrayValue',
           'SnapshotValue',
           'RangeValue',

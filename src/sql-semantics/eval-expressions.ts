@@ -22,6 +22,14 @@ import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
   | {
+      kind: 'xml-operation'
+      type: 'pg_catalog.xml' | 'pg_catalog.text' | 'pg_catalog.bool'
+      operation: 'parse' | 'cast' | 'text' | 'document' | 'serialize'
+      operand: EvalExpression
+      mode?: 'document' | 'content'
+      indent?: boolean
+    }
+  | {
       kind: 'text-to-composite'
       type: ScalarType
       operand: EvalExpression
@@ -562,6 +570,7 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'json' ||
           node.expression.kind === 'jsonb' ||
           node.expression.kind === 'jsonpath' ||
+          node.expression.kind === 'xml' ||
           node.expression.kind === 'oid' ||
           node.expression.kind === 'path' ||
           node.expression.kind === 'circle' ||
@@ -645,6 +654,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'mac-to-text' ||
       node.kind === 'io-to-text' ||
       node.kind === 'refcursor-text-coercion' ||
+      node.kind === 'xml-operation' ||
       node.kind === 'text-to-float' ||
       node.kind === 'text-to-integer' ||
       node.kind === 'text-to-numeric' ||

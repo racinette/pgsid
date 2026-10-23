@@ -15,6 +15,7 @@ import {
   jsonValueRequirements,
   hashValueRequirements,
   characterValueRequirements,
+  xmlValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -567,6 +568,28 @@ describe('CHECK measurement boundaries', () => {
     }
   })
 
+  it('records XML session settings separately from supplied storage and explicit XML syntax', () => {
+    const send = catalog.functions.find(({ metadata }) => metadata.name === 'xml_send')!.metadata
+    const cast = catalog.functions.find(
+      ({ metadata }) => metadata.name === 'xml' && metadata.args.join(',') === 'pg_catalog.text',
+    )!.metadata
+    expect(xmlValueRequirements(send)?.map((r) => r.setting)).toEqual(['client_encoding'])
+    expect(xmlValueRequirements(cast)?.map((r) => r.setting)).toEqual([
+      'xmloption',
+      'server_encoding',
+    ])
+    expect(callableBoundary(send, new Set(send.args.concat(send.result))).categories).toContain(
+      'session-setting:client_encoding',
+    )
+    expect(callableBoundary(cast, new Set(cast.args.concat(cast.result))).categories).toContain(
+      'session-setting:xmloption',
+    )
+    const text = catalog.functions.find(
+      ({ metadata }) => metadata.name === 'text' && metadata.args.join(',') === 'pg_catalog.xml',
+    )!.metadata
+    expect(xmlValueRequirements(text)).toBeNull()
+  })
+
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
     const nullness = bindProbe('value IS NULL', [
       { name: 'value', typeName: 'aclitem', isRowType: false },
@@ -576,6 +599,8 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('aclitem').represented).toBe(false)
     expect(valueRepresentation('jsonb').represented).toBe(true)
     expect(valueRepresentation('json').represented).toBe(true)
+    expect(valueRepresentation('xml').represented).toBe(true)
+    expect(valueRepresentation('xml[]').represented).toBe(false)
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
@@ -1106,8 +1131,11 @@ describe('CHECK measurement boundaries', () => {
       'pg_catalog.pg_ndistinct',
       'pg_catalog.pg_node_tree',
     ])
-    for (const type of ['aclitem', 'int2vector', 'oidvector', 'tsquery', 'tsvector', 'xml'])
+    for (const type of ['aclitem', 'tsquery', 'tsvector'])
       expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('unimplemented-value')
+    for (const type of ['int2vector', 'oidvector', 'xml'])
+      expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('represented-value')
+    expect(inventory.get('pg_catalog._xml')?.representation.represented).toBe(false)
     expect(inventory.get('pg_catalog.pg_class')?.boundary.kind).toBe('captured-composite')
     const graph = await readCatalogCompositeTypes(pg, [], ['pg_catalog.pg_enum'])
     const captured = lowerTableCheck(

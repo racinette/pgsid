@@ -108,6 +108,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     json: 'pg_catalog."json"',
     jsonb: 'pg_catalog.jsonb',
     jsonpath: 'pg_catalog.jsonpath',
+    xml: 'pg_catalog.xml',
     '"json"': 'pg_catalog."json"',
     bit: 'pg_catalog."bit"',
     '"bit"': 'pg_catalog."bit"',
@@ -197,6 +198,7 @@ export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
 export type JsonpathType = 'pg_catalog.jsonpath'
+export type XmlType = 'pg_catalog.xml'
 export type TemporalType =
   | 'pg_catalog.date'
   | 'pg_catalog."time"'
@@ -258,6 +260,7 @@ export type NonArrayScalarType =
   | JsonType
   | JsonbType
   | JsonpathType
+  | XmlType
   | TemporalType
   | EnumType
 export type ScalarType = NonArrayScalarType | ArrayType
@@ -603,6 +606,13 @@ export type SqlExpression =
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
   | { kind: 'jsonpath'; type: JsonpathType; value: string | null; origin?: 'source' | 'stored' }
+  | {
+      kind: 'xml'
+      type: XmlType
+      value: string | null
+      origin?: 'source' | 'stored'
+      storage?: string
+    }
   | { kind: 'temporal'; type: TemporalType; value: string | null }
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
@@ -1316,8 +1326,11 @@ export function emitSqlExpression<Ast>(
       helpers.add('uuidInput')
       return { type: node.type, expression: backend.uuid(node.value) }
     }
-    if (node.kind === 'jsonpath') {
-      if (node.value !== null) throw new Error('JSONPath literals require the Rust CHECK evaluator')
+    if (node.kind === 'jsonpath' || node.kind === 'xml') {
+      if (node.value !== null)
+        throw new Error(
+          `${node.kind === 'xml' ? 'XML' : 'JSONPath'} literals require the Rust CHECK evaluator`,
+        )
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'json' || node.kind === 'jsonb') {
