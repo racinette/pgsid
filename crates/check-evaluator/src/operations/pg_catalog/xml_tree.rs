@@ -4,13 +4,13 @@ struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan }
 #[derive(Clone, Copy)]
 struct XmlTreeNode {
     kind: i32, name: XmlSpan, value: XmlSpan, parent: usize,
-    next: usize, first: usize, last: usize, attribute_start: usize,
+    next: usize, previous: usize, first: usize, last: usize, attribute_start: usize,
     attribute_end: usize, preserve: bool, textual: bool, text_seen: bool, blank_policy: i32,
 }
 
 #[derive(Clone, Copy)]
 struct XmlTreeFlags {
-    document: bool, declaration: bool, unicode: bool,
+    document: bool, declaration: bool, unicode: bool, query: bool,
     standalone: i32, version: XmlSpan, doctype_end: usize,
 }
 
@@ -55,7 +55,7 @@ pub(crate) fn xml_tree_store(input: XmlTree, text: &str) -> XmlTree {
 
 pub(crate) fn xml_tree_links(input: XmlTreeNode, next: usize, first: usize, last: usize, value: XmlSpan, textual: bool, text_seen: bool) -> XmlTreeNode {
     XmlTreeNode { kind: input.kind, name: input.name, value, parent: input.parent,
-        next, first, last, attribute_start: input.attribute_start, attribute_end: input.attribute_end,
+        next, previous: input.previous, first, last, attribute_start: input.attribute_start, attribute_end: input.attribute_end,
         preserve: input.preserve, textual, text_seen, blank_policy: input.blank_policy }
 }
 
@@ -85,7 +85,7 @@ pub(crate) fn xml_tree_space(input: XmlTree, index: usize, preserve: bool, text_
     let mut nodes = input.nodes;
     let node = nodes[index];
     nodes[index] = XmlTreeNode { kind: node.kind, name: node.name, value: node.value, parent: node.parent,
-        next: node.next, first: node.first, last: node.last, attribute_start: node.attribute_start,
+        next: node.next, previous: node.previous, first: node.first, last: node.last, attribute_start: node.attribute_start,
         attribute_end: node.attribute_end, preserve, textual: node.textual, text_seen, blank_policy };
     XmlTree { nodes, attributes: input.attributes, characters: input.characters, current: input.current,
         written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
@@ -104,7 +104,7 @@ pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSp
 }
 
 pub(crate) fn xml_tree_leaf(input: XmlTree, kind: i32, name: XmlSpan, value: XmlSpan) -> XmlTree {
-    let node = XmlTreeNode { kind, name, value, parent: input.current, next: 0, first: 0, last: 0,
+    let node = XmlTreeNode { kind, name, value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0,
         attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 };
     xml_tree_append(input,node)
 }
@@ -116,8 +116,8 @@ pub(crate) fn xml_tree_add_text(input: XmlTree, text: &str, forced: bool, closin
     let mut blank = true;
     let mut position: usize = 0;
     while position < values.len() { if xml_space(values[position]) == false { blank = false; }; position += 1; }
-    if blank && forced == false && parent.preserve == false {
-        if input.current == 0 && input.flags.document { return input; };
+    if blank && input.current == 0 && input.flags.document { return input; };
+    if blank && forced == false && parent.preserve == false && input.flags.query == false {
         if parent.blank_policy == 0 { return input; };
         if parent.blank_policy != 1 && parent.text_seen == false && end == false && (closing == false || parent.first > 0) { return input; };
     };
@@ -219,6 +219,8 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 let element = xml_source_range(stored,item.element);
                 if item.has_default && element == name_text {
                     let attribute_text = xml_source_range(stored,item.name);
+                    let attribute_source = XmlSource { characters: attribute_text.as_str().chars().collect() };
+                    let allowed = tree.flags.query == false || attribute_text.as_str() == "xmlns" || xml_at(&attribute_source,0,"xmlns:");
                     let mut present = false;
                     let mut attribute = attribute_start;
                     while attribute < tree.attributes.len() {
@@ -227,7 +229,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                         if existing == attribute_text { present = true; };
                         attribute += 1;
                     }
-                    if present == false {
+                    if present == false && allowed {
                         let value_text = xml_source_range(stored,item.value);
                         tree = xml_tree_store(tree,attribute_text.as_str());
                         let attribute_name = tree.written;
@@ -256,7 +258,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
             if empty { position += 1; };
             let blank_policy = xml_tree_blank_policy(&tree,name_text.as_str());
             let span = XmlSpan { start: 0, end: 0 };
-            let node = XmlTreeNode { kind: 1, name, value: span, parent: tree.current, next: 0, first: 0, last: 0,
+            let node = XmlTreeNode { kind: 1, name, value: span, parent: tree.current, next: 0, previous: tree.nodes[tree.current].last, first: 0, last: 0,
                 attribute_start, attribute_end, preserve, textual: false, text_seen: false, blank_policy };
             let child = tree.nodes.len();
             tree = xml_tree_append(tree,node);
@@ -271,8 +273,22 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 let name = XmlSpan { start: position+1, end: reference.next-1 };
                 let spelling = xml_source_range(source,name);
                 let expanded = xml_expand_entity(arena,spelling.as_str(),false,0,0i64,0i64);
-                let nested = XmlSource { characters: expanded.text.as_str().chars().collect() };
-                tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true);
+                if tree.flags.query {
+                    let parent = tree.current;
+                    tree = xml_tree_store(tree,spelling.as_str());
+                    let name = tree.written;
+                    tree = xml_tree_store(tree,expanded.text.as_str());
+                    let value = tree.written;
+                    let child = tree.nodes.len();
+                    tree = xml_tree_leaf(tree,7,name,value);
+                    tree = xml_tree_current(tree,child);
+                    let nested = XmlSource { characters: expanded.text.as_str().chars().collect() };
+                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true);
+                    tree = xml_tree_current(tree,parent);
+                } else {
+                    let nested = XmlSource { characters: expanded.text.as_str().chars().collect() };
+                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true);
+                };
             };
             position = reference.next;
         } else {
@@ -292,7 +308,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
     tree
 }
 
-fn xml_tree_parse(input: &str, document: bool) -> XmlTree {
+fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
     let source = XmlSource { characters: input.chars().collect() };
     let mut begin: usize = 0;
     if document && source.characters.len() > 0 && source.characters[0] as i32 == 65279 { begin = 1; };
@@ -327,11 +343,11 @@ fn xml_tree_parse(input: &str, document: bool) -> XmlTree {
     let version_span = XmlSpan { start: 0, end: characters.len() };
     let empty = XmlSpan { start: 0, end: 0 };
     let mut nodes: Vec<XmlTreeNode> = Vec::new();
-    nodes.push(XmlTreeNode { kind: 0, name: empty, value: empty, parent: 0, next: 0, first: 0, last: 0,
+    nodes.push(XmlTreeNode { kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0,
         attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 });
     let attributes: Vec<XmlTreeAttribute> = Vec::new();
     let flags = XmlTreeFlags { document: effective_document, declaration: actual_declaration && begin == 0,
-        unicode: effective_document && actual_declaration && begin == 0, standalone, version: version_span, doctype_end };
+        unicode: effective_document && actual_declaration && begin == 0, query, standalone, version: version_span, doctype_end };
     let declarations: Vec<XmlTreeDtdEntry> = Vec::new();
     let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true };
     let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };

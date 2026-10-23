@@ -47191,7 +47191,7 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 		if xmlWellFormed(value, document) == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
 		}
-		tree := xmlTreeParse(value, document)
+		tree := xmlTreeParse(value, document, false)
 		if tree.serializationKnown == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
@@ -48209,6 +48209,366 @@ func xmlMarkup(source *xmlSource, start int, document bool, arena *xmlEntityAren
 	return xmlMarkupResult{valid: depth == 0 && (document == false || roots == 1), cost: cost, nodes: text.nodes, cache: cache.entries}
 }
 
+type xmlQueryName struct {
+	qualified string
+	local     string
+	namespace string
+	resolved  bool
+}
+
+func copyxmlQueryName(value xmlQueryName) xmlQueryName {
+	return xmlQueryName{qualified: langruntime.CheckedString(value.qualified), local: langruntime.CheckedString(value.local), namespace: langruntime.CheckedString(value.namespace), resolved: value.resolved}
+}
+func xmlQueryQnameValid(tree *xmlTree, name xmlSpan) bool {
+	name = copyxmlSpan(name)
+	if name.start >= name.end || tree.characters[name.start] == ':' {
+		return false
+	}
+	colon := false
+	position := name.start
+	for position < name.end {
+		if tree.characters[position] == ':' {
+			if colon || langruntime.CheckedAdd(position, 1) >= name.end {
+				return false
+			}
+			next := tree.characters[langruntime.CheckedAdd(position, 1)]
+			if next == ':' || xmlNameStart(next) == false {
+				return false
+			}
+			colon = true
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func xmlQueryContent(input string) string {
+	input = langruntime.CheckedString(input)
+	source := xmlSource{characters: []rune(input)}
+	declaration := xmlParseDeclaration(&source, 0, false)
+	start := 0
+	if declaration.valid {
+		start = langruntime.CheckedIndex(declaration.next)
+	}
+	span := xmlSpan{start: start, end: len(source.characters)}
+	return xmlSourceRange(&source, span)
+}
+func xmlQueryVisible(tree *xmlTree, index int) bool {
+	index = langruntime.CheckedIndex(index)
+	kind := tree.nodes[index].kind
+	return kind >= 1 && kind <= 5
+}
+func xmlQueryChild(tree *xmlTree, index int) int {
+	index = langruntime.CheckedIndex(index)
+	child := tree.nodes[index].first
+	for child > 0 && xmlQueryVisible(tree, child) == false {
+		child = langruntime.CheckedIndex(tree.nodes[child].next)
+	}
+	return child
+}
+func xmlQueryNext(tree *xmlTree, index int) int {
+	index = langruntime.CheckedIndex(index)
+	next := tree.nodes[index].next
+	for next > 0 && xmlQueryVisible(tree, next) == false {
+		next = langruntime.CheckedIndex(tree.nodes[next].next)
+	}
+	return next
+}
+func xmlQueryPrevious(tree *xmlTree, index int) int {
+	index = langruntime.CheckedIndex(index)
+	previous := tree.nodes[index].previous
+	for previous > 0 && xmlQueryVisible(tree, previous) == false {
+		previous = langruntime.CheckedIndex(tree.nodes[previous].previous)
+	}
+	return previous
+}
+func xmlQueryFollowingNode(tree *xmlTree, index int) int {
+	index = langruntime.CheckedIndex(index)
+	child := xmlQueryChild(tree, index)
+	if child > 0 {
+		return child
+	}
+	cursor := index
+	for cursor > 0 {
+		next := xmlQueryNext(tree, cursor)
+		if next > 0 {
+			return next
+		}
+		cursor = langruntime.CheckedIndex(tree.nodes[cursor].parent)
+	}
+	return 0
+}
+func xmlQueryNamespaceAttribute(tree *xmlTree, name xmlSpan) bool {
+	name = copyxmlSpan(name)
+	text := xmlTreeText(tree, name)
+	if text == "xmlns" {
+		return true
+	}
+	source := xmlSource{characters: []rune(text)}
+	return xmlAt(&source, 0, "xmlns:")
+}
+func xmlQueryExpandName(tree *xmlTree, owner int, name xmlSpan, attribute bool) xmlQueryName {
+	owner = langruntime.CheckedIndex(owner)
+	name = copyxmlSpan(name)
+	qualified := xmlTreeText(tree, name)
+	position := name.start
+	localStart := name.start
+	prefixEnd := name.start
+	for position < name.end {
+		if tree.characters[position] == ':' {
+			prefixEnd = langruntime.CheckedIndex(position)
+			localStart = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	prefixSpan := xmlSpan{start: name.start, end: prefixEnd}
+	prefix := xmlTreeText(tree, prefixSpan)
+	localSpan := xmlSpan{start: localStart, end: name.end}
+	local := xmlTreeText(tree, localSpan)
+	valid := xmlQueryQnameValid(tree, name)
+	if prefix == "xml" {
+		return xmlQueryName{qualified: qualified, local: local, namespace: "http://www.w3.org/XML/1998/namespace", resolved: valid}
+	}
+	if attribute && localStart == name.start {
+		return xmlQueryName{qualified: qualified, local: local, namespace: "", resolved: valid}
+	}
+	declaration := langruntime.NewTextBuffer("xmlns")
+	if localStart != name.start {
+		declaration = append(declaration, string(langruntime.CheckedChar(':'))...)
+		declaration = append(declaration, prefix...)
+	}
+	cursor := owner
+	for cursor > 0 {
+		node := tree.nodes[cursor]
+		if node.kind == 7 {
+			return xmlQueryName{qualified: qualified, local: local, namespace: "", resolved: valid && localStart == name.start}
+		}
+		index := node.attributeStart
+		for index < node.attributeEnd {
+			item := tree.attributes[index]
+			spelling := xmlTreeText(tree, item.name)
+			if spelling == string(declaration) {
+				namespace := xmlTreeText(tree, item.value)
+				resolved := valid && (localStart == name.start || namespace != "")
+				return xmlQueryName{qualified: qualified, local: local, namespace: namespace, resolved: resolved}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		cursor = langruntime.CheckedIndex(node.parent)
+	}
+	return xmlQueryName{qualified: qualified, local: local, namespace: "", resolved: valid && localStart == name.start}
+}
+func xmlQueryNodeName(tree *xmlTree, index int) xmlQueryName {
+	index = langruntime.CheckedIndex(index)
+	node := tree.nodes[index]
+	if node.kind == 1 {
+		return xmlQueryExpandName(tree, index, node.name, false)
+	}
+	if node.kind == 5 {
+		qualified := xmlTreeText(tree, node.name)
+		return xmlQueryName{local: langruntime.CheckedString(qualified), qualified: qualified, namespace: "", resolved: true}
+	}
+	return xmlQueryName{qualified: "", local: "", namespace: "", resolved: true}
+}
+func xmlQueryNamesValid(tree *xmlTree) bool {
+	cursor := 1
+	for cursor < len(tree.nodes) {
+		node := tree.nodes[cursor]
+		name := xmlQueryNodeName(tree, cursor)
+		if name.resolved == false {
+			return false
+		}
+		index := node.attributeStart
+		for index < node.attributeEnd {
+			attribute := tree.attributes[index]
+			if xmlQueryNamespaceAttribute(tree, attribute.name) {
+				name := xmlTreeText(tree, attribute.name)
+				uri := xmlTreeText(tree, attribute.value)
+				if xmlQueryUriValid(uri) == false {
+					return false
+				}
+				if xmlQueryQnameValid(tree, attribute.name) == false || name == "xmlns:xmlns" {
+					return false
+				}
+				if name == "xmlns:xml" {
+					if uri != "http://www.w3.org/XML/1998/namespace" {
+						return false
+					}
+				} else {
+					if uri == "http://www.w3.org/XML/1998/namespace" || uri == "http://www.w3.org/2000/xmlns/" {
+						return false
+					}
+					if name != "xmlns" && uri == "" {
+						return false
+					}
+				}
+			} else {
+				name := xmlQueryExpandName(tree, cursor, attribute.name, true)
+				if name.resolved == false {
+					return false
+				}
+				previous := node.attributeStart
+				for previous < index {
+					prior := tree.attributes[previous]
+					if xmlQueryNamespaceAttribute(tree, prior.name) == false {
+						other := xmlQueryExpandName(tree, cursor, prior.name, true)
+						if name.local == other.local && name.namespace == other.namespace {
+							return false
+						}
+					}
+					previous = langruntime.CheckedAdd(previous, 1)
+				}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		cursor = langruntime.CheckedAdd(cursor, 1)
+	}
+	return true
+}
+func xmlQueryUriAlpha(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+}
+func xmlQueryUriDigit(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return code >= 48 && code <= 57
+}
+func xmlQueryUriHex(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return xmlQueryUriDigit(character) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102)
+}
+func xmlQueryUriStep(source *xmlSource, position int, category int) int {
+	position = langruntime.CheckedIndex(position)
+	category = langruntime.CheckedI32(category)
+	if position >= len(source.characters) {
+		return position
+	}
+	character := source.characters[position]
+	if character == '%' {
+		if langruntime.CheckedAdd(position, 2) < len(source.characters) && xmlQueryUriHex(source.characters[langruntime.CheckedAdd(position, 1)]) && xmlQueryUriHex(source.characters[langruntime.CheckedAdd(position, 2)]) {
+			return langruntime.CheckedAdd(position, 3)
+		}
+		return position
+	}
+	ordinary := xmlQueryUriAlpha(character) || xmlQueryUriDigit(character) || character == '-' || character == '.' || character == '_' || character == '~' || character == '!' || character == '$' || character == '&' || character == '\'' || character == '(' || character == ')' || character == '*' || character == '+' || character == ',' || character == ';' || character == '='
+	if ordinary || (category >= 1 && character == ':') || (category >= 2 && character == '@') || (category >= 3 && (character == '/' || character == '?')) || (category == 4 && (character == '[' || character == ']')) {
+		return langruntime.CheckedAdd(position, 1)
+	}
+	return position
+}
+func xmlQueryUriRun(source *xmlSource, start int, category int) int {
+	start = langruntime.CheckedIndex(start)
+	category = langruntime.CheckedI32(category)
+	position := start
+	scanning := true
+	for scanning {
+		next := xmlQueryUriStep(source, position, category)
+		if next == position {
+			scanning = false
+		} else {
+			position = langruntime.CheckedIndex(next)
+		}
+	}
+	return position
+}
+func xmlQueryUriAuthority(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	user := xmlQueryUriRun(source, start, 1)
+	position := start
+	if user < len(source.characters) && source.characters[user] == '@' {
+		position = langruntime.CheckedIndex(langruntime.CheckedAdd(user, 1))
+	}
+	if position < len(source.characters) && source.characters[position] == '[' {
+		position = langruntime.CheckedAdd(position, 1)
+		for position < len(source.characters) && source.characters[position] != ']' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == len(source.characters) {
+			return xmlScan{next: position, valid: false}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	} else {
+		position = langruntime.CheckedIndex(xmlQueryUriRun(source, position, 0))
+	}
+	if position < len(source.characters) && source.characters[position] == ':' {
+		position = langruntime.CheckedAdd(position, 1)
+		begin := position
+		port := 0
+		for position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) {
+			digit := langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(source.characters[position])), 48)
+			if port > 214748364 || (port == 214748364 && digit > 7) {
+				return xmlScan{next: position, valid: false}
+			}
+			port = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(port, 10), digit))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == begin {
+			return xmlScan{next: position, valid: false}
+		}
+	}
+	return xmlScan{next: position, valid: true}
+}
+func xmlQueryUriValid(input string) bool {
+	input = langruntime.CheckedString(input)
+	source := xmlSource{characters: []rune(input)}
+	position := 0
+	scheme := false
+	if len(source.characters) > 0 && xmlQueryUriAlpha(source.characters[0]) {
+		end := 1
+		scanning := true
+		for end < len(source.characters) && scanning {
+			character := source.characters[end]
+			if xmlQueryUriAlpha(character) || xmlQueryUriDigit(character) || character == '+' || character == '-' || character == '.' {
+				end = langruntime.CheckedAdd(end, 1)
+			} else {
+				scanning = false
+			}
+		}
+		if end < len(source.characters) && source.characters[end] == ':' {
+			position = langruntime.CheckedIndex(langruntime.CheckedAdd(end, 1))
+			scheme = true
+		}
+	}
+	authority := false
+	if xmlAt(&source, position, "//") {
+		parsed := xmlQueryUriAuthority(&source, langruntime.CheckedAdd(position, 2))
+		if parsed.valid == false {
+			return false
+		}
+		position = langruntime.CheckedIndex(parsed.next)
+		authority = true
+	}
+	first := true
+	scanning := true
+	for position < len(source.characters) && scanning {
+		character := source.characters[position]
+		if character == '/' {
+			position = langruntime.CheckedAdd(position, 1)
+			first = false
+		} else if authority && first {
+			scanning = false
+		} else if scheme == false && first && character == ':' {
+			return false
+		} else {
+			next := xmlQueryUriStep(&source, position, 2)
+			if next == position {
+				scanning = false
+			} else {
+				position = langruntime.CheckedIndex(next)
+			}
+		}
+	}
+	if position < len(source.characters) && source.characters[position] == '?' {
+		position = langruntime.CheckedIndex(xmlQueryUriRun(&source, langruntime.CheckedAdd(position, 1), 3))
+	}
+	if position < len(source.characters) && source.characters[position] == '#' {
+		position = langruntime.CheckedIndex(xmlQueryUriRun(&source, langruntime.CheckedAdd(position, 1), 4))
+	}
+	return position == len(source.characters)
+}
+
 const sqlstateInvalidXmlDocument = 3452566
 const sqlstateInvalidXmlContent = 3452567
 const sqlstateInvalidXmlComment = 3452572
@@ -48857,6 +49217,7 @@ type xmlTreeNode struct {
 	value          xmlSpan
 	parent         int
 	next           int
+	previous       int
 	first          int
 	last           int
 	attributeStart int
@@ -48868,20 +49229,21 @@ type xmlTreeNode struct {
 }
 
 func copyxmlTreeNode(value xmlTreeNode) xmlTreeNode {
-	return xmlTreeNode{kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parent: langruntime.CheckedIndex(value.parent), next: langruntime.CheckedIndex(value.next), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), attributeStart: langruntime.CheckedIndex(value.attributeStart), attributeEnd: langruntime.CheckedIndex(value.attributeEnd), preserve: value.preserve, textual: value.textual, textSeen: value.textSeen, blankPolicy: langruntime.CheckedI32(value.blankPolicy)}
+	return xmlTreeNode{kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parent: langruntime.CheckedIndex(value.parent), next: langruntime.CheckedIndex(value.next), previous: langruntime.CheckedIndex(value.previous), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), attributeStart: langruntime.CheckedIndex(value.attributeStart), attributeEnd: langruntime.CheckedIndex(value.attributeEnd), preserve: value.preserve, textual: value.textual, textSeen: value.textSeen, blankPolicy: langruntime.CheckedI32(value.blankPolicy)}
 }
 
 type xmlTreeFlags struct {
 	document    bool
 	declaration bool
 	unicode     bool
+	query       bool
 	standalone  int
 	version     xmlSpan
 	doctypeEnd  int
 }
 
 func copyxmlTreeFlags(value xmlTreeFlags) xmlTreeFlags {
-	return xmlTreeFlags{document: value.document, declaration: value.declaration, unicode: value.unicode, standalone: langruntime.CheckedI32(value.standalone), version: copyxmlSpan(value.version), doctypeEnd: langruntime.CheckedIndex(value.doctypeEnd)}
+	return xmlTreeFlags{document: value.document, declaration: value.declaration, unicode: value.unicode, query: value.query, standalone: langruntime.CheckedI32(value.standalone), version: copyxmlSpan(value.version), doctypeEnd: langruntime.CheckedIndex(value.doctypeEnd)}
 }
 
 type xmlTree struct {
@@ -48940,7 +49302,7 @@ func XmlTreeStore(input xmlTree, text string) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeLinks(input xmlTreeNode, next int, first int, last int, value xmlSpan, textual bool, textSeen bool) xmlTreeNode {
-	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy}
+	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, previous: input.previous, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy}
 }
 func XmlTreeAppend(input xmlTree, node xmlTreeNode) xmlTree {
 	nodes := input.nodes
@@ -48966,7 +49328,7 @@ func XmlTreeCurrent(input xmlTree, current int) xmlTree {
 func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankPolicy int) xmlTree {
 	nodes := input.nodes
 	node := nodes[index]
-	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy})
+	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, previous: node.previous, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy})
 	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeUnsupported(input xmlTree) xmlTree {
@@ -48979,7 +49341,7 @@ func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
-	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}
+	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}
 	return XmlTreeAppend(input, node)
 }
 func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end bool) xmlTree {
@@ -48996,10 +49358,10 @@ func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end b
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	if blank && forced == false && parent.preserve == false {
-		if input.current == 0 && input.flags.document {
-			return input
-		}
+	if blank && input.current == 0 && input.flags.document {
+		return input
+	}
+	if blank && forced == false && parent.preserve == false && input.flags.query == false {
 		if parent.blankPolicy == 0 {
 			return input
 		}
@@ -49109,6 +49471,8 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 				element := xmlSourceRange(stored, item.element)
 				if item.hasDefault && element == nameText {
 					attributeText := xmlSourceRange(stored, item.name)
+					attributeSource := xmlSource{characters: []rune(attributeText)}
+					allowed := tree.flags.query == false || attributeText == "xmlns" || xmlAt(&attributeSource, 0, "xmlns:")
 					present := false
 					attribute := attributeStart
 					for attribute < len(tree.attributes) {
@@ -49119,7 +49483,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 						}
 						attribute = langruntime.CheckedAdd(attribute, 1)
 					}
-					if present == false {
+					if present == false && allowed {
 						valueText := xmlSourceRange(stored, item.value)
 						tree = XmlTreeStore(tree, attributeText)
 						attributeName := tree.written
@@ -49154,7 +49518,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			}
 			blankPolicy := xmlTreeBlankPolicy(&tree, nameText)
 			span := xmlSpan{start: 0, end: 0}
-			node := xmlTreeNode{kind: 1, name: name, value: span, parent: tree.current, next: 0, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy}
+			node := xmlTreeNode{kind: 1, name: name, value: span, parent: tree.current, next: 0, previous: tree.nodes[tree.current].last, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy}
 			child := len(tree.nodes)
 			tree = XmlTreeAppend(tree, node)
 			if empty == false {
@@ -49171,8 +49535,22 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 				name := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)}
 				spelling := xmlSourceRange(source, name)
 				expanded := xmlExpandEntity(arena, spelling, false, 0, int64(0), int64(0))
-				nested := xmlSource{characters: []rune(expanded.text)}
-				tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+				if tree.flags.query {
+					parent := tree.current
+					tree = XmlTreeStore(tree, spelling)
+					name := tree.written
+					tree = XmlTreeStore(tree, expanded.text)
+					value := tree.written
+					child := len(tree.nodes)
+					tree = XmlTreeLeaf(tree, 7, name, value)
+					tree = XmlTreeCurrent(tree, child)
+					nested := xmlSource{characters: []rune(expanded.text)}
+					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+					tree = XmlTreeCurrent(tree, parent)
+				} else {
+					nested := xmlSource{characters: []rune(expanded.text)}
+					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+				}
 			}
 			position = langruntime.CheckedIndex(reference.next)
 		} else {
@@ -49193,7 +49571,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 	}
 	return tree
 }
-func xmlTreeParse(input string, document bool) xmlTree {
+func xmlTreeParse(input string, document bool, query bool) xmlTree {
 	input = langruntime.CheckedString(input)
 	source := xmlSource{characters: []rune(input)}
 	begin := 0
@@ -49248,9 +49626,9 @@ func xmlTreeParse(input string, document bool) xmlTree {
 	empty := xmlSpan{start: 0, end: 0}
 	nodes := []xmlTreeNode{}
 	langruntime.CheckedAdd(len(nodes), 1)
-	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}))
+	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}))
 	attributes := []xmlTreeAttribute{}
-	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
+	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, query: query, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
 	declarations := []xmlTreeDtdEntry{}
 	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true}
 	storedSource := xmlSource{characters: []rune(arena.arena)}

@@ -113,7 +113,7 @@ pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue
     if let XmlValue::Value(value) = input {
         if xml_text_encoding_available(value.as_str(),utf8) == false { return TextValue::Unknown; };
         if xml_well_formed(value.as_str(),document) == false { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
-        let tree = xml_tree_parse(value.as_str(),document);
+        let tree = xml_tree_parse(value.as_str(),document,false);
         if tree.serialization_known == false { return TextValue::Unknown; };
         let mut output = String::new();
         if tree.flags.document && tree.flags.declaration {

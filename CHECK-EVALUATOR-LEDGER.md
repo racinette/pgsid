@@ -158,12 +158,12 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit XMLELEMENT, XMLATTRIBUTES and XMLFOREST through native named-argument provenance, implicit column names, shared scalar/represented-array/record value mapping and explicit xmlbinary context. Preserve NULL/empty distinctions, native escaping and base64 framing, enum/domain arrays, anonymous layouts, argument/conversion error order and partial-input validity with native/Rust/Go/TypeScript manifest INSERT parity.
 - [x] Admit owned XML array cells and captured record fields, source/stored text I/O, JSON/JSONB conversion and builders, constructors, subscripts and structural array operations. Recover original whole XML-array and record constants through logical captured storage without deployment IDs, including domains, nested containers, multidimensional bounds and dropped/added record fields; preserve rendered-only facets, absent XML comparison support, validated public payloads, ownership and native/Rust/Go/TypeScript world INSERT parity.
 - [x] Admit XML INDENT serialization with owned trees, declarations, namespaces, mixed content, DTD models/defaults and isolated entity whitespace. Preserve source/rendered facets, encoding, native limits, randomized notation-order requirements, NULL/errors and lazy composition; verify source/stored arrays, records, checked domains and native/Rust/Go/TypeScript manifest INSERT parity.
-- [ ] Complete XML XPath/query operations; preserve document/content, source provenance and execution-context requirements.
+- [x] Establish UTF8 XPath query trees with preserved whitespace/CDATA, opaque entity references and hidden replacement validation, expanded names, namespace URI checks and sibling navigation. Verify native INSERT/Rust/Go/TypeScript parity while retaining indentation behavior; keep SQL query admission separate.
+- [ ] Complete XML XPath/query operations, including grammar, evaluation, result conversion and SQL/public admission; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts, unsigned relations, public inputs and native signed-char hash requirements.
-- [x] Establish unsigned OID values, portable input/output, comparisons, hashes,
-      integer casts, domains and SQL-coerced public input validation.
+- [x] Establish unsigned OID values, portable input/output, comparisons, hashes, integer casts, domains and SQL-coerced public input validation.
 - [x] Establish transaction and command identifiers, unsigned full transaction
       words, portable input/output, pure operations and contextual state boundaries.
 - [x] Establish WAL location payloads, portable text input/output, comparisons,
