@@ -46885,23 +46885,26 @@ function copyXmlDtdFlags(value: XmlDtdFlags): XmlDtdFlags {
 interface XmlEntityIndex {
     name: XmlSpan;
     value: XmlSpan;
+    queryUsed: boolean;
+    queryAttribute: boolean;
     parameter: boolean;
     external: boolean;
     unparsed: boolean;
 }
 function copyXmlEntityIndex(value: XmlEntityIndex): XmlEntityIndex {
-    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), parameter: langruntime.checkedBool(value.parameter), external: langruntime.checkedBool(value.external), unparsed: langruntime.checkedBool(value.unparsed) };
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), queryUsed: langruntime.checkedBool(value.queryUsed), queryAttribute: langruntime.checkedBool(value.queryAttribute), parameter: langruntime.checkedBool(value.parameter), external: langruntime.checkedBool(value.external), unparsed: langruntime.checkedBool(value.unparsed) };
 }
 interface XmlDefaultIndex {
     element: XmlSpan;
     name: XmlSpan;
     value: XmlSpan;
+    rawValue: XmlSpan;
     tokenized: boolean;
     hasDefault: boolean;
     cost: bigint;
 }
 function copyXmlDefaultIndex(value: XmlDefaultIndex): XmlDefaultIndex {
-    return { element: copyXmlSpan(value.element), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), tokenized: langruntime.checkedBool(value.tokenized), hasDefault: langruntime.checkedBool(value.hasDefault), cost: langruntime.checkedI64(value.cost) };
+    return { element: copyXmlSpan(value.element), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), rawValue: copyXmlSpan(value.rawValue), tokenized: langruntime.checkedBool(value.tokenized), hasDefault: langruntime.checkedBool(value.hasDefault), cost: langruntime.checkedI64(value.cost) };
 }
 function xmlCollapseSpace(input: string): string {
     input = langruntime.checkedString(input);
@@ -46984,7 +46987,7 @@ function xmlRegisterAttributes(input: XmlEntityArena, item: XmlDtdItem, depth: n
                 const storedValue: string = xmlSourceRange(storedSource, value);
                 defaultCost = langruntime.checkedI64(langruntime.checkedI64Add(defaultCost, xmlOctets(storedValue)));
             }
-            langruntime.pushStruct(defaults, { element: copyXmlSpan(item.name), name: copyXmlSpan(attribute.name), value: copyXmlSpan(value), tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost }, copyXmlDefaultIndex);
+            langruntime.pushStruct(defaults, { element: copyXmlSpan(item.name), name: copyXmlSpan(attribute.name), value: copyXmlSpan(value), rawValue: copyXmlSpan(attribute.value), tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost }, copyXmlDefaultIndex);
             state = copyXmlEntityArena({ arena: state.arena, entities: state.entities, defaults: defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost });
         }
     }
@@ -47204,7 +47207,7 @@ function xmlRegisterEntity(input: XmlEntityArena, item: XmlDtdItem, depth: numbe
         return xmlDtdInvalid(state);
     }
     let entries: XmlEntityIndex[] = state.entities;
-    langruntime.pushStruct(entries, { name: copyXmlSpan(item.name), value: copyXmlSpan(value), parameter: parameter, external: item.external, unparsed: item.unparsed }, copyXmlEntityIndex);
+    langruntime.pushStruct(entries, { name: copyXmlSpan(item.name), value: copyXmlSpan(value), queryUsed: false, queryAttribute: false, parameter: parameter, external: item.external, unparsed: item.unparsed }, copyXmlEntityIndex);
     return { arena: state.arena, entities: entries, defaults: state.defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost };
 }
 function xmlExpandEntity(arena: XmlEntityArena, name: string, attribute: boolean, depth: number, priorCost: bigint, consumed: bigint): XmlExpansion {
@@ -48537,6 +48540,187 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
     }
     return { valid: depth === 0 && (document === false || roots === 1), cost: cost, nodes: copyXmlNodeList(text.nodes), cache: cache.entries };
 }
+function xmlQueryNamespaceAttributeText(name: string): boolean {
+    name = langruntime.checkedString(name);
+    const source: XmlSource = { characters: Array.from(name) };
+    return name === "xmlns" || xmlAt(source, 0, "xmlns:");
+}
+function xmlQueryAttributeSource(source: XmlSource, value: XmlSpan, tokenized: boolean): string {
+    value = copyXmlSpan(value);
+    tokenized = langruntime.checkedBool(tokenized);
+    let output: string = "";
+    let position: number = value.start;
+    while (position < value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (xmlPredefinedReference(source, position)) {
+                const scalar: string = xmlReferenceScalar(source, position);
+                if (scalar === "&") {
+                    output = output + "&#38;";
+                }
+                else {
+                    output = output + langruntime.checkedChar(scalar);
+                }
+            }
+            else {
+                const span: XmlSpan = copyXmlSpan({ start: position, end: reference.next });
+                const text: string = xmlSourceRange(source, span);
+                output = output + text;
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            if (xmlSpace(character)) {
+                output = output + langruntime.checkedChar(" ");
+                if (character === "\r" && langruntime.checkedAdd(position, 1) < value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            else {
+                output = output + langruntime.checkedChar(character);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (tokenized) {
+        return xmlCollapseSpace(output);
+    }
+    return output;
+}
+function xmlQueryEntityContent(arena: XmlEntityArena, name: string): string {
+    name = langruntime.checkedString(name);
+    const index: number = xmlEntityLookup(arena, name, false);
+    if (index === arena.entities.length) {
+        return "";
+    }
+    const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+    if (entity.external) {
+        return "";
+    }
+    const source: XmlSource = { characters: Array.from(arena.arena) };
+    if (entity.queryUsed && entity.queryAttribute === false) {
+        return xmlTreeNormalize(source, entity.value.start, entity.value.end);
+    }
+    return xmlSourceRange(source, entity.value);
+}
+function xmlQueryAttributeEntities(source: XmlSource, value: XmlSpan, arena: XmlEntityArena): string {
+    value = copyXmlSpan(value);
+    let output: string = "";
+    let position: number = value.start;
+    while (position < value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (xmlPredefinedReference(source, position)) {
+                output = output + langruntime.checkedChar(xmlReferenceScalar(source, position));
+            }
+            else {
+                const nameSpan: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const name: string = xmlSourceRange(source, nameSpan);
+                const expanded: string = xmlQueryEntityContent(arena, name);
+                const nested: XmlSource = { characters: Array.from(expanded) };
+                const bodySpan: XmlSpan = copyXmlSpan({ start: 0, end: nested.characters.length });
+                const text: string = xmlQueryAttributeEntities(nested, bodySpan, arena);
+                output = output + text;
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return output;
+}
+function xmlQueryAttributeValue(source: XmlSource, value: XmlSpan, arena: XmlEntityArena, tokenized: boolean): string {
+    value = copyXmlSpan(value);
+    tokenized = langruntime.checkedBool(tokenized);
+    const text: string = xmlQueryAttributeSource(source, value, tokenized);
+    const normalized: XmlSource = { characters: Array.from(text) };
+    const span: XmlSpan = copyXmlSpan({ start: 0, end: normalized.characters.length });
+    return xmlQueryAttributeEntities(normalized, span, arena);
+}
+export function xmlQueryEntityMark(input: XmlEntityArena, index: number, attribute: boolean): XmlEntityArena {
+    let entities: XmlEntityIndex[] = input.entities;
+    const entry: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+    entities[langruntime.checkedIndexIn(entities, index)] = copyXmlEntityIndex({ name: copyXmlSpan(entry.name), value: copyXmlSpan(entry.value), queryUsed: true, queryAttribute: attribute, parameter: entry.parameter, external: entry.external, unparsed: entry.unparsed });
+    return { arena: input.arena, entities: entities, defaults: input.defaults, flags: copyXmlDtdFlags(input.flags), cost: input.cost };
+}
+export function xmlQueryPrepareEntities(input: XmlEntityArena, source: XmlSource, start: number, attribute: boolean): XmlEntityArena {
+    let arena: XmlEntityArena = input;
+    let position: number = start;
+    let tag: boolean = false;
+    let quote: string = " ";
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (attribute === false && quote === " " && xmlAt(source, position, "<!--")) {
+            const end: XmlScan = copyXmlScan(xmlComment(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (attribute === false && quote === " " && xmlAt(source, position, "<![CDATA[")) {
+            const end: XmlScan = copyXmlScan(xmlCdata(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (attribute === false && quote === " " && xmlAt(source, position, "<?")) {
+            const end: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false) {
+                return arena;
+            }
+            if (xmlPredefinedReference(source, position) === false) {
+                const span: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const name: string = xmlSourceRange(source, span);
+                const index: number = xmlEntityLookup(arena, name, false);
+                if (index < arena.entities.length && langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex).queryUsed === false) {
+                    const inAttribute: boolean = attribute || !(quote === " ");
+                    arena = xmlQueryEntityMark(arena, index, inAttribute);
+                    const text: string = xmlQueryEntityContent(arena, name);
+                    const nested: XmlSource = { characters: Array.from(text) };
+                    arena = xmlQueryPrepareEntities(arena, nested, 0, inAttribute);
+                }
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            if (attribute === false) {
+                if (!(quote === " ")) {
+                    if (character === quote) {
+                        quote = langruntime.checkedChar(" ");
+                    }
+                }
+                else if (tag && (character === "'" || character === "\"")) {
+                    quote = langruntime.checkedChar(character);
+                }
+                else if (character === "<") {
+                    tag = langruntime.checkedBool(true);
+                }
+                else if (character === ">") {
+                    tag = langruntime.checkedBool(false);
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return arena;
+}
+function xmlQueryPreserveEntity(arena: XmlEntityArena, name: string): boolean {
+    name = langruntime.checkedString(name);
+    const index: number = xmlEntityLookup(arena, name, false);
+    return index < arena.entities.length && langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex).queryAttribute;
+}
+function xmlTreeSourceText(source: XmlSource, start: number, end: number, preserveCarriage: boolean): string {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    preserveCarriage = langruntime.checkedBool(preserveCarriage);
+    if (preserveCarriage) {
+        return xmlSourceRange(source, { start: start, end: end });
+    }
+    return xmlTreeNormalize(source, start, end);
+}
 interface XmlQueryName {
     qualified: string;
     local: string;
@@ -48709,25 +48893,27 @@ function xmlQueryNamesValid(tree: XmlTree): boolean {
         while (index < node.attributeEnd) {
             const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
             if (xmlQueryNamespaceAttribute(tree, attribute.name)) {
-                const name1: string = xmlTreeText(tree, attribute.name);
-                const uri: string = xmlTreeText(tree, attribute.value);
-                if (xmlQueryUriValid(uri) === false) {
-                    return false;
-                }
-                if (xmlQueryQnameValid(tree, attribute.name) === false || name1 === "xmlns:xmlns") {
-                    return false;
-                }
-                if (name1 === "xmlns:xml") {
-                    if (!(uri === "http://www.w3.org/XML/1998/namespace")) {
+                if (attribute.defaulted === false) {
+                    const name1: string = xmlTreeText(tree, attribute.name);
+                    const uri: string = xmlTreeText(tree, attribute.value);
+                    if (xmlQueryUriValid(uri) === false) {
                         return false;
                     }
-                }
-                else {
-                    if (uri === "http://www.w3.org/XML/1998/namespace" || uri === "http://www.w3.org/2000/xmlns/") {
+                    if (xmlQueryQnameValid(tree, attribute.name) === false || name1 === "xmlns:xmlns") {
                         return false;
                     }
-                    if (!(name1 === "xmlns") && uri === "") {
-                        return false;
+                    if (name1 === "xmlns:xml") {
+                        if (!(uri === "http://www.w3.org/XML/1998/namespace")) {
+                            return false;
+                        }
+                    }
+                    else {
+                        if (uri === "http://www.w3.org/XML/1998/namespace" || uri === "http://www.w3.org/2000/xmlns/") {
+                            return false;
+                        }
+                        if (!(name1 === "xmlns") && uri === "") {
+                            return false;
+                        }
                     }
                 }
             }
@@ -49567,9 +49753,10 @@ function xmlTextPlain(source: XmlSource, start: number, input: XmlTextState, roo
 interface XmlTreeAttribute {
     name: XmlSpan;
     value: XmlSpan;
+    defaulted: boolean;
 }
 function copyXmlTreeAttribute(value: XmlTreeAttribute): XmlTreeAttribute {
-    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value) };
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), defaulted: langruntime.checkedBool(value.defaulted) };
 }
 interface XmlTreeNode {
     kind: number;
@@ -49687,9 +49874,9 @@ export function xmlTreeSpace(input: XmlTree, index: number, preserve: boolean, t
 export function xmlTreeUnsupported(input: XmlTree): XmlTree {
     return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false };
 }
-export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan): XmlTree {
+export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: boolean): XmlTree {
     let attributes: XmlTreeAttribute[] = input.attributes;
-    langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value) }, copyXmlTreeAttribute);
+    langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value), defaulted: defaulted }, copyXmlTreeAttribute);
     return { nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
 }
 export function xmlTreeLeaf(input: XmlTree, kind: number, name: XmlSpan, value: XmlSpan): XmlTree {
@@ -49736,7 +49923,7 @@ export function xmlTreeAddText(input: XmlTree, text: string, forced: boolean, cl
     const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
     return xmlTreeLeaf(stored, 2, empty, value);
 }
-export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: XmlEntityArena, start: number, input: XmlTree, entity: boolean): XmlTree {
+export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: XmlEntityArena, start: number, input: XmlTree, entity: boolean, preserveCarriage: boolean): XmlTree {
     let tree: XmlTree = input;
     const root: number = tree.current;
     const outside: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(root), copyXmlTreeNode));
@@ -49755,7 +49942,7 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
         }
         else if (xmlAt(source, position, "<!--")) {
             const scanned: XmlScan = copyXmlScan(xmlComment(source, position));
-            const text: string = xmlTreeNormalize(source, langruntime.checkedAdd(position, 4), langruntime.checkedSubtract(scanned.next, 3));
+            const text: string = xmlTreeSourceText(source, langruntime.checkedAdd(position, 4), langruntime.checkedSubtract(scanned.next, 3), preserveCarriage);
             tree = xmlTreeStore(tree, text);
             const value: XmlSpan = copyXmlSpan(tree.written);
             const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
@@ -49770,7 +49957,7 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
             tree = xmlTreeStore(tree, text);
             const nameSpan: XmlSpan = copyXmlSpan(tree.written);
             const begin: number = xmlSkipSpace(source, name.next);
-            const valueText: string = xmlTreeNormalize(source, begin, langruntime.checkedSubtract(scanned.next, 2));
+            const valueText: string = xmlTreeSourceText(source, begin, langruntime.checkedSubtract(scanned.next, 2), preserveCarriage);
             tree = xmlTreeStore(tree, valueText);
             const value: XmlSpan = copyXmlSpan(tree.written);
             tree = xmlTreeLeaf(tree, 5, nameSpan, value);
@@ -49778,7 +49965,7 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
         }
         else if (xmlAt(source, position, "<![CDATA[")) {
             const scanned: XmlScan = copyXmlScan(xmlCdata(source, position));
-            const text: string = xmlTreeNormalize(source, langruntime.checkedAdd(position, 9), langruntime.checkedSubtract(scanned.next, 3));
+            const text: string = xmlTreeSourceText(source, langruntime.checkedAdd(position, 9), langruntime.checkedSubtract(scanned.next, 3), preserveCarriage);
             tree = xmlTreeStore(tree, text);
             const value: XmlSpan = copyXmlSpan(tree.written);
             const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
@@ -49811,14 +49998,17 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
                 if (arena.defaults.length > 0) {
                     tokenized = langruntime.checkedBool(xmlAttributeTokenized(source, arena, spelling, attributeSpan));
                 }
-                if (tokenized) {
+                if (tree.flags.query && xmlQueryNamespaceAttributeText(attributeText) === false) {
+                    value = langruntime.checkedString(xmlQueryAttributeValue(source, quoted.value, arena, tokenized));
+                }
+                else if (tokenized) {
                     value = langruntime.checkedString(xmlCollapseSpace(value));
                 }
                 tree = xmlTreeStore(tree, attributeText);
                 const attributeName: XmlSpan = copyXmlSpan(tree.written);
                 tree = xmlTreeStore(tree, value);
                 const attributeValue: XmlSpan = copyXmlSpan(tree.written);
-                tree = xmlTreeAddAttribute(tree, attributeName, attributeValue);
+                tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, false);
                 position = langruntime.checkedIndex(xmlSkipSpace(source, quoted.next));
             }
             const explicitEnd: number = tree.attributes.length;
@@ -49841,12 +50031,15 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
                         attribute = langruntime.checkedAdd(attribute, 1);
                     }
                     if (present === false && allowed) {
-                        const valueText: string = xmlSourceRange(stored, item.value);
+                        let valueText: string = xmlSourceRange(stored, item.value);
+                        if (tree.flags.query) {
+                            valueText = langruntime.checkedString(xmlQueryAttributeSource(stored, item.rawValue, item.tokenized));
+                        }
                         tree = xmlTreeStore(tree, attributeText);
                         const attributeName: XmlSpan = copyXmlSpan(tree.written);
                         tree = xmlTreeStore(tree, valueText);
                         const attributeValue: XmlSpan = copyXmlSpan(tree.written);
-                        tree = xmlTreeAddAttribute(tree, attributeName, attributeValue);
+                        tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, true);
                     }
                 }
                 index = langruntime.checkedAdd(index, 1);
@@ -49898,18 +50091,20 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
                     const parent: number = tree.current;
                     tree = xmlTreeStore(tree, spelling);
                     const name1: XmlSpan = copyXmlSpan(tree.written);
-                    tree = xmlTreeStore(tree, expanded.text);
+                    const content: string = xmlQueryEntityContent(arena, spelling);
+                    tree = xmlTreeStore(tree, content);
                     const value: XmlSpan = copyXmlSpan(tree.written);
                     const child: number = tree.nodes.length;
                     tree = xmlTreeLeaf(tree, 7, name1, value);
                     tree = xmlTreeCurrent(tree, child);
-                    const nested: XmlSource = { characters: Array.from(expanded.text) };
-                    tree = xmlTreeParseNodes(nested, stored, arena, 0, tree, true);
+                    const nested: XmlSource = { characters: Array.from(content) };
+                    const preserve: boolean = xmlQueryPreserveEntity(arena, spelling);
+                    tree = xmlTreeParseNodes(nested, stored, arena, 0, tree, true, preserve);
                     tree = xmlTreeCurrent(tree, parent);
                 }
                 else {
                     const nested: XmlSource = { characters: Array.from(expanded.text) };
-                    tree = xmlTreeParseNodes(nested, stored, arena, 0, tree, true);
+                    tree = xmlTreeParseNodes(nested, stored, arena, 0, tree, true, false);
                 }
             }
             position = langruntime.checkedIndex(reference.next);
@@ -49919,7 +50114,7 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
             while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "<") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&")) {
                 position = langruntime.checkedAdd(position, 1);
             }
-            const text: string = xmlTreeNormalize(source, begin, position);
+            const text: string = xmlTreeSourceText(source, begin, position, preserveCarriage);
             const closing: boolean = xmlAt(source, position, "</");
             const end: boolean = position === source.characters.length;
             const reference: boolean = end === false && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&" && !(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(tree.current), copyXmlTreeNode).blankPolicy === 0);
@@ -49986,6 +50181,9 @@ function xmlTreeParse(input: string, document: boolean, query: boolean): XmlTree
         doctypeEnd = langruntime.checkedIndex(parsed.next);
         effectiveDocument = langruntime.checkedBool(true);
     }
+    if (query && doctypeEnd > 0) {
+        arena = xmlQueryPrepareEntities(arena, source, doctypeEnd, false);
+    }
     const characters: string[] = Array.from(version);
     const versionSpan: XmlSpan = copyXmlSpan({ start: 0, end: characters.length });
     const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
@@ -49996,7 +50194,7 @@ function xmlTreeParse(input: string, document: boolean, query: boolean): XmlTree
     const declarations: XmlTreeDtdEntry[] = [];
     const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true };
     const storedSource: XmlSource = { characters: Array.from(arena.arena) };
-    return xmlTreeParseNodes(source, storedSource, arena, declaration.next, tree, false);
+    return xmlTreeParseNodes(source, storedSource, arena, declaration.next, tree, false, false);
 }
 function xmlWellFormed(input: string, document: boolean): boolean {
     input = langruntime.checkedString(input);
@@ -50302,6 +50500,71 @@ function xpathLocalAxis(tree: XmlTree, context: XPathReference, axis: number): X
     }
     return result;
 }
+function xpathReferenceString(tree: XmlTree, graph: XPathGraph, value: XPathReference): string {
+    value = copyXPathReference(value);
+    if (!(value.kind === 0)) {
+        return xpathReferenceLeaf(tree, value);
+    }
+    const kind: number = langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(value.node), copyXmlTreeNode).kind;
+    if (kind >= 2 && kind <= 5) {
+        return xpathReferenceLeaf(tree, value);
+    }
+    if (!(kind === 0) && !(kind === 1) && !(kind === 14) && !(kind === 7)) {
+        return "";
+    }
+    let root: number = value.node;
+    if (kind === 7) {
+        root = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(root), copyXPathGraphNode).first);
+        if (root === 0) {
+            return "";
+        }
+    }
+    let cursor: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(root), copyXPathGraphNode).first;
+    let output: string = "";
+    let returns: number[] = [];
+    let depth: number = 0;
+    while (cursor > 0 || depth > 0) {
+        if (cursor === 0) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            cursor = langruntime.checkedIndex(langruntime.indexNumber(returns, langruntime.checkedIndex(depth)));
+        }
+        else {
+            const node: XPathGraphNode = copyXPathGraphNode(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode));
+            let child: number = 0;
+            if (node.kind === 2 || node.kind === 3) {
+                const content: XmlSpan = copyXmlSpan(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode).value);
+                let position: number = content.start;
+                while (position < content.end) {
+                    output = output + langruntime.checkedChar(langruntime.indexChar(tree.characters, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            else if (node.kind === 7) {
+                const declaration: number = node.first;
+                if (declaration > 0) {
+                    child = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(declaration), copyXPathGraphNode).first);
+                }
+            }
+            else if (!(node.kind === 4) && !(node.kind === 5)) {
+                child = langruntime.checkedIndex(node.first);
+            }
+            if (child > 0) {
+                if (depth < returns.length) {
+                    returns[langruntime.checkedIndexIn(returns, depth)] = langruntime.checkedIndex(node.next);
+                }
+                else {
+                    langruntime.pushIndex(returns, node.next);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                cursor = langruntime.checkedIndex(child);
+            }
+            else {
+                cursor = langruntime.checkedIndex(node.next);
+            }
+        }
+    }
+    return output;
+}
 interface XPathGraphNode {
     kind: number;
     parent: number;
@@ -50504,7 +50767,7 @@ function xpathDocumentParse(input: string): XPathDocument {
         return { tree: tree, graph: graph };
     }
     const parsed: XmlSubsetResult = xmlReadDoctype(input, position, declaration.standalone);
-    const arena: XmlEntityArena = parsed.state;
+    const arena: XmlEntityArena = xmlQueryPrepareEntities(parsed.state, source, parsed.next, false);
     const stored: XmlSource = { characters: Array.from(arena.arena) };
     const entries: number[] = [];
     let uses: XPathEntityUses = { entries: entries };
@@ -50545,10 +50808,10 @@ function xpathDocumentParse(input: string): XPathDocument {
             const name: string = xmlSourceRange(stored, entity.name);
             const owner: number = xpathGraphEntity(definitions, name);
             if (owner > 0) {
-                const text: string = xmlSourceRange(stored, entity.value);
+                const text: string = xmlQueryEntityContent(arena, name);
                 const source1: XmlSource = { characters: Array.from(text) };
                 tree = xmlTreeCurrent(tree, owner);
-                tree = xmlTreeParseNodes(source1, stored, arena, 0, tree, true);
+                tree = xmlTreeParseNodes(source1, stored, arena, 0, tree, true, entity.queryAttribute);
             }
         }
         index = langruntime.checkedAdd(index, 1);
@@ -50735,6 +50998,268 @@ function xpathNodeAncestor(tree: XmlTree, ancestor: number, node: number): boole
         }
     }
     return false;
+}
+interface XPathPowers {
+    bits: XPathPower[];
+}
+function copyXPathPowers(value: XPathPowers): XPathPowers {
+    return { bits: langruntime.checkedStructs(value.bits, copyXPathPower) };
+}
+interface XPathPower {
+    bits: bigint;
+}
+function copyXPathPower(value: XPathPower): XPathPower {
+    return { bits: langruntime.checkedI64(value.bits) };
+}
+interface XPathNumberParts {
+    valid: boolean;
+    negative: boolean;
+    integer: bigint;
+    fraction: bigint;
+    places: number;
+    exponent: number;
+}
+function copyXPathNumberParts(value: XPathNumberParts): XPathNumberParts {
+    return { valid: langruntime.checkedBool(value.valid), negative: langruntime.checkedBool(value.negative), integer: langruntime.checkedI64(value.integer), fraction: langruntime.checkedI64(value.fraction), places: langruntime.checkedI32(value.places), exponent: langruntime.checkedI32(value.exponent) };
+}
+function xpathPowersEmpty(): XPathPowers {
+    const bits: XPathPower[] = [];
+    return { bits: bits };
+}
+export function xpathPowersPush(input: XPathPowers, value: bigint): XPathPowers {
+    let bits: XPathPower[] = input.bits;
+    langruntime.pushStruct(bits, { bits: value }, copyXPathPower);
+    return { bits: bits };
+}
+function xpathPowerTen(profile: XPathPowers, exponent: number): checkruntime.Float8Value {
+    exponent = langruntime.checkedI32(exponent);
+    if (exponent >= 0 && exponent <= 22) {
+        let value: number = 1.0;
+        let position: number = 0;
+        while (position < exponent) {
+            value = langruntime.checkedF64(langruntime.f64Multiply(value, 10.0));
+            position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+        }
+        return checkruntime.makeFloat8Value(value);
+    }
+    if (exponent > 308) {
+        return checkruntime.makeFloat8Value(langruntime.f64Divide(1.0, 0.0));
+    }
+    if (exponent < langruntime.checkedSignedNegate(323)) {
+        return checkruntime.makeFloat8Value(0.0);
+    }
+    if (!(profile.bits.length === 632)) {
+        return { kind: "Unknown" };
+    }
+    const position: number = langruntime.indexFromI32(langruntime.checkedSignedAdd(exponent, 323), 0);
+    return checkruntime.makeFloat8Bits(langruntime.indexStruct(profile.bits, langruntime.checkedIndex(position), copyXPathPower).bits);
+}
+function xpathNumberParts(input: string): XPathNumberParts {
+    input = langruntime.checkedString(input);
+    const invalid: XPathNumberParts = copyXPathNumberParts({ valid: false, negative: false, integer: 0n, fraction: 0n, places: 0, exponent: 0 });
+    const source: XmlSource = { characters: Array.from(input) };
+    let position: number = xmlSkipSpace(source, 0);
+    let negative: boolean = false;
+    if (xmlAt(source, position, "-")) {
+        negative = langruntime.checkedBool(true);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let integer: number = 0.0;
+    let fraction: number = 0.0;
+    let places: number = 0;
+    let found: boolean = false;
+    while (position < source.characters.length && xmlQueryUriDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        const digit: number = Number(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+        const product: number = langruntime.f64Multiply(integer, 10.0);
+        integer = langruntime.checkedF64(langruntime.f64Add(product, digit));
+        found = langruntime.checkedBool(true);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (xmlAt(source, position, ".")) {
+        position = langruntime.checkedAdd(position, 1);
+        if (position < source.characters.length && xmlQueryUriDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+            found = langruntime.checkedBool(true);
+        }
+        while (xmlAt(source, position, "0")) {
+            places = langruntime.checkedI32(langruntime.checkedSignedAdd(places, 1));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const limit: number = langruntime.checkedSignedAdd(places, 20);
+        while (position < source.characters.length && xmlQueryUriDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) && places < limit) {
+            const digit: number = Number(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+            const product: number = langruntime.f64Multiply(fraction, 10.0);
+            fraction = langruntime.checkedF64(langruntime.f64Add(product, digit));
+            places = langruntime.checkedI32(langruntime.checkedSignedAdd(places, 1));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        while (position < source.characters.length && xmlQueryUriDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (found === false) {
+        return invalid;
+    }
+    let exponent: number = 0;
+    if (xmlAt(source, position, "e") || xmlAt(source, position, "E")) {
+        position = langruntime.checkedAdd(position, 1);
+        let sign: number = 1;
+        if (xmlAt(source, position, "-")) {
+            sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else if (xmlAt(source, position, "+")) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        while (position < source.characters.length && xmlQueryUriDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+            if (exponent < 1000000) {
+                exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        exponent = langruntime.checkedI32(langruntime.checkedSignedMultiply(exponent, sign));
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (!(position === source.characters.length)) {
+        return invalid;
+    }
+    return { valid: true, negative: negative, integer: langruntime.f64ToI64Bits(integer), fraction: langruntime.f64ToI64Bits(fraction), places: places, exponent: exponent };
+}
+function xpathNumberText(input: string, powers: XPathPowers): XPathValue {
+    input = langruntime.checkedString(input);
+    const parts: XPathNumberParts = copyXPathNumberParts(xpathNumberParts(input));
+    if (parts.valid === false) {
+        return xpathValueNumber(langruntime.f64Divide(0.0, 0.0));
+    }
+    let integer: number = langruntime.f64FromI64Bits(parts.integer);
+    const fraction: number = langruntime.f64FromI64Bits(parts.fraction);
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (!(fraction === 0.0) && !(integer === infinity)) {
+        const divisor: checkruntime.Float8Value = xpathPowerTen(powers, parts.places);
+        let known: boolean = false;
+        if (divisor.kind === "Value") {
+            const bits: bigint = langruntime.checkedI64(divisor.value);
+            const power: number = langruntime.f64FromI64Bits(bits);
+            const quotient: number = langruntime.f64Divide(fraction, power);
+            integer = langruntime.checkedF64(langruntime.f64Add(integer, quotient));
+            known = langruntime.checkedBool(true);
+        }
+        if (known === false) {
+            return xpathValueEmpty(xpathKindNumber, 1);
+        }
+    }
+    if (parts.negative) {
+        integer = langruntime.checkedF64(langruntime.f64Negate(integer));
+    }
+    const factor: checkruntime.Float8Value = xpathPowerTen(powers, parts.exponent);
+    if (factor.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(factor.value);
+        const power: number = langruntime.f64FromI64Bits(bits);
+        return xpathValueNumber(langruntime.f64Multiply(integer, power));
+    }
+    if (integer === 0.0 || langruntime.f64Abs(integer) === infinity) {
+        return xpathValueNumber(integer);
+    }
+    return xpathValueEmpty(xpathKindNumber, 1);
+}
+function xpathNumberRounded(work: NumericWork, scale: number): NumericWork {
+    work = copyNumericWork(work);
+    scale = langruntime.checkedI32(scale);
+    const digits: string[] = Array.from(work.digits);
+    const wanted: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(work.weight, scale), 1);
+    let mode: number = 1;
+    if (wanted > 0) {
+        const index: number = langruntime.indexFromI32(wanted, 0);
+        if (index < digits.length && langruntime.indexChar(digits, langruntime.checkedIndex(index)) === "5") {
+            let cursor: number = langruntime.checkedAdd(index, 1);
+            let tie: boolean = true;
+            while (cursor < digits.length) {
+                if (!(langruntime.indexChar(digits, langruntime.checkedIndex(cursor)) === "0")) {
+                    tie = langruntime.checkedBool(false);
+                }
+                cursor = langruntime.checkedAdd(cursor, 1);
+            }
+            if (tie && langruntime.checkedSignedRemainder(numericWireDecimalDigit(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)))), 2) === 0) {
+                mode = langruntime.checkedI32(0);
+            }
+        }
+    }
+    return numericWorkRounded(work, scale, mode);
+}
+function xpathNumberString(bits: bigint): string {
+    bits = langruntime.checkedI64(bits);
+    const number: number = langruntime.f64FromI64Bits(bits);
+    if (!(number === number)) {
+        return "NaN";
+    }
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (number === infinity) {
+        return "Infinity";
+    }
+    if (number === langruntime.f64Negate(infinity)) {
+        return "-Infinity";
+    }
+    if (number === 0.0) {
+        return "0";
+    }
+    if (number > -2147483648.0 && number < 2147483647.0) {
+        const integer: number = langruntime.f64ToI32(number);
+        if (number === Number(langruntime.checkedI32(integer))) {
+            return checkruntime.textSignedNumber(BigInt(langruntime.checkedI32(integer)));
+        }
+    }
+    const absolute: number = langruntime.f64Abs(number);
+    const exact: NumericWork = floatExactDecimal(absolute);
+    const scientific: boolean = absolute > 1000000000.0 || absolute < 0.00001;
+    let places: number = exact.weight;
+    if (absolute < 1.0) {
+        places = langruntime.checkedI32(langruntime.checkedSignedAdd(places, 1));
+    }
+    let scale: number = langruntime.checkedSignedSubtract(15, places);
+    if (places > 0) {
+        scale = langruntime.checkedI32(langruntime.checkedSignedSubtract(scale, 1));
+    }
+    if (scientific) {
+        scale = langruntime.checkedI32(langruntime.checkedSignedSubtract(14, exact.weight));
+    }
+    const rounded: NumericWork = xpathNumberRounded(exact, scale);
+    let output: string = "";
+    if (number < 0.0) {
+        output = output + langruntime.checkedChar("-");
+    }
+    if (scientific) {
+        const digits: string[] = Array.from(rounded.digits);
+        if (digits.length > 0) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(0)));
+        }
+        if (digits.length > 1) {
+            output = output + langruntime.checkedChar(".");
+            let position: number = 1;
+            while (position < digits.length) {
+                output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        output = output + langruntime.checkedChar("e");
+        let exponent: number = rounded.weight;
+        if (exponent >= 0) {
+            output = output + langruntime.checkedChar("+");
+        }
+        else {
+            output = output + langruntime.checkedChar("-");
+            exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, exponent));
+        }
+        if (exponent < 10) {
+            output = output + langruntime.checkedChar("0");
+        }
+        const text: string = checkruntime.textNumber(exponent, 10);
+        output = output + text;
+        return output;
+    }
+    const minimum: number = numericWorkMinScale(copyNumericWork(rounded));
+    const result: NumericWork = { valid: true, special: 1, sign: 1, weight: rounded.weight, scale: minimum, digits: rounded.digits };
+    const text: string = numericWorkText(result);
+    output = output + text;
+    return output;
 }
 function xpathParseOperator(program: XPathProgram, position: number): number {
     position = langruntime.checkedIndex(position);
@@ -51209,6 +51734,9 @@ export function xpathParseLiteral(input: XPathProgram): XPathProgram {
     const quote: string = langruntime.indexChar(input.source, langruntime.checkedIndex(begin));
     let position: number = langruntime.checkedAdd(begin, 1);
     while (position < input.source.length && !(langruntime.indexChar(input.source, langruntime.checkedIndex(position)) === quote)) {
+        if (xmlCharacter(langruntime.indexChar(input.source, langruntime.checkedIndex(position))) === false) {
+            return xpathParseFail(input);
+        }
         position = langruntime.checkedAdd(position, 1);
     }
     if (position >= input.source.length) {
@@ -51503,6 +52031,77 @@ function xpathLocalAxisTest(tree: XmlTree, context: XPathReference, axis: number
         position = langruntime.checkedAdd(position, 1);
     }
     return result;
+}
+const xpathKindNodes = 1;
+const xpathKindBoolean = 2;
+const xpathKindNumber = 3;
+const xpathKindString = 4;
+interface XPathValue {
+    kind: number;
+    state: number;
+    boolean: boolean;
+    number: bigint;
+    text: string;
+    nodes: XPathSequence;
+}
+function copyXPathValue(value: XPathValue): XPathValue {
+    return { kind: langruntime.checkedI32(value.kind), state: langruntime.checkedI32(value.state), boolean: langruntime.checkedBool(value.boolean), number: langruntime.checkedI64(value.number), text: langruntime.checkedString(value.text), nodes: copyXPathSequence(value.nodes) };
+}
+interface XPathContext {
+    node: XPathReference;
+    position: number;
+    size: number;
+}
+function copyXPathContext(value: XPathContext): XPathContext {
+    return { node: copyXPathReference(value.node), position: langruntime.checkedI32(value.position), size: langruntime.checkedI32(value.size) };
+}
+function xpathValueEmpty(kind: number, state: number): XPathValue {
+    kind = langruntime.checkedI32(kind);
+    state = langruntime.checkedI32(state);
+    const values: XPathReference[] = [];
+    const nodes: XPathSequence = { values: values, cyclic: false, cycle: 0 };
+    return { kind: kind, state: state, boolean: false, number: 0n, text: "", nodes: nodes };
+}
+function xpathValueBoolean(boolean: boolean): XPathValue {
+    boolean = langruntime.checkedBool(boolean);
+    const values: XPathReference[] = [];
+    const nodes: XPathSequence = { values: values, cyclic: false, cycle: 0 };
+    return { kind: xpathKindBoolean, state: 0, boolean: boolean, number: 0n, text: "", nodes: nodes };
+}
+function xpathValueNumber(number: number): XPathValue {
+    number = langruntime.checkedF64(number);
+    const values: XPathReference[] = [];
+    const nodes: XPathSequence = { values: values, cyclic: false, cycle: 0 };
+    let bits: bigint = langruntime.f64ToI64Bits(number);
+    if (!(number === number)) {
+        bits = langruntime.checkedI64(9221120237041090560n);
+    }
+    return { kind: xpathKindNumber, state: 0, boolean: false, number: bits, text: "", nodes: nodes };
+}
+export function xpathValueString(text: string): XPathValue {
+    const values: XPathReference[] = [];
+    const nodes: XPathSequence = { values: values, cyclic: false, cycle: 0 };
+    return { kind: xpathKindString, state: 0, boolean: false, number: 0n, text: text, nodes: nodes };
+}
+export function xpathValueNodes(nodes: XPathSequence): XPathValue {
+    let state: number = 0;
+    if (nodes.cyclic) {
+        state = langruntime.checkedI32(1);
+    }
+    return { kind: xpathKindNodes, state: state, boolean: false, number: 0n, text: "", nodes: nodes };
+}
+function xpathValueTruth(input: XPathValue): boolean {
+    if (input.kind === xpathKindBoolean) {
+        return input.boolean;
+    }
+    if (input.kind === xpathKindNumber) {
+        const number: number = langruntime.f64FromI64Bits(input.number);
+        return number === number && !(number === 0.0);
+    }
+    if (input.kind === xpathKindString) {
+        return !(input.text === "");
+    }
+    return input.nodes.values.length > 0;
 }
 interface XPathCursor {
     node: number;

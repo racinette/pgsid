@@ -137,7 +137,7 @@ fn xpath_document_parse(input: &str) -> XPathDocument {
         return XPathDocument { tree, graph };
     };
     let parsed = xml_read_doctype(input,position,declaration.standalone);
-    let arena = parsed.state;
+    let arena = xml_query_prepare_entities(parsed.state,&source,parsed.next,false);
     let stored = XmlSource { characters: arena.arena.as_str().chars().collect() };
     let entries: Vec<usize> = Vec::new();
     let mut uses = XPathEntityUses { entries };
@@ -174,10 +174,10 @@ fn xpath_document_parse(input: &str) -> XPathDocument {
             let name = xml_source_range(&stored,entity.name);
             let owner = xpath_graph_entity(&definitions,name.as_str());
             if owner > 0 {
-                let text = xml_source_range(&stored,entity.value);
+                let text = xml_query_entity_content(&arena,name.as_str());
                 let source = XmlSource { characters: text.as_str().chars().collect() };
                 tree = xml_tree_current(tree,owner);
-                tree = xml_tree_parse_nodes(&source,&stored,&arena,0,tree,true);
+                tree = xml_tree_parse_nodes(&source,&stored,&arena,0,tree,true,entity.query_attribute);
             };
         };
         index += 1;

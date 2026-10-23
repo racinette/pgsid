@@ -152,6 +152,18 @@ pub fn xpath_axes_probe(input: TextValue, expected: TextValue, owner: Int4Value,
       '<!DOCTYPE r [<!ATTLIST r xmlns:p CDATA "urn:p" plain CDATA "ignored">]><r><p:a/><b/></r>',
       '<雪 xmlns:p="urn:p" p:属性="値"><😊/>é&amp;&lt;<雪/></雪>',
     ]
+    for (const [prefix, uri] of [
+      ['p', ''],
+      ['xml', 'wrong'],
+      ['xmlns', 'urn:p'],
+      ['1p', 'urn:p'],
+      ['p', '&e;'],
+      ['p', 'urn:a&amp;b'],
+      ['p', ' x   y '],
+    ])
+      samples.push(
+        `<!DOCTYPE r [<!ENTITY e "urn:p"><!ATTLIST r xmlns:${prefix} CDATA "${uri}">]><r/>`,
+      )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let contextCount = 0,

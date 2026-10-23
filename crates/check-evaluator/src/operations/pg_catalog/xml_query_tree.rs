@@ -130,6 +130,7 @@ fn xml_query_names_valid(tree: &XmlTree) -> bool {
         while index < node.attribute_end {
             let attribute = tree.attributes[index];
             if xml_query_namespace_attribute(tree,attribute.name) {
+                if attribute.defaulted == false {
                 let name = xml_tree_text(tree,attribute.name);
                 let uri = xml_tree_text(tree,attribute.value);
                 if xml_query_uri_valid(uri.as_str()) == false { return false; };
@@ -139,6 +140,7 @@ fn xml_query_names_valid(tree: &XmlTree) -> bool {
                 } else {
                     if uri.as_str() == "http://www.w3.org/XML/1998/namespace" || uri.as_str() == "http://www.w3.org/2000/xmlns/" { return false; };
                     if name.as_str() != "xmlns" && uri.as_str() == "" { return false; };
+                };
                 };
             } else {
                 let name = xml_query_expand_name(tree,cursor,attribute.name,true);

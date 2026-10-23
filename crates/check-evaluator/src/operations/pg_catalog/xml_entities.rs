@@ -10,6 +10,8 @@ struct XmlDtdFlags {
 struct XmlEntityIndex {
     name: XmlSpan,
     value: XmlSpan,
+    query_used: bool,
+    query_attribute: bool,
     parameter: bool,
     external: bool,
     unparsed: bool,
@@ -20,6 +22,7 @@ struct XmlDefaultIndex {
     element: XmlSpan,
     name: XmlSpan,
     value: XmlSpan,
+    raw_value: XmlSpan,
     tokenized: bool,
     has_default: bool,
     cost: i64,
@@ -134,6 +137,7 @@ fn xml_register_attributes(
                 element: item.name,
                 name: attribute.name,
                 value: value,
+                raw_value: attribute.value,
                 tokenized: attribute.tokenized,
                 has_default: attribute.has_default,
                 cost: default_cost,
@@ -430,6 +434,8 @@ fn xml_register_entity(input: XmlEntityArena, item: XmlDtdItem, depth: usize) ->
     entries.push(XmlEntityIndex {
         name: item.name,
         value: value,
+        query_used: false,
+        query_attribute: false,
         parameter: parameter,
         external: item.external,
         unparsed: item.unparsed,

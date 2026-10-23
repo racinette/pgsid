@@ -1,5 +1,5 @@
 #[derive(Clone, Copy)]
-struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan }
+struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan, defaulted: bool }
 
 #[derive(Clone, Copy)]
 struct XmlTreeNode {
@@ -96,9 +96,9 @@ pub(crate) fn xml_tree_unsupported(input: XmlTree) -> XmlTree {
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: false }
 }
 
-pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan) -> XmlTree {
+pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: bool) -> XmlTree {
     let mut attributes = input.attributes;
-    attributes.push(XmlTreeAttribute { name, value });
+    attributes.push(XmlTreeAttribute { name, value, defaulted });
     XmlTree { nodes: input.nodes, attributes, characters: input.characters,
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
 }
@@ -138,7 +138,7 @@ pub(crate) fn xml_tree_add_text(input: XmlTree, text: &str, forced: bool, closin
     xml_tree_leaf(stored,2,empty,value)
 }
 
-pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena: &XmlEntityArena, start: usize, input: XmlTree, entity: bool) -> XmlTree {
+pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena: &XmlEntityArena, start: usize, input: XmlTree, entity: bool, preserve_carriage: bool) -> XmlTree {
     let mut tree = input;
     let root = tree.current;
     let outside = tree.nodes[root];
@@ -154,7 +154,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
             position = tree.flags.doctype_end;
         } else if xml_at(source,position,"<!--") {
             let scanned = xml_comment(source,position);
-            let text = xml_tree_normalize(source,position+4,scanned.next-3);
+            let text = xml_tree_source_text(source,position+4,scanned.next-3,preserve_carriage);
             tree = xml_tree_store(tree,text.as_str());
             let value = tree.written;
             let empty = XmlSpan { start: 0, end: 0 };
@@ -168,14 +168,14 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
             tree = xml_tree_store(tree,text.as_str());
             let name_span = tree.written;
             let begin = xml_skip_space(source,name.next);
-            let value_text = xml_tree_normalize(source,begin,scanned.next-2);
+            let value_text = xml_tree_source_text(source,begin,scanned.next-2,preserve_carriage);
             tree = xml_tree_store(tree,value_text.as_str());
             let value = tree.written;
             tree = xml_tree_leaf(tree,5,name_span,value);
             position = scanned.next;
         } else if xml_at(source,position,"<![CDATA[") {
             let scanned = xml_cdata(source,position);
-            let text = xml_tree_normalize(source,position+9,scanned.next-3);
+            let text = xml_tree_source_text(source,position+9,scanned.next-3,preserve_carriage);
             tree = xml_tree_store(tree,text.as_str());
             let value = tree.written;
             let empty = XmlSpan { start: 0, end: 0 };
@@ -204,12 +204,14 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 let mut value = xml_attribute_text(source,quoted.value,arena);
                 let mut tokenized = false;
                 if arena.defaults.len() > 0 { tokenized = xml_attribute_tokenized(source,arena,spelling,attribute_span); };
-                if tokenized { value = xml_collapse_space(value.as_str()); };
+                if tree.flags.query && xml_query_namespace_attribute_text(attribute_text.as_str()) == false {
+                    value = xml_query_attribute_value(source,quoted.value,arena,tokenized);
+                } else if tokenized { value = xml_collapse_space(value.as_str()); };
                 tree = xml_tree_store(tree,attribute_text.as_str());
                 let attribute_name = tree.written;
                 tree = xml_tree_store(tree,value.as_str());
                 let attribute_value = tree.written;
-                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value);
+                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,false);
                 position = xml_skip_space(source,quoted.next);
             }
             let explicit_end = tree.attributes.len();
@@ -230,12 +232,13 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                         attribute += 1;
                     }
                     if present == false && allowed {
-                        let value_text = xml_source_range(stored,item.value);
+                        let mut value_text = xml_source_range(stored,item.value);
+                        if tree.flags.query { value_text = xml_query_attribute_source(stored,item.raw_value,item.tokenized); };
                         tree = xml_tree_store(tree,attribute_text.as_str());
                         let attribute_name = tree.written;
                         tree = xml_tree_store(tree,value_text.as_str());
                         let attribute_value = tree.written;
-                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value);
+                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,true);
                     };
                 };
                 index += 1;
@@ -277,24 +280,26 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                     let parent = tree.current;
                     tree = xml_tree_store(tree,spelling.as_str());
                     let name = tree.written;
-                    tree = xml_tree_store(tree,expanded.text.as_str());
+                    let content = xml_query_entity_content(arena,spelling.as_str());
+                    tree = xml_tree_store(tree,content.as_str());
                     let value = tree.written;
                     let child = tree.nodes.len();
                     tree = xml_tree_leaf(tree,7,name,value);
                     tree = xml_tree_current(tree,child);
-                    let nested = XmlSource { characters: expanded.text.as_str().chars().collect() };
-                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true);
+                    let nested = XmlSource { characters: content.as_str().chars().collect() };
+                    let preserve = xml_query_preserve_entity(arena,spelling.as_str());
+                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true,preserve);
                     tree = xml_tree_current(tree,parent);
                 } else {
                     let nested = XmlSource { characters: expanded.text.as_str().chars().collect() };
-                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true);
+                    tree = xml_tree_parse_nodes(&nested,stored,arena,0,tree,true,false);
                 };
             };
             position = reference.next;
         } else {
             let begin = position;
             while position < source.characters.len() && source.characters[position] != '<' && source.characters[position] != '&' { position += 1; }
-            let text = xml_tree_normalize(source,begin,position);
+            let text = xml_tree_source_text(source,begin,position,preserve_carriage);
             let closing = xml_at(source,position,"</");
             let end = position == source.characters.len();
             let reference = end == false && source.characters[position] == '&' && tree.nodes[tree.current].blank_policy != 0;
@@ -339,6 +344,7 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
         let parsed = xml_read_doctype(input,cursor,declaration.standalone);
         arena = parsed.state; doctype_end = parsed.next; effective_document = true;
     };
+    if query && doctype_end > 0 { arena = xml_query_prepare_entities(arena,&source,doctype_end,false); };
     let characters: Vec<char> = version.as_str().chars().collect();
     let version_span = XmlSpan { start: 0, end: characters.len() };
     let empty = XmlSpan { start: 0, end: 0 };
@@ -351,5 +357,5 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
     let declarations: Vec<XmlTreeDtdEntry> = Vec::new();
     let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true };
     let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };
-    xml_tree_parse_nodes(&source,&stored_source,&arena,declaration.next,tree,false)
+    xml_tree_parse_nodes(&source,&stored_source,&arena,declaration.next,tree,false,false)
 }

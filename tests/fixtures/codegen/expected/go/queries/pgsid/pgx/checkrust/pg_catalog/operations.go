@@ -46581,28 +46581,31 @@ func copyxmlDtdFlags(value xmlDtdFlags) xmlDtdFlags {
 }
 
 type xmlEntityIndex struct {
-	name      xmlSpan
-	value     xmlSpan
-	parameter bool
-	external  bool
-	unparsed  bool
+	name           xmlSpan
+	value          xmlSpan
+	queryUsed      bool
+	queryAttribute bool
+	parameter      bool
+	external       bool
+	unparsed       bool
 }
 
 func copyxmlEntityIndex(value xmlEntityIndex) xmlEntityIndex {
-	return xmlEntityIndex{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parameter: value.parameter, external: value.external, unparsed: value.unparsed}
+	return xmlEntityIndex{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), queryUsed: value.queryUsed, queryAttribute: value.queryAttribute, parameter: value.parameter, external: value.external, unparsed: value.unparsed}
 }
 
 type xmlDefaultIndex struct {
 	element    xmlSpan
 	name       xmlSpan
 	value      xmlSpan
+	rawValue   xmlSpan
 	tokenized  bool
 	hasDefault bool
 	cost       int64
 }
 
 func copyxmlDefaultIndex(value xmlDefaultIndex) xmlDefaultIndex {
-	return xmlDefaultIndex{element: copyxmlSpan(value.element), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), tokenized: value.tokenized, hasDefault: value.hasDefault, cost: value.cost}
+	return xmlDefaultIndex{element: copyxmlSpan(value.element), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), rawValue: copyxmlSpan(value.rawValue), tokenized: value.tokenized, hasDefault: value.hasDefault, cost: value.cost}
 }
 func xmlCollapseSpace(input string) string {
 	input = langruntime.CheckedString(input)
@@ -46685,7 +46688,7 @@ func xmlRegisterAttributes(input xmlEntityArena, item xmlDtdItem, depth int, inp
 				defaultCost = langruntime.CheckedI64Add(defaultCost, xmlOctets(storedValue))
 			}
 			langruntime.CheckedAdd(len(defaults), 1)
-			defaults = append(defaults, copyxmlDefaultIndex(xmlDefaultIndex{element: item.name, name: attribute.name, value: value, tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost}))
+			defaults = append(defaults, copyxmlDefaultIndex(xmlDefaultIndex{element: item.name, name: attribute.name, value: value, rawValue: attribute.value, tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost}))
 			state = copyxmlEntityArena(xmlEntityArena{arena: state.arena, entities: state.entities, defaults: defaults, flags: state.flags, cost: state.cost})
 		}
 	}
@@ -46905,7 +46908,7 @@ func xmlRegisterEntity(input xmlEntityArena, item xmlDtdItem, depth int) xmlEnti
 	}
 	entries := state.entities
 	langruntime.CheckedAdd(len(entries), 1)
-	entries = append(entries, copyxmlEntityIndex(xmlEntityIndex{name: item.name, value: value, parameter: parameter, external: item.external, unparsed: item.unparsed}))
+	entries = append(entries, copyxmlEntityIndex(xmlEntityIndex{name: item.name, value: value, queryUsed: false, queryAttribute: false, parameter: parameter, external: item.external, unparsed: item.unparsed}))
 	return xmlEntityArena{arena: state.arena, entities: entries, defaults: state.defaults, flags: state.flags, cost: state.cost}
 }
 func xmlExpandEntity(arena *xmlEntityArena, name string, attribute bool, depth int, priorCost int64, consumed int64) xmlExpansion {
@@ -48208,6 +48211,171 @@ func xmlMarkup(source *xmlSource, start int, document bool, arena *xmlEntityAren
 	}
 	return xmlMarkupResult{valid: depth == 0 && (document == false || roots == 1), cost: cost, nodes: text.nodes, cache: cache.entries}
 }
+func xmlQueryNamespaceAttributeText(name string) bool {
+	name = langruntime.CheckedString(name)
+	source := xmlSource{characters: []rune(name)}
+	return name == "xmlns" || xmlAt(&source, 0, "xmlns:")
+}
+func xmlQueryAttributeSource(source *xmlSource, value xmlSpan, tokenized bool) string {
+	value = copyxmlSpan(value)
+	output := langruntime.NewTextBuffer("")
+	position := value.start
+	for position < value.end {
+		character := source.characters[position]
+		if character == '&' {
+			reference := xmlReference(source, position)
+			if xmlPredefinedReference(source, position) {
+				scalar := xmlReferenceScalar(source, position)
+				if scalar == '&' {
+					output = append(output, "&#38;"...)
+				} else {
+					output = append(output, string(langruntime.CheckedChar(scalar))...)
+				}
+			} else {
+				span := xmlSpan{start: position, end: reference.next}
+				text := xmlSourceRange(source, span)
+				output = append(output, text...)
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			if xmlSpace(character) {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+				if character == '\r' && langruntime.CheckedAdd(position, 1) < value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			} else {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if tokenized {
+		return xmlCollapseSpace(string(output))
+	}
+	return string(output)
+}
+func xmlQueryEntityContent(arena *xmlEntityArena, name string) string {
+	name = langruntime.CheckedString(name)
+	index := xmlEntityLookup(arena, name, false)
+	if index == len(arena.entities) {
+		return ""
+	}
+	entity := arena.entities[index]
+	if entity.external {
+		return ""
+	}
+	source := xmlSource{characters: []rune(arena.arena)}
+	if entity.queryUsed && entity.queryAttribute == false {
+		return xmlTreeNormalize(&source, entity.value.start, entity.value.end)
+	}
+	return xmlSourceRange(&source, entity.value)
+}
+func xmlQueryAttributeEntities(source *xmlSource, value xmlSpan, arena *xmlEntityArena) string {
+	value = copyxmlSpan(value)
+	output := langruntime.NewTextBuffer("")
+	position := value.start
+	for position < value.end {
+		character := source.characters[position]
+		if character == '&' {
+			reference := xmlReference(source, position)
+			if xmlPredefinedReference(source, position) {
+				output = append(output, string(langruntime.CheckedChar(xmlReferenceScalar(source, position)))...)
+			} else {
+				nameSpan := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)}
+				name := xmlSourceRange(source, nameSpan)
+				expanded := xmlQueryEntityContent(arena, name)
+				nested := xmlSource{characters: []rune(expanded)}
+				bodySpan := xmlSpan{start: 0, end: len(nested.characters)}
+				text := xmlQueryAttributeEntities(&nested, bodySpan, arena)
+				output = append(output, text...)
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return string(output)
+}
+func xmlQueryAttributeValue(source *xmlSource, value xmlSpan, arena *xmlEntityArena, tokenized bool) string {
+	value = copyxmlSpan(value)
+	text := xmlQueryAttributeSource(source, value, tokenized)
+	normalized := xmlSource{characters: []rune(text)}
+	span := xmlSpan{start: 0, end: len(normalized.characters)}
+	return xmlQueryAttributeEntities(&normalized, span, arena)
+}
+func XmlQueryEntityMark(input xmlEntityArena, index int, attribute bool) xmlEntityArena {
+	entities := input.entities
+	entry := entities[index]
+	entities[index] = copyxmlEntityIndex(xmlEntityIndex{name: entry.name, value: entry.value, queryUsed: true, queryAttribute: attribute, parameter: entry.parameter, external: entry.external, unparsed: entry.unparsed})
+	return xmlEntityArena{arena: input.arena, entities: entities, defaults: input.defaults, flags: input.flags, cost: input.cost}
+}
+func XmlQueryPrepareEntities(input xmlEntityArena, source *xmlSource, start int, attribute bool) xmlEntityArena {
+	arena := input
+	position := start
+	tag := false
+	quote := ' '
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if attribute == false && quote == ' ' && xmlAt(source, position, "<!--") {
+			end := xmlComment(source, position)
+			position = langruntime.CheckedIndex(end.next)
+		} else if attribute == false && quote == ' ' && xmlAt(source, position, "<![CDATA[") {
+			end := xmlCdata(source, position)
+			position = langruntime.CheckedIndex(end.next)
+		} else if attribute == false && quote == ' ' && xmlAt(source, position, "<?") {
+			end := xmlProcessingInstruction(source, position)
+			position = langruntime.CheckedIndex(end.next)
+		} else if character == '&' {
+			reference := xmlReference(source, position)
+			if reference.valid == false {
+				return arena
+			}
+			if xmlPredefinedReference(source, position) == false {
+				span := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)}
+				name := xmlSourceRange(source, span)
+				index := xmlEntityLookup(&arena, name, false)
+				if index < len(arena.entities) && arena.entities[index].queryUsed == false {
+					inAttribute := attribute || quote != ' '
+					arena = XmlQueryEntityMark(arena, index, inAttribute)
+					text := xmlQueryEntityContent(&arena, name)
+					nested := xmlSource{characters: []rune(text)}
+					arena = XmlQueryPrepareEntities(arena, &nested, 0, inAttribute)
+				}
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			if attribute == false {
+				if quote != ' ' {
+					if character == quote {
+						quote = langruntime.CheckedChar(' ')
+					}
+				} else if tag && (character == '\'' || character == '"') {
+					quote = langruntime.CheckedChar(character)
+				} else if character == '<' {
+					tag = true
+				} else if character == '>' {
+					tag = false
+				}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return arena
+}
+func xmlQueryPreserveEntity(arena *xmlEntityArena, name string) bool {
+	name = langruntime.CheckedString(name)
+	index := xmlEntityLookup(arena, name, false)
+	return index < len(arena.entities) && arena.entities[index].queryAttribute
+}
+func xmlTreeSourceText(source *xmlSource, start int, end int, preserveCarriage bool) string {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	if preserveCarriage {
+		return xmlSourceRange(source, xmlSpan{start: start, end: end})
+	}
+	return xmlTreeNormalize(source, start, end)
+}
 
 type xmlQueryName struct {
 	qualified string
@@ -48381,24 +48549,26 @@ func xmlQueryNamesValid(tree *xmlTree) bool {
 		for index < node.attributeEnd {
 			attribute := tree.attributes[index]
 			if xmlQueryNamespaceAttribute(tree, attribute.name) {
-				name := xmlTreeText(tree, attribute.name)
-				uri := xmlTreeText(tree, attribute.value)
-				if xmlQueryUriValid(uri) == false {
-					return false
-				}
-				if xmlQueryQnameValid(tree, attribute.name) == false || name == "xmlns:xmlns" {
-					return false
-				}
-				if name == "xmlns:xml" {
-					if uri != "http://www.w3.org/XML/1998/namespace" {
+				if attribute.defaulted == false {
+					name := xmlTreeText(tree, attribute.name)
+					uri := xmlTreeText(tree, attribute.value)
+					if xmlQueryUriValid(uri) == false {
 						return false
 					}
-				} else {
-					if uri == "http://www.w3.org/XML/1998/namespace" || uri == "http://www.w3.org/2000/xmlns/" {
+					if xmlQueryQnameValid(tree, attribute.name) == false || name == "xmlns:xmlns" {
 						return false
 					}
-					if name != "xmlns" && uri == "" {
-						return false
+					if name == "xmlns:xml" {
+						if uri != "http://www.w3.org/XML/1998/namespace" {
+							return false
+						}
+					} else {
+						if uri == "http://www.w3.org/XML/1998/namespace" || uri == "http://www.w3.org/2000/xmlns/" {
+							return false
+						}
+						if name != "xmlns" && uri == "" {
+							return false
+						}
 					}
 				}
 			} else {
@@ -49203,12 +49373,13 @@ func xmlTextPlain(source *xmlSource, start int, input xmlTextState, root bool) x
 }
 
 type xmlTreeAttribute struct {
-	name  xmlSpan
-	value xmlSpan
+	name      xmlSpan
+	value     xmlSpan
+	defaulted bool
 }
 
 func copyxmlTreeAttribute(value xmlTreeAttribute) xmlTreeAttribute {
-	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value)}
+	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), defaulted: value.defaulted}
 }
 
 type xmlTreeNode struct {
@@ -49334,10 +49505,10 @@ func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankP
 func XmlTreeUnsupported(input xmlTree) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false}
 }
-func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan) xmlTree {
+func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, defaulted bool) xmlTree {
 	attributes := input.attributes
 	langruntime.CheckedAdd(len(attributes), 1)
-	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value}))
+	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, defaulted: defaulted}))
 	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
@@ -49384,7 +49555,7 @@ func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end b
 	empty := xmlSpan{start: 0, end: 0}
 	return XmlTreeLeaf(stored, 2, empty, value)
 }
-func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityArena, start int, input xmlTree, entity bool) xmlTree {
+func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityArena, start int, input xmlTree, entity bool, preserveCarriage bool) xmlTree {
 	tree := input
 	root := tree.current
 	outside := tree.nodes[root]
@@ -49402,7 +49573,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			position = langruntime.CheckedIndex(tree.flags.doctypeEnd)
 		} else if xmlAt(source, position, "<!--") {
 			scanned := xmlComment(source, position)
-			text := xmlTreeNormalize(source, langruntime.CheckedAdd(position, 4), langruntime.CheckedSubtract(scanned.next, 3))
+			text := xmlTreeSourceText(source, langruntime.CheckedAdd(position, 4), langruntime.CheckedSubtract(scanned.next, 3), preserveCarriage)
 			tree = XmlTreeStore(tree, text)
 			value := tree.written
 			empty := xmlSpan{start: 0, end: 0}
@@ -49416,14 +49587,14 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			tree = XmlTreeStore(tree, text)
 			nameSpan := tree.written
 			begin := xmlSkipSpace(source, name.next)
-			valueText := xmlTreeNormalize(source, begin, langruntime.CheckedSubtract(scanned.next, 2))
+			valueText := xmlTreeSourceText(source, begin, langruntime.CheckedSubtract(scanned.next, 2), preserveCarriage)
 			tree = XmlTreeStore(tree, valueText)
 			value := tree.written
 			tree = XmlTreeLeaf(tree, 5, nameSpan, value)
 			position = langruntime.CheckedIndex(scanned.next)
 		} else if xmlAt(source, position, "<![CDATA[") {
 			scanned := xmlCdata(source, position)
-			text := xmlTreeNormalize(source, langruntime.CheckedAdd(position, 9), langruntime.CheckedSubtract(scanned.next, 3))
+			text := xmlTreeSourceText(source, langruntime.CheckedAdd(position, 9), langruntime.CheckedSubtract(scanned.next, 3), preserveCarriage)
 			tree = XmlTreeStore(tree, text)
 			value := tree.written
 			empty := xmlSpan{start: 0, end: 0}
@@ -49454,14 +49625,16 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 				if len(arena.defaults) > 0 {
 					tokenized = xmlAttributeTokenized(source, arena, spelling, attributeSpan)
 				}
-				if tokenized {
+				if tree.flags.query && xmlQueryNamespaceAttributeText(attributeText) == false {
+					value = langruntime.NewTextBuffer(xmlQueryAttributeValue(source, quoted.value, arena, tokenized))
+				} else if tokenized {
 					value = langruntime.NewTextBuffer(xmlCollapseSpace(string(value)))
 				}
 				tree = XmlTreeStore(tree, attributeText)
 				attributeName := tree.written
 				tree = XmlTreeStore(tree, string(value))
 				attributeValue := tree.written
-				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue)
+				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, false)
 				position = langruntime.CheckedIndex(xmlSkipSpace(source, quoted.next))
 			}
 			explicitEnd := len(tree.attributes)
@@ -49484,12 +49657,15 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 						attribute = langruntime.CheckedAdd(attribute, 1)
 					}
 					if present == false && allowed {
-						valueText := xmlSourceRange(stored, item.value)
+						valueText := langruntime.NewTextBuffer(xmlSourceRange(stored, item.value))
+						if tree.flags.query {
+							valueText = langruntime.NewTextBuffer(xmlQueryAttributeSource(stored, item.rawValue, item.tokenized))
+						}
 						tree = XmlTreeStore(tree, attributeText)
 						attributeName := tree.written
-						tree = XmlTreeStore(tree, valueText)
+						tree = XmlTreeStore(tree, string(valueText))
 						attributeValue := tree.written
-						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue)
+						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, true)
 					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
@@ -49539,17 +49715,19 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 					parent := tree.current
 					tree = XmlTreeStore(tree, spelling)
 					name := tree.written
-					tree = XmlTreeStore(tree, expanded.text)
+					content := xmlQueryEntityContent(arena, spelling)
+					tree = XmlTreeStore(tree, content)
 					value := tree.written
 					child := len(tree.nodes)
 					tree = XmlTreeLeaf(tree, 7, name, value)
 					tree = XmlTreeCurrent(tree, child)
-					nested := xmlSource{characters: []rune(expanded.text)}
-					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+					nested := xmlSource{characters: []rune(content)}
+					preserve := xmlQueryPreserveEntity(arena, spelling)
+					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true, preserve)
 					tree = XmlTreeCurrent(tree, parent)
 				} else {
 					nested := xmlSource{characters: []rune(expanded.text)}
-					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+					tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true, false)
 				}
 			}
 			position = langruntime.CheckedIndex(reference.next)
@@ -49558,7 +49736,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			for position < len(source.characters) && source.characters[position] != '<' && source.characters[position] != '&' {
 				position = langruntime.CheckedAdd(position, 1)
 			}
-			text := xmlTreeNormalize(source, begin, position)
+			text := xmlTreeSourceText(source, begin, position, preserveCarriage)
 			closing := xmlAt(source, position, "</")
 			end := position == len(source.characters)
 			reference := end == false && source.characters[position] == '&' && tree.nodes[tree.current].blankPolicy != 0
@@ -49621,6 +49799,9 @@ func xmlTreeParse(input string, document bool, query bool) xmlTree {
 		doctypeEnd = langruntime.CheckedIndex(parsed.next)
 		effectiveDocument = true
 	}
+	if query && doctypeEnd > 0 {
+		arena = XmlQueryPrepareEntities(arena, &source, doctypeEnd, false)
+	}
 	characters := []rune(string(version))
 	versionSpan := xmlSpan{start: 0, end: len(characters)}
 	empty := xmlSpan{start: 0, end: 0}
@@ -49632,7 +49813,7 @@ func xmlTreeParse(input string, document bool, query bool) xmlTree {
 	declarations := []xmlTreeDtdEntry{}
 	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true}
 	storedSource := xmlSource{characters: []rune(arena.arena)}
-	return XmlTreeParseNodes(&source, &storedSource, &arena, declaration.next, tree, false)
+	return XmlTreeParseNodes(&source, &storedSource, &arena, declaration.next, tree, false, false)
 }
 func xmlWellFormed(input string, document bool) bool {
 	input = langruntime.CheckedString(input)
@@ -49926,6 +50107,67 @@ func xpathLocalAxis(tree *xmlTree, context xPathReference, axis int) xPathNodes 
 	}
 	return result
 }
+func xpathReferenceString(tree *xmlTree, graph *xPathGraph, value xPathReference) string {
+	value = copyxPathReference(value)
+	if value.kind != 0 {
+		return xpathReferenceLeaf(tree, value)
+	}
+	kind := tree.nodes[value.node].kind
+	if kind >= 2 && kind <= 5 {
+		return xpathReferenceLeaf(tree, value)
+	}
+	if kind != 0 && kind != 1 && kind != 14 && kind != 7 {
+		return ""
+	}
+	root := value.node
+	if kind == 7 {
+		root = langruntime.CheckedIndex(graph.nodes[root].first)
+		if root == 0 {
+			return ""
+		}
+	}
+	cursor := graph.nodes[root].first
+	output := langruntime.NewTextBuffer("")
+	returns := []int{}
+	depth := 0
+	for cursor > 0 || depth > 0 {
+		if cursor == 0 {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			cursor = langruntime.CheckedIndex(returns[depth])
+		} else {
+			node := graph.nodes[cursor]
+			child := 0
+			if node.kind == 2 || node.kind == 3 {
+				content := tree.nodes[cursor].value
+				position := content.start
+				for position < content.end {
+					output = append(output, string(langruntime.CheckedChar(tree.characters[position]))...)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			} else if node.kind == 7 {
+				declaration := node.first
+				if declaration > 0 {
+					child = langruntime.CheckedIndex(graph.nodes[declaration].first)
+				}
+			} else if node.kind != 4 && node.kind != 5 {
+				child = langruntime.CheckedIndex(node.first)
+			}
+			if child > 0 {
+				if depth < len(returns) {
+					returns[depth] = langruntime.CheckedIndex(node.next)
+				} else {
+					langruntime.CheckedAdd(len(returns), 1)
+					returns = append(returns, langruntime.CheckedIndex(node.next))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				cursor = langruntime.CheckedIndex(child)
+			} else {
+				cursor = langruntime.CheckedIndex(node.next)
+			}
+		}
+	}
+	return string(output)
+}
 
 type xPathGraphNode struct {
 	kind     int
@@ -50137,7 +50379,7 @@ func xpathDocumentParse(input string) xPathDocument {
 		return xPathDocument{tree: tree, graph: graph}
 	}
 	parsed := xmlReadDoctype(input, position, declaration.standalone)
-	arena := parsed.state
+	arena := XmlQueryPrepareEntities(parsed.state, &source, parsed.next, false)
 	stored := xmlSource{characters: []rune(arena.arena)}
 	entries := []int{}
 	uses := xPathEntityUses{entries: entries}
@@ -50178,10 +50420,10 @@ func xpathDocumentParse(input string) xPathDocument {
 			name := xmlSourceRange(&stored, entity.name)
 			owner := xpathGraphEntity(&definitions, name)
 			if owner > 0 {
-				text := xmlSourceRange(&stored, entity.value)
+				text := xmlQueryEntityContent(&arena, name)
 				source := xmlSource{characters: []rune(text)}
 				tree = XmlTreeCurrent(tree, owner)
-				tree = XmlTreeParseNodes(&source, &stored, &arena, 0, tree, true)
+				tree = XmlTreeParseNodes(&source, &stored, &arena, 0, tree, true, entity.queryAttribute)
 			}
 		}
 		index = langruntime.CheckedAdd(index, 1)
@@ -50370,6 +50612,272 @@ func xpathNodeAncestor(tree *xmlTree, ancestor int, node int) bool {
 		}
 	}
 	return false
+}
+
+type xPathPowers struct {
+	bits []xPathPower
+}
+
+func copyxPathPowers(value xPathPowers) xPathPowers {
+	return xPathPowers{bits: langruntime.CheckedStructs(value.bits, copyxPathPower)}
+}
+
+type xPathPower struct {
+	bits int64
+}
+
+func copyxPathPower(value xPathPower) xPathPower {
+	return xPathPower{bits: value.bits}
+}
+
+type xPathNumberParts struct {
+	valid    bool
+	negative bool
+	integer  int64
+	fraction int64
+	places   int
+	exponent int
+}
+
+func copyxPathNumberParts(value xPathNumberParts) xPathNumberParts {
+	return xPathNumberParts{valid: value.valid, negative: value.negative, integer: value.integer, fraction: value.fraction, places: langruntime.CheckedI32(value.places), exponent: langruntime.CheckedI32(value.exponent)}
+}
+func xpathPowersEmpty() xPathPowers {
+	bits := []xPathPower{}
+	return xPathPowers{bits: bits}
+}
+func XpathPowersPush(input xPathPowers, value int64) xPathPowers {
+	bits := input.bits
+	langruntime.CheckedAdd(len(bits), 1)
+	bits = append(bits, copyxPathPower(xPathPower{bits: value}))
+	return xPathPowers{bits: bits}
+}
+func xpathPowerTen(profile *xPathPowers, exponent int) checkruntime.Float8Value {
+	exponent = langruntime.CheckedI32(exponent)
+	if exponent >= 0 && exponent <= 22 {
+		value := float64(1.0)
+		position := 0
+		for position < exponent {
+			value = langruntime.F64Multiply(value, float64(10.0))
+			position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+		}
+		return checkruntime.MakeFloat8Value(value)
+	}
+	if exponent > 308 {
+		return checkruntime.MakeFloat8Value(langruntime.F64Divide(float64(1.0), float64(0.0)))
+	}
+	if exponent < langruntime.CheckedSignedNegate(323) {
+		return checkruntime.MakeFloat8Value(float64(0.0))
+	}
+	if len(profile.bits) != 632 {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	position := langruntime.IndexFromI32(langruntime.CheckedSignedAdd(exponent, 323), 0)
+	return checkruntime.MakeFloat8Bits(profile.bits[position].bits)
+}
+func xpathNumberParts(input string) xPathNumberParts {
+	input = langruntime.CheckedString(input)
+	invalid := xPathNumberParts{valid: false, negative: false, integer: int64(0), fraction: int64(0), places: 0, exponent: 0}
+	source := xmlSource{characters: []rune(input)}
+	position := xmlSkipSpace(&source, 0)
+	negative := false
+	if xmlAt(&source, position, "-") {
+		negative = true
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	integer := float64(0.0)
+	fraction := float64(0.0)
+	places := 0
+	found := false
+	for position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) {
+		digit := float64(numericWireDecimalDigit(source.characters[position]))
+		product := langruntime.F64Multiply(integer, float64(10.0))
+		integer = langruntime.F64Add(product, digit)
+		found = true
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if xmlAt(&source, position, ".") {
+		position = langruntime.CheckedAdd(position, 1)
+		if position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) {
+			found = true
+		}
+		for xmlAt(&source, position, "0") {
+			places = langruntime.CheckedI32(langruntime.CheckedSignedAdd(places, 1))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		limit := langruntime.CheckedSignedAdd(places, 20)
+		for position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) && places < limit {
+			digit := float64(numericWireDecimalDigit(source.characters[position]))
+			product := langruntime.F64Multiply(fraction, float64(10.0))
+			fraction = langruntime.F64Add(product, digit)
+			places = langruntime.CheckedI32(langruntime.CheckedSignedAdd(places, 1))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		for position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if found == false {
+		return invalid
+	}
+	exponent := 0
+	if xmlAt(&source, position, "e") || xmlAt(&source, position, "E") {
+		position = langruntime.CheckedAdd(position, 1)
+		sign := 1
+		if xmlAt(&source, position, "-") {
+			sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			position = langruntime.CheckedAdd(position, 1)
+		} else if xmlAt(&source, position, "+") {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		for position < len(source.characters) && xmlQueryUriDigit(source.characters[position]) {
+			if exponent < 1000000 {
+				exponent = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(exponent, 10), numericWireDecimalDigit(source.characters[position])))
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		exponent = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(exponent, sign))
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(&source, position))
+	if position != len(source.characters) {
+		return invalid
+	}
+	return xPathNumberParts{valid: true, negative: negative, integer: langruntime.F64ToI64Bits(integer), fraction: langruntime.F64ToI64Bits(fraction), places: places, exponent: exponent}
+}
+func xpathNumberText(input string, powers *xPathPowers) xPathValue {
+	input = langruntime.CheckedString(input)
+	parts := xpathNumberParts(input)
+	if parts.valid == false {
+		return xpathValueNumber(langruntime.F64Divide(float64(0.0), float64(0.0)))
+	}
+	integer := langruntime.F64FromI64Bits(parts.integer)
+	fraction := langruntime.F64FromI64Bits(parts.fraction)
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if fraction != float64(0.0) && integer != infinity {
+		divisor := xpathPowerTen(powers, parts.places)
+		known := false
+		if divisor.Kind == checkruntime.Float8ValueValue {
+			bits := divisor.Value
+			power := langruntime.F64FromI64Bits(bits)
+			quotient := langruntime.F64Divide(fraction, power)
+			integer = langruntime.F64Add(integer, quotient)
+			known = true
+		}
+		if known == false {
+			return xpathValueEmpty(xpathKindNumber, 1)
+		}
+	}
+	if parts.negative {
+		integer = langruntime.F64Negate(integer)
+	}
+	factor := xpathPowerTen(powers, parts.exponent)
+	if factor.Kind == checkruntime.Float8ValueValue {
+		bits := factor.Value
+		power := langruntime.F64FromI64Bits(bits)
+		return xpathValueNumber(langruntime.F64Multiply(integer, power))
+	}
+	if integer == float64(0.0) || langruntime.F64Abs(integer) == infinity {
+		return xpathValueNumber(integer)
+	}
+	return xpathValueEmpty(xpathKindNumber, 1)
+}
+func xpathNumberRounded(work numericWork, scale int) numericWork {
+	work = copynumericWork(work)
+	scale = langruntime.CheckedI32(scale)
+	digits := []rune(work.digits)
+	wanted := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(work.weight, scale), 1)
+	mode := 1
+	if wanted > 0 {
+		index := langruntime.IndexFromI32(wanted, 0)
+		if index < len(digits) && digits[index] == '5' {
+			cursor := langruntime.CheckedAdd(index, 1)
+			tie := true
+			for cursor < len(digits) {
+				if digits[cursor] != '0' {
+					tie = false
+				}
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			if tie && langruntime.CheckedSignedRemainder(numericWireDecimalDigit(digits[langruntime.CheckedSubtract(index, 1)]), 2) == 0 {
+				mode = langruntime.CheckedI32(0)
+			}
+		}
+	}
+	return numericWorkRounded(work, scale, mode)
+}
+func xpathNumberString(bits int64) string {
+	number := langruntime.F64FromI64Bits(bits)
+	if number != number {
+		return "NaN"
+	}
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if number == infinity {
+		return "Infinity"
+	}
+	if number == langruntime.F64Negate(infinity) {
+		return "-Infinity"
+	}
+	if number == float64(0.0) {
+		return "0"
+	}
+	if number > float64(-2147483648.0) && number < float64(2147483647.0) {
+		integer := langruntime.F64ToI32(number)
+		if number == float64(integer) {
+			return checkruntime.TextSignedNumber(int64(langruntime.CheckedI32(integer)))
+		}
+	}
+	absolute := langruntime.F64Abs(number)
+	exact := floatExactDecimal(absolute)
+	scientific := absolute > float64(1000000000.0) || absolute < float64(0.00001)
+	places := exact.weight
+	if absolute < float64(1.0) {
+		places = langruntime.CheckedI32(langruntime.CheckedSignedAdd(places, 1))
+	}
+	scale := langruntime.CheckedSignedSubtract(15, places)
+	if places > 0 {
+		scale = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(scale, 1))
+	}
+	if scientific {
+		scale = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(14, exact.weight))
+	}
+	rounded := xpathNumberRounded(exact, scale)
+	output := langruntime.NewTextBuffer("")
+	if number < float64(0.0) {
+		output = append(output, string(langruntime.CheckedChar('-'))...)
+	}
+	if scientific {
+		digits := []rune(rounded.digits)
+		if len(digits) > 0 {
+			output = append(output, string(langruntime.CheckedChar(digits[0]))...)
+		}
+		if len(digits) > 1 {
+			output = append(output, string(langruntime.CheckedChar('.'))...)
+			position := 1
+			for position < len(digits) {
+				output = append(output, string(langruntime.CheckedChar(digits[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		output = append(output, string(langruntime.CheckedChar('e'))...)
+		exponent := rounded.weight
+		if exponent >= 0 {
+			output = append(output, string(langruntime.CheckedChar('+'))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar('-'))...)
+			exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, exponent))
+		}
+		if exponent < 10 {
+			output = append(output, string(langruntime.CheckedChar('0'))...)
+		}
+		text := checkruntime.TextNumber(exponent, 10)
+		output = append(output, text...)
+		return string(output)
+	}
+	minimum := numericWorkMinScale(copynumericWork(rounded))
+	result := numericWork{valid: true, special: 1, sign: 1, weight: rounded.weight, scale: minimum, digits: rounded.digits}
+	text := numericWorkText(result)
+	output = append(output, text...)
+	return string(output)
 }
 func xpathParseOperator(program *xPathProgram, position int) int {
 	position = langruntime.CheckedIndex(position)
@@ -50848,6 +51356,9 @@ func XpathParseLiteral(input xPathProgram) xPathProgram {
 	quote := input.source[begin]
 	position := langruntime.CheckedAdd(begin, 1)
 	for position < len(input.source) && input.source[position] != quote {
+		if xmlCharacter(input.source[position]) == false {
+			return XpathParseFail(input)
+		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	if position >= len(input.source) {
@@ -51146,6 +51657,80 @@ func xpathLocalAxisTest(tree *xmlTree, context xPathReference, axis int, test *x
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	return result
+}
+
+const xpathKindNodes = 1
+const xpathKindBoolean = 2
+const xpathKindNumber = 3
+const xpathKindString = 4
+
+type xPathValue struct {
+	kind    int
+	state   int
+	boolean bool
+	number  int64
+	text    string
+	nodes   xPathSequence
+}
+
+func copyxPathValue(value xPathValue) xPathValue {
+	return xPathValue{kind: langruntime.CheckedI32(value.kind), state: langruntime.CheckedI32(value.state), boolean: value.boolean, number: value.number, text: langruntime.CheckedString(value.text), nodes: copyxPathSequence(value.nodes)}
+}
+
+type xPathContext struct {
+	node     xPathReference
+	position int
+	size     int
+}
+
+func copyxPathContext(value xPathContext) xPathContext {
+	return xPathContext{node: copyxPathReference(value.node), position: langruntime.CheckedI32(value.position), size: langruntime.CheckedI32(value.size)}
+}
+func xpathValueEmpty(kind int, state int) xPathValue {
+	kind = langruntime.CheckedI32(kind)
+	state = langruntime.CheckedI32(state)
+	values := []xPathReference{}
+	nodes := xPathSequence{values: values, cyclic: false, cycle: 0}
+	return xPathValue{kind: kind, state: state, boolean: false, number: int64(0), text: "", nodes: nodes}
+}
+func xpathValueBoolean(boolean bool) xPathValue {
+	values := []xPathReference{}
+	nodes := xPathSequence{values: values, cyclic: false, cycle: 0}
+	return xPathValue{kind: xpathKindBoolean, state: 0, boolean: boolean, number: int64(0), text: "", nodes: nodes}
+}
+func xpathValueNumber(number float64) xPathValue {
+	values := []xPathReference{}
+	nodes := xPathSequence{values: values, cyclic: false, cycle: 0}
+	bits := langruntime.F64ToI64Bits(number)
+	if number != number {
+		bits = int64(9221120237041090560)
+	}
+	return xPathValue{kind: xpathKindNumber, state: 0, boolean: false, number: bits, text: "", nodes: nodes}
+}
+func XpathValueString(text string) xPathValue {
+	values := []xPathReference{}
+	nodes := xPathSequence{values: values, cyclic: false, cycle: 0}
+	return xPathValue{kind: xpathKindString, state: 0, boolean: false, number: int64(0), text: text, nodes: nodes}
+}
+func XpathValueNodes(nodes xPathSequence) xPathValue {
+	state := 0
+	if nodes.cyclic {
+		state = langruntime.CheckedI32(1)
+	}
+	return xPathValue{kind: xpathKindNodes, state: state, boolean: false, number: int64(0), text: "", nodes: nodes}
+}
+func xpathValueTruth(input *xPathValue) bool {
+	if input.kind == xpathKindBoolean {
+		return input.boolean
+	}
+	if input.kind == xpathKindNumber {
+		number := langruntime.F64FromI64Bits(input.number)
+		return number == number && number != float64(0.0)
+	}
+	if input.kind == xpathKindString {
+		return input.text != ""
+	}
+	return len(input.nodes.values) > 0
 }
 
 type xPathCursor struct {
