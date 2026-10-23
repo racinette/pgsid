@@ -22,6 +22,15 @@ import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
   | {
+      kind: 'xml-constructor'
+      type: 'pg_catalog.xml'
+      operation: 'concat' | 'root' | 'pi'
+      operands: readonly EvalExpression[]
+      name?: string
+      mapped?: boolean
+      standalone?: number
+    }
+  | {
       kind: 'xml-operation'
       type: 'pg_catalog.xml' | 'pg_catalog.text' | 'pg_catalog.bool'
       operation: 'parse' | 'cast' | 'text' | 'document' | 'serialize'
@@ -655,6 +664,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'io-to-text' ||
       node.kind === 'refcursor-text-coercion' ||
       node.kind === 'xml-operation' ||
+      node.kind === 'xml-constructor' ||
       node.kind === 'text-to-float' ||
       node.kind === 'text-to-integer' ||
       node.kind === 'text-to-numeric' ||

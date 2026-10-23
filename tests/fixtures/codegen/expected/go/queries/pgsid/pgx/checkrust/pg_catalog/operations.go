@@ -7,6 +7,32 @@
  */
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
+
+/*
+XML name character ranges from libxml2 v2.14.5.
+
+ Copyright (C) 1998-2012 Daniel Veillard.  All Rights Reserved.
+ Copyright (C) The Libxml2 Contributors.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is fur-
+nished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FIT-
+NESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
 package pg_catalog
 
 import (
@@ -44752,6 +44778,340 @@ func XmlIsWellFormedDocument0whq(input checkruntime.TextValue) checkruntime.Bool
 	return xmlWellFormedValue(input, true)
 }
 
+const sqlstateInvalidXmlProcessingInstruction = 3452573
+
+type xmlConstructorDeclaration struct {
+	version    string
+	hasVersion bool
+	standalone int
+	body       string
+}
+
+func copyxmlConstructorDeclaration(value xmlConstructorDeclaration) xmlConstructorDeclaration {
+	return xmlConstructorDeclaration{version: langruntime.CheckedString(value.version), hasVersion: value.hasVersion, standalone: langruntime.CheckedI32(value.standalone), body: langruntime.CheckedString(value.body)}
+}
+func xmlConstructorDeclarationState(version string, hasVersion bool, standalone int, body string) xmlConstructorDeclaration {
+	version = langruntime.CheckedString(version)
+	standalone = langruntime.CheckedI32(standalone)
+	body = langruntime.CheckedString(body)
+	return xmlConstructorDeclaration{version: version, hasVersion: hasVersion, standalone: standalone, body: body}
+}
+func parseXmlConstructorDeclaration(input string) xmlConstructorDeclaration {
+	input = langruntime.CheckedString(input)
+	source := xmlSource{characters: []rune(input)}
+	version := langruntime.NewTextBuffer("")
+	hasVersion := false
+	standalone := langruntime.CheckedSignedNegate(1)
+	body := langruntime.NewTextBuffer("")
+	if xmlAt(&source, 0, "<?xml") == false {
+		body = langruntime.NewTextBuffer(input)
+		return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+	}
+	if len(source.characters) > 5 && xmlConstructorNameCharacter(source.characters[5]) {
+		body = langruntime.NewTextBuffer(input)
+		return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+	}
+	if len(source.characters) <= 5 || xmlSpace(source.characters[5]) == false {
+		return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+	}
+	parsedVersion := xmlDeclarationValue(&source, xmlSkipSpace(&source, 5), "version")
+	if parsedVersion.valid == false {
+		return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+	}
+	version = langruntime.NewTextBuffer(xmlSourceRange(&source, parsedVersion.value))
+	hasVersion = true
+	position := parsedVersion.next
+	encodingStart := xmlSkipSpace(&source, position)
+	if xmlAt(&source, encodingStart, "encoding") {
+		if encodingStart == position {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		encoding := xmlDeclarationValue(&source, encodingStart, "encoding")
+		if encoding.valid == false {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		position = langruntime.CheckedIndex(encoding.next)
+	}
+	standaloneStart := xmlSkipSpace(&source, position)
+	if xmlAt(&source, standaloneStart, "standalone") {
+		if standaloneStart == position {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		parsedStandalone := xmlDeclarationValue(&source, standaloneStart, "standalone")
+		if parsedStandalone.valid == false {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		if xmlSpanIs(&source, parsedStandalone.value, "yes") {
+			standalone = langruntime.CheckedI32(1)
+		} else if xmlSpanIs(&source, parsedStandalone.value, "no") {
+			standalone = langruntime.CheckedI32(0)
+		} else {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		position = langruntime.CheckedIndex(parsedStandalone.next)
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(&source, position))
+	if xmlAt(&source, position, "?>") == false {
+		return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+	}
+	position = langruntime.CheckedAdd(position, 2)
+	index := 0
+	for index < position {
+		if int(langruntime.CheckedChar(source.characters[index])) > 127 {
+			return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	body = langruntime.NewTextBuffer(xmlSourceRange(&source, xmlSpan{start: position, end: len(source.characters)}))
+	return xmlConstructorDeclarationState(string(version), hasVersion, standalone, string(body))
+}
+func xmlConstructorOutput(version string, hasVersion bool, standalone int, body string) checkruntime.XmlValue {
+	version = langruntime.CheckedString(version)
+	standalone = langruntime.CheckedI32(standalone)
+	body = langruntime.CheckedString(body)
+	output := langruntime.NewTextBuffer("")
+	if (hasVersion && version != "1.0") || standalone != langruntime.CheckedSignedNegate(1) {
+		output = append(output, "<?xml version=\""...)
+		if hasVersion {
+			output = append(output, version...)
+		} else {
+			output = append(output, "1.0"...)
+		}
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+		if standalone == 1 {
+			output = append(output, " standalone=\"yes\""...)
+		}
+		if standalone == 0 {
+			output = append(output, " standalone=\"no\""...)
+		}
+		output = append(output, "?>"...)
+	}
+	output = append(output, body...)
+	return checkruntime.MakeXmlValue(string(output))
+}
+func XmlConcatBegin() checkruntime.XmlConcatState {
+	return checkruntime.XmlConcatState{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}, HasValue: false, Version: "", VersionConsistent: true, Standalone: 1, Body: ""}
+}
+func xmlConcatStatus(input checkruntime.XmlConcatState, status checkruntime.CheckOutcome) checkruntime.XmlConcatState {
+	input = checkruntime.CopyXmlConcatState(input)
+	return checkruntime.XmlConcatState{Status: status, HasValue: input.HasValue, Version: input.Version, VersionConsistent: input.VersionConsistent, Standalone: input.Standalone, Body: input.Body}
+}
+func XmlConcatAppend(input checkruntime.XmlConcatState, value checkruntime.XmlValue) checkruntime.XmlConcatState {
+	input = checkruntime.CopyXmlConcatState(input)
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		error := status.Error
+		_ = error
+		return input
+	}
+	if value.Kind == checkruntime.XmlValueError {
+		error := value.Error
+		failed := checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		return xmlConcatStatus(input, failed)
+	}
+	if value.Kind == checkruntime.XmlValueNull {
+		return input
+	}
+	if input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return input
+	}
+	if value.Kind == checkruntime.XmlValueValue {
+		text := langruntime.CheckedString(value.Value)
+		declaration := parseXmlConstructorDeclaration(text)
+		standalone := input.Standalone
+		consistent := input.VersionConsistent
+		version := langruntime.NewTextBuffer(input.Version)
+		body := langruntime.NewTextBuffer(input.Body)
+		if declaration.standalone == 0 && standalone == 1 {
+			standalone = langruntime.CheckedI32(0)
+		}
+		if declaration.standalone < 0 {
+			standalone = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		if declaration.hasVersion == false {
+			consistent = false
+		} else if input.HasValue == false {
+			version = langruntime.NewTextBuffer(declaration.version)
+		} else if string(version) != declaration.version {
+			consistent = false
+		}
+		body = append(body, declaration.body...)
+		return checkruntime.XmlConcatState{Status: input.Status, HasValue: true, Version: string(version), VersionConsistent: consistent, Standalone: standalone, Body: string(body)}
+	}
+	return xmlConcatStatus(input, checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown})
+}
+func XmlConcatFinish(input checkruntime.XmlConcatState) checkruntime.XmlValue {
+	input = checkruntime.CopyXmlConcatState(input)
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		error := status.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+	}
+	if input.HasValue == false {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	return xmlConstructorOutput(input.Version, input.VersionConsistent, input.Standalone, input.Body)
+}
+func Xmlconcat2Vnu3(left checkruntime.XmlValue, right checkruntime.XmlValue) checkruntime.XmlValue {
+	if left.Kind == checkruntime.XmlValueError {
+		error := left.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if right.Kind == checkruntime.XmlValueError {
+		error := right.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if left.Kind == checkruntime.XmlValueNull {
+		return right
+	}
+	if right.Kind == checkruntime.XmlValueNull {
+		return left
+	}
+	initial := XmlConcatBegin()
+	first := XmlConcatAppend(initial, left)
+	both := XmlConcatAppend(first, right)
+	return XmlConcatFinish(both)
+}
+func XmlRoot(input checkruntime.XmlValue, version checkruntime.TextValue, standalone int) checkruntime.XmlValue {
+	standalone = langruntime.CheckedI32(standalone)
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if version.Kind == checkruntime.TextValueError {
+		error := version.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	supplied := langruntime.NewTextBuffer("")
+	hasVersion := false
+	knownVersion := false
+	if version.Kind == checkruntime.TextValueNull {
+		knownVersion = true
+	}
+	if version.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(version.Value)
+		supplied = langruntime.NewTextBuffer(value)
+		hasVersion = true
+		knownVersion = true
+	}
+	if knownVersion == false || standalone < 0 || standalone > 3 {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+	}
+	if input.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		declaration := parseXmlConstructorDeclaration(value)
+		selected := declaration.standalone
+		if standalone == 0 {
+			selected = langruntime.CheckedI32(1)
+		}
+		if standalone == 1 {
+			selected = langruntime.CheckedI32(0)
+		}
+		if standalone == 2 {
+			selected = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		return xmlConstructorOutput(string(supplied), hasVersion, selected, declaration.body)
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func XmlMakeProcessingInstruction(name string, content checkruntime.TextValue, present bool, mapped bool) checkruntime.XmlValue {
+	name = langruntime.CheckedString(name)
+	target := langruntime.NewTextBuffer(name)
+	if mapped == false {
+		target = langruntime.NewTextBuffer(xmlConstructorName(name))
+	}
+	if content.Kind == checkruntime.TextValueError {
+		error := content.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	characters := []rune(string(target))
+	if len(characters) == 3 && (characters[0] == 'x' || characters[0] == 'X') && (characters[1] == 'm' || characters[1] == 'M') && (characters[2] == 'l' || characters[2] == 'L') {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidXmlProcessingInstruction)}
+	}
+	output := langruntime.NewTextBuffer("<?")
+	output = append(output, string(target)...)
+	if present {
+		if content.Kind == checkruntime.TextValueNull {
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+		}
+		if content.Kind == checkruntime.TextValueUnknown {
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+		}
+		if content.Kind == checkruntime.TextValueValue {
+			value := langruntime.CheckedString(content.Value)
+			source := xmlSource{characters: []rune(value)}
+			index := 0
+			for index < len(source.characters) {
+				if xmlAt(&source, index, "?>") {
+					return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidXmlProcessingInstruction)}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			index = langruntime.CheckedIndex(0)
+			for index < len(source.characters) && source.characters[index] == ' ' {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			for index < len(source.characters) {
+				output = append(output, string(langruntime.CheckedChar(source.characters[index]))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+	}
+	output = append(output, "?>"...)
+	return checkruntime.MakeXmlValue(string(output))
+}
+func xmlConstructorNameStart(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ':' || character == '_' || xmlLegacyBase(character) || xmlLegacyIdeographic(character)
+}
+func xmlConstructorNameCharacter(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return xmlConstructorNameStart(character) || character == '-' || character == '.' || xmlLegacyDigit(character) || xmlLegacyCombining(character) || xmlLegacyExtender(character)
+}
+func xmlConstructorName(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	hex := []rune("0123456789ABCDEF")
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(characters) {
+		character := characters[index]
+		escape := xmlConstructorNameCharacter(character) == false
+		if index == 0 {
+			escape = xmlConstructorNameStart(character) == false || character == ':'
+		}
+		if character == '_' && langruntime.CheckedAdd(index, 1) < len(characters) && characters[langruntime.CheckedAdd(index, 1)] == 'x' {
+			escape = true
+		}
+		if escape {
+			code := int(langruntime.CheckedChar(character))
+			divisor := 1048576
+			for divisor > 4096 && divisor > code {
+				divisor = langruntime.CheckedI32(langruntime.CheckedSignedDivide(divisor, 16))
+			}
+			output = append(output, "_x"...)
+			for divisor > 0 {
+				word := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(code, divisor)), 16)
+				digit := langruntime.IndexFromI32(word, 0)
+				output = append(output, string(langruntime.CheckedChar(hex[digit]))...)
+				divisor = langruntime.CheckedI32(langruntime.CheckedSignedDivide(divisor, 16))
+			}
+			output = append(output, string(langruntime.CheckedChar('_'))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+
 type xmlDeclaration struct {
 	next       int
 	valid      bool
@@ -45765,6 +46125,81 @@ func xmlExpandEntity(arena *xmlEntityArena, name string, attribute bool, depth i
 		return invalid
 	}
 	return xmlExpansion{text: string(output), valid: true, cost: cost}
+}
+
+var xmlLegacyBaseRanges = []int{65, 90, 97, 122, 192, 214, 216, 246, 248, 255, 256, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12353, 12436, 12449, 12538, 12549, 12588, 44032, 55203}
+
+func xmlLegacyBase(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	index := 0
+	for index < len(xmlLegacyBaseRanges) {
+		if code >= xmlLegacyBaseRanges[index] && code <= xmlLegacyBaseRanges[langruntime.CheckedAdd(index, 1)] {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 2)
+	}
+	return false
+}
+
+var xmlLegacyIdeographicRanges = []int{12295, 12295, 12321, 12329, 19968, 40869}
+
+func xmlLegacyIdeographic(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	index := 0
+	for index < len(xmlLegacyIdeographicRanges) {
+		if code >= xmlLegacyIdeographicRanges[index] && code <= xmlLegacyIdeographicRanges[langruntime.CheckedAdd(index, 1)] {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 2)
+	}
+	return false
+}
+
+var xmlLegacyDigitRanges = []int{48, 57, 1632, 1641, 1776, 1785, 2406, 2415, 2534, 2543, 2662, 2671, 2790, 2799, 2918, 2927, 3047, 3055, 3174, 3183, 3302, 3311, 3430, 3439, 3664, 3673, 3792, 3801, 3872, 3881}
+
+func xmlLegacyDigit(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	index := 0
+	for index < len(xmlLegacyDigitRanges) {
+		if code >= xmlLegacyDigitRanges[index] && code <= xmlLegacyDigitRanges[langruntime.CheckedAdd(index, 1)] {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 2)
+	}
+	return false
+}
+
+var xmlLegacyCombiningRanges = []int{768, 837, 864, 865, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1611, 1618, 1648, 1648, 1750, 1756, 1757, 1759, 1760, 1764, 1767, 1768, 1770, 1773, 2305, 2307, 2364, 2364, 2366, 2380, 2381, 2381, 2385, 2388, 2402, 2403, 2433, 2435, 2492, 2492, 2494, 2494, 2495, 2495, 2496, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2562, 2562, 2620, 2620, 2622, 2622, 2623, 2623, 2624, 2626, 2631, 2632, 2635, 2637, 2672, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3633, 3633, 3636, 3642, 3655, 3662, 3761, 3761, 3764, 3769, 3771, 3772, 3784, 3789, 3864, 3865, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3902, 3903, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12330, 12335, 12441, 12441, 12442, 12442}
+
+func xmlLegacyCombining(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	index := 0
+	for index < len(xmlLegacyCombiningRanges) {
+		if code >= xmlLegacyCombiningRanges[index] && code <= xmlLegacyCombiningRanges[langruntime.CheckedAdd(index, 1)] {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 2)
+	}
+	return false
+}
+
+var xmlLegacyExtenderRanges = []int{183, 183, 720, 720, 721, 721, 903, 903, 1600, 1600, 3654, 3654, 3782, 3782, 12293, 12293, 12337, 12341, 12445, 12446, 12540, 12542}
+
+func xmlLegacyExtender(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	index := 0
+	for index < len(xmlLegacyExtenderRanges) {
+		if code >= xmlLegacyExtenderRanges[index] && code <= xmlLegacyExtenderRanges[langruntime.CheckedAdd(index, 1)] {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 2)
+	}
+	return false
 }
 
 type xmlSource struct {

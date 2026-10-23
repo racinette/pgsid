@@ -113,6 +113,7 @@ export function portableCheckAtoms(
 ): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
+    if (value.kind === 'xml-constructor') return { ...value, operands: value.operands.map(scalar) }
     if (
       (value.kind === 'array-text-literal' || value.kind === 'text-to-array') &&
       (value.conversion || value.inputConversion)

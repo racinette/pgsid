@@ -41,7 +41,7 @@ update its tests when that boundary changes.
 - Array and multirange text casts iterate events with `while` conditions in the same call form.
   Loop bodies use the existing bindings, assignments and branches. Internal
   `ArrayArguments` and `ArrayOutputPayload` builders, `ArraySortPayload` merge cursors, `MultirangeTextPayload` member cursors and `JsonbArrayInputPayload` array conversion cursors and `JsonRecordInputPayload` record conversion cursors may be mutable
-  locals but cannot be entry parameters. Sort cursors remain whole-record values;
+  locals but cannot be entry parameters. Internal `XmlConcatState` holds declaration metadata and owned XML content during variadic concatenation; it may be a mutable local but cannot be an entry parameter. Sort cursors remain whole-record values;
   their readonly borrows expose the next comparison without cloning stored cells.
 - Keep evaluation order visible in statements. A deciding boolean result must
   skip code for the unselected operand.

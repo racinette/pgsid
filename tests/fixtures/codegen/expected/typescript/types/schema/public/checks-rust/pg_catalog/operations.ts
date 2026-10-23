@@ -7,6 +7,32 @@
  */
 
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
+
+/*
+XML name character ranges from libxml2 v2.14.5.
+
+ Copyright (C) 1998-2012 Daniel Veillard.  All Rights Reserved.
+ Copyright (C) The Libxml2 Contributors.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is fur-
+nished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FIT-
+NESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+*/
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
 function addressAndWord(left: number, right: number): number {
@@ -45001,6 +45027,346 @@ export function xmlIsWellFormedContent94vi(input: checkruntime.TextValue): check
 export function xmlIsWellFormedDocument0whq(input: checkruntime.TextValue): checkruntime.BoolValue {
     return xmlWellFormedValue(input, true);
 }
+const sqlstateInvalidXmlProcessingInstruction = 3452573;
+interface XmlConstructorDeclaration {
+    version: string;
+    hasVersion: boolean;
+    standalone: number;
+    body: string;
+}
+function copyXmlConstructorDeclaration(value: XmlConstructorDeclaration): XmlConstructorDeclaration {
+    return { version: langruntime.checkedString(value.version), hasVersion: langruntime.checkedBool(value.hasVersion), standalone: langruntime.checkedI32(value.standalone), body: langruntime.checkedString(value.body) };
+}
+function xmlConstructorDeclarationState(version: string, hasVersion: boolean, standalone: number, body: string): XmlConstructorDeclaration {
+    version = langruntime.checkedString(version);
+    hasVersion = langruntime.checkedBool(hasVersion);
+    standalone = langruntime.checkedI32(standalone);
+    body = langruntime.checkedString(body);
+    return { version: version, hasVersion: hasVersion, standalone: standalone, body: body };
+}
+function parseXmlConstructorDeclaration(input: string): XmlConstructorDeclaration {
+    input = langruntime.checkedString(input);
+    const source: XmlSource = { characters: Array.from(input) };
+    let version: string = "";
+    let hasVersion: boolean = false;
+    let standalone: number = langruntime.checkedSignedNegate(1);
+    let body: string = "";
+    if (xmlAt(source, 0, "<?xml") === false) {
+        body = langruntime.checkedString(input);
+        return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+    }
+    if (source.characters.length > 5 && xmlConstructorNameCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(5)))) {
+        body = langruntime.checkedString(input);
+        return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+    }
+    if (source.characters.length <= 5 || xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(5))) === false) {
+        return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+    }
+    const parsedVersion: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, xmlSkipSpace(source, 5), "version"));
+    if (parsedVersion.valid === false) {
+        return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+    }
+    version = langruntime.checkedString(xmlSourceRange(source, parsedVersion.value));
+    hasVersion = langruntime.checkedBool(true);
+    let position: number = parsedVersion.next;
+    const encodingStart: number = xmlSkipSpace(source, position);
+    if (xmlAt(source, encodingStart, "encoding")) {
+        if (encodingStart === position) {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        const encoding: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, encodingStart, "encoding"));
+        if (encoding.valid === false) {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        position = langruntime.checkedIndex(encoding.next);
+    }
+    const standaloneStart: number = xmlSkipSpace(source, position);
+    if (xmlAt(source, standaloneStart, "standalone")) {
+        if (standaloneStart === position) {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        const parsedStandalone: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, standaloneStart, "standalone"));
+        if (parsedStandalone.valid === false) {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        if (xmlSpanIs(source, parsedStandalone.value, "yes")) {
+            standalone = langruntime.checkedI32(1);
+        }
+        else if (xmlSpanIs(source, parsedStandalone.value, "no")) {
+            standalone = langruntime.checkedI32(0);
+        }
+        else {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        position = langruntime.checkedIndex(parsedStandalone.next);
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (xmlAt(source, position, "?>") === false) {
+        return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+    }
+    position = langruntime.checkedAdd(position, 2);
+    let index: number = 0;
+    while (index < position) {
+        if (langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+            return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    body = langruntime.checkedString(xmlSourceRange(source, { start: position, end: source.characters.length }));
+    return xmlConstructorDeclarationState(version, hasVersion, standalone, body);
+}
+function xmlConstructorOutput(version: string, hasVersion: boolean, standalone: number, body: string): checkruntime.XmlValue {
+    version = langruntime.checkedString(version);
+    hasVersion = langruntime.checkedBool(hasVersion);
+    standalone = langruntime.checkedI32(standalone);
+    body = langruntime.checkedString(body);
+    let output: string = "";
+    if ((hasVersion && !(version === "1.0")) || !(standalone === langruntime.checkedSignedNegate(1))) {
+        output = output + "<?xml version=\"";
+        if (hasVersion) {
+            output = output + version;
+        }
+        else {
+            output = output + "1.0";
+        }
+        output = output + langruntime.checkedChar("\"");
+        if (standalone === 1) {
+            output = output + " standalone=\"yes\"";
+        }
+        if (standalone === 0) {
+            output = output + " standalone=\"no\"";
+        }
+        output = output + "?>";
+    }
+    output = output + body;
+    return checkruntime.makeXmlValue(output);
+}
+export function xmlConcatBegin(): checkruntime.XmlConcatState {
+    return { status: { kind: "True" }, hasValue: false, version: "", versionConsistent: true, standalone: 1, body: "" };
+}
+function xmlConcatStatus(input: checkruntime.XmlConcatState, status: checkruntime.CheckOutcome): checkruntime.XmlConcatState {
+    input = checkruntime.copyXmlConcatState(input);
+    return { status: status, hasValue: input.hasValue, version: input.version, versionConsistent: input.versionConsistent, standalone: input.standalone, body: input.body };
+}
+export function xmlConcatAppend(input: checkruntime.XmlConcatState, value: checkruntime.XmlValue): checkruntime.XmlConcatState {
+    input = checkruntime.copyXmlConcatState(input);
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return input;
+    }
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        const failed: checkruntime.CheckOutcome = { kind: "Error", value: error };
+        return xmlConcatStatus(input, failed);
+    }
+    if (value.kind === "Null") {
+        return input;
+    }
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" })) {
+        return input;
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const declaration: XmlConstructorDeclaration = parseXmlConstructorDeclaration(text);
+        let standalone: number = input.standalone;
+        let consistent: boolean = input.versionConsistent;
+        let version: string = input.version;
+        let body: string = input.body;
+        if (declaration.standalone === 0 && standalone === 1) {
+            standalone = langruntime.checkedI32(0);
+        }
+        if (declaration.standalone < 0) {
+            standalone = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        if (declaration.hasVersion === false) {
+            consistent = langruntime.checkedBool(false);
+        }
+        else if (input.hasValue === false) {
+            version = langruntime.checkedString(declaration.version);
+        }
+        else if (!(version === declaration.version)) {
+            consistent = langruntime.checkedBool(false);
+        }
+        body = body + declaration.body;
+        return { status: input.status, hasValue: true, version: version, versionConsistent: consistent, standalone: standalone, body: body };
+    }
+    return xmlConcatStatus(input, { kind: "Unknown" });
+}
+export function xmlConcatFinish(input: checkruntime.XmlConcatState): checkruntime.XmlValue {
+    input = checkruntime.copyXmlConcatState(input);
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.hasValue === false) {
+        return { kind: "Null" };
+    }
+    return xmlConstructorOutput(input.version, input.versionConsistent, input.standalone, input.body);
+}
+export function xmlconcat2Vnu3(left: checkruntime.XmlValue, right: checkruntime.XmlValue): checkruntime.XmlValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return right;
+    }
+    if (right.kind === "Null") {
+        return left;
+    }
+    const initial: checkruntime.XmlConcatState = xmlConcatBegin();
+    const first: checkruntime.XmlConcatState = xmlConcatAppend(initial, left);
+    const both: checkruntime.XmlConcatState = xmlConcatAppend(first, right);
+    return xmlConcatFinish(both);
+}
+export function xmlRoot(input: checkruntime.XmlValue, version: checkruntime.TextValue, standalone: number): checkruntime.XmlValue {
+    standalone = langruntime.checkedI32(standalone);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (version.kind === "Error") {
+        const error: checkruntime.SqlError = version.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    let supplied: string = "";
+    let hasVersion: boolean = false;
+    let knownVersion: boolean = false;
+    if (version.kind === "Null") {
+        knownVersion = langruntime.checkedBool(true);
+    }
+    if (version.kind === "Value") {
+        const value: string = langruntime.checkedString(version.value);
+        supplied = langruntime.checkedString(value);
+        hasVersion = langruntime.checkedBool(true);
+        knownVersion = langruntime.checkedBool(true);
+    }
+    if (knownVersion === false || standalone < 0 || standalone > 3) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const declaration: XmlConstructorDeclaration = parseXmlConstructorDeclaration(value);
+        let selected: number = declaration.standalone;
+        if (standalone === 0) {
+            selected = langruntime.checkedI32(1);
+        }
+        if (standalone === 1) {
+            selected = langruntime.checkedI32(0);
+        }
+        if (standalone === 2) {
+            selected = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        return xmlConstructorOutput(supplied, hasVersion, selected, declaration.body);
+    }
+    return { kind: "Unknown" };
+}
+export function xmlMakeProcessingInstruction(name: string, content: checkruntime.TextValue, present: boolean, mapped: boolean): checkruntime.XmlValue {
+    name = langruntime.checkedString(name);
+    present = langruntime.checkedBool(present);
+    mapped = langruntime.checkedBool(mapped);
+    let target: string = name;
+    if (mapped === false) {
+        target = langruntime.checkedString(xmlConstructorName(name));
+    }
+    if (content.kind === "Error") {
+        const error: checkruntime.SqlError = content.value;
+        return { kind: "Error", value: error };
+    }
+    const characters: string[] = Array.from(target);
+    if (characters.length === 3 && (langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "x" || langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "X") && (langruntime.indexChar(characters, langruntime.checkedIndex(1)) === "m" || langruntime.indexChar(characters, langruntime.checkedIndex(1)) === "M") && (langruntime.indexChar(characters, langruntime.checkedIndex(2)) === "l" || langruntime.indexChar(characters, langruntime.checkedIndex(2)) === "L")) {
+        return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidXmlProcessingInstruction) };
+    }
+    let output: string = "<?";
+    output = output + target;
+    if (present) {
+        if (content.kind === "Null") {
+            return { kind: "Null" };
+        }
+        if (content.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        if (content.kind === "Value") {
+            const value: string = langruntime.checkedString(content.value);
+            const source: XmlSource = { characters: Array.from(value) };
+            let index: number = 0;
+            while (index < source.characters.length) {
+                if (xmlAt(source, index, "?>")) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidXmlProcessingInstruction) };
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            index = langruntime.checkedIndex(0);
+            while (index < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(index)) === " ") {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            output = output + langruntime.checkedChar(" ");
+            while (index < source.characters.length) {
+                output = output + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+    }
+    output = output + "?>";
+    return checkruntime.makeXmlValue(output);
+}
+function xmlConstructorNameStart(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === ":" || character === "_" || xmlLegacyBase(character) || xmlLegacyIdeographic(character);
+}
+function xmlConstructorNameCharacter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return xmlConstructorNameStart(character) || character === "-" || character === "." || xmlLegacyDigit(character) || xmlLegacyCombining(character) || xmlLegacyExtender(character);
+}
+function xmlConstructorName(input: string): string {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    const hex: string[] = Array.from("0123456789ABCDEF");
+    let output: string = "";
+    let index: number = 0;
+    while (index < characters.length) {
+        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+        let escape: boolean = xmlConstructorNameCharacter(character) === false;
+        if (index === 0) {
+            escape = langruntime.checkedBool(xmlConstructorNameStart(character) === false || character === ":");
+        }
+        if (character === "_" && langruntime.checkedAdd(index, 1) < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "x") {
+            escape = langruntime.checkedBool(true);
+        }
+        if (escape) {
+            const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+            let divisor: number = 1048576;
+            while (divisor > 4096 && divisor > code) {
+                divisor = langruntime.checkedI32(langruntime.checkedSignedDivide(divisor, 16));
+            }
+            output = output + "_x";
+            while (divisor > 0) {
+                const word: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(code, divisor)), 16);
+                const digit: number = langruntime.indexFromI32(word, 0);
+                output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(digit)));
+                divisor = langruntime.checkedI32(langruntime.checkedSignedDivide(divisor, 16));
+            }
+            output = output + langruntime.checkedChar("_");
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
 interface XmlDeclaration {
     next: number;
     valid: boolean;
@@ -46040,6 +46406,71 @@ function xmlExpandEntity(arena: XmlEntityArena, name: string, attribute: boolean
         return invalid;
     }
     return { text: output, valid: true, cost: cost };
+}
+const xmlLegacyBaseRanges: ReadonlyArray<number> = [65, 90, 97, 122, 192, 214, 216, 246, 248, 255, 256, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12353, 12436, 12449, 12538, 12549, 12588, 44032, 55203];
+function xmlLegacyBase(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let index: number = 0;
+    while (index < xmlLegacyBaseRanges.length) {
+        if (code >= langruntime.indexStatic(xmlLegacyBaseRanges, langruntime.checkedIndex(index)) && code <= langruntime.indexStatic(xmlLegacyBaseRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 2);
+    }
+    return false;
+}
+const xmlLegacyIdeographicRanges: ReadonlyArray<number> = [12295, 12295, 12321, 12329, 19968, 40869];
+function xmlLegacyIdeographic(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let index: number = 0;
+    while (index < xmlLegacyIdeographicRanges.length) {
+        if (code >= langruntime.indexStatic(xmlLegacyIdeographicRanges, langruntime.checkedIndex(index)) && code <= langruntime.indexStatic(xmlLegacyIdeographicRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 2);
+    }
+    return false;
+}
+const xmlLegacyDigitRanges: ReadonlyArray<number> = [48, 57, 1632, 1641, 1776, 1785, 2406, 2415, 2534, 2543, 2662, 2671, 2790, 2799, 2918, 2927, 3047, 3055, 3174, 3183, 3302, 3311, 3430, 3439, 3664, 3673, 3792, 3801, 3872, 3881];
+function xmlLegacyDigit(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let index: number = 0;
+    while (index < xmlLegacyDigitRanges.length) {
+        if (code >= langruntime.indexStatic(xmlLegacyDigitRanges, langruntime.checkedIndex(index)) && code <= langruntime.indexStatic(xmlLegacyDigitRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 2);
+    }
+    return false;
+}
+const xmlLegacyCombiningRanges: ReadonlyArray<number> = [768, 837, 864, 865, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1611, 1618, 1648, 1648, 1750, 1756, 1757, 1759, 1760, 1764, 1767, 1768, 1770, 1773, 2305, 2307, 2364, 2364, 2366, 2380, 2381, 2381, 2385, 2388, 2402, 2403, 2433, 2435, 2492, 2492, 2494, 2494, 2495, 2495, 2496, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2562, 2562, 2620, 2620, 2622, 2622, 2623, 2623, 2624, 2626, 2631, 2632, 2635, 2637, 2672, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3633, 3633, 3636, 3642, 3655, 3662, 3761, 3761, 3764, 3769, 3771, 3772, 3784, 3789, 3864, 3865, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3902, 3903, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12330, 12335, 12441, 12441, 12442, 12442];
+function xmlLegacyCombining(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let index: number = 0;
+    while (index < xmlLegacyCombiningRanges.length) {
+        if (code >= langruntime.indexStatic(xmlLegacyCombiningRanges, langruntime.checkedIndex(index)) && code <= langruntime.indexStatic(xmlLegacyCombiningRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 2);
+    }
+    return false;
+}
+const xmlLegacyExtenderRanges: ReadonlyArray<number> = [183, 183, 720, 720, 721, 721, 903, 903, 1600, 1600, 3654, 3654, 3782, 3782, 12293, 12293, 12337, 12341, 12445, 12446, 12540, 12542];
+function xmlLegacyExtender(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let index: number = 0;
+    while (index < xmlLegacyExtenderRanges.length) {
+        if (code >= langruntime.indexStatic(xmlLegacyExtenderRanges, langruntime.checkedIndex(index)) && code <= langruntime.indexStatic(xmlLegacyExtenderRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 2);
+    }
+    return false;
 }
 interface XmlSource {
     characters: string[];

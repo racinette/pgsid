@@ -1498,6 +1498,31 @@ export function emitCheckRustEvaluator(
       bindings.push(`let ${name} = ${call};`)
       return name
     }
+    if (node.kind === 'xml-constructor') {
+      const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
+      if (node.operation === 'concat') {
+        const initial = bind('xml_concat_begin()'),
+          state = fresh('xml_concat')
+        bindings.push(`let mut ${state}: XmlConcatState = ${initial};`)
+        for (const operand of operands)
+          bindings.push(`${state} = xml_concat_append(${state}, ${ownedOperand(operand)});`)
+        return { name: bind(`xml_concat_finish(${state})`), type: node.type }
+      }
+      if (node.operation === 'root')
+        return {
+          name: bind(
+            `xml_root(${ownedOperand(operands[0]!)},${ownedOperand(operands[1]!)},${node.standalone ?? 3})`,
+          ),
+          type: node.type,
+        }
+      const content = operands[0] ? ownedOperand(operands[0]) : bind('text_null()')
+      return {
+        name: bind(
+          `xml_make_processing_instruction(${rustStringLiteral(node.name ?? '')},${content},${operands.length === 1},${node.mapped === true})`,
+        ),
+        type: node.type,
+      }
+    }
     if (node.kind === 'xml-operation') {
       const operand = emitScalar(node.operand, bindings, used)
       const value = ownedOperand(operand),
@@ -2231,6 +2256,14 @@ export function emitCheckRustEvaluator(
       const xmlCast =
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
+      const xmlConcat =
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'xmlconcat2' &&
+        implementation.args.join(',') === 'pg_catalog.xml,pg_catalog.xml' &&
+        implementation.result === 'pg_catalog.xml' &&
+        implementation.volatility === 'i' &&
+        !implementation.strict &&
+        !implementation.returnsSet
       const rangeConstructor = isBuiltinRangeConstructor(implementation)
       const arraySearch = isArraySearch(implementation)
       const arrayStringIO = isArrayStringIO(implementation)
@@ -2309,6 +2342,7 @@ export function emitCheckRustEvaluator(
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !xmlConcat &&
           !rangeConstructor &&
           !enumSupport &&
           !arraySearch &&

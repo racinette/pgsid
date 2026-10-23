@@ -19,3 +19,18 @@ CREATE TABLE manifest_exports (
   CONSTRAINT checked_document CHECK (CASE WHEN bypass OR NOT require_document THEN true ELSE (manifest::document_xml)::text IS NOT DISTINCT FROM expected_storage END),
   CONSTRAINT default_manifest CHECK (CASE WHEN bypass OR NOT fallback THEN true ELSE COALESCE(manifest,'<?xml version="1.0" encoding=""?><manifest/>'::xml)::text IS NOT DISTINCT FROM expected_storage END)
 );
+
+CREATE TABLE manifest_assemblies (
+  fragment xml,
+  trailer xml,
+  version_label text,
+  instruction text,
+  expected_concat text,
+  expected_root text,
+  expected_instruction text,
+  bypass boolean NOT NULL,
+  CONSTRAINT assembled_content CHECK (CASE WHEN bypass THEN true ELSE xmlconcat(fragment,trailer)::text IS NOT DISTINCT FROM expected_concat END),
+  CONSTRAINT rooted_content CHECK (CASE WHEN bypass THEN true ELSE xmlroot(xmlconcat(fragment,trailer),VERSION version_label,STANDALONE NO VALUE)::text IS NOT DISTINCT FROM expected_root END),
+  CONSTRAINT dispatch_instruction CHECK (CASE WHEN bypass THEN true ELSE xmlpi(NAME "dispatch😊",instruction)::text IS NOT DISTINCT FROM expected_instruction END),
+  CONSTRAINT dispatch_sequence CHECK (CASE WHEN bypass THEN true ELSE xmlpi(NAME sequence,char_length(instruction))::text IN ('<?sequence 2?>','<?sequence 5?>') END)
+);

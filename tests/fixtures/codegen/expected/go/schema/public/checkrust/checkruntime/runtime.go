@@ -334,7 +334,18 @@ type XmlValue struct {
 	RenderedText string
 	Error        SqlError
 }
+type XmlConcatState struct {
+	Status            CheckOutcome
+	HasValue          bool
+	Version           string
+	VersionConsistent bool
+	Standalone        int
+	Body              string
+}
 
+func CopyXmlConcatState(value XmlConcatState) XmlConcatState {
+	return XmlConcatState{Status: value.Status, HasValue: value.HasValue, Version: langruntime.CheckedString(value.Version), VersionConsistent: value.VersionConsistent, Standalone: langruntime.CheckedI32(value.Standalone), Body: langruntime.CheckedString(value.Body)}
+}
 func XmlUnknown() XmlValue {
 	return XmlValue{Kind: XmlValueUnknown}
 }
@@ -494,6 +505,7 @@ const sqlErrorInvalidXmlDocument = 3452566
 const sqlErrorNotXmlDocument = 3452565
 const sqlErrorInvalidXmlContent = 3452567
 const sqlErrorInvalidXmlComment = 3452572
+const sqlErrorInvalidXmlProcessingInstruction = 3452573
 const sqlErrorDivisionByZero = 3452582
 const sqlErrorInvalidFrameSize = 3452583
 const sqlErrorSubstring = 3452581
@@ -523,6 +535,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorInvalidXmlProcessingInstruction {
+		return SqlErrorDescription{Message: "invalid XML processing instruction"}
+	}
 	if error.State == sqlErrorNotXmlDocument {
 		return SqlErrorDescription{Message: "not an XML document"}
 	}
