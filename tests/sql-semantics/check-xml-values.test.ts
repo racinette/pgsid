@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -264,6 +264,7 @@ pub fn xml_value_probe(input: TextValue, expected: TextValue, mode: i32) -> Bool
             input.kind === 'Error' ? { kind: 'Error', value: input.value } : { kind: 'Unknown' },
         })
     }
+    await mkdir('artifacts/goal-checks/xml-values-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/xml-values-active/foundation-reference.json',
       JSON.stringify({ nativeInserts, fixtures: fixtures.length, oracle }, null, 2) + '\n',
