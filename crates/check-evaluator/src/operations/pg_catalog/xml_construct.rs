@@ -201,6 +201,10 @@ fn xml_constructor_name_character(character: char) -> bool {
 }
 
 fn xml_constructor_name(input: &str) -> String {
+    xml_constructor_mapped_name(input, false)
+}
+
+fn xml_constructor_mapped_name(input: &str, fully_escaped: bool) -> String {
     let characters: Vec<char> = input.chars().collect();
     let hex: Vec<char> = "0123456789ABCDEF".chars().collect();
     let mut output = String::new();
@@ -209,6 +213,11 @@ fn xml_constructor_name(input: &str) -> String {
         let character = characters[index];
         let mut escape = xml_constructor_name_character(character) == false;
         if index == 0 { escape = xml_constructor_name_start(character) == false || character == ':'; };
+        if character == ':' && fully_escaped { escape = true; };
+        if fully_escaped && index == 0 && characters.len() >= 3
+            && (character == 'x' || character == 'X')
+            && (characters[1] == 'm' || characters[1] == 'M')
+            && (characters[2] == 'l' || characters[2] == 'L') { escape = true; };
         if character == '_' && index + 1 < characters.len() && characters[index + 1] == 'x' { escape = true; };
         if escape {
             let code = character as i32;

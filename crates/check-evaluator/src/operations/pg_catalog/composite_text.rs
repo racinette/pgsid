@@ -219,6 +219,11 @@ pub fn composite_output_has_field(input: TextValue) -> bool {
     false
 }
 
+pub fn composite_output_matches(input: CompositeValue, type_name: &str, fields: i32) -> bool {
+    let prepared = prepare_composite_output(input, type_name, fields);
+    composite_output_has_field(prepared)
+}
+
 pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) -> TextValue {
     if let TextValue::Value(source) = input {
         if let TextValue::Error(error) = field {
