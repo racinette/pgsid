@@ -329,6 +329,11 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_parse_state.rs");
     include!("operations/pg_catalog/xml_xpath_parse_steps.rs");
     include!("operations/pg_catalog/xml_xpath_parse.rs");
+    include!("operations/pg_catalog/xml_xpath_nodes.rs");
+    include!("operations/pg_catalog/xml_xpath_axes.rs");
+    include!("operations/pg_catalog/xml_xpath_tests.rs");
+    include!("operations/pg_catalog/xml_xpath_graph.rs");
+    include!("operations/pg_catalog/xml_xpath_walk.rs");
     include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");
