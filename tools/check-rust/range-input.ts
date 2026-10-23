@@ -58,7 +58,7 @@ export type RangeInputCell =
         | 'Tid'
       value: bigint
     }
-  | { kind: 'Numeric' | 'Text' | 'Bit' | 'Bytea'; value: string }
+  | { kind: 'Numeric' | 'Text' | 'Bit' | 'Bytea' | 'Xml' | 'XmlRenderedText'; value: string }
   | { kind: 'Bool'; value: boolean }
   | { kind: 'Timetz'; value: { time: bigint; zone: number } }
   | { kind: 'Interval'; value: { time: bigint; days: number; months: number } }

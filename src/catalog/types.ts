@@ -113,6 +113,7 @@ export interface StoredXmlConstantContext {
   constants: { site: string; text: string | null }[]
   names?: { site: string; name: string }[]
   argumentNames?: { site: string; names: string[] }[]
+  arrays?: { site: string; text: string | null }[]
 }
 
 export interface StoredDomainCoercionContext {

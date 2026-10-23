@@ -7171,6 +7171,12 @@ export type ArrayElement = {
 } | {
     readonly kind: "Composite";
     readonly value: CompositePayload;
+} | {
+    readonly kind: "Xml";
+    readonly value: string;
+} | {
+    readonly kind: "XmlRenderedText";
+    readonly value: string;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7226,10 +7232,18 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Range": return { kind: "Range", value: copyRangePayload(value.value) };
         case "Multirange": return { kind: "Multirange", value: copyMultirangePayload(value.value) };
         case "Composite": return { kind: "Composite", value: copyCompositePayload(value.value) };
+        case "Xml": return { kind: "Xml", value: langruntime.checkedString(value.value) };
+        case "XmlRenderedText": return { kind: "XmlRenderedText", value: langruntime.checkedString(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Xml") {
+        return 45;
+    }
+    if (input.kind === "XmlRenderedText") {
+        return 45;
+    }
     if (input.kind === "Composite") {
         return 44;
     }
@@ -8668,6 +8682,43 @@ export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
     }
     return { kind: "Unknown" };
 }
+export function arrayElementFromXml(input: XmlValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Xml", value: value };
+    }
+    if (input.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "XmlRenderedText", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToXml(input: ArrayElement): XmlValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Xml") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "XmlRenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "RenderedText", value: value };
+    }
+    return { kind: "Unknown" };
+}
 export interface CompositePayload {
     readonly typeName: string;
     readonly fields: ArrayElement[];
@@ -8730,7 +8781,8 @@ export function makeCompositeValue(input: CompositePayload): CompositeValue {
             return { kind: "Error", value: error };
         }
         if (checked.kind === "Unknown") {
-            if (arrayElementFamily(source) >= 41) {
+            const family: number = arrayElementFamily(source);
+            if (family >= 41 && family <= 44) {
                 return { kind: "Unknown" };
             }
         }
@@ -8979,13 +9031,13 @@ function compositeTypeContextValid(context: CompositeTypeContext): boolean {
     let index: number = 0;
     while (index < context.nodes.length) {
         const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 44) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 45) {
             return false;
         }
         if (node.kind === 41 && (node.elementType === "" || node.child >= context.nodes.length)) {
             return false;
         }
-        if (node.kind > 0 && node.kind < 41 || node.kind === 42 || node.kind === 43) {
+        if (node.kind > 0 && node.kind < 41 || node.kind === 42 || node.kind === 43 || node.kind === 45) {
             const profile: RangeBoundContext = node.boundProfile;
             if (profile.nodes.length === 0 || rangeBoundProfileValid(profile) === false) {
                 return false;
@@ -9144,6 +9196,14 @@ export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement 
     if (checked.kind === "Jsonb") {
         const payload: JsonbPayload = copyJsonbPayload(checked.value);
         return arrayElementFromJsonb(jsonbFromCoercedValue({ kind: "Value", value: payload }));
+    }
+    if (checked.kind === "Xml") {
+        const value: string = langruntime.checkedString(checked.value);
+        return arrayElementFromXml(makeXmlValue(value));
+    }
+    if (checked.kind === "XmlRenderedText") {
+        const value: string = langruntime.checkedString(checked.value);
+        return arrayElementFromXml(xmlFromRenderedText({ kind: "Value", value: value }));
     }
     if (checked.kind === "Jsonpath") {
         const payload: JsonpathPayload = copyJsonpathPayload(checked.value);
@@ -9566,7 +9626,7 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
     let index: number = 0;
     while (index < profile.nodes.length) {
         const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 44) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 45) {
             return false;
         }
         if (node.kind >= 41 && node.kind <= 43) {
@@ -9677,7 +9737,7 @@ export function rangeBoundContextBranch(profile: RangeBoundContext, start: numbe
     if (start >= profile.nodes.length || rangeBoundProfileValid(profile) === false) {
         return emptyRangeBoundContext();
     }
-    if (langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind < 41) {
+    if (langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind < 41 || langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind === 45) {
         return emptyRangeBoundContext();
     }
     let indices: number[] = [];
@@ -9941,7 +10001,7 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
     if (rangeEnumDefinitionValid(value.enumLabels, value.enumCount) === false) {
         return { kind: "Unknown" };
     }
-    if (value.elementKind < 41) {
+    if (value.elementKind < 41 || value.elementKind === 45) {
         const emptyProfile: RangeBoundContext = emptyRangeBoundContext();
         value = copyRangePayload(rangePayloadWithBoundProfile(value, emptyProfile));
     }
@@ -9997,7 +10057,7 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
                 return { kind: "Unknown" };
             }
         }
-        if (value.elementKind >= 41 && !(kind === 0)) {
+        if (value.elementKind >= 41 && value.elementKind <= 44 && !(kind === 0)) {
             const normalized: ArrayElement = rangePrepareProfiledBound(copyArrayElement(bound), boundProfile);
             if (normalized.kind === "Error") {
                 const error: SqlError = normalized.value;
@@ -10933,6 +10993,14 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
 }
 function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     element = copyArrayElement(element);
+    if (element.kind === "Xml") {
+        const value: string = langruntime.checkedString(element.value);
+        return arrayElementFromXml(makeXmlValue(value));
+    }
+    if (element.kind === "XmlRenderedText") {
+        const value: string = langruntime.checkedString(element.value);
+        return arrayElementFromXml(xmlFromRenderedText({ kind: "Value", value: value }));
+    }
     if (element.kind === "Composite") {
         const payload: CompositePayload = copyCompositePayload(element.value);
         return arrayElementFromComposite(makeCompositeValue(payload));
@@ -10962,7 +11030,8 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
             return { kind: "Error", value: error };
         }
         if (checked.kind === "Unknown") {
-            if (arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement))) >= 41) {
+            const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
+            if (family >= 41 && family <= 44) {
                 return { kind: "Unknown" };
             }
         }
@@ -10970,7 +11039,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 44) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 45) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);

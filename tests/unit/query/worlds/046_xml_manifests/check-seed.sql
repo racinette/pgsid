@@ -121,3 +121,37 @@ VALUES (NULL,NULL,NULL,NULL,'<envelope/>','wrong',false);
 -- name: BypassedEnvelope
 INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
 VALUES (NULL,'é',ARRAY['bad&'],NULL,'wrong','wrong',true);
+
+-- name: RetainPacketStorage
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ($array$[-2:0]={"<?xml version=\"1.0\"?><r/>",NULL,"<é/>"}$array$,
+ROW('<?xml version="1.0"?><r/>',$array$[-2:0]={"<?xml version=\"1.0\"?><r/>",NULL,"<é/>"}$array$::xml[])::manifest_packet,
+'<?xml version="1.0"?><r/>','["<r/>",null,"<é/>"]','{"document":"<r/>","attachments":["<r/>",null,"<é/>"]}','[-2:0]={<r/>,NULL,<é/>}',false);
+
+-- name: NullPacket
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: EmptyPacket
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ('{}',ROW(NULL,'{}'::xml[])::manifest_packet,NULL,'[]','{"document":null,"attachments":[]}','{}',false);
+
+-- name: WrongPacketStorage
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ('[-2:-2]={<r/>}',NULL,'wrong','["<r/>"]',NULL,'[-2:-2]={<r/>}',false);
+
+-- name: WrongPacketArrayJson
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ('[-2:-2]={<r/>}',NULL,'<r/>','["wrong"]',NULL,'[-2:-2]={<r/>}',false);
+
+-- name: WrongPacketRecordJson
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES (NULL,ROW('<r/>',NULL)::manifest_packet,NULL,NULL,'{"document":"wrong","attachments":null}',NULL,false);
+
+-- name: WrongPacketArrayDisplay
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ('[-2:-2]={<r/>}',NULL,'<r/>','["<r/>"]',NULL,'wrong',false);
+
+-- name: BypassedPacket
+INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
+VALUES ('[-2:-2]={<r/>}',ROW('<r/>',NULL)::manifest_packet,'wrong','["wrong"]','{}','wrong',true);

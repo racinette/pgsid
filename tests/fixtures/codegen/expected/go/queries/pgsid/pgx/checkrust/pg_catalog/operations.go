@@ -16210,6 +16210,10 @@ func JsonbInputFromJsonContext(input checkruntime.JsonValue, utf8 bool) checkrun
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
+func JsonbInputFromXml(input checkruntime.XmlValue) checkruntime.JsonbInput {
+	text := XmlToOutputText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
 
 type jsonbGeometryCoordinate struct {
 	bits int64
@@ -47459,6 +47463,20 @@ const sqlstateInvalidXmlContent = 3452567
 const sqlstateInvalidXmlComment = 3452572
 const sqlstateNotXmlDocument = 3452565
 
+func XmlFromStorageText(input checkruntime.TextValue) checkruntime.XmlValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return checkruntime.MakeXmlValue(value)
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
 func xmlTextEncodingAvailable(input string, utf8 bool) bool {
 	input = langruntime.CheckedString(input)
 	if utf8 {

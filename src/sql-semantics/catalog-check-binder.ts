@@ -627,6 +627,7 @@ type Literal = {
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
+  xmlArrayStorage?: string
 }
 type Bound = {
   type: ScalarType | null
@@ -898,6 +899,9 @@ const materialize = (
         type: type as ArrayType,
         elementType: type.slice(6) as ArrayElementType,
         value: bound.literal.value,
+        ...(bound.literal.xmlArrayStorage !== undefined
+          ? { value: bound.literal.xmlArrayStorage, xmlStorage: true as const }
+          : {}),
         ...(definition ? { enum: definition } : {}),
       }
     if (
@@ -3601,7 +3605,14 @@ export function bindCatalogCheck(
             }
             const value: EvalExpression | null =
               operand.literal?.kind === 'string'
-                ? { kind: 'array-text-literal', ...common, value: operand.literal.value! }
+                ? {
+                    kind: 'array-text-literal',
+                    ...common,
+                    value: operand.literal.xmlArrayStorage ?? operand.literal.value!,
+                    ...(operand.literal.xmlArrayStorage !== undefined
+                      ? { xmlStorage: true as const }
+                      : {}),
+                  }
                 : operand.value
                   ? { kind: 'text-to-array', ...common, operand: operand.value }
                   : null
@@ -3766,6 +3777,9 @@ export function bindCatalogCheck(
                     type,
                     elementType: element as ArrayElementType,
                     value: operand.literal.value!,
+                    ...(operand.literal.xmlArrayStorage !== undefined
+                      ? { value: operand.literal.xmlArrayStorage, xmlStorage: true as const }
+                      : {}),
                     ...(inputConversion ? { inputConversion } : {}),
                     ...(literalOrigin === 'stored' ? {} : { conversion: mapping.conversion }),
                     ...(baseEnum ? { enum: baseEnum } : {}),
@@ -5466,6 +5480,10 @@ export function bindCatalogCheck(
               value: string,
               moneyUnits: moneyUnits.get(string),
               xmlOrigin: literalOrigin,
+              ...(literalOrigin === 'stored' &&
+              typeof wrapper['__pgsid_xml_array_storage'] === 'string'
+                ? { xmlArrayStorage: wrapper['__pgsid_xml_array_storage'] }
+                : {}),
               ...(typeof xmlConstantBindings?.get(node) === 'string' &&
               (literalOrigin === 'stored' || xmlConstantBindings.get(node) === string)
                 ? { xmlStorage: xmlConstantBindings.get(node) as string }

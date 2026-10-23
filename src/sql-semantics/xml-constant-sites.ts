@@ -8,7 +8,10 @@ export function restoreStoredXmlNames(
 ): void {
   if (!context?.complete || context.definition !== definition) return
   const nodes = new Map<string, Record<string, unknown>[]>()
+  const literals = new Map<string, Record<string, unknown>[]>()
   walkStoredExpression(root, (node, site) => {
+    if (node && typeof node === 'object' && 'A_Const' in node)
+      literals.set(site, [...(literals.get(site) ?? []), node as Record<string, unknown>])
     if (!node || typeof node !== 'object' || !('XmlExpr' in node)) return
     const xml = node.XmlExpr
     if (xml && typeof xml === 'object')
@@ -26,6 +29,15 @@ export function restoreStoredXmlNames(
       context.argumentNames!.filter((n) => n.site === entry.site).length === 1
     )
       matches[0]!['__pgsid_mapped_arguments'] = entry.names
+  }
+  for (const entry of context.arrays ?? []) {
+    const matches = literals.get(entry.site)
+    if (
+      matches?.length === 1 &&
+      context.arrays!.filter((a) => a.site === entry.site).length === 1 &&
+      typeof entry.text === 'string'
+    )
+      matches[0]!['__pgsid_xml_array_storage'] = entry.text
   }
 }
 

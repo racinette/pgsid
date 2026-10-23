@@ -307,6 +307,8 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
 }
 
 fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Xml(value) = element { return array_element_from_xml(make_xml_value(value.as_str())); };
+    if let ArrayElement::XmlRenderedText(value) = element { return array_element_from_xml(xml_from_rendered_text(TextValue::Value(value))); };
     if let ArrayElement::Composite(payload) = element {
         return array_element_from_composite(make_composite_value(payload));
     };
@@ -331,7 +333,8 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
             return ArrayValue::Error(error);
         };
         if let ArrayElement::Unknown = checked {
-            if array_element_family(elements[position].clone()) >= 41 {
+            let family = array_element_family(elements[position].clone());
+            if family >= 41 && family <= 44 {
                 return ArrayValue::Unknown;
             };
         };
@@ -339,7 +342,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 44 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 45 {
         return ArrayValue::Unknown;
     };
     position = 0;
