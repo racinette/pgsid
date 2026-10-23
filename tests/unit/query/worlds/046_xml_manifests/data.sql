@@ -9,3 +9,6 @@ VALUES ('<parcel/>','é&',ARRAY['a&',NULL,'b<'],7,'<envelope note_x1F60A_="&#xE9
 
 INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
 VALUES ('{}',ROW(NULL,'{}'::xml[])::manifest_packet,NULL,'[]','{"document":null,"attachments":[]}','{}',false);
+
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('<?xml version="1.0"?><template/>','<?xml version="1.0"?><attachment/>','{"document":"<template/>","attachments":["<attachment/>"]}',false);

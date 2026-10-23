@@ -42,6 +42,7 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-composite'
+      xmlStorage?: true
       type: ScalarType
       operand: EvalExpression
       conversions: readonly EvalExpression[]

@@ -62,3 +62,14 @@ CREATE TABLE manifest_packets (
   CONSTRAINT packet_record_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(packet) IS NOT DISTINCT FROM expected_packet END),
   CONSTRAINT packet_array_display CHECK (CASE WHEN bypass THEN true ELSE fragments::text IS NOT DISTINCT FROM expected_display END)
 );
+
+CREATE TABLE manifest_templates (
+  expected_storage text,
+  expected_attachment text,
+  expected_json jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT template_storage CHECK (CASE WHEN bypass THEN true ELSE ($template$("<?xml version=\"1.0\"?><template/>","{\"<?xml version=\\\"1.0\\\"?><attachment/>\"}")$template$::manifest_packet).document::text IS NOT DISTINCT FROM expected_storage END),
+  CONSTRAINT template_attachment CHECK (CASE WHEN bypass THEN true ELSE (($template$("<?xml version=\"1.0\"?><template/>","{\"<?xml version=\\\"1.0\\\"?><attachment/>\"}")$template$::manifest_packet).attachments)[1]::text IS NOT DISTINCT FROM expected_attachment END),
+  CONSTRAINT template_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb($template$("<?xml version=\"1.0\"?><template/>","{\"<?xml version=\\\"1.0\\\"?><attachment/>\"}")$template$::manifest_packet) IS NOT DISTINCT FROM expected_json END),
+  CONSTRAINT template_history CHECK (CASE WHEN bypass THEN true ELSE (($history$[0:1]={"(\"<?xml version=\\\"1.0\\\"?><template/>\",\"{\\\"<?xml version=\\\\\\\"1.0\\\\\\\"?><attachment/>\\\"}\")",NULL}$history$::manifest_packet[])[0]).document::text IS NOT DISTINCT FROM expected_storage END)
+);

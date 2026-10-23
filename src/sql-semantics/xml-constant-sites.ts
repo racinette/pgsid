@@ -1,3 +1,4 @@
+import { restoreXmlStorageText } from '../catalog/xml-storage-text.js'
 import type { StoredXmlConstantContext } from '../catalog/types.js'
 import { walkStoredExpression } from './row-coercion-sites.js'
 
@@ -37,7 +38,22 @@ export function restoreStoredXmlNames(
       context.arrays!.filter((a) => a.site === entry.site).length === 1 &&
       typeof entry.text === 'string'
     )
-      matches[0]!['__pgsid_xml_array_storage'] = entry.text
+      matches[0]!['__pgsid_xml_container_storage'] = entry.text
+  }
+  for (const entry of context.containers ?? []) {
+    const matches = literals.get(entry.site)
+    if (
+      matches?.length !== 1 ||
+      context.containers!.filter((c) => c.site === entry.site).length !== 1 ||
+      !entry.value
+    )
+      continue
+    const wrapper = matches[0]!,
+      constant = wrapper['A_Const'] as { sval?: { sval?: unknown } },
+      value = constant?.sval?.sval
+    if (typeof value !== 'string') continue
+    const restored = restoreXmlStorageText(value, entry.value)
+    if (restored !== undefined) wrapper['__pgsid_xml_container_storage'] = restored
   }
 }
 

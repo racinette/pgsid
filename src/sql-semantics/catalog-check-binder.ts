@@ -627,7 +627,7 @@ type Literal = {
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
-  xmlArrayStorage?: string
+  xmlContainerStorage?: string
 }
 type Bound = {
   type: ScalarType | null
@@ -899,8 +899,8 @@ const materialize = (
         type: type as ArrayType,
         elementType: type.slice(6) as ArrayElementType,
         value: bound.literal.value,
-        ...(bound.literal.xmlArrayStorage !== undefined
-          ? { value: bound.literal.xmlArrayStorage, xmlStorage: true as const }
+        ...(bound.literal.xmlContainerStorage !== undefined
+          ? { value: bound.literal.xmlContainerStorage, xmlStorage: true as const }
           : {}),
         ...(definition ? { enum: definition } : {}),
       }
@@ -3608,8 +3608,8 @@ export function bindCatalogCheck(
                 ? {
                     kind: 'array-text-literal',
                     ...common,
-                    value: operand.literal.xmlArrayStorage ?? operand.literal.value!,
-                    ...(operand.literal.xmlArrayStorage !== undefined
+                    value: operand.literal.xmlContainerStorage ?? operand.literal.value!,
+                    ...(operand.literal.xmlContainerStorage !== undefined
                       ? { xmlStorage: true as const }
                       : {}),
                   }
@@ -3777,8 +3777,8 @@ export function bindCatalogCheck(
                     type,
                     elementType: element as ArrayElementType,
                     value: operand.literal.value!,
-                    ...(operand.literal.xmlArrayStorage !== undefined
-                      ? { value: operand.literal.xmlArrayStorage, xmlStorage: true as const }
+                    ...(operand.literal.xmlContainerStorage !== undefined
+                      ? { value: operand.literal.xmlContainerStorage, xmlStorage: true as const }
                       : {}),
                     ...(inputConversion ? { inputConversion } : {}),
                     ...(literalOrigin === 'stored' ? {} : { conversion: mapping.conversion }),
@@ -4278,7 +4278,17 @@ export function bindCatalogCheck(
             'pg_catalog.name',
           ].includes(operand.type ?? '')
         ) {
-          const input = operand.literal ? materialize(operand, 'pg_catalog.text') : operand.value
+          const input = operand.literal
+            ? materialize(
+                operand.literal.xmlContainerStorage !== undefined
+                  ? {
+                      ...operand,
+                      literal: { ...operand.literal, value: operand.literal.xmlContainerStorage },
+                    }
+                  : operand,
+                'pg_catalog.text',
+              )
+            : operand.value
           if (!input) return unknown
           const stored =
             literalOrigin === 'stored' &&
@@ -4389,6 +4399,9 @@ export function bindCatalogCheck(
             type: composite,
             value: {
               kind: 'text-to-composite',
+              ...(operand.literal?.xmlContainerStorage !== undefined
+                ? { xmlStorage: true as const }
+                : {}),
               type: composite,
               operand: input,
               conversions,
@@ -5481,8 +5494,8 @@ export function bindCatalogCheck(
               moneyUnits: moneyUnits.get(string),
               xmlOrigin: literalOrigin,
               ...(literalOrigin === 'stored' &&
-              typeof wrapper['__pgsid_xml_array_storage'] === 'string'
-                ? { xmlArrayStorage: wrapper['__pgsid_xml_array_storage'] }
+              typeof wrapper['__pgsid_xml_container_storage'] === 'string'
+                ? { xmlContainerStorage: wrapper['__pgsid_xml_container_storage'] }
                 : {}),
               ...(typeof xmlConstantBindings?.get(node) === 'string' &&
               (literalOrigin === 'stored' || xmlConstantBindings.get(node) === string)
