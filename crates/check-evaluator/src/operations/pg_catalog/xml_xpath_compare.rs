@@ -1,4 +1,6 @@
 fn xpath_compare_numbers(left: &XPathValue, right: &XPathValue, operation: i32) -> XPathValue {
+    if left.state < 0 { return xpath_value_empty(XPATH_KIND_BOOLEAN,left.state); };
+    if right.state < 0 { return xpath_value_empty(XPATH_KIND_BOOLEAN,right.state); };
     if left.state == 2 || right.state == 2 { return xpath_value_empty(XPATH_KIND_BOOLEAN,2); };
     let a = f64::from_bits(left.number as u64); let b = f64::from_bits(right.number as u64);
     if (left.state == 0 && a != a) || (right.state == 0 && b != b) { return xpath_value_boolean(operation == 4); };
@@ -41,6 +43,8 @@ fn xpath_comparison_text(input: &XPathValue, index: usize, tree: &XmlTree, graph
 }
 
 fn xpath_values_compare(left: &XPathValue, right: &XPathValue, operation: i32, tree: &XmlTree, graph: &XPathGraph, powers: &XPathPowers) -> XPathValue {
+    if left.state < 0 { return xpath_value_empty(XPATH_KIND_BOOLEAN,left.state); };
+    if right.state < 0 { return xpath_value_empty(XPATH_KIND_BOOLEAN,right.state); };
     if left.state == 2 || right.state == 2 { return xpath_value_empty(XPATH_KIND_BOOLEAN,2); };
     if left.kind != XPATH_KIND_NODES && right.kind != XPATH_KIND_NODES {
         return xpath_compare_scalars(left,right,operation,powers);

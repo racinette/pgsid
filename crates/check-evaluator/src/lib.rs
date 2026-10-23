@@ -343,6 +343,15 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_number_output.rs");
     include!("operations/pg_catalog/xml_xpath_convert.rs");
     include!("operations/pg_catalog/xml_xpath_compare.rs");
+    include!("operations/pg_catalog/xml_xpath_optimize.rs");
+    include!("operations/pg_catalog/xml_xpath_eval_state.rs");
+    include!("operations/pg_catalog/xml_xpath_math.rs");
+    include!("operations/pg_catalog/xml_xpath_strings.rs");
+    include!("operations/pg_catalog/xml_xpath_lang.rs");
+    include!("operations/pg_catalog/xml_xpath_window.rs");
+    include!("operations/pg_catalog/xml_xpath_functions.rs");
+    include!("operations/pg_catalog/xml_xpath_filter.rs");
+    include!("operations/pg_catalog/xml_xpath_eval.rs");
     include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");
