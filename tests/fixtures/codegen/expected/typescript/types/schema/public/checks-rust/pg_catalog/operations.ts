@@ -50176,6 +50176,387 @@ function xmlAttributeTokenized(source: XmlSource, arena: XmlEntityArena, element
     }
     return false;
 }
+function xpathNamespaceShadowed(tree: XmlTree, owner: number, declaration: number, prefix: string): boolean {
+    owner = langruntime.checkedIndex(owner);
+    declaration = langruntime.checkedIndex(declaration);
+    prefix = langruntime.checkedString(prefix);
+    let cursor: number = owner;
+    while (cursor > 0 && !(cursor === declaration)) {
+        const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode));
+        let index: number = node.attributeStart;
+        while (index < node.attributeEnd) {
+            const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+            if (xmlQueryNamespaceAttribute(tree, attribute.name)) {
+                const name: string = xpathNamespacePrefix(tree, langruntime.checkedAdd(index, 1));
+                if (name === prefix) {
+                    return true;
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        cursor = langruntime.checkedIndex(node.parent);
+    }
+    return false;
+}
+function xpathNamespaceAxis(tree: XmlTree, owner: number): XPathNodes {
+    owner = langruntime.checkedIndex(owner);
+    let found: XPathNodes = xpathNodesEmpty();
+    let cursor: number = owner;
+    while (cursor > 0) {
+        const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode));
+        let index: number = node.attributeStart;
+        while (index < node.attributeEnd) {
+            const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+            if (xmlQueryNamespaceAttribute(tree, attribute.name)) {
+                const prefix: string = xpathNamespacePrefix(tree, langruntime.checkedAdd(index, 1));
+                if (!(prefix === "xml") && xpathNamespaceShadowed(tree, owner, cursor, prefix) === false) {
+                    const value: XPathReference = copyXPathReference({ kind: 2, node: owner, index: langruntime.checkedAdd(index, 1) });
+                    found = xpathNodesPush(found, value);
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        cursor = langruntime.checkedIndex(node.parent);
+    }
+    const implicit: XPathReference = copyXPathReference({ kind: 2, node: owner, index: 0 });
+    found = xpathNodesPush(found, implicit);
+    return xpathNodesReverse(found);
+}
+function xpathLocalAxis(tree: XmlTree, context: XPathReference, axis: number): XPathNodes {
+    context = copyXPathReference(context);
+    axis = langruntime.checkedI32(axis);
+    let result: XPathNodes = xpathNodesEmpty();
+    if (context.kind < 0) {
+        return result;
+    }
+    if (axis === 3 || axis === 6 || axis === 8) {
+        result = xpathNodesPush(result, context);
+    }
+    if (axis === 4 || axis === 7 || axis === 8) {
+        let parent: XPathReference = copyXPathReference(xpathReferenceParent(tree, context));
+        while (parent.kind >= 0) {
+            result = xpathNodesPush(result, parent);
+            if (axis === 4) {
+                return result;
+            }
+            parent = copyXPathReference(xpathReferenceParent(tree, parent));
+        }
+        return result;
+    }
+    if (axis === 2 || axis === 13) {
+        if (!(context.kind === 0) || !(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(context.node), copyXmlTreeNode).kind === 1)) {
+            return result;
+        }
+        if (axis === 13) {
+            return xpathNamespaceAxis(tree, context.node);
+        }
+        const owner: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(context.node), copyXmlTreeNode));
+        let index: number = owner.attributeStart;
+        while (index < owner.attributeEnd) {
+            const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+            if (xmlQueryNamespaceAttribute(tree, attribute.name) === false) {
+                const value: XPathReference = copyXPathReference({ kind: 1, node: context.node, index: index });
+                result = xpathNodesPush(result, value);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return result;
+    }
+    if (!(context.kind === 0)) {
+        return result;
+    }
+    if (axis === 1) {
+        let cursor: number = xmlQueryChild(tree, context.node);
+        while (cursor > 0) {
+            const value: XPathReference = copyXPathReference(xpathReferenceNode(cursor));
+            result = xpathNodesPush(result, value);
+            cursor = langruntime.checkedIndex(xmlQueryNext(tree, cursor));
+        }
+    }
+    if (axis === 5 || axis === 6) {
+        let cursor: number = xmlQueryChild(tree, context.node);
+        while (cursor > 0 && xpathNodeAncestor(tree, context.node, cursor)) {
+            const value: XPathReference = copyXPathReference(xpathReferenceNode(cursor));
+            result = xpathNodesPush(result, value);
+            cursor = langruntime.checkedIndex(xmlQueryFollowingNode(tree, cursor));
+        }
+    }
+    if (axis === 9 || axis === 10) {
+        let cursor: number = context.node;
+        let scanning: boolean = cursor > 0;
+        while (scanning) {
+            if (axis === 9) {
+                cursor = langruntime.checkedIndex(xmlQueryNext(tree, cursor));
+            }
+            else {
+                cursor = langruntime.checkedIndex(xmlQueryPrevious(tree, cursor));
+            }
+            if (cursor === 0) {
+                scanning = langruntime.checkedBool(false);
+            }
+            else {
+                const value: XPathReference = copyXPathReference(xpathReferenceNode(cursor));
+                result = xpathNodesPush(result, value);
+            }
+        }
+    }
+    return result;
+}
+interface XPathGraphNode {
+    kind: number;
+    parent: number;
+    next: number;
+    previous: number;
+    first: number;
+    last: number;
+}
+function copyXPathGraphNode(value: XPathGraphNode): XPathGraphNode {
+    return { kind: langruntime.checkedI32(value.kind), parent: langruntime.checkedIndex(value.parent), next: langruntime.checkedIndex(value.next), previous: langruntime.checkedIndex(value.previous), first: langruntime.checkedIndex(value.first), last: langruntime.checkedIndex(value.last) };
+}
+interface XPathGraph {
+    nodes: XPathGraphNode[];
+}
+function copyXPathGraph(value: XPathGraph): XPathGraph {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyXPathGraphNode) };
+}
+interface XPathDocument {
+    tree: XmlTree;
+    graph: XPathGraph;
+}
+function copyXPathDocument(value: XPathDocument): XPathDocument {
+    return { tree: copyXmlTree(value.tree), graph: copyXPathGraph(value.graph) };
+}
+interface XPathEntityUses {
+    entries: number[];
+}
+function copyXPathEntityUses(value: XPathEntityUses): XPathEntityUses {
+    return { entries: langruntime.checkedIndices(value.entries) };
+}
+interface XPathDefinition {
+    name: string;
+    node: number;
+}
+function copyXPathDefinition(value: XPathDefinition): XPathDefinition {
+    return { name: langruntime.checkedString(value.name), node: langruntime.checkedIndex(value.node) };
+}
+interface XPathDefinitions {
+    entries: XPathDefinition[];
+}
+function copyXPathDefinitions(value: XPathDefinitions): XPathDefinitions {
+    return { entries: langruntime.checkedStructs(value.entries, copyXPathDefinition) };
+}
+export function xpathEntityUse(input: XPathEntityUses, index: number): XPathEntityUses {
+    let position: number = 0;
+    while (position < input.entries.length) {
+        if (langruntime.indexNumber(input.entries, langruntime.checkedIndex(position)) === index) {
+            return input;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let entries: number[] = input.entries;
+    langruntime.pushIndex(entries, index);
+    return { entries: entries };
+}
+export function xpathEntityUses(input: XPathEntityUses, source: XmlSource, arena: XmlEntityArena, start: number): XPathEntityUses {
+    let uses: XPathEntityUses = input;
+    let position: number = start;
+    while (position < source.characters.length) {
+        if (xmlAt(source, position, "<!--")) {
+            const end: XmlScan = copyXmlScan(xmlComment(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const end: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (xmlAt(source, position, "<![CDATA[")) {
+            const end: XmlScan = copyXmlScan(xmlCdata(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false) {
+                return uses;
+            }
+            if (xmlPredefinedReference(source, position) === false) {
+                const name: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const spelling: string = xmlSourceRange(source, name);
+                const index: number = xmlEntityLookup(arena, spelling, false);
+                if (index < arena.entities.length) {
+                    uses = xpathEntityUse(uses, index);
+                }
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return uses;
+}
+export function xpathGraphDeclaration(input: XmlTree, entry: XmlTreeDtdEntry): XmlTree {
+    let tree: XmlTree = input;
+    let kind: number = 14;
+    if (entry.kind === 1) {
+        kind = langruntime.checkedI32(15);
+    }
+    if (entry.kind === 2) {
+        kind = langruntime.checkedI32(16);
+    }
+    if (entry.kind === 4) {
+        kind = langruntime.checkedI32(17);
+    }
+    let name: XmlSpan = copyXmlSpan(entry.name);
+    let value: XmlSpan = copyXmlSpan(entry.line);
+    if (entry.kind === 6 || entry.kind === 7) {
+        const text: string = xmlTreeText(tree, entry.line);
+        const source: XmlSource = { characters: Array.from(text) };
+        let begin: number = 4;
+        let end: number = langruntime.checkedSubtract(source.characters.length, 3);
+        kind = langruntime.checkedI32(4);
+        if (entry.kind === 7) {
+            kind = langruntime.checkedI32(5);
+            const scanned: XmlScan = copyXmlScan(xmlName(source, 2));
+            const span: XmlSpan = copyXmlSpan({ start: 2, end: scanned.next });
+            const spelling: string = xmlSourceRange(source, span);
+            tree = xmlTreeStore(tree, spelling);
+            name = copyXmlSpan(tree.written);
+            begin = langruntime.checkedIndex(xmlSkipSpace(source, scanned.next));
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(source.characters.length, 2));
+        }
+        const span: XmlSpan = copyXmlSpan({ start: begin, end: end });
+        const valueText: string = xmlSourceRange(source, span);
+        tree = xmlTreeStore(tree, valueText);
+        value = copyXmlSpan(tree.written);
+    }
+    return xmlTreeLeaf(tree, kind, name, value);
+}
+function xpathGraphDefinitions(tree: XmlTree): XPathDefinitions {
+    let entries: XPathDefinition[] = [];
+    let position: number = 1;
+    while (position < tree.nodes.length) {
+        const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(position), copyXmlTreeNode));
+        if (node.kind === 14) {
+            const name: string = xmlTreeText(tree, node.name);
+            langruntime.pushStruct(entries, { name: name, node: position }, copyXPathDefinition);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { entries: entries };
+}
+function xpathGraphEntity(definitions: XPathDefinitions, name: string): number {
+    name = langruntime.checkedString(name);
+    let position: number = 0;
+    while (position < definitions.entries.length) {
+        const definition: XPathDefinition = copyXPathDefinition(langruntime.indexStruct(definitions.entries, langruntime.checkedIndex(position), copyXPathDefinition));
+        if (definition.name === name) {
+            return definition.node;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return 0;
+}
+function xpathGraphFromTree(tree: XmlTree): XPathGraph {
+    const definitions: XPathDefinitions = xpathGraphDefinitions(tree);
+    let nodes: XPathGraphNode[] = [];
+    let position: number = 0;
+    while (position < tree.nodes.length) {
+        const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(position), copyXmlTreeNode));
+        let first: number = node.first;
+        let last: number = node.last;
+        if (node.kind === 7) {
+            const name: string = xmlTreeText(tree, node.name);
+            first = langruntime.checkedIndex(xpathGraphEntity(definitions, name));
+            last = langruntime.checkedIndex(first);
+        }
+        langruntime.pushStruct(nodes, { kind: node.kind, parent: node.parent, next: node.next, previous: node.previous, first: first, last: last }, copyXPathGraphNode);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { nodes: nodes };
+}
+function xpathDocumentParse(input: string): XPathDocument {
+    input = langruntime.checkedString(input);
+    let tree: XmlTree = xmlTreeParse(input, true, true);
+    const source: XmlSource = { characters: Array.from(input) };
+    let position: number = 0;
+    if (source.characters.length > 0 && langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(0))).codePointAt(0)! === 65279) {
+        position = langruntime.checkedIndex(1);
+    }
+    const declaration: XmlDeclaration = copyXmlDeclaration(xmlParseDeclaration(source, position, true));
+    position = langruntime.checkedIndex(declaration.next);
+    let scanning: boolean = true;
+    while (scanning) {
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (xmlAt(source, position, "<!--")) {
+            const end: XmlScan = copyXmlScan(xmlComment(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const end: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            position = langruntime.checkedIndex(end.next);
+        }
+        else {
+            scanning = langruntime.checkedBool(false);
+        }
+    }
+    if (xmlAt(source, position, "<!DOCTYPE") === false) {
+        const graph: XPathGraph = xpathGraphFromTree(tree);
+        return { tree: tree, graph: graph };
+    }
+    const parsed: XmlSubsetResult = xmlReadDoctype(input, position, declaration.standalone);
+    const arena: XmlEntityArena = parsed.state;
+    const stored: XmlSource = { characters: Array.from(arena.arena) };
+    const entries: number[] = [];
+    let uses: XPathEntityUses = { entries: entries };
+    uses = xpathEntityUses(uses, source, arena, parsed.next);
+    let index: number = 0;
+    while (index < uses.entries.length) {
+        const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(langruntime.indexNumber(uses.entries, langruntime.checkedIndex(index))), copyXmlEntityIndex));
+        if (entity.external === false && entity.unparsed === false) {
+            const text: string = xmlSourceRange(stored, entity.value);
+            const source1: XmlSource = { characters: Array.from(text) };
+            uses = xpathEntityUses(uses, source1, arena, 0);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let doctype: number = 1;
+    while (doctype < tree.nodes.length && !(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(doctype), copyXmlTreeNode).kind === 6)) {
+        doctype = langruntime.checkedAdd(doctype, 1);
+    }
+    if (doctype >= tree.nodes.length) {
+        const graph: XPathGraph = xpathGraphFromTree(tree);
+        return { tree: tree, graph: graph };
+    }
+    tree = xmlTreeCurrent(tree, doctype);
+    index = langruntime.checkedIndex(0);
+    const declarationCount: number = tree.declarations.length;
+    while (index < declarationCount) {
+        const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(tree.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+        if (!(entry.kind === 5)) {
+            tree = xpathGraphDeclaration(tree, entry);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const definitions: XPathDefinitions = xpathGraphDefinitions(tree);
+    index = langruntime.checkedIndex(0);
+    while (index < uses.entries.length) {
+        const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(langruntime.indexNumber(uses.entries, langruntime.checkedIndex(index))), copyXmlEntityIndex));
+        if (entity.external === false && entity.unparsed === false) {
+            const name: string = xmlSourceRange(stored, entity.name);
+            const owner: number = xpathGraphEntity(definitions, name);
+            if (owner > 0) {
+                const text: string = xmlSourceRange(stored, entity.value);
+                const source1: XmlSource = { characters: Array.from(text) };
+                tree = xmlTreeCurrent(tree, owner);
+                tree = xmlTreeParseNodes(source1, stored, arena, 0, tree, true);
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    tree = xmlTreeCurrent(tree, 0);
+    const graph: XPathGraph = xpathGraphFromTree(tree);
+    return { tree: tree, graph: graph };
+}
 const xpathNameStartRanges: ReadonlyArray<number> = [65, 90, 97, 122, 192, 214, 216, 246, 248, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12295, 12295, 12321, 12329, 12353, 12436, 12449, 12538, 12549, 12588, 19968, 40869, 44032, 55203];
 const xpathNameExtraRanges: ReadonlyArray<number> = [48, 57, 183, 183, 720, 721, 768, 837, 864, 865, 903, 903, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1600, 1600, 1611, 1618, 1632, 1641, 1648, 1648, 1750, 1764, 1767, 1768, 1770, 1773, 1776, 1785, 2305, 2307, 2364, 2364, 2366, 2381, 2385, 2388, 2402, 2403, 2406, 2415, 2433, 2435, 2492, 2492, 2494, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2534, 2543, 2562, 2562, 2620, 2620, 2622, 2626, 2631, 2632, 2635, 2637, 2662, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2790, 2799, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2918, 2927, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3047, 3055, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3174, 3183, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3302, 3311, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3430, 3439, 3633, 3633, 3636, 3642, 3654, 3662, 3664, 3673, 3761, 3761, 3764, 3769, 3771, 3772, 3782, 3782, 3784, 3789, 3792, 3801, 3864, 3865, 3872, 3881, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12293, 12293, 12330, 12335, 12337, 12341, 12441, 12442, 12445, 12446, 12540, 12542];
 function xpathNameRange(character: string, extra: boolean): boolean {
@@ -50220,6 +50601,140 @@ function xpathNameStart(character: string): boolean {
 function xpathNameCharacter(character: string): boolean {
     character = langruntime.checkedChar(character);
     return xpathNameStart(character) || character === "." || character === "-" || xpathNameRange(character, true);
+}
+interface XPathReference {
+    kind: number;
+    node: number;
+    index: number;
+}
+function copyXPathReference(value: XPathReference): XPathReference {
+    return { kind: langruntime.checkedI32(value.kind), node: langruntime.checkedIndex(value.node), index: langruntime.checkedIndex(value.index) };
+}
+interface XPathNodes {
+    values: XPathReference[];
+}
+function copyXPathNodes(value: XPathNodes): XPathNodes {
+    return { values: langruntime.checkedStructs(value.values, copyXPathReference) };
+}
+function xpathReferenceNode(node: number): XPathReference {
+    node = langruntime.checkedIndex(node);
+    return { kind: 0, node: node, index: 0 };
+}
+function xpathReferenceEqual(left: XPathReference, right: XPathReference): boolean {
+    left = copyXPathReference(left);
+    right = copyXPathReference(right);
+    return left.kind === right.kind && left.node === right.node && left.index === right.index;
+}
+function xpathNodesEmpty(): XPathNodes {
+    const values: XPathReference[] = [];
+    return { values: values };
+}
+export function xpathNodesPush(input: XPathNodes, value: XPathReference): XPathNodes {
+    let values: XPathReference[] = input.values;
+    langruntime.pushStruct(values, value, copyXPathReference);
+    return { values: values };
+}
+export function xpathNodesUnique(input: XPathNodes, value: XPathReference): XPathNodes {
+    let position: number = 0;
+    while (position < input.values.length) {
+        if (xpathReferenceEqual(langruntime.indexStruct(input.values, langruntime.checkedIndex(position), copyXPathReference), value)) {
+            return input;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return xpathNodesPush(input, value);
+}
+export function xpathNodesReverse(input: XPathNodes): XPathNodes {
+    let values: XPathReference[] = input.values;
+    let first: number = 0;
+    let end: number = values.length;
+    while (first < end) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        const saved: XPathReference = copyXPathReference(langruntime.indexStruct(values, langruntime.checkedIndex(first), copyXPathReference));
+        values[langruntime.checkedIndexIn(values, first)] = copyXPathReference(langruntime.indexStruct(values, langruntime.checkedIndex(end), copyXPathReference));
+        values[langruntime.checkedIndexIn(values, end)] = copyXPathReference(saved);
+        first = langruntime.checkedAdd(first, 1);
+    }
+    return { values: values };
+}
+function xpathNamespacePrefix(tree: XmlTree, index: number): string {
+    index = langruntime.checkedIndex(index);
+    if (index === 0) {
+        return "xml";
+    }
+    const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)), copyXmlTreeAttribute));
+    let begin: number = attribute.name.start;
+    if (langruntime.checkedSubtract(attribute.name.end, begin) > 5) {
+        begin = langruntime.checkedAdd(begin, 6);
+    }
+    else {
+        begin = langruntime.checkedIndex(attribute.name.end);
+    }
+    const span: XmlSpan = copyXmlSpan({ start: begin, end: attribute.name.end });
+    return xmlTreeText(tree, span);
+}
+function xpathReferenceName(tree: XmlTree, value: XPathReference): XmlQueryName {
+    value = copyXPathReference(value);
+    if (value.kind === 0) {
+        return xmlQueryNodeName(tree, value.node);
+    }
+    if (value.kind === 1) {
+        const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(value.index), copyXmlTreeAttribute));
+        return xmlQueryExpandName(tree, value.node, attribute.name, true);
+    }
+    const qualified: string = xpathNamespacePrefix(tree, value.index);
+    return { local: langruntime.checkedString(qualified), qualified: qualified, namespace: "", resolved: true };
+}
+function xpathReferenceParent(tree: XmlTree, value: XPathReference): XPathReference {
+    value = copyXPathReference(value);
+    if (!(value.kind === 0)) {
+        return xpathReferenceNode(value.node);
+    }
+    if (value.node === 0) {
+        return { kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 };
+    }
+    return xpathReferenceNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(value.node), copyXmlTreeNode).parent);
+}
+function xpathReferenceType(tree: XmlTree, value: XPathReference): number {
+    value = copyXPathReference(value);
+    if (value.kind === 1) {
+        return 8;
+    }
+    if (value.kind === 2) {
+        return 9;
+    }
+    return langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(value.node), copyXmlTreeNode).kind;
+}
+function xpathReferenceLeaf(tree: XmlTree, value: XPathReference): string {
+    value = copyXPathReference(value);
+    if (value.kind === 1) {
+        const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(value.index), copyXmlTreeAttribute));
+        return xmlTreeText(tree, attribute.value);
+    }
+    if (value.kind === 2) {
+        if (value.index === 0) {
+            return "http://www.w3.org/XML/1998/namespace";
+        }
+        const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(langruntime.checkedSubtract(value.index, 1)), copyXmlTreeAttribute));
+        return xmlTreeText(tree, attribute.value);
+    }
+    const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(value.node), copyXmlTreeNode));
+    if (node.kind >= 2 && node.kind <= 5) {
+        return xmlTreeText(tree, node.value);
+    }
+    return "";
+}
+function xpathNodeAncestor(tree: XmlTree, ancestor: number, node: number): boolean {
+    ancestor = langruntime.checkedIndex(ancestor);
+    node = langruntime.checkedIndex(node);
+    let cursor: number = node;
+    while (cursor > 0) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode).parent);
+        if (cursor === ancestor) {
+            return true;
+        }
+    }
+    return false;
 }
 function xpathParseOperator(program: XPathProgram, position: number): number {
     position = langruntime.checkedIndex(position);
@@ -50865,4 +51380,269 @@ export function xpathParseFunction(input: XPathProgram, scanned: XPathNameScan):
     const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathFunction, count, first, 0, scanned.prefix, scanned.local));
     program = xpathParsePush(program, node);
     return xpathParsePredicates(program, xpathFilter);
+}
+interface XPathNamespaceBinding {
+    prefix: string;
+    uri: string;
+}
+function copyXPathNamespaceBinding(value: XPathNamespaceBinding): XPathNamespaceBinding {
+    return { prefix: langruntime.checkedString(value.prefix), uri: langruntime.checkedString(value.uri) };
+}
+interface XPathNamespaces {
+    values: XPathNamespaceBinding[];
+}
+function copyXPathNamespaces(value: XPathNamespaces): XPathNamespaces {
+    return { values: langruntime.checkedStructs(value.values, copyXPathNamespaceBinding) };
+}
+interface XPathNodeTest {
+    kind: number;
+    principal: number;
+    name: string;
+    uri: string;
+    prefixed: boolean;
+    valid: boolean;
+}
+function copyXPathNodeTest(value: XPathNodeTest): XPathNodeTest {
+    return { kind: langruntime.checkedIndex(value.kind), principal: langruntime.checkedI32(value.principal), name: langruntime.checkedString(value.name), uri: langruntime.checkedString(value.uri), prefixed: langruntime.checkedBool(value.prefixed), valid: langruntime.checkedBool(value.valid) };
+}
+function xpathNamespacesEmpty(): XPathNamespaces {
+    const values: XPathNamespaceBinding[] = [];
+    return { values: values };
+}
+export function xpathNamespacesPush(input: XPathNamespaces, prefix: string, uri: string): XPathNamespaces {
+    let values: XPathNamespaceBinding[] = input.values;
+    const value: XPathNamespaceBinding = { prefix: prefix, uri: uri };
+    langruntime.pushStruct(values, value, copyXPathNamespaceBinding);
+    return { values: values };
+}
+function xpathNodeTest(program: XPathProgram, step: XPathExpression, namespaces: XPathNamespaces): XPathNodeTest {
+    step = copyXPathExpression(step);
+    const name: string = xpathParseText(program, step.name);
+    const prefix: string = xpathParseText(program, step.prefix);
+    let principal: number = 1;
+    if (step.operation === 2) {
+        principal = langruntime.checkedI32(8);
+    }
+    if (step.operation === 13) {
+        principal = langruntime.checkedI32(9);
+    }
+    let uri: string = "";
+    let valid: boolean = true;
+    if (step.right === 1 && !(prefix === "")) {
+        valid = langruntime.checkedBool(false);
+        let position: number = namespaces.values.length;
+        while (position > 0 && valid === false) {
+            position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+            const value: XPathNamespaceBinding = copyXPathNamespaceBinding(langruntime.indexStruct(namespaces.values, langruntime.checkedIndex(position), copyXPathNamespaceBinding));
+            if (value.prefix === prefix) {
+                uri = langruntime.checkedString(langruntime.checkedString(value.uri));
+                valid = langruntime.checkedBool(true);
+            }
+        }
+        if (prefix === "xml") {
+            uri = langruntime.checkedString("http://www.w3.org/XML/1998/namespace");
+            valid = langruntime.checkedBool(true);
+        }
+    }
+    return { kind: step.right, principal: principal, name: name, uri: uri, prefixed: !(prefix === ""), valid: valid };
+}
+function xpathNodeMatches(tree: XmlTree, test: XPathNodeTest, value: XPathReference): boolean {
+    value = copyXPathReference(value);
+    if (test.valid === false) {
+        return false;
+    }
+    const kind: number = xpathReferenceType(tree, value);
+    if (test.kind === 2) {
+        return (kind >= 0 && kind <= 5) || kind === 8 || kind === 9;
+    }
+    if (test.kind === 3) {
+        return kind === 2 || kind === 3;
+    }
+    if (test.kind === 4) {
+        return kind === 4;
+    }
+    if (test.kind === 5 || test.kind === 6) {
+        if (!(kind === 5)) {
+            return false;
+        }
+        if (test.kind === 5) {
+            return true;
+        }
+        const name: XmlQueryName = xpathReferenceName(tree, value);
+        return name.qualified === test.name;
+    }
+    if (!(kind === test.principal)) {
+        return false;
+    }
+    const name: XmlQueryName = xpathReferenceName(tree, value);
+    if (!(test.name === "*") && !(name.local === test.name)) {
+        return false;
+    }
+    if (kind === 9) {
+        return true;
+    }
+    if (test.name === "*" && test.prefixed === false) {
+        return true;
+    }
+    if (test.prefixed && test.uri === "") {
+        return false;
+    }
+    return name.namespace === test.uri;
+}
+function xpathLocalAxisTest(tree: XmlTree, context: XPathReference, axis: number, test: XPathNodeTest): XPathNodes {
+    context = copyXPathReference(context);
+    axis = langruntime.checkedI32(axis);
+    const candidates: XPathNodes = xpathLocalAxis(tree, context, axis);
+    let result: XPathNodes = xpathNodesEmpty();
+    let position: number = 0;
+    while (position < candidates.values.length) {
+        const value: XPathReference = copyXPathReference(langruntime.indexStruct(candidates.values, langruntime.checkedIndex(position), copyXPathReference));
+        if (xpathNodeMatches(tree, test, value)) {
+            result = xpathNodesPush(result, value);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return result;
+}
+interface XPathCursor {
+    node: number;
+    ancestor: number;
+    started: boolean;
+    done: boolean;
+}
+function copyXPathCursor(value: XPathCursor): XPathCursor {
+    return { node: langruntime.checkedIndex(value.node), ancestor: langruntime.checkedIndex(value.ancestor), started: langruntime.checkedBool(value.started), done: langruntime.checkedBool(value.done) };
+}
+interface XPathVisit {
+    node: number;
+    ancestor: number;
+    offset: number;
+}
+function copyXPathVisit(value: XPathVisit): XPathVisit {
+    return { node: langruntime.checkedIndex(value.node), ancestor: langruntime.checkedIndex(value.ancestor), offset: langruntime.checkedIndex(value.offset) };
+}
+interface XPathSequence {
+    values: XPathReference[];
+    cyclic: boolean;
+    cycle: number;
+}
+function copyXPathSequence(value: XPathSequence): XPathSequence {
+    return { values: langruntime.checkedStructs(value.values, copyXPathReference), cyclic: langruntime.checkedBool(value.cyclic), cycle: langruntime.checkedIndex(value.cycle) };
+}
+interface XPathSelection {
+    value: XPathReference;
+    known: boolean;
+}
+function copyXPathSelection(value: XPathSelection): XPathSelection {
+    return { value: copyXPathReference(value.value), known: langruntime.checkedBool(value.known) };
+}
+function xpathGraphFollowing(graph: XPathGraph, input: XPathCursor): XPathCursor {
+    input = copyXPathCursor(input);
+    const current: XPathGraphNode = copyXPathGraphNode(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(input.node), copyXPathGraphNode));
+    if (input.started && current.first > 0) {
+        return { node: current.first, ancestor: input.ancestor, started: true, done: false };
+    }
+    let cursor: number = input.node;
+    while (cursor > 0) {
+        const next: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).next;
+        if (next > 0) {
+            return { node: next, ancestor: input.ancestor, started: true, done: false };
+        }
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).parent);
+    }
+    return { node: 0, ancestor: input.ancestor, started: true, done: true };
+}
+function xpathGraphPreceding(graph: XPathGraph, input: XPathCursor): XPathCursor {
+    input = copyXPathCursor(input);
+    if (input.node === 0) {
+        return { node: 0, ancestor: input.ancestor, started: true, done: true };
+    }
+    let cursor: number = input.node;
+    let ancestor: number = input.ancestor;
+    const previous: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).previous;
+    if (previous > 0 && langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(previous), copyXPathGraphNode).kind === 6) {
+        cursor = langruntime.checkedIndex(previous);
+    }
+    while (langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).previous === 0) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).parent);
+        if (cursor === 0 || cursor === langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(0), copyXPathGraphNode).first) {
+            return { node: 0, ancestor: ancestor, started: true, done: true };
+        }
+        if (!(cursor === ancestor)) {
+            return { node: cursor, ancestor: ancestor, started: true, done: false };
+        }
+        ancestor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).parent);
+    }
+    cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).previous);
+    let last: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).last;
+    while (last > 0) {
+        cursor = langruntime.checkedIndex(last);
+        last = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).last);
+    }
+    return { node: cursor, ancestor: ancestor, started: true, done: false };
+}
+function xpathGraphAxisTest(tree: XmlTree, graph: XPathGraph, context: XPathReference, axis: number, test: XPathNodeTest): XPathSequence {
+    context = copyXPathReference(context);
+    axis = langruntime.checkedI32(axis);
+    if (!(axis === 11) && !(axis === 12)) {
+        const found: XPathNodes = xpathLocalAxisTest(tree, context, axis, test);
+        return { values: found.values, cyclic: false, cycle: 0 };
+    }
+    let values: XPathReference[] = [];
+    if (context.kind < 0) {
+        return { values: values, cyclic: false, cycle: 0 };
+    }
+    let visited: XPathVisit[] = [];
+    let index: number = 0;
+    while (index < graph.nodes.length) {
+        langruntime.pushStruct(visited, { node: 0, ancestor: 0, offset: 0 }, copyXPathVisit);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const ancestor: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).parent;
+    let cursor: XPathCursor = copyXPathCursor({ node: context.node, ancestor: ancestor, started: false, done: false });
+    while (cursor.done === false) {
+        if (axis === 11) {
+            cursor = copyXPathCursor(xpathGraphFollowing(graph, cursor));
+        }
+        else {
+            cursor = copyXPathCursor(xpathGraphPreceding(graph, cursor));
+        }
+        if (cursor.done === false) {
+            const previous: XPathVisit = copyXPathVisit(langruntime.indexStruct(visited, langruntime.checkedIndex(cursor.node), copyXPathVisit));
+            if (previous.node === cursor.node && previous.ancestor === cursor.ancestor) {
+                return { values: values, cyclic: true, cycle: previous.offset };
+            }
+            visited[langruntime.checkedIndexIn(visited, cursor.node)] = copyXPathVisit({ node: cursor.node, ancestor: cursor.ancestor, offset: values.length });
+            const value: XPathReference = copyXPathReference(xpathReferenceNode(cursor.node));
+            if (xpathNodeMatches(tree, test, value)) {
+                langruntime.pushStruct(values, value, copyXPathReference);
+            }
+        }
+    }
+    return { values: values, cyclic: false, cycle: 0 };
+}
+function xpathSequencePosition(input: XPathSequence, position: number): XPathSelection {
+    position = langruntime.checkedI32(position);
+    const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
+    if (position <= 0) {
+        return { value: copyXPathReference(absent), known: true };
+    }
+    const requested: number = langruntime.checkedSignedSubtract(position, 1);
+    let index: number = langruntime.indexFromI32(requested, 0);
+    if (index >= input.values.length && input.cyclic) {
+        const count: number = langruntime.checkedI32(langruntime.checkedIndex(input.values.length));
+        const first: number = langruntime.checkedI32(langruntime.checkedIndex(input.cycle));
+        const length: number = langruntime.checkedSignedSubtract(count, first);
+        if (length > 0) {
+            const reduced: number = langruntime.checkedSignedAdd(first, langruntime.checkedSignedRemainder((langruntime.checkedSignedSubtract(requested, first)), length));
+            index = langruntime.checkedIndex(langruntime.indexFromI32(reduced, 0));
+        }
+        else {
+            return { value: copyXPathReference(absent), known: false };
+        }
+    }
+    if (index >= input.values.length) {
+        return { value: copyXPathReference(absent), known: true };
+    }
+    return { value: copyXPathReference(langruntime.indexStruct(input.values, langruntime.checkedIndex(index), copyXPathReference)), known: true };
 }
