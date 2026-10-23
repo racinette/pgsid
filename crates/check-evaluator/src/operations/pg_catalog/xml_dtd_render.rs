@@ -133,6 +133,7 @@ pub(crate) fn xml_tree_dtd_attributes(input: XmlTree, source: &XmlSource, stored
             if found == false { tree = xml_tree_unsupported(tree); };
         };
         line.push_str(">\n");
+        tree = xpath_id_declaration(tree,owner.as_str(),name.as_str(),id == 2);
         tree = xml_tree_dtd_add(tree,2,owner.as_str(),name.as_str(),line.as_str(),id);
         position = xml_skip_space(source,attribute.next);
     }

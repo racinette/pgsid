@@ -84,7 +84,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       let prepared=xml_query_content(raw.as_str());
       if xml_well_formed(prepared.as_str(),true)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let document=xpath_document_parse(prepared.as_str()); let tree=document.tree; let graph=document.graph;
-      if xml_query_names_valid(&tree)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
+      if graph.ids.valid==false || xml_query_names_valid(&tree)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let program=xpath_compile(text.as_str()); let mut namespaces=xpath_namespaces_empty();
       namespaces=xpath_namespaces_push(namespaces,"p","urn:p"); namespaces=xpath_namespaces_push(namespaces,"q","urn:q"); namespaces=xpath_namespaces_push(namespaces,"u","urn:u");
       let mut powers=xpath_powers_empty(); if facts==1 {powers=xpath_eval_test_powers();};
@@ -358,8 +358,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       'lang',
     ])
       for (const args of ['', '1', '1,2', '1,2,3', '1,2,3,4']) {
-        if (name === 'id' && args === '1') continue
-        add(input, `${name}(${args})`, 2)
+        add(input, `${name}(${args})`, name === 'id' && args === '1' ? 4 : 2)
       }
     for (const expression of ['', '/*[', '1 +', '/(', '.[1]'])
       add(input, expression, 2, 1, false, false)
@@ -373,7 +372,10 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       add(input, expression, 2, 0)
     add(input, "number('1e-1')", 3, 0, true)
     add(input, "lang('en')", 1)
-    add(input, "id('a')", 4, 1, true)
+    add(input, "id('a')", 4, 1)
+    add('<r xml:id="a"/>', 'id(1)', 4, 0)
+    add('<r xml:id="a"/>', 'id(/missing)', 4, 0)
+    add('<r xml:id="a"/>', 'id(number("1e-1"))', 4, 0, true)
     const large =
       '<!DOCTYPE r [<!ENTITY e "x">]><r xmlns:p="urn:p">' +
       Array.from(
@@ -399,6 +401,140 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         'count(/*/e[name((namespace::* | child::*)[last()])="p"])',
       ])
         add(input, expression, 3)
+    }
+    const idDocuments = [
+      '<r><a xml:id="a"/><b xml:id="b"/><c xml:id="c"/><p>b a c b</p><p>a</p></r>',
+      '<r><a xml:id=" a"/><b xml:id="b "/><c xml:id=" c "/><p> a b</p></r>',
+      '<r><a id="a"/><b ID="b"/><c xml:ID="c"/></r>',
+      '<r xml:id="a"><a xml:id="b"/><p>b</p><p>a</p></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key=" a "/><n key="b"/><p>b a</p></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="a b"/><n key="1a"/><n key=":a"/><n key="😀"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID "a">]><r><n/><n key="b"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n xml:id ID #IMPLIED>]><r><n xml:id=" a "/><n xml:id="b"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="a" xml:id="b"/><n key="c"/></r>',
+      `<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED><!ENTITY e "a">]><r><n key="&e;"/><p>a</p></r>`,
+      `<!DOCTYPE r [<!ENTITY e '<hidden xml:id="a"/><hidden xml:id="a"/>'>]><r>&e;<n xml:id="b"/><p>a b</p></r>`,
+      `<!DOCTYPE r [<!ENTITY e '<hidden xml:id="1a"/>'>]><r>&e;<n xml:id="a"/></r>`,
+      `<!DOCTYPE r [<!ENTITY e '<hidden xml:id="a"/>'>]><r>&e;&e;<n xml:id="a"/></r>`,
+      `<!DOCTYPE r [<!ENTITY e '<hidden key="a"/>'><!ATTLIST hidden key ID #IMPLIED>]><r>&e;<n xml:id="a"/></r>`,
+      '<!DOCTYPE r [<!ATTLIST p:n p:key ID #IMPLIED>]><r xmlns:p="urn:p"><p:n p:key="a"/><n p:key="b"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r xmlns="urn:u"><n key="a"/><n key="b"/></r>',
+      `<!DOCTYPE r [<!ENTITY % e '<!ATTLIST n key ID #IMPLIED>'>%e;]><r><n key="a"/></r>`,
+      '<!DOCTYPE r [<!ATTLIST n key CDATA #IMPLIED><!ATTLIST n key ID #IMPLIED>]><r><n key="a"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED><!ATTLIST n key CDATA #IMPLIED>]><r><n key="a"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED><!ATTLIST n key ID #IMPLIED>]><r><n key="a"/></r>',
+    ]
+    idDocuments.push(
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="1"/><n key="0"/><n key="NaN"/><n key="Infinity"/><n key="-Infinity"/><n key="true"/><n key="false"/></r>',
+    )
+    idDocuments.push(
+      '<!DOCTYPE r [<!ATTLIST n a ID #IMPLIED b CDATA #IMPLIED><!ATTLIST n b ID #IMPLIED>]><r><n a="a" b="b"/></r>',
+      '<!DOCTYPE r [<!ATTLIST n a CDATA #IMPLIED><!ATTLIST n a ID #IMPLIED b ID #IMPLIED>]><r><n a="a" b="b"/></r>',
+      '<!DOCTYPE r [<!ATTLIST r xml:id ID "a">]><r/>',
+    )
+    for (const attribute of ['key', 'xml:id'])
+      for (const raw of ['&e;', 'x&e;', '&#97;', 'a&amp;b', 'a&lt;b', 'a&#9;b', '&empty;', '&tab;'])
+        idDocuments.push(
+          `<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED><!ENTITY e "a"><!ENTITY empty ""><!ENTITY tab "x&#9;y">]><r><n ${attribute}="${raw}"/></r>`,
+        )
+    const idTokens = [
+      '',
+      'a',
+      'b',
+      'c',
+      'a b',
+      '&e;',
+      'xa',
+      'a&b',
+      'a<b',
+      'b a',
+      'c b a c',
+      ' a',
+      ' a b',
+      '\ta\nb',
+      'a\rb',
+      'a  b',
+      '1a',
+      ':a',
+      '😀',
+      'true',
+      '1',
+      'a\u0085b',
+      'a\u00a0b',
+    ]
+    for (const input of idDocuments) {
+      for (const token of idTokens) {
+        const expression = `id(${JSON.stringify(token).replaceAll('\\t', '\t').replaceAll('\\r', '\r').replaceAll('\\n', '\n')})`
+        for (const selected of [
+          expression,
+          `${expression}[1]`,
+          `(${expression})[last()]`,
+          `${expression}/@*`,
+        ])
+          add(input, selected, 4)
+      }
+      for (const expression of [
+        'id(//p)',
+        'id(//p | //@*)',
+        'id(true())',
+        'id(false())',
+        'id(1)',
+        'id(0 div 0)',
+        'id(/missing)',
+        'id(id("a")/@*)',
+        'id("a") | id("b")',
+        '(id("b a"))[1]',
+        'count(id("a a b b"))',
+        'count(//*[id("a")])',
+        'name(id("c b a"))',
+        'string(id("b a"))',
+        'boolean(id("a"))',
+        'id("a")=id("b")',
+      ])
+        add(input, expression, /^(count|name|string|boolean|id\("a"\)=)/u.test(expression) ? 2 : 4)
+    }
+    const invalidIdDocuments = [
+      '<r xml:id=""/>',
+      '<r xml:id="  "/>',
+      '<r xml:id="a b"/>',
+      '<r xml:id="1a"/>',
+      '<r><n xml:id="a"/><m xml:id="a"/></r>',
+      '<r><n xml:id=" a "/><m xml:id=" a "/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="a"/><n key=" a "/></r>',
+      '<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key=""/></r>',
+      '<!DOCTYPE r [<!ATTLIST unused xml:id CDATA #IMPLIED>]><r/>',
+      '<!DOCTYPE r [<!ATTLIST unused a ID #IMPLIED b ID #IMPLIED>]><r/>',
+      '<!DOCTYPE r [<!ATTLIST n a ID #IMPLIED><!ATTLIST n b ID #IMPLIED>]><r/>',
+      '<!DOCTYPE r [<!ATTLIST n xml:id ID #IMPLIED><!ATTLIST n xml:id CDATA #IMPLIED>]><r/>',
+      `<!DOCTYPE r [<!ENTITY % e '<!ATTLIST n a ID #IMPLIED b ID #IMPLIED>'>%e;]><r/>`,
+    ]
+    for (const input of invalidIdDocuments)
+      for (const expression of ['true()', 'id("a")', 'unknown()', '$x', '/*['])
+        add(input, expression, 2, 1, false, false)
+    for (const token of [
+      'a',
+      ' a',
+      'a ',
+      ' a ',
+      'a:b',
+      ':a',
+      'a:',
+      '1a',
+      '_',
+      'á',
+      'a·',
+      '😀',
+      'Ϳ',
+      '\u0085',
+      'a/b',
+    ]) {
+      const input = `<r xml:id="${token}"/>`
+      add(input, 'true()', 2)
+      add(input, 'id("a")', 4)
+    }
+    for (const value of ['a&#9;', '&#9;a', 'a&#10;', '&#13;a', 'a&#x85;', 'a&#160;', 'a&#32;b']) {
+      add(`<r xml:id="${value}"/>`, 'id("a")', 4)
+      add(`<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="${value}"/></r>`, 'id("a")', 4)
     }
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
@@ -477,7 +613,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-eval-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-id-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',

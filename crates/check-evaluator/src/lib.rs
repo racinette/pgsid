@@ -348,6 +348,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_math.rs");
     include!("operations/pg_catalog/xml_xpath_strings.rs");
     include!("operations/pg_catalog/xml_xpath_lang.rs");
+    include!("operations/pg_catalog/xml_xpath_ids.rs");
     include!("operations/pg_catalog/xml_xpath_window.rs");
     include!("operations/pg_catalog/xml_xpath_functions.rs");
     include!("operations/pg_catalog/xml_xpath_filter.rs");
