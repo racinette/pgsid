@@ -6526,7 +6526,8 @@ export function emitCheckRustEvaluator(
           outerValidity = arrayValidityScope,
           outerPreparation = domainInputPreparation,
           outerDepth = preparationDepth,
-          outerStored = storedArrayInputScope
+          outerStored = storedArrayInputScope,
+          outerXmlStorage = storedArrayXmlStorageScope
         localInputs.set(key, {
           name: '__pgsid_composite_text_field',
           type: 'pg_catalog.text',
@@ -6537,6 +6538,7 @@ export function emitCheckRustEvaluator(
         domainInputPreparation = { lines: prepared, status }
         preparationDepth = 0
         storedArrayInputScope = node.origin === 'stored' || outerStored
+        storedArrayXmlStorageScope = node.xmlStorage === true || outerXmlStorage
         let converted: { name: string; type: string }
         try {
           converted = emitScalar(conversion, lines, used)
@@ -6547,6 +6549,7 @@ export function emitCheckRustEvaluator(
           domainInputPreparation = outerPreparation
           preparationDepth = outerDepth
           storedArrayInputScope = outerStored
+          storedArrayXmlStorageScope = outerXmlStorage
         }
         const cell = fresh('record_field_cell'),
           finished = fresh('record_field_finished')

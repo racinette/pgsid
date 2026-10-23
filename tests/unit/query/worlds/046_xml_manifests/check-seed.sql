@@ -155,3 +155,27 @@ VALUES ('[-2:-2]={<r/>}',NULL,'<r/>','["<r/>"]',NULL,'wrong',false);
 -- name: BypassedPacket
 INSERT INTO manifest_packets(fragments,packet,expected_first,expected_array,expected_packet,expected_display,bypass)
 VALUES ('[-2:-2]={<r/>}',ROW('<r/>',NULL)::manifest_packet,'wrong','["wrong"]','{}','wrong',true);
+
+-- name: OriginalTemplateStorage
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('<?xml version="1.0"?><template/>','<?xml version="1.0"?><attachment/>','{"document":"<template/>","attachments":["<attachment/>"]}',false);
+
+-- name: WrongTemplateStorage
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('<template/>','<?xml version="1.0"?><attachment/>','{"document":"<template/>","attachments":["<attachment/>"]}',false);
+
+-- name: WrongTemplateAttachment
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('<?xml version="1.0"?><template/>','<attachment/>','{"document":"<template/>","attachments":["<attachment/>"]}',false);
+
+-- name: WrongTemplateJson
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('<?xml version="1.0"?><template/>','<?xml version="1.0"?><attachment/>','{"document":"<template/>","attachments":["wrong"]}',false);
+
+-- name: NullTemplateExpectations
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES (NULL,NULL,NULL,false);
+
+-- name: BypassedTemplate
+INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
+VALUES ('wrong','wrong','{}',true);

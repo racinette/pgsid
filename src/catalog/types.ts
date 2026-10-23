@@ -1,3 +1,4 @@
+import type { XmlStorageFacet } from './xml-container-constants.js'
 // ---------------------------------------------------------------------------
 // Catalog snapshot + diff: shared types.
 //
@@ -114,6 +115,7 @@ export interface StoredXmlConstantContext {
   names?: { site: string; name: string }[]
   argumentNames?: { site: string; names: string[] }[]
   arrays?: { site: string; text: string | null }[]
+  containers?: { site: string; value: XmlStorageFacet | null }[]
 }
 
 export interface StoredDomainCoercionContext {

@@ -1,4 +1,5 @@
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
+import { xmlStorageContainerTypes, type XmlStorageType } from './xml-container-constants.js'
 import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
 import { catalogIdentifierSql } from '../postgres/catalog-identities.js'
 import {
@@ -320,13 +321,8 @@ interface SchemaRow {
   owner: string
 }
 
-interface TypeNameRow {
-  oid: number
+interface TypeNameRow extends XmlStorageType {
   name: string
-  identity: string
-  kind: string
-  base: number
-  element: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -858,6 +854,9 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       return element === undefined ? [] : [[type.oid, element] as const]
     }),
   )
+  const xmlContainers = xmlStorageContainerTypes(typesByOid)
+  for (const oid of xmlTypes) xmlContainers.delete(oid)
+  for (const oid of xmlArrays.keys()) xmlContainers.delete(oid)
   for (const con of constraintRows) {
     const xmlConstants = captureXmlConstantContext(
       con.coercion_tree,
@@ -866,6 +865,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       rowIdentities,
       utf8,
       xmlArrays,
+      { types: typesByOid, roots: xmlContainers },
     )
     const coercionContext = captureDomainCoercionContext(
       con.coercion_tree,
@@ -1160,6 +1160,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           rowIdentities,
           utf8,
           xmlArrays,
+          { types: typesByOid, roots: xmlContainers },
         )
         const coercionContext = captureDomainCoercionContext(
           check.coercion_tree,
@@ -1347,7 +1348,11 @@ async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
   const res = await pg.query<TypeNameRow>(
     `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name,
        ${catalogIdentifierSql('n.nspname')}||'.'||${catalogIdentifierSql('t.typname')} AS identity,
-       t.typtype AS kind,t.typbasetype AS base,e.oid AS element
+       t.typtype AS kind,t.typbasetype AS base,e.oid AS element,
+       t.typlen::integer AS length,t.typalign AS alignment,t.typdelim AS delimiter,
+       COALESCE((SELECT json_agg(json_build_object('type',a.atttypid::bigint,'length',a.attlen::integer,
+         'alignment',a.attalign,'dropped',a.attisdropped) ORDER BY a.attnum)
+         FROM pg_attribute a WHERE a.attrelid=t.typrelid AND a.attnum>0),'[]'::json) AS attributes
      FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
      LEFT JOIN pg_type e ON e.oid=t.typelem AND e.typarray=t.oid;`,
   )

@@ -1,3 +1,4 @@
+import { xmlContainerConstant, type XmlStorageType } from './xml-container-constants.js'
 import type {
   StoredDomainCoercionContext,
   StoredRowCoercionContext,
@@ -140,6 +141,7 @@ function captureExpressionCoercions(
   xmlTypes: ReadonlySet<number> = new Set(),
   utf8 = false,
   xmlArrays: ReadonlyMap<number, number> = new Map(),
+  xmlContainers?: { types: ReadonlyMap<number, XmlStorageType>; roots: ReadonlySet<number> },
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
@@ -149,7 +151,10 @@ function captureExpressionCoercions(
     xmlTypes.size > 0 &&
     source !== null &&
     ([...source.matchAll(/:consttype\s+(\d+)/gu)].some(
-      (m) => xmlTypes.has(Number(m[1])) || xmlArrays.has(Number(m[1])),
+      (m) =>
+        xmlTypes.has(Number(m[1])) ||
+        xmlArrays.has(Number(m[1])) ||
+        xmlContainers?.roots.has(Number(m[1])),
     ) ||
       /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) ||
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
@@ -166,6 +171,7 @@ function captureExpressionCoercions(
   const xmlNames: NonNullable<StoredXmlConstantContext['names']> = []
   const xmlArgumentNames: NonNullable<StoredXmlConstantContext['argumentNames']> = []
   const xmlArrayConstants: NonNullable<StoredXmlConstantContext['arrays']> = []
+  const xmlContainerConstants: NonNullable<StoredXmlConstantContext['containers']> = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -240,6 +246,34 @@ function captureExpressionCoercions(
               : undefined
         if (site === undefined || text === undefined) complete = false
         else xmlArrayConstants.push({ site, text })
+      }
+      if (node.kind === 'CONST' && xmlContainers?.roots.has(Number(scalar(node, 'consttype')))) {
+        const raw = node.fields['constvalue'],
+          data = Array.isArray(raw?.[1]) ? raw[1] : undefined
+        const facet =
+          scalar(node, 'constisnull') === 'true'
+            ? null
+            : scalar(node, 'constlen') === '-1' &&
+                scalar(node, 'constbyval') === 'false' &&
+                raw?.length === 2 &&
+                data &&
+                Number(raw[0]) === data.length &&
+                data.every(
+                  (v) =>
+                    typeof v === 'string' &&
+                    /^-?\d+$/u.test(v) &&
+                    Number(v) >= -128 &&
+                    Number(v) <= 255,
+                )
+              ? xmlContainerConstant(
+                  Buffer.from(data.map((v) => Number(v) & 255)),
+                  Number(scalar(node, 'consttype')),
+                  xmlContainers.types,
+                  utf8,
+                )
+              : undefined
+        if (site === undefined || facet === undefined) complete = false
+        else xmlContainerConstants.push({ site, value: facet })
       }
       if (node.kind === 'ARRAYEXPR') {
         const type = arrayIdentities.get(Number(expressionType(node)))
@@ -430,6 +464,7 @@ function captureExpressionCoercions(
             ...(xmlNames.length ? { names: xmlNames } : {}),
             ...(xmlArgumentNames.length ? { argumentNames: xmlArgumentNames } : {}),
             ...(xmlArrayConstants.length ? { arrays: xmlArrayConstants } : {}),
+            ...(xmlContainerConstants.length ? { containers: xmlContainerConstants } : {}),
           },
         }
       : {}),
@@ -443,17 +478,30 @@ export function captureXmlConstantContext(
   rows: ReadonlyMap<number, RowCoercionIdentity>,
   utf8: boolean,
   arrays: ReadonlyMap<number, number> = new Map(),
+  containers?: { types: ReadonlyMap<number, XmlStorageType>; roots: ReadonlySet<number> },
 ): StoredXmlConstantContext | undefined {
   if (
     !source ||
     (![...source.matchAll(/:consttype\s+(\d+)/gu)].some(
-      (match) => types.has(Number(match[1])) || arrays.has(Number(match[1])),
+      (match) =>
+        types.has(Number(match[1])) ||
+        arrays.has(Number(match[1])) ||
+        containers?.roots.has(Number(match[1])),
     ) &&
       !/\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) &&
       !(/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   )
     return undefined
-  return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8, arrays).xml
+  return captureExpressionCoercions(
+    source,
+    definition,
+    rows,
+    new Map(),
+    types,
+    utf8,
+    arrays,
+    containers,
+  ).xml
 }
 
 export function captureRowCoercionContext(

@@ -25,8 +25,8 @@ export function xmlArrayConstantText(
     let count = dimensions ? 1 : 0,
       valid = true
     for (let i = 0; i < dimensions; i++) {
-      const length = read(16 + i * 8),
-        lower = read(20 + i * 8)
+      const length = read(16 + i * 4),
+        lower = read(16 + dimensions * 4 + i * 4)
       if (length <= 0 || lower + length > 2147483648 || count * length > 2147483647) {
         valid = false
         break
