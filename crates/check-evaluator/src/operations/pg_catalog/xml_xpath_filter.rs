@@ -34,12 +34,14 @@ pub(crate) fn xpath_collect(input: XPathValue, program: &XPathProgram, root: usi
     if predicates.len() > 0 { position_range = xpath_constant_position(program,predicates[0],powers); };
     let mut result = xpath_nodes_empty(); let mut visited: i32 = 0; let mut context_index: usize = 0; let mut finished = false;
     while context_index < input.nodes.values.len() && finished == false {
-        let mut maximum: i32 = 0; if position_range.valid && predicates.len() == 1 { maximum = position_range.value; };
+        let mut maximum: i32 = 0; if position_range.valid && predicates.len() == 1 { maximum = position_range.value; if maximum == 0 { maximum = -1; }; };
         let window = xpath_axis_window(tree,graph,input.nodes.values[context_index],step.operation,&test,mode,bound,visited,maximum);
-        visited = window.visited; let bounded = window.bounded; let sequence = window.sequence;
-        if sequence.cyclic && bounded { return xpath_value_empty(XPATH_KIND_NODES,2); };
+        visited = window.visited; let positioned = window.positioned; let sequence = window.sequence;
         let mut selected = xpath_value_empty(XPATH_KIND_NODES,0);
-        if position_range.valid && predicates.len() == 1 {
+        if positioned {
+            if sequence.cyclic { return xpath_value_empty(XPATH_KIND_NODES,2); };
+            selected = xpath_value_nodes(sequence);
+        } else if position_range.valid && predicates.len() == 1 {
             if sequence.cyclic && position_range.value <= 0 { return xpath_value_empty(XPATH_KIND_NODES,2); };
             let found = xpath_sequence_position(&sequence,position_range.value);
             if found.known == false { return xpath_value_empty(XPATH_KIND_NODES,2); };
@@ -47,6 +49,7 @@ pub(crate) fn xpath_collect(input: XPathValue, program: &XPathProgram, root: usi
         } else if mode == 1 && predicates.len() == 0 && sequence.values.len() > 0 {
             selected = xpath_value_single(sequence.values[0]);
         } else {
+            if sequence.cyclic && sequence.values.len() > sequence.cycle { return xpath_value_fault(15); };
             selected = xpath_value_nodes(sequence);
             if selected.state != 0 { return selected; };
             let mut remaining = predicates.len();

@@ -1,3 +1,4 @@
+const XPATH_NODESET_LIMIT: usize = 10000000;
 const XPATH_KIND_NODES: i32 = 1;
 const XPATH_KIND_BOOLEAN: i32 = 2;
 const XPATH_KIND_NUMBER: i32 = 3;
@@ -37,6 +38,7 @@ pub(crate) fn xpath_value_string(text: String) -> XPathValue {
 
 pub(crate) fn xpath_value_nodes(nodes: XPathSequence) -> XPathValue {
     let mut state: i32 = 0;
+    if nodes.values.len() > XPATH_NODESET_LIMIT { return xpath_value_empty(XPATH_KIND_NODES,-15); };
     if nodes.cyclic { state = 2; };
     XPathValue { kind: XPATH_KIND_NODES, state, boolean: false, number: 0i64, text: String::new(), nodes }
 }
