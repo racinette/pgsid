@@ -276,6 +276,7 @@ it.each(families)(
         }
         const directory = join(root, family)
         await mkdir(directory)
+        await mkdir('artifacts/goal-checks/catalog-vector-ranges-active', { recursive: true })
         await writeFile(
           `artifacts/goal-checks/catalog-vector-ranges-active/recursive-${family}.json`,
           JSON.stringify(

@@ -145,6 +145,7 @@ it('preserves native vector bound metadata through constructors, multirange merg
         reference.push({ id, name, result })
       }
     }
+    await mkdir('artifacts/goal-checks/catalog-vector-ranges-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/catalog-vector-ranges-active/bound-facets.json',
       JSON.stringify(reference, null, 2) + '\n',
@@ -459,6 +460,7 @@ it.each(families)(
           }
         const directory = join(root, family)
         await mkdir(directory)
+        await mkdir('artifacts/goal-checks/catalog-vector-ranges-active', { recursive: true })
         await writeFile(
           `artifacts/goal-checks/catalog-vector-ranges-active/${family}.json`,
           JSON.stringify(
