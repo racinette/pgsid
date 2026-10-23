@@ -6,10 +6,13 @@ import {
   arrayType,
   domainElementType,
   catalogScalarType,
+  isCatalogVectorType,
+  arrayLikeElementType,
   type ArrayType,
   type ArrayElementType,
   type ScalarType,
   type DomainElementType,
+  type CatalogVectorType,
 } from './expressions.js'
 import {
   builtinRangeType,
@@ -73,6 +76,7 @@ const subtypeKinds = {
 } as const
 export type RangeSubtype =
   | keyof typeof subtypeKinds
+  | CatalogVectorType
   | `enum:${string}`
   | ArrayType
   | RangeType
@@ -81,7 +85,7 @@ export type RangeSubtype =
 
 export function rangeContainerKind(type: string): 41 | 42 | 43 | 44 | null {
   if (type.startsWith('composite:') && compositeProfile(type)) return 44
-  if (type.startsWith('array:')) return 41
+  if (type.startsWith('array:') || isCatalogVectorType(type)) return 41
   if (type.startsWith('range:') || builtinRangeType(type)) return 42
   if (type.startsWith('multirange:') || builtinMultirangeType(type)) return 43
   return null
@@ -186,8 +190,9 @@ export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
     for (const item of nodes.values()) {
       let node = item
       while (node.kind === 'd') node = nodes.get(node.base!)!
-      const expected =
-        node.element !== null
+      const expected = isCatalogVectorType(node.identity)
+        ? builtinTypeIO(node.identity)?.output
+        : node.element !== null
           ? builtinTypeIO('pg_catalog._int4')?.output
           : node.kind === 'r'
             ? builtinTypeIO('pg_catalog.int4range')?.output
@@ -200,6 +205,8 @@ export function rangeSubtypeOutput(profile: RangeProfile): string | undefined {
                   : builtinTypeIO(node.identity)?.output
       if (!expected || item.output !== expected) return undefined
     }
+    if (isCatalogVectorType(profile.elementType))
+      return builtinTypeIO(profile.elementType)?.output ?? undefined
     return (
       builtinTypeIO(
         { 41: 'pg_catalog._int4', 42: 'pg_catalog.int4range', 43: 'pg_catalog.int4multirange' }[
@@ -247,7 +254,7 @@ export function rangeContainerSubtype(
     RangeTypeInfo,
     'subtype' | 'subtypeDefinitions' | 'subtypeRanges' | 'subtypeCompositeGraph'
   >,
-): ArrayType | RangeType | MultirangeType | CompositeType | null {
+): ArrayType | CatalogVectorType | RangeType | MultirangeType | CompositeType | null {
   const definitions = profile.subtypeDefinitions
   if (!Array.isArray(definitions) || !definitions.length || definitions.length > 2147483647)
     return null
@@ -363,6 +370,10 @@ export function rangeContainerSubtype(
         result = nominal
           ? domainElementType(node, base as Exclude<ScalarType, DomainElementType>)
           : base
+    } else if (isCatalogVectorType(node.identity)) {
+      const element = arrayLikeElementType(node.identity)!
+      if (node.kind === 'b' && node.element === element && build(element, false) === element)
+        result = node.identity
     } else if (node.element !== null) {
       const element = build(node.element, true)
       if (element && !element.startsWith('array:')) result = arrayType(element as ArrayElementType)
@@ -427,7 +438,7 @@ export function rangeContainerSubtype(
   for (const node of definitions) if (!build(node.identity, false)) return null
   const root = build(profile.subtype, false)
   return root && rangeContainerKind(root)
-    ? (root as ArrayType | RangeType | MultirangeType | CompositeType)
+    ? (root as ArrayType | CatalogVectorType | RangeType | MultirangeType | CompositeType)
     : null
 }
 
@@ -728,6 +739,9 @@ export function rangeProfileSupport(
     : profile.subtypeEnum
       ? 6
       : subtypeKinds[profile.elementType as keyof typeof subtypeKinds]
+  const oidVector =
+    profile.elementType === 'pg_catalog.oidvector' &&
+    profile.comparator === builtinTypeComparison('pg_catalog.oidvector')?.comparator
   const comparison =
     profile.comparator !== null &&
     profile.comparator ===
@@ -792,7 +806,9 @@ export function rangeProfileSupport(
                 ? comparison === 8
                   ? 208
                   : 200
-                : comparison,
+                : oidVector
+                  ? 441
+                  : comparison,
     canonical,
   }
 }

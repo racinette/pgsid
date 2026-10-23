@@ -2624,7 +2624,7 @@ export function emitCheckRustEvaluator(
           scalar.args.join(',') === 'pg_catalog.anyenum' &&
           scalar.volatility === 's'
         const arraySupport =
-          rangeSubtype.startsWith('array:') &&
+          isArrayLikeType(rangeSubtype) &&
           scalar != null &&
           (rangeBinarySend ? isArrayBinarySend(scalar) : isArrayHash(scalar))
         const nestedType = rangeTypeProfile(rangeSubtype) ?? multirangeTypeProfile(rangeSubtype)
@@ -2640,6 +2640,10 @@ export function emitCheckRustEvaluator(
               : isRangeHash(scalar)
             : rangeContainerKind(rangeSubtype) === 43 &&
               (rangeBinarySend ? isMultirangeBinarySend(scalar) : isMultirangeHash(scalar)))
+        const recordSupport =
+          compositeProfile(rangeSubtype) !== null &&
+          scalar != null &&
+          (rangeBinarySend ? isRecordBinarySend(scalar) : isRecordHash(scalar))
         if (
           !scalar ||
           scalar.kind !== 'function' ||
@@ -2649,6 +2653,7 @@ export function emitCheckRustEvaluator(
             !enumSend &&
             !arraySupport &&
             !nestedSupport &&
+            !recordSupport &&
             !(
               rangeBinarySend &&
               scalar.schema === 'pg_catalog' &&
@@ -2666,6 +2671,7 @@ export function emitCheckRustEvaluator(
           (scalar.args[0] !== rangeSubtype &&
             !(range.subtypeEnum && scalar.args[0] === 'pg_catalog.anyenum') &&
             !(arraySupport && scalar.args[0] === 'pg_catalog.anyarray') &&
+            !(recordSupport && scalar.args[0] === 'pg_catalog.record') &&
             !(
               nestedSupport &&
               ['pg_catalog.anyrange', 'pg_catalog.anymultirange'].includes(scalar.args[0] ?? '')
@@ -2694,7 +2700,8 @@ export function emitCheckRustEvaluator(
           return scalar.args[0] === rangeSubtype ||
             (range.subtypeEnum && scalar.args[0] === 'pg_catalog.anyenum') ||
             arraySupport ||
-            nestedSupport
+            nestedSupport ||
+            recordSupport
             ? bound
             : emitCallInner(
                 { kind: 'cast', signature: null, type: scalar.args[0]! },
@@ -2748,7 +2755,7 @@ export function emitCheckRustEvaluator(
           [flags, ...(seed ? [seed] : [])],
           destination,
         )
-        const context = hashSupport.context
+        const context = hashSupport.context ?? (recordSupport ? 'bytes' : null)
         const orders =
           hashByteOrder !== undefined
             ? [hashByteOrder]
@@ -2759,7 +2766,7 @@ export function emitCheckRustEvaluator(
           const hashes = deferredTextHash
             ? [false, true].map(() => bindRange(`${extended ? 'int8' : 'int4'}_unknown()`))
             : bounds.map((bound) => {
-                if (arraySupport || nestedSupport) {
+                if (arraySupport || nestedSupport || recordSupport) {
                   const result = emitCallInner(
                     {
                       kind: 'function',
@@ -4875,7 +4882,8 @@ export function emitCheckRustEvaluator(
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
           subtype.args[0] !==
-            (rangeContainerKind(multirange.elementType) !== null
+            (rangeContainerKind(multirange.elementType) !== null &&
+            !isCatalogVectorType(multirange.elementType)
               ? {
                   41: 'pg_catalog.anyarray',
                   42: 'pg_catalog.anyrange',
@@ -4912,7 +4920,8 @@ export function emitCheckRustEvaluator(
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
           subtype.args[0] !==
-            (rangeContainerKind(range.elementType) !== null
+            (rangeContainerKind(range.elementType) !== null &&
+            !isCatalogVectorType(range.elementType)
               ? {
                   41: 'pg_catalog.anyarray',
                   42: 'pg_catalog.anyrange',
@@ -5267,7 +5276,8 @@ export function emitCheckRustEvaluator(
                   subtype.volatility !== 's'
                 : range.subtypeInput !==
                   builtinTypeIO(
-                    rangeContainerKind(range.elementType) !== null
+                    rangeContainerKind(range.elementType) !== null &&
+                      !isCatalogVectorType(range.elementType)
                       ? {
                           41: 'pg_catalog._int4',
                           42: 'pg_catalog.int4range',

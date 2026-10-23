@@ -1,4 +1,5 @@
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
+import { compositeProfile } from '../../sql-semantics/composite-profiles.js'
 import { builtinTypeComparison, builtinCallables } from '../../postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../postgres/builtins/taxonomy.js'
 import {
@@ -9,7 +10,7 @@ import {
   type RangeProfile,
 } from '../../sql-semantics/range-profiles.js'
 import { rangeArrayHashPlan, arrayElementComparison } from './check-array-types.js'
-import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
+import { arrayElementBaseType, arrayLikeElementType } from '../../sql-semantics/expressions.js'
 
 export function rangeHashSupport(
   profile: RangeProfile,
@@ -39,7 +40,7 @@ export function rangeHashSupport(
     domain = node.element.kind === 'd'
     available &&= selected !== null
     compatible &&= node.element.hashEqualityCompatible
-    type = arrayElementBaseType(type.slice(6))
+    type = arrayElementBaseType(arrayLikeElementType(type)!)
     safe &&= matches()
   }
   const scalar = selected
@@ -69,7 +70,7 @@ export function rangeHashSupport(
   return {
     available,
     compatible,
-    safe: safe && available && compatible && scalar != null,
+    safe: safe && available && compatible && scalar != null && compositeProfile(type) === null,
     context: scalar ? nativeHashContext(scalar) : null,
   }
 }

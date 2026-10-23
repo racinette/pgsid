@@ -9152,6 +9152,7 @@ export interface RangeSupport {
     readonly comparison: number;
     readonly canonical: number;
 }
+export const rangeComparisonOidVector = 441;
 export function makeRangeSupport(comparison: number, canonical: number): RangeSupport {
     comparison = langruntime.checkedI32(comparison);
     canonical = langruntime.checkedI32(canonical);
@@ -9219,7 +9220,7 @@ export function rangeSupportEqual(left: RangeSupport, right: RangeSupport): bool
 }
 export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
     kind = langruntime.checkedI32(kind);
-    const comparison: boolean = input.comparison === 0 || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 6 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39 || kind === 41 || kind === 42 || kind === 43 || kind === 44));
+    const comparison: boolean = input.comparison === 0 || (kind === 41 && input.comparison === rangeComparisonOidVector) || (kind === 12 && input.comparison === 120) || (kind === 13 && rangeSupportIsCidr(input)) || (kind === 33 && rangeOidAliasMode(input, "") > 0) || (kind === 8 && (input.comparison === 108 || input.comparison === 200 || input.comparison === 208)) || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 6 || kind === 7 || kind === 8 || kind === 10 || kind === 1 || kind === 9 || kind === 12 || kind === 13 || kind === 14 || kind === 15 || kind === 16 || kind === 17 || kind === 18 || kind === 19 || kind === 20 || kind === 21 || kind === 22 || kind === 23 || kind === 31 || kind === 32 || kind === 33 || kind === 37 || kind === 38 || kind === 39 || kind === 41 || kind === 42 || kind === 43 || kind === 44));
     const canonical: boolean = input.canonical === 0 || input.canonical === 1 || (input.canonical === kind && (kind === 2 || kind === 3 || kind === 7));
     return comparison && canonical;
 }
@@ -9465,7 +9466,10 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
             return false;
         }
         if (node.kind >= 41 && node.kind <= 43) {
-            if (node.elementType === "" || node.child <= index || node.child >= profile.nodes.length || (!(node.comparison === 0) && !(node.comparison === node.kind))) {
+            if (node.elementType === "" || node.child <= index || node.child >= profile.nodes.length || (!(node.comparison === 0) && !(node.comparison === node.kind) && (!(node.kind === 41) || !(node.comparison === rangeComparisonOidVector)))) {
+                return false;
+            }
+            if (node.comparison === rangeComparisonOidVector && (!(node.typeName === "pg_catalog.oidvector") || !(node.elementType === "pg_catalog.oid") || !(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile).kind === 33))) {
                 return false;
             }
             if (node.kind === 43 && (!(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile).kind === 42) || !(node.elementType === langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), copyRangeBoundProfile).typeName))) {

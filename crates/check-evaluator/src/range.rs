@@ -4,6 +4,8 @@ pub struct RangeSupport {
     pub canonical: i32,
 }
 
+pub const RANGE_COMPARISON_OID_VECTOR: i32 = 441;
+
 pub fn make_range_support(comparison: i32, canonical: i32) -> RangeSupport {
     RangeSupport {
         comparison,
@@ -85,6 +87,7 @@ pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
 
 pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
+        || (kind == 41 && input.comparison == RANGE_COMPARISON_OID_VECTOR)
         || (kind == 12 && input.comparison == 120)
         || (kind == 13 && range_support_is_cidr(input))
         || (kind == 33 && range_oid_alias_mode(input, "") > 0)
@@ -361,7 +364,15 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
             if node.element_type.as_str() == ""
                 || node.child <= index
                 || node.child >= profile.nodes.len()
-                || (node.comparison != 0 && node.comparison != node.kind)
+                || (node.comparison != 0 && node.comparison != node.kind
+                    && (node.kind != 41 || node.comparison != RANGE_COMPARISON_OID_VECTOR))
+            {
+                return false;
+            };
+            if node.comparison == RANGE_COMPARISON_OID_VECTOR
+                && (node.type_name.as_str() != "pg_catalog.oidvector"
+                    || node.element_type.as_str() != "pg_catalog.oid"
+                    || profile.nodes[node.child].kind != 33)
             {
                 return false;
             };

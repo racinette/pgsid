@@ -9058,6 +9058,8 @@ type RangeSupport struct {
 	Canonical  int
 }
 
+const RangeComparisonOidVector = 441
+
 func MakeRangeSupport(comparison int, canonical int) RangeSupport {
 	comparison = langruntime.CheckedI32(comparison)
 	canonical = langruntime.CheckedI32(canonical)
@@ -9137,7 +9139,7 @@ func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
 }
 func RangeSupportValid(input RangeSupport, kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	comparison := input.Comparison == 0 || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 6 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39 || kind == 41 || kind == 42 || kind == 43 || kind == 44))
+	comparison := input.Comparison == 0 || (kind == 41 && input.Comparison == RangeComparisonOidVector) || (kind == 12 && input.Comparison == 120) || (kind == 13 && RangeSupportIsCidr(input)) || (kind == 33 && RangeOidAliasMode(input, "") > 0) || (kind == 8 && (input.Comparison == 108 || input.Comparison == 200 || input.Comparison == 208)) || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 6 || kind == 7 || kind == 8 || kind == 10 || kind == 1 || kind == 9 || kind == 12 || kind == 13 || kind == 14 || kind == 15 || kind == 16 || kind == 17 || kind == 18 || kind == 19 || kind == 20 || kind == 21 || kind == 22 || kind == 23 || kind == 31 || kind == 32 || kind == 33 || kind == 37 || kind == 38 || kind == 39 || kind == 41 || kind == 42 || kind == 43 || kind == 44))
 	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
 	return comparison && canonical
 }
@@ -9401,7 +9403,10 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 			return false
 		}
 		if node.Kind >= 41 && node.Kind <= 43 {
-			if node.ElementType == "" || node.Child <= index || node.Child >= len(profile.Nodes) || (node.Comparison != 0 && node.Comparison != node.Kind) {
+			if node.ElementType == "" || node.Child <= index || node.Child >= len(profile.Nodes) || (node.Comparison != 0 && node.Comparison != node.Kind && (node.Kind != 41 || node.Comparison != RangeComparisonOidVector)) {
+				return false
+			}
+			if node.Comparison == RangeComparisonOidVector && (node.TypeName != "pg_catalog.oidvector" || node.ElementType != "pg_catalog.oid" || profile.Nodes[node.Child].Kind != 33) {
 				return false
 			}
 			if node.Kind == 43 && (profile.Nodes[node.Child].Kind != 42 || node.ElementType != profile.Nodes[node.Child].TypeName) {

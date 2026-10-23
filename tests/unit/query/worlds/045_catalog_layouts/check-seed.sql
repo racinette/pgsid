@@ -2,6 +2,58 @@
 INSERT INTO catalog_layout_exports(positions,type_ids,packet,history,encoded_positions,expected_count,expected_json,bypass)
 VALUES ('1 2','0 0',ROW('1 2'::int2vector,'0 0'::oidvector),ARRAY['1 2'::int2vector],'1 2',2,'{"type_ids": ["0", "0"], "positions": [1, 2]}',false);
 
+-- name: ExportCatalogExtent
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: EmptyCatalogExtent
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('empty','{}',ROW('empty'::position_window,'{}'::type_windows),'',false,'empty','empty','{}',NULL,1,false);
+
+-- name: NullCatalogExtent
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: WrongExtentPositionOutput
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','wrong','{[100,"1 2")}',0,61,false);
+
+-- name: WrongExtentTypeOutput
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{}',0,61,false);
+
+-- name: WrongExtentInput
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,4)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: WrongExtentMembership
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',false,'[1,3)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: WrongExtentBoundOrigin
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',1,61,false);
+
+-- name: WrongExtentWireLength
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',0,62,false);
+
+-- name: WrongExtentPacketPositions
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,4)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: WrongExtentPacketTypes
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: InvalidExtentInput
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[bad,3)','[1,3)','{[100,"1 2")}',0,61,false);
+
+-- name: BypassedExtentInput
+INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
+VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,4)'::position_window,'{}'::type_windows),'100',false,'[bad,3)','wrong','{}',1,62,true);
+
 -- name: EmptyLayout
 INSERT INTO catalog_layout_exports(positions,type_ids,packet,history,encoded_positions,expected_count,expected_json,bypass)
 VALUES ('','',ROW(''::int2vector,''::oidvector),ARRAY[''::int2vector],'',0,'{"type_ids": [], "positions": []}',false);

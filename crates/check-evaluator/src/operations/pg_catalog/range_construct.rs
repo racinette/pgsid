@@ -105,12 +105,21 @@ fn range_profiled_compare(
         };
         return range_builtin_compare(lower, upper, node.comparison);
     };
-    if node.comparison != 41
+    if (node.comparison != 41 && node.comparison != RANGE_COMPARISON_OID_VECTOR)
         || node.child >= profile.nodes.len()
         || peer.child >= other.nodes.len()
         || node.element_type != peer.element_type
     {
         return Int4Value::Unknown;
+    };
+    if node.comparison == RANGE_COMPARISON_OID_VECTOR {
+        if node.type_name.as_str() != "pg_catalog.oidvector"
+            || peer.type_name.as_str() != "pg_catalog.oidvector"
+        {
+            return Int4Value::Unknown;
+        };
+        return sql__pg_catalog__btoidvectorcmp__6oyf(
+            array_element_to_array(lower), array_element_to_array(upper));
     };
     if profile.nodes[node.child].missing_comparison != other.nodes[peer.child].missing_comparison {
         return Int4Value::Unknown;
@@ -139,7 +148,7 @@ fn range_profiled_compare(
 fn range_typed_compare(lower: ArrayElement, upper: ArrayElement, comparison: i32, profile: &RangeBoundContext, other: &RangeBoundContext) -> Int4Value {
     if let ArrayElement::Null = lower { return make_int4_value(-1); };
     if let ArrayElement::Null = upper { return make_int4_value(-1); };
-    if comparison >= 41 && comparison <= 44 {
+    if (comparison >= 41 && comparison <= 44) || comparison == RANGE_COMPARISON_OID_VECTOR {
         return range_profiled_compare(lower, upper, profile, 0, other, 0);
     };
     range_builtin_compare(lower, upper, comparison)

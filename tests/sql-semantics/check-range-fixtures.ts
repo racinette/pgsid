@@ -11,7 +11,9 @@ import {
   arrayElementBaseType,
   domainElementDefinition,
   type RangeType,
+  isCatalogVectorType,
 } from '../../src/sql-semantics/expressions.js'
+import { decodeCatalogVector } from './check-catalog-vector-fixtures.js'
 import {
   arrayElementFamily,
   arrayElementIdentity,
@@ -32,6 +34,11 @@ export async function readRangeBoundCell(
   value: string | null,
   sqlType?: string,
 ): Promise<RangeInputCell> {
+  if (isCatalogVectorType(subtype) && value !== null) {
+    const vector = decodeCatalogVector(value, subtype === 'pg_catalog.oidvector')
+    if (vector.kind !== 'Value') throw Error('Non-NULL vector bound became NULL')
+    return { kind: 'Array', value: vector.value }
+  }
   if (compositeProfile(subtype) && value !== null) {
     const payload = await readCompositeFixture(
       pg,
@@ -308,6 +315,8 @@ export function rangeCoreSamples(type: RangeType): {
 }
 
 export function rangeBoundProjection(bound: string, subtype: string): string {
+  if (isCatalogVectorType(subtype))
+    return `encode(${subtype === 'pg_catalog.oidvector' ? 'oid' : 'int2'}vectorsend(${bound}),'hex')`
   if (subtype === 'pg_catalog.date')
     return `CASE WHEN ${bound}='-infinity'::date THEN '-2147483648' WHEN ${bound}='infinity'::date THEN '2147483647' ELSE (${bound}-DATE '2000-01-01')::text END`
   if (subtype === 'pg_catalog."timestamp"' || subtype === 'pg_catalog.timestamptz') {
