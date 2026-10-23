@@ -2,6 +2,7 @@ import type {
   StoredDomainCoercionContext,
   StoredRowCoercionContext,
   StoredArrayConstructorContext,
+  StoredXmlConstantContext,
 } from './types.js'
 
 type Value = string | Value[] | Tree
@@ -83,20 +84,79 @@ const scalar = (node: Tree, name: string): string | null => {
   return values?.length === 1 && typeof values[0] === 'string' ? values[0] : null
 }
 
+function xmlConstantText(node: Tree, utf8: boolean): string | null | undefined {
+  if (scalar(node, 'constisnull') === 'true') return null
+  if (
+    scalar(node, 'constisnull') !== 'false' ||
+    scalar(node, 'constbyval') !== 'false' ||
+    scalar(node, 'constlen') !== '-1'
+  )
+    return undefined
+  const stored = node.fields['constvalue']
+  if (
+    stored?.length !== 2 ||
+    typeof stored[0] !== 'string' ||
+    !/^\d+$/u.test(stored[0]) ||
+    !Array.isArray(stored[1])
+  )
+    return undefined
+  const length = Number(stored[0]),
+    raw = stored[1]
+  if (
+    length < 1 ||
+    raw.length !== length ||
+    raw.some(
+      (v) => typeof v !== 'string' || !/^-?\d+$/u.test(v) || Number(v) < -128 || Number(v) > 255,
+    )
+  )
+    return undefined
+  const bytes = Buffer.from(raw.map((v) => Number(v) & 255))
+  let header = 0
+  if (
+    length >= 4 &&
+    (((bytes.readUInt32LE(0) & 3) === 0 && bytes.readUInt32LE(0) / 4 === length) ||
+      (bytes.readUInt32BE(0) < 1073741824 && bytes.readUInt32BE(0) === length))
+  )
+    header = 4
+  else if (
+    length <= 127 &&
+    (((bytes[0]! & 1) === 1 && bytes[0]! >>> 1 === length) ||
+      ((bytes[0]! & 128) !== 0 && (bytes[0]! & 127) === length))
+  )
+    header = 1
+  if (!header) return undefined
+  const body = bytes.subarray(header)
+  if (!utf8 && body.some((byte) => byte > 127)) return undefined
+  const text = body.toString('utf8')
+  return text.includes('\0') || !Buffer.from(text, 'utf8').equals(body) ? undefined : text
+}
+
 function captureExpressionCoercions(
   source: string | null,
   definition: string,
   identities: ReadonlyMap<number, RowCoercionIdentity>,
   arrayIdentities: ReadonlyMap<number, string>,
-): { row?: StoredRowCoercionContext; arrays?: StoredArrayConstructorContext } {
+  xmlTypes: ReadonlySet<number> = new Set(),
+  utf8 = false,
+): {
+  row?: StoredRowCoercionContext
+  arrays?: StoredArrayConstructorContext
+  xml?: StoredXmlConstantContext
+} {
+  const xmlCandidate =
+    xmlTypes.size > 0 &&
+    source !== null &&
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => xmlTypes.has(Number(m[1])))
   if (
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
-      !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)))
+      !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
+      !xmlCandidate)
   )
     return {}
   const casts: StoredRowCoercionContext['casts'] = []
   const constructors: StoredArrayConstructorContext['constructors'] = []
+  const constants: StoredXmlConstantContext['constants'] = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -140,6 +200,11 @@ function captureExpressionCoercions(
       }
       const node = tree(value)
       if (!node) return
+      if (node.kind === 'CONST' && xmlTypes.has(Number(scalar(node, 'consttype')))) {
+        const text = xmlConstantText(node, utf8)
+        if (site === undefined || text === undefined) complete = false
+        else constants.push({ site, text })
+      }
       if (node.kind === 'ARRAYEXPR') {
         const type = arrayIdentities.get(Number(expressionType(node)))
         if (type === 'pg_catalog.int2vector' || type === 'pg_catalog.oidvector') {
@@ -200,6 +265,11 @@ function captureExpressionCoercions(
       }
       if (['OPEXPR', 'DISTINCTEXPR', 'NULLIFEXPR', 'SCALARARRAYOPEXPR'].includes(node.kind)) {
         args.forEach((v, i) => visit(v, at('operator/' + i)))
+        return
+      }
+      if (node.kind === 'XMLEXPR') {
+        args.forEach((v, i) => visit(v, at('xml/arg/' + i)))
+        list('named_args').forEach((v, i) => visit(v, at('xml/named/' + i)))
         return
       }
       if (node.kind === 'BOOLEXPR') {
@@ -301,7 +371,23 @@ function captureExpressionCoercions(
   return {
     ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
+    ...(xmlCandidate ? { xml: { definition, complete, constants } } : {}),
   }
+}
+
+export function captureXmlConstantContext(
+  source: string | null,
+  definition: string,
+  types: ReadonlySet<number>,
+  rows: ReadonlyMap<number, RowCoercionIdentity>,
+  utf8: boolean,
+): StoredXmlConstantContext | undefined {
+  if (
+    !source ||
+    ![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => types.has(Number(match[1])))
+  )
+    return undefined
+  return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8).xml
 }
 
 export function captureRowCoercionContext(
