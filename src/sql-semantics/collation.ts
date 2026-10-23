@@ -348,10 +348,14 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     implementation.strict &&
     implementation.volatility === 'i' &&
     !implementation.returnsSet &&
-    ((implementation.args.length === 2 &&
-      implementation.args.every((type) => type === 'pg_catalog.text') &&
-      ['normalize', 'is_normalized'].includes(implementation.name) &&
-      ['pg_catalog.text', 'pg_catalog.bool'].includes(implementation.result)) ||
+    ((implementation.args.length === 1 &&
+      implementation.args[0] === 'pg_catalog.text' &&
+      implementation.result === 'pg_catalog.xml' &&
+      ['xmltext', 'xmlcomment'].includes(implementation.name)) ||
+      (implementation.args.length === 2 &&
+        implementation.args.every((type) => type === 'pg_catalog.text') &&
+        ['normalize', 'is_normalized'].includes(implementation.name) &&
+        ['pg_catalog.text', 'pg_catalog.bool'].includes(implementation.result)) ||
       (implementation.args.length === 1 &&
         implementation.args[0] === 'pg_catalog.text' &&
         implementation.result === 'pg_catalog.text' &&

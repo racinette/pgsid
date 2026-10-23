@@ -69,6 +69,11 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'xml-operation') {
+    const operand = prepare(expression.operand)
+    if (!operand) return null
+    return { constant: false, null: operand.null, expressions: operand.expressions }
+  }
   if (expression.kind === 'composite-coerce') {
     const operand = prepare(expression.operand)
     return operand?.constant ? constant(expression, operand.null) : operand

@@ -46964,6 +46964,123 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
 const sqlstateInvalidXmlDocument = 3452566;
 const sqlstateInvalidXmlContent = 3452567;
 const sqlstateInvalidXmlComment = 3452572;
+const sqlstateNotXmlDocument = 3452565;
+function xmlTextEncodingAvailable(input: string, utf8: boolean): boolean {
+    input = langruntime.checkedString(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8) {
+        return true;
+    }
+    const characters: string[] = Array.from(input);
+    let index: number = 0;
+    while (index < characters.length) {
+        if (langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+export function xmlFromTextContext(input: checkruntime.TextValue, mode: number, utf8: boolean): checkruntime.XmlValue {
+    mode = langruntime.checkedI32(mode);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (xmlTextEncodingAvailable(value, utf8) === false) {
+            return { kind: "Unknown" };
+        }
+        if (mode === 0) {
+            if (xmlWellFormed(value, true) && xmlWellFormed(value, false)) {
+                return checkruntime.makeXmlValue(value);
+            }
+            return { kind: "Unknown" };
+        }
+        if (!(mode === 1) && !(mode === 2)) {
+            return { kind: "Unknown" };
+        }
+        const text: checkruntime.TextValue = { kind: "Value", value: value };
+        const document: boolean = mode === 1;
+        return xmlFromTextUtf8(text, document);
+    }
+    return { kind: "Unknown" };
+}
+export function xml8nn5(input: checkruntime.TextValue, mode: number, utf8: boolean): checkruntime.XmlValue {
+    mode = langruntime.checkedI32(mode);
+    utf8 = langruntime.checkedBool(utf8);
+    return xmlFromTextContext(input, mode, utf8);
+}
+export function xmlIsDocumentContext(input: checkruntime.XmlValue, utf8: boolean): checkruntime.BoolValue {
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8) {
+        return xmlIsDocumentUtf8(input);
+    }
+    const stored: checkruntime.XmlValue = input;
+    if (stored.kind === "Value") {
+        const value: string = langruntime.checkedString(stored.value);
+        if (xmlTextEncodingAvailable(value, utf8) === false) {
+            return { kind: "Unknown" };
+        }
+    }
+    const rendered: checkruntime.XmlValue = input;
+    if (rendered.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(rendered.value);
+        if (xmlTextEncodingAvailable(value, utf8) === false) {
+            return { kind: "Unknown" };
+        }
+    }
+    return xmlIsDocumentUtf8(input);
+}
+export function xmlSerializeContext(input: checkruntime.XmlValue, mode: number, indent: boolean, utf8: boolean): checkruntime.TextValue {
+    mode = langruntime.checkedI32(mode);
+    indent = langruntime.checkedBool(indent);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (mode === 1) {
+        const document: checkruntime.BoolValue = xmlIsDocumentContext(input, utf8);
+        let valid: boolean = false;
+        if (document.kind === "Value") {
+            const value: boolean = langruntime.checkedBool(document.value);
+            if (value === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
+            }
+            valid = langruntime.checkedBool(true);
+        }
+        if (valid === false) {
+            return { kind: "Unknown" };
+        }
+    }
+    if (indent) {
+        return { kind: "Unknown" };
+    }
+    return xmlToText(input);
+}
+export function xmlSendUur7(input: checkruntime.XmlValue, clientUtf8: boolean): checkruntime.ByteaValue {
+    clientUtf8 = langruntime.checkedBool(clientUtf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (clientUtf8 === false) {
+        return { kind: "Unknown" };
+    }
+    return xmlToByteaUtf8(input);
+}
 export function xmlFromTextUtf8(input: checkruntime.TextValue, document: boolean): checkruntime.XmlValue {
     document = langruntime.checkedBool(document);
     if (input.kind === "Error") {

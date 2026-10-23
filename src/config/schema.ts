@@ -312,6 +312,8 @@ export const codegenSchema = z
         nativeByteOrder: z.enum(['little', 'big']).optional(),
         trigonometry: z.literal('fdlibm').optional(),
         arrayNulls: z.boolean().optional(),
+        xmlOption: z.enum(['document', 'content']).optional(),
+        clientEncoding: z.literal('UTF8').optional(),
       })
       .strict()
       .optional(),

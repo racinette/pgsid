@@ -19,7 +19,11 @@ import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
 import { PG18_RANGE_TYPES } from '../../src/postgres/builtins/type-ranges.generated.js'
 import { PG18_TYPE_COMPARISONS } from '../../src/postgres/builtins/type-comparisons.generated.js'
 import { readBuiltinTypeComparisons } from '../../src/postgres/builtins/type-comparisons.js'
-import { builtinCallables, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
+import {
+  builtinCallables,
+  builtinCast,
+  builtinTypeIO,
+} from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 import { isJsonbBuilder } from '../../src/codegen/shared/check-rust-evaluator.js'
 
@@ -564,6 +568,39 @@ export function rangeValueRequirements(item: BuiltinCallable) {
   ]
 }
 
+export function xmlValueRequirements(item: BuiltinCallable) {
+  if (item.kind !== 'function') return null
+  const signature = callableIdentity(item)
+  if (signature === builtinTypeIO('pg_catalog.xml')?.send)
+    return [
+      {
+        kind: 'session',
+        setting: 'client_encoding',
+        requirement:
+          'XML wire output requires declared UTF8 client encoding. Other encodings can change the XML declaration even for ASCII content; strict NULL and incoming errors remain available.',
+        owner: 'tests/sql-semantics/check-xml-context.test.ts',
+      },
+    ]
+  if (signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation)
+    return [
+      {
+        kind: 'session',
+        setting: 'xmloption',
+        requirement:
+          'Runtime text conversion uses declared document/content mode. Without it, values accepted in both modes remain available; mode-dependent acceptance and SQLSTATE defer. XMLPARSE has its own explicit mode.',
+        owner: 'tests/sql-semantics/check-xml-context.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Non-ASCII XML parsing requires declared UTF8. SQL-coerced storage casts preserve text without reparsing; rendered output cannot recover erased declarations.',
+        owner: 'tests/sql-semantics/check-xml-context.test.ts',
+      },
+    ]
+  return null
+}
+
 export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet<string>) {
   const categories: string[] = []
   const types = [...item.args, item.result]
@@ -577,6 +614,8 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (item.volatility === 'v') categories.push('volatile')
   if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
   if (jsonbTextRenderingContext(item)) categories.push('database-setting:server_encoding')
+  if (xmlValueRequirements(item)?.some((r) => r.setting === 'xmloption'))
+    categories.push('session-setting:xmloption')
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
@@ -588,6 +627,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
       'json_send',
       'jsonb_send',
       'jsonpath_send',
+      'xml_send',
     ].includes(item.name)
   )
     categories.push('session-setting:client_encoding')

@@ -40,6 +40,16 @@ pub fn finish_domain_conversion(input: ArrayElement, result: CheckOutcome) -> Ar
     input
 }
 
+pub fn finish_xml_domain_conversion(input: XmlValue, result: CheckOutcome) -> XmlValue {
+    if let CheckOutcome::Error(error) = result {
+        return XmlValue::Error(error);
+    };
+    if result == CheckOutcome::Unknown {
+        return XmlValue::Unknown;
+    };
+    input
+}
+
 pub fn finish_domain_array_input(input: ArrayTextPayload, converted: ArrayArguments) -> ArrayValue {
     if let ArrayArguments::Unknown = converted {
         return ArrayValue::Unknown;

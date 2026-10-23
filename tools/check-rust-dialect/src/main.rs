@@ -121,6 +121,7 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MultirangeValue") => {
             Ok("MultirangeValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("XmlValue") => { Ok("XmlValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonpathValue") => {
             Ok("JsonpathValue")
         }
@@ -482,6 +483,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "JsonValue"
                     | "JsonbValue"
                     | "JsonpathValue"
+                    | "XmlValue"
                     | "ArrayValue"
                     | "CompositeValue"
                     | "RangeValue"
@@ -845,6 +847,17 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             check_source(&source.replace("input: JsonpathValue", "mut input: JsonpathValue"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn accepts_xml_storage_checks_without_payload_access() {
+        let source = "pub fn evaluate_check(input: XmlValue, expected: TextValue) -> CheckOutcome { let mut saved: XmlValue = xml_unknown(); saved = input.clone(); let output = xml_to_text(saved); let result = equal_xml_probe(output, expected); check_from_bool(result) }";
+        assert!(check_source(source).is_ok());
+        for invalid in ["&XmlValue", "XmlValue<String>", "String"] {
+            assert!(check_source(&source.replace("input: XmlValue", &format!("input: {invalid}"))).is_err());
+        }
+        assert!(check_source(&source.replace("input.clone()", "input.value")).is_err());
+        assert!(check_source(&source.replace("input: XmlValue", "mut input: XmlValue")).is_err());
     }
 
     #[test]

@@ -46672,7 +46672,117 @@ func xmlMarkup(source *xmlSource, start int, document bool, arena *xmlEntityAren
 const sqlstateInvalidXmlDocument = 3452566
 const sqlstateInvalidXmlContent = 3452567
 const sqlstateInvalidXmlComment = 3452572
+const sqlstateNotXmlDocument = 3452565
 
+func xmlTextEncodingAvailable(input string, utf8 bool) bool {
+	input = langruntime.CheckedString(input)
+	if utf8 {
+		return true
+	}
+	characters := []rune(input)
+	index := 0
+	for index < len(characters) {
+		if int(langruntime.CheckedChar(characters[index])) > 127 {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func XmlFromTextContext(input checkruntime.TextValue, mode int, utf8 bool) checkruntime.XmlValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if xmlTextEncodingAvailable(value, utf8) == false {
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+		}
+		if mode == 0 {
+			if xmlWellFormed(value, true) && xmlWellFormed(value, false) {
+				return checkruntime.MakeXmlValue(value)
+			}
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+		}
+		if mode != 1 && mode != 2 {
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+		}
+		text := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+		document := mode == 1
+		return XmlFromTextUtf8(text, document)
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func Xml8nn5(input checkruntime.TextValue, mode int, utf8 bool) checkruntime.XmlValue {
+	mode = langruntime.CheckedI32(mode)
+	return XmlFromTextContext(input, mode, utf8)
+}
+func XmlIsDocumentContext(input checkruntime.XmlValue, utf8 bool) checkruntime.BoolValue {
+	if utf8 {
+		return XmlIsDocumentUtf8(input)
+	}
+	stored := input
+	if stored.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(stored.Value)
+		if xmlTextEncodingAvailable(value, utf8) == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+	}
+	rendered := input
+	if rendered.Kind == checkruntime.XmlValueRenderedText {
+		value := langruntime.CheckedString(rendered.RenderedText)
+		if xmlTextEncodingAvailable(value, utf8) == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+	}
+	return XmlIsDocumentUtf8(input)
+}
+func XmlSerializeContext(input checkruntime.XmlValue, mode int, indent bool, utf8 bool) checkruntime.TextValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if mode == 1 {
+		document := XmlIsDocumentContext(input, utf8)
+		valid := false
+		if document.Kind == checkruntime.BoolValueValue {
+			value := document.Value
+			if value == false {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
+			}
+			valid = true
+		}
+		if valid == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+	}
+	if indent {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	return XmlToText(input)
+}
+func XmlSendUur7(input checkruntime.XmlValue, clientUtf8 bool) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if clientUtf8 == false {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	return XmlToByteaUtf8(input)
+}
 func XmlFromTextUtf8(input checkruntime.TextValue, document bool) checkruntime.XmlValue {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error

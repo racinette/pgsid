@@ -108,6 +108,7 @@ export function sqlSemanticsCoverage(
     if (
       expression.kind === 'input' ||
       expression.kind === 'network' ||
+      expression.kind === 'xml' ||
       expression.kind === 'mac' ||
       expression.kind === 'multirange'
     )

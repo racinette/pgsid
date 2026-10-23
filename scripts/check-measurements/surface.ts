@@ -19,6 +19,7 @@ import {
   characterValueRequirements,
   rangeValueRequirements,
   trigonometryValueRequirements,
+  xmlValueRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
 import { arrayValueRequirements } from './arrays.js'
@@ -119,6 +120,7 @@ export async function measureSurface(pg: PGlite) {
         hashValueRequirements(implementation) ??
         characterValueRequirements(implementation) ??
         jsonValueRequirements(implementation) ??
+        xmlValueRequirements(implementation) ??
         (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
         ['pg_current_snapshot', 'txid_current_snapshot'].includes(implementation.name)

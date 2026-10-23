@@ -11,6 +11,12 @@ import {
   UnsupportedCheckRustExpression,
 } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
+import {
+  isArrayLikeType,
+  arrayLikeElementType,
+  arrayElementBaseType,
+} from '../../src/sql-semantics/expressions.js'
 
 export const quote = (name: string): string => '"' + name.replaceAll('"', '""') + '"'
 
@@ -66,6 +72,12 @@ export function bindProbe(
 export function valueRepresentation(typeName: string) {
   const type = catalogScalarType(typeName)
   if (!type) return { represented: false, reason: 'No scalar binding type' }
+  if (isArrayLikeType(type)) {
+    let element: string = type
+    while (isArrayLikeType(element)) element = arrayElementBaseType(arrayLikeElementType(element)!)
+    if (arrayElementFamily(element) === null)
+      return { represented: false, type, reason: 'Array element has no portable value carrier' }
+  }
   try {
     emitCheckRustEvaluator({
       kind: 'eval-scalar',
