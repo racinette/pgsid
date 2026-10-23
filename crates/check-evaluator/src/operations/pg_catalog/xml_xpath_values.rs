@@ -37,7 +37,7 @@ pub(crate) fn xpath_value_string(text: String) -> XPathValue {
 
 pub(crate) fn xpath_value_nodes(nodes: XPathSequence) -> XPathValue {
     let mut state: i32 = 0;
-    if nodes.cyclic { state = 1; };
+    if nodes.cyclic { state = 2; };
     XPathValue { kind: XPATH_KIND_NODES, state, boolean: false, number: 0i64, text: String::new(), nodes }
 }
 
