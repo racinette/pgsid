@@ -32,7 +32,10 @@ pub(crate) fn xpath_parse_literal(input: XPathProgram) -> XPathProgram {
     let begin = input.cursor;
     let quote = input.source[begin];
     let mut position = begin+1;
-    while position < input.source.len() && input.source[position] != quote { position += 1; }
+    while position < input.source.len() && input.source[position] != quote {
+        if xml_character(input.source[position]) == false { return xpath_parse_fail(input); };
+        position += 1;
+    }
     if position >= input.source.len() { return xpath_parse_fail(input); };
     let span = XmlSpan { start: begin+1, end: position };
     let empty = XmlSpan { start: 0, end: 0 };
