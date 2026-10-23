@@ -318,7 +318,82 @@ type TextValue struct {
 	Value string
 	Error SqlError
 }
+type XmlValueKind uint8
 
+const (
+	XmlValueUnknown XmlValueKind = iota
+	XmlValueNull
+	XmlValueValue
+	XmlValueRenderedText
+	XmlValueError
+)
+
+type XmlValue struct {
+	Kind         XmlValueKind
+	Value        string
+	RenderedText string
+	Error        SqlError
+}
+
+func XmlUnknown() XmlValue {
+	return XmlValue{Kind: XmlValueUnknown}
+}
+func XmlNull() XmlValue {
+	return XmlValue{Kind: XmlValueNull}
+}
+func MakeXmlValue(source string) XmlValue {
+	source = langruntime.CheckedString(source)
+	characters := []rune(source)
+	index := 0
+	for index < len(characters) {
+		if characters[index] == '\x00' {
+			return XmlValue{Kind: XmlValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return XmlValue{Kind: XmlValueValue, Value: source}
+}
+func XmlFromRenderedText(input TextValue) XmlValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return XmlValue{Kind: XmlValueError, Error: error}
+	}
+	if input.Kind == TextValueNull {
+		return XmlValue{Kind: XmlValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		checked := MakeXmlValue(value)
+		if checked.Kind == XmlValueValue {
+			source := langruntime.CheckedString(checked.Value)
+			return XmlValue{Kind: XmlValueRenderedText, RenderedText: source}
+		}
+	}
+	return XmlValue{Kind: XmlValueUnknown}
+}
+func XmlIsNull(input XmlValue) BoolValue {
+	if input.Kind == XmlValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == XmlValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == XmlValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func XmlFromCaseGuard(input CheckOutcome) XmlValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return XmlValue{Kind: XmlValueError, Error: error}
+	}
+	if input.Kind == CheckOutcomeNull {
+		return XmlValue{Kind: XmlValueNull}
+	}
+	return XmlValue{Kind: XmlValueUnknown}
+}
 func Int4Unknown() Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
@@ -415,6 +490,9 @@ const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
 const sqlErrorTimezoneDisplacement = 3452553
 const sqlErrorInvalidUseOfEscape = 3452556
+const sqlErrorInvalidXmlDocument = 3452566
+const sqlErrorInvalidXmlContent = 3452567
+const sqlErrorInvalidXmlComment = 3452572
 const sqlErrorDivisionByZero = 3452582
 const sqlErrorInvalidFrameSize = 3452583
 const sqlErrorSubstring = 3452581
@@ -444,6 +522,15 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorInvalidXmlDocument {
+		return SqlErrorDescription{Message: "invalid XML document"}
+	}
+	if error.State == sqlErrorInvalidXmlContent {
+		return SqlErrorDescription{Message: "invalid XML content"}
+	}
+	if error.State == sqlErrorInvalidXmlComment {
+		return SqlErrorDescription{Message: "invalid XML comment"}
+	}
 	if error.State == sqlErrorCardinalityViolation {
 		return SqlErrorDescription{Message: "cardinality violation"}
 	}

@@ -46668,6 +46668,212 @@ func xmlMarkup(source *xmlSource, start int, document bool, arena *xmlEntityAren
 	}
 	return xmlMarkupResult{valid: depth == 0 && (document == false || roots == 1), cost: cost, nodes: text.nodes, cache: cache.entries}
 }
+
+const sqlstateInvalidXmlDocument = 3452566
+const sqlstateInvalidXmlContent = 3452567
+const sqlstateInvalidXmlComment = 3452572
+
+func XmlFromTextUtf8(input checkruntime.TextValue, document bool) checkruntime.XmlValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if xmlWellFormed(value, document) == false {
+			state := sqlstateInvalidXmlContent
+			if document {
+				state = langruntime.CheckedIndex(sqlstateInvalidXmlDocument)
+			}
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(state)}
+		}
+		return checkruntime.MakeXmlValue(value)
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func XmlToText(input checkruntime.XmlValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Text03xf(input checkruntime.XmlValue) checkruntime.TextValue {
+	return XmlToText(input)
+}
+func XmlToOutputText(input checkruntime.XmlValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.XmlValueRenderedText {
+		value := langruntime.CheckedString(input.RenderedText)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+	}
+	if input.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		source := xmlSource{characters: []rune(value)}
+		declaration := xmlParseDeclaration(&source, 0, false)
+		if declaration.valid == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+		}
+		next := declaration.next
+		version := langruntime.NewTextBuffer("1.0")
+		standalone := langruntime.CheckedSignedNegate(1)
+		if next > 0 {
+			begin := xmlSkipSpace(&source, 5)
+			parsed := xmlDeclarationValue(&source, begin, "version")
+			version = langruntime.NewTextBuffer(xmlSourceRange(&source, parsed.value))
+			position := xmlSkipSpace(&source, parsed.next)
+			if xmlAt(&source, position, "encoding") {
+				encoding := xmlDeclarationValue(&source, position, "encoding")
+				position = langruntime.CheckedIndex(xmlSkipSpace(&source, encoding.next))
+			}
+			if xmlAt(&source, position, "standalone") {
+				standalone = langruntime.CheckedI32(0)
+				if declaration.standalone {
+					standalone = langruntime.CheckedI32(1)
+				}
+			}
+		}
+		output := langruntime.NewTextBuffer("")
+		if string(version) != "1.0" || standalone >= 0 {
+			output = append(output, "<?xml version=\""...)
+			output = append(output, string(version)...)
+			output = append(output, string(langruntime.CheckedChar('"'))...)
+			if standalone == 1 {
+				output = append(output, " standalone=\"yes\""...)
+			}
+			if standalone == 0 {
+				output = append(output, " standalone=\"no\""...)
+			}
+			output = append(output, "?>"...)
+		} else if next < len(source.characters) && source.characters[next] == '\n' {
+			next = langruntime.CheckedAdd(next, 1)
+		}
+		for next < len(source.characters) {
+			output = append(output, string(langruntime.CheckedChar(source.characters[next]))...)
+			next = langruntime.CheckedAdd(next, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func XmlToByteaUtf8(input checkruntime.XmlValue) checkruntime.ByteaValue {
+	output := XmlToOutputText(input)
+	if output.Kind == checkruntime.TextValueError {
+		error := output.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if output.Kind == checkruntime.TextValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if output.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(output.Value)
+		characters := []rune(value)
+		bytes := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(characters) {
+			bytes = langruntime.NewTextBuffer(byteaUtf8Character(string(bytes), characters[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(bytes)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func XmlIsDocumentUtf8(input checkruntime.XmlValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: xmlWellFormed(value, true)}
+	}
+	if input.Kind == checkruntime.XmlValueRenderedText {
+		value := langruntime.CheckedString(input.RenderedText)
+		if xmlWellFormed(value, true) == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func XmltextA36t(input checkruntime.TextValue) checkruntime.XmlValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			if character == '&' {
+				output = append(output, "&amp;"...)
+			} else if character == '<' {
+				output = append(output, "&lt;"...)
+			} else if character == '>' {
+				output = append(output, "&gt;"...)
+			} else if character == '"' {
+				output = append(output, "&quot;"...)
+			} else if character == '\r' {
+				output = append(output, "&#13;"...)
+			} else {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.MakeXmlValue(string(output))
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func Xmlcomment8j57(input checkruntime.TextValue) checkruntime.XmlValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		index := 0
+		for index < len(characters) {
+			if characters[index] == '-' && (langruntime.CheckedAdd(index, 1) == len(characters) || characters[langruntime.CheckedAdd(index, 1)] == '-') {
+				return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidXmlComment)}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		output := langruntime.NewTextBuffer("<!--")
+		output = append(output, value...)
+		output = append(output, "-->"...)
+		return checkruntime.MakeXmlValue(string(output))
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
 func xmlSubsetOrigin(start int, internal bool) int {
 	start = langruntime.CheckedIndex(start)
 	if internal {

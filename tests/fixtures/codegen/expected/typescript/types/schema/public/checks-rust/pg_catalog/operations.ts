@@ -46961,6 +46961,217 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
     }
     return { valid: depth === 0 && (document === false || roots === 1), cost: cost, nodes: copyXmlNodeList(text.nodes), cache: cache.entries };
 }
+const sqlstateInvalidXmlDocument = 3452566;
+const sqlstateInvalidXmlContent = 3452567;
+const sqlstateInvalidXmlComment = 3452572;
+export function xmlFromTextUtf8(input: checkruntime.TextValue, document: boolean): checkruntime.XmlValue {
+    document = langruntime.checkedBool(document);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (xmlWellFormed(value, document) === false) {
+            let state: number = sqlstateInvalidXmlContent;
+            if (document) {
+                state = langruntime.checkedIndex(sqlstateInvalidXmlDocument);
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(state) };
+        }
+        return checkruntime.makeXmlValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function xmlToText(input: checkruntime.XmlValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function text03xf(input: checkruntime.XmlValue): checkruntime.TextValue {
+    return xmlToText(input);
+}
+export function xmlToOutputText(input: checkruntime.XmlValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const source: XmlSource = { characters: Array.from(value) };
+        const declaration: XmlDeclaration = copyXmlDeclaration(xmlParseDeclaration(source, 0, false));
+        if (declaration.valid === false) {
+            return { kind: "Value", value: value };
+        }
+        let next: number = declaration.next;
+        let version: string = "1.0";
+        let standalone: number = langruntime.checkedSignedNegate(1);
+        if (next > 0) {
+            const begin: number = xmlSkipSpace(source, 5);
+            const parsed: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, begin, "version"));
+            version = langruntime.checkedString(xmlSourceRange(source, parsed.value));
+            let position: number = xmlSkipSpace(source, parsed.next);
+            if (xmlAt(source, position, "encoding")) {
+                const encoding: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, position, "encoding"));
+                position = langruntime.checkedIndex(xmlSkipSpace(source, encoding.next));
+            }
+            if (xmlAt(source, position, "standalone")) {
+                standalone = langruntime.checkedI32(0);
+                if (declaration.standalone) {
+                    standalone = langruntime.checkedI32(1);
+                }
+            }
+        }
+        let output: string = "";
+        if (!(version === "1.0") || standalone >= 0) {
+            output = output + "<?xml version=\"";
+            output = output + version;
+            output = output + langruntime.checkedChar("\"");
+            if (standalone === 1) {
+                output = output + " standalone=\"yes\"";
+            }
+            if (standalone === 0) {
+                output = output + " standalone=\"no\"";
+            }
+            output = output + "?>";
+        }
+        else if (next < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(next)) === "\n") {
+            next = langruntime.checkedAdd(next, 1);
+        }
+        while (next < source.characters.length) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(next)));
+            next = langruntime.checkedAdd(next, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function xmlToByteaUtf8(input: checkruntime.XmlValue): checkruntime.ByteaValue {
+    const output: checkruntime.TextValue = xmlToOutputText(input);
+    if (output.kind === "Error") {
+        const error: checkruntime.SqlError = output.value;
+        return { kind: "Error", value: error };
+    }
+    if (output.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (output.kind === "Value") {
+        const value: string = langruntime.checkedString(output.value);
+        const characters: string[] = Array.from(value);
+        let bytes: string = "";
+        let index: number = 0;
+        while (index < characters.length) {
+            bytes = langruntime.checkedString(byteaUtf8Character(bytes, langruntime.indexChar(characters, langruntime.checkedIndex(index))));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: bytes };
+    }
+    return { kind: "Unknown" };
+}
+export function xmlIsDocumentUtf8(input: checkruntime.XmlValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: xmlWellFormed(value, true) };
+    }
+    if (input.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        if (xmlWellFormed(value, true) === false) {
+            return { kind: "Value", value: false };
+        }
+        return { kind: "Unknown" };
+    }
+    return { kind: "Unknown" };
+}
+export function xmltextA36t(input: checkruntime.TextValue): checkruntime.XmlValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let output: string = "";
+        let index: number = 0;
+        while (index < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (character === "&") {
+                output = output + "&amp;";
+            }
+            else if (character === "<") {
+                output = output + "&lt;";
+            }
+            else if (character === ">") {
+                output = output + "&gt;";
+            }
+            else if (character === "\"") {
+                output = output + "&quot;";
+            }
+            else if (character === "\r") {
+                output = output + "&#13;";
+            }
+            else {
+                output = output + langruntime.checkedChar(character);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return checkruntime.makeXmlValue(output);
+    }
+    return { kind: "Unknown" };
+}
+export function xmlcomment8j57(input: checkruntime.TextValue): checkruntime.XmlValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let index: number = 0;
+        while (index < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "-" && (langruntime.checkedAdd(index, 1) === characters.length || langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "-")) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidXmlComment) };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let output: string = "<!--";
+        output = output + value;
+        output = output + "-->";
+        return checkruntime.makeXmlValue(output);
+    }
+    return { kind: "Unknown" };
+}
 function xmlSubsetOrigin(start: number, internal: boolean): number {
     start = langruntime.checkedIndex(start);
     internal = langruntime.checkedBool(internal);
