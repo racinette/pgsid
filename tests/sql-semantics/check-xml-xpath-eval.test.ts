@@ -8,6 +8,7 @@ import {
   type prepareCheckRustGroup,
 } from '../../src/codegen/shared/check-rust-source.js'
 import { checkRustEntryName } from '../../src/codegen/shared/check-rust-names.js'
+import { createKillableEvaluator } from '../unit/query/killable-evaluator.js'
 import {
   runCheckParity,
   type Input,
@@ -19,6 +20,16 @@ const descriptor = `concat(name(.),'~',name(..),'~',count(ancestor::node()),'~',
 const nativeNamespaces = `ARRAY[ARRAY['p','urn:p'],ARRAY['q','urn:q'],ARRAY['u','urn:u']]`
 const xmlNamespaces = `XMLNAMESPACES('urn:p' AS p,'urn:q' AS q,'urn:u' AS u)`
 const quote = (s: string) => `'${s.replaceAll("'", "''")}'`
+const nonterminatingCycles = [
+  ...['count(/r/a/following::never)', '/r/a/following::node()[0]'].map((expression) => ({
+    input: '<!DOCTYPE r [<!ENTITY e "<h/>tail">]><r><a/>&e;<b/></r>',
+    expression,
+  })),
+  {
+    input: '<!DOCTYPE r [<!ENTITY e "<h/>tail">]><r k="v"><x/><x/><a/>&e;<b/></r>',
+    expression: '(/r/@k | (/r/a/following::node()[1])/following::node()[0])[1]',
+  },
+]
 const fault = (detail: string) => {
   const s = detail.toLowerCase()
   if (s.includes('undefined prefix') || s.includes('undefined namespace prefix')) return 19
@@ -536,6 +547,33 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       add(`<r xml:id="${value}"/>`, 'id("a")', 4)
       add(`<!DOCTYPE r [<!ATTLIST n key ID #IMPLIED>]><r><n key="${value}"/></r>`, 'id("a")', 4)
     }
+    for (let count = 0; count < 8; count++) {
+      const input =
+        '<!DOCTYPE r [<!ENTITY e "<h/>tail">]><r k="v">' + '<x/>'.repeat(count) + '<a/>&e;<b/></r>'
+      const start = '(/r/a/following::node()[1])'
+      for (const expression of [
+        `count(${start}/following::node())`,
+        `boolean(${start}/following::node())`,
+        `(${start}/following::node())[1]`,
+        `(/r/@k | ${start}/following::node())[1]`,
+        `(/r/@k | ${start}/following::node())[last()]`,
+        `(/r/@k | ${start}/following::node()[257])[1]`,
+        `(/r/@k | (${start} | /r/a)/following::node()[1025])[1]`,
+        `/r[${start}/following::node()]`,
+        `${start}/following::node()[false()]`,
+        `${start}/following::node()[-1]`,
+      ])
+        add(input, expression, /^(count|boolean)/u.test(expression) ? 2 : 4)
+      for (const position of [1, 255, 256, 257, 1024, 10000]) {
+        add(input, `(/r/@k | ${start}/following::node()[${position}])[1]`, 4)
+        add(input, `(/r/@k | (${start} | /r/a)/following::node()[${position}])[1]`, 4)
+      }
+    }
+    add(
+      '<!DOCTYPE r [<!ENTITY e "<h/>tail">]><r k="v"><a/>&e;<b/></r>',
+      '(/r/@k | (/r/a/following::node()[1])/following::node()[0])[1]',
+      4,
+    )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let inserts = 0,
@@ -600,6 +638,17 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       }
     }
     const base = fixtures[0]!.row
+    for (const item of nonterminatingCycles)
+      fixtures.push({
+        name: 'matches',
+        row: {
+          ...base,
+          input: value(item.input),
+          expression: value(item.expression),
+          projection: value(4),
+        },
+        expected: { kind: 'Unknown' },
+      })
     fixtures.push(
       { name: 'matches', row: { ...base, input: { kind: 'Null' } }, expected: { kind: 'Null' } },
       {
@@ -613,7 +662,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-id-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-resource-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',
@@ -643,3 +692,20 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
     await rm(root, { recursive: true, force: true })
   }
 }, 600_000)
+
+it('isolates nonterminating XPath cycles without confusing them with node-set errors', async () => {
+  const evaluator = await createKillableEvaluator({ timeoutMs: 1000 })
+  try {
+    for (const { input, expression } of nonterminatingCycles) {
+      await expect(
+        evaluator.evaluate(
+          `SELECT xpath(${quote(expression)}, ${quote(input)}::xml)::text AS value`,
+        ),
+      ).rejects.toThrow('evaluator terminated')
+    }
+    expect(evaluator.kills).toBe(nonterminatingCycles.length)
+    expect(await evaluator.evaluate('SELECT 1 AS value')).toMatchObject({ value: 1 })
+  } finally {
+    await evaluator.close()
+  }
+}, 20000)

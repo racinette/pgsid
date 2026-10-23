@@ -51283,16 +51283,22 @@ export function xpathCollect(input: XPathValue, program: XPathProgram, root: num
         let maximum: number = 0;
         if (positionRange.valid && predicates.length === 1) {
             maximum = langruntime.checkedI32(positionRange.value);
+            if (maximum === 0) {
+                maximum = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
         }
         const window: XPathAxisWindow = xpathAxisWindow(tree, graph, langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(contextIndex), copyXPathReference), step.operation, test, mode, bound, visited, maximum);
         visited = langruntime.checkedI32(window.visited);
-        const bounded: boolean = window.bounded;
+        const positioned: boolean = window.positioned;
         const sequence: XPathSequence = window.sequence;
-        if (sequence.cyclic && bounded) {
-            return xpathValueEmpty(xpathKindNodes, 2);
-        }
         let selected: XPathValue = xpathValueEmpty(xpathKindNodes, 0);
-        if (positionRange.valid && predicates.length === 1) {
+        if (positioned) {
+            if (sequence.cyclic) {
+                return xpathValueEmpty(xpathKindNodes, 2);
+            }
+            selected = xpathValueNodes(sequence);
+        }
+        else if (positionRange.valid && predicates.length === 1) {
             if (sequence.cyclic && positionRange.value <= 0) {
                 return xpathValueEmpty(xpathKindNodes, 2);
             }
@@ -51306,6 +51312,9 @@ export function xpathCollect(input: XPathValue, program: XPathProgram, root: num
             selected = copyXPathValue(xpathValueSingle(langruntime.indexStruct(sequence.values, langruntime.checkedIndex(0), copyXPathReference)));
         }
         else {
+            if (sequence.cyclic && sequence.values.length > sequence.cycle) {
+                return xpathValueFault(15);
+            }
             selected = xpathValueNodes(sequence);
             if (!(selected.state === 0)) {
                 return selected;
@@ -53900,6 +53909,7 @@ function xpathLocalAxisTest(tree: XmlTree, context: XPathReference, axis: number
     }
     return result;
 }
+const xpathNodesetLimit = 10000000;
 const xpathKindNodes = 1;
 const xpathKindBoolean = 2;
 const xpathKindNumber = 3;
@@ -53953,6 +53963,9 @@ export function xpathValueString(text: string): XPathValue {
 }
 export function xpathValueNodes(nodes: XPathSequence): XPathValue {
     let state: number = 0;
+    if (nodes.values.length > xpathNodesetLimit) {
+        return xpathValueEmpty(xpathKindNodes, langruntime.checkedSignedNegate(15));
+    }
     if (nodes.cyclic) {
         state = langruntime.checkedI32(2);
     }
@@ -54116,10 +54129,20 @@ function xpathSequencePosition(input: XPathSequence, position: number): XPathSel
 interface XPathAxisWindow {
     sequence: XPathSequence;
     visited: number;
-    bounded: boolean;
+    positioned: boolean;
 }
 function copyXPathAxisWindow(value: XPathAxisWindow): XPathAxisWindow {
-    return { sequence: copyXPathSequence(value.sequence), visited: langruntime.checkedI32(value.visited), bounded: langruntime.checkedBool(value.bounded) };
+    return { sequence: copyXPathSequence(value.sequence), visited: langruntime.checkedI32(value.visited), positioned: langruntime.checkedBool(value.positioned) };
+}
+interface XPathWindowVisit {
+    node: number;
+    ancestor: number;
+    offset: number;
+    phase: number;
+    position: number;
+}
+function copyXPathWindowVisit(value: XPathWindowVisit): XPathWindowVisit {
+    return { node: langruntime.checkedIndex(value.node), ancestor: langruntime.checkedIndex(value.ancestor), offset: langruntime.checkedIndex(value.offset), phase: langruntime.checkedI32(value.phase), position: langruntime.checkedI32(value.position) };
 }
 function xpathWindowStop(tree: XmlTree, current: XPathReference, bound: XPathReference, mode: number, visited: number): boolean {
     current = copyXPathReference(current);
@@ -54241,6 +54264,9 @@ function xpathWindowCandidates(tree: XmlTree, graph: XPathGraph, context: XPathR
     }
     return result;
 }
+export function xpathWindowResult(values: XPathReference[], cyclic: boolean, cycle: number, visited: number, positioned: boolean): XPathAxisWindow {
+    return { sequence: { values: values, cyclic: cyclic, cycle: cycle }, visited: visited, positioned: positioned };
+}
 function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReference, axis: number, test: XPathNodeTest, mode: number, bound: XPathReference, visited: number, maximum: number): XPathAxisWindow {
     context = copyXPathReference(context);
     axis = langruntime.checkedI32(axis);
@@ -54256,15 +54282,17 @@ function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReferen
         active = langruntime.checkedBool(axis === 4 || axis === 7 || axis === 8 || axis === 10 || axis === 12);
     }
     if (bound.kind < 0 || active === false) {
-        return { sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, bounded: false };
+        return { sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, positioned: false };
     }
+    const positioned: boolean = !(maximum === 0);
     let values: XPathReference[] = [];
-    let total: number = visited;
+    let total: number = langruntime.checkedSignedRemainder(visited, 256);
+    let matched: number = 0;
     if (axis === 11 || axis === 12) {
-        let visits: XPathVisit[] = [];
+        let visits: XPathWindowVisit[] = [];
         let index: number = 0;
         while (index < graph.nodes.length) {
-            langruntime.pushStruct(visits, { node: 0, ancestor: 0, offset: 0 }, copyXPathVisit);
+            langruntime.pushStruct(visits, { node: 0, ancestor: 0, offset: 0, phase: 0, position: 0 }, copyXPathWindowVisit);
             index = langruntime.checkedAdd(index, 1);
         }
         const ancestor: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).parent;
@@ -54279,19 +54307,37 @@ function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReferen
             if (cursor.done === false) {
                 const current: XPathReference = copyXPathReference(xpathReferenceNode(cursor.node));
                 if (xpathWindowStop(tree, current, bound, mode, total)) {
-                    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+                    return xpathWindowResult(values, false, 0, total, positioned);
                 }
-                total = langruntime.checkedI32(langruntime.checkedSignedAdd(total, 1));
-                const previous: XPathVisit = copyXPathVisit(langruntime.indexStruct(visits, langruntime.checkedIndex(cursor.node), copyXPathVisit));
-                if (previous.node === cursor.node && previous.ancestor === cursor.ancestor) {
-                    return { sequence: { values: values, cyclic: true, cycle: previous.offset }, visited: total, bounded: true };
+                const previous: XPathWindowVisit = copyXPathWindowVisit(langruntime.indexStruct(visits, langruntime.checkedIndex(cursor.node), copyXPathWindowVisit));
+                const repeated: boolean = previous.node === cursor.node && previous.ancestor === cursor.ancestor;
+                if (repeated && previous.phase === total) {
+                    const period: number = langruntime.checkedSignedSubtract(matched, previous.position);
+                    if (maximum > 0 && period > 0) {
+                        const cycles: number = langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(maximum, matched), 1)), period);
+                        matched = langruntime.checkedI32(langruntime.checkedSignedAdd(matched, langruntime.checkedSignedMultiply(cycles, period)));
+                    }
+                    else {
+                        return xpathWindowResult(values, true, previous.offset, total, positioned);
+                    }
                 }
-                visits[langruntime.checkedIndexIn(visits, cursor.node)] = copyXPathVisit({ node: cursor.node, ancestor: cursor.ancestor, offset: values.length });
+                if (repeated === false || previous.phase === total) {
+                    visits[langruntime.checkedIndexIn(visits, cursor.node)] = copyXPathWindowVisit({ node: cursor.node, ancestor: cursor.ancestor, offset: values.length, phase: total, position: matched });
+                }
+                total = langruntime.checkedI32(langruntime.checkedSignedRemainder((langruntime.checkedSignedAdd(total, 1)), 256));
                 if (xpathNodeMatches(tree, test, current)) {
-                    langruntime.pushStruct(values, current, copyXPathReference);
+                    if (maximum > 0) {
+                        matched = langruntime.checkedI32(langruntime.checkedSignedAdd(matched, 1));
+                    }
+                    if (positioned === false || matched === maximum) {
+                        langruntime.pushStruct(values, current, copyXPathReference);
+                        if (values.length > xpathNodesetLimit) {
+                            return xpathWindowResult(values, false, 0, total, positioned);
+                        }
+                    }
                 }
-                if (maximum > 0 && langruntime.checkedI32(langruntime.checkedIndex(values.length)) >= maximum) {
-                    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+                if (maximum > 0 && matched === maximum) {
+                    return xpathWindowResult(values, false, 0, total, positioned);
                 }
             }
         }
@@ -54311,11 +54357,19 @@ function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReferen
                     finished = langruntime.checkedBool(true);
                 }
                 else {
-                    total = langruntime.checkedI32(langruntime.checkedSignedAdd(total, 1));
+                    total = langruntime.checkedI32(langruntime.checkedSignedRemainder((langruntime.checkedSignedAdd(total, 1)), 256));
                     if (xpathNodeMatches(tree, test, current)) {
-                        langruntime.pushStruct(values, current, copyXPathReference);
+                        if (maximum > 0) {
+                            matched = langruntime.checkedI32(langruntime.checkedSignedAdd(matched, 1));
+                        }
+                        if (positioned === false || matched === maximum) {
+                            langruntime.pushStruct(values, current, copyXPathReference);
+                            if (values.length > xpathNodesetLimit) {
+                                return xpathWindowResult(values, false, 0, total, positioned);
+                            }
+                        }
                     }
-                    if (maximum > 0 && langruntime.checkedI32(langruntime.checkedIndex(values.length)) >= maximum) {
+                    if (maximum > 0 && matched === maximum) {
                         finished = langruntime.checkedBool(true);
                     }
                 }
@@ -54323,5 +54377,5 @@ function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReferen
             index = langruntime.checkedAdd(index, 1);
         }
     }
-    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+    return xpathWindowResult(values, false, 0, total, positioned);
 }

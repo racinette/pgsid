@@ -1,5 +1,8 @@
 #[derive(Clone)]
-struct XPathAxisWindow { sequence: XPathSequence, visited: i32, bounded: bool }
+struct XPathAxisWindow { sequence: XPathSequence, visited: i32, positioned: bool }
+
+#[derive(Clone, Copy)]
+struct XPathWindowVisit { node: usize, ancestor: usize, offset: usize, phase: i32, position: i32 }
 
 fn xpath_window_stop(tree: &XmlTree, current: XPathReference, bound: XPathReference, mode: i32, visited: i32) -> bool {
     if xpath_reference_equal(current,bound) { return true; };
@@ -65,17 +68,22 @@ fn xpath_window_candidates(tree: &XmlTree, graph: &XPathGraph, context: XPathRef
     result
 }
 
+pub(crate) fn xpath_window_result(values: Vec<XPathReference>, cyclic: bool, cycle: usize, visited: i32, positioned: bool) -> XPathAxisWindow {
+    XPathAxisWindow { sequence: XPathSequence { values, cyclic, cycle }, visited, positioned }
+}
+
 fn xpath_axis_window(tree: &XmlTree, graph: &XPathGraph, context: XPathReference, axis: i32, test: &XPathNodeTest, mode: i32, bound: XPathReference, visited: i32, maximum: i32) -> XPathAxisWindow {
     let mut active = false;
     if mode == 2 { active = axis == 1 || axis == 5 || axis == 6 || axis == 9 || axis == 11; };
     if mode == 3 { active = axis == 4 || axis == 7 || axis == 8 || axis == 10 || axis == 12; };
     if bound.kind < 0 || active == false {
-        return XPathAxisWindow { sequence: xpath_graph_axis_test(tree,graph,context,axis,test), visited, bounded: false };
+        return XPathAxisWindow { sequence: xpath_graph_axis_test(tree,graph,context,axis,test), visited, positioned: false };
     };
-    let mut values: Vec<XPathReference> = Vec::new(); let mut total = visited;
+    let positioned = maximum != 0;
+    let mut values: Vec<XPathReference> = Vec::new(); let mut total = visited%256; let mut matched: i32 = 0;
     if axis == 11 || axis == 12 {
-        let mut visits: Vec<XPathVisit> = Vec::new(); let mut index: usize = 0;
-        while index < graph.nodes.len() { visits.push(XPathVisit { node: 0, ancestor: 0, offset: 0 }); index += 1; }
+        let mut visits: Vec<XPathWindowVisit> = Vec::new(); let mut index: usize = 0;
+        while index < graph.nodes.len() { visits.push(XPathWindowVisit { node: 0, ancestor: 0, offset: 0, phase: 0, position: 0 }); index += 1; }
         let ancestor = graph.nodes[context.node].parent;
         let mut cursor = XPathCursor { node: context.node, ancestor, started: false, done: false };
         while cursor.done == false {
@@ -83,19 +91,28 @@ fn xpath_axis_window(tree: &XmlTree, graph: &XPathGraph, context: XPathReference
             else { cursor = xpath_graph_preceding(graph,cursor); };
             if cursor.done == false {
                 let current = xpath_reference_node(cursor.node);
-                if xpath_window_stop(tree,current,bound,mode,total) {
-                    return XPathAxisWindow { sequence: XPathSequence { values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
-                };
-                total = total+1;
+                if xpath_window_stop(tree,current,bound,mode,total) { return xpath_window_result(values,false,0,total,positioned); };
                 let previous = visits[cursor.node];
-                if previous.node == cursor.node && previous.ancestor == cursor.ancestor {
-                    return XPathAxisWindow { sequence: XPathSequence { values, cyclic: true, cycle: previous.offset }, visited: total, bounded: true };
+                let repeated = previous.node == cursor.node && previous.ancestor == cursor.ancestor;
+                if repeated && previous.phase == total {
+                    let period = matched-previous.position;
+                    if maximum > 0 && period > 0 {
+                        let cycles = (maximum-matched-1)/period;
+                        matched = matched+cycles*period;
+                    } else { return xpath_window_result(values,true,previous.offset,total,positioned); };
                 };
-                visits[cursor.node] = XPathVisit { node: cursor.node, ancestor: cursor.ancestor, offset: values.len() };
-                if xpath_node_matches(tree,test,current) { values.push(current); };
-                if maximum > 0 && values.len() as i32 >= maximum {
-                    return XPathAxisWindow { sequence: XPathSequence { values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+                if repeated == false || previous.phase == total {
+                    visits[cursor.node] = XPathWindowVisit { node: cursor.node, ancestor: cursor.ancestor, offset: values.len(), phase: total, position: matched };
                 };
+                total = (total+1)%256;
+                if xpath_node_matches(tree,test,current) {
+                    if maximum > 0 { matched = matched+1; };
+                    if positioned == false || matched == maximum {
+                        values.push(current);
+                        if values.len() > XPATH_NODESET_LIMIT { return xpath_window_result(values,false,0,total,positioned); };
+                    };
+                };
+                if maximum > 0 && matched == maximum { return xpath_window_result(values,false,0,total,positioned); };
             };
         }
     } else {
@@ -106,10 +123,20 @@ fn xpath_axis_window(tree: &XmlTree, graph: &XPathGraph, context: XPathReference
             if axis == 1 && test.kind == 1 { eligible = xpath_reference_type(tree,current) == 1; };
             if eligible {
                 if xpath_window_stop(tree,current,bound,mode,total) { finished = true; }
-                else { total = total+1; if xpath_node_matches(tree,test,current) { values.push(current); }; if maximum > 0 && values.len() as i32 >= maximum { finished = true; }; };
+                else {
+                    total = (total+1)%256;
+                    if xpath_node_matches(tree,test,current) {
+                        if maximum > 0 { matched = matched+1; };
+                        if positioned == false || matched == maximum {
+                            values.push(current);
+                            if values.len() > XPATH_NODESET_LIMIT { return xpath_window_result(values,false,0,total,positioned); };
+                        };
+                    };
+                    if maximum > 0 && matched == maximum { finished = true; };
+                };
             };
             index += 1;
         }
     };
-    XPathAxisWindow { sequence: XPathSequence { values, cyclic: false, cycle: 0 }, visited: total, bounded: true }
+    xpath_window_result(values,false,0,total,positioned)
 }

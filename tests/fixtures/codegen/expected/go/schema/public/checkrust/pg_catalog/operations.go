@@ -50869,16 +50869,21 @@ func XpathCollect(input xPathValue, program *xPathProgram, root int, mode int, b
 		maximum := 0
 		if positionRange.valid && len(predicates) == 1 {
 			maximum = langruntime.CheckedI32(positionRange.value)
+			if maximum == 0 {
+				maximum = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			}
 		}
 		window := xpathAxisWindow(tree, graph, input.nodes.values[contextIndex], step.operation, &test, mode, bound, visited, maximum)
 		visited = langruntime.CheckedI32(window.visited)
-		bounded := window.bounded
+		positioned := window.positioned
 		sequence := window.sequence
-		if sequence.cyclic && bounded {
-			return xpathValueEmpty(xpathKindNodes, 2)
-		}
 		selected := xpathValueEmpty(xpathKindNodes, 0)
-		if positionRange.valid && len(predicates) == 1 {
+		if positioned {
+			if sequence.cyclic {
+				return xpathValueEmpty(xpathKindNodes, 2)
+			}
+			selected = XpathValueNodes(sequence)
+		} else if positionRange.valid && len(predicates) == 1 {
 			if sequence.cyclic && positionRange.value <= 0 {
 				return xpathValueEmpty(xpathKindNodes, 2)
 			}
@@ -50890,6 +50895,9 @@ func XpathCollect(input xPathValue, program *xPathProgram, root int, mode int, b
 		} else if mode == 1 && len(predicates) == 0 && len(sequence.values) > 0 {
 			selected = copyxPathValue(xpathValueSingle(sequence.values[0]))
 		} else {
+			if sequence.cyclic && len(sequence.values) > sequence.cycle {
+				return xpathValueFault(15)
+			}
 			selected = XpathValueNodes(sequence)
 			if selected.state != 0 {
 				return selected
@@ -53491,6 +53499,7 @@ func xpathLocalAxisTest(tree *xmlTree, context xPathReference, axis int, test *x
 	return result
 }
 
+const xpathNodesetLimit = 10000000
 const xpathKindNodes = 1
 const xpathKindBoolean = 2
 const xpathKindNumber = 3
@@ -53546,6 +53555,9 @@ func XpathValueString(text string) xPathValue {
 }
 func XpathValueNodes(nodes xPathSequence) xPathValue {
 	state := 0
+	if len(nodes.values) > xpathNodesetLimit {
+		return xpathValueEmpty(xpathKindNodes, langruntime.CheckedSignedNegate(15))
+	}
 	if nodes.cyclic {
 		state = langruntime.CheckedI32(2)
 	}
@@ -53716,13 +53728,25 @@ func xpathSequencePosition(input *xPathSequence, position int) xPathSelection {
 }
 
 type xPathAxisWindow struct {
-	sequence xPathSequence
-	visited  int
-	bounded  bool
+	sequence   xPathSequence
+	visited    int
+	positioned bool
 }
 
 func copyxPathAxisWindow(value xPathAxisWindow) xPathAxisWindow {
-	return xPathAxisWindow{sequence: copyxPathSequence(value.sequence), visited: langruntime.CheckedI32(value.visited), bounded: value.bounded}
+	return xPathAxisWindow{sequence: copyxPathSequence(value.sequence), visited: langruntime.CheckedI32(value.visited), positioned: value.positioned}
+}
+
+type xPathWindowVisit struct {
+	node     int
+	ancestor int
+	offset   int
+	phase    int
+	position int
+}
+
+func copyxPathWindowVisit(value xPathWindowVisit) xPathWindowVisit {
+	return xPathWindowVisit{node: langruntime.CheckedIndex(value.node), ancestor: langruntime.CheckedIndex(value.ancestor), offset: langruntime.CheckedIndex(value.offset), phase: langruntime.CheckedI32(value.phase), position: langruntime.CheckedI32(value.position)}
 }
 func xpathWindowStop(tree *xmlTree, current xPathReference, bound xPathReference, mode int, visited int) bool {
 	current = copyxPathReference(current)
@@ -53841,6 +53865,9 @@ func xpathWindowCandidates(tree *xmlTree, graph *xPathGraph, context xPathRefere
 	}
 	return result
 }
+func XpathWindowResult(values []xPathReference, cyclic bool, cycle int, visited int, positioned bool) xPathAxisWindow {
+	return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: cyclic, cycle: cycle}, visited: visited, positioned: positioned}
+}
 func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, axis int, test *xPathNodeTest, mode int, bound xPathReference, visited int, maximum int) xPathAxisWindow {
 	context = copyxPathReference(context)
 	axis = langruntime.CheckedI32(axis)
@@ -53856,16 +53883,18 @@ func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, a
 		active = axis == 4 || axis == 7 || axis == 8 || axis == 10 || axis == 12
 	}
 	if bound.kind < 0 || active == false {
-		return xPathAxisWindow{sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, bounded: false}
+		return xPathAxisWindow{sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, positioned: false}
 	}
+	positioned := maximum != 0
 	values := []xPathReference{}
-	total := visited
+	total := langruntime.CheckedSignedRemainder(visited, 256)
+	matched := 0
 	if axis == 11 || axis == 12 {
-		visits := []xPathVisit{}
+		visits := []xPathWindowVisit{}
 		index := 0
 		for index < len(graph.nodes) {
 			langruntime.CheckedAdd(len(visits), 1)
-			visits = append(visits, copyxPathVisit(xPathVisit{node: 0, ancestor: 0, offset: 0}))
+			visits = append(visits, copyxPathWindowVisit(xPathWindowVisit{node: 0, ancestor: 0, offset: 0, phase: 0, position: 0}))
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		ancestor := graph.nodes[context.node].parent
@@ -53879,20 +53908,37 @@ func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, a
 			if cursor.done == false {
 				current := xpathReferenceNode(cursor.node)
 				if xpathWindowStop(tree, current, bound, mode, total) {
-					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
+					return XpathWindowResult(values, false, 0, total, positioned)
 				}
-				total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, 1))
 				previous := visits[cursor.node]
-				if previous.node == cursor.node && previous.ancestor == cursor.ancestor {
-					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: true, cycle: previous.offset}, visited: total, bounded: true}
+				repeated := previous.node == cursor.node && previous.ancestor == cursor.ancestor
+				if repeated && previous.phase == total {
+					period := langruntime.CheckedSignedSubtract(matched, previous.position)
+					if maximum > 0 && period > 0 {
+						cycles := langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(maximum, matched), 1)), period)
+						matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, langruntime.CheckedSignedMultiply(cycles, period)))
+					} else {
+						return XpathWindowResult(values, true, previous.offset, total, positioned)
+					}
 				}
-				visits[cursor.node] = copyxPathVisit(xPathVisit{node: cursor.node, ancestor: cursor.ancestor, offset: len(values)})
+				if repeated == false || previous.phase == total {
+					visits[cursor.node] = copyxPathWindowVisit(xPathWindowVisit{node: cursor.node, ancestor: cursor.ancestor, offset: len(values), phase: total, position: matched})
+				}
+				total = langruntime.CheckedI32(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedAdd(total, 1)), 256))
 				if xpathNodeMatches(tree, test, current) {
-					langruntime.CheckedAdd(len(values), 1)
-					values = append(values, copyxPathReference(current))
+					if maximum > 0 {
+						matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, 1))
+					}
+					if positioned == false || matched == maximum {
+						langruntime.CheckedAdd(len(values), 1)
+						values = append(values, copyxPathReference(current))
+						if len(values) > xpathNodesetLimit {
+							return XpathWindowResult(values, false, 0, total, positioned)
+						}
+					}
 				}
-				if maximum > 0 && int(int32(len(values))) >= maximum {
-					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
+				if maximum > 0 && matched == maximum {
+					return XpathWindowResult(values, false, 0, total, positioned)
 				}
 			}
 		}
@@ -53910,12 +53956,20 @@ func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, a
 				if xpathWindowStop(tree, current, bound, mode, total) {
 					finished = true
 				} else {
-					total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, 1))
+					total = langruntime.CheckedI32(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedAdd(total, 1)), 256))
 					if xpathNodeMatches(tree, test, current) {
-						langruntime.CheckedAdd(len(values), 1)
-						values = append(values, copyxPathReference(current))
+						if maximum > 0 {
+							matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, 1))
+						}
+						if positioned == false || matched == maximum {
+							langruntime.CheckedAdd(len(values), 1)
+							values = append(values, copyxPathReference(current))
+							if len(values) > xpathNodesetLimit {
+								return XpathWindowResult(values, false, 0, total, positioned)
+							}
+						}
 					}
-					if maximum > 0 && int(int32(len(values))) >= maximum {
+					if maximum > 0 && matched == maximum {
 						finished = true
 					}
 				}
@@ -53923,5 +53977,5 @@ func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, a
 			index = langruntime.CheckedAdd(index, 1)
 		}
 	}
-	return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
+	return XpathWindowResult(values, false, 0, total, positioned)
 }
