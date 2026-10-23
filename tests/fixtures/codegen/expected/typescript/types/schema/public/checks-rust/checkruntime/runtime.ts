@@ -357,6 +357,79 @@ export function equalTextValue(left: TextValue, right: TextValue): boolean {
         return equalSqlError(left.value, right.value);
     return true;
 }
+export type XmlValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: string;
+} | {
+    readonly kind: "RenderedText";
+    readonly value: string;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function xmlUnknown(): XmlValue {
+    return { kind: "Unknown" };
+}
+export function xmlNull(): XmlValue {
+    return { kind: "Null" };
+}
+export function makeXmlValue(source: string): XmlValue {
+    source = langruntime.checkedString(source);
+    const characters: string[] = Array.from(source);
+    let index: number = 0;
+    while (index < characters.length) {
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "\0") {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: source };
+}
+export function xmlFromRenderedText(input: TextValue): XmlValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const checked: XmlValue = makeXmlValue(value);
+        if (checked.kind === "Value") {
+            const source: string = langruntime.checkedString(checked.value);
+            return { kind: "RenderedText", value: source };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function xmlIsNull(input: XmlValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function xmlFromCaseGuard(input: CheckOutcome): XmlValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
 export function int4Unknown(): Int4Value {
     return { kind: "Unknown" };
 }
@@ -461,6 +534,9 @@ const sqlErrorInvalidDatetimeFormat = 3452551;
 const sqlErrorDatetimeFieldOverflow = 3452552;
 const sqlErrorTimezoneDisplacement = 3452553;
 const sqlErrorInvalidUseOfEscape = 3452556;
+const sqlErrorInvalidXmlDocument = 3452566;
+const sqlErrorInvalidXmlContent = 3452567;
+const sqlErrorInvalidXmlComment = 3452572;
 const sqlErrorDivisionByZero = 3452582;
 const sqlErrorInvalidFrameSize = 3452583;
 const sqlErrorSubstring = 3452581;
@@ -489,6 +565,15 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorInvalidXmlDocument) {
+        return { message: "invalid XML document" };
+    }
+    if (error.state === sqlErrorInvalidXmlContent) {
+        return { message: "invalid XML content" };
+    }
+    if (error.state === sqlErrorInvalidXmlComment) {
+        return { message: "invalid XML comment" };
+    }
     if (error.state === sqlErrorCardinalityViolation) {
         return { message: "cardinality violation" };
     }

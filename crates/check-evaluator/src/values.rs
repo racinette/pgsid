@@ -278,6 +278,58 @@ pub enum TextValue {
     Error(SqlError),
 }
 
+#[derive(Clone)]
+pub enum XmlValue {
+    Unknown,
+    Null,
+    Value(String),
+    RenderedText(String),
+    Error(SqlError),
+}
+
+pub fn xml_unknown() -> XmlValue {
+    XmlValue::Unknown
+}
+
+pub fn xml_null() -> XmlValue {
+    XmlValue::Null
+}
+
+pub fn make_xml_value(source: &str) -> XmlValue {
+    let characters: Vec<char> = source.chars().collect();
+    let mut index: usize = 0;
+    while index < characters.len() {
+        if characters[index] == '\0' {
+            return XmlValue::Unknown;
+        };
+        index += 1;
+    }
+    XmlValue::Value(source.to_owned())
+}
+
+pub fn xml_from_rendered_text(input: TextValue) -> XmlValue {
+    if let TextValue::Error(error) = input { return XmlValue::Error(error); };
+    if let TextValue::Null = input { return XmlValue::Null; };
+    if let TextValue::Value(value) = input {
+        let checked = make_xml_value(value.as_str());
+        if let XmlValue::Value(source) = checked { return XmlValue::RenderedText(source); };
+    };
+    XmlValue::Unknown
+}
+
+pub fn xml_is_null(input: XmlValue) -> BoolValue {
+    if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
+    if let XmlValue::Unknown = input { return BoolValue::Unknown; };
+    if let XmlValue::Null = input { return BoolValue::Value(true); };
+    BoolValue::Value(false)
+}
+
+pub fn xml_from_case_guard(input: CheckOutcome) -> XmlValue {
+    if let CheckOutcome::Error(error) = input { return XmlValue::Error(error); };
+    if let CheckOutcome::Null = input { return XmlValue::Null; };
+    XmlValue::Unknown
+}
+
 pub fn int4_unknown() -> Int4Value {
     Int4Value::Unknown
 }
@@ -375,6 +427,9 @@ const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
 const SQL_ERROR_INVALID_USE_OF_ESCAPE: u32 = 3452556;
+const SQL_ERROR_INVALID_XML_DOCUMENT: u32 = 3452566;
+const SQL_ERROR_INVALID_XML_CONTENT: u32 = 3452567;
+const SQL_ERROR_INVALID_XML_COMMENT: u32 = 3452572;
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
 const SQL_ERROR_INVALID_FRAME_SIZE: u32 = 3452583;
 const SQL_ERROR_SUBSTRING: u32 = 3452581;
@@ -404,6 +459,15 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_INVALID_XML_DOCUMENT {
+        return SqlErrorDescription { message: "invalid XML document" };
+    }
+    if error.state == SQL_ERROR_INVALID_XML_CONTENT {
+        return SqlErrorDescription { message: "invalid XML content" };
+    }
+    if error.state == SQL_ERROR_INVALID_XML_COMMENT {
+        return SqlErrorDescription { message: "invalid XML comment" };
+    }
     if error.state == SQL_ERROR_CARDINALITY_VIOLATION {
         return SqlErrorDescription {
             message: "cardinality violation",

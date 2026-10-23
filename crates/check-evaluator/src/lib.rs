@@ -319,6 +319,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_entities.rs");
     include!("operations/pg_catalog/xml_subset.rs");
     include!("operations/pg_catalog/xml_validation.rs");
+    include!("operations/pg_catalog/xml_scalar.rs");
     include!("operations/pg_catalog/xml.rs");
     include!("operations/pg_catalog/chr.rs");
     include!("operations/pg_catalog/character_text.rs");

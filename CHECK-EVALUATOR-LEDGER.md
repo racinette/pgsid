@@ -156,7 +156,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [ ] Deferred: full-text documents (`tsvector`), after common CHECK families. Implement portable lexemes, positions, weights and operations; retain configuration-dependent text processing requirements.
 - [ ] Deferred: full-text queries (`tsquery`), after common CHECK families. Implement portable query trees, input/output and matching; retain configuration-dependent query construction requirements.
 - [ ] Deferred: ACL entries (`aclitem`), after common CHECK families. Implement portable privilege payloads separately from role-name lookup and runtime authorization; do not assume deployment role OIDs.
-- [ ] XML values, with document/content and execution-context requirements explicit.
+- [x] Establish owned XML storage versus rendered-output facets, explicit UTF8 document/content parsing, text/comment construction, document/null predicates, immutable snapshots, text/output/send behavior and diagnostic errors. Verify native INSERT/Rust/Go/TypeScript parity; retain erased-declaration requirements before SQL/public admission.
+- [ ] Admit XML SQL/public values, literals/casts, XML syntax, remaining constructors, recursive containers and query operations; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts,
@@ -167,8 +168,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       words, portable input/output, pure operations and contextual state boundaries.
 - [x] Establish WAL location payloads, portable text input/output, comparisons,
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
-- [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
-      portable hashes and explicit native-layout and heap-state requirements.
+- [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion, portable hashes and explicit native-layout and heap-state requirements.
 - [x] Establish catalog OID aliases with nominal SQL identity, numeric operations, catalog-resolved casts and explicit deferral without deployment catalog access.
 - [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
       inputs and explicit build-limit requirements for text truncation.
