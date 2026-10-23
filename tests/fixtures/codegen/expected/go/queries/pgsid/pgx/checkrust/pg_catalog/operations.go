@@ -49802,3 +49802,692 @@ func xmlAttributeTokenized(source *xmlSource, arena *xmlEntityArena, element xml
 	}
 	return false
 }
+
+var xpathNameStartRanges = []int{65, 90, 97, 122, 192, 214, 216, 246, 248, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12295, 12295, 12321, 12329, 12353, 12436, 12449, 12538, 12549, 12588, 19968, 40869, 44032, 55203}
+var xpathNameExtraRanges = []int{48, 57, 183, 183, 720, 721, 768, 837, 864, 865, 903, 903, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1600, 1600, 1611, 1618, 1632, 1641, 1648, 1648, 1750, 1764, 1767, 1768, 1770, 1773, 1776, 1785, 2305, 2307, 2364, 2364, 2366, 2381, 2385, 2388, 2402, 2403, 2406, 2415, 2433, 2435, 2492, 2492, 2494, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2534, 2543, 2562, 2562, 2620, 2620, 2622, 2626, 2631, 2632, 2635, 2637, 2662, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2790, 2799, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2918, 2927, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3047, 3055, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3174, 3183, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3302, 3311, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3430, 3439, 3633, 3633, 3636, 3642, 3654, 3662, 3664, 3673, 3761, 3761, 3764, 3769, 3771, 3772, 3782, 3782, 3784, 3789, 3792, 3801, 3864, 3865, 3872, 3881, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12293, 12293, 12330, 12335, 12337, 12341, 12441, 12442, 12445, 12446, 12540, 12542}
+
+func xpathNameRange(character rune, extra bool) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	low := 0
+	high := langruntime.CheckedSignedDivide(int(int32(len(xpathNameStartRanges))), 2)
+	if extra {
+		high = langruntime.CheckedI32(langruntime.CheckedSignedDivide(int(int32(len(xpathNameExtraRanges))), 2))
+	}
+	for low < high {
+		middle := langruntime.CheckedSignedAdd(low, langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(high, low)), 2))
+		offset := langruntime.CheckedSignedMultiply(middle, 2)
+		index := langruntime.IndexFromI32(offset, 0)
+		first := 0
+		last := 0
+		if extra {
+			first = langruntime.CheckedI32(xpathNameExtraRanges[index])
+			last = langruntime.CheckedI32(xpathNameExtraRanges[langruntime.CheckedAdd(index, 1)])
+		} else {
+			first = langruntime.CheckedI32(xpathNameStartRanges[index])
+			last = langruntime.CheckedI32(xpathNameStartRanges[langruntime.CheckedAdd(index, 1)])
+		}
+		if code < first {
+			high = langruntime.CheckedI32(middle)
+		} else if code > last {
+			low = langruntime.CheckedI32(langruntime.CheckedSignedAdd(middle, 1))
+		} else {
+			return true
+		}
+	}
+	return false
+}
+func xpathNameStart(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == '_' || xpathNameRange(character, false)
+}
+func xpathNameCharacter(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return xpathNameStart(character) || character == '.' || character == '-' || xpathNameRange(character, true)
+}
+func xpathParseOperator(program *xPathProgram, position int) int {
+	position = langruntime.CheckedIndex(position)
+	if xpathParseAt(program, position, "or") {
+		return 1
+	}
+	if xpathParseAt(program, position, "and") {
+		return 2
+	}
+	if xpathParseAt(program, position, "!=") {
+		return 4
+	}
+	if xpathParseAt(program, position, "<=") {
+		return 6
+	}
+	if xpathParseAt(program, position, ">=") {
+		return 8
+	}
+	if xpathParseAt(program, position, "=") {
+		return 3
+	}
+	if xpathParseAt(program, position, "<") {
+		return 5
+	}
+	if xpathParseAt(program, position, ">") {
+		return 7
+	}
+	if xpathParseAt(program, position, "+") {
+		return 9
+	}
+	if xpathParseAt(program, position, "-") {
+		return 10
+	}
+	if xpathParseAt(program, position, "*") {
+		return 11
+	}
+	if xpathParseAt(program, position, "div") {
+		return 12
+	}
+	if xpathParseAt(program, position, "mod") {
+		return 13
+	}
+	if xpathParseAt(program, position, "|") {
+		return 14
+	}
+	return 0
+}
+func xpathParsePrecedence(operation int) int {
+	operation = langruntime.CheckedI32(operation)
+	if operation == 1 {
+		return 1
+	}
+	if operation == 2 {
+		return 2
+	}
+	if operation <= 4 {
+		return 3
+	}
+	if operation <= 8 {
+		return 4
+	}
+	if operation <= 10 {
+		return 5
+	}
+	if operation <= 13 {
+		return 6
+	}
+	return 8
+}
+func xpathParseOperatorWidth(operation int) int {
+	operation = langruntime.CheckedI32(operation)
+	if operation == 2 || operation == 12 || operation == 13 {
+		return 3
+	}
+	if operation == 1 || operation == 4 || operation == 6 || operation == 8 {
+		return 2
+	}
+	return 1
+}
+func XpathParsePrefix(input xPathProgram, minimum int) xPathProgram {
+	program := input
+	position := xpathParseSpace(&program, program.cursor)
+	program = XpathParseCursor(program, position)
+	if position >= len(program.source) {
+		return XpathParseFail(program)
+	}
+	empty := xmlSpan{start: 0, end: 0}
+	character := program.source[position]
+	if character == '-' {
+		if minimum > 7 {
+			return XpathParseFail(program)
+		}
+		program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+		program = XpathParseExpression(program, 7)
+		if program.valid == false {
+			return program
+		}
+		node := xpathParseNode(xpathNegate, 0, program.root, 0, empty, empty)
+		return XpathParsePush(program, node)
+	}
+	if xmlQueryUriDigit(character) || (character == '.' && langruntime.CheckedAdd(position, 1) < len(program.source) && xmlQueryUriDigit(program.source[langruntime.CheckedAdd(position, 1)])) {
+		program = XpathParseNumber(program)
+		return XpathParsePredicates(program, xpathFilter)
+	}
+	if character == '\'' || character == '"' {
+		program = XpathParseLiteral(program)
+		return XpathParsePredicates(program, xpathFilter)
+	}
+	if character == '$' {
+		name := xpathParseQname(&program, langruntime.CheckedAdd(position, 1), false, false)
+		if name.valid == false {
+			return XpathParseFail(program)
+		}
+		program = XpathParseCursor(program, name.next)
+		node := xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local)
+		program = XpathParsePush(program, node)
+		return XpathParsePredicates(program, xpathFilter)
+	}
+	if character == '(' {
+		program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+		program = XpathParseExpression(program, 1)
+		if program.valid == false {
+			return program
+		}
+		close := xpathParseSpace(&program, program.cursor)
+		if xpathParseAt(&program, close, ")") == false {
+			return XpathParseFail(program)
+		}
+		value := program.root
+		program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
+		node := xpathParseNode(xpathGroup, 0, value, 0, empty, empty)
+		program = XpathParsePush(program, node)
+		return XpathParsePredicates(program, xpathFilter)
+	}
+	if character == '/' {
+		width := 1
+		if xpathParseAt(&program, position, "//") {
+			width = langruntime.CheckedIndex(2)
+		}
+		program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+		root := xpathParseNode(xpathRoot, 0, 0, 0, empty, empty)
+		program = XpathParsePush(program, root)
+		if width == 2 {
+			left := program.root
+			step := xpathParseNode(xpathStep, 6, 0, 2, empty, empty)
+			program = XpathParsePush(program, step)
+			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
+			program = XpathParsePush(program, path)
+		}
+		next := xpathParseSpace(&program, program.cursor)
+		if width == 2 || xpathParseStepStart(&program, next) {
+			left := program.root
+			program = XpathParseStep(program)
+			if program.valid == false {
+				return program
+			}
+			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
+			program = XpathParsePush(program, path)
+		}
+		return program
+	}
+	name := xpathParseQname(&program, position, false, false)
+	if name.valid {
+		after := xpathParseSpace(&program, name.next)
+		if xpathParseAt(&program, after, "(") {
+			text := xpathParseText(&program, name.local)
+			if name.prefix.start != name.prefix.end || xpathParseNodeType(text) == 0 {
+				return XpathParseFunction(program, name)
+			}
+		}
+	}
+	return XpathParseStep(program)
+}
+func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
+	program := XpathParsePrefix(input, minimum)
+	empty := xmlSpan{start: 0, end: 0}
+	scanning := true
+	for program.valid && scanning {
+		position := xpathParseSpace(&program, program.cursor)
+		if xpathParseAt(&program, position, "/") {
+			left := program.root
+			width := 1
+			if xpathParseAt(&program, position, "//") {
+				width = langruntime.CheckedIndex(2)
+			}
+			program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+			if width == 2 {
+				step := xpathParseNode(xpathStep, 6, 0, 2, empty, empty)
+				program = XpathParsePush(program, step)
+				path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
+				program = XpathParsePush(program, path)
+				left = langruntime.CheckedIndex(program.root)
+			}
+			program = XpathParseStep(program)
+			if program.valid == false {
+				return program
+			}
+			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
+			program = XpathParsePush(program, path)
+		} else {
+			operation := xpathParseOperator(&program, position)
+			precedence := xpathParsePrecedence(operation)
+			if operation == 0 || precedence < minimum {
+				scanning = false
+			} else {
+				left := program.root
+				width := xpathParseOperatorWidth(operation)
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+				program = XpathParseExpression(program, langruntime.CheckedSignedAdd(precedence, 1))
+				if program.valid == false {
+					return program
+				}
+				node := xpathParseNode(xpathBinary, operation, left, program.root, empty, empty)
+				program = XpathParsePush(program, node)
+			}
+		}
+	}
+	return program
+}
+func xpathCompile(input string) xPathProgram {
+	input = langruntime.CheckedString(input)
+	source := []rune(input)
+	empty := xmlSpan{start: 0, end: 0}
+	nodes := []xPathExpression{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyxPathExpression(xpathParseNode(0, 0, 0, 0, empty, empty)))
+	program := xPathProgram{source: source, nodes: nodes, cursor: 0, root: 0, valid: true}
+	parsed := XpathParseExpression(program, 1)
+	end := xpathParseSpace(&parsed, parsed.cursor)
+	if end != len(parsed.source) {
+		return XpathParseFail(parsed)
+	}
+	return parsed
+}
+
+const xpathNumber = 1
+const xpathString = 2
+const xpathVariable = 3
+const xpathFunction = 4
+const xpathRoot = 5
+const xpathStep = 6
+const xpathPredicate = 7
+const xpathPath = 8
+const xpathBinary = 9
+const xpathNegate = 10
+const xpathFilter = 11
+const xpathArgument = 12
+const xpathGroup = 13
+
+type xPathExpression struct {
+	kind      int
+	operation int
+	left      int
+	right     int
+	prefix    xmlSpan
+	name      xmlSpan
+}
+
+func copyxPathExpression(value xPathExpression) xPathExpression {
+	return xPathExpression{kind: langruntime.CheckedI32(value.kind), operation: langruntime.CheckedI32(value.operation), left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), prefix: copyxmlSpan(value.prefix), name: copyxmlSpan(value.name)}
+}
+
+type xPathProgram struct {
+	source []rune
+	nodes  []xPathExpression
+	cursor int
+	root   int
+	valid  bool
+}
+
+func copyxPathProgram(value xPathProgram) xPathProgram {
+	return xPathProgram{source: langruntime.CheckedChars(value.source), nodes: langruntime.CheckedStructs(value.nodes, copyxPathExpression), cursor: langruntime.CheckedIndex(value.cursor), root: langruntime.CheckedIndex(value.root), valid: value.valid}
+}
+
+type xPathNameScan struct {
+	prefix   xmlSpan
+	local    xmlSpan
+	next     int
+	valid    bool
+	wildcard bool
+}
+
+func copyxPathNameScan(value xPathNameScan) xPathNameScan {
+	return xPathNameScan{prefix: copyxmlSpan(value.prefix), local: copyxmlSpan(value.local), next: langruntime.CheckedIndex(value.next), valid: value.valid, wildcard: value.wildcard}
+}
+func xpathParseNode(kind int, operation int, left int, right int, prefix xmlSpan, name xmlSpan) xPathExpression {
+	kind = langruntime.CheckedI32(kind)
+	operation = langruntime.CheckedI32(operation)
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	prefix = copyxmlSpan(prefix)
+	name = copyxmlSpan(name)
+	return xPathExpression{kind: kind, operation: operation, left: left, right: right, prefix: prefix, name: name}
+}
+func XpathParsePush(input xPathProgram, node xPathExpression) xPathProgram {
+	nodes := input.nodes
+	root := len(nodes)
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyxPathExpression(node))
+	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid}
+}
+func XpathParseCursor(input xPathProgram, cursor int) xPathProgram {
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid}
+}
+func XpathParseFail(input xPathProgram) xPathProgram {
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false}
+}
+func XpathParseLink(input xPathProgram, tail int, next int) xPathProgram {
+	nodes := input.nodes
+	old := nodes[tail]
+	nodes[tail] = copyxPathExpression(xPathExpression{kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: old.prefix, name: old.name})
+	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid}
+}
+func xpathParseAt(program *xPathProgram, position int, text string) bool {
+	position = langruntime.CheckedIndex(position)
+	text = langruntime.CheckedString(text)
+	expected := []rune(text)
+	if langruntime.CheckedAdd(position, len(expected)) > len(program.source) {
+		return false
+	}
+	index := 0
+	for index < len(expected) {
+		if program.source[langruntime.CheckedAdd(position, index)] != expected[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func xpathParseSpace(program *xPathProgram, start int) int {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	for position < len(program.source) && xmlSpace(program.source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return position
+}
+func xpathParseText(program *xPathProgram, span xmlSpan) string {
+	span = copyxmlSpan(span)
+	output := langruntime.NewTextBuffer("")
+	position := span.start
+	for position < span.end {
+		output = append(output, string(langruntime.CheckedChar(program.source[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xpathParseNcname(program *xPathProgram, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	if position >= len(program.source) || xpathNameStart(program.source[position]) == false {
+		return xmlScan{next: start, valid: false}
+	}
+	position = langruntime.CheckedAdd(position, 1)
+	for position < len(program.source) && xpathNameCharacter(program.source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return xmlScan{next: position, valid: true}
+}
+func xpathParseQname(program *xPathProgram, start int, wildcard bool, gap bool) xPathNameScan {
+	start = langruntime.CheckedIndex(start)
+	empty := xmlSpan{start: 0, end: 0}
+	if wildcard && xpathParseAt(program, start, "*") {
+		local := xmlSpan{start: start, end: langruntime.CheckedAdd(start, 1)}
+		return xPathNameScan{prefix: empty, local: local, next: langruntime.CheckedAdd(start, 1), valid: true, wildcard: true}
+	}
+	first := xpathParseNcname(program, start)
+	span := xmlSpan{start: start, end: first.next}
+	if first.valid == false {
+		return xPathNameScan{prefix: empty, local: span, next: start, valid: false, wildcard: false}
+	}
+	colon := first.next
+	if gap {
+		colon = langruntime.CheckedIndex(xpathParseSpace(program, first.next))
+	}
+	if xpathParseAt(program, colon, ":") && xpathParseAt(program, colon, "::") == false {
+		position := langruntime.CheckedAdd(colon, 1)
+		if wildcard && xpathParseAt(program, position, "*") {
+			local := xmlSpan{start: position, end: langruntime.CheckedAdd(position, 1)}
+			return xPathNameScan{prefix: span, local: local, next: langruntime.CheckedAdd(position, 1), valid: true, wildcard: true}
+		}
+		second := xpathParseNcname(program, position)
+		local := xmlSpan{start: position, end: second.next}
+		return xPathNameScan{prefix: span, local: local, next: second.next, valid: second.valid, wildcard: false}
+	}
+	return xPathNameScan{prefix: empty, local: span, next: first.next, valid: true, wildcard: false}
+}
+func xpathParseAxis(name string) int {
+	name = langruntime.CheckedString(name)
+	if name == "child" {
+		return 1
+	}
+	if name == "attribute" {
+		return 2
+	}
+	if name == "self" {
+		return 3
+	}
+	if name == "parent" {
+		return 4
+	}
+	if name == "descendant" {
+		return 5
+	}
+	if name == "descendant-or-self" {
+		return 6
+	}
+	if name == "ancestor" {
+		return 7
+	}
+	if name == "ancestor-or-self" {
+		return 8
+	}
+	if name == "following-sibling" {
+		return 9
+	}
+	if name == "preceding-sibling" {
+		return 10
+	}
+	if name == "following" {
+		return 11
+	}
+	if name == "preceding" {
+		return 12
+	}
+	if name == "namespace" {
+		return 13
+	}
+	return 0
+}
+func xpathParseNodeType(name string) int {
+	name = langruntime.CheckedString(name)
+	if name == "node" {
+		return 2
+	}
+	if name == "text" {
+		return 3
+	}
+	if name == "comment" {
+		return 4
+	}
+	if name == "processing-instruction" {
+		return 5
+	}
+	return 0
+}
+func XpathParsePredicates(input xPathProgram, kind int) xPathProgram {
+	program := input
+	empty := xmlSpan{start: 0, end: 0}
+	scanning := true
+	for program.valid && scanning {
+		position := xpathParseSpace(&program, program.cursor)
+		if xpathParseAt(&program, position, "[") {
+			left := program.root
+			program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+			program = XpathParseExpression(program, 1)
+			if program.valid == false {
+				return program
+			}
+			right := program.root
+			close := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, close, "]") == false {
+				return XpathParseFail(program)
+			}
+			program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
+			node := xpathParseNode(kind, 0, left, right, empty, empty)
+			program = XpathParsePush(program, node)
+		} else {
+			scanning = false
+		}
+	}
+	return program
+}
+func XpathParseLiteral(input xPathProgram) xPathProgram {
+	begin := input.cursor
+	quote := input.source[begin]
+	position := langruntime.CheckedAdd(begin, 1)
+	for position < len(input.source) && input.source[position] != quote {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position >= len(input.source) {
+		return XpathParseFail(input)
+	}
+	span := xmlSpan{start: langruntime.CheckedAdd(begin, 1), end: position}
+	empty := xmlSpan{start: 0, end: 0}
+	program := XpathParseCursor(input, langruntime.CheckedAdd(position, 1))
+	node := xpathParseNode(xpathString, 0, 0, 0, empty, span)
+	return XpathParsePush(program, node)
+}
+func XpathParseNumber(input xPathProgram) xPathProgram {
+	begin := input.cursor
+	position := begin
+	for position < len(input.source) && xmlQueryUriDigit(input.source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if xpathParseAt(&input, position, ".") {
+		position = langruntime.CheckedAdd(position, 1)
+		for position < len(input.source) && xmlQueryUriDigit(input.source[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	end := position
+	if xpathParseAt(&input, position, "e") || xpathParseAt(&input, position, "E") {
+		position = langruntime.CheckedAdd(position, 1)
+		if xpathParseAt(&input, position, "+") || xpathParseAt(&input, position, "-") {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		exponent := position
+		for position < len(input.source) && xmlQueryUriDigit(input.source[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position > exponent {
+			end = langruntime.CheckedIndex(position)
+		}
+	}
+	span := xmlSpan{start: begin, end: end}
+	empty := xmlSpan{start: 0, end: 0}
+	program := XpathParseCursor(input, position)
+	node := xpathParseNode(xpathNumber, 0, 0, 0, empty, span)
+	return XpathParsePush(program, node)
+}
+func xpathParseStepStart(program *xPathProgram, position int) bool {
+	position = langruntime.CheckedIndex(position)
+	if position >= len(program.source) {
+		return false
+	}
+	character := program.source[position]
+	return character == '.' || character == '@' || character == '*' || xpathNameStart(character)
+}
+func XpathParseStep(input xPathProgram) xPathProgram {
+	program := input
+	empty := xmlSpan{start: 0, end: 0}
+	position := xpathParseSpace(&program, program.cursor)
+	if xpathParseAt(&program, position, ".") {
+		axis := 3
+		width := 1
+		if xpathParseAt(&program, position, "..") {
+			axis = langruntime.CheckedI32(4)
+			width = langruntime.CheckedIndex(2)
+		}
+		program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+		node := xpathParseNode(xpathStep, axis, 0, 2, empty, empty)
+		return XpathParsePush(program, node)
+	}
+	axis := 1
+	gap := true
+	if xpathParseAt(&program, position, "@") {
+		axis = langruntime.CheckedI32(2)
+		position = langruntime.CheckedIndex(xpathParseSpace(&program, langruntime.CheckedAdd(position, 1)))
+		gap = false
+	} else {
+		first := xpathParseNcname(&program, position)
+		if first.valid {
+			after := xpathParseSpace(&program, first.next)
+			if xpathParseAt(&program, after, "::") {
+				span := xmlSpan{start: position, end: first.next}
+				text := xpathParseText(&program, span)
+				axis = langruntime.CheckedI32(xpathParseAxis(text))
+				if axis == 0 {
+					return XpathParseFail(program)
+				}
+				position = langruntime.CheckedIndex(xpathParseSpace(&program, langruntime.CheckedAdd(after, 2)))
+				gap = false
+			}
+		}
+	}
+	scanned := xpathParseQname(&program, position, true, gap)
+	if scanned.valid == false {
+		return XpathParseFail(program)
+	}
+	test := 1
+	name := scanned.local
+	position = langruntime.CheckedIndex(xpathParseSpace(&program, scanned.next))
+	if xpathParseAt(&program, position, "(") {
+		if scanned.prefix.end != scanned.prefix.start || scanned.wildcard {
+			return XpathParseFail(program)
+		}
+		spelling := xpathParseText(&program, name)
+		test = langruntime.CheckedIndex(xpathParseNodeType(spelling))
+		if test == 0 {
+			return XpathParseFail(program)
+		}
+		position = langruntime.CheckedIndex(xpathParseSpace(&program, langruntime.CheckedAdd(position, 1)))
+		if test == 5 && (xpathParseAt(&program, position, "'") || xpathParseAt(&program, position, "\"")) {
+			program = XpathParseCursor(program, position)
+			program = XpathParseLiteral(program)
+			if program.valid == false {
+				return program
+			}
+			name = copyxmlSpan(program.nodes[program.root].name)
+			position = langruntime.CheckedIndex(xpathParseSpace(&program, program.cursor))
+			test = langruntime.CheckedIndex(6)
+		}
+		if xpathParseAt(&program, position, ")") == false {
+			return XpathParseFail(program)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	program = XpathParseCursor(program, position)
+	node := xpathParseNode(xpathStep, axis, 0, test, scanned.prefix, name)
+	program = XpathParsePush(program, node)
+	return XpathParsePredicates(program, xpathPredicate)
+}
+func XpathParseFunction(input xPathProgram, scanned xPathNameScan) xPathProgram {
+	program := input
+	empty := xmlSpan{start: 0, end: 0}
+	open := xpathParseSpace(&program, scanned.next)
+	position := xpathParseSpace(&program, langruntime.CheckedAdd(open, 1))
+	first := 0
+	last := 0
+	count := 0
+	program = XpathParseCursor(program, position)
+	if xpathParseAt(&program, position, ")") == false {
+		scanning := true
+		for program.valid && scanning {
+			program = XpathParseExpression(program, 1)
+			if program.valid == false {
+				return program
+			}
+			argument := program.root
+			link := xpathParseNode(xpathArgument, 0, argument, 0, empty, empty)
+			program = XpathParsePush(program, link)
+			next := program.root
+			if first == 0 {
+				first = langruntime.CheckedIndex(next)
+			} else {
+				program = XpathParseLink(program, last, next)
+			}
+			last = langruntime.CheckedIndex(next)
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			position = langruntime.CheckedIndex(xpathParseSpace(&program, program.cursor))
+			if xpathParseAt(&program, position, ",") {
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+			} else {
+				scanning = false
+			}
+		}
+	}
+	position = langruntime.CheckedIndex(xpathParseSpace(&program, program.cursor))
+	if xpathParseAt(&program, position, ")") == false {
+		return XpathParseFail(program)
+	}
+	program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+	node := xpathParseNode(xpathFunction, count, first, 0, scanned.prefix, scanned.local)
+	program = XpathParsePush(program, node)
+	return XpathParsePredicates(program, xpathFilter)
+}

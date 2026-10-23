@@ -325,6 +325,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_tree.rs");
     include!("operations/pg_catalog/xml_query_tree.rs");
     include!("operations/pg_catalog/xml_query_uri.rs");
+    include!("operations/pg_catalog/xml_xpath_names.rs");
+    include!("operations/pg_catalog/xml_xpath_parse_state.rs");
+    include!("operations/pg_catalog/xml_xpath_parse_steps.rs");
+    include!("operations/pg_catalog/xml_xpath_parse.rs");
     include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");
