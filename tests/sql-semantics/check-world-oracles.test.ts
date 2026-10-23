@@ -2,6 +2,86 @@ import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
+import { parseSql } from '../../src/ast.js'
+import { deparseWorldSql } from '../../scripts/check-measurements/worlds.js'
+
+it('preserves parsed string bytes in seeded worlds and CHECK oracles', async () => {
+  const pg = await PGlite.create()
+  try {
+    for (const input of [
+      'a\nb',
+      'a\rb',
+      'a\r\nb',
+      'a\tb',
+      'a\bb\fc',
+      'a\\nb',
+      "a'b",
+      '',
+      'é😊',
+      'a\\\nb',
+    ]) {
+      const original = `SELECT $sample$${input}$sample$ value,0 n,NULL absent,true flag,1.25 amount`
+      const statement = (await parseSql(original)).stmts![0]!.stmt!
+      const sql = deparseWorldSql(statement)
+      expect((await pg.query(sql)).rows).toEqual((await pg.query(original)).rows)
+    }
+    const oracles = new WorldCheckOracles()
+    await oracles.load(
+      pg,
+      `CREATE TABLE text_bytes(payload text,expected text,
+      CONSTRAINT exact CHECK(payload=E'first\\nsecond\\tend\\r'),
+      CONSTRAINT same CHECK(payload=expected));
+      INSERT INTO text_bytes VALUES(E'first\\nsecond\\tend\\r',E'first\\nsecond\\tend\\r');`,
+      'public',
+    )
+    expect((await pg.query('SELECT payload FROM text_bytes')).rows).toEqual([
+      { payload: 'first\nsecond\tend\r' },
+    ])
+    for (const constraint of ['exact', 'same']) {
+      const sql = oracles.expression('public.text_bytes.' + constraint, 'candidate')
+      expect((await pg.query(`SELECT ${sql} value FROM text_bytes candidate`)).rows).toEqual([
+        { value: true },
+      ])
+    }
+    await expect(
+      pg.exec("INSERT INTO text_bytes VALUES('first\\nsecond\\tend\\r','first\\nsecond\\tend\\r')"),
+    ).rejects.toMatchObject({ code: '23514' })
+  } finally {
+    await pg.close()
+  }
+})
+
+it('retains XML indentation in world schemas, parsed CHECK oracles and serialization types', async () => {
+  const pg = await PGlite.create()
+  try {
+    for (const mode of ['CONTENT', 'DOCUMENT'])
+      for (const type of ['text', 'varchar(100)'])
+        for (const indent of ['INDENT', 'NO INDENT']) {
+          const original = `SELECT XMLSERIALIZE(${mode} '<r><a/></r>'::xml AS ${type} ${indent}) value`
+          const statement = (await parseSql(original)).stmts![0]!.stmt!
+          expect((await pg.query(deparseWorldSql(statement))).rows).toEqual(
+            (await pg.query(original)).rows,
+          )
+        }
+    const oracles = new WorldCheckOracles()
+    await oracles.load(
+      pg,
+      `CREATE TABLE xml_previews(payload xml,expected text,
+      CONSTRAINT pretty CHECK(XMLSERIALIZE(CONTENT payload AS text INDENT)=expected));
+      INSERT INTO xml_previews VALUES('<r><a/></r>',E'<r>\\n  <a/>\\n</r>');`,
+      'public',
+    )
+    const expression = oracles.expression('public.xml_previews.pretty', 'candidate')
+    expect((await pg.query(`SELECT ${expression} value FROM xml_previews candidate`)).rows).toEqual(
+      [{ value: true }],
+    )
+    expect((await pg.query('SELECT expected FROM xml_previews')).rows).toEqual([
+      { expected: '<r>\n  <a/>\n</r>' },
+    ])
+  } finally {
+    await pg.close()
+  }
+})
 
 it('preserves named whole-row overloads, column shadowing and schema-qualified owners in parsed oracles', async () => {
   const pg = await PGlite.create(),

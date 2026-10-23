@@ -60,6 +60,7 @@ pub fn xml_is_document_context(input: XmlValue, utf8: bool) -> BoolValue {
 pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: bool) -> TextValue {
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
+    if indent { return xml_indent_utf8(input,mode == 1,utf8); };
     if mode == 1 {
         let document = xml_is_document_context(input.clone(),utf8);
         let mut valid = false;
@@ -69,7 +70,6 @@ pub fn xml_serialize_context(input: XmlValue, mode: i32, indent: bool, utf8: boo
         };
         if valid == false { return TextValue::Unknown; };
     };
-    if indent { return TextValue::Unknown; };
     xml_to_text(input)
 }
 

@@ -54,6 +54,33 @@ export async function worldSourceDigest(): Promise<string> {
 }
 
 class WorldDeparser extends Deparser {
+  override XmlSerialize(
+    node: Parameters<Deparser['XmlSerialize']>[0],
+    context: Parameters<Deparser['XmlSerialize']>[1],
+  ): string {
+    const expression = super.XmlSerialize(node, context)
+    if ((node as { indent?: boolean }).indent !== true) return expression
+    if (!expression.endsWith(')')) throw new Error('Unexpected XML serialization rendering')
+    return expression.slice(0, -1) + ' INDENT)'
+  }
+
+  override A_Const(
+    node: Parameters<Deparser['A_Const']>[0],
+    context: Parameters<Deparser['A_Const']>[1],
+  ): string {
+    const value = node.sval?.sval
+    if (typeof value !== 'string') return super.A_Const(node, context)
+    const escaped = value
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "''")
+      .replaceAll('\n', '\\n')
+      .replaceAll('\r', '\\r')
+      .replaceAll('\t', '\\t')
+      .replaceAll('\b', '\\b')
+      .replaceAll('\f', '\\f')
+    return `E'${escaped}'`
+  }
+
   override A_Indirection(
     node: Parameters<Deparser['A_Indirection']>[0],
     context: Parameters<Deparser['A_Indirection']>[1],

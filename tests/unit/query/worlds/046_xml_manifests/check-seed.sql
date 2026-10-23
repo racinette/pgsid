@@ -179,3 +179,47 @@ VALUES (NULL,NULL,NULL,false);
 -- name: BypassedTemplate
 INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
 VALUES ('wrong','wrong','{}',true);
+
+-- name: IndentedManifest
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest><item/></manifest>',E'<manifest>\n  <item/>\n</manifest>',E'<manifest>\n  <item/>\n</manifest>',true,false);
+
+-- name: MixedManifestText
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest>x<item/></manifest>','<manifest>x<item/></manifest>','<manifest>x<item/></manifest>',true,false);
+
+-- name: DeclaredUnicodeManifest
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<?xml version="1.0"?><manifest>é</manifest>','<manifest>&#xE9;</manifest>',E'<?xml version="1.0" encoding="UTF-8"?>\n<manifest>é</manifest>',true,false);
+
+-- name: ManifestEntityPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<!DOCTYPE manifest [<!ENTITY label "ok">]><manifest>&label;</manifest>',E'<!DOCTYPE manifest [\n<!ENTITY label "ok">\n]>\n<manifest>ok</manifest>\n',E'<!DOCTYPE manifest [\n<!ENTITY label "ok">\n]>\n<manifest>ok</manifest>',true,false);
+
+-- name: ManifestFragmentPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<a/><b/>',E'<a/>\n<b/>',NULL,false,false);
+
+-- name: EmptyManifestPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest></manifest>','<manifest/>','<manifest/>',true,false);
+
+-- name: NullManifestPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES (NULL,NULL,NULL,true,false);
+
+-- name: WrongManifestContentPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest/>','wrong','<manifest/>',true,false);
+
+-- name: WrongManifestDocumentPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest/>','<manifest/>','wrong',true,false);
+
+-- name: FragmentDocumentPreviewError
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<a/><b/>',E'<a/>\n<b/>',NULL,true,false);
+
+-- name: BypassedManifestPreview
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<a/><b/>','wrong','wrong',true,true);
