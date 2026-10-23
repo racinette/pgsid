@@ -40,6 +40,7 @@ const fault = (detail: string) => {
   if (s.includes('invalid context size')) return 13
   if (s.includes('invalid type')) return 11
   if (s.includes('invalid operand')) return 10
+  if (s.includes('recursion limit exceeded')) return 26
   return 0
 }
 
@@ -96,7 +97,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       if xml_well_formed(prepared.as_str(),true)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let document=xpath_document_parse(prepared.as_str()); let tree=document.tree; let graph=document.graph;
       if graph.ids.valid==false || xml_query_names_valid(&tree)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
-      let program=xpath_compile(text.as_str()); let mut namespaces=xpath_namespaces_empty();
+      let program=xpath_compile_with_limit(text.as_str(),5000); let mut namespaces=xpath_namespaces_empty();
       namespaces=xpath_namespaces_push(namespaces,"p","urn:p"); namespaces=xpath_namespaces_push(namespaces,"q","urn:q"); namespaces=xpath_namespaces_push(namespaces,"u","urn:u");
       let mut powers=xpath_powers_empty(); if facts==1 {powers=xpath_eval_test_powers();};
       let result=xpath_evaluate(&program,&tree,&graph,&namespaces,&powers);
@@ -574,6 +575,12 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       '(/r/@k | (/r/a/following::node()[1])/following::node()[0])[1]',
       4,
     )
+    for (const count of [1023, 1024, 10000, 10001])
+      for (const value of ["'2'", "'abc'", 'true()', '-0']) add(input, '-'.repeat(count) + value, 3)
+    add(input, '('.repeat(499) + 'true()' + ')'.repeat(499), 1)
+    add(input, '('.repeat(500) + 'true()' + ')'.repeat(500), 1)
+    add(input, 'true() or ' + Array(10001).fill('1').join('+'), 1)
+    add(input, 'false() and ' + Array(10001).fill('1').join('+'), 1)
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let inserts = 0,
@@ -662,7 +669,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-resource-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-compile-limits-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',

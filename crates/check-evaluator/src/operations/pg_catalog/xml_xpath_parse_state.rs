@@ -1,3 +1,4 @@
+const XPATH_MIN_RECURSION_LIMIT: i32 = 500;
 const XPATH_NUMBER: i32 = 1;
 const XPATH_STRING: i32 = 2;
 const XPATH_VARIABLE: i32 = 3;
@@ -15,8 +16,11 @@ const XPATH_GROUP: i32 = 13;
 #[derive(Clone, Copy)]
 struct XPathExpression { kind: i32, operation: i32, left: usize, right: usize, prefix: XmlSpan, name: XmlSpan }
 
+#[derive(Clone, Copy)]
+struct XPathCompileBudget { depth: i32, limit: i32, fault: i32 }
+
 #[derive(Clone)]
-struct XPathProgram { source: Vec<char>, nodes: Vec<XPathExpression>, cursor: usize, root: usize, valid: bool }
+struct XPathProgram { source: Vec<char>, nodes: Vec<XPathExpression>, cursor: usize, root: usize, valid: bool, budget: XPathCompileBudget }
 
 #[derive(Clone, Copy)]
 struct XPathNameScan { prefix: XmlSpan, local: XmlSpan, next: usize, valid: bool, wildcard: bool }
@@ -28,21 +32,21 @@ fn xpath_parse_node(kind: i32, operation: i32, left: usize, right: usize, prefix
 pub(crate) fn xpath_parse_push(input: XPathProgram, node: XPathExpression) -> XPathProgram {
     let mut nodes = input.nodes;
     let root = nodes.len(); nodes.push(node);
-    XPathProgram { source: input.source, nodes, cursor: input.cursor, root, valid: input.valid }
+    XPathProgram { source: input.source, nodes, cursor: input.cursor, root, valid: input.valid, budget: input.budget }
 }
 
 pub(crate) fn xpath_parse_cursor(input: XPathProgram, cursor: usize) -> XPathProgram {
-    XPathProgram { source: input.source, nodes: input.nodes, cursor, root: input.root, valid: input.valid }
+    XPathProgram { source: input.source, nodes: input.nodes, cursor, root: input.root, valid: input.valid, budget: input.budget }
 }
 
 pub(crate) fn xpath_parse_fail(input: XPathProgram) -> XPathProgram {
-    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false }
+    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: input.budget }
 }
 
 pub(crate) fn xpath_parse_link(input: XPathProgram, tail: usize, next: usize) -> XPathProgram {
     let mut nodes = input.nodes; let old = nodes[tail];
     nodes[tail] = XPathExpression { kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: old.prefix, name: old.name };
-    XPathProgram { source: input.source, nodes, cursor: input.cursor, root: input.root, valid: input.valid }
+    XPathProgram { source: input.source, nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: input.budget }
 }
 
 fn xpath_parse_at(program: &XPathProgram, position: usize, text: &str) -> bool {
@@ -117,4 +121,25 @@ fn xpath_parse_axis(name: &str) -> i32 {
     if name == "preceding" { return 12; };
     if name == "namespace" { return 13; };
     0
+}
+
+
+pub(crate) fn xpath_parse_budget(input: XPathProgram, depth: i32, fault: i32) -> XPathProgram {
+    let budget = XPathCompileBudget { depth, limit: input.budget.limit, fault };
+    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget }
+}
+
+pub(crate) fn xpath_compile_enter(input: XPathProgram) -> XPathProgram {
+    let budget = input.budget; let mut maximum = budget.limit;
+    if maximum <= 0 { maximum = XPATH_MIN_RECURSION_LIMIT; };
+    if budget.depth >= maximum {
+        let mut fault: i32 = -26; if budget.limit <= 0 { fault = 4; };
+        return xpath_parse_budget(input,budget.depth,fault);
+    };
+    xpath_parse_budget(input,budget.depth+10,budget.fault)
+}
+
+pub(crate) fn xpath_compile_leave(input: XPathProgram) -> XPathProgram {
+    let budget = input.budget;
+    xpath_parse_budget(input,budget.depth-10,budget.fault)
 }

@@ -1,4 +1,4 @@
-pub(crate) fn xpath_eval_demand(program: &XPathProgram, root: usize, context: XPathContext, mode: i32, bound: XPathReference, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
+pub(crate) fn xpath_eval_demand_body(program: &XPathProgram, root: usize, context: XPathContext, mode: i32, bound: XPathReference, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
     let node = program.nodes[root];
     if node.kind == XPATH_NUMBER { let text = xpath_parse_text(program,node.name); return xpath_number_text(text.as_str(),powers); };
     if node.kind == XPATH_STRING { return xpath_value_string(xpath_parse_text(program,node.name)); };
@@ -7,10 +7,6 @@ pub(crate) fn xpath_eval_demand(program: &XPathProgram, root: usize, context: XP
         return xpath_value_fault(5);
     };
     if node.kind == XPATH_ROOT { return xpath_value_single(xpath_reference_node(0)); };
-    if node.kind == XPATH_GROUP {
-        let value = xpath_eval_demand(program,node.left,context,mode,bound,tree,graph,namespaces,powers);
-        if mode == 1 { return value; }; return xpath_value_sorted(value,tree);
-    };
     if node.kind == XPATH_STEP || node.kind == XPATH_PREDICATE {
         return xpath_collect(xpath_value_single(context.node),program,root,mode,bound,tree,graph,namespaces,powers);
     };
@@ -45,6 +41,7 @@ pub(crate) fn xpath_eval_demand(program: &XPathProgram, root: usize, context: XP
         let input = xpath_eval_node(program,node.left,context,0,tree,graph,namespaces,powers);
         let value = xpath_value_to_number(input,tree,graph,powers);
         if value.state != 0 { return value; };
+        if node.operation == 0 { return value; };
         return xpath_value_number(-f64::from_bits(value.number as u64));
     };
     if node.kind == XPATH_BINARY {
@@ -97,6 +94,8 @@ pub(crate) fn xpath_eval_demand(program: &XPathProgram, root: usize, context: XP
 }
 
 fn xpath_evaluate(program: &XPathProgram, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
+    if program.budget.fault < 0 { return xpath_value_fault(0-program.budget.fault); };
+    if program.budget.fault > 0 { return xpath_value_empty(0,program.budget.fault); };
     if program.valid == false { return xpath_value_fault(7); };
     let context = XPathContext { node: xpath_reference_node(0), position: -1, size: -1 };
     let result = xpath_eval_node(program,program.root,context,0,tree,graph,namespaces,powers);
@@ -106,4 +105,16 @@ fn xpath_evaluate(program: &XPathProgram, tree: &XmlTree, graph: &XPathGraph, na
 pub(crate) fn xpath_eval_node(program: &XPathProgram, root: usize, context: XPathContext, mode: i32, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
     let absent = XPathReference { kind: -1, node: 0, index: 0 };
     xpath_eval_demand(program,root,context,mode,absent,tree,graph,namespaces,powers)
+}
+
+
+pub(crate) fn xpath_eval_demand(program: &XPathProgram, root: usize, context: XPathContext, mode: i32, bound: XPathReference, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
+    let mut current = root; let mut groups: usize = 0;
+    while program.nodes[current].kind == XPATH_GROUP { current = program.nodes[current].left; groups += 1; }
+    let mut value = xpath_eval_demand_body(program,current,context,mode,bound,tree,graph,namespaces,powers);
+    while groups > 0 {
+        if mode != 1 { value = xpath_value_sorted(value,tree); };
+        groups = groups-1;
+    }
+    value
 }

@@ -50408,7 +50408,7 @@ func XpathValueToNumber(input xPathValue, tree *xmlTree, graph *xPathGraph, powe
 	text := XpathValueToString(input, tree, graph)
 	return xpathScalarNumber(&text, powers)
 }
-func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+func XpathEvalDemandBody(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
 	node := program.nodes[root]
 	if node.kind == xpathNumber {
 		text := xpathParseText(program, node.name)
@@ -50428,13 +50428,6 @@ func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode
 	}
 	if node.kind == xpathRoot {
 		return xpathValueSingle(xpathReferenceNode(0))
-	}
-	if node.kind == xpathGroup {
-		value := XpathEvalDemand(program, node.left, context, mode, bound, tree, graph, namespaces, powers)
-		if mode == 1 {
-			return value
-		}
-		return XpathValueSorted(value, tree)
 	}
 	if node.kind == xpathStep || node.kind == xpathPredicate {
 		return XpathCollect(xpathValueSingle(context.node), program, root, mode, bound, tree, graph, namespaces, powers)
@@ -50491,6 +50484,9 @@ func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode
 		input := XpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers)
 		value := XpathValueToNumber(input, tree, graph, powers)
 		if value.state != 0 {
+			return value
+		}
+		if node.operation == 0 {
 			return value
 		}
 		return xpathValueNumber(langruntime.F64Negate(langruntime.F64FromI64Bits(value.number)))
@@ -50585,6 +50581,12 @@ func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode
 	return xpathValueFault(10)
 }
 func xpathEvaluate(program *xPathProgram, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	if program.budget.fault < 0 {
+		return xpathValueFault(langruntime.CheckedSignedSubtract(0, program.budget.fault))
+	}
+	if program.budget.fault > 0 {
+		return xpathValueEmpty(0, program.budget.fault)
+	}
 	if program.valid == false {
 		return xpathValueFault(7)
 	}
@@ -50595,6 +50597,22 @@ func xpathEvaluate(program *xPathProgram, tree *xmlTree, graph *xPathGraph, name
 func XpathEvalNode(program *xPathProgram, root int, context xPathContext, mode int, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
 	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
 	return XpathEvalDemand(program, root, context, mode, absent, tree, graph, namespaces, powers)
+}
+func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	current := root
+	groups := 0
+	for program.nodes[current].kind == xpathGroup {
+		current = langruntime.CheckedIndex(program.nodes[current].left)
+		groups = langruntime.CheckedAdd(groups, 1)
+	}
+	value := XpathEvalDemandBody(program, current, context, mode, bound, tree, graph, namespaces, powers)
+	for groups > 0 {
+		if mode != 1 {
+			value = XpathValueSorted(value, tree)
+		}
+		groups = langruntime.CheckedIndex(langruntime.CheckedSubtract(groups, 1))
+	}
+	return value
 }
 
 type xPathArguments struct {
@@ -52202,51 +52220,75 @@ func xpathNumberString(bits int64) string {
 	output = append(output, text...)
 	return string(output)
 }
+
+type xPathOptimizeStep struct {
+	node int
+	next int
+}
+
+func copyxPathOptimizeStep(value xPathOptimizeStep) xPathOptimizeStep {
+	return xPathOptimizeStep{node: langruntime.CheckedIndex(value.node), next: langruntime.CheckedIndex(value.next)}
+}
 func XpathOptimize(input xPathProgram, root int) xPathProgram {
 	program := input
-	node := program.nodes[root]
-	if node.kind == xpathPath && program.nodes[node.right].kind == xpathStep {
-		next := program.nodes[node.right]
-		previous := program.nodes[node.left]
-		previousStep := 0
-		if previous.kind == xpathPath {
-			previousStep = langruntime.CheckedIndex(previous.right)
-		}
-		if previous.kind == xpathStep {
-			previousStep = langruntime.CheckedIndex(node.left)
-		}
-		prior := program.nodes[previousStep]
-		if prior.kind == xpathStep && prior.operation == 6 && prior.right == 2 {
-			axis := 0
-			if next.operation == 1 || next.operation == 5 {
-				axis = langruntime.CheckedI32(5)
+	pending := []xPathOptimizeStep{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, copyxPathOptimizeStep(xPathOptimizeStep{node: root, next: 0}))
+	head := 1
+	for head > 0 {
+		frame := pending[langruntime.CheckedSubtract(head, 1)]
+		head = langruntime.CheckedIndex(frame.next)
+		selectedRoot := frame.node
+		node := program.nodes[selectedRoot]
+		if node.kind == xpathPath && program.nodes[node.right].kind == xpathStep {
+			next := program.nodes[node.right]
+			previous := program.nodes[node.left]
+			previousStep := 0
+			if previous.kind == xpathPath {
+				previousStep = langruntime.CheckedIndex(previous.right)
 			}
-			if next.operation == 3 || next.operation == 6 {
-				axis = langruntime.CheckedI32(6)
+			if previous.kind == xpathStep {
+				previousStep = langruntime.CheckedIndex(node.left)
 			}
-			if axis != 0 {
-				nodes := program.nodes
-				nodes[node.right] = copyxPathExpression(xPathExpression{kind: next.kind, operation: axis, left: next.left, right: next.right, prefix: next.prefix, name: next.name})
-				if previous.kind == xpathPath {
-					nodes[root] = copyxPathExpression(xPathExpression{kind: node.kind, operation: node.operation, left: previous.left, right: node.right, prefix: node.prefix, name: node.name})
-				} else {
-					nodes[node.left] = copyxPathExpression(xPathExpression{kind: prior.kind, operation: 3, left: prior.left, right: prior.right, prefix: prior.prefix, name: prior.name})
+			prior := program.nodes[previousStep]
+			if prior.kind == xpathStep && prior.operation == 6 && prior.right == 2 {
+				axis := 0
+				if next.operation == 1 || next.operation == 5 {
+					axis = langruntime.CheckedI32(5)
 				}
-				program = copyxPathProgram(xPathProgram{source: program.source, nodes: nodes, cursor: program.cursor, root: program.root, valid: program.valid})
+				if next.operation == 3 || next.operation == 6 {
+					axis = langruntime.CheckedI32(6)
+				}
+				if axis != 0 {
+					nodes := program.nodes
+					nodes[node.right] = copyxPathExpression(xPathExpression{kind: next.kind, operation: axis, left: next.left, right: next.right, prefix: next.prefix, name: next.name})
+					if previous.kind == xpathPath {
+						nodes[selectedRoot] = copyxPathExpression(xPathExpression{kind: node.kind, operation: node.operation, left: previous.left, right: node.right, prefix: node.prefix, name: node.name})
+					} else {
+						nodes[node.left] = copyxPathExpression(xPathExpression{kind: prior.kind, operation: 3, left: prior.left, right: prior.right, prefix: prior.prefix, name: prior.name})
+					}
+					program = copyxPathProgram(xPathProgram{source: program.source, nodes: nodes, cursor: program.cursor, root: program.root, valid: program.valid, budget: program.budget})
+				}
 			}
 		}
-	}
-	selected := program.nodes[root]
-	if selected.kind == xpathPath || selected.kind == xpathBinary || selected.kind == xpathPredicate || selected.kind == xpathFilter || selected.kind == xpathArgument {
-		if selected.left > 0 {
-			program = XpathOptimize(program, selected.left)
-		}
-		if selected.right > 0 {
-			program = XpathOptimize(program, selected.right)
-		}
-	} else if selected.kind == xpathNegate || selected.kind == xpathGroup || selected.kind == xpathFunction {
-		if selected.left > 0 {
-			program = XpathOptimize(program, selected.left)
+		selected := program.nodes[selectedRoot]
+		if selected.kind == xpathPath || selected.kind == xpathBinary || selected.kind == xpathPredicate || selected.kind == xpathFilter || selected.kind == xpathArgument {
+			if selected.right > 0 {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyxPathOptimizeStep(xPathOptimizeStep{node: selected.right, next: head}))
+				head = langruntime.CheckedIndex(len(pending))
+			}
+			if selected.left > 0 {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyxPathOptimizeStep(xPathOptimizeStep{node: selected.left, next: head}))
+				head = langruntime.CheckedIndex(len(pending))
+			}
+		} else if selected.kind == xpathNegate || selected.kind == xpathGroup || selected.kind == xpathFunction {
+			if selected.left > 0 {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyxPathOptimizeStep(xPathOptimizeStep{node: selected.left, next: head}))
+				head = langruntime.CheckedIndex(len(pending))
+			}
 		}
 	}
 	return program
@@ -52432,155 +52474,20 @@ func xpathParseOperatorWidth(operation int) int {
 	}
 	return 1
 }
-func XpathParsePrefix(input xPathProgram, minimum int) xPathProgram {
-	program := input
-	position := xpathParseSpace(&program, program.cursor)
-	program = XpathParseCursor(program, position)
-	if position >= len(program.source) {
-		return XpathParseFail(program)
-	}
-	empty := xmlSpan{start: 0, end: 0}
-	character := program.source[position]
-	if character == '-' {
-		if minimum > 7 {
-			return XpathParseFail(program)
-		}
-		program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-		program = XpathParseExpression(program, 7)
-		if program.valid == false {
-			return program
-		}
-		node := xpathParseNode(xpathNegate, 0, program.root, 0, empty, empty)
-		return XpathParsePush(program, node)
-	}
-	if xmlQueryUriDigit(character) || (character == '.' && langruntime.CheckedAdd(position, 1) < len(program.source) && xmlQueryUriDigit(program.source[langruntime.CheckedAdd(position, 1)])) {
-		program = XpathParseNumber(program)
-		return XpathParsePredicates(program, xpathFilter)
-	}
-	if character == '\'' || character == '"' {
-		program = XpathParseLiteral(program)
-		return XpathParsePredicates(program, xpathFilter)
-	}
-	if character == '$' {
-		name := xpathParseQname(&program, langruntime.CheckedAdd(position, 1), false, false)
-		if name.valid == false {
-			return XpathParseFail(program)
-		}
-		program = XpathParseCursor(program, name.next)
-		node := xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local)
-		program = XpathParsePush(program, node)
-		return XpathParsePredicates(program, xpathFilter)
-	}
-	if character == '(' {
-		program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-		program = XpathParseExpression(program, 1)
-		if program.valid == false {
-			return program
-		}
-		close := xpathParseSpace(&program, program.cursor)
-		if xpathParseAt(&program, close, ")") == false {
-			return XpathParseFail(program)
-		}
-		value := program.root
-		program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
-		node := xpathParseNode(xpathGroup, 0, value, 0, empty, empty)
-		program = XpathParsePush(program, node)
-		return XpathParsePredicates(program, xpathFilter)
-	}
-	if character == '/' {
-		width := 1
-		if xpathParseAt(&program, position, "//") {
-			width = langruntime.CheckedIndex(2)
-		}
-		program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
-		root := xpathParseNode(xpathRoot, 0, 0, 0, empty, empty)
-		program = XpathParsePush(program, root)
-		if width == 2 {
-			left := program.root
-			step := xpathParseNode(xpathStep, 6, 0, 2, empty, empty)
-			program = XpathParsePush(program, step)
-			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
-			program = XpathParsePush(program, path)
-		}
-		next := xpathParseSpace(&program, program.cursor)
-		if width == 2 || xpathParseStepStart(&program, next) {
-			left := program.root
-			program = XpathParseStep(program)
-			if program.valid == false {
-				return program
-			}
-			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
-			program = XpathParsePush(program, path)
-		}
-		return program
-	}
-	name := xpathParseQname(&program, position, false, false)
-	if name.valid {
-		after := xpathParseSpace(&program, name.next)
-		if xpathParseAt(&program, after, "(") {
-			text := xpathParseText(&program, name.local)
-			if name.prefix.start != name.prefix.end || xpathParseNodeType(text) == 0 {
-				return XpathParseFunction(program, name)
-			}
-		}
-	}
-	return XpathParseStep(program)
-}
-func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
-	program := XpathParsePrefix(input, minimum)
-	empty := xmlSpan{start: 0, end: 0}
-	scanning := true
-	for program.valid && scanning {
-		position := xpathParseSpace(&program, program.cursor)
-		if xpathParseAt(&program, position, "/") {
-			left := program.root
-			width := 1
-			if xpathParseAt(&program, position, "//") {
-				width = langruntime.CheckedIndex(2)
-			}
-			program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
-			if width == 2 {
-				step := xpathParseNode(xpathStep, 6, 0, 2, empty, empty)
-				program = XpathParsePush(program, step)
-				path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
-				program = XpathParsePush(program, path)
-				left = langruntime.CheckedIndex(program.root)
-			}
-			program = XpathParseStep(program)
-			if program.valid == false {
-				return program
-			}
-			path := xpathParseNode(xpathPath, 0, left, program.root, empty, empty)
-			program = XpathParsePush(program, path)
-		} else {
-			operation := xpathParseOperator(&program, position)
-			precedence := xpathParsePrecedence(operation)
-			if operation == 0 || precedence < minimum {
-				scanning = false
-			} else {
-				left := program.root
-				width := xpathParseOperatorWidth(operation)
-				program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
-				program = XpathParseExpression(program, langruntime.CheckedSignedAdd(precedence, 1))
-				if program.valid == false {
-					return program
-				}
-				node := xpathParseNode(xpathBinary, operation, left, program.root, empty, empty)
-				program = XpathParsePush(program, node)
-			}
-		}
-	}
-	return program
-}
-func xpathCompile(input string) xPathProgram {
+func xpathCompileWithLimit(input string, limit int) xPathProgram {
 	input = langruntime.CheckedString(input)
+	limit = langruntime.CheckedI32(limit)
 	source := []rune(input)
 	empty := xmlSpan{start: 0, end: 0}
 	nodes := []xPathExpression{}
 	langruntime.CheckedAdd(len(nodes), 1)
 	nodes = append(nodes, copyxPathExpression(xpathParseNode(0, 0, 0, 0, empty, empty)))
-	program := xPathProgram{source: source, nodes: nodes, cursor: 0, root: 0, valid: true}
+	budget := xPathCompileBudget{depth: 0, limit: limit, fault: 0}
+	program := xPathProgram{source: source, nodes: nodes, cursor: 0, root: 0, valid: true, budget: budget}
 	parsed := XpathParseExpression(program, 1)
+	if parsed.valid == false {
+		return parsed
+	}
 	end := xpathParseSpace(&parsed, parsed.cursor)
 	if end != len(parsed.source) {
 		return XpathParseFail(parsed)
@@ -52588,7 +52495,287 @@ func xpathCompile(input string) xPathProgram {
 	root := parsed.root
 	return XpathOptimize(parsed, root)
 }
+func xpathCompile(input string) xPathProgram {
+	input = langruntime.CheckedString(input)
+	return xpathCompileWithLimit(input, 0)
+}
 
+const xpathParseEnter = 1
+const xpathParseLeave = 2
+const xpathParseLoop = 3
+const xpathParsePrefix = 4
+const xpathParseBinary = 5
+const xpathParsePath = 6
+const xpathParseUnary = 7
+const xpathParseGroup = 8
+const xpathParsePredicates = 9
+const xpathParsePredicate = 10
+const xpathParseStep = 11
+const xpathParseArgument = 12
+
+type xPathParseTask struct {
+	kind      int
+	minimum   int
+	operation int
+	left      int
+	first     int
+	last      int
+	count     int
+	prefix    xmlSpan
+	name      xmlSpan
+}
+
+func copyxPathParseTask(value xPathParseTask) xPathParseTask {
+	return xPathParseTask{kind: langruntime.CheckedI32(value.kind), minimum: langruntime.CheckedI32(value.minimum), operation: langruntime.CheckedI32(value.operation), left: langruntime.CheckedIndex(value.left), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), count: langruntime.CheckedI32(value.count), prefix: copyxmlSpan(value.prefix), name: copyxmlSpan(value.name)}
+}
+
+type xPathParseStack struct {
+	values []xPathParseTask
+	count  int
+}
+
+func copyxPathParseStack(value xPathParseStack) xPathParseStack {
+	return xPathParseStack{values: langruntime.CheckedStructs(value.values, copyxPathParseTask), count: langruntime.CheckedIndex(value.count)}
+}
+func xpathParseTask(kind int, minimum int, operation int, left int) xPathParseTask {
+	kind = langruntime.CheckedI32(kind)
+	minimum = langruntime.CheckedI32(minimum)
+	operation = langruntime.CheckedI32(operation)
+	left = langruntime.CheckedIndex(left)
+	empty := xmlSpan{start: 0, end: 0}
+	return xPathParseTask{kind: kind, minimum: minimum, operation: operation, left: left, first: 0, last: 0, count: 0, prefix: empty, name: empty}
+}
+func xpathParseArgumentTask(prefix xmlSpan, name xmlSpan, first int, last int, count int) xPathParseTask {
+	prefix = copyxmlSpan(prefix)
+	name = copyxmlSpan(name)
+	first = langruntime.CheckedIndex(first)
+	last = langruntime.CheckedIndex(last)
+	count = langruntime.CheckedI32(count)
+	return xPathParseTask{kind: xpathParseArgument, minimum: 0, operation: 0, left: 0, first: first, last: last, count: count, prefix: prefix, name: name}
+}
+func XpathParseStackPush(input xPathParseStack, task xPathParseTask) xPathParseStack {
+	values := input.values
+	if input.count < len(values) {
+		values[input.count] = copyxPathParseTask(task)
+	} else {
+		langruntime.CheckedAdd(len(values), 1)
+		values = append(values, copyxPathParseTask(task))
+	}
+	return xPathParseStack{values: values, count: langruntime.CheckedAdd(input.count, 1)}
+}
+func XpathParseStackPop(input xPathParseStack) xPathParseStack {
+	return xPathParseStack{values: input.values, count: langruntime.CheckedSubtract(input.count, 1)}
+}
+func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
+	initialDepth := input.budget.depth
+	program := input
+	values := []xPathParseTask{}
+	stack := xPathParseStack{values: values, count: 0}
+	stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, minimum, 0, 0))
+	empty := xmlSpan{start: 0, end: 0}
+	for stack.count > 0 && program.valid {
+		task := stack.values[langruntime.CheckedSubtract(stack.count, 1)]
+		stack = XpathParseStackPop(stack)
+		if task.kind == xpathParseEnter {
+			if task.minimum == 1 {
+				program = XpathCompileEnter(program)
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLeave, 0, 0, 0))
+			}
+			stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0))
+			stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePrefix, task.minimum, 0, 0))
+		} else if task.kind == xpathParseLeave {
+			program = XpathCompileLeave(program)
+		} else if task.kind == xpathParseLoop {
+			position := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, position, "/") {
+				left := program.root
+				width := 1
+				if xpathParseAt(&program, position, "//") {
+					width = langruntime.CheckedIndex(2)
+				}
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+				if width == 2 {
+					program = XpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty))
+					right := program.root
+					program = XpathParsePush(program, xpathParseNode(xpathPath, 0, left, right, empty, empty))
+					left = langruntime.CheckedIndex(program.root)
+				}
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePath, task.minimum, 0, left))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0))
+			} else {
+				operation := xpathParseOperator(&program, position)
+				precedence := xpathParsePrecedence(operation)
+				if operation != 0 && precedence >= task.minimum {
+					left := program.root
+					width := xpathParseOperatorWidth(operation)
+					program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseBinary, task.minimum, operation, left))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, langruntime.CheckedSignedAdd(precedence, 1), 0, 0))
+				}
+			}
+		} else if task.kind == xpathParseBinary || task.kind == xpathParsePath {
+			kind := xpathBinary
+			if task.kind == xpathParsePath {
+				kind = langruntime.CheckedI32(xpathPath)
+			}
+			right := program.root
+			program = XpathParsePush(program, xpathParseNode(kind, task.operation, task.left, right, empty, empty))
+			if task.minimum > 0 {
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0))
+			}
+		} else if task.kind == xpathParsePrefix {
+			position := xpathParseSpace(&program, program.cursor)
+			program = XpathParseCursor(program, position)
+			if position >= len(program.source) {
+				program = XpathParseFail(program)
+			} else {
+				character := program.source[position]
+				if character == '-' {
+					if task.minimum > 7 {
+						program = XpathParseFail(program)
+					} else {
+						cursor := position
+						negative := 0
+						for xpathParseAt(&program, cursor, "-") {
+							negative = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(1, negative))
+							cursor = langruntime.CheckedIndex(xpathParseSpace(&program, langruntime.CheckedAdd(cursor, 1)))
+						}
+						program = XpathParseCursor(program, cursor)
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParseUnary, 0, negative, 0))
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 7, 0, 0))
+					}
+				} else if xmlQueryUriDigit(character) || (character == '.' && langruntime.CheckedAdd(position, 1) < len(program.source) && xmlQueryUriDigit(program.source[langruntime.CheckedAdd(position, 1)])) {
+					program = XpathParseNumber(program)
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+				} else if character == '\'' || character == '"' {
+					program = XpathParseLiteral(program)
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+				} else if character == '$' {
+					name := xpathParseQname(&program, langruntime.CheckedAdd(position, 1), false, false)
+					if name.valid == false {
+						program = XpathParseFail(program)
+					} else {
+						program = XpathParseCursor(program, name.next)
+						program = XpathParsePush(program, xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local))
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+					}
+				} else if character == '(' {
+					program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseGroup, 0, 0, 0))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+				} else if character == '/' {
+					width := 1
+					if xpathParseAt(&program, position, "//") {
+						width = langruntime.CheckedIndex(2)
+					}
+					program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+					program = XpathParsePush(program, xpathParseNode(xpathRoot, 0, 0, 0, empty, empty))
+					if width == 2 {
+						left := program.root
+						program = XpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty))
+						right := program.root
+						program = XpathParsePush(program, xpathParseNode(xpathPath, 0, left, right, empty, empty))
+					}
+					next := xpathParseSpace(&program, program.cursor)
+					if width == 2 || xpathParseStepStart(&program, next) {
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePath, 0, 0, program.root))
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0))
+					}
+				} else {
+					name := xpathParseQname(&program, position, false, false)
+					callable := false
+					if name.valid {
+						after := xpathParseSpace(&program, name.next)
+						if xpathParseAt(&program, after, "(") {
+							text := xpathParseText(&program, name.local)
+							if name.prefix.start != name.prefix.end || xpathParseNodeType(text) == 0 {
+								callable = true
+								argument := xpathParseSpace(&program, langruntime.CheckedAdd(after, 1))
+								program = XpathParseCursor(program, argument)
+								if xpathParseAt(&program, argument, ")") {
+									program = XpathParseCursor(program, langruntime.CheckedAdd(argument, 1))
+									program = XpathParsePush(program, xpathParseNode(xpathFunction, 0, 0, 0, name.prefix, name.local))
+									stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+								} else {
+									stack = XpathParseStackPush(stack, xpathParseArgumentTask(name.prefix, name.local, 0, 0, 0))
+									stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+								}
+							}
+						}
+					}
+					if callable == false {
+						stack = XpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0))
+					}
+				}
+			}
+		} else if task.kind == xpathParseUnary {
+			root := program.root
+			program = XpathParsePush(program, xpathParseNode(xpathNegate, task.operation, root, 0, empty, empty))
+		} else if task.kind == xpathParseGroup {
+			close := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, close, ")") == false {
+				program = XpathParseFail(program)
+			} else {
+				value := program.root
+				program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
+				program = XpathParsePush(program, xpathParseNode(xpathGroup, 0, value, 0, empty, empty))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+			}
+		} else if task.kind == xpathParsePredicates {
+			position := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, position, "[") {
+				left := program.root
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicate, 0, task.operation, left))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+			}
+		} else if task.kind == xpathParsePredicate {
+			right := program.root
+			close := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, close, "]") == false {
+				program = XpathParseFail(program)
+			} else {
+				program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
+				program = XpathParsePush(program, xpathParseNode(task.operation, 0, task.left, right, empty, empty))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, task.operation, 0))
+			}
+		} else if task.kind == xpathParseStep {
+			position := xpathParseSpace(&program, program.cursor)
+			abbreviated := xpathParseAt(&program, position, ".")
+			program = XpathParseStepLeaf(program)
+			if abbreviated == false {
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathPredicate, 0))
+			}
+		} else if task.kind == xpathParseArgument {
+			argument := program.root
+			program = XpathParsePush(program, xpathParseNode(xpathArgument, 0, argument, 0, empty, empty))
+			next := program.root
+			first := task.first
+			if first == 0 {
+				first = langruntime.CheckedIndex(next)
+			} else {
+				program = XpathParseLink(program, task.last, next)
+			}
+			count := langruntime.CheckedSignedAdd(task.count, 1)
+			position := xpathParseSpace(&program, program.cursor)
+			if xpathParseAt(&program, position, ",") {
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+				stack = XpathParseStackPush(stack, xpathParseArgumentTask(task.prefix, task.name, first, next, count))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+			} else if xpathParseAt(&program, position, ")") {
+				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
+				program = XpathParsePush(program, xpathParseNode(xpathFunction, count, first, 0, task.prefix, task.name))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+			} else {
+				program = XpathParseFail(program)
+			}
+		}
+	}
+	fault := program.budget.fault
+	return XpathParseBudget(program, initialDepth, fault)
+}
+
+const xpathMinRecursionLimit = 500
 const xpathNumber = 1
 const xpathString = 2
 const xpathVariable = 3
@@ -52616,16 +52803,27 @@ func copyxPathExpression(value xPathExpression) xPathExpression {
 	return xPathExpression{kind: langruntime.CheckedI32(value.kind), operation: langruntime.CheckedI32(value.operation), left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), prefix: copyxmlSpan(value.prefix), name: copyxmlSpan(value.name)}
 }
 
+type xPathCompileBudget struct {
+	depth int
+	limit int
+	fault int
+}
+
+func copyxPathCompileBudget(value xPathCompileBudget) xPathCompileBudget {
+	return xPathCompileBudget{depth: langruntime.CheckedI32(value.depth), limit: langruntime.CheckedI32(value.limit), fault: langruntime.CheckedI32(value.fault)}
+}
+
 type xPathProgram struct {
 	source []rune
 	nodes  []xPathExpression
 	cursor int
 	root   int
 	valid  bool
+	budget xPathCompileBudget
 }
 
 func copyxPathProgram(value xPathProgram) xPathProgram {
-	return xPathProgram{source: langruntime.CheckedChars(value.source), nodes: langruntime.CheckedStructs(value.nodes, copyxPathExpression), cursor: langruntime.CheckedIndex(value.cursor), root: langruntime.CheckedIndex(value.root), valid: value.valid}
+	return xPathProgram{source: langruntime.CheckedChars(value.source), nodes: langruntime.CheckedStructs(value.nodes, copyxPathExpression), cursor: langruntime.CheckedIndex(value.cursor), root: langruntime.CheckedIndex(value.root), valid: value.valid, budget: copyxPathCompileBudget(value.budget)}
 }
 
 type xPathNameScan struct {
@@ -52653,19 +52851,19 @@ func XpathParsePush(input xPathProgram, node xPathExpression) xPathProgram {
 	root := len(nodes)
 	langruntime.CheckedAdd(len(nodes), 1)
 	nodes = append(nodes, copyxPathExpression(node))
-	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid}
+	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid, budget: input.budget}
 }
 func XpathParseCursor(input xPathProgram, cursor int) xPathProgram {
-	return xPathProgram{source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid}
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid, budget: input.budget}
 }
 func XpathParseFail(input xPathProgram) xPathProgram {
-	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false}
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: input.budget}
 }
 func XpathParseLink(input xPathProgram, tail int, next int) xPathProgram {
 	nodes := input.nodes
 	old := nodes[tail]
 	nodes[tail] = copyxPathExpression(xPathExpression{kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: old.prefix, name: old.name})
-	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid}
+	return xPathProgram{source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: input.budget}
 }
 func xpathParseAt(program *xPathProgram, position int, text string) bool {
 	position = langruntime.CheckedIndex(position)
@@ -52784,6 +52982,29 @@ func xpathParseAxis(name string) int {
 	}
 	return 0
 }
+func XpathParseBudget(input xPathProgram, depth int, fault int) xPathProgram {
+	budget := xPathCompileBudget{depth: depth, limit: input.budget.limit, fault: fault}
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget: budget}
+}
+func XpathCompileEnter(input xPathProgram) xPathProgram {
+	budget := input.budget
+	maximum := budget.limit
+	if maximum <= 0 {
+		maximum = langruntime.CheckedI32(xpathMinRecursionLimit)
+	}
+	if budget.depth >= maximum {
+		fault := langruntime.CheckedSignedNegate(26)
+		if budget.limit <= 0 {
+			fault = langruntime.CheckedI32(4)
+		}
+		return XpathParseBudget(input, budget.depth, fault)
+	}
+	return XpathParseBudget(input, langruntime.CheckedSignedAdd(budget.depth, 10), budget.fault)
+}
+func XpathCompileLeave(input xPathProgram) xPathProgram {
+	budget := input.budget
+	return XpathParseBudget(input, langruntime.CheckedSignedSubtract(budget.depth, 10), budget.fault)
+}
 func xpathParseNodeType(name string) int {
 	name = langruntime.CheckedString(name)
 	if name == "node" {
@@ -52799,33 +53020,6 @@ func xpathParseNodeType(name string) int {
 		return 5
 	}
 	return 0
-}
-func XpathParsePredicates(input xPathProgram, kind int) xPathProgram {
-	program := input
-	empty := xmlSpan{start: 0, end: 0}
-	scanning := true
-	for program.valid && scanning {
-		position := xpathParseSpace(&program, program.cursor)
-		if xpathParseAt(&program, position, "[") {
-			left := program.root
-			program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-			program = XpathParseExpression(program, 1)
-			if program.valid == false {
-				return program
-			}
-			right := program.root
-			close := xpathParseSpace(&program, program.cursor)
-			if xpathParseAt(&program, close, "]") == false {
-				return XpathParseFail(program)
-			}
-			program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
-			node := xpathParseNode(kind, 0, left, right, empty, empty)
-			program = XpathParsePush(program, node)
-		} else {
-			scanning = false
-		}
-	}
-	return program
 }
 func XpathParseLiteral(input xPathProgram) xPathProgram {
 	begin := input.cursor
@@ -52886,7 +53080,7 @@ func xpathParseStepStart(program *xPathProgram, position int) bool {
 	character := program.source[position]
 	return character == '.' || character == '@' || character == '*' || xpathNameStart(character)
 }
-func XpathParseStep(input xPathProgram) xPathProgram {
+func XpathParseStepLeaf(input xPathProgram) xPathProgram {
 	program := input
 	empty := xmlSpan{start: 0, end: 0}
 	position := xpathParseSpace(&program, program.cursor)
@@ -52958,51 +53152,7 @@ func XpathParseStep(input xPathProgram) xPathProgram {
 	program = XpathParseCursor(program, position)
 	node := xpathParseNode(xpathStep, axis, 0, test, scanned.prefix, name)
 	program = XpathParsePush(program, node)
-	return XpathParsePredicates(program, xpathPredicate)
-}
-func XpathParseFunction(input xPathProgram, scanned xPathNameScan) xPathProgram {
-	program := input
-	empty := xmlSpan{start: 0, end: 0}
-	open := xpathParseSpace(&program, scanned.next)
-	position := xpathParseSpace(&program, langruntime.CheckedAdd(open, 1))
-	first := 0
-	last := 0
-	count := 0
-	program = XpathParseCursor(program, position)
-	if xpathParseAt(&program, position, ")") == false {
-		scanning := true
-		for program.valid && scanning {
-			program = XpathParseExpression(program, 1)
-			if program.valid == false {
-				return program
-			}
-			argument := program.root
-			link := xpathParseNode(xpathArgument, 0, argument, 0, empty, empty)
-			program = XpathParsePush(program, link)
-			next := program.root
-			if first == 0 {
-				first = langruntime.CheckedIndex(next)
-			} else {
-				program = XpathParseLink(program, last, next)
-			}
-			last = langruntime.CheckedIndex(next)
-			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
-			position = langruntime.CheckedIndex(xpathParseSpace(&program, program.cursor))
-			if xpathParseAt(&program, position, ",") {
-				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-			} else {
-				scanning = false
-			}
-		}
-	}
-	position = langruntime.CheckedIndex(xpathParseSpace(&program, program.cursor))
-	if xpathParseAt(&program, position, ")") == false {
-		return XpathParseFail(program)
-	}
-	program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-	node := xpathParseNode(xpathFunction, count, first, 0, scanned.prefix, scanned.local)
-	program = XpathParsePush(program, node)
-	return XpathParsePredicates(program, xpathFilter)
+	return program
 }
 
 type xPathSortRun struct {

@@ -330,6 +330,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_parse_state.rs");
     include!("operations/pg_catalog/xml_xpath_parse_steps.rs");
     include!("operations/pg_catalog/xml_xpath_parse.rs");
+    include!("operations/pg_catalog/xml_xpath_parse_machine.rs");
     include!("operations/pg_catalog/xml_xpath_nodes.rs");
     include!("operations/pg_catalog/xml_xpath_order.rs");
     include!("operations/pg_catalog/xml_xpath_sort.rs");
