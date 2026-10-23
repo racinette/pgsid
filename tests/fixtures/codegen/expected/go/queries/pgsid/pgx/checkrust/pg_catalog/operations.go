@@ -45970,6 +45970,7 @@ func XmlTreeDtdAttributes(input xmlTree, source *xmlSource, stored *xmlSource, a
 			}
 		}
 		line = append(line, ">\n"...)
+		tree = XpathIdDeclaration(tree, owner, name, id == 2)
 		tree = XmlTreeDtdAdd(tree, 2, owner, name, string(line), id)
 		position = langruntime.CheckedIndex(xmlSkipSpace(source, attribute.next))
 	}
@@ -49421,13 +49422,14 @@ func xmlTextPlain(source *xmlSource, start int, input xmlTextState, root bool) x
 }
 
 type xmlTreeAttribute struct {
-	name      xmlSpan
-	value     xmlSpan
-	defaulted bool
+	name        xmlSpan
+	value       xmlSpan
+	defaulted   bool
+	idCandidate bool
 }
 
 func copyxmlTreeAttribute(value xmlTreeAttribute) xmlTreeAttribute {
-	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), defaulted: value.defaulted}
+	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), defaulted: value.defaulted, idCandidate: value.idCandidate}
 }
 
 type xmlTreeNode struct {
@@ -49452,17 +49454,18 @@ func copyxmlTreeNode(value xmlTreeNode) xmlTreeNode {
 }
 
 type xmlTreeFlags struct {
-	document    bool
-	declaration bool
-	unicode     bool
-	query       bool
-	standalone  int
-	version     xmlSpan
-	doctypeEnd  int
+	document      bool
+	declaration   bool
+	unicode       bool
+	query         bool
+	queryIdsValid bool
+	standalone    int
+	version       xmlSpan
+	doctypeEnd    int
 }
 
 func copyxmlTreeFlags(value xmlTreeFlags) xmlTreeFlags {
-	return xmlTreeFlags{document: value.document, declaration: value.declaration, unicode: value.unicode, query: value.query, standalone: langruntime.CheckedI32(value.standalone), version: copyxmlSpan(value.version), doctypeEnd: langruntime.CheckedIndex(value.doctypeEnd)}
+	return xmlTreeFlags{document: value.document, declaration: value.declaration, unicode: value.unicode, query: value.query, queryIdsValid: value.queryIdsValid, standalone: langruntime.CheckedI32(value.standalone), version: copyxmlSpan(value.version), doctypeEnd: langruntime.CheckedIndex(value.doctypeEnd)}
 }
 
 type xmlTree struct {
@@ -49553,10 +49556,10 @@ func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankP
 func XmlTreeUnsupported(input xmlTree) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false}
 }
-func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, defaulted bool) xmlTree {
+func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, defaulted bool, idCandidate bool) xmlTree {
 	attributes := input.attributes
 	langruntime.CheckedAdd(len(attributes), 1)
-	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, defaulted: defaulted}))
+	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, defaulted: defaulted, idCandidate: idCandidate}))
 	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
@@ -49682,7 +49685,8 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 				attributeName := tree.written
 				tree = XmlTreeStore(tree, string(value))
 				attributeValue := tree.written
-				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, false)
+				idCandidate := xmlQueryIdCandidate(source, quoted.value)
+				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, false, idCandidate)
 				position = langruntime.CheckedIndex(xmlSkipSpace(source, quoted.next))
 			}
 			explicitEnd := len(tree.attributes)
@@ -49713,7 +49717,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 						attributeName := tree.written
 						tree = XmlTreeStore(tree, string(valueText))
 						attributeValue := tree.written
-						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, true)
+						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, true, false)
 					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
@@ -49857,7 +49861,7 @@ func xmlTreeParse(input string, document bool, query bool) xmlTree {
 	langruntime.CheckedAdd(len(nodes), 1)
 	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}))
 	attributes := []xmlTreeAttribute{}
-	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, query: query, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
+	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, query: query, queryIdsValid: true, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
 	declarations := []xmlTreeDtdEntry{}
 	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true}
 	storedSource := xmlSource{characters: []rune(arena.arena)}
@@ -51022,7 +51026,7 @@ func XpathApplyFunction(input xPathArguments, kind int, context xPathContext, tr
 		return XpathFunctionLanguage(first, context, tree, graph)
 	}
 	if kind == 27 {
-		return xpathValueEmpty(xpathKindNodes, 3)
+		return XpathFunctionIds(first, tree, graph)
 	}
 	a := XpathValueToString(first, tree, graph)
 	if a.state != 0 {
@@ -51118,10 +51122,11 @@ func copyxPathGraphNode(value xPathGraphNode) xPathGraphNode {
 
 type xPathGraph struct {
 	nodes []xPathGraphNode
+	ids   xPathIds
 }
 
 func copyxPathGraph(value xPathGraph) xPathGraph {
-	return xPathGraph{nodes: langruntime.CheckedStructs(value.nodes, copyxPathGraphNode)}
+	return xPathGraph{nodes: langruntime.CheckedStructs(value.nodes, copyxPathGraphNode), ids: copyxPathIds(value.ids)}
 }
 
 type xPathDocument struct {
@@ -51283,7 +51288,8 @@ func xpathGraphFromTree(tree *xmlTree) xPathGraph {
 		nodes = append(nodes, copyxPathGraphNode(xPathGraphNode{kind: node.kind, parent: node.parent, next: node.next, previous: node.previous, first: first, last: last}))
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	return xPathGraph{nodes: nodes}
+	ids := xpathIdsBuild(tree)
+	return xPathGraph{nodes: nodes, ids: ids}
 }
 func xpathDocumentParse(input string) xPathDocument {
 	input = langruntime.CheckedString(input)
@@ -51365,6 +51371,221 @@ func xpathDocumentParse(input string) xPathDocument {
 	tree = XmlTreeCurrent(tree, 0)
 	graph := xpathGraphFromTree(&tree)
 	return xPathDocument{tree: tree, graph: graph}
+}
+func xmlQueryIdCandidate(source *xmlSource, value xmlSpan) bool {
+	value = copyxmlSpan(value)
+	position := value.start
+	for position < value.end {
+		if source.characters[position] == '&' {
+			if xmlPredefinedReference(source, position) == false {
+				return false
+			}
+			reference := xmlReference(source, position)
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return true
+}
+
+type xPathId struct {
+	value string
+	owner int
+}
+
+func copyxPathId(value xPathId) xPathId {
+	return xPathId{value: langruntime.CheckedString(value.value), owner: langruntime.CheckedIndex(value.owner)}
+}
+
+type xPathIds struct {
+	entries []xPathId
+	valid   bool
+}
+
+func copyxPathIds(value xPathIds) xPathIds {
+	return xPathIds{entries: langruntime.CheckedStructs(value.entries, copyxPathId), valid: value.valid}
+}
+func xpathIdNameValid(input string) bool {
+	input = langruntime.CheckedString(input)
+	source := []rune(input)
+	position := 0
+	for position < len(source) && xmlSpace(source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position >= len(source) || xpathNameStart(source[position]) == false {
+		return false
+	}
+	position = langruntime.CheckedAdd(position, 1)
+	for position < len(source) && xpathNameCharacter(source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	for position < len(source) && xmlSpace(source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return position == len(source)
+}
+func XmlTreeIdsInvalid(input xmlTree) xmlTree {
+	flags := input.flags
+	next := xmlTreeFlags{document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, standalone: flags.standalone, version: flags.version, doctypeEnd: flags.doctypeEnd}
+	return xmlTree{declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags: next, serializationKnown: input.serializationKnown}
+}
+func XpathIdDeclaration(input xmlTree, owner string, name string, id bool) xmlTree {
+	if input.flags.query == false {
+		return input
+	}
+	if name == "xml:id" && id == false {
+		return XmlTreeIdsInvalid(input)
+	}
+	if id == false {
+		return input
+	}
+	count := 0
+	duplicate := false
+	index := 0
+	for index < len(input.declarations) {
+		entry := input.declarations[index]
+		if entry.kind == 2 {
+			declaredOwner := xmlTreeText(&input, entry.owner)
+			if declaredOwner == owner {
+				declaredName := xmlTreeText(&input, entry.name)
+				if declaredName == name {
+					duplicate = true
+				}
+				if entry.mixed == 2 {
+					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+				}
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if duplicate == false && count > 0 {
+		return XmlTreeIdsInvalid(input)
+	}
+	return input
+}
+func xpathIdMainNode(tree *xmlTree, index int) bool {
+	index = langruntime.CheckedIndex(index)
+	if tree.nodes[index].kind != 1 {
+		return false
+	}
+	cursor := tree.nodes[index].parent
+	for cursor > 0 {
+		if tree.nodes[cursor].kind != 1 {
+			return false
+		}
+		cursor = langruntime.CheckedIndex(tree.nodes[cursor].parent)
+	}
+	return true
+}
+func xpathIdDeclared(tree *xmlTree, owner int, name string) bool {
+	owner = langruntime.CheckedIndex(owner)
+	name = langruntime.CheckedString(name)
+	element := xmlTreeText(tree, tree.nodes[owner].name)
+	index := 0
+	for index < len(tree.declarations) {
+		entry := tree.declarations[index]
+		if entry.kind == 2 && entry.mixed == 2 {
+			declaredOwner := xmlTreeText(tree, entry.owner)
+			declaredName := xmlTreeText(tree, entry.name)
+			if declaredOwner == element && declaredName == name {
+				return true
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return false
+}
+func xpathIdsBuild(tree *xmlTree) xPathIds {
+	entries := []xPathId{}
+	valid := tree.flags.queryIdsValid
+	nodeIndex := 1
+	for nodeIndex < len(tree.nodes) {
+		if xpathIdMainNode(tree, nodeIndex) {
+			node := tree.nodes[nodeIndex]
+			index := node.attributeStart
+			for index < node.attributeEnd {
+				attribute := tree.attributes[index]
+				name := xmlTreeText(tree, attribute.name)
+				builtin := name == "xml:id"
+				if attribute.idCandidate && (builtin || xpathIdDeclared(tree, nodeIndex, name)) {
+					value := xmlTreeText(tree, attribute.value)
+					if value == "" || (builtin && xpathIdNameValid(value) == false) {
+						valid = false
+					}
+					previous := 0
+					for previous < len(entries) {
+						entry := copyxPathId(entries[previous])
+						if entry.value == value {
+							valid = false
+						}
+						previous = langruntime.CheckedAdd(previous, 1)
+					}
+					langruntime.CheckedAdd(len(entries), 1)
+					entries = append(entries, copyxPathId(xPathId{value: value, owner: nodeIndex}))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		nodeIndex = langruntime.CheckedAdd(nodeIndex, 1)
+	}
+	return xPathIds{entries: entries, valid: valid}
+}
+func XpathIdsTokens(input xPathNodes, text string, graph *xPathGraph) xPathNodes {
+	source := []rune(text)
+	result := input
+	position := 0
+	begin := 0
+	for position < len(source) && xmlSpace(source[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	for position < len(source) {
+		for position < len(source) && xmlSpace(source[position]) == false {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		token := langruntime.NewTextBuffer("")
+		at := begin
+		for at < position {
+			token = append(token, string(langruntime.CheckedChar(source[at]))...)
+			at = langruntime.CheckedAdd(at, 1)
+		}
+		index := 0
+		for index < len(graph.ids.entries) {
+			entry := copyxPathId(graph.ids.entries[index])
+			if entry.value == string(token) {
+				reference := xpathReferenceNode(entry.owner)
+				result = XpathNodesUnique(result, reference)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for position < len(source) && xmlSpace(source[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		begin = langruntime.CheckedIndex(position)
+	}
+	return result
+}
+func XpathFunctionIds(input xPathValue, tree *xmlTree, graph *xPathGraph) xPathValue {
+	if input.state != 0 {
+		return xpathValueEmpty(xpathKindNodes, input.state)
+	}
+	result := xpathNodesEmpty()
+	if input.kind == xpathKindNodes {
+		index := 0
+		for index < len(input.nodes.values) {
+			text := xpathReferenceString(tree, graph, input.nodes.values[index])
+			result = XpathIdsTokens(result, text, graph)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	} else {
+		value := XpathValueToString(input, tree, graph)
+		if value.state != 0 {
+			return xpathValueEmpty(xpathKindNodes, value.state)
+		}
+		result = XpathIdsTokens(result, value.text, graph)
+	}
+	values := result.values
+	return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
 }
 func xpathLanguagePrefix(actual string, wanted string) bool {
 	actual = langruntime.CheckedString(actual)

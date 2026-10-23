@@ -46249,6 +46249,7 @@ export function xmlTreeDtdAttributes(input: XmlTree, source: XmlSource, stored: 
             }
         }
         line = line + ">\n";
+        tree = xpathIdDeclaration(tree, owner, name, id === 2);
         tree = xmlTreeDtdAdd(tree, 2, owner, name, line, id);
         position = langruntime.checkedIndex(xmlSkipSpace(source, attribute.next));
     }
@@ -49802,9 +49803,10 @@ interface XmlTreeAttribute {
     name: XmlSpan;
     value: XmlSpan;
     defaulted: boolean;
+    idCandidate: boolean;
 }
 function copyXmlTreeAttribute(value: XmlTreeAttribute): XmlTreeAttribute {
-    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), defaulted: langruntime.checkedBool(value.defaulted) };
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), defaulted: langruntime.checkedBool(value.defaulted), idCandidate: langruntime.checkedBool(value.idCandidate) };
 }
 interface XmlTreeNode {
     kind: number;
@@ -49830,12 +49832,13 @@ interface XmlTreeFlags {
     declaration: boolean;
     unicode: boolean;
     query: boolean;
+    queryIdsValid: boolean;
     standalone: number;
     version: XmlSpan;
     doctypeEnd: number;
 }
 function copyXmlTreeFlags(value: XmlTreeFlags): XmlTreeFlags {
-    return { document: langruntime.checkedBool(value.document), declaration: langruntime.checkedBool(value.declaration), unicode: langruntime.checkedBool(value.unicode), query: langruntime.checkedBool(value.query), standalone: langruntime.checkedI32(value.standalone), version: copyXmlSpan(value.version), doctypeEnd: langruntime.checkedIndex(value.doctypeEnd) };
+    return { document: langruntime.checkedBool(value.document), declaration: langruntime.checkedBool(value.declaration), unicode: langruntime.checkedBool(value.unicode), query: langruntime.checkedBool(value.query), queryIdsValid: langruntime.checkedBool(value.queryIdsValid), standalone: langruntime.checkedI32(value.standalone), version: copyXmlSpan(value.version), doctypeEnd: langruntime.checkedIndex(value.doctypeEnd) };
 }
 interface XmlTree {
     declarations: XmlTreeDtdEntry[];
@@ -49922,9 +49925,9 @@ export function xmlTreeSpace(input: XmlTree, index: number, preserve: boolean, t
 export function xmlTreeUnsupported(input: XmlTree): XmlTree {
     return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false };
 }
-export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: boolean): XmlTree {
+export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: boolean, idCandidate: boolean): XmlTree {
     let attributes: XmlTreeAttribute[] = input.attributes;
-    langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value), defaulted: defaulted }, copyXmlTreeAttribute);
+    langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value), defaulted: defaulted, idCandidate: idCandidate }, copyXmlTreeAttribute);
     return { nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
 }
 export function xmlTreeLeaf(input: XmlTree, kind: number, name: XmlSpan, value: XmlSpan): XmlTree {
@@ -50056,7 +50059,8 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
                 const attributeName: XmlSpan = copyXmlSpan(tree.written);
                 tree = xmlTreeStore(tree, value);
                 const attributeValue: XmlSpan = copyXmlSpan(tree.written);
-                tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, false);
+                const idCandidate: boolean = xmlQueryIdCandidate(source, quoted.value);
+                tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, false, idCandidate);
                 position = langruntime.checkedIndex(xmlSkipSpace(source, quoted.next));
             }
             const explicitEnd: number = tree.attributes.length;
@@ -50087,7 +50091,7 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
                         const attributeName: XmlSpan = copyXmlSpan(tree.written);
                         tree = xmlTreeStore(tree, valueText);
                         const attributeValue: XmlSpan = copyXmlSpan(tree.written);
-                        tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, true);
+                        tree = xmlTreeAddAttribute(tree, attributeName, attributeValue, true, false);
                     }
                 }
                 index = langruntime.checkedAdd(index, 1);
@@ -50238,7 +50242,7 @@ function xmlTreeParse(input: string, document: boolean, query: boolean): XmlTree
     let nodes: XmlTreeNode[] = [];
     langruntime.pushStruct(nodes, { kind: 0, name: copyXmlSpan(empty), value: copyXmlSpan(empty), parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.checkedSignedNegate(1) }, copyXmlTreeNode);
     const attributes: XmlTreeAttribute[] = [];
-    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, query: query, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
+    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, query: query, queryIdsValid: true, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
     const declarations: XmlTreeDtdEntry[] = [];
     const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true };
     const storedSource: XmlSource = { characters: Array.from(arena.arena) };
@@ -51439,7 +51443,7 @@ export function xpathApplyFunction(input: XPathArguments, kind: number, context:
         return xpathFunctionLanguage(first, context, tree, graph);
     }
     if (kind === 27) {
-        return xpathValueEmpty(xpathKindNodes, 3);
+        return xpathFunctionIds(first, tree, graph);
     }
     const a: XPathValue = xpathValueToString(first, tree, graph);
     if (!(a.state === 0)) {
@@ -51532,9 +51536,10 @@ function copyXPathGraphNode(value: XPathGraphNode): XPathGraphNode {
 }
 interface XPathGraph {
     nodes: XPathGraphNode[];
+    ids: XPathIds;
 }
 function copyXPathGraph(value: XPathGraph): XPathGraph {
-    return { nodes: langruntime.checkedStructs(value.nodes, copyXPathGraphNode) };
+    return { nodes: langruntime.checkedStructs(value.nodes, copyXPathGraphNode), ids: copyXPathIds(value.ids) };
 }
 interface XPathDocument {
     tree: XmlTree;
@@ -51689,7 +51694,8 @@ function xpathGraphFromTree(tree: XmlTree): XPathGraph {
         langruntime.pushStruct(nodes, { kind: node.kind, parent: node.parent, next: node.next, previous: node.previous, first: first, last: last }, copyXPathGraphNode);
         position = langruntime.checkedAdd(position, 1);
     }
-    return { nodes: nodes };
+    const ids: XPathIds = xpathIdsBuild(tree);
+    return { nodes: nodes, ids: ids };
 }
 function xpathDocumentParse(input: string): XPathDocument {
     input = langruntime.checkedString(input);
@@ -51773,6 +51779,218 @@ function xpathDocumentParse(input: string): XPathDocument {
     tree = xmlTreeCurrent(tree, 0);
     const graph: XPathGraph = xpathGraphFromTree(tree);
     return { tree: tree, graph: graph };
+}
+function xmlQueryIdCandidate(source: XmlSource, value: XmlSpan): boolean {
+    value = copyXmlSpan(value);
+    let position: number = value.start;
+    while (position < value.end) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&") {
+            if (xmlPredefinedReference(source, position) === false) {
+                return false;
+            }
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return true;
+}
+interface XPathId {
+    value: string;
+    owner: number;
+}
+function copyXPathId(value: XPathId): XPathId {
+    return { value: langruntime.checkedString(value.value), owner: langruntime.checkedIndex(value.owner) };
+}
+interface XPathIds {
+    entries: XPathId[];
+    valid: boolean;
+}
+function copyXPathIds(value: XPathIds): XPathIds {
+    return { entries: langruntime.checkedStructs(value.entries, copyXPathId), valid: langruntime.checkedBool(value.valid) };
+}
+function xpathIdNameValid(input: string): boolean {
+    input = langruntime.checkedString(input);
+    const source: string[] = Array.from(input);
+    let position: number = 0;
+    while (position < source.length && xmlSpace(langruntime.indexChar(source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position >= source.length || xpathNameStart(langruntime.indexChar(source, langruntime.checkedIndex(position))) === false) {
+        return false;
+    }
+    position = langruntime.checkedAdd(position, 1);
+    while (position < source.length && xpathNameCharacter(langruntime.indexChar(source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    while (position < source.length && xmlSpace(langruntime.indexChar(source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return position === source.length;
+}
+export function xmlTreeIdsInvalid(input: XmlTree): XmlTree {
+    const flags: XmlTreeFlags = copyXmlTreeFlags(input.flags);
+    const next: XmlTreeFlags = copyXmlTreeFlags({ document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, standalone: flags.standalone, version: copyXmlSpan(flags.version), doctypeEnd: flags.doctypeEnd });
+    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(next), serializationKnown: input.serializationKnown };
+}
+export function xpathIdDeclaration(input: XmlTree, owner: string, name: string, id: boolean): XmlTree {
+    if (input.flags.query === false) {
+        return input;
+    }
+    if (name === "xml:id" && id === false) {
+        return xmlTreeIdsInvalid(input);
+    }
+    if (id === false) {
+        return input;
+    }
+    let count: number = 0;
+    let duplicate: boolean = false;
+    let index: number = 0;
+    while (index < input.declarations.length) {
+        const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(input.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+        if (entry.kind === 2) {
+            const declaredOwner: string = xmlTreeText(input, entry.owner);
+            if (declaredOwner === owner) {
+                const declaredName: string = xmlTreeText(input, entry.name);
+                if (declaredName === name) {
+                    duplicate = langruntime.checkedBool(true);
+                }
+                if (entry.mixed === 2) {
+                    count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                }
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (duplicate === false && count > 0) {
+        return xmlTreeIdsInvalid(input);
+    }
+    return input;
+}
+function xpathIdMainNode(tree: XmlTree, index: number): boolean {
+    index = langruntime.checkedIndex(index);
+    if (!(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(index), copyXmlTreeNode).kind === 1)) {
+        return false;
+    }
+    let cursor: number = langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(index), copyXmlTreeNode).parent;
+    while (cursor > 0) {
+        if (!(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode).kind === 1)) {
+            return false;
+        }
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode).parent);
+    }
+    return true;
+}
+function xpathIdDeclared(tree: XmlTree, owner: number, name: string): boolean {
+    owner = langruntime.checkedIndex(owner);
+    name = langruntime.checkedString(name);
+    const element: string = xmlTreeText(tree, langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(owner), copyXmlTreeNode).name);
+    let index: number = 0;
+    while (index < tree.declarations.length) {
+        const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(tree.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+        if (entry.kind === 2 && entry.mixed === 2) {
+            const declaredOwner: string = xmlTreeText(tree, entry.owner);
+            const declaredName: string = xmlTreeText(tree, entry.name);
+            if (declaredOwner === element && declaredName === name) {
+                return true;
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return false;
+}
+function xpathIdsBuild(tree: XmlTree): XPathIds {
+    let entries: XPathId[] = [];
+    let valid: boolean = tree.flags.queryIdsValid;
+    let nodeIndex: number = 1;
+    while (nodeIndex < tree.nodes.length) {
+        if (xpathIdMainNode(tree, nodeIndex)) {
+            const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(nodeIndex), copyXmlTreeNode));
+            let index: number = node.attributeStart;
+            while (index < node.attributeEnd) {
+                const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+                const name: string = xmlTreeText(tree, attribute.name);
+                const builtin: boolean = name === "xml:id";
+                if (attribute.idCandidate && (builtin || xpathIdDeclared(tree, nodeIndex, name))) {
+                    const value: string = xmlTreeText(tree, attribute.value);
+                    if (value === "" || (builtin && xpathIdNameValid(value) === false)) {
+                        valid = langruntime.checkedBool(false);
+                    }
+                    let previous: number = 0;
+                    while (previous < entries.length) {
+                        const entry: XPathId = copyXPathId(langruntime.indexStruct(entries, langruntime.checkedIndex(previous), copyXPathId));
+                        if (entry.value === value) {
+                            valid = langruntime.checkedBool(false);
+                        }
+                        previous = langruntime.checkedAdd(previous, 1);
+                    }
+                    langruntime.pushStruct(entries, { value: value, owner: nodeIndex }, copyXPathId);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        nodeIndex = langruntime.checkedAdd(nodeIndex, 1);
+    }
+    return { entries: entries, valid: valid };
+}
+export function xpathIdsTokens(input: XPathNodes, text: string, graph: XPathGraph): XPathNodes {
+    const source: string[] = Array.from(text);
+    let result: XPathNodes = input;
+    let position: number = 0;
+    let begin: number = 0;
+    while (position < source.length && xmlSpace(langruntime.indexChar(source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    while (position < source.length) {
+        while (position < source.length && xmlSpace(langruntime.indexChar(source, langruntime.checkedIndex(position))) === false) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let token: string = "";
+        let at: number = begin;
+        while (at < position) {
+            token = token + langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(at)));
+            at = langruntime.checkedAdd(at, 1);
+        }
+        let index: number = 0;
+        while (index < graph.ids.entries.length) {
+            const entry: XPathId = copyXPathId(langruntime.indexStruct(graph.ids.entries, langruntime.checkedIndex(index), copyXPathId));
+            if (entry.value === token) {
+                const reference: XPathReference = copyXPathReference(xpathReferenceNode(entry.owner));
+                result = xpathNodesUnique(result, reference);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (position < source.length && xmlSpace(langruntime.indexChar(source, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        begin = langruntime.checkedIndex(position);
+    }
+    return result;
+}
+export function xpathFunctionIds(input: XPathValue, tree: XmlTree, graph: XPathGraph): XPathValue {
+    if (!(input.state === 0)) {
+        return xpathValueEmpty(xpathKindNodes, input.state);
+    }
+    let result: XPathNodes = xpathNodesEmpty();
+    if (input.kind === xpathKindNodes) {
+        let index: number = 0;
+        while (index < input.nodes.values.length) {
+            const text: string = xpathReferenceString(tree, graph, langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+            result = xpathIdsTokens(result, text, graph);
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    else {
+        const value: XPathValue = xpathValueToString(input, tree, graph);
+        if (!(value.state === 0)) {
+            return xpathValueEmpty(xpathKindNodes, value.state);
+        }
+        result = xpathIdsTokens(result, value.text, graph);
+    }
+    const values: XPathReference[] = result.values;
+    return xpathValueNodes({ values: values, cyclic: false, cycle: 0 });
 }
 function xpathLanguagePrefix(actual: string, wanted: string): boolean {
     actual = langruntime.checkedString(actual);

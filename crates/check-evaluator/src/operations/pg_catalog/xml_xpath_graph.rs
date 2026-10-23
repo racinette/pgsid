@@ -2,7 +2,7 @@
 struct XPathGraphNode { kind: i32, parent: usize, next: usize, previous: usize, first: usize, last: usize }
 
 #[derive(Clone)]
-struct XPathGraph { nodes: Vec<XPathGraphNode> }
+struct XPathGraph { nodes: Vec<XPathGraphNode>, ids: XPathIds }
 
 #[derive(Clone)]
 struct XPathDocument { tree: XmlTree, graph: XPathGraph }
@@ -115,7 +115,8 @@ fn xpath_graph_from_tree(tree: &XmlTree) -> XPathGraph {
         nodes.push(XPathGraphNode { kind: node.kind, parent: node.parent, next: node.next, previous: node.previous, first, last });
         position += 1;
     }
-    XPathGraph { nodes }
+    let ids = xpath_ids_build(tree);
+    XPathGraph { nodes, ids }
 }
 
 fn xpath_document_parse(input: &str) -> XPathDocument {

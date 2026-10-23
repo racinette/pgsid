@@ -1,5 +1,5 @@
 #[derive(Clone, Copy)]
-struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan, defaulted: bool }
+struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan, defaulted: bool, id_candidate: bool }
 
 #[derive(Clone, Copy)]
 struct XmlTreeNode {
@@ -10,7 +10,7 @@ struct XmlTreeNode {
 
 #[derive(Clone, Copy)]
 struct XmlTreeFlags {
-    document: bool, declaration: bool, unicode: bool, query: bool,
+    document: bool, declaration: bool, unicode: bool, query: bool, query_ids_valid: bool,
     standalone: i32, version: XmlSpan, doctype_end: usize,
 }
 
@@ -96,9 +96,9 @@ pub(crate) fn xml_tree_unsupported(input: XmlTree) -> XmlTree {
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: false }
 }
 
-pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: bool) -> XmlTree {
+pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: bool, id_candidate: bool) -> XmlTree {
     let mut attributes = input.attributes;
-    attributes.push(XmlTreeAttribute { name, value, defaulted });
+    attributes.push(XmlTreeAttribute { name, value, defaulted, id_candidate });
     XmlTree { nodes: input.nodes, attributes, characters: input.characters,
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
 }
@@ -211,7 +211,8 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 let attribute_name = tree.written;
                 tree = xml_tree_store(tree,value.as_str());
                 let attribute_value = tree.written;
-                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,false);
+                let id_candidate = xml_query_id_candidate(source,quoted.value);
+                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,false,id_candidate);
                 position = xml_skip_space(source,quoted.next);
             }
             let explicit_end = tree.attributes.len();
@@ -238,7 +239,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                         let attribute_name = tree.written;
                         tree = xml_tree_store(tree,value_text.as_str());
                         let attribute_value = tree.written;
-                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,true);
+                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,true,false);
                     };
                 };
                 index += 1;
@@ -353,7 +354,7 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
         attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 });
     let attributes: Vec<XmlTreeAttribute> = Vec::new();
     let flags = XmlTreeFlags { document: effective_document, declaration: actual_declaration && begin == 0,
-        unicode: effective_document && actual_declaration && begin == 0, query, standalone, version: version_span, doctype_end };
+        unicode: effective_document && actual_declaration && begin == 0, query, query_ids_valid: true, standalone, version: version_span, doctype_end };
     let declarations: Vec<XmlTreeDtdEntry> = Vec::new();
     let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true };
     let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };

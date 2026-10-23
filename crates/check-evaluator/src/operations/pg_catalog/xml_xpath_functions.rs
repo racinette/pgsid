@@ -43,7 +43,7 @@ pub(crate) fn xpath_apply_function(input: XPathArguments, kind: i32, context: XP
         return xpath_value_boolean(value.boolean == false);
     };
     if kind == 26 { return xpath_function_language(first,context,tree,graph); };
-    if kind == 27 { return xpath_value_empty(XPATH_KIND_NODES,3); };
+    if kind == 27 { return xpath_function_ids(first,tree,graph); };
     let a = xpath_value_to_string(first,tree,graph);
     if a.state != 0 { return a; };
     if kind == 19 { let characters: Vec<char> = a.text.as_str().chars().collect(); return xpath_value_number((characters.len() as i32) as f64); };
