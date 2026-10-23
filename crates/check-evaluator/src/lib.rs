@@ -323,6 +323,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_dtd_render_model.rs");
     include!("operations/pg_catalog/xml_dtd_render.rs");
     include!("operations/pg_catalog/xml_tree.rs");
+    include!("operations/pg_catalog/xml_query_tree.rs");
+    include!("operations/pg_catalog/xml_query_uri.rs");
     include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");
