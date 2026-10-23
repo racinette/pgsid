@@ -50176,3 +50176,693 @@ function xmlAttributeTokenized(source: XmlSource, arena: XmlEntityArena, element
     }
     return false;
 }
+const xpathNameStartRanges: ReadonlyArray<number> = [65, 90, 97, 122, 192, 214, 216, 246, 248, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12295, 12295, 12321, 12329, 12353, 12436, 12449, 12538, 12549, 12588, 19968, 40869, 44032, 55203];
+const xpathNameExtraRanges: ReadonlyArray<number> = [48, 57, 183, 183, 720, 721, 768, 837, 864, 865, 903, 903, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1600, 1600, 1611, 1618, 1632, 1641, 1648, 1648, 1750, 1764, 1767, 1768, 1770, 1773, 1776, 1785, 2305, 2307, 2364, 2364, 2366, 2381, 2385, 2388, 2402, 2403, 2406, 2415, 2433, 2435, 2492, 2492, 2494, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2534, 2543, 2562, 2562, 2620, 2620, 2622, 2626, 2631, 2632, 2635, 2637, 2662, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2790, 2799, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2918, 2927, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3047, 3055, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3174, 3183, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3302, 3311, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3430, 3439, 3633, 3633, 3636, 3642, 3654, 3662, 3664, 3673, 3761, 3761, 3764, 3769, 3771, 3772, 3782, 3782, 3784, 3789, 3792, 3801, 3864, 3865, 3872, 3881, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12293, 12293, 12330, 12335, 12337, 12341, 12441, 12442, 12445, 12446, 12540, 12542];
+function xpathNameRange(character: string, extra: boolean): boolean {
+    character = langruntime.checkedChar(character);
+    extra = langruntime.checkedBool(extra);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let low: number = 0;
+    let high: number = langruntime.checkedSignedDivide(langruntime.checkedI32(langruntime.checkedIndex(xpathNameStartRanges.length)), 2);
+    if (extra) {
+        high = langruntime.checkedI32(langruntime.checkedSignedDivide(langruntime.checkedI32(langruntime.checkedIndex(xpathNameExtraRanges.length)), 2));
+    }
+    while (low < high) {
+        const middle: number = langruntime.checkedSignedAdd(low, langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(high, low)), 2));
+        const offset: number = langruntime.checkedSignedMultiply(middle, 2);
+        const index: number = langruntime.indexFromI32(offset, 0);
+        let first: number = 0;
+        let last: number = 0;
+        if (extra) {
+            first = langruntime.checkedI32(langruntime.indexStatic(xpathNameExtraRanges, langruntime.checkedIndex(index)));
+            last = langruntime.checkedI32(langruntime.indexStatic(xpathNameExtraRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        }
+        else {
+            first = langruntime.checkedI32(langruntime.indexStatic(xpathNameStartRanges, langruntime.checkedIndex(index)));
+            last = langruntime.checkedI32(langruntime.indexStatic(xpathNameStartRanges, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        }
+        if (code < first) {
+            high = langruntime.checkedI32(middle);
+        }
+        else if (code > last) {
+            low = langruntime.checkedI32(langruntime.checkedSignedAdd(middle, 1));
+        }
+        else {
+            return true;
+        }
+    }
+    return false;
+}
+function xpathNameStart(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === "_" || xpathNameRange(character, false);
+}
+function xpathNameCharacter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return xpathNameStart(character) || character === "." || character === "-" || xpathNameRange(character, true);
+}
+function xpathParseOperator(program: XPathProgram, position: number): number {
+    position = langruntime.checkedIndex(position);
+    if (xpathParseAt(program, position, "or")) {
+        return 1;
+    }
+    if (xpathParseAt(program, position, "and")) {
+        return 2;
+    }
+    if (xpathParseAt(program, position, "!=")) {
+        return 4;
+    }
+    if (xpathParseAt(program, position, "<=")) {
+        return 6;
+    }
+    if (xpathParseAt(program, position, ">=")) {
+        return 8;
+    }
+    if (xpathParseAt(program, position, "=")) {
+        return 3;
+    }
+    if (xpathParseAt(program, position, "<")) {
+        return 5;
+    }
+    if (xpathParseAt(program, position, ">")) {
+        return 7;
+    }
+    if (xpathParseAt(program, position, "+")) {
+        return 9;
+    }
+    if (xpathParseAt(program, position, "-")) {
+        return 10;
+    }
+    if (xpathParseAt(program, position, "*")) {
+        return 11;
+    }
+    if (xpathParseAt(program, position, "div")) {
+        return 12;
+    }
+    if (xpathParseAt(program, position, "mod")) {
+        return 13;
+    }
+    if (xpathParseAt(program, position, "|")) {
+        return 14;
+    }
+    return 0;
+}
+function xpathParsePrecedence(operation: number): number {
+    operation = langruntime.checkedI32(operation);
+    if (operation === 1) {
+        return 1;
+    }
+    if (operation === 2) {
+        return 2;
+    }
+    if (operation <= 4) {
+        return 3;
+    }
+    if (operation <= 8) {
+        return 4;
+    }
+    if (operation <= 10) {
+        return 5;
+    }
+    if (operation <= 13) {
+        return 6;
+    }
+    return 8;
+}
+function xpathParseOperatorWidth(operation: number): number {
+    operation = langruntime.checkedI32(operation);
+    if (operation === 2 || operation === 12 || operation === 13) {
+        return 3;
+    }
+    if (operation === 1 || operation === 4 || operation === 6 || operation === 8) {
+        return 2;
+    }
+    return 1;
+}
+export function xpathParsePrefix(input: XPathProgram, minimum: number): XPathProgram {
+    let program: XPathProgram = input;
+    const position: number = xpathParseSpace(program, program.cursor);
+    program = xpathParseCursor(program, position);
+    if (position >= program.source.length) {
+        return xpathParseFail(program);
+    }
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    const character: string = langruntime.indexChar(program.source, langruntime.checkedIndex(position));
+    if (character === "-") {
+        if (minimum > 7) {
+            return xpathParseFail(program);
+        }
+        program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
+        program = xpathParseExpression(program, 7);
+        if (program.valid === false) {
+            return program;
+        }
+        const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathNegate, 0, program.root, 0, empty, empty));
+        return xpathParsePush(program, node);
+    }
+    if (xmlQueryUriDigit(character) || (character === "." && langruntime.checkedAdd(position, 1) < program.source.length && xmlQueryUriDigit(langruntime.indexChar(program.source, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)))))) {
+        program = xpathParseNumber(program);
+        return xpathParsePredicates(program, xpathFilter);
+    }
+    if (character === "'" || character === "\"") {
+        program = xpathParseLiteral(program);
+        return xpathParsePredicates(program, xpathFilter);
+    }
+    if (character === "$") {
+        const name: XPathNameScan = copyXPathNameScan(xpathParseQname(program, langruntime.checkedAdd(position, 1), false, false));
+        if (name.valid === false) {
+            return xpathParseFail(program);
+        }
+        program = xpathParseCursor(program, name.next);
+        const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local));
+        program = xpathParsePush(program, node);
+        return xpathParsePredicates(program, xpathFilter);
+    }
+    if (character === "(") {
+        program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
+        program = xpathParseExpression(program, 1);
+        if (program.valid === false) {
+            return program;
+        }
+        const close: number = xpathParseSpace(program, program.cursor);
+        if (xpathParseAt(program, close, ")") === false) {
+            return xpathParseFail(program);
+        }
+        const value: number = program.root;
+        program = xpathParseCursor(program, langruntime.checkedAdd(close, 1));
+        const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathGroup, 0, value, 0, empty, empty));
+        program = xpathParsePush(program, node);
+        return xpathParsePredicates(program, xpathFilter);
+    }
+    if (character === "/") {
+        let width: number = 1;
+        if (xpathParseAt(program, position, "//")) {
+            width = langruntime.checkedIndex(2);
+        }
+        program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
+        const root: XPathExpression = copyXPathExpression(xpathParseNode(xpathRoot, 0, 0, 0, empty, empty));
+        program = xpathParsePush(program, root);
+        if (width === 2) {
+            const left: number = program.root;
+            const step: XPathExpression = copyXPathExpression(xpathParseNode(xpathStep, 6, 0, 2, empty, empty));
+            program = xpathParsePush(program, step);
+            const path: XPathExpression = copyXPathExpression(xpathParseNode(xpathPath, 0, left, program.root, empty, empty));
+            program = xpathParsePush(program, path);
+        }
+        const next: number = xpathParseSpace(program, program.cursor);
+        if (width === 2 || xpathParseStepStart(program, next)) {
+            const left: number = program.root;
+            program = xpathParseStep(program);
+            if (program.valid === false) {
+                return program;
+            }
+            const path: XPathExpression = copyXPathExpression(xpathParseNode(xpathPath, 0, left, program.root, empty, empty));
+            program = xpathParsePush(program, path);
+        }
+        return program;
+    }
+    const name: XPathNameScan = copyXPathNameScan(xpathParseQname(program, position, false, false));
+    if (name.valid) {
+        const after: number = xpathParseSpace(program, name.next);
+        if (xpathParseAt(program, after, "(")) {
+            const text: string = xpathParseText(program, name.local);
+            if (!(name.prefix.start === name.prefix.end) || xpathParseNodeType(text) === 0) {
+                return xpathParseFunction(program, name);
+            }
+        }
+    }
+    return xpathParseStep(program);
+}
+export function xpathParseExpression(input: XPathProgram, minimum: number): XPathProgram {
+    let program: XPathProgram = xpathParsePrefix(input, minimum);
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let scanning: boolean = true;
+    while (program.valid && scanning) {
+        const position: number = xpathParseSpace(program, program.cursor);
+        if (xpathParseAt(program, position, "/")) {
+            let left: number = program.root;
+            let width: number = 1;
+            if (xpathParseAt(program, position, "//")) {
+                width = langruntime.checkedIndex(2);
+            }
+            program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
+            if (width === 2) {
+                const step: XPathExpression = copyXPathExpression(xpathParseNode(xpathStep, 6, 0, 2, empty, empty));
+                program = xpathParsePush(program, step);
+                const path: XPathExpression = copyXPathExpression(xpathParseNode(xpathPath, 0, left, program.root, empty, empty));
+                program = xpathParsePush(program, path);
+                left = langruntime.checkedIndex(program.root);
+            }
+            program = xpathParseStep(program);
+            if (program.valid === false) {
+                return program;
+            }
+            const path: XPathExpression = copyXPathExpression(xpathParseNode(xpathPath, 0, left, program.root, empty, empty));
+            program = xpathParsePush(program, path);
+        }
+        else {
+            const operation: number = xpathParseOperator(program, position);
+            const precedence: number = xpathParsePrecedence(operation);
+            if (operation === 0 || precedence < minimum) {
+                scanning = langruntime.checkedBool(false);
+            }
+            else {
+                const left: number = program.root;
+                const width: number = xpathParseOperatorWidth(operation);
+                program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
+                program = xpathParseExpression(program, langruntime.checkedSignedAdd(precedence, 1));
+                if (program.valid === false) {
+                    return program;
+                }
+                const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathBinary, operation, left, program.root, empty, empty));
+                program = xpathParsePush(program, node);
+            }
+        }
+    }
+    return program;
+}
+function xpathCompile(input: string): XPathProgram {
+    input = langruntime.checkedString(input);
+    const source: string[] = Array.from(input);
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let nodes: XPathExpression[] = [];
+    langruntime.pushStruct(nodes, xpathParseNode(0, 0, 0, 0, empty, empty), copyXPathExpression);
+    const program: XPathProgram = { source: source, nodes: nodes, cursor: 0, root: 0, valid: true };
+    const parsed: XPathProgram = xpathParseExpression(program, 1);
+    const end: number = xpathParseSpace(parsed, parsed.cursor);
+    if (!(end === parsed.source.length)) {
+        return xpathParseFail(parsed);
+    }
+    return parsed;
+}
+const xpathNumber = 1;
+const xpathString = 2;
+const xpathVariable = 3;
+const xpathFunction = 4;
+const xpathRoot = 5;
+const xpathStep = 6;
+const xpathPredicate = 7;
+const xpathPath = 8;
+const xpathBinary = 9;
+const xpathNegate = 10;
+const xpathFilter = 11;
+const xpathArgument = 12;
+const xpathGroup = 13;
+interface XPathExpression {
+    kind: number;
+    operation: number;
+    left: number;
+    right: number;
+    prefix: XmlSpan;
+    name: XmlSpan;
+}
+function copyXPathExpression(value: XPathExpression): XPathExpression {
+    return { kind: langruntime.checkedI32(value.kind), operation: langruntime.checkedI32(value.operation), left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), prefix: copyXmlSpan(value.prefix), name: copyXmlSpan(value.name) };
+}
+interface XPathProgram {
+    source: string[];
+    nodes: XPathExpression[];
+    cursor: number;
+    root: number;
+    valid: boolean;
+}
+function copyXPathProgram(value: XPathProgram): XPathProgram {
+    return { source: langruntime.checkedChars(value.source), nodes: langruntime.checkedStructs(value.nodes, copyXPathExpression), cursor: langruntime.checkedIndex(value.cursor), root: langruntime.checkedIndex(value.root), valid: langruntime.checkedBool(value.valid) };
+}
+interface XPathNameScan {
+    prefix: XmlSpan;
+    local: XmlSpan;
+    next: number;
+    valid: boolean;
+    wildcard: boolean;
+}
+function copyXPathNameScan(value: XPathNameScan): XPathNameScan {
+    return { prefix: copyXmlSpan(value.prefix), local: copyXmlSpan(value.local), next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid), wildcard: langruntime.checkedBool(value.wildcard) };
+}
+function xpathParseNode(kind: number, operation: number, left: number, right: number, prefix: XmlSpan, name: XmlSpan): XPathExpression {
+    kind = langruntime.checkedI32(kind);
+    operation = langruntime.checkedI32(operation);
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    prefix = copyXmlSpan(prefix);
+    name = copyXmlSpan(name);
+    return { kind: kind, operation: operation, left: left, right: right, prefix: copyXmlSpan(prefix), name: copyXmlSpan(name) };
+}
+export function xpathParsePush(input: XPathProgram, node: XPathExpression): XPathProgram {
+    let nodes: XPathExpression[] = input.nodes;
+    const root: number = nodes.length;
+    langruntime.pushStruct(nodes, node, copyXPathExpression);
+    return { source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid };
+}
+export function xpathParseCursor(input: XPathProgram, cursor: number): XPathProgram {
+    return { source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid };
+}
+export function xpathParseFail(input: XPathProgram): XPathProgram {
+    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false };
+}
+export function xpathParseLink(input: XPathProgram, tail: number, next: number): XPathProgram {
+    let nodes: XPathExpression[] = input.nodes;
+    const old: XPathExpression = copyXPathExpression(langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), copyXPathExpression));
+    nodes[langruntime.checkedIndexIn(nodes, tail)] = copyXPathExpression({ kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: copyXmlSpan(old.prefix), name: copyXmlSpan(old.name) });
+    return { source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid };
+}
+function xpathParseAt(program: XPathProgram, position: number, text: string): boolean {
+    position = langruntime.checkedIndex(position);
+    text = langruntime.checkedString(text);
+    const expected: string[] = Array.from(text);
+    if (langruntime.checkedAdd(position, expected.length) > program.source.length) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < expected.length) {
+        if (!(langruntime.indexChar(program.source, langruntime.checkedIndex(langruntime.checkedAdd(position, index))) === langruntime.indexChar(expected, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function xpathParseSpace(program: XPathProgram, start: number): number {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    while (position < program.source.length && xmlSpace(langruntime.indexChar(program.source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return position;
+}
+function xpathParseText(program: XPathProgram, span: XmlSpan): string {
+    span = copyXmlSpan(span);
+    let output: string = "";
+    let position: number = span.start;
+    while (position < span.end) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(program.source, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xpathParseNcname(program: XPathProgram, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    if (position >= program.source.length || xpathNameStart(langruntime.indexChar(program.source, langruntime.checkedIndex(position))) === false) {
+        return { next: start, valid: false };
+    }
+    position = langruntime.checkedAdd(position, 1);
+    while (position < program.source.length && xpathNameCharacter(langruntime.indexChar(program.source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { next: position, valid: true };
+}
+function xpathParseQname(program: XPathProgram, start: number, wildcard: boolean, gap: boolean): XPathNameScan {
+    start = langruntime.checkedIndex(start);
+    wildcard = langruntime.checkedBool(wildcard);
+    gap = langruntime.checkedBool(gap);
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    if (wildcard && xpathParseAt(program, start, "*")) {
+        const local: XmlSpan = copyXmlSpan({ start: start, end: langruntime.checkedAdd(start, 1) });
+        return { prefix: copyXmlSpan(empty), local: copyXmlSpan(local), next: langruntime.checkedAdd(start, 1), valid: true, wildcard: true };
+    }
+    const first: XmlScan = copyXmlScan(xpathParseNcname(program, start));
+    const span: XmlSpan = copyXmlSpan({ start: start, end: first.next });
+    if (first.valid === false) {
+        return { prefix: copyXmlSpan(empty), local: copyXmlSpan(span), next: start, valid: false, wildcard: false };
+    }
+    let colon: number = first.next;
+    if (gap) {
+        colon = langruntime.checkedIndex(xpathParseSpace(program, first.next));
+    }
+    if (xpathParseAt(program, colon, ":") && xpathParseAt(program, colon, "::") === false) {
+        const position: number = langruntime.checkedAdd(colon, 1);
+        if (wildcard && xpathParseAt(program, position, "*")) {
+            const local: XmlSpan = copyXmlSpan({ start: position, end: langruntime.checkedAdd(position, 1) });
+            return { prefix: copyXmlSpan(span), local: copyXmlSpan(local), next: langruntime.checkedAdd(position, 1), valid: true, wildcard: true };
+        }
+        const second: XmlScan = copyXmlScan(xpathParseNcname(program, position));
+        const local: XmlSpan = copyXmlSpan({ start: position, end: second.next });
+        return { prefix: copyXmlSpan(span), local: copyXmlSpan(local), next: second.next, valid: second.valid, wildcard: false };
+    }
+    return { prefix: copyXmlSpan(empty), local: copyXmlSpan(span), next: first.next, valid: true, wildcard: false };
+}
+function xpathParseAxis(name: string): number {
+    name = langruntime.checkedString(name);
+    if (name === "child") {
+        return 1;
+    }
+    if (name === "attribute") {
+        return 2;
+    }
+    if (name === "self") {
+        return 3;
+    }
+    if (name === "parent") {
+        return 4;
+    }
+    if (name === "descendant") {
+        return 5;
+    }
+    if (name === "descendant-or-self") {
+        return 6;
+    }
+    if (name === "ancestor") {
+        return 7;
+    }
+    if (name === "ancestor-or-self") {
+        return 8;
+    }
+    if (name === "following-sibling") {
+        return 9;
+    }
+    if (name === "preceding-sibling") {
+        return 10;
+    }
+    if (name === "following") {
+        return 11;
+    }
+    if (name === "preceding") {
+        return 12;
+    }
+    if (name === "namespace") {
+        return 13;
+    }
+    return 0;
+}
+function xpathParseNodeType(name: string): number {
+    name = langruntime.checkedString(name);
+    if (name === "node") {
+        return 2;
+    }
+    if (name === "text") {
+        return 3;
+    }
+    if (name === "comment") {
+        return 4;
+    }
+    if (name === "processing-instruction") {
+        return 5;
+    }
+    return 0;
+}
+export function xpathParsePredicates(input: XPathProgram, kind: number): XPathProgram {
+    let program: XPathProgram = input;
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let scanning: boolean = true;
+    while (program.valid && scanning) {
+        const position: number = xpathParseSpace(program, program.cursor);
+        if (xpathParseAt(program, position, "[")) {
+            const left: number = program.root;
+            program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
+            program = xpathParseExpression(program, 1);
+            if (program.valid === false) {
+                return program;
+            }
+            const right: number = program.root;
+            const close: number = xpathParseSpace(program, program.cursor);
+            if (xpathParseAt(program, close, "]") === false) {
+                return xpathParseFail(program);
+            }
+            program = xpathParseCursor(program, langruntime.checkedAdd(close, 1));
+            const node: XPathExpression = copyXPathExpression(xpathParseNode(kind, 0, left, right, empty, empty));
+            program = xpathParsePush(program, node);
+        }
+        else {
+            scanning = langruntime.checkedBool(false);
+        }
+    }
+    return program;
+}
+export function xpathParseLiteral(input: XPathProgram): XPathProgram {
+    const begin: number = input.cursor;
+    const quote: string = langruntime.indexChar(input.source, langruntime.checkedIndex(begin));
+    let position: number = langruntime.checkedAdd(begin, 1);
+    while (position < input.source.length && !(langruntime.indexChar(input.source, langruntime.checkedIndex(position)) === quote)) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position >= input.source.length) {
+        return xpathParseFail(input);
+    }
+    const span: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(begin, 1), end: position });
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    const program: XPathProgram = xpathParseCursor(input, langruntime.checkedAdd(position, 1));
+    const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathString, 0, 0, 0, empty, span));
+    return xpathParsePush(program, node);
+}
+export function xpathParseNumber(input: XPathProgram): XPathProgram {
+    const begin: number = input.cursor;
+    let position: number = begin;
+    while (position < input.source.length && xmlQueryUriDigit(langruntime.indexChar(input.source, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (xpathParseAt(input, position, ".")) {
+        position = langruntime.checkedAdd(position, 1);
+        while (position < input.source.length && xmlQueryUriDigit(langruntime.indexChar(input.source, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    let end: number = position;
+    if (xpathParseAt(input, position, "e") || xpathParseAt(input, position, "E")) {
+        position = langruntime.checkedAdd(position, 1);
+        if (xpathParseAt(input, position, "+") || xpathParseAt(input, position, "-")) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const exponent: number = position;
+        while (position < input.source.length && xmlQueryUriDigit(langruntime.indexChar(input.source, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position > exponent) {
+            end = langruntime.checkedIndex(position);
+        }
+    }
+    const span: XmlSpan = copyXmlSpan({ start: begin, end: end });
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    const program: XPathProgram = xpathParseCursor(input, position);
+    const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathNumber, 0, 0, 0, empty, span));
+    return xpathParsePush(program, node);
+}
+function xpathParseStepStart(program: XPathProgram, position: number): boolean {
+    position = langruntime.checkedIndex(position);
+    if (position >= program.source.length) {
+        return false;
+    }
+    const character: string = langruntime.indexChar(program.source, langruntime.checkedIndex(position));
+    return character === "." || character === "@" || character === "*" || xpathNameStart(character);
+}
+export function xpathParseStep(input: XPathProgram): XPathProgram {
+    let program: XPathProgram = input;
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let position: number = xpathParseSpace(program, program.cursor);
+    if (xpathParseAt(program, position, ".")) {
+        let axis: number = 3;
+        let width: number = 1;
+        if (xpathParseAt(program, position, "..")) {
+            axis = langruntime.checkedI32(4);
+            width = langruntime.checkedIndex(2);
+        }
+        program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
+        const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathStep, axis, 0, 2, empty, empty));
+        return xpathParsePush(program, node);
+    }
+    let axis: number = 1;
+    let gap: boolean = true;
+    if (xpathParseAt(program, position, "@")) {
+        axis = langruntime.checkedI32(2);
+        position = langruntime.checkedIndex(xpathParseSpace(program, langruntime.checkedAdd(position, 1)));
+        gap = langruntime.checkedBool(false);
+    }
+    else {
+        const first: XmlScan = copyXmlScan(xpathParseNcname(program, position));
+        if (first.valid) {
+            const after: number = xpathParseSpace(program, first.next);
+            if (xpathParseAt(program, after, "::")) {
+                const span: XmlSpan = copyXmlSpan({ start: position, end: first.next });
+                const text: string = xpathParseText(program, span);
+                axis = langruntime.checkedI32(xpathParseAxis(text));
+                if (axis === 0) {
+                    return xpathParseFail(program);
+                }
+                position = langruntime.checkedIndex(xpathParseSpace(program, langruntime.checkedAdd(after, 2)));
+                gap = langruntime.checkedBool(false);
+            }
+        }
+    }
+    const scanned: XPathNameScan = copyXPathNameScan(xpathParseQname(program, position, true, gap));
+    if (scanned.valid === false) {
+        return xpathParseFail(program);
+    }
+    let test: number = 1;
+    let name: XmlSpan = copyXmlSpan(scanned.local);
+    position = langruntime.checkedIndex(xpathParseSpace(program, scanned.next));
+    if (xpathParseAt(program, position, "(")) {
+        if (!(scanned.prefix.end === scanned.prefix.start) || scanned.wildcard) {
+            return xpathParseFail(program);
+        }
+        const spelling: string = xpathParseText(program, name);
+        test = langruntime.checkedIndex(xpathParseNodeType(spelling));
+        if (test === 0) {
+            return xpathParseFail(program);
+        }
+        position = langruntime.checkedIndex(xpathParseSpace(program, langruntime.checkedAdd(position, 1)));
+        if (test === 5 && (xpathParseAt(program, position, "'") || xpathParseAt(program, position, "\""))) {
+            program = xpathParseCursor(program, position);
+            program = xpathParseLiteral(program);
+            if (program.valid === false) {
+                return program;
+            }
+            name = copyXmlSpan(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(program.root), copyXPathExpression).name);
+            position = langruntime.checkedIndex(xpathParseSpace(program, program.cursor));
+            test = langruntime.checkedIndex(6);
+        }
+        if (xpathParseAt(program, position, ")") === false) {
+            return xpathParseFail(program);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    program = xpathParseCursor(program, position);
+    const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathStep, axis, 0, test, scanned.prefix, name));
+    program = xpathParsePush(program, node);
+    return xpathParsePredicates(program, xpathPredicate);
+}
+export function xpathParseFunction(input: XPathProgram, scanned: XPathNameScan): XPathProgram {
+    let program: XPathProgram = input;
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    const open: number = xpathParseSpace(program, scanned.next);
+    let position: number = xpathParseSpace(program, langruntime.checkedAdd(open, 1));
+    let first: number = 0;
+    let last: number = 0;
+    let count: number = 0;
+    program = xpathParseCursor(program, position);
+    if (xpathParseAt(program, position, ")") === false) {
+        let scanning: boolean = true;
+        while (program.valid && scanning) {
+            program = xpathParseExpression(program, 1);
+            if (program.valid === false) {
+                return program;
+            }
+            const argument: number = program.root;
+            const link: XPathExpression = copyXPathExpression(xpathParseNode(xpathArgument, 0, argument, 0, empty, empty));
+            program = xpathParsePush(program, link);
+            const next: number = program.root;
+            if (first === 0) {
+                first = langruntime.checkedIndex(next);
+            }
+            else {
+                program = xpathParseLink(program, last, next);
+            }
+            last = langruntime.checkedIndex(next);
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            position = langruntime.checkedIndex(xpathParseSpace(program, program.cursor));
+            if (xpathParseAt(program, position, ",")) {
+                program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
+            }
+            else {
+                scanning = langruntime.checkedBool(false);
+            }
+        }
+    }
+    position = langruntime.checkedIndex(xpathParseSpace(program, program.cursor));
+    if (xpathParseAt(program, position, ")") === false) {
+        return xpathParseFail(program);
+    }
+    program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
+    const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathFunction, count, first, 0, scanned.prefix, scanned.local));
+    program = xpathParsePush(program, node);
+    return xpathParsePredicates(program, xpathFilter);
+}
