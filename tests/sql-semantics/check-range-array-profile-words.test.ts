@@ -31,6 +31,7 @@ it('decodes complete profile words before validating caller hints in public rang
       ['name', '[a,z]'],
       ['regclass', '[100,200]'],
       ['regprocedure', '[100,200]'],
+      ['oidvector', '[100,200]'],
     ] as const
     await pg.exec(
       profiles

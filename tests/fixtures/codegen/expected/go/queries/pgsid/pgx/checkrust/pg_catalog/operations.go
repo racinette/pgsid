@@ -24802,6 +24802,18 @@ func multirangeSpanRelation(input checkruntime.MultirangeValue, span checkruntim
 }
 func multirangeElementDirection(span *checkruntime.RangePayload, element checkruntime.ArrayElement) checkruntime.Int4Value {
 	element = checkruntime.CopyArrayElement(element)
+	profile := checkruntime.CopyRangeBoundContext(span.BoundProfile)
+	preparedElement := element
+	if span.ElementKind >= 41 && span.ElementKind <= 44 {
+		preparedElement = checkruntime.CopyArrayElement(checkruntime.RangePrepareProfiledBound(preparedElement, &profile))
+		if preparedElement.Kind == checkruntime.ArrayElementError {
+			error := preparedElement.Error
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+		}
+		if preparedElement.Kind == checkruntime.ArrayElementUnknown {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+	}
 	lower := checkruntime.CopyArrayElement(span.Bounds[0])
 	upper := checkruntime.CopyArrayElement(span.Bounds[1])
 	hasLower := true
@@ -24813,7 +24825,7 @@ func multirangeElementDirection(span *checkruntime.RangePayload, element checkru
 		hasUpper = false
 	}
 	if hasLower {
-		compared := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.Support.Comparison)
+		compared := rangeTypedCompare(lower, checkruntime.CopyArrayElement(preparedElement), span.Support.Comparison, &profile, &profile)
 		if compared.Kind == checkruntime.Int4ValueValue {
 			order := langruntime.CheckedI32(compared.Value)
 			if order > 0 || (order == 0 && span.LowerInclusive == false) {
@@ -24825,7 +24837,7 @@ func multirangeElementDirection(span *checkruntime.RangePayload, element checkru
 		}
 	}
 	if hasUpper {
-		compared := rangeBuiltinCompare(upper, element, span.Support.Comparison)
+		compared := rangeTypedCompare(upper, preparedElement, span.Support.Comparison, &profile, &profile)
 		if compared.Kind == checkruntime.Int4ValueValue {
 			order := langruntime.CheckedI32(compared.Value)
 			if order < 0 || (order == 0 && span.UpperInclusive == false) {
@@ -34662,8 +34674,14 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 		}
 		return rangeBuiltinCompare(lower, upper, node.Comparison)
 	}
-	if node.Comparison != 41 || node.Child >= len(profile.Nodes) || peer.Child >= len(other.Nodes) || node.ElementType != peer.ElementType {
+	if (node.Comparison != 41 && node.Comparison != checkruntime.RangeComparisonOidVector) || node.Child >= len(profile.Nodes) || peer.Child >= len(other.Nodes) || node.ElementType != peer.ElementType {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if node.Comparison == checkruntime.RangeComparisonOidVector {
+		if node.TypeName != "pg_catalog.oidvector" || peer.TypeName != "pg_catalog.oidvector" {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		return Btoidvectorcmp6oyf(checkruntime.ArrayElementToArray(lower), checkruntime.ArrayElementToArray(upper))
 	}
 	if profile.Nodes[node.Child].MissingComparison != other.Nodes[peer.Child].MissingComparison {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
@@ -34691,7 +34709,7 @@ func rangeTypedCompare(lower checkruntime.ArrayElement, upper checkruntime.Array
 	if upper.Kind == checkruntime.ArrayElementNull {
 		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
 	}
-	if comparison >= 41 && comparison <= 44 {
+	if (comparison >= 41 && comparison <= 44) || comparison == checkruntime.RangeComparisonOidVector {
 		return rangeProfiledCompare(lower, upper, profile, 0, other, 0)
 	}
 	return rangeBuiltinCompare(lower, upper, comparison)
@@ -36059,6 +36077,9 @@ func rangeProfiledBoundOutput(input checkruntime.ArrayElement, profile *checkrun
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	node := checkruntime.CopyRangeBoundProfile(profile.Nodes[index])
+	if node.Kind == 41 && (node.TypeName == "pg_catalog.int2vector" || node.TypeName == "pg_catalog.oidvector") {
+		return CatalogVectorToText(checkruntime.ArrayElementToArray(input), node.TypeName == "pg_catalog.oidvector")
+	}
 	if node.Kind == 42 {
 		return RangeToText(checkruntime.ArrayElementToRange(input))
 	}

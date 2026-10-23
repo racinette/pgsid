@@ -231,7 +231,7 @@ async function readSubtypeDefinitions(pg: PGlite, roots: readonly string[]) {
       SELECT b.root,ty.typbasetype FROM bases b JOIN pg_type ty ON ty.oid=b.type WHERE ty.typtype='d'
     ),containers(root) AS (
       SELECT DISTINCT b.root FROM bases b JOIN pg_type ty ON ty.oid=b.type
-      LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+      LEFT JOIN pg_type e ON e.oid=ty.typelem AND (e.typarray=ty.oid OR (ty.typnamespace='pg_catalog'::regnamespace AND ty.typname IN ('int2vector','oidvector')))
       WHERE e.oid IS NOT NULL OR ty.typtype IN ('c','r','m')
     ),needed(root,type) AS (
       SELECT r.root,r.type FROM roots r JOIN containers a USING(root)
@@ -240,11 +240,11 @@ async function readSubtypeDefinitions(pg: PGlite, roots: readonly string[]) {
       LEFT JOIN pg_type e ON e.oid=ty.typelem
       LEFT JOIN pg_range r ON r.rngtypid=ty.oid
       LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
-      CROSS JOIN LATERAL (VALUES(ty.typbasetype),(CASE WHEN e.typarray=ty.oid THEN ty.typelem ELSE 0 END),(r.rngsubtype),(m.rngtypid)) child(type)
+      CROSS JOIN LATERAL (VALUES(ty.typbasetype),(CASE WHEN (e.typarray=ty.oid OR (ty.typnamespace='pg_catalog'::regnamespace AND ty.typname IN ('int2vector','oidvector'))) THEN ty.typelem ELSE 0 END),(r.rngsubtype),(m.rngtypid)) child(type)
       WHERE child.type IS NOT NULL AND child.type<>0
     ) SELECT p.root,(${typeIdentity} ty.oid) identity,n.nspname schema,ty.typname name,ty.typtype kind,
       (${typeIdentity} ty.typbasetype) base,
-      CASE WHEN e.typarray=ty.oid THEN (${typeIdentity} ty.typelem) ELSE NULL END element,
+      CASE WHEN (e.typarray=ty.oid OR (ty.typnamespace='pg_catalog'::regnamespace AND ty.typname IN ('int2vector','oidvector'))) THEN (${typeIdentity} ty.typelem) ELSE NULL END element,
       (${typeIdentity} r.rngsubtype) subtype,(${typeIdentity} m.rngtypid) member,
       CASE WHEN ty.typtype='e' THEN ARRAY(SELECT en.enumlabel FROM pg_enum en WHERE en.enumtypid=ty.oid ORDER BY en.enumsortorder) ELSE NULL END "enumValues",
       ${functionIdentity('ty.typinput')} input,${functionIdentity('ty.typoutput')} output,${functionIdentity('ty.typsend')} send
@@ -306,7 +306,7 @@ async function readRangeTypeInfos(
       ),needed(type) AS (
         SELECT type FROM scoped UNION
         SELECT child.type FROM needed p JOIN pg_type ty ON ty.oid=p.type
-        LEFT JOIN pg_type e ON e.oid=ty.typelem AND e.typarray=ty.oid
+        LEFT JOIN pg_type e ON e.oid=ty.typelem AND (e.typarray=ty.oid OR (ty.typnamespace='pg_catalog'::regnamespace AND ty.typname IN ('int2vector','oidvector')))
         LEFT JOIN pg_range r ON r.rngtypid=ty.oid LEFT JOIN pg_range m ON m.rngmultitypid=ty.oid
         CROSS JOIN LATERAL (
           VALUES(ty.typbasetype),(e.oid),(r.rngsubtype),(m.rngtypid)

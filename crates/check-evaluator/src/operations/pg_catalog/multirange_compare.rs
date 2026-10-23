@@ -420,6 +420,13 @@ fn multirange_span_relation(
 }
 
 fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> Int4Value {
+    let profile = span.bound_profile.clone();
+    let mut prepared_element = element;
+    if span.element_kind >= 41 && span.element_kind <= 44 {
+        prepared_element = range_prepare_profiled_bound(prepared_element, &profile);
+        if let ArrayElement::Error(error) = prepared_element { return Int4Value::Error(error); };
+        if let ArrayElement::Unknown = prepared_element { return Int4Value::Unknown; };
+    };
     let lower = span.bounds[0].clone();
     let upper = span.bounds[1].clone();
     let mut has_lower = true;
@@ -431,7 +438,7 @@ fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> I
         has_upper = false;
     };
     if has_lower {
-        let compared = range_builtin_compare(lower, element.clone(), span.support.comparison);
+        let compared = range_typed_compare(lower, prepared_element.clone(), span.support.comparison, &profile, &profile);
         if let Int4Value::Value(order) = compared {
             if order > 0 || (order == 0 && span.lower_inclusive == false) {
                 return make_int4_value(-1);
@@ -442,7 +449,7 @@ fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> I
         };
     };
     if has_upper {
-        let compared = range_builtin_compare(upper, element, span.support.comparison);
+        let compared = range_typed_compare(upper, prepared_element, span.support.comparison, &profile, &profile);
         if let Int4Value::Value(order) = compared {
             if order < 0 || (order == 0 && span.upper_inclusive == false) {
                 return make_int4_value(1);

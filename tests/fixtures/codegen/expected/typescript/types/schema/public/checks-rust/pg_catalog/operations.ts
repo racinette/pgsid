@@ -24920,6 +24920,18 @@ function multirangeSpanRelation(input: checkruntime.MultirangeValue, span: check
 }
 function multirangeElementDirection(span: checkruntime.RangePayload, element: checkruntime.ArrayElement): checkruntime.Int4Value {
     element = checkruntime.copyArrayElement(element);
+    const profile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(span.boundProfile);
+    let preparedElement: checkruntime.ArrayElement = element;
+    if (span.elementKind >= 41 && span.elementKind <= 44) {
+        preparedElement = checkruntime.copyArrayElement(checkruntime.rangePrepareProfiledBound(preparedElement, profile));
+        if (preparedElement.kind === "Error") {
+            const error: checkruntime.SqlError = preparedElement.value;
+            return { kind: "Error", value: error };
+        }
+        if (preparedElement.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+    }
     const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
     const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
     let hasLower: boolean = true;
@@ -24931,7 +24943,7 @@ function multirangeElementDirection(span: checkruntime.RangePayload, element: ch
         hasUpper = langruntime.checkedBool(false);
     }
     if (hasLower) {
-        const compared: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.support.comparison);
+        const compared: checkruntime.Int4Value = rangeTypedCompare(lower, checkruntime.copyArrayElement(preparedElement), span.support.comparison, profile, profile);
         if (compared.kind === "Value") {
             const order: number = langruntime.checkedI32(compared.value);
             if (order > 0 || (order === 0 && span.lowerInclusive === false)) {
@@ -24943,7 +24955,7 @@ function multirangeElementDirection(span: checkruntime.RangePayload, element: ch
         }
     }
     if (hasUpper) {
-        const compared: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.support.comparison);
+        const compared: checkruntime.Int4Value = rangeTypedCompare(upper, preparedElement, span.support.comparison, profile, profile);
         if (compared.kind === "Value") {
             const order: number = langruntime.checkedI32(compared.value);
             if (order < 0 || (order === 0 && span.upperInclusive === false)) {
@@ -34804,8 +34816,14 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
         }
         return rangeBuiltinCompare(lower, upper, node.comparison);
     }
-    if (!(node.comparison === 41) || node.child >= profile.nodes.length || peer.child >= other.nodes.length || !(node.elementType === peer.elementType)) {
+    if ((!(node.comparison === 41) && !(node.comparison === checkruntime.rangeComparisonOidVector)) || node.child >= profile.nodes.length || peer.child >= other.nodes.length || !(node.elementType === peer.elementType)) {
         return { kind: "Unknown" };
+    }
+    if (node.comparison === checkruntime.rangeComparisonOidVector) {
+        if (!(node.typeName === "pg_catalog.oidvector") || !(peer.typeName === "pg_catalog.oidvector")) {
+            return { kind: "Unknown" };
+        }
+        return btoidvectorcmp6oyf(checkruntime.arrayElementToArray(lower), checkruntime.arrayElementToArray(upper));
     }
     if (!(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(node.child), checkruntime.copyRangeBoundProfile).missingComparison === langruntime.indexStruct(other.nodes, langruntime.checkedIndex(peer.child), checkruntime.copyRangeBoundProfile).missingComparison)) {
         return { kind: "Unknown" };
@@ -34833,7 +34851,7 @@ function rangeTypedCompare(lower: checkruntime.ArrayElement, upper: checkruntime
     if (upper.kind === "Null") {
         return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
     }
-    if (comparison >= 41 && comparison <= 44) {
+    if ((comparison >= 41 && comparison <= 44) || comparison === checkruntime.rangeComparisonOidVector) {
         return rangeProfiledCompare(lower, upper, profile, 0, other, 0);
     }
     return rangeBuiltinCompare(lower, upper, comparison);
@@ -36215,6 +36233,9 @@ function rangeProfiledBoundOutput(input: checkruntime.ArrayElement, profile: che
         return { kind: "Unknown" };
     }
     const node: checkruntime.RangeBoundProfile = checkruntime.copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), checkruntime.copyRangeBoundProfile));
+    if (node.kind === 41 && (node.typeName === "pg_catalog.int2vector" || node.typeName === "pg_catalog.oidvector")) {
+        return catalogVectorToText(checkruntime.arrayElementToArray(input), node.typeName === "pg_catalog.oidvector");
+    }
     if (node.kind === 42) {
         return rangeToText(checkruntime.arrayElementToRange(input));
     }

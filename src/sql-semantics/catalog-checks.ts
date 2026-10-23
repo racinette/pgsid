@@ -146,7 +146,24 @@ function alignRowFieldBindings(
       }
       if (call && sourceNames?.at(-1) === selectedNames.at(-1)) {
         result.set(call, { kind: 'function', names: selectedNames })
-        visit(call['args'], selected['args'])
+        const sourceArgs = call['args'],
+          storedArgs = selected['args']
+        let alignedArgs = storedArgs
+        if (
+          selected['func_variadic'] === true &&
+          call['func_variadic'] !== true &&
+          Array.isArray(sourceArgs) &&
+          Array.isArray(storedArgs) &&
+          storedArgs.length
+        ) {
+          const tail = fields(fields(storedArgs.at(-1))?.['A_ArrayExpr'])
+          const members = tail?.['elements'] ?? []
+          if (tail && Array.isArray(members)) {
+            const expanded = [...storedArgs.slice(0, -1), ...members]
+            if (expanded.length === sourceArgs.length) alignedArgs = expanded
+          }
+        }
+        visit(sourceArgs, alignedArgs)
         return
       }
       if (

@@ -74,7 +74,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Measure explicit catalog cast pairs on represented values and their runtime text input/output paths, separating PostgreSQL admission from raw/stored binding.
 - [x] Bind Boolean/network character casts and integer/numeric text I/O through catalog identities, including actual argument types, integer radix/underscore grammar, width/precision modifiers, numeric CASE/COALESCE, mixed numeric overloads, literal preparation and composition.
 - [x] Admit scalar-domain casts and domain arrays with inherited modifiers, ordered constraints, nominal polymorphic results and original INSERT parity; capture implicit/explicit conversion context during catalog generation and defer missing or ambiguous context.
-- [ ] Inventory unsupported input forms and coercions for represented types.
+- [ ] Inventory unsupported input/output forms, coercions and recoverable value facets for represented types, including unmodeled finite generic array/record binary lengths separately from unavailable deployment header OIDs.
 - [x] Share handled and deferred temporal input-form cases between their parity suites and the coercion report, retaining the executing owner of each list.
 - [x] Expand temporal text parsing in bounded, independently testable slices.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter
@@ -173,14 +173,14 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
       inputs and explicit build-limit requirements for text truncation.
 - [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals, composition and SQL-coerced public inputs; retain session requirements for portals.
-- [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds,
-      visibility, domains, literals, composition and SQL-coerced public inputs;
+- [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds, visibility, domains, literals, composition and SQL-coerced public inputs;
       retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
 - [x] Establish shared array-backed integer/OID vector values before SQL admission: retain zero-based and empty-vector dimensions, constructed malformed shapes, native text grammar, length-first OID ordering, portable word hashes, owned partial states and binary lengths without deployment OIDs. Verify native INSERTs and Rust/Go/TypeScript parity; retain platform input and catalog-name requirements.
 - [x] Admit shaped-empty ordinary arrays produced by vector and ARRAY operations; preserve zero-sized dimensions, native cast/rewrite/reverse rules, nested domain/record JSON conversion, public validation and Rust/Go/TypeScript INSERT parity. Retain a tested native zero-width-sort deferral before specialized vector SQL admission.
 - [x] Admit nominal integer/OID vector SQL values, generic array operations, literals, captured source/stored ARRAY constructors, catalog I/O, domains, record fields, recursive arrays, JSON and selected hashes through shared backends. Preserve native header errors, qualified identities, function/cast shadowing, eager preparation, public payload validation and ownership, raw parameter deferral and native/Rust/Go/TypeScript world INSERT parity; retain reached catalog/platform requirements.
-- [ ] Complete catalog/system integration, including captured integer/OID-vector range and multirange subtypes with their selected comparison semantics; keep portable payload operations separate from database lookup and audit recursive containers.
+- [x] Admit captured integer/OID-vector range and multirange subtypes through selected array versus vector comparison, nominal domains, vector-array/nested-range/record bounds, constructors and text I/O, recursive arrays, JSON and selected hashes. Preserve stored variadic constructor choices, bound metadata, partial sort ties, public compiled profiles and complete byte-order alternatives; verify source/stored native/Rust/Go/TypeScript and world INSERT parity.
+- [x] Catalog/system values: separate portable payload operations from deployment lookups and retain explicit catalog/platform requirements.
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, captured enum ranges/endpoints, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain element identities.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.

@@ -11,6 +11,7 @@ import {
   isMultirangeType,
   isArrayLikeType,
   arrayLikeElementType,
+  isCatalogVectorType,
 } from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
 import {
@@ -134,7 +135,7 @@ export interface RangeArrayHashPlan {
 }
 
 export function rangeArrayHashPlan(profile: RangeProfile): RangeArrayHashPlan | null {
-  if (!profile.elementType.startsWith('array:') || !profile.subtypeDefinitions) return null
+  if (!isArrayLikeType(profile.elementType) || !profile.subtypeDefinitions) return null
   const definitions = new Map(profile.subtypeDefinitions.map((node) => [node.identity, node]))
   const build = (identity: string): RangeArrayHashPlan | null => {
     let node = definitions.get(identity)!
@@ -234,7 +235,12 @@ export function rangeBoundProfiles(
     result.push({
       typeName: node.identity,
       kind,
-      comparison: index === 0 ? kind : (override?.comparison ?? support.comparison),
+      comparison:
+        index === 0
+          ? isCatalogVectorType(base)
+            ? rangeProfileSupport(owner, context).comparison
+            : kind
+          : (override?.comparison ?? support.comparison),
       canonical: kind === 42 ? nestedSupport!.canonical : 1,
       missingComparison:
         index !== 0 &&
@@ -244,7 +250,7 @@ export function rangeBoundProfiles(
             selected.comparator === null)),
       elementType:
         kind === 41
-          ? arrayElementIdentity(base.slice(6))
+          ? arrayElementIdentity(arrayLikeElementType(base)!)
           : kind === 42
             ? nested!.subtype
             : kind === 43
@@ -283,7 +289,8 @@ export function rangeBoundProfiles(
       return true
     }
     visiting.delete(node.identity)
-    if (kind === 41) return node.element !== null && append(node.element, base.slice(6), owner)
+    if (kind === 41)
+      return node.element !== null && append(node.element, arrayLikeElementType(base)!, owner)
     if (kind === 42)
       return append(nested!.subtype, nested!.elementType, nested!, {
         comparison: nestedSupport!.comparison,

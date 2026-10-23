@@ -220,6 +220,12 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
 fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext, index: usize) -> TextValue {
     if index >= profile.nodes.len() { return TextValue::Unknown; };
     let node = profile.nodes[index].clone();
+    if node.kind == 41 && (node.type_name.as_str() == "pg_catalog.int2vector"
+        || node.type_name.as_str() == "pg_catalog.oidvector")
+    {
+        return catalog_vector_to_text(array_element_to_array(input),
+            node.type_name.as_str() == "pg_catalog.oidvector");
+    };
     if node.kind == 42 { return range_to_text(array_element_to_range(input)); };
     if node.kind == 43 { return multirange_to_text(array_element_to_multirange(input)); };
     if node.kind != 41 {

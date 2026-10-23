@@ -1,5 +1,5 @@
 import { parseSync } from 'libpg-query'
-import { catalogScalarType } from './expressions.js'
+import { catalogScalarType, isCatalogVectorType, arrayLikeElementType } from './expressions.js'
 import { builtinTypeResolution } from '../postgres/builtins/inventory.js'
 import type { RangeCallInfo, RangeTypeInfo, RangeCallResolution } from '../catalog/types.js'
 
@@ -138,7 +138,10 @@ export function resolveRangeCall(
     target = base(target)
     if (key(source) === key(target)) return true
     if (category(target)?.category === 'P') return null
-    const from = element(source),
+    const sourceType = catalogScalarType(source)
+    const from = isCatalogVectorType(sourceType)
+        ? arrayLikeElementType(sourceType)
+        : element(source),
       to = element(target)
     if (from && to) return canCoerce(from, to)
     if (casts.has(JSON.stringify([key(source), key(target)]))) return true
