@@ -160,5 +160,6 @@ fn xpath_compile(input: &str) -> XPathProgram {
     let parsed = xpath_parse_expression(program,1);
     let end = xpath_parse_space(&parsed,parsed.cursor);
     if end != parsed.source.len() { return xpath_parse_fail(parsed); };
-    parsed
+    let root = parsed.root;
+    xpath_optimize(parsed,root)
 }

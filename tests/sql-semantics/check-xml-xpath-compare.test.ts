@@ -55,6 +55,7 @@ it('matches XPath scalar conversions and existential comparisons without confusi
     source.modules
       .find((m) => m.name === 'pg_catalog')!
       .files.find((f) => f.path.endsWith('/xml_xpath_compare.rs'))!.source += `
+const XPATH_COMPARISON_SQLSTATE: u32 = 1687400;
 const XPATH_COMPARE_POWER_BITS: &[i64] = &[${powers.map((p) => BigInt.asIntN(64, BigInt('0x' + p.bits)).toString() + 'i64').join(',')}];
 fn xpath_compare_test_powers() -> XPathPowers {
  let mut result = xpath_powers_empty(); let mut index: usize = 0;
@@ -84,13 +85,16 @@ pub fn xpath_comparison_probe(input: TextValue, a: TextValue, b: TextValue, ak: 
         let document = xpath_document_parse(raw.as_str()); let tree = document.tree; let graph = document.graph;
         let mut powers = xpath_powers_empty(); if facts == 1 { powers = xpath_compare_test_powers(); };
         let mut left = xpath_compare_test_value(&tree,&powers,0,a_kind,at.as_str());
-        let right = xpath_compare_test_value(&tree,&powers,1,b_kind,bt.as_str());
+        let mut right = xpath_compare_test_value(&tree,&powers,1,b_kind,bt.as_str());
         if facts == 2 { let values: Vec<XPathReference> = Vec::new(); left = xpath_value_nodes(XPathSequence {values,cyclic:true,cycle:0}); };
+        if facts == 3 { left = xpath_value_fault(5); };
+        if facts == 4 { right = xpath_value_fault(5); };
         let mut result = xpath_value_empty(XPATH_KIND_BOOLEAN,0);
         if operation == 10 { result = xpath_value_to_boolean(&left); }
         else if operation == 11 { result = xpath_value_to_string(left,&tree,&graph); }
         else if operation == 12 { result = xpath_value_to_number(left,&tree,&graph,&powers); }
         else { result = xpath_values_compare(&left,&right,operation,&tree,&graph,&powers); };
+        if result.state < 0 { return BoolValue::Error(make_sql_error(XPATH_COMPARISON_SQLSTATE)); };
         if result.state != 0 { return BoolValue::Unknown; };
         let mut output = String::new();
         if result.kind == XPATH_KIND_BOOLEAN { if result.boolean { output = "true".to_owned(); } else { output = "false".to_owned(); }; }
@@ -271,6 +275,34 @@ pub fn xpath_comparison_probe(input: TextValue, a: TextValue, b: TextValue, ak: 
         row: { ...base, profile: value(2), op: value(op) },
         expected: { kind: 'Unknown' },
       })
+    for (const op of [3, 4, 5, 10, 11, 12])
+      fixtures.push({
+        name: 'matches',
+        row: {
+          ...base,
+          a: value('0e9999'),
+          b: value('0e9999'),
+          ak: value(3),
+          bk: value(3),
+          op: value(op),
+          profile: value(3),
+        },
+        expected: { kind: 'Error', value: { state: parseInt('10608', 36) } },
+      })
+    for (const op of [3, 4, 5])
+      fixtures.push({
+        name: 'matches',
+        row: {
+          ...base,
+          a: value('0e9999'),
+          b: value('0e9999'),
+          ak: value(3),
+          bk: value(3),
+          op: value(op),
+          profile: value(4),
+        },
+        expected: { kind: 'Error', value: { state: parseInt('10608', 36) } },
+      })
     fixtures.push(
       { name: 'matches', row: { ...base, input: { kind: 'Null' } }, expected: { kind: 'Null' } },
       {
@@ -284,7 +316,7 @@ pub fn xpath_comparison_probe(input: TextValue, a: TextValue, b: TextValue, ak: 
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-order-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-eval-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/comparison-reference.json',

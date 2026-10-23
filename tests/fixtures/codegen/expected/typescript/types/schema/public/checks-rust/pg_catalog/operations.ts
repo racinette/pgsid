@@ -50550,6 +50550,12 @@ function xpathLocalAxis(tree: XmlTree, context: XPathReference, axis: number): X
 }
 function xpathCompareNumbers(left: XPathValue, right: XPathValue, operation: number): XPathValue {
     operation = langruntime.checkedI32(operation);
+    if (left.state < 0) {
+        return xpathValueEmpty(xpathKindBoolean, left.state);
+    }
+    if (right.state < 0) {
+        return xpathValueEmpty(xpathKindBoolean, right.state);
+    }
     if (left.state === 2 || right.state === 2) {
         return xpathValueEmpty(xpathKindBoolean, 2);
     }
@@ -50631,6 +50637,12 @@ function xpathComparisonText(input: XPathValue, index: number, tree: XmlTree, gr
 }
 function xpathValuesCompare(left: XPathValue, right: XPathValue, operation: number, tree: XmlTree, graph: XPathGraph, powers: XPathPowers): XPathValue {
     operation = langruntime.checkedI32(operation);
+    if (left.state < 0) {
+        return xpathValueEmpty(xpathKindBoolean, left.state);
+    }
+    if (right.state < 0) {
+        return xpathValueEmpty(xpathKindBoolean, right.state);
+    }
     if (left.state === 2 || right.state === 2) {
         return xpathValueEmpty(xpathKindBoolean, 2);
     }
@@ -50789,6 +50801,723 @@ export function xpathValueToNumber(input: XPathValue, tree: XmlTree, graph: XPat
     }
     const text: XPathValue = xpathValueToString(input, tree, graph);
     return xpathScalarNumber(text, powers);
+}
+export function xpathEvalDemand(program: XPathProgram, root: number, context: XPathContext, mode: number, bound: XPathReference, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(root), copyXPathExpression));
+    if (node.kind === xpathNumber) {
+        const text: string = xpathParseText(program, node.name);
+        return xpathNumberText(text, powers);
+    }
+    if (node.kind === xpathString) {
+        return xpathValueString(xpathParseText(program, node.name));
+    }
+    if (node.kind === xpathVariable) {
+        if (!(node.prefix.start === node.prefix.end)) {
+            const prefix: string = xpathParseText(program, node.prefix);
+            if (xpathNamespaceDefined(namespaces, prefix) === false) {
+                return xpathValueFault(19);
+            }
+        }
+        return xpathValueFault(5);
+    }
+    if (node.kind === xpathRoot) {
+        return xpathValueSingle(xpathReferenceNode(0));
+    }
+    if (node.kind === xpathGroup) {
+        const value: XPathValue = xpathEvalDemand(program, node.left, context, mode, bound, tree, graph, namespaces, powers);
+        if (mode === 1) {
+            return value;
+        }
+        return xpathValueSorted(value, tree);
+    }
+    if (node.kind === xpathStep || node.kind === xpathPredicate) {
+        return xpathCollect(xpathValueSingle(context.node), program, root, mode, bound, tree, graph, namespaces, powers);
+    }
+    if (node.kind === xpathPath) {
+        const left: XPathValue = xpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers);
+        return xpathCollect(left, program, node.right, mode, bound, tree, graph, namespaces, powers);
+    }
+    if (node.kind === xpathFilter) {
+        const leftKind: number = langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.left), copyXPathExpression).kind;
+        const position: XPathPosition = copyXPathPosition(xpathConstantPosition(program, node.right, powers));
+        const first: boolean = !(mode === 2) && position.valid && position.value === 1 && (leftKind === xpathGroup || leftKind === xpathFilter);
+        const predicate: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
+        let last: boolean = false;
+        if (leftKind === xpathGroup && predicate.kind === xpathFunction && predicate.operation === 0 && predicate.prefix.start === predicate.prefix.end) {
+            const name: string = xpathParseText(program, predicate.name);
+            last = langruntime.checkedBool(name === "last");
+        }
+        let demand: number = 0;
+        if (first) {
+            demand = langruntime.checkedI32(2);
+        }
+        if (last) {
+            demand = langruntime.checkedI32(3);
+        }
+        const input: XPathValue = xpathEvalNode(program, node.left, context, demand, tree, graph, namespaces, powers);
+        if (input.state < 0 || input.state === 2 || input.state === 3) {
+            return input;
+        }
+        if (!(input.kind === xpathKindNodes)) {
+            return xpathValueFault(11);
+        }
+        if (!(input.state === 0)) {
+            return input;
+        }
+        const size: number = langruntime.checkedI32(langruntime.checkedIndex(input.nodes.values.length));
+        if (first || last) {
+            if (size === 0) {
+                return input;
+            }
+            let index: number = 0;
+            if (last) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(input.nodes.values.length, 1));
+            }
+            return xpathValueSingle(langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+        }
+        let maximum: number = size;
+        if (mode === 2) {
+            maximum = langruntime.checkedI32(1);
+        }
+        return xpathFilterValues(input, program, node.right, 1, maximum, tree, graph, namespaces, powers);
+    }
+    if (node.kind === xpathNegate) {
+        const input: XPathValue = xpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers);
+        const value: XPathValue = xpathValueToNumber(input, tree, graph, powers);
+        if (!(value.state === 0)) {
+            return value;
+        }
+        return xpathValueNumber(langruntime.f64Negate(langruntime.f64FromI64Bits(value.number)));
+    }
+    if (node.kind === xpathBinary) {
+        let demand: number = 0;
+        if (node.operation === 14 && (mode === 2 || mode === 3)) {
+            demand = langruntime.checkedI32(mode);
+        }
+        let left: XPathValue = xpathEvalDemand(program, node.left, context, demand, bound, tree, graph, namespaces, powers);
+        if (node.operation === 14 && !(demand === 0)) {
+            left = xpathValueSorted(left, tree);
+        }
+        if (left.state < 0 || left.state === 2 || left.state === 3) {
+            return left;
+        }
+        if (node.operation === 1 || node.operation === 2) {
+            const boolean: XPathValue = xpathValueToBoolean(left);
+            if (!(boolean.state === 0)) {
+                return boolean;
+            }
+            if ((node.operation === 1 && boolean.boolean) || (node.operation === 2 && boolean.boolean === false)) {
+                return boolean;
+            }
+            const right: XPathValue = xpathEvalNode(program, node.right, context, 0, tree, graph, namespaces, powers);
+            return xpathValueToBoolean(right);
+        }
+        let nextBound: XPathReference = copyXPathReference(bound);
+        if (!(demand === 0) && left.kind === xpathKindNodes && left.state === 0 && left.nodes.values.length > 0) {
+            let index: number = 0;
+            if (demand === 3) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(left.nodes.values.length, 1));
+            }
+            nextBound = copyXPathReference(langruntime.indexStruct(left.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+        }
+        const right: XPathValue = xpathEvalDemand(program, node.right, context, demand, nextBound, tree, graph, namespaces, powers);
+        if (right.state < 0 || right.state === 2 || right.state === 3) {
+            return right;
+        }
+        if (node.operation >= 3 && node.operation <= 8) {
+            return xpathValuesCompare(left, right, node.operation, tree, graph, powers);
+        }
+        if (node.operation === 14) {
+            if (!(left.kind === xpathKindNodes) || !(right.kind === xpathKindNodes)) {
+                return xpathValueFault(11);
+            }
+            if (!(left.state === 0)) {
+                return left;
+            }
+            if (!(right.state === 0)) {
+                return right;
+            }
+            const a: XPathNodes = { values: left.nodes.values };
+            const b: XPathNodes = { values: right.nodes.values };
+            const merged: XPathNodes = xpathNodesMerge(a, b, tree);
+            return xpathValueNodes({ values: merged.values, cyclic: false, cycle: 0 });
+        }
+        return xpathBinaryArithmetic(left, right, node.operation, tree, graph, powers);
+    }
+    if (node.kind === xpathFunction) {
+        const name: string = xpathParseText(program, node.name);
+        let parameters: XPathArguments = xpathArgumentsEmpty();
+        let cursor: number = node.left;
+        while (cursor > 0) {
+            const link: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(cursor), copyXPathExpression));
+            let value: XPathValue = xpathEvalNode(program, link.left, context, 0, tree, graph, namespaces, powers);
+            if (value.state < 0 || value.state === 2 || value.state === 3) {
+                return value;
+            }
+            if (!(name === "count") || !(node.prefix.start === node.prefix.end)) {
+                value = xpathValueSorted(value, tree);
+            }
+            parameters = xpathArgumentsAdd(parameters, value);
+            cursor = langruntime.checkedIndex(link.right);
+        }
+        if (!(node.prefix.start === node.prefix.end)) {
+            const prefix: string = xpathParseText(program, node.prefix);
+            if (xpathNamespaceDefined(namespaces, prefix) === false) {
+                return xpathValueFault(19);
+            }
+            return xpathValueFault(9);
+        }
+        const spec: XPathFunctionSpec = copyXPathFunctionSpec(xpathFunctionSpec(name));
+        if (spec.kind === 0) {
+            return xpathValueFault(9);
+        }
+        if (node.operation < spec.minimum || (spec.maximum >= 0 && node.operation > spec.maximum)) {
+            return xpathValueFault(12);
+        }
+        return xpathApplyFunction(parameters, spec.kind, context, tree, graph, powers);
+    }
+    return xpathValueFault(10);
+}
+function xpathEvaluate(program: XPathProgram, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
+    if (program.valid === false) {
+        return xpathValueFault(7);
+    }
+    const context: XPathContext = copyXPathContext({ node: copyXPathReference(xpathReferenceNode(0)), position: langruntime.checkedSignedNegate(1), size: langruntime.checkedSignedNegate(1) });
+    const result: XPathValue = xpathEvalNode(program, program.root, context, 0, tree, graph, namespaces, powers);
+    return xpathValueSorted(result, tree);
+}
+export function xpathEvalNode(program: XPathProgram, root: number, context: XPathContext, mode: number, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
+    const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
+    return xpathEvalDemand(program, root, context, mode, absent, tree, graph, namespaces, powers);
+}
+interface XPathArguments {
+    first: XPathValue;
+    second: XPathValue;
+    third: XPathValue;
+    rest: XPathValue[];
+    count: number;
+}
+function copyXPathArguments(value: XPathArguments): XPathArguments {
+    return { first: copyXPathValue(value.first), second: copyXPathValue(value.second), third: copyXPathValue(value.third), rest: langruntime.checkedStructs(value.rest, copyXPathValue), count: langruntime.checkedI32(value.count) };
+}
+interface XPathFunctionSpec {
+    kind: number;
+    minimum: number;
+    maximum: number;
+}
+function copyXPathFunctionSpec(value: XPathFunctionSpec): XPathFunctionSpec {
+    return { kind: langruntime.checkedI32(value.kind), minimum: langruntime.checkedI32(value.minimum), maximum: langruntime.checkedI32(value.maximum) };
+}
+interface XPathPosition {
+    valid: boolean;
+    value: number;
+}
+function copyXPathPosition(value: XPathPosition): XPathPosition {
+    return { valid: langruntime.checkedBool(value.valid), value: langruntime.checkedI32(value.value) };
+}
+function xpathValueFault(code: number): XPathValue {
+    code = langruntime.checkedI32(code);
+    return xpathValueEmpty(0, langruntime.checkedSignedSubtract(0, code));
+}
+function xpathValueSingle(node: XPathReference): XPathValue {
+    node = copyXPathReference(node);
+    let values: XPathReference[] = [];
+    if (node.kind >= 0) {
+        langruntime.pushStruct(values, node, copyXPathReference);
+    }
+    return xpathValueNodes({ values: values, cyclic: false, cycle: 0 });
+}
+export function xpathValueSorted(input: XPathValue, tree: XmlTree): XPathValue {
+    if (!(input.kind === xpathKindNodes) || !(input.state === 0)) {
+        return input;
+    }
+    const nodes: XPathNodes = { values: input.nodes.values };
+    const sorted: XPathNodes = xpathNodesSort(nodes, tree);
+    return xpathValueNodes({ values: sorted.values, cyclic: false, cycle: 0 });
+}
+function xpathArgumentsEmpty(): XPathArguments {
+    const rest: XPathValue[] = [];
+    return { first: xpathValueEmpty(0, 0), second: xpathValueEmpty(0, 0), third: xpathValueEmpty(0, 0), rest: rest, count: 0 };
+}
+export function xpathArgumentsAdd(input: XPathArguments, value: XPathValue): XPathArguments {
+    if (input.count === 0) {
+        return { first: value, second: input.second, third: input.third, rest: input.rest, count: 1 };
+    }
+    if (input.count === 1) {
+        return { first: input.first, second: value, third: input.third, rest: input.rest, count: 2 };
+    }
+    if (input.count === 2) {
+        return { first: input.first, second: input.second, third: value, rest: input.rest, count: 3 };
+    }
+    let rest: XPathValue[] = input.rest;
+    langruntime.pushStruct(rest, value, copyXPathValue);
+    return { first: input.first, second: input.second, third: input.third, rest: rest, count: langruntime.checkedSignedAdd(input.count, 1) };
+}
+function xpathFunctionSpec(name: string): XPathFunctionSpec {
+    name = langruntime.checkedString(name);
+    let kind: number = 0;
+    let minimum: number = 1;
+    let maximum: number = 1;
+    if (name === "position") {
+        kind = langruntime.checkedI32(1);
+        minimum = langruntime.checkedI32(0);
+        maximum = langruntime.checkedI32(0);
+    }
+    else if (name === "last") {
+        kind = langruntime.checkedI32(2);
+        minimum = langruntime.checkedI32(0);
+        maximum = langruntime.checkedI32(0);
+    }
+    else if (name === "count") {
+        kind = langruntime.checkedI32(3);
+    }
+    else if (name === "string") {
+        kind = langruntime.checkedI32(4);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "number") {
+        kind = langruntime.checkedI32(5);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "boolean") {
+        kind = langruntime.checkedI32(6);
+    }
+    else if (name === "not") {
+        kind = langruntime.checkedI32(7);
+    }
+    else if (name === "true") {
+        kind = langruntime.checkedI32(8);
+        minimum = langruntime.checkedI32(0);
+        maximum = langruntime.checkedI32(0);
+    }
+    else if (name === "false") {
+        kind = langruntime.checkedI32(9);
+        minimum = langruntime.checkedI32(0);
+        maximum = langruntime.checkedI32(0);
+    }
+    else if (name === "name") {
+        kind = langruntime.checkedI32(10);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "local-name") {
+        kind = langruntime.checkedI32(11);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "namespace-uri") {
+        kind = langruntime.checkedI32(12);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "concat") {
+        kind = langruntime.checkedI32(13);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    else if (name === "starts-with") {
+        kind = langruntime.checkedI32(14);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(2);
+    }
+    else if (name === "contains") {
+        kind = langruntime.checkedI32(15);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(2);
+    }
+    else if (name === "substring-before") {
+        kind = langruntime.checkedI32(16);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(2);
+    }
+    else if (name === "substring-after") {
+        kind = langruntime.checkedI32(17);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(2);
+    }
+    else if (name === "substring") {
+        kind = langruntime.checkedI32(18);
+        minimum = langruntime.checkedI32(2);
+        maximum = langruntime.checkedI32(3);
+    }
+    else if (name === "string-length") {
+        kind = langruntime.checkedI32(19);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "normalize-space") {
+        kind = langruntime.checkedI32(20);
+        minimum = langruntime.checkedI32(0);
+    }
+    else if (name === "translate") {
+        kind = langruntime.checkedI32(21);
+        minimum = langruntime.checkedI32(3);
+        maximum = langruntime.checkedI32(3);
+    }
+    else if (name === "sum") {
+        kind = langruntime.checkedI32(22);
+    }
+    else if (name === "floor") {
+        kind = langruntime.checkedI32(23);
+    }
+    else if (name === "ceiling") {
+        kind = langruntime.checkedI32(24);
+    }
+    else if (name === "round") {
+        kind = langruntime.checkedI32(25);
+    }
+    else if (name === "lang") {
+        kind = langruntime.checkedI32(26);
+    }
+    else if (name === "id") {
+        kind = langruntime.checkedI32(27);
+    }
+    return { kind: kind, minimum: minimum, maximum: maximum };
+}
+function xpathConstantPosition(program: XPathProgram, root: number, powers: XPathPowers): XPathPosition {
+    root = langruntime.checkedIndex(root);
+    let index: number = root;
+    while (langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathGroup) {
+        index = langruntime.checkedIndex(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
+    }
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression));
+    if (node.kind === xpathNumber) {
+        const text: string = xpathParseText(program, node.name);
+        const parsed: XPathValue = xpathNumberText(text, powers);
+        if (parsed.state === 0) {
+            const value: number = langruntime.f64FromI64Bits(parsed.number);
+            if (value > -2147483648.0 && value < 2147483647.0) {
+                const position: number = langruntime.f64ToI32(value);
+                if (value === Number(langruntime.checkedI32(position))) {
+                    return { valid: true, value: position };
+                }
+            }
+        }
+    }
+    return { valid: false, value: 0 };
+}
+function xpathNamespaceDefined(namespaces: XPathNamespaces, prefix: string): boolean {
+    prefix = langruntime.checkedString(prefix);
+    if (prefix === "xml") {
+        return true;
+    }
+    let index: number = 0;
+    while (index < namespaces.values.length) {
+        const binding: XPathNamespaceBinding = copyXPathNamespaceBinding(langruntime.indexStruct(namespaces.values, langruntime.checkedIndex(index), copyXPathNamespaceBinding));
+        if (binding.prefix === prefix) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return false;
+}
+export function xpathFilterValues(input: XPathValue, program: XPathProgram, predicate: number, minimum: number, maximum: number, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
+    if (!(input.kind === xpathKindNodes)) {
+        return xpathValueFault(11);
+    }
+    if (!(input.state === 0)) {
+        return input;
+    }
+    const size: number = langruntime.checkedI32(langruntime.checkedIndex(input.nodes.values.length));
+    let values: XPathReference[] = [];
+    if (size < minimum) {
+        return xpathValueNodes({ values: values, cyclic: false, cycle: 0 });
+    }
+    let index: number = 0;
+    let matched: number = 0;
+    let finished: boolean = false;
+    while (index < input.nodes.values.length && finished === false) {
+        const node: XPathReference = copyXPathReference(langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+        const context: XPathContext = copyXPathContext({ node: copyXPathReference(node), position: langruntime.checkedSignedAdd(langruntime.checkedI32(langruntime.checkedIndex(index)), 1), size: size });
+        const result: XPathValue = xpathEvalNode(program, predicate, context, 1, tree, graph, namespaces, powers);
+        if (!(result.state === 0)) {
+            return xpathValueEmpty(xpathKindNodes, result.state);
+        }
+        let keep: boolean = xpathValueTruth(result);
+        if (result.kind === xpathKindNumber) {
+            keep = langruntime.checkedBool(langruntime.f64FromI64Bits(result.number) === Number(langruntime.checkedI32(context.position)));
+        }
+        if (keep) {
+            matched = langruntime.checkedI32(langruntime.checkedSignedAdd(matched, 1));
+            if (matched >= minimum && matched <= maximum) {
+                langruntime.pushStruct(values, node, copyXPathReference);
+            }
+            if (matched === maximum) {
+                finished = langruntime.checkedBool(true);
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return xpathValueNodes({ values: values, cyclic: false, cycle: 0 });
+}
+export function xpathCollect(input: XPathValue, program: XPathProgram, root: number, mode: number, bound: XPathReference, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
+    if (input.state < 0 || input.state === 2 || input.state === 3) {
+        return input;
+    }
+    if (!(input.kind === xpathKindNodes)) {
+        return xpathValueFault(11);
+    }
+    let predicates: number[] = [];
+    let index: number = root;
+    while (langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathPredicate) {
+        langruntime.pushIndex(predicates, langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).right);
+        index = langruntime.checkedIndex(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
+    }
+    const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression));
+    const test: XPathNodeTest = xpathNodeTest(program, step, namespaces);
+    if (test.valid === false) {
+        return xpathValueFault(19);
+    }
+    if (!(input.state === 0)) {
+        return input;
+    }
+    let positionRange: XPathPosition = copyXPathPosition({ valid: false, value: 0 });
+    if (predicates.length > 0) {
+        positionRange = copyXPathPosition(xpathConstantPosition(program, langruntime.indexNumber(predicates, langruntime.checkedIndex(0)), powers));
+    }
+    let result: XPathNodes = xpathNodesEmpty();
+    let visited: number = 0;
+    let contextIndex: number = 0;
+    let finished: boolean = false;
+    while (contextIndex < input.nodes.values.length && finished === false) {
+        let maximum: number = 0;
+        if (positionRange.valid && predicates.length === 1) {
+            maximum = langruntime.checkedI32(positionRange.value);
+        }
+        const window: XPathAxisWindow = xpathAxisWindow(tree, graph, langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(contextIndex), copyXPathReference), step.operation, test, mode, bound, visited, maximum);
+        visited = langruntime.checkedI32(window.visited);
+        const bounded: boolean = window.bounded;
+        const sequence: XPathSequence = window.sequence;
+        if (sequence.cyclic && bounded) {
+            return xpathValueEmpty(xpathKindNodes, 2);
+        }
+        let selected: XPathValue = xpathValueEmpty(xpathKindNodes, 0);
+        if (positionRange.valid && predicates.length === 1) {
+            if (sequence.cyclic && positionRange.value <= 0) {
+                return xpathValueEmpty(xpathKindNodes, 2);
+            }
+            const found: XPathSelection = copyXPathSelection(xpathSequencePosition(sequence, positionRange.value));
+            if (found.known === false) {
+                return xpathValueEmpty(xpathKindNodes, 2);
+            }
+            selected = copyXPathValue(xpathValueSingle(found.value));
+        }
+        else if (mode === 1 && predicates.length === 0 && sequence.values.length > 0) {
+            selected = copyXPathValue(xpathValueSingle(langruntime.indexStruct(sequence.values, langruntime.checkedIndex(0), copyXPathReference)));
+        }
+        else {
+            selected = xpathValueNodes(sequence);
+            if (!(selected.state === 0)) {
+                return selected;
+            }
+            let remaining: number = predicates.length;
+            while (remaining > 0) {
+                remaining = langruntime.checkedIndex(langruntime.checkedSubtract(remaining, 1));
+                let minimum: number = 1;
+                let maximum1: number = langruntime.checkedI32(langruntime.checkedIndex(selected.nodes.values.length));
+                if (positionRange.valid && remaining === 1) {
+                    minimum = langruntime.checkedI32(positionRange.value);
+                    maximum1 = langruntime.checkedI32(positionRange.value);
+                }
+                selected = xpathFilterValues(selected, program, langruntime.indexNumber(predicates, langruntime.checkedIndex(remaining)), minimum, maximum1, tree, graph, namespaces, powers);
+                if (!(selected.state === 0)) {
+                    return selected;
+                }
+                if (positionRange.valid && remaining === 1) {
+                    remaining = langruntime.checkedIndex(0);
+                }
+            }
+        }
+        const chosen: XPathNodes = { values: selected.nodes.values };
+        result = xpathNodesMerge(result, chosen, tree);
+        if (mode === 1 && result.values.length > 0) {
+            finished = langruntime.checkedBool(true);
+        }
+        contextIndex = langruntime.checkedAdd(contextIndex, 1);
+    }
+    return xpathValueNodes({ values: result.values, cyclic: false, cycle: 0 });
+}
+export function xpathApplyFunction(input: XPathArguments, kind: number, context: XPathContext, tree: XmlTree, graph: XPathGraph, powers: XPathPowers): XPathValue {
+    const count: number = input.count;
+    let first: XPathValue = input.first;
+    const second: XPathValue = input.second;
+    const third: XPathValue = input.third;
+    const rest: XPathValue[] = input.rest;
+    if (count === 0) {
+        first = copyXPathValue(xpathValueSingle(context.node));
+    }
+    if (kind === 1) {
+        if (context.position < 0) {
+            return xpathValueFault(14);
+        }
+        return xpathValueNumber(Number(langruntime.checkedI32(context.position)));
+    }
+    if (kind === 2) {
+        if (context.size < 0) {
+            return xpathValueFault(13);
+        }
+        return xpathValueNumber(Number(langruntime.checkedI32(context.size)));
+    }
+    if (kind === 8) {
+        return xpathValueBoolean(true);
+    }
+    if (kind === 9) {
+        return xpathValueBoolean(false);
+    }
+    if (kind === 3 || kind === 22) {
+        if (!(first.kind === xpathKindNodes)) {
+            return xpathValueFault(11);
+        }
+        if (!(first.state === 0)) {
+            return xpathValueEmpty(xpathKindNumber, first.state);
+        }
+        if (kind === 3) {
+            return xpathValueNumber(Number(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(first.nodes.values.length))))));
+        }
+        let total: number = 0.0;
+        let unknown: number = 0;
+        let index: number = 0;
+        while (index < first.nodes.values.length) {
+            const text: string = xpathReferenceString(tree, graph, langruntime.indexStruct(first.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+            const number: XPathValue = xpathNumberText(text, powers);
+            if (!(number.state === 0)) {
+                unknown = langruntime.checkedI32(number.state);
+            }
+            else {
+                total = langruntime.checkedF64(langruntime.f64Add(total, langruntime.f64FromI64Bits(number.number)));
+            }
+            if (!(total === total)) {
+                return xpathValueNumber(total);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (!(unknown === 0)) {
+            return xpathValueEmpty(xpathKindNumber, unknown);
+        }
+        return xpathValueNumber(total);
+    }
+    if (kind >= 10 && kind <= 12) {
+        if (!(first.kind === xpathKindNodes)) {
+            return xpathValueFault(11);
+        }
+        if (!(first.state === 0)) {
+            return xpathValueEmpty(xpathKindString, first.state);
+        }
+        if (first.nodes.values.length === 0) {
+            return xpathValueString("");
+        }
+        const name: XmlQueryName = xpathReferenceName(tree, langruntime.indexStruct(first.nodes.values, langruntime.checkedIndex(0), copyXPathReference));
+        if (kind === 10) {
+            return xpathValueString(name.qualified);
+        }
+        if (kind === 11) {
+            return xpathValueString(name.local);
+        }
+        return xpathValueString(name.namespace);
+    }
+    if (kind === 4) {
+        return xpathValueToString(first, tree, graph);
+    }
+    if (kind === 5 || (kind >= 23 && kind <= 25)) {
+        const number: XPathValue = xpathValueToNumber(first, tree, graph, powers);
+        if (!(number.state === 0) || kind === 5) {
+            return number;
+        }
+        const value: number = langruntime.f64FromI64Bits(number.number);
+        if (kind === 23) {
+            return xpathValueNumber(xpathNumberFloor(value));
+        }
+        if (kind === 24) {
+            return xpathValueNumber(xpathNumberCeiling(value));
+        }
+        return xpathValueNumber(xpathNumberRound(value));
+    }
+    if (kind === 6 || kind === 7) {
+        const value: XPathValue = xpathValueToBoolean(first);
+        if (!(value.state === 0) || kind === 6) {
+            return value;
+        }
+        return xpathValueBoolean(value.boolean === false);
+    }
+    if (kind === 26) {
+        return xpathFunctionLanguage(first, context, tree, graph);
+    }
+    if (kind === 27) {
+        return xpathValueEmpty(xpathKindNodes, 3);
+    }
+    const a: XPathValue = xpathValueToString(first, tree, graph);
+    if (!(a.state === 0)) {
+        return a;
+    }
+    if (kind === 19) {
+        const characters: string[] = Array.from(a.text);
+        return xpathValueNumber(Number(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(characters.length))))));
+    }
+    if (kind === 20) {
+        return xpathValueString(xpathStringNormalize(a.text));
+    }
+    if (kind === 18) {
+        const b: XPathValue = xpathValueToNumber(second, tree, graph, powers);
+        if (!(b.state === 0)) {
+            return xpathValueEmpty(xpathKindString, b.state);
+        }
+        let length: number = 0.0;
+        if (count === 3) {
+            const c: XPathValue = xpathValueToNumber(third, tree, graph, powers);
+            if (!(c.state === 0)) {
+                return xpathValueEmpty(xpathKindString, c.state);
+            }
+            length = langruntime.checkedF64(langruntime.f64FromI64Bits(c.number));
+        }
+        const result: string = xpathStringSubstring(a.text, langruntime.f64FromI64Bits(b.number), length, count === 3);
+        return xpathValueString(result);
+    }
+    const b: XPathValue = xpathValueToString(second, tree, graph);
+    if (!(b.state === 0)) {
+        return b;
+    }
+    if (kind === 13) {
+        let output: string = a.text;
+        output = output + b.text;
+        if (count >= 3) {
+            const c: XPathValue = xpathValueToString(third, tree, graph);
+            if (!(c.state === 0)) {
+                return c;
+            }
+            output = output + c.text;
+        }
+        let index: number = 0;
+        while (index < rest.length) {
+            const argument: XPathValue = copyXPathValue(langruntime.indexStruct(rest, langruntime.checkedIndex(index), copyXPathValue));
+            const text: XPathValue = xpathValueToString(argument, tree, graph);
+            if (!(text.state === 0)) {
+                return text;
+            }
+            output = output + text.text;
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return xpathValueString(output);
+    }
+    if (kind === 21) {
+        const c: XPathValue = xpathValueToString(third, tree, graph);
+        if (!(c.state === 0)) {
+            return c;
+        }
+        return xpathValueString(xpathStringTranslate(a.text, b.text, c.text));
+    }
+    const found: number = xpathStringFind(a.text, b.text);
+    if (kind === 14) {
+        return xpathValueBoolean(found === 0);
+    }
+    if (kind === 15) {
+        return xpathValueBoolean(found >= 0);
+    }
+    if (found < 0) {
+        return xpathValueString("");
+    }
+    const position: number = langruntime.indexFromI32(found, 0);
+    if (kind === 16) {
+        return xpathValueString(xpathStringSlice(a.text, 0, position));
+    }
+    const source: string[] = Array.from(a.text);
+    const needle: string[] = Array.from(b.text);
+    return xpathValueString(xpathStringSlice(a.text, langruntime.checkedAdd(position, needle.length), source.length));
 }
 interface XPathGraphNode {
     kind: number;
@@ -51044,6 +51773,172 @@ function xpathDocumentParse(input: string): XPathDocument {
     tree = xmlTreeCurrent(tree, 0);
     const graph: XPathGraph = xpathGraphFromTree(tree);
     return { tree: tree, graph: graph };
+}
+function xpathLanguagePrefix(actual: string, wanted: string): boolean {
+    actual = langruntime.checkedString(actual);
+    wanted = langruntime.checkedString(wanted);
+    const source: string[] = Array.from(actual);
+    const needle: string[] = Array.from(wanted);
+    if (source.length < needle.length) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < needle.length) {
+        let a: number = langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(index))).codePointAt(0)!;
+        let b: number = langruntime.checkedChar(langruntime.indexChar(needle, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (a >= 65 && a <= 90) {
+            a = langruntime.checkedI32(langruntime.checkedSignedAdd(a, 32));
+        }
+        if (b >= 65 && b <= 90) {
+            b = langruntime.checkedI32(langruntime.checkedSignedAdd(b, 32));
+        }
+        if (!(a === b)) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return source.length === needle.length || langruntime.indexChar(source, langruntime.checkedIndex(needle.length)) === "-";
+}
+export function xpathFunctionLanguage(input: XPathValue, context: XPathContext, tree: XmlTree, graph: XPathGraph): XPathValue {
+    const text: XPathValue = xpathValueToString(input, tree, graph);
+    if (!(text.state === 0)) {
+        return xpathValueEmpty(xpathKindBoolean, text.state);
+    }
+    if (context.node.kind === 2) {
+        return xpathValueBoolean(false);
+    }
+    let cursor: number = context.node.node;
+    while (cursor > 0) {
+        const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode));
+        let index: number = node.attributeStart;
+        while (index < node.attributeEnd) {
+            const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+            const name: XmlQueryName = xmlQueryExpandName(tree, cursor, attribute.name, true);
+            if (name.local === "lang" && name.namespace === "http://www.w3.org/XML/1998/namespace") {
+                const language: string = xmlTreeText(tree, attribute.value);
+                return xpathValueBoolean(xpathLanguagePrefix(language, text.text));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        cursor = langruntime.checkedIndex(node.parent);
+    }
+    return xpathValueBoolean(false);
+}
+function xpathNumberTruncate(value: number): number {
+    value = langruntime.checkedF64(value);
+    const absolute: number = langruntime.f64Abs(value);
+    if (absolute >= 4503599627370496.0 || !(value === value)) {
+        return value;
+    }
+    let result: number = 0.0;
+    if (absolute >= 1.0) {
+        const bits: bigint = langruntime.f64ToI64Bits(absolute);
+        const exponent: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Remainder((langruntime.checkedI64Divide(bits, 4503599627370496n)), 2048n), 1023n);
+        let places: bigint = langruntime.checkedI64Subtract(52n, exponent);
+        let divisor: bigint = 1n;
+        while (places > 0n) {
+            divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 2n));
+            places = langruntime.checkedI64(langruntime.checkedI64Subtract(places, 1n));
+        }
+        const truncated: bigint = langruntime.checkedI64Subtract(bits, langruntime.checkedI64Remainder(bits, divisor));
+        result = langruntime.checkedF64(langruntime.f64FromI64Bits(truncated));
+    }
+    const signed: bigint = langruntime.f64ToI64Bits(value);
+    if (signed < 0n) {
+        return langruntime.f64Negate(result);
+    }
+    return result;
+}
+function xpathNumberFloor(value: number): number {
+    value = langruntime.checkedF64(value);
+    const truncated: number = xpathNumberTruncate(value);
+    if (value < truncated) {
+        return langruntime.f64Subtract(truncated, 1.0);
+    }
+    return truncated;
+}
+function xpathNumberCeiling(value: number): number {
+    value = langruntime.checkedF64(value);
+    const truncated: number = xpathNumberTruncate(value);
+    if (value > truncated) {
+        return langruntime.f64Add(truncated, 1.0);
+    }
+    return truncated;
+}
+function xpathNumberRound(value: number): number {
+    value = langruntime.checkedF64(value);
+    if (value >= -0.5 && value < 0.5) {
+        return langruntime.f64Multiply(value, 0.0);
+    }
+    const floor: number = xpathNumberFloor(value);
+    if (langruntime.f64Subtract(value, floor) >= 0.5) {
+        return langruntime.f64Add(floor, 1.0);
+    }
+    return floor;
+}
+function xpathNumberRemainder(left: number, right: number): number {
+    left = langruntime.checkedF64(left);
+    right = langruntime.checkedF64(right);
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (!(left === left) || !(right === right) || langruntime.f64Abs(left) === infinity || right === 0.0) {
+        return langruntime.f64Divide(0.0, 0.0);
+    }
+    if (langruntime.f64Abs(right) === infinity || left === 0.0) {
+        return left;
+    }
+    let value: number = langruntime.f64Abs(left);
+    const base: number = langruntime.f64Abs(right);
+    let divisor: number = base;
+    while (langruntime.f64Multiply(divisor, 2.0) <= value) {
+        divisor = langruntime.checkedF64(langruntime.f64Multiply(divisor, 2.0));
+    }
+    while (divisor >= base) {
+        if (value >= divisor) {
+            value = langruntime.checkedF64(langruntime.f64Subtract(value, divisor));
+        }
+        if (divisor === base) {
+            if (left < 0.0) {
+                return langruntime.f64Negate(value);
+            }
+            return value;
+        }
+        divisor = langruntime.checkedF64(langruntime.f64Divide(divisor, 2.0));
+    }
+    if (left < 0.0) {
+        return langruntime.f64Negate(value);
+    }
+    return value;
+}
+export function xpathBinaryArithmetic(left: XPathValue, right: XPathValue, operation: number, tree: XmlTree, graph: XPathGraph, powers: XPathPowers): XPathValue {
+    const first: XPathValue = xpathValueToNumber(left, tree, graph, powers);
+    const second: XPathValue = xpathValueToNumber(right, tree, graph, powers);
+    if (first.state < 0) {
+        return first;
+    }
+    if (second.state < 0) {
+        return second;
+    }
+    if (!(first.state === 0)) {
+        return first;
+    }
+    if (!(second.state === 0)) {
+        return second;
+    }
+    const a: number = langruntime.f64FromI64Bits(first.number);
+    const b: number = langruntime.f64FromI64Bits(second.number);
+    if (operation === 9) {
+        return xpathValueNumber(langruntime.f64Add(a, b));
+    }
+    if (operation === 10) {
+        return xpathValueNumber(langruntime.f64Subtract(a, b));
+    }
+    if (operation === 11) {
+        return xpathValueNumber(langruntime.f64Multiply(a, b));
+    }
+    if (operation === 12) {
+        return xpathValueNumber(langruntime.f64Divide(a, b));
+    }
+    return xpathValueNumber(xpathNumberRemainder(a, b));
 }
 const xpathNameStartRanges: ReadonlyArray<number> = [65, 90, 97, 122, 192, 214, 216, 246, 248, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12295, 12295, 12321, 12329, 12353, 12436, 12449, 12538, 12549, 12588, 19968, 40869, 44032, 55203];
 const xpathNameExtraRanges: ReadonlyArray<number> = [48, 57, 183, 183, 720, 721, 768, 837, 864, 865, 903, 903, 1155, 1158, 1425, 1441, 1443, 1465, 1467, 1469, 1471, 1471, 1473, 1474, 1476, 1476, 1600, 1600, 1611, 1618, 1632, 1641, 1648, 1648, 1750, 1764, 1767, 1768, 1770, 1773, 1776, 1785, 2305, 2307, 2364, 2364, 2366, 2381, 2385, 2388, 2402, 2403, 2406, 2415, 2433, 2435, 2492, 2492, 2494, 2500, 2503, 2504, 2507, 2509, 2519, 2519, 2530, 2531, 2534, 2543, 2562, 2562, 2620, 2620, 2622, 2626, 2631, 2632, 2635, 2637, 2662, 2673, 2689, 2691, 2748, 2748, 2750, 2757, 2759, 2761, 2763, 2765, 2790, 2799, 2817, 2819, 2876, 2876, 2878, 2883, 2887, 2888, 2891, 2893, 2902, 2903, 2918, 2927, 2946, 2947, 3006, 3010, 3014, 3016, 3018, 3021, 3031, 3031, 3047, 3055, 3073, 3075, 3134, 3140, 3142, 3144, 3146, 3149, 3157, 3158, 3174, 3183, 3202, 3203, 3262, 3268, 3270, 3272, 3274, 3277, 3285, 3286, 3302, 3311, 3330, 3331, 3390, 3395, 3398, 3400, 3402, 3405, 3415, 3415, 3430, 3439, 3633, 3633, 3636, 3642, 3654, 3662, 3664, 3673, 3761, 3761, 3764, 3769, 3771, 3772, 3782, 3782, 3784, 3789, 3792, 3801, 3864, 3865, 3872, 3881, 3893, 3893, 3895, 3895, 3897, 3897, 3902, 3903, 3953, 3972, 3974, 3979, 3984, 3989, 3991, 3991, 3993, 4013, 4017, 4023, 4025, 4025, 8400, 8412, 8417, 8417, 12293, 12293, 12330, 12335, 12337, 12341, 12441, 12442, 12445, 12446, 12540, 12542];
@@ -51486,6 +52381,57 @@ function xpathNumberString(bits: bigint): string {
     output = output + text;
     return output;
 }
+export function xpathOptimize(input: XPathProgram, root: number): XPathProgram {
+    let program: XPathProgram = input;
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(root), copyXPathExpression));
+    if (node.kind === xpathPath && langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression).kind === xpathStep) {
+        const next: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
+        const previous: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.left), copyXPathExpression));
+        let previousStep: number = 0;
+        if (previous.kind === xpathPath) {
+            previousStep = langruntime.checkedIndex(previous.right);
+        }
+        if (previous.kind === xpathStep) {
+            previousStep = langruntime.checkedIndex(node.left);
+        }
+        const prior: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(previousStep), copyXPathExpression));
+        if (prior.kind === xpathStep && prior.operation === 6 && prior.right === 2) {
+            let axis: number = 0;
+            if (next.operation === 1 || next.operation === 5) {
+                axis = langruntime.checkedI32(5);
+            }
+            if (next.operation === 3 || next.operation === 6) {
+                axis = langruntime.checkedI32(6);
+            }
+            if (!(axis === 0)) {
+                let nodes: XPathExpression[] = program.nodes;
+                nodes[langruntime.checkedIndexIn(nodes, node.right)] = copyXPathExpression({ kind: next.kind, operation: axis, left: next.left, right: next.right, prefix: copyXmlSpan(next.prefix), name: copyXmlSpan(next.name) });
+                if (previous.kind === xpathPath) {
+                    nodes[langruntime.checkedIndexIn(nodes, root)] = copyXPathExpression({ kind: node.kind, operation: node.operation, left: previous.left, right: node.right, prefix: copyXmlSpan(node.prefix), name: copyXmlSpan(node.name) });
+                }
+                else {
+                    nodes[langruntime.checkedIndexIn(nodes, node.left)] = copyXPathExpression({ kind: prior.kind, operation: 3, left: prior.left, right: prior.right, prefix: copyXmlSpan(prior.prefix), name: copyXmlSpan(prior.name) });
+                }
+                program = copyXPathProgram({ source: program.source, nodes: nodes, cursor: program.cursor, root: program.root, valid: program.valid });
+            }
+        }
+    }
+    const selected: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(root), copyXPathExpression));
+    if (selected.kind === xpathPath || selected.kind === xpathBinary || selected.kind === xpathPredicate || selected.kind === xpathFilter || selected.kind === xpathArgument) {
+        if (selected.left > 0) {
+            program = xpathOptimize(program, selected.left);
+        }
+        if (selected.right > 0) {
+            program = xpathOptimize(program, selected.right);
+        }
+    }
+    else if (selected.kind === xpathNegate || selected.kind === xpathGroup || selected.kind === xpathFunction) {
+        if (selected.left > 0) {
+            program = xpathOptimize(program, selected.left);
+        }
+    }
+    return program;
+}
 function xpathReferenceOrder(tree: XmlTree, left: XPathReference, right: XPathReference): number {
     left = copyXPathReference(left);
     right = copyXPathReference(right);
@@ -51820,7 +52766,8 @@ function xpathCompile(input: string): XPathProgram {
     if (!(end === parsed.source.length)) {
         return xpathParseFail(parsed);
     }
-    return parsed;
+    const root: number = parsed.root;
+    return xpathOptimize(parsed, root);
 }
 const xpathNumber = 1;
 const xpathString = 2;
@@ -52509,6 +53456,109 @@ export function xpathNodesSort(input: XPathNodes, tree: XmlTree): XPathNodes {
     }
     return nodes;
 }
+function xpathStringFind(input: string, needle: string): number {
+    input = langruntime.checkedString(input);
+    needle = langruntime.checkedString(needle);
+    const source: string[] = Array.from(input);
+    const pattern: string[] = Array.from(needle);
+    let position: number = 0;
+    while (langruntime.checkedAdd(position, pattern.length) <= source.length) {
+        let index: number = 0;
+        let matched: boolean = true;
+        while (index < pattern.length) {
+            if (!(langruntime.indexChar(source, langruntime.checkedIndex(langruntime.checkedAdd(position, index))) === langruntime.indexChar(pattern, langruntime.checkedIndex(index)))) {
+                matched = langruntime.checkedBool(false);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (matched) {
+            return langruntime.checkedI32(langruntime.checkedIndex(position));
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function xpathStringSlice(input: string, start: number, end: number): string {
+    input = langruntime.checkedString(input);
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    const source: string[] = Array.from(input);
+    let output: string = "";
+    let position: number = start;
+    while (position < end && position < source.length) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xpathStringNormalize(input: string): string {
+    input = langruntime.checkedString(input);
+    const source: string[] = Array.from(input);
+    let output: string = "";
+    let written: boolean = false;
+    let pending: boolean = false;
+    let index: number = 0;
+    while (index < source.length) {
+        const value: string = langruntime.indexChar(source, langruntime.checkedIndex(index));
+        if (xmlSpace(value)) {
+            pending = langruntime.checkedBool(written);
+        }
+        else {
+            if (pending) {
+                output = output + langruntime.checkedChar(" ");
+            }
+            output = output + langruntime.checkedChar(value);
+            written = langruntime.checkedBool(true);
+            pending = langruntime.checkedBool(false);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function xpathStringTranslate(input: string, from: string, to: string): string {
+    input = langruntime.checkedString(input);
+    from = langruntime.checkedString(from);
+    to = langruntime.checkedString(to);
+    const source: string[] = Array.from(input);
+    const old: string[] = Array.from(from);
+    const replacement: string[] = Array.from(to);
+    let output: string = "";
+    let index: number = 0;
+    while (index < source.length) {
+        const value: string = langruntime.indexChar(source, langruntime.checkedIndex(index));
+        let position: number = 0;
+        while (position < old.length && !(langruntime.indexChar(old, langruntime.checkedIndex(position)) === value)) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position === old.length) {
+            output = output + langruntime.checkedChar(value);
+        }
+        else if (position < replacement.length) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(replacement, langruntime.checkedIndex(position)));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function xpathStringSubstring(input: string, start: number, length: number, bounded: boolean): string {
+    input = langruntime.checkedString(input);
+    start = langruntime.checkedF64(start);
+    length = langruntime.checkedF64(length);
+    bounded = langruntime.checkedBool(bounded);
+    const begin: number = xpathNumberRound(start);
+    const end: number = langruntime.f64Add(begin, xpathNumberRound(length));
+    const source: string[] = Array.from(input);
+    let output: string = "";
+    let index: number = 0;
+    while (index < source.length) {
+        const position: number = langruntime.f64Add(Number(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(index))))), 1.0);
+        if (position >= begin && (bounded === false || position < end)) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(source, langruntime.checkedIndex(index)));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
 interface XPathNamespaceBinding {
     prefix: string;
     uri: string;
@@ -52844,4 +53894,216 @@ function xpathSequencePosition(input: XPathSequence, position: number): XPathSel
         return { value: copyXPathReference(absent), known: true };
     }
     return { value: copyXPathReference(langruntime.indexStruct(input.values, langruntime.checkedIndex(index), copyXPathReference)), known: true };
+}
+interface XPathAxisWindow {
+    sequence: XPathSequence;
+    visited: number;
+    bounded: boolean;
+}
+function copyXPathAxisWindow(value: XPathAxisWindow): XPathAxisWindow {
+    return { sequence: copyXPathSequence(value.sequence), visited: langruntime.checkedI32(value.visited), bounded: langruntime.checkedBool(value.bounded) };
+}
+function xpathWindowStop(tree: XmlTree, current: XPathReference, bound: XPathReference, mode: number, visited: number): boolean {
+    current = copyXPathReference(current);
+    bound = copyXPathReference(bound);
+    mode = langruntime.checkedI32(mode);
+    visited = langruntime.checkedI32(visited);
+    if (xpathReferenceEqual(current, bound)) {
+        return true;
+    }
+    if (!(langruntime.checkedSignedRemainder(visited, 256) === 0)) {
+        return false;
+    }
+    if (mode === 2) {
+        return xpathReferenceOrder(tree, bound, current) <= 0;
+    }
+    return xpathReferenceOrder(tree, current, bound) <= 0;
+}
+function xpathWindowDescendant(graph: XPathGraph, context: XPathReference, current: XPathReference, started: boolean): XPathReference {
+    context = copyXPathReference(context);
+    current = copyXPathReference(current);
+    started = langruntime.checkedBool(started);
+    const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
+    if (started === false) {
+        if (!(context.kind === 0)) {
+            return absent;
+        }
+        const child: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).first;
+        if (child > 0) {
+            return xpathReferenceNode(child);
+        }
+        return absent;
+    }
+    if (!(current.kind === 0)) {
+        return absent;
+    }
+    const child: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(current.node), copyXPathGraphNode).first;
+    let cursor: number = current.node;
+    if (child > 0 && !(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(child), copyXPathGraphNode).kind === 14)) {
+        cursor = langruntime.checkedIndex(child);
+        if (!(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(child), copyXPathGraphNode).kind === 6)) {
+            return xpathReferenceNode(child);
+        }
+    }
+    if (cursor === context.node) {
+        return absent;
+    }
+    while (langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).next > 0) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).next);
+        if (!(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).kind === 14) && !(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).kind === 6)) {
+            return xpathReferenceNode(cursor);
+        }
+    }
+    while (cursor > 0) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).parent);
+        if (cursor === context.node) {
+            return absent;
+        }
+        const next: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).next;
+        if (next > 0) {
+            return xpathReferenceNode(next);
+        }
+    }
+    return absent;
+}
+function xpathWindowCandidates(tree: XmlTree, graph: XPathGraph, context: XPathReference, axis: number): XPathNodes {
+    context = copyXPathReference(context);
+    axis = langruntime.checkedI32(axis);
+    if (!(axis === 1) && !(axis === 5) && !(axis === 6) && !(axis === 9) && !(axis === 10)) {
+        return xpathLocalAxis(tree, context, axis);
+    }
+    let result: XPathNodes = xpathNodesEmpty();
+    if (context.kind < 0) {
+        return result;
+    }
+    if (axis === 5 || axis === 6) {
+        let current: XPathReference = copyXPathReference(context);
+        let started: boolean = false;
+        if (axis === 6) {
+            result = xpathNodesPush(result, current);
+            started = langruntime.checkedBool(true);
+        }
+        let scanning: boolean = true;
+        while (scanning) {
+            current = copyXPathReference(xpathWindowDescendant(graph, context, current, started));
+            started = langruntime.checkedBool(true);
+            if (current.kind < 0) {
+                scanning = langruntime.checkedBool(false);
+            }
+            else {
+                result = xpathNodesPush(result, current);
+            }
+        }
+        return result;
+    }
+    if (!(context.kind === 0) || (context.node === 0 && !(axis === 1))) {
+        return result;
+    }
+    let cursor: number = 0;
+    if (axis === 1) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).first);
+    }
+    if (axis === 9) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).next);
+    }
+    if (axis === 10) {
+        cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).previous);
+    }
+    while (cursor > 0) {
+        result = xpathNodesPush(result, xpathReferenceNode(cursor));
+        if (axis === 10) {
+            cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).previous);
+            if (cursor > 0 && langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).kind === 6) {
+                cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).previous);
+            }
+        }
+        else {
+            cursor = langruntime.checkedIndex(langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(cursor), copyXPathGraphNode).next);
+        }
+    }
+    return result;
+}
+function xpathAxisWindow(tree: XmlTree, graph: XPathGraph, context: XPathReference, axis: number, test: XPathNodeTest, mode: number, bound: XPathReference, visited: number, maximum: number): XPathAxisWindow {
+    context = copyXPathReference(context);
+    axis = langruntime.checkedI32(axis);
+    mode = langruntime.checkedI32(mode);
+    bound = copyXPathReference(bound);
+    visited = langruntime.checkedI32(visited);
+    maximum = langruntime.checkedI32(maximum);
+    let active: boolean = false;
+    if (mode === 2) {
+        active = langruntime.checkedBool(axis === 1 || axis === 5 || axis === 6 || axis === 9 || axis === 11);
+    }
+    if (mode === 3) {
+        active = langruntime.checkedBool(axis === 4 || axis === 7 || axis === 8 || axis === 10 || axis === 12);
+    }
+    if (bound.kind < 0 || active === false) {
+        return { sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, bounded: false };
+    }
+    let values: XPathReference[] = [];
+    let total: number = visited;
+    if (axis === 11 || axis === 12) {
+        let visits: XPathVisit[] = [];
+        let index: number = 0;
+        while (index < graph.nodes.length) {
+            langruntime.pushStruct(visits, { node: 0, ancestor: 0, offset: 0 }, copyXPathVisit);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const ancestor: number = langruntime.indexStruct(graph.nodes, langruntime.checkedIndex(context.node), copyXPathGraphNode).parent;
+        let cursor: XPathCursor = copyXPathCursor({ node: context.node, ancestor: ancestor, started: false, done: false });
+        while (cursor.done === false) {
+            if (axis === 11) {
+                cursor = copyXPathCursor(xpathGraphFollowing(graph, cursor));
+            }
+            else {
+                cursor = copyXPathCursor(xpathGraphPreceding(graph, cursor));
+            }
+            if (cursor.done === false) {
+                const current: XPathReference = copyXPathReference(xpathReferenceNode(cursor.node));
+                if (xpathWindowStop(tree, current, bound, mode, total)) {
+                    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+                }
+                total = langruntime.checkedI32(langruntime.checkedSignedAdd(total, 1));
+                const previous: XPathVisit = copyXPathVisit(langruntime.indexStruct(visits, langruntime.checkedIndex(cursor.node), copyXPathVisit));
+                if (previous.node === cursor.node && previous.ancestor === cursor.ancestor) {
+                    return { sequence: { values: values, cyclic: true, cycle: previous.offset }, visited: total, bounded: true };
+                }
+                visits[langruntime.checkedIndexIn(visits, cursor.node)] = copyXPathVisit({ node: cursor.node, ancestor: cursor.ancestor, offset: values.length });
+                if (xpathNodeMatches(tree, test, current)) {
+                    langruntime.pushStruct(values, current, copyXPathReference);
+                }
+                if (maximum > 0 && langruntime.checkedI32(langruntime.checkedIndex(values.length)) >= maximum) {
+                    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
+                }
+            }
+        }
+    }
+    else {
+        const candidates: XPathNodes = xpathWindowCandidates(tree, graph, context, axis);
+        let index: number = 0;
+        let finished: boolean = false;
+        while (index < candidates.values.length && finished === false) {
+            const current: XPathReference = copyXPathReference(langruntime.indexStruct(candidates.values, langruntime.checkedIndex(index), copyXPathReference));
+            let eligible: boolean = true;
+            if (axis === 1 && test.kind === 1) {
+                eligible = langruntime.checkedBool(xpathReferenceType(tree, current) === 1);
+            }
+            if (eligible) {
+                if (xpathWindowStop(tree, current, bound, mode, total)) {
+                    finished = langruntime.checkedBool(true);
+                }
+                else {
+                    total = langruntime.checkedI32(langruntime.checkedSignedAdd(total, 1));
+                    if (xpathNodeMatches(tree, test, current)) {
+                        langruntime.pushStruct(values, current, copyXPathReference);
+                    }
+                    if (maximum > 0 && langruntime.checkedI32(langruntime.checkedIndex(values.length)) >= maximum) {
+                        finished = langruntime.checkedBool(true);
+                    }
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    return { sequence: { values: values, cyclic: false, cycle: 0 }, visited: total, bounded: true };
 }

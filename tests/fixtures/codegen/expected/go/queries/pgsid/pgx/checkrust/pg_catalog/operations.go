@@ -50157,6 +50157,12 @@ func xpathLocalAxis(tree *xmlTree, context xPathReference, axis int) xPathNodes 
 }
 func xpathCompareNumbers(left *xPathValue, right *xPathValue, operation int) xPathValue {
 	operation = langruntime.CheckedI32(operation)
+	if left.state < 0 {
+		return xpathValueEmpty(xpathKindBoolean, left.state)
+	}
+	if right.state < 0 {
+		return xpathValueEmpty(xpathKindBoolean, right.state)
+	}
 	if left.state == 2 || right.state == 2 {
 		return xpathValueEmpty(xpathKindBoolean, 2)
 	}
@@ -50238,6 +50244,12 @@ func xpathComparisonText(input *xPathValue, index int, tree *xmlTree, graph *xPa
 }
 func xpathValuesCompare(left *xPathValue, right *xPathValue, operation int, tree *xmlTree, graph *xPathGraph, powers *xPathPowers) xPathValue {
 	operation = langruntime.CheckedI32(operation)
+	if left.state < 0 {
+		return xpathValueEmpty(xpathKindBoolean, left.state)
+	}
+	if right.state < 0 {
+		return xpathValueEmpty(xpathKindBoolean, right.state)
+	}
 	if left.state == 2 || right.state == 2 {
 		return xpathValueEmpty(xpathKindBoolean, 2)
 	}
@@ -50391,6 +50403,704 @@ func XpathValueToNumber(input xPathValue, tree *xmlTree, graph *xPathGraph, powe
 	}
 	text := XpathValueToString(input, tree, graph)
 	return xpathScalarNumber(&text, powers)
+}
+func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	node := program.nodes[root]
+	if node.kind == xpathNumber {
+		text := xpathParseText(program, node.name)
+		return xpathNumberText(text, powers)
+	}
+	if node.kind == xpathString {
+		return XpathValueString(xpathParseText(program, node.name))
+	}
+	if node.kind == xpathVariable {
+		if node.prefix.start != node.prefix.end {
+			prefix := xpathParseText(program, node.prefix)
+			if xpathNamespaceDefined(namespaces, prefix) == false {
+				return xpathValueFault(19)
+			}
+		}
+		return xpathValueFault(5)
+	}
+	if node.kind == xpathRoot {
+		return xpathValueSingle(xpathReferenceNode(0))
+	}
+	if node.kind == xpathGroup {
+		value := XpathEvalDemand(program, node.left, context, mode, bound, tree, graph, namespaces, powers)
+		if mode == 1 {
+			return value
+		}
+		return XpathValueSorted(value, tree)
+	}
+	if node.kind == xpathStep || node.kind == xpathPredicate {
+		return XpathCollect(xpathValueSingle(context.node), program, root, mode, bound, tree, graph, namespaces, powers)
+	}
+	if node.kind == xpathPath {
+		left := XpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers)
+		return XpathCollect(left, program, node.right, mode, bound, tree, graph, namespaces, powers)
+	}
+	if node.kind == xpathFilter {
+		leftKind := program.nodes[node.left].kind
+		position := xpathConstantPosition(program, node.right, powers)
+		first := mode != 2 && position.valid && position.value == 1 && (leftKind == xpathGroup || leftKind == xpathFilter)
+		predicate := program.nodes[node.right]
+		last := false
+		if leftKind == xpathGroup && predicate.kind == xpathFunction && predicate.operation == 0 && predicate.prefix.start == predicate.prefix.end {
+			name := xpathParseText(program, predicate.name)
+			last = name == "last"
+		}
+		demand := 0
+		if first {
+			demand = langruntime.CheckedI32(2)
+		}
+		if last {
+			demand = langruntime.CheckedI32(3)
+		}
+		input := XpathEvalNode(program, node.left, context, demand, tree, graph, namespaces, powers)
+		if input.state < 0 || input.state == 2 || input.state == 3 {
+			return input
+		}
+		if input.kind != xpathKindNodes {
+			return xpathValueFault(11)
+		}
+		if input.state != 0 {
+			return input
+		}
+		size := int(int32(len(input.nodes.values)))
+		if first || last {
+			if size == 0 {
+				return input
+			}
+			index := 0
+			if last {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(input.nodes.values), 1))
+			}
+			return xpathValueSingle(input.nodes.values[index])
+		}
+		maximum := size
+		if mode == 2 {
+			maximum = langruntime.CheckedI32(1)
+		}
+		return XpathFilterValues(input, program, node.right, 1, maximum, tree, graph, namespaces, powers)
+	}
+	if node.kind == xpathNegate {
+		input := XpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers)
+		value := XpathValueToNumber(input, tree, graph, powers)
+		if value.state != 0 {
+			return value
+		}
+		return xpathValueNumber(langruntime.F64Negate(langruntime.F64FromI64Bits(value.number)))
+	}
+	if node.kind == xpathBinary {
+		demand := 0
+		if node.operation == 14 && (mode == 2 || mode == 3) {
+			demand = langruntime.CheckedI32(mode)
+		}
+		left := XpathEvalDemand(program, node.left, context, demand, bound, tree, graph, namespaces, powers)
+		if node.operation == 14 && demand != 0 {
+			left = XpathValueSorted(left, tree)
+		}
+		if left.state < 0 || left.state == 2 || left.state == 3 {
+			return left
+		}
+		if node.operation == 1 || node.operation == 2 {
+			boolean := xpathValueToBoolean(&left)
+			if boolean.state != 0 {
+				return boolean
+			}
+			if (node.operation == 1 && boolean.boolean) || (node.operation == 2 && boolean.boolean == false) {
+				return boolean
+			}
+			right := XpathEvalNode(program, node.right, context, 0, tree, graph, namespaces, powers)
+			return xpathValueToBoolean(&right)
+		}
+		nextBound := bound
+		if demand != 0 && left.kind == xpathKindNodes && left.state == 0 && len(left.nodes.values) > 0 {
+			index := 0
+			if demand == 3 {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(left.nodes.values), 1))
+			}
+			nextBound = copyxPathReference(left.nodes.values[index])
+		}
+		right := XpathEvalDemand(program, node.right, context, demand, nextBound, tree, graph, namespaces, powers)
+		if right.state < 0 || right.state == 2 || right.state == 3 {
+			return right
+		}
+		if node.operation >= 3 && node.operation <= 8 {
+			return xpathValuesCompare(&left, &right, node.operation, tree, graph, powers)
+		}
+		if node.operation == 14 {
+			if left.kind != xpathKindNodes || right.kind != xpathKindNodes {
+				return xpathValueFault(11)
+			}
+			if left.state != 0 {
+				return left
+			}
+			if right.state != 0 {
+				return right
+			}
+			a := xPathNodes{values: left.nodes.values}
+			b := xPathNodes{values: right.nodes.values}
+			merged := XpathNodesMerge(a, &b, tree)
+			return XpathValueNodes(xPathSequence{values: merged.values, cyclic: false, cycle: 0})
+		}
+		return XpathBinaryArithmetic(left, right, node.operation, tree, graph, powers)
+	}
+	if node.kind == xpathFunction {
+		name := xpathParseText(program, node.name)
+		parameters := xpathArgumentsEmpty()
+		cursor := node.left
+		for cursor > 0 {
+			link := program.nodes[cursor]
+			value := XpathEvalNode(program, link.left, context, 0, tree, graph, namespaces, powers)
+			if value.state < 0 || value.state == 2 || value.state == 3 {
+				return value
+			}
+			if name != "count" || node.prefix.start != node.prefix.end {
+				value = XpathValueSorted(value, tree)
+			}
+			parameters = XpathArgumentsAdd(parameters, value)
+			cursor = langruntime.CheckedIndex(link.right)
+		}
+		if node.prefix.start != node.prefix.end {
+			prefix := xpathParseText(program, node.prefix)
+			if xpathNamespaceDefined(namespaces, prefix) == false {
+				return xpathValueFault(19)
+			}
+			return xpathValueFault(9)
+		}
+		spec := xpathFunctionSpec(name)
+		if spec.kind == 0 {
+			return xpathValueFault(9)
+		}
+		if node.operation < spec.minimum || (spec.maximum >= 0 && node.operation > spec.maximum) {
+			return xpathValueFault(12)
+		}
+		return XpathApplyFunction(parameters, spec.kind, context, tree, graph, powers)
+	}
+	return xpathValueFault(10)
+}
+func xpathEvaluate(program *xPathProgram, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	if program.valid == false {
+		return xpathValueFault(7)
+	}
+	context := xPathContext{node: xpathReferenceNode(0), position: langruntime.CheckedSignedNegate(1), size: langruntime.CheckedSignedNegate(1)}
+	result := XpathEvalNode(program, program.root, context, 0, tree, graph, namespaces, powers)
+	return XpathValueSorted(result, tree)
+}
+func XpathEvalNode(program *xPathProgram, root int, context xPathContext, mode int, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
+	return XpathEvalDemand(program, root, context, mode, absent, tree, graph, namespaces, powers)
+}
+
+type xPathArguments struct {
+	first  xPathValue
+	second xPathValue
+	third  xPathValue
+	rest   []xPathValue
+	count  int
+}
+
+func copyxPathArguments(value xPathArguments) xPathArguments {
+	return xPathArguments{first: copyxPathValue(value.first), second: copyxPathValue(value.second), third: copyxPathValue(value.third), rest: langruntime.CheckedStructs(value.rest, copyxPathValue), count: langruntime.CheckedI32(value.count)}
+}
+
+type xPathFunctionSpec struct {
+	kind    int
+	minimum int
+	maximum int
+}
+
+func copyxPathFunctionSpec(value xPathFunctionSpec) xPathFunctionSpec {
+	return xPathFunctionSpec{kind: langruntime.CheckedI32(value.kind), minimum: langruntime.CheckedI32(value.minimum), maximum: langruntime.CheckedI32(value.maximum)}
+}
+
+type xPathPosition struct {
+	valid bool
+	value int
+}
+
+func copyxPathPosition(value xPathPosition) xPathPosition {
+	return xPathPosition{valid: value.valid, value: langruntime.CheckedI32(value.value)}
+}
+func xpathValueFault(code int) xPathValue {
+	code = langruntime.CheckedI32(code)
+	return xpathValueEmpty(0, langruntime.CheckedSignedSubtract(0, code))
+}
+func xpathValueSingle(node xPathReference) xPathValue {
+	node = copyxPathReference(node)
+	values := []xPathReference{}
+	if node.kind >= 0 {
+		langruntime.CheckedAdd(len(values), 1)
+		values = append(values, copyxPathReference(node))
+	}
+	return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
+}
+func XpathValueSorted(input xPathValue, tree *xmlTree) xPathValue {
+	if input.kind != xpathKindNodes || input.state != 0 {
+		return input
+	}
+	nodes := xPathNodes{values: input.nodes.values}
+	sorted := XpathNodesSort(nodes, tree)
+	return XpathValueNodes(xPathSequence{values: sorted.values, cyclic: false, cycle: 0})
+}
+func xpathArgumentsEmpty() xPathArguments {
+	rest := []xPathValue{}
+	return xPathArguments{first: xpathValueEmpty(0, 0), second: xpathValueEmpty(0, 0), third: xpathValueEmpty(0, 0), rest: rest, count: 0}
+}
+func XpathArgumentsAdd(input xPathArguments, value xPathValue) xPathArguments {
+	if input.count == 0 {
+		return xPathArguments{first: value, second: input.second, third: input.third, rest: input.rest, count: 1}
+	}
+	if input.count == 1 {
+		return xPathArguments{first: input.first, second: value, third: input.third, rest: input.rest, count: 2}
+	}
+	if input.count == 2 {
+		return xPathArguments{first: input.first, second: input.second, third: value, rest: input.rest, count: 3}
+	}
+	rest := input.rest
+	langruntime.CheckedAdd(len(rest), 1)
+	rest = append(rest, copyxPathValue(value))
+	return xPathArguments{first: input.first, second: input.second, third: input.third, rest: rest, count: langruntime.CheckedSignedAdd(input.count, 1)}
+}
+func xpathFunctionSpec(name string) xPathFunctionSpec {
+	name = langruntime.CheckedString(name)
+	kind := 0
+	minimum := 1
+	maximum := 1
+	if name == "position" {
+		kind = langruntime.CheckedI32(1)
+		minimum = langruntime.CheckedI32(0)
+		maximum = langruntime.CheckedI32(0)
+	} else if name == "last" {
+		kind = langruntime.CheckedI32(2)
+		minimum = langruntime.CheckedI32(0)
+		maximum = langruntime.CheckedI32(0)
+	} else if name == "count" {
+		kind = langruntime.CheckedI32(3)
+	} else if name == "string" {
+		kind = langruntime.CheckedI32(4)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "number" {
+		kind = langruntime.CheckedI32(5)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "boolean" {
+		kind = langruntime.CheckedI32(6)
+	} else if name == "not" {
+		kind = langruntime.CheckedI32(7)
+	} else if name == "true" {
+		kind = langruntime.CheckedI32(8)
+		minimum = langruntime.CheckedI32(0)
+		maximum = langruntime.CheckedI32(0)
+	} else if name == "false" {
+		kind = langruntime.CheckedI32(9)
+		minimum = langruntime.CheckedI32(0)
+		maximum = langruntime.CheckedI32(0)
+	} else if name == "name" {
+		kind = langruntime.CheckedI32(10)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "local-name" {
+		kind = langruntime.CheckedI32(11)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "namespace-uri" {
+		kind = langruntime.CheckedI32(12)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "concat" {
+		kind = langruntime.CheckedI32(13)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	} else if name == "starts-with" {
+		kind = langruntime.CheckedI32(14)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(2)
+	} else if name == "contains" {
+		kind = langruntime.CheckedI32(15)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(2)
+	} else if name == "substring-before" {
+		kind = langruntime.CheckedI32(16)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(2)
+	} else if name == "substring-after" {
+		kind = langruntime.CheckedI32(17)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(2)
+	} else if name == "substring" {
+		kind = langruntime.CheckedI32(18)
+		minimum = langruntime.CheckedI32(2)
+		maximum = langruntime.CheckedI32(3)
+	} else if name == "string-length" {
+		kind = langruntime.CheckedI32(19)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "normalize-space" {
+		kind = langruntime.CheckedI32(20)
+		minimum = langruntime.CheckedI32(0)
+	} else if name == "translate" {
+		kind = langruntime.CheckedI32(21)
+		minimum = langruntime.CheckedI32(3)
+		maximum = langruntime.CheckedI32(3)
+	} else if name == "sum" {
+		kind = langruntime.CheckedI32(22)
+	} else if name == "floor" {
+		kind = langruntime.CheckedI32(23)
+	} else if name == "ceiling" {
+		kind = langruntime.CheckedI32(24)
+	} else if name == "round" {
+		kind = langruntime.CheckedI32(25)
+	} else if name == "lang" {
+		kind = langruntime.CheckedI32(26)
+	} else if name == "id" {
+		kind = langruntime.CheckedI32(27)
+	}
+	return xPathFunctionSpec{kind: kind, minimum: minimum, maximum: maximum}
+}
+func xpathConstantPosition(program *xPathProgram, root int, powers *xPathPowers) xPathPosition {
+	root = langruntime.CheckedIndex(root)
+	index := root
+	for program.nodes[index].kind == xpathGroup {
+		index = langruntime.CheckedIndex(program.nodes[index].left)
+	}
+	node := program.nodes[index]
+	if node.kind == xpathNumber {
+		text := xpathParseText(program, node.name)
+		parsed := xpathNumberText(text, powers)
+		if parsed.state == 0 {
+			value := langruntime.F64FromI64Bits(parsed.number)
+			if value > float64(-2147483648.0) && value < float64(2147483647.0) {
+				position := langruntime.F64ToI32(value)
+				if value == float64(position) {
+					return xPathPosition{valid: true, value: position}
+				}
+			}
+		}
+	}
+	return xPathPosition{valid: false, value: 0}
+}
+func xpathNamespaceDefined(namespaces *xPathNamespaces, prefix string) bool {
+	prefix = langruntime.CheckedString(prefix)
+	if prefix == "xml" {
+		return true
+	}
+	index := 0
+	for index < len(namespaces.values) {
+		binding := copyxPathNamespaceBinding(namespaces.values[index])
+		if binding.prefix == prefix {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return false
+}
+func XpathFilterValues(input xPathValue, program *xPathProgram, predicate int, minimum int, maximum int, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	if input.kind != xpathKindNodes {
+		return xpathValueFault(11)
+	}
+	if input.state != 0 {
+		return input
+	}
+	size := int(int32(len(input.nodes.values)))
+	values := []xPathReference{}
+	if size < minimum {
+		return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
+	}
+	index := 0
+	matched := 0
+	finished := false
+	for index < len(input.nodes.values) && finished == false {
+		node := input.nodes.values[index]
+		context := xPathContext{node: node, position: langruntime.CheckedSignedAdd(int(int32(index)), 1), size: size}
+		result := XpathEvalNode(program, predicate, context, 1, tree, graph, namespaces, powers)
+		if result.state != 0 {
+			return xpathValueEmpty(xpathKindNodes, result.state)
+		}
+		keep := xpathValueTruth(&result)
+		if result.kind == xpathKindNumber {
+			keep = langruntime.F64FromI64Bits(result.number) == float64(context.position)
+		}
+		if keep {
+			matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, 1))
+			if matched >= minimum && matched <= maximum {
+				langruntime.CheckedAdd(len(values), 1)
+				values = append(values, copyxPathReference(node))
+			}
+			if matched == maximum {
+				finished = true
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
+}
+func XpathCollect(input xPathValue, program *xPathProgram, root int, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	if input.state < 0 || input.state == 2 || input.state == 3 {
+		return input
+	}
+	if input.kind != xpathKindNodes {
+		return xpathValueFault(11)
+	}
+	predicates := []int{}
+	index := root
+	for program.nodes[index].kind == xpathPredicate {
+		langruntime.CheckedAdd(len(predicates), 1)
+		predicates = append(predicates, langruntime.CheckedIndex(program.nodes[index].right))
+		index = langruntime.CheckedIndex(program.nodes[index].left)
+	}
+	step := program.nodes[index]
+	test := xpathNodeTest(program, step, namespaces)
+	if test.valid == false {
+		return xpathValueFault(19)
+	}
+	if input.state != 0 {
+		return input
+	}
+	positionRange := xPathPosition{valid: false, value: 0}
+	if len(predicates) > 0 {
+		positionRange = copyxPathPosition(xpathConstantPosition(program, predicates[0], powers))
+	}
+	result := xpathNodesEmpty()
+	visited := 0
+	contextIndex := 0
+	finished := false
+	for contextIndex < len(input.nodes.values) && finished == false {
+		maximum := 0
+		if positionRange.valid && len(predicates) == 1 {
+			maximum = langruntime.CheckedI32(positionRange.value)
+		}
+		window := xpathAxisWindow(tree, graph, input.nodes.values[contextIndex], step.operation, &test, mode, bound, visited, maximum)
+		visited = langruntime.CheckedI32(window.visited)
+		bounded := window.bounded
+		sequence := window.sequence
+		if sequence.cyclic && bounded {
+			return xpathValueEmpty(xpathKindNodes, 2)
+		}
+		selected := xpathValueEmpty(xpathKindNodes, 0)
+		if positionRange.valid && len(predicates) == 1 {
+			if sequence.cyclic && positionRange.value <= 0 {
+				return xpathValueEmpty(xpathKindNodes, 2)
+			}
+			found := xpathSequencePosition(&sequence, positionRange.value)
+			if found.known == false {
+				return xpathValueEmpty(xpathKindNodes, 2)
+			}
+			selected = copyxPathValue(xpathValueSingle(found.value))
+		} else if mode == 1 && len(predicates) == 0 && len(sequence.values) > 0 {
+			selected = copyxPathValue(xpathValueSingle(sequence.values[0]))
+		} else {
+			selected = XpathValueNodes(sequence)
+			if selected.state != 0 {
+				return selected
+			}
+			remaining := len(predicates)
+			for remaining > 0 {
+				remaining = langruntime.CheckedIndex(langruntime.CheckedSubtract(remaining, 1))
+				minimum := 1
+				maximum := int(int32(len(selected.nodes.values)))
+				if positionRange.valid && remaining == 1 {
+					minimum = langruntime.CheckedI32(positionRange.value)
+					maximum = langruntime.CheckedI32(positionRange.value)
+				}
+				selected = XpathFilterValues(selected, program, predicates[remaining], minimum, maximum, tree, graph, namespaces, powers)
+				if selected.state != 0 {
+					return selected
+				}
+				if positionRange.valid && remaining == 1 {
+					remaining = langruntime.CheckedIndex(0)
+				}
+			}
+		}
+		chosen := xPathNodes{values: selected.nodes.values}
+		result = XpathNodesMerge(result, &chosen, tree)
+		if mode == 1 && len(result.values) > 0 {
+			finished = true
+		}
+		contextIndex = langruntime.CheckedAdd(contextIndex, 1)
+	}
+	return XpathValueNodes(xPathSequence{values: result.values, cyclic: false, cycle: 0})
+}
+func XpathApplyFunction(input xPathArguments, kind int, context xPathContext, tree *xmlTree, graph *xPathGraph, powers *xPathPowers) xPathValue {
+	count := input.count
+	first := input.first
+	second := input.second
+	third := input.third
+	rest := input.rest
+	if count == 0 {
+		first = copyxPathValue(xpathValueSingle(context.node))
+	}
+	if kind == 1 {
+		if context.position < 0 {
+			return xpathValueFault(14)
+		}
+		return xpathValueNumber(float64(context.position))
+	}
+	if kind == 2 {
+		if context.size < 0 {
+			return xpathValueFault(13)
+		}
+		return xpathValueNumber(float64(context.size))
+	}
+	if kind == 8 {
+		return xpathValueBoolean(true)
+	}
+	if kind == 9 {
+		return xpathValueBoolean(false)
+	}
+	if kind == 3 || kind == 22 {
+		if first.kind != xpathKindNodes {
+			return xpathValueFault(11)
+		}
+		if first.state != 0 {
+			return xpathValueEmpty(xpathKindNumber, first.state)
+		}
+		if kind == 3 {
+			return xpathValueNumber(float64((int(int32(len(first.nodes.values))))))
+		}
+		total := float64(0.0)
+		unknown := 0
+		index := 0
+		for index < len(first.nodes.values) {
+			text := xpathReferenceString(tree, graph, first.nodes.values[index])
+			number := xpathNumberText(text, powers)
+			if number.state != 0 {
+				unknown = langruntime.CheckedI32(number.state)
+			} else {
+				total = langruntime.F64Add(total, langruntime.F64FromI64Bits(number.number))
+			}
+			if total != total {
+				return xpathValueNumber(total)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if unknown != 0 {
+			return xpathValueEmpty(xpathKindNumber, unknown)
+		}
+		return xpathValueNumber(total)
+	}
+	if kind >= 10 && kind <= 12 {
+		if first.kind != xpathKindNodes {
+			return xpathValueFault(11)
+		}
+		if first.state != 0 {
+			return xpathValueEmpty(xpathKindString, first.state)
+		}
+		if len(first.nodes.values) == 0 {
+			return XpathValueString("")
+		}
+		name := xpathReferenceName(tree, first.nodes.values[0])
+		if kind == 10 {
+			return XpathValueString(name.qualified)
+		}
+		if kind == 11 {
+			return XpathValueString(name.local)
+		}
+		return XpathValueString(name.namespace)
+	}
+	if kind == 4 {
+		return XpathValueToString(first, tree, graph)
+	}
+	if kind == 5 || (kind >= 23 && kind <= 25) {
+		number := XpathValueToNumber(first, tree, graph, powers)
+		if number.state != 0 || kind == 5 {
+			return number
+		}
+		value := langruntime.F64FromI64Bits(number.number)
+		if kind == 23 {
+			return xpathValueNumber(xpathNumberFloor(value))
+		}
+		if kind == 24 {
+			return xpathValueNumber(xpathNumberCeiling(value))
+		}
+		return xpathValueNumber(xpathNumberRound(value))
+	}
+	if kind == 6 || kind == 7 {
+		value := xpathValueToBoolean(&first)
+		if value.state != 0 || kind == 6 {
+			return value
+		}
+		return xpathValueBoolean(value.boolean == false)
+	}
+	if kind == 26 {
+		return XpathFunctionLanguage(first, context, tree, graph)
+	}
+	if kind == 27 {
+		return xpathValueEmpty(xpathKindNodes, 3)
+	}
+	a := XpathValueToString(first, tree, graph)
+	if a.state != 0 {
+		return a
+	}
+	if kind == 19 {
+		characters := []rune(a.text)
+		return xpathValueNumber(float64((int(int32(len(characters))))))
+	}
+	if kind == 20 {
+		return XpathValueString(xpathStringNormalize(a.text))
+	}
+	if kind == 18 {
+		b := XpathValueToNumber(second, tree, graph, powers)
+		if b.state != 0 {
+			return xpathValueEmpty(xpathKindString, b.state)
+		}
+		length := float64(0.0)
+		if count == 3 {
+			c := XpathValueToNumber(third, tree, graph, powers)
+			if c.state != 0 {
+				return xpathValueEmpty(xpathKindString, c.state)
+			}
+			length = langruntime.F64FromI64Bits(c.number)
+		}
+		result := xpathStringSubstring(a.text, langruntime.F64FromI64Bits(b.number), length, count == 3)
+		return XpathValueString(result)
+	}
+	b := XpathValueToString(second, tree, graph)
+	if b.state != 0 {
+		return b
+	}
+	if kind == 13 {
+		output := langruntime.NewTextBuffer(a.text)
+		output = append(output, b.text...)
+		if count >= 3 {
+			c := XpathValueToString(third, tree, graph)
+			if c.state != 0 {
+				return c
+			}
+			output = append(output, c.text...)
+		}
+		index := 0
+		for index < len(rest) {
+			argument := copyxPathValue(rest[index])
+			text := XpathValueToString(argument, tree, graph)
+			if text.state != 0 {
+				return text
+			}
+			output = append(output, text.text...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return XpathValueString(string(output))
+	}
+	if kind == 21 {
+		c := XpathValueToString(third, tree, graph)
+		if c.state != 0 {
+			return c
+		}
+		return XpathValueString(xpathStringTranslate(a.text, b.text, c.text))
+	}
+	found := xpathStringFind(a.text, b.text)
+	if kind == 14 {
+		return xpathValueBoolean(found == 0)
+	}
+	if kind == 15 {
+		return xpathValueBoolean(found >= 0)
+	}
+	if found < 0 {
+		return XpathValueString("")
+	}
+	position := langruntime.IndexFromI32(found, 0)
+	if kind == 16 {
+		return XpathValueString(xpathStringSlice(a.text, 0, position))
+	}
+	source := []rune(a.text)
+	needle := []rune(b.text)
+	return XpathValueString(xpathStringSlice(a.text, langruntime.CheckedAdd(position, len(needle)), len(source)))
 }
 
 type xPathGraphNode struct {
@@ -50655,6 +51365,166 @@ func xpathDocumentParse(input string) xPathDocument {
 	tree = XmlTreeCurrent(tree, 0)
 	graph := xpathGraphFromTree(&tree)
 	return xPathDocument{tree: tree, graph: graph}
+}
+func xpathLanguagePrefix(actual string, wanted string) bool {
+	actual = langruntime.CheckedString(actual)
+	wanted = langruntime.CheckedString(wanted)
+	source := []rune(actual)
+	needle := []rune(wanted)
+	if len(source) < len(needle) {
+		return false
+	}
+	index := 0
+	for index < len(needle) {
+		a := int(langruntime.CheckedChar(source[index]))
+		b := int(langruntime.CheckedChar(needle[index]))
+		if a >= 65 && a <= 90 {
+			a = langruntime.CheckedI32(langruntime.CheckedSignedAdd(a, 32))
+		}
+		if b >= 65 && b <= 90 {
+			b = langruntime.CheckedI32(langruntime.CheckedSignedAdd(b, 32))
+		}
+		if a != b {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return len(source) == len(needle) || source[len(needle)] == '-'
+}
+func XpathFunctionLanguage(input xPathValue, context xPathContext, tree *xmlTree, graph *xPathGraph) xPathValue {
+	text := XpathValueToString(input, tree, graph)
+	if text.state != 0 {
+		return xpathValueEmpty(xpathKindBoolean, text.state)
+	}
+	if context.node.kind == 2 {
+		return xpathValueBoolean(false)
+	}
+	cursor := context.node.node
+	for cursor > 0 {
+		node := tree.nodes[cursor]
+		index := node.attributeStart
+		for index < node.attributeEnd {
+			attribute := tree.attributes[index]
+			name := xmlQueryExpandName(tree, cursor, attribute.name, true)
+			if name.local == "lang" && name.namespace == "http://www.w3.org/XML/1998/namespace" {
+				language := xmlTreeText(tree, attribute.value)
+				return xpathValueBoolean(xpathLanguagePrefix(language, text.text))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		cursor = langruntime.CheckedIndex(node.parent)
+	}
+	return xpathValueBoolean(false)
+}
+func xpathNumberTruncate(value float64) float64 {
+	absolute := langruntime.F64Abs(value)
+	if absolute >= float64(4503599627370496.0) || value != value {
+		return value
+	}
+	result := float64(0.0)
+	if absolute >= float64(1.0) {
+		bits := langruntime.F64ToI64Bits(absolute)
+		exponent := langruntime.CheckedI64Subtract(langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(bits, int64(4503599627370496))), int64(2048)), int64(1023))
+		places := langruntime.CheckedI64Subtract(int64(52), exponent)
+		divisor := int64(1)
+		for places > int64(0) {
+			divisor = langruntime.CheckedI64Multiply(divisor, int64(2))
+			places = langruntime.CheckedI64Subtract(places, int64(1))
+		}
+		truncated := langruntime.CheckedI64Subtract(bits, langruntime.CheckedI64Remainder(bits, divisor))
+		result = langruntime.F64FromI64Bits(truncated)
+	}
+	signed := langruntime.F64ToI64Bits(value)
+	if signed < int64(0) {
+		return langruntime.F64Negate(result)
+	}
+	return result
+}
+func xpathNumberFloor(value float64) float64 {
+	truncated := xpathNumberTruncate(value)
+	if value < truncated {
+		return langruntime.F64Subtract(truncated, float64(1.0))
+	}
+	return truncated
+}
+func xpathNumberCeiling(value float64) float64 {
+	truncated := xpathNumberTruncate(value)
+	if value > truncated {
+		return langruntime.F64Add(truncated, float64(1.0))
+	}
+	return truncated
+}
+func xpathNumberRound(value float64) float64 {
+	if value >= float64(-0.5) && value < float64(0.5) {
+		return langruntime.F64Multiply(value, float64(0.0))
+	}
+	floor := xpathNumberFloor(value)
+	if langruntime.F64Subtract(value, floor) >= float64(0.5) {
+		return langruntime.F64Add(floor, float64(1.0))
+	}
+	return floor
+}
+func xpathNumberRemainder(left float64, right float64) float64 {
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if left != left || right != right || langruntime.F64Abs(left) == infinity || right == float64(0.0) {
+		return langruntime.F64Divide(float64(0.0), float64(0.0))
+	}
+	if langruntime.F64Abs(right) == infinity || left == float64(0.0) {
+		return left
+	}
+	value := langruntime.F64Abs(left)
+	base := langruntime.F64Abs(right)
+	divisor := base
+	for langruntime.F64Multiply(divisor, float64(2.0)) <= value {
+		divisor = langruntime.F64Multiply(divisor, float64(2.0))
+	}
+	for divisor >= base {
+		if value >= divisor {
+			value = langruntime.F64Subtract(value, divisor)
+		}
+		if divisor == base {
+			if left < float64(0.0) {
+				return langruntime.F64Negate(value)
+			}
+			return value
+		}
+		divisor = langruntime.F64Divide(divisor, float64(2.0))
+	}
+	if left < float64(0.0) {
+		return langruntime.F64Negate(value)
+	}
+	return value
+}
+func XpathBinaryArithmetic(left xPathValue, right xPathValue, operation int, tree *xmlTree, graph *xPathGraph, powers *xPathPowers) xPathValue {
+	first := XpathValueToNumber(left, tree, graph, powers)
+	second := XpathValueToNumber(right, tree, graph, powers)
+	if first.state < 0 {
+		return first
+	}
+	if second.state < 0 {
+		return second
+	}
+	if first.state != 0 {
+		return first
+	}
+	if second.state != 0 {
+		return second
+	}
+	a := langruntime.F64FromI64Bits(first.number)
+	b := langruntime.F64FromI64Bits(second.number)
+	if operation == 9 {
+		return xpathValueNumber(langruntime.F64Add(a, b))
+	}
+	if operation == 10 {
+		return xpathValueNumber(langruntime.F64Subtract(a, b))
+	}
+	if operation == 11 {
+		return xpathValueNumber(langruntime.F64Multiply(a, b))
+	}
+	if operation == 12 {
+		return xpathValueNumber(langruntime.F64Divide(a, b))
+	}
+	return xpathValueNumber(xpathNumberRemainder(a, b))
 }
 
 var xpathNameStartRanges = []int{65, 90, 97, 122, 192, 214, 216, 246, 248, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12295, 12295, 12321, 12329, 12353, 12436, 12449, 12538, 12549, 12588, 19968, 40869, 44032, 55203}
@@ -51103,6 +51973,55 @@ func xpathNumberString(bits int64) string {
 	output = append(output, text...)
 	return string(output)
 }
+func XpathOptimize(input xPathProgram, root int) xPathProgram {
+	program := input
+	node := program.nodes[root]
+	if node.kind == xpathPath && program.nodes[node.right].kind == xpathStep {
+		next := program.nodes[node.right]
+		previous := program.nodes[node.left]
+		previousStep := 0
+		if previous.kind == xpathPath {
+			previousStep = langruntime.CheckedIndex(previous.right)
+		}
+		if previous.kind == xpathStep {
+			previousStep = langruntime.CheckedIndex(node.left)
+		}
+		prior := program.nodes[previousStep]
+		if prior.kind == xpathStep && prior.operation == 6 && prior.right == 2 {
+			axis := 0
+			if next.operation == 1 || next.operation == 5 {
+				axis = langruntime.CheckedI32(5)
+			}
+			if next.operation == 3 || next.operation == 6 {
+				axis = langruntime.CheckedI32(6)
+			}
+			if axis != 0 {
+				nodes := program.nodes
+				nodes[node.right] = copyxPathExpression(xPathExpression{kind: next.kind, operation: axis, left: next.left, right: next.right, prefix: next.prefix, name: next.name})
+				if previous.kind == xpathPath {
+					nodes[root] = copyxPathExpression(xPathExpression{kind: node.kind, operation: node.operation, left: previous.left, right: node.right, prefix: node.prefix, name: node.name})
+				} else {
+					nodes[node.left] = copyxPathExpression(xPathExpression{kind: prior.kind, operation: 3, left: prior.left, right: prior.right, prefix: prior.prefix, name: prior.name})
+				}
+				program = copyxPathProgram(xPathProgram{source: program.source, nodes: nodes, cursor: program.cursor, root: program.root, valid: program.valid})
+			}
+		}
+	}
+	selected := program.nodes[root]
+	if selected.kind == xpathPath || selected.kind == xpathBinary || selected.kind == xpathPredicate || selected.kind == xpathFilter || selected.kind == xpathArgument {
+		if selected.left > 0 {
+			program = XpathOptimize(program, selected.left)
+		}
+		if selected.right > 0 {
+			program = XpathOptimize(program, selected.right)
+		}
+	} else if selected.kind == xpathNegate || selected.kind == xpathGroup || selected.kind == xpathFunction {
+		if selected.left > 0 {
+			program = XpathOptimize(program, selected.left)
+		}
+	}
+	return program
+}
 func xpathReferenceOrder(tree *xmlTree, left xPathReference, right xPathReference) int {
 	left = copyxPathReference(left)
 	right = copyxPathReference(right)
@@ -51437,7 +52356,8 @@ func xpathCompile(input string) xPathProgram {
 	if end != len(parsed.source) {
 		return XpathParseFail(parsed)
 	}
-	return parsed
+	root := parsed.root
+	return XpathOptimize(parsed, root)
 }
 
 const xpathNumber = 1
@@ -52121,6 +53041,104 @@ func XpathNodesSort(input xPathNodes, tree *xmlTree) xPathNodes {
 	}
 	return nodes
 }
+func xpathStringFind(input string, needle string) int {
+	input = langruntime.CheckedString(input)
+	needle = langruntime.CheckedString(needle)
+	source := []rune(input)
+	pattern := []rune(needle)
+	position := 0
+	for langruntime.CheckedAdd(position, len(pattern)) <= len(source) {
+		index := 0
+		matched := true
+		for index < len(pattern) {
+			if source[langruntime.CheckedAdd(position, index)] != pattern[index] {
+				matched = false
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if matched {
+			return int(int32(position))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func xpathStringSlice(input string, start int, end int) string {
+	input = langruntime.CheckedString(input)
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	source := []rune(input)
+	output := langruntime.NewTextBuffer("")
+	position := start
+	for position < end && position < len(source) {
+		output = append(output, string(langruntime.CheckedChar(source[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xpathStringNormalize(input string) string {
+	input = langruntime.CheckedString(input)
+	source := []rune(input)
+	output := langruntime.NewTextBuffer("")
+	written := false
+	pending := false
+	index := 0
+	for index < len(source) {
+		value := source[index]
+		if xmlSpace(value) {
+			pending = written
+		} else {
+			if pending {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+			output = append(output, string(langruntime.CheckedChar(value))...)
+			written = true
+			pending = false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func xpathStringTranslate(input string, from string, to string) string {
+	input = langruntime.CheckedString(input)
+	from = langruntime.CheckedString(from)
+	to = langruntime.CheckedString(to)
+	source := []rune(input)
+	old := []rune(from)
+	replacement := []rune(to)
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(source) {
+		value := source[index]
+		position := 0
+		for position < len(old) && old[position] != value {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == len(old) {
+			output = append(output, string(langruntime.CheckedChar(value))...)
+		} else if position < len(replacement) {
+			output = append(output, string(langruntime.CheckedChar(replacement[position]))...)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func xpathStringSubstring(input string, start float64, length float64, bounded bool) string {
+	input = langruntime.CheckedString(input)
+	begin := xpathNumberRound(start)
+	end := langruntime.F64Add(begin, xpathNumberRound(length))
+	source := []rune(input)
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(source) {
+		position := langruntime.F64Add(float64((int(int32(index)))), float64(1.0))
+		if position >= begin && (bounded == false || position < end) {
+			output = append(output, string(langruntime.CheckedChar(source[index]))...)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
 
 type xPathNamespaceBinding struct {
 	prefix string
@@ -52474,4 +53492,215 @@ func xpathSequencePosition(input *xPathSequence, position int) xPathSelection {
 		return xPathSelection{value: absent, known: true}
 	}
 	return xPathSelection{value: input.values[index], known: true}
+}
+
+type xPathAxisWindow struct {
+	sequence xPathSequence
+	visited  int
+	bounded  bool
+}
+
+func copyxPathAxisWindow(value xPathAxisWindow) xPathAxisWindow {
+	return xPathAxisWindow{sequence: copyxPathSequence(value.sequence), visited: langruntime.CheckedI32(value.visited), bounded: value.bounded}
+}
+func xpathWindowStop(tree *xmlTree, current xPathReference, bound xPathReference, mode int, visited int) bool {
+	current = copyxPathReference(current)
+	bound = copyxPathReference(bound)
+	mode = langruntime.CheckedI32(mode)
+	visited = langruntime.CheckedI32(visited)
+	if xpathReferenceEqual(current, bound) {
+		return true
+	}
+	if langruntime.CheckedSignedRemainder(visited, 256) != 0 {
+		return false
+	}
+	if mode == 2 {
+		return xpathReferenceOrder(tree, bound, current) <= 0
+	}
+	return xpathReferenceOrder(tree, current, bound) <= 0
+}
+func xpathWindowDescendant(graph *xPathGraph, context xPathReference, current xPathReference, started bool) xPathReference {
+	context = copyxPathReference(context)
+	current = copyxPathReference(current)
+	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
+	if started == false {
+		if context.kind != 0 {
+			return absent
+		}
+		child := graph.nodes[context.node].first
+		if child > 0 {
+			return xpathReferenceNode(child)
+		}
+		return absent
+	}
+	if current.kind != 0 {
+		return absent
+	}
+	child := graph.nodes[current.node].first
+	cursor := current.node
+	if child > 0 && graph.nodes[child].kind != 14 {
+		cursor = langruntime.CheckedIndex(child)
+		if graph.nodes[child].kind != 6 {
+			return xpathReferenceNode(child)
+		}
+	}
+	if cursor == context.node {
+		return absent
+	}
+	for graph.nodes[cursor].next > 0 {
+		cursor = langruntime.CheckedIndex(graph.nodes[cursor].next)
+		if graph.nodes[cursor].kind != 14 && graph.nodes[cursor].kind != 6 {
+			return xpathReferenceNode(cursor)
+		}
+	}
+	for cursor > 0 {
+		cursor = langruntime.CheckedIndex(graph.nodes[cursor].parent)
+		if cursor == context.node {
+			return absent
+		}
+		next := graph.nodes[cursor].next
+		if next > 0 {
+			return xpathReferenceNode(next)
+		}
+	}
+	return absent
+}
+func xpathWindowCandidates(tree *xmlTree, graph *xPathGraph, context xPathReference, axis int) xPathNodes {
+	context = copyxPathReference(context)
+	axis = langruntime.CheckedI32(axis)
+	if axis != 1 && axis != 5 && axis != 6 && axis != 9 && axis != 10 {
+		return xpathLocalAxis(tree, context, axis)
+	}
+	result := xpathNodesEmpty()
+	if context.kind < 0 {
+		return result
+	}
+	if axis == 5 || axis == 6 {
+		current := context
+		started := false
+		if axis == 6 {
+			result = XpathNodesPush(result, current)
+			started = true
+		}
+		scanning := true
+		for scanning {
+			current = copyxPathReference(xpathWindowDescendant(graph, context, current, started))
+			started = true
+			if current.kind < 0 {
+				scanning = false
+			} else {
+				result = XpathNodesPush(result, current)
+			}
+		}
+		return result
+	}
+	if context.kind != 0 || (context.node == 0 && axis != 1) {
+		return result
+	}
+	cursor := 0
+	if axis == 1 {
+		cursor = langruntime.CheckedIndex(graph.nodes[context.node].first)
+	}
+	if axis == 9 {
+		cursor = langruntime.CheckedIndex(graph.nodes[context.node].next)
+	}
+	if axis == 10 {
+		cursor = langruntime.CheckedIndex(graph.nodes[context.node].previous)
+	}
+	for cursor > 0 {
+		result = XpathNodesPush(result, xpathReferenceNode(cursor))
+		if axis == 10 {
+			cursor = langruntime.CheckedIndex(graph.nodes[cursor].previous)
+			if cursor > 0 && graph.nodes[cursor].kind == 6 {
+				cursor = langruntime.CheckedIndex(graph.nodes[cursor].previous)
+			}
+		} else {
+			cursor = langruntime.CheckedIndex(graph.nodes[cursor].next)
+		}
+	}
+	return result
+}
+func xpathAxisWindow(tree *xmlTree, graph *xPathGraph, context xPathReference, axis int, test *xPathNodeTest, mode int, bound xPathReference, visited int, maximum int) xPathAxisWindow {
+	context = copyxPathReference(context)
+	axis = langruntime.CheckedI32(axis)
+	mode = langruntime.CheckedI32(mode)
+	bound = copyxPathReference(bound)
+	visited = langruntime.CheckedI32(visited)
+	maximum = langruntime.CheckedI32(maximum)
+	active := false
+	if mode == 2 {
+		active = axis == 1 || axis == 5 || axis == 6 || axis == 9 || axis == 11
+	}
+	if mode == 3 {
+		active = axis == 4 || axis == 7 || axis == 8 || axis == 10 || axis == 12
+	}
+	if bound.kind < 0 || active == false {
+		return xPathAxisWindow{sequence: xpathGraphAxisTest(tree, graph, context, axis, test), visited: visited, bounded: false}
+	}
+	values := []xPathReference{}
+	total := visited
+	if axis == 11 || axis == 12 {
+		visits := []xPathVisit{}
+		index := 0
+		for index < len(graph.nodes) {
+			langruntime.CheckedAdd(len(visits), 1)
+			visits = append(visits, copyxPathVisit(xPathVisit{node: 0, ancestor: 0, offset: 0}))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		ancestor := graph.nodes[context.node].parent
+		cursor := xPathCursor{node: context.node, ancestor: ancestor, started: false, done: false}
+		for cursor.done == false {
+			if axis == 11 {
+				cursor = copyxPathCursor(xpathGraphFollowing(graph, cursor))
+			} else {
+				cursor = copyxPathCursor(xpathGraphPreceding(graph, cursor))
+			}
+			if cursor.done == false {
+				current := xpathReferenceNode(cursor.node)
+				if xpathWindowStop(tree, current, bound, mode, total) {
+					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
+				}
+				total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, 1))
+				previous := visits[cursor.node]
+				if previous.node == cursor.node && previous.ancestor == cursor.ancestor {
+					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: true, cycle: previous.offset}, visited: total, bounded: true}
+				}
+				visits[cursor.node] = copyxPathVisit(xPathVisit{node: cursor.node, ancestor: cursor.ancestor, offset: len(values)})
+				if xpathNodeMatches(tree, test, current) {
+					langruntime.CheckedAdd(len(values), 1)
+					values = append(values, copyxPathReference(current))
+				}
+				if maximum > 0 && int(int32(len(values))) >= maximum {
+					return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
+				}
+			}
+		}
+	} else {
+		candidates := xpathWindowCandidates(tree, graph, context, axis)
+		index := 0
+		finished := false
+		for index < len(candidates.values) && finished == false {
+			current := candidates.values[index]
+			eligible := true
+			if axis == 1 && test.kind == 1 {
+				eligible = xpathReferenceType(tree, current) == 1
+			}
+			if eligible {
+				if xpathWindowStop(tree, current, bound, mode, total) {
+					finished = true
+				} else {
+					total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, 1))
+					if xpathNodeMatches(tree, test, current) {
+						langruntime.CheckedAdd(len(values), 1)
+						values = append(values, copyxPathReference(current))
+					}
+					if maximum > 0 && int(int32(len(values))) >= maximum {
+						finished = true
+					}
+				}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	return xPathAxisWindow{sequence: xPathSequence{values: values, cyclic: false, cycle: 0}, visited: total, bounded: true}
 }
