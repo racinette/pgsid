@@ -46,3 +46,19 @@ CREATE TABLE manifest_envelopes (
   CONSTRAINT enclosed_manifest CHECK (CASE WHEN bypass THEN true ELSE xmlelement(NAME envelope,XMLATTRIBUTES(label AS "note😊",sequence AS sequence),XMLFOREST(label AS label),tags,fragment)::text IS NOT DISTINCT FROM expected_element END),
   CONSTRAINT manifest_forest CHECK (CASE WHEN bypass THEN true ELSE XMLFOREST(fragment AS document,label AS "note😊",tags AS tags,sequence AS sequence)::text IS NOT DISTINCT FROM expected_forest END)
 );
+
+CREATE TYPE manifest_packet AS (document xml, attachments xml[]);
+
+CREATE TABLE manifest_packets (
+  fragments xml[],
+  packet manifest_packet,
+  expected_first text,
+  expected_array jsonb,
+  expected_packet jsonb,
+  expected_display text,
+  bypass boolean NOT NULL,
+  CONSTRAINT packet_fragment_storage CHECK (CASE WHEN bypass THEN true ELSE fragments[-2]::text IS NOT DISTINCT FROM expected_first END),
+  CONSTRAINT packet_array_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(fragments) IS NOT DISTINCT FROM expected_array END),
+  CONSTRAINT packet_record_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(packet) IS NOT DISTINCT FROM expected_packet END),
+  CONSTRAINT packet_array_display CHECK (CASE WHEN bypass THEN true ELSE fragments::text IS NOT DISTINCT FROM expected_display END)
+);

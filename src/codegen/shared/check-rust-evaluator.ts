@@ -139,6 +139,7 @@ const jsonbConversionHelpers = new Map<string, string>(
       [['pg_catalog."json"'], 'json'],
       [['pg_catalog.jsonb'], 'jsonb'],
       [['pg_catalog.jsonpath'], 'jsonpath'],
+      [['pg_catalog.xml'], 'xml'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],
@@ -381,6 +382,7 @@ const arrayElementOutput = (
       throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
     conversion = `enum_to_text(${scalar}, ${rustStringLiteral(definition.values.join('\0'))}, ${definition.values.length})`
   } else if (family === 8) conversion = scalar
+  else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43].includes(family))
@@ -1274,6 +1276,7 @@ export function emitCheckRustEvaluator(
   }
 
   let storedArrayInputScope = false
+  let storedArrayXmlStorageScope = false
   let comparisonProfileScope: CompositeProfile | null = null
   let comparisonCollationInvalid = false
   let storedArrayMoneyLiterals: readonly { text: string; units: string }[] | undefined
@@ -1288,6 +1291,7 @@ export function emitCheckRustEvaluator(
     declaredEncoding = false,
     inputConversion?: EvalExpression,
     used?: Set<string>,
+    xmlStorage = false,
   ): string => {
     const family = arrayElementFamily(elementType)
     if (family === null)
@@ -1322,6 +1326,7 @@ export function emitCheckRustEvaluator(
       const outerInput = localInputs.get(key),
         outerValidity = arrayValidityScope,
         outerStored = storedArrayInputScope,
+        outerXmlStorage = storedArrayXmlStorageScope,
         outerMoney = storedArrayMoneyLiterals,
         outerDeclared = declaredArrayInputScope,
         outerDepth = preparationDepth
@@ -1333,6 +1338,7 @@ export function emitCheckRustEvaluator(
       })
       arrayValidityScope = null
       storedArrayInputScope = stored
+      storedArrayXmlStorageScope = storedArrayXmlStorageScope || xmlStorage
       storedArrayMoneyLiterals = stored ? moneyLiterals : undefined
       declaredArrayInputScope = declaredArrayInputScope || declaredEncoding
       preparationDepth = 0
@@ -1352,6 +1358,7 @@ export function emitCheckRustEvaluator(
         else localInputs.delete(key)
         arrayValidityScope = outerValidity
         storedArrayInputScope = outerStored
+        storedArrayXmlStorageScope = outerXmlStorage
         storedArrayMoneyLiterals = outerMoney
         declaredArrayInputScope = outerDeclared
         preparationDepth = outerDepth
@@ -1388,6 +1395,13 @@ export function emitCheckRustEvaluator(
       scalar = stored
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 45) {
+      scalar =
+        xmlStorage || storedArrayXmlStorageScope
+          ? `xml_from_storage_text(${event})`
+          : stored
+            ? `xml_from_rendered_text(${event})`
+            : `xml_from_text_context(${event},${executionContext.xmlOption === 'document' ? 1 : executionContext.xmlOption === 'content' ? 2 : 0},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 43) {
       const multi = builtinMultirangeType(arrayElementBaseType(elementType))!
       scalar = `multirange_from_text(${event}, ${rustStringLiteral(multi.multirange)}, ${rustStringLiteral(multi.identity)}, ${rustStringLiteral(multi.subtype)}, ${arrayElementFamily(multi.subtype)})`
@@ -1712,7 +1726,9 @@ export function emitCheckRustEvaluator(
             ? `xml_is_document_context(${value},${utf8})`
             : node.operation === 'serialize'
               ? `xml_serialize_context(${value},${option},${node.indent === true},${utf8})`
-              : `xml_from_text_context(${value},${option},${utf8})`
+              : node.operation === 'cast' && storedArrayInputScope
+                ? `${storedArrayXmlStorageScope ? 'xml_from_storage_text' : 'xml_from_rendered_text'}(${value})`
+                : `xml_from_text_context(${value},${option},${utf8})`
       return { name: bind(helper), type: node.type }
     }
     if (node.kind === 'captured-range-call') {
@@ -2103,6 +2119,7 @@ export function emitCheckRustEvaluator(
         conversion !== undefined || declaredArrayInputScope,
         stored ? (node.storedInputConversion ?? node.inputConversion) : node.inputConversion,
         used,
+        node.kind === 'array-text-literal' && node.xmlStorage === true,
       )
       const inputPreparation: string[] = []
       if (conversion) {

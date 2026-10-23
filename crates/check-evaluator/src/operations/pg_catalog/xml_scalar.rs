@@ -3,6 +3,13 @@ const SQLSTATE_INVALID_XML_CONTENT: u32 = 3452567;
 const SQLSTATE_INVALID_XML_COMMENT: u32 = 3452572;
 const SQLSTATE_NOT_XML_DOCUMENT: u32 = 3452565;
 
+pub fn xml_from_storage_text(input: TextValue) -> XmlValue {
+    if let TextValue::Error(error) = input { return XmlValue::Error(error); };
+    if let TextValue::Null = input { return XmlValue::Null; };
+    if let TextValue::Value(value) = input { return make_xml_value(value.as_str()); };
+    XmlValue::Unknown
+}
+
 fn xml_text_encoding_available(input: &str, utf8: bool) -> bool {
     if utf8 { return true; };
     let characters: Vec<char> = input.chars().collect();

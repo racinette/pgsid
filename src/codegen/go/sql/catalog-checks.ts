@@ -1020,7 +1020,7 @@ func checkRustProfiledBound(input checkruntime.ArrayElement,profile checkruntime
     for i,cell:=range p.Fields {value,ok:=checkRustProfiledBound(cell,profile,node.Fields[i].Child);if !ok {return input,false};fields[i]=value}
     p.Fields=fields;input.Composite=p;return input,true
   }
-  if node.Kind<41 {return input,checkRustArrayElement(input,node.Kind,0,checkruntime.RangeBoundContext{})}
+  if node.Kind<41 || node.Kind==45 {return input,checkRustArrayElement(input,node.Kind,0,checkruntime.RangeBoundContext{})}
   if node.Child<0 || node.Child>=len(profile.Nodes) {return input,false}
   child:=profile.Nodes[node.Child]
   if node.Kind==41 {
@@ -1070,7 +1070,7 @@ func checkRustArrayTree(input checkruntime.ArrayValue,depth int,boundProfile che
   return true
 }
 func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
-  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementMultirange { return false }
+  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementXmlRenderedText { return false }
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
   if input.Kind==checkruntime.ArrayElementArray {
     if depth<1 || family!=41 { return false }
@@ -1218,6 +1218,8 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
   }
   if input.Kind==checkruntime.ArrayElementJsonpathStoredText && (!utf8.ValidString(input.JsonpathStoredText) || strings.IndexByte(input.JsonpathStoredText,0)>=0 || len(input.JsonpathStoredText)==0) { return false }
   if input.Kind==checkruntime.ArrayElementByteaUnspecified && input.ByteaUnspecified<0 { return false }
+  if input.Kind==checkruntime.ArrayElementXml && (!utf8.ValidString(input.Xml) || strings.IndexByte(input.Xml,0)>=0) { return false }
+  if input.Kind==checkruntime.ArrayElementXmlRenderedText && (!utf8.ValidString(input.XmlRenderedText) || strings.IndexByte(input.XmlRenderedText,0)>=0) { return false }
   actual:=checkruntime.ArrayElementFamily(input)
   return actual!=0 && actual==family
 }

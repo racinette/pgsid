@@ -16297,6 +16297,10 @@ export function jsonbInputFromJsonContext(input: checkruntime.JsonValue, utf8: b
     }
     return { kind: "Unknown" };
 }
+export function jsonbInputFromXml(input: checkruntime.XmlValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = xmlToOutputText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
 interface JsonbGeometryCoordinate {
     bits: bigint;
 }
@@ -47765,6 +47769,20 @@ const sqlstateInvalidXmlDocument = 3452566;
 const sqlstateInvalidXmlContent = 3452567;
 const sqlstateInvalidXmlComment = 3452572;
 const sqlstateNotXmlDocument = 3452565;
+export function xmlFromStorageText(input: checkruntime.TextValue): checkruntime.XmlValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return checkruntime.makeXmlValue(value);
+    }
+    return { kind: "Unknown" };
+}
 function xmlTextEncodingAvailable(input: string, utf8: boolean): boolean {
     input = langruntime.checkedString(input);
     utf8 = langruntime.checkedBool(utf8);

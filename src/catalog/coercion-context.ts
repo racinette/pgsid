@@ -4,6 +4,7 @@ import type {
   StoredArrayConstructorContext,
   StoredXmlConstantContext,
 } from './types.js'
+import { xmlArrayConstantText } from './xml-array-constants.js'
 
 type Value = string | Value[] | Tree
 type Tree = { kind: string; fields: Record<string, Value[]> }
@@ -138,6 +139,7 @@ function captureExpressionCoercions(
   arrayIdentities: ReadonlyMap<number, string>,
   xmlTypes: ReadonlySet<number> = new Set(),
   utf8 = false,
+  xmlArrays: ReadonlyMap<number, number> = new Map(),
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
@@ -146,7 +148,9 @@ function captureExpressionCoercions(
   const xmlCandidate =
     xmlTypes.size > 0 &&
     source !== null &&
-    ([...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => xmlTypes.has(Number(m[1]))) ||
+    ([...source.matchAll(/:consttype\s+(\d+)/gu)].some(
+      (m) => xmlTypes.has(Number(m[1])) || xmlArrays.has(Number(m[1])),
+    ) ||
       /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) ||
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   if (
@@ -161,6 +165,7 @@ function captureExpressionCoercions(
   const constants: StoredXmlConstantContext['constants'] = []
   const xmlNames: NonNullable<StoredXmlConstantContext['names']> = []
   const xmlArgumentNames: NonNullable<StoredXmlConstantContext['argumentNames']> = []
+  const xmlArrayConstants: NonNullable<StoredXmlConstantContext['arrays']> = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -208,6 +213,33 @@ function captureExpressionCoercions(
         const text = xmlConstantText(node, utf8)
         if (site === undefined || text === undefined) complete = false
         else constants.push({ site, text })
+      }
+      if (node.kind === 'CONST' && xmlArrays.has(Number(scalar(node, 'consttype')))) {
+        const raw = node.fields['constvalue'],
+          data = Array.isArray(raw?.[1]) ? raw[1] : undefined
+        const text =
+          scalar(node, 'constisnull') === 'true'
+            ? null
+            : scalar(node, 'constlen') === '-1' &&
+                scalar(node, 'constbyval') === 'false' &&
+                raw?.length === 2 &&
+                data &&
+                Number(raw[0]) === data.length &&
+                data.every(
+                  (v) =>
+                    typeof v === 'string' &&
+                    /^-?\d+$/u.test(v) &&
+                    Number(v) >= -128 &&
+                    Number(v) <= 255,
+                )
+              ? xmlArrayConstantText(
+                  Buffer.from(data.map((v) => Number(v) & 255)),
+                  xmlArrays.get(Number(scalar(node, 'consttype')))!,
+                  utf8,
+                )
+              : undefined
+        if (site === undefined || text === undefined) complete = false
+        else xmlArrayConstants.push({ site, text })
       }
       if (node.kind === 'ARRAYEXPR') {
         const type = arrayIdentities.get(Number(expressionType(node)))
@@ -397,6 +429,7 @@ function captureExpressionCoercions(
             constants,
             ...(xmlNames.length ? { names: xmlNames } : {}),
             ...(xmlArgumentNames.length ? { argumentNames: xmlArgumentNames } : {}),
+            ...(xmlArrayConstants.length ? { arrays: xmlArrayConstants } : {}),
           },
         }
       : {}),
@@ -409,15 +442,18 @@ export function captureXmlConstantContext(
   types: ReadonlySet<number>,
   rows: ReadonlyMap<number, RowCoercionIdentity>,
   utf8: boolean,
+  arrays: ReadonlyMap<number, number> = new Map(),
 ): StoredXmlConstantContext | undefined {
   if (
     !source ||
-    (![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => types.has(Number(match[1]))) &&
+    (![...source.matchAll(/:consttype\s+(\d+)/gu)].some(
+      (match) => types.has(Number(match[1])) || arrays.has(Number(match[1])),
+    ) &&
       !/\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) &&
       !(/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   )
     return undefined
-  return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8).xml
+  return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8, arrays).xml
 }
 
 export function captureRowCoercionContext(

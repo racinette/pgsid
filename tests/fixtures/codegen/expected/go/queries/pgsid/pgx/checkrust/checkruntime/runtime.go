@@ -6929,6 +6929,8 @@ const (
 	ArrayElementRange
 	ArrayElementMultirange
 	ArrayElementComposite
+	ArrayElementXml
+	ArrayElementXmlRenderedText
 )
 
 type ArrayElement struct {
@@ -6980,6 +6982,8 @@ type ArrayElement struct {
 	Range              RangePayload
 	Multirange         MultirangePayload
 	Composite          CompositePayload
+	Xml                string
+	XmlRenderedText    string
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -7088,11 +7092,21 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementMultirange, Multirange: CopyMultirangePayload(value.Multirange)}
 	case ArrayElementComposite:
 		return ArrayElement{Kind: ArrayElementComposite, Composite: CopyCompositePayload(value.Composite)}
+	case ArrayElementXml:
+		return ArrayElement{Kind: ArrayElementXml, Xml: langruntime.CheckedString(value.Xml)}
+	case ArrayElementXmlRenderedText:
+		return ArrayElement{Kind: ArrayElementXmlRenderedText, XmlRenderedText: langruntime.CheckedString(value.XmlRenderedText)}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementXml {
+		return 45
+	}
+	if input.Kind == ArrayElementXmlRenderedText {
+		return 45
+	}
 	if input.Kind == ArrayElementComposite {
 		return 44
 	}
@@ -8531,6 +8545,43 @@ func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
 	}
 	return MultirangeValue{Kind: MultirangeValueUnknown}
 }
+func ArrayElementFromXml(input XmlValue) ArrayElement {
+	if input.Kind == XmlValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == XmlValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return ArrayElement{Kind: ArrayElementXml, Xml: value}
+	}
+	if input.Kind == XmlValueRenderedText {
+		value := langruntime.CheckedString(input.RenderedText)
+		return ArrayElement{Kind: ArrayElementXmlRenderedText, XmlRenderedText: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToXml(input ArrayElement) XmlValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return XmlValue{Kind: XmlValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return XmlValue{Kind: XmlValueNull}
+	}
+	if input.Kind == ArrayElementXml {
+		value := langruntime.CheckedString(input.Xml)
+		return XmlValue{Kind: XmlValueValue, Value: value}
+	}
+	if input.Kind == ArrayElementXmlRenderedText {
+		value := langruntime.CheckedString(input.XmlRenderedText)
+		return XmlValue{Kind: XmlValueRenderedText, RenderedText: value}
+	}
+	return XmlValue{Kind: XmlValueUnknown}
+}
 
 type CompositePayload struct {
 	TypeName string
@@ -8605,7 +8656,8 @@ func MakeCompositeValue(input CompositePayload) CompositeValue {
 			return CompositeValue{Kind: CompositeValueError, Error: error}
 		}
 		if checked.Kind == ArrayElementUnknown {
-			if ArrayElementFamily(source) >= 41 {
+			family := ArrayElementFamily(source)
+			if family >= 41 && family <= 44 {
 				return CompositeValue{Kind: CompositeValueUnknown}
 			}
 		}
@@ -8870,13 +8922,13 @@ func compositeTypeContextValid(context *CompositeTypeContext) bool {
 	index := 0
 	for index < len(context.Nodes) {
 		node := copyCompositeTypeNode(context.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 44 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 45 {
 			return false
 		}
 		if node.Kind == 41 && (node.ElementType == "" || node.Child >= len(context.Nodes)) {
 			return false
 		}
-		if node.Kind > 0 && node.Kind < 41 || node.Kind == 42 || node.Kind == 43 {
+		if node.Kind > 0 && node.Kind < 41 || node.Kind == 42 || node.Kind == 43 || node.Kind == 45 {
 			profile := node.BoundProfile
 			if len(profile.Nodes) == 0 || RangeBoundProfileValid(&profile) == false {
 				return false
@@ -9037,6 +9089,14 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	if checked.Kind == ArrayElementJsonb {
 		payload := CopyJsonbPayload(checked.Jsonb)
 		return ArrayElementFromJsonb(JsonbFromCoercedValue(JsonbValue{Kind: JsonbValueValue, Value: payload}))
+	}
+	if checked.Kind == ArrayElementXml {
+		value := langruntime.CheckedString(checked.Xml)
+		return ArrayElementFromXml(MakeXmlValue(value))
+	}
+	if checked.Kind == ArrayElementXmlRenderedText {
+		value := langruntime.CheckedString(checked.XmlRenderedText)
+		return ArrayElementFromXml(XmlFromRenderedText(TextValue{Kind: TextValueValue, Value: value}))
 	}
 	if checked.Kind == ArrayElementJsonpath {
 		payload := CopyJsonpathPayload(checked.Jsonpath)
@@ -9505,7 +9565,7 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 	index := 0
 	for index < len(profile.Nodes) {
 		node := CopyRangeBoundProfile(profile.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 44 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 45 {
 			return false
 		}
 		if node.Kind >= 41 && node.Kind <= 43 {
@@ -9613,7 +9673,7 @@ func RangeBoundContextBranch(profile *RangeBoundContext, start int) RangeBoundCo
 	if start >= len(profile.Nodes) || RangeBoundProfileValid(profile) == false {
 		return EmptyRangeBoundContext()
 	}
-	if profile.Nodes[start].Kind < 41 {
+	if profile.Nodes[start].Kind < 41 || profile.Nodes[start].Kind == 45 {
 		return EmptyRangeBoundContext()
 	}
 	indices := []int{}
@@ -9882,7 +9942,7 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 	if RangeEnumDefinitionValid(value.EnumLabels, value.EnumCount) == false {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
-	if value.ElementKind < 41 {
+	if value.ElementKind < 41 || value.ElementKind == 45 {
 		emptyProfile := EmptyRangeBoundContext()
 		value = CopyRangePayload(rangePayloadWithBoundProfile(value, emptyProfile))
 	}
@@ -9938,7 +9998,7 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 				return RangeValue{Kind: RangeValueUnknown}
 			}
 		}
-		if value.ElementKind >= 41 && kind != 0 {
+		if value.ElementKind >= 41 && value.ElementKind <= 44 && kind != 0 {
 			normalized := RangePrepareProfiledBound(CopyArrayElement(bound), &boundProfile)
 			if normalized.Kind == ArrayElementError {
 				error := normalized.Error
@@ -10916,6 +10976,14 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 }
 func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	element = CopyArrayElement(element)
+	if element.Kind == ArrayElementXml {
+		value := langruntime.CheckedString(element.Xml)
+		return ArrayElementFromXml(MakeXmlValue(value))
+	}
+	if element.Kind == ArrayElementXmlRenderedText {
+		value := langruntime.CheckedString(element.XmlRenderedText)
+		return ArrayElementFromXml(XmlFromRenderedText(TextValue{Kind: TextValueValue, Value: value}))
+	}
 	if element.Kind == ArrayElementComposite {
 		payload := CopyCompositePayload(element.Composite)
 		return ArrayElementFromComposite(MakeCompositeValue(payload))
@@ -10945,7 +11013,8 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 			return ArrayValue{Kind: ArrayValueError, Error: error}
 		}
 		if checked.Kind == ArrayElementUnknown {
-			if ArrayElementFamily(CopyArrayElement(elements[position])) >= 41 {
+			family := ArrayElementFamily(CopyArrayElement(elements[position]))
+			if family >= 41 && family <= 44 {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
 		}
@@ -10953,7 +11022,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 44 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 45 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)

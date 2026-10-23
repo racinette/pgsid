@@ -353,6 +353,7 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
+  if (subtype === 'pg_catalog.xml') return { kind: 'Xml', value }
   if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(subtype))
     return { kind: 'Text', value }
   if (subtype === 'pg_catalog.bpchar')

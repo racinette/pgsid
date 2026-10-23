@@ -149,6 +149,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-text-literal'
+      xmlStorage?: true
       inputConversion?: EvalExpression
       storedInputConversion?: EvalExpression
       conversion?: EvalExpression

@@ -52,9 +52,13 @@ pub enum ArrayElement {
     Range(RangePayload),
     Multirange(MultirangePayload),
     Composite(CompositePayload),
+    Xml(String),
+    XmlRenderedText(String),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Xml(_) = input { return 45; };
+    if let ArrayElement::XmlRenderedText(_) = input { return 45; };
     if let ArrayElement::Composite(_) = input { return 44; };
     if let ArrayElement::Multirange(_) = input {
         return 43;
@@ -1349,4 +1353,21 @@ pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
         return make_coerced_multirange_value(value);
     };
     MultirangeValue::Unknown
+}
+
+
+pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
+    if let XmlValue::Error(error) = input { return ArrayElement::Error(error); };
+    if let XmlValue::Null = input { return ArrayElement::Null; };
+    if let XmlValue::Value(value) = input { return ArrayElement::Xml(value); };
+    if let XmlValue::RenderedText(value) = input { return ArrayElement::XmlRenderedText(value); };
+    ArrayElement::Unknown
+}
+
+pub fn array_element_to_xml(input: ArrayElement) -> XmlValue {
+    if let ArrayElement::Error(error) = input { return XmlValue::Error(error); };
+    if let ArrayElement::Null = input { return XmlValue::Null; };
+    if let ArrayElement::Xml(value) = input { return XmlValue::Value(value); };
+    if let ArrayElement::XmlRenderedText(value) = input { return XmlValue::RenderedText(value); };
+    XmlValue::Unknown
 }

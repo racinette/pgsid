@@ -842,6 +842,22 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
   }
   const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
+  const xmlArrayElement = (oid: number, seen = new Set<number>()): number | undefined => {
+    if (seen.has(oid)) return undefined
+    seen.add(oid)
+    const type = typesByOid.get(oid)
+    return type?.kind === 'd'
+      ? xmlArrayElement(type.base, seen)
+      : type && type.element !== null && xmlTypes.has(type.element)
+        ? type.element
+        : undefined
+  }
+  const xmlArrays = new Map(
+    typeRows.flatMap((type) => {
+      const element = xmlArrayElement(type.oid)
+      return element === undefined ? [] : [[type.oid, element] as const]
+    }),
+  )
   for (const con of constraintRows) {
     const xmlConstants = captureXmlConstantContext(
       con.coercion_tree,
@@ -849,6 +865,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       xmlTypes,
       rowIdentities,
       utf8,
+      xmlArrays,
     )
     const coercionContext = captureDomainCoercionContext(
       con.coercion_tree,
@@ -1142,6 +1159,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           xmlTypes,
           rowIdentities,
           utf8,
+          xmlArrays,
         )
         const coercionContext = captureDomainCoercionContext(
           check.coercion_tree,

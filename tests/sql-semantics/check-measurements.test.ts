@@ -600,7 +600,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('jsonb').represented).toBe(true)
     expect(valueRepresentation('json').represented).toBe(true)
     expect(valueRepresentation('xml').represented).toBe(true)
-    expect(valueRepresentation('xml[]').represented).toBe(false)
+    expect(valueRepresentation('xml[]').represented).toBe(true)
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
@@ -1135,7 +1135,7 @@ describe('CHECK measurement boundaries', () => {
       expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('unimplemented-value')
     for (const type of ['int2vector', 'oidvector', 'xml'])
       expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('represented-value')
-    expect(inventory.get('pg_catalog._xml')?.representation.represented).toBe(false)
+    expect(inventory.get('pg_catalog._xml')?.representation.represented).toBe(true)
     expect(inventory.get('pg_catalog.pg_class')?.boundary.kind).toBe('captured-composite')
     const graph = await readCatalogCompositeTypes(pg, [], ['pg_catalog.pg_enum'])
     const captured = lowerTableCheck(

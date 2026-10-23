@@ -936,6 +936,7 @@ describe('world CHECK INSERT parity', () => {
           'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
           'pg_catalog."json"': { kind: 'Json', family: 11 },
           'pg_catalog.jsonb': { kind: 'Jsonb', family: 12 },
+          'pg_catalog.xml': { kind: 'Xml', family: 45 },
           'pg_catalog.float4': { kind: 'Float4', family: 19 },
           'pg_catalog.float8': { kind: 'Float8', family: 20 },
         }

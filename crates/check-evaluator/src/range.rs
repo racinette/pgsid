@@ -357,7 +357,7 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
     let mut index: usize = 0;
     while index < profile.nodes.len() {
         let node = profile.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 44 {
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 45 {
             return false;
         };
         if node.kind >= 41 && node.kind <= 43 {
@@ -505,7 +505,7 @@ pub fn range_bound_context_branch(profile: &RangeBoundContext, start: usize) -> 
     if start >= profile.nodes.len() || range_bound_profile_valid(profile) == false {
         return empty_range_bound_context();
     };
-    if profile.nodes[start].kind < 41 {
+    if profile.nodes[start].kind < 41 || profile.nodes[start].kind == 45 {
         return empty_range_bound_context();
     };
     let mut indices: Vec<usize> = Vec::new();
@@ -815,7 +815,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     if range_enum_definition_valid(value.enum_labels.as_str(), value.enum_count) == false {
         return RangeValue::Unknown;
     };
-    if value.element_kind < 41 {
+    if value.element_kind < 41 || value.element_kind == 45 {
         let empty_profile = empty_range_bound_context();
         value = range_payload_with_bound_profile(value, empty_profile);
     };
@@ -877,7 +877,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
                 return RangeValue::Unknown;
             };
         };
-        if value.element_kind >= 41 && kind != 0 {
+        if value.element_kind >= 41 && value.element_kind <= 44 && kind != 0 {
             let normalized = range_prepare_profiled_bound(bound.clone(), &bound_profile);
             if let ArrayElement::Error(error) = normalized { return RangeValue::Error(error); };
             if let ArrayElement::Unknown = normalized { return RangeValue::Unknown; };

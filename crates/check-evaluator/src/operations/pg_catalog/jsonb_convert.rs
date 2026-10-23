@@ -233,3 +233,9 @@ pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput
     };
     JsonbInput::Unknown
 }
+
+
+pub fn jsonb_input_from_xml(input: XmlValue) -> JsonbInput {
+    let text = xml_to_output_text(input);
+    jsonb_input_from_text(text)
+}
