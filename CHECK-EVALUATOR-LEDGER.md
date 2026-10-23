@@ -129,8 +129,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish point direction tests, arithmetic, distance, slope, portable text input and literals, and catalog-resolved unconstrained-domain casts; preserve semantic NaN values while classifying computed binary precision.
 - [x] Establish line coefficient payloads, geometric equality, orientation, binary output, domains, SQL-coerced public inputs and composition.
 - [x] Retain known scalar NaNs produced by geometry or native JavaScript inputs across comparisons, casts and composition while deferring unavailable binary precision.
-- [x] Establish line text input, point construction, literals and catalog I/O
-      casts through unconstrained domains.
+- [x] Establish line text input, point construction, literals and catalog I/O casts through unconstrained domains.
 - [x] Establish line relations, intersections, distances, point containment and closest-point projection.
 - [x] Establish line-segment endpoint payloads, public inputs, construction, parsing, literals, comparisons, length, midpoint and orientation.
 - [x] Establish line-segment intersections, containment, distances and closest points.
@@ -157,7 +156,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish owned XML storage versus rendered-output facets, explicit UTF8 document/content parsing, text/comment construction, document/null predicates, immutable snapshots, text/output/send behavior and diagnostic errors. Capture original table/domain XML constants at semantic positions without deployment IDs, including erased declarations and behavioral schema differences. Verify native INSERT/Rust/Go/TypeScript parity; retain erased-declaration requirements before SQL/public admission.
 - [x] Admit scalar XML SQL/public values, captured source/stored literals, catalog casts and checked domains, XMLPARSE, IS DOCUMENT and unindented XMLSERIALIZE; preserve storage/output facets, explicit xmloption/client encoding, eager literals, lazy runtime casts, validated payloads and raw writes. Verify native/Rust/Go/TypeScript and manifest INSERT parity; keep missing implementation separate from reached context requirements.
 - [x] Admit XMLCONCAT, XMLROOT, XMLPI and the non-strict binary concat transition through shared Rust, captured original mapped names and catalog assignment/text coercions. Preserve declaration accumulation, Unicode name escaping, source/stored domains, eager errors, NULL/Unknown behavior, document/serialization/wire composition and native/Rust/Go/TypeScript manifest INSERT parity.
-- [ ] Complete XML element/attribute/forest constructors, INDENT serialization, recursive containers/JSON integration and query operations; preserve document/content, source provenance and execution-context requirements.
+- [x] Admit XMLELEMENT, XMLATTRIBUTES and XMLFOREST through native named-argument provenance, implicit column names, shared scalar/represented-array/record value mapping and explicit xmlbinary context. Preserve NULL/empty distinctions, native escaping and base64 framing, enum/domain arrays, anonymous layouts, argument/conversion error order and partial-input validity with native/Rust/Go/TypeScript manifest INSERT parity.
+- [ ] Complete XML support inside arrays/composites and JSON conversion, INDENT serialization and query operations; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish internal "char" byte values, portable I/O, signed integer casts,

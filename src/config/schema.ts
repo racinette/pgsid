@@ -313,6 +313,7 @@ export const codegenSchema = z
         trigonometry: z.literal('fdlibm').optional(),
         arrayNulls: z.boolean().optional(),
         xmlOption: z.enum(['document', 'content']).optional(),
+        xmlBinary: z.enum(['base64', 'hex']).optional(),
         clientEncoding: z.literal('UTF8').optional(),
       })
       .strict()

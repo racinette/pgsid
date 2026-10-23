@@ -10612,6 +10612,13 @@ func CompositeOutputHasField(input checkruntime.TextValue) bool {
 	}
 	return false
 }
+func CompositeOutputMatches(input checkruntime.CompositeValue, typeName string, fields int) bool {
+	input = checkruntime.CopyCompositeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	fields = langruntime.CheckedI32(fields)
+	prepared := PrepareCompositeOutput(input, typeName, fields)
+	return CompositeOutputHasField(prepared)
+}
 func AppendCompositeOutput(input checkruntime.TextValue, field checkruntime.TextValue, first bool) checkruntime.TextValue {
 	if input.Kind == checkruntime.TextValueValue {
 		source := langruntime.CheckedString(input.Value)
@@ -45077,6 +45084,10 @@ func xmlConstructorNameCharacter(character rune) bool {
 }
 func xmlConstructorName(input string) string {
 	input = langruntime.CheckedString(input)
+	return xmlConstructorMappedName(input, false)
+}
+func xmlConstructorMappedName(input string, fullyEscaped bool) string {
+	input = langruntime.CheckedString(input)
 	characters := []rune(input)
 	hex := []rune("0123456789ABCDEF")
 	output := langruntime.NewTextBuffer("")
@@ -45086,6 +45097,12 @@ func xmlConstructorName(input string) string {
 		escape := xmlConstructorNameCharacter(character) == false
 		if index == 0 {
 			escape = xmlConstructorNameStart(character) == false || character == ':'
+		}
+		if character == ':' && fullyEscaped {
+			escape = true
+		}
+		if fullyEscaped && index == 0 && len(characters) >= 3 && (character == 'x' || character == 'X') && (characters[1] == 'm' || characters[1] == 'M') && (characters[2] == 'l' || characters[2] == 'L') {
+			escape = true
 		}
 		if character == '_' && langruntime.CheckedAdd(index, 1) < len(characters) && characters[langruntime.CheckedAdd(index, 1)] == 'x' {
 			escape = true
@@ -45703,6 +45720,339 @@ func xmlParseDtdItem(source *xmlSource, start int) xmlDtdItem {
 		return invalid
 	}
 	return xmlDtdItem{next: langruntime.CheckedAdd(position, 1), valid: true, kind: kind, name: declaredName, value: value, external: external, unparsed: unparsed}
+}
+
+const sqlstateXmlDatetimeRange = 3452552
+
+func XmlElementValueEscape(input checkruntime.TextValue, escape bool) checkruntime.TextValue {
+	if escape == false {
+		return input
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			if character == '&' {
+				output = append(output, "&amp;"...)
+			} else if character == '<' {
+				output = append(output, "&lt;"...)
+			} else if character == '>' {
+				output = append(output, "&gt;"...)
+			} else if character == '\r' {
+				output = append(output, "&#x0d;"...)
+			} else {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return input
+}
+func XmlElementAppend(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueNull {
+		return left
+	}
+	if left.Kind == checkruntime.TextValueNull {
+		return right
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			b := langruntime.CheckedString(right.Value)
+			result := langruntime.NewTextBuffer(a)
+			result = append(result, b...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(result)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func xmlElementCharacterReference(code int) string {
+	code = langruntime.CheckedI32(code)
+	hex := []rune("0123456789ABCDEF")
+	divisor := 1048576
+	for divisor > 1 && divisor > code {
+		divisor = langruntime.CheckedI32(langruntime.CheckedSignedDivide(divisor, 16))
+	}
+	output := langruntime.NewTextBuffer("&#x")
+	for divisor > 0 {
+		word := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(code, divisor)), 16)
+		digit := langruntime.IndexFromI32(word, 0)
+		output = append(output, string(langruntime.CheckedChar(hex[digit]))...)
+		divisor = langruntime.CheckedI32(langruntime.CheckedSignedDivide(divisor, 16))
+	}
+	output = append(output, string(langruntime.CheckedChar(';'))...)
+	return string(output)
+}
+func XmlElementAttribute(name string, mapped bool, implicit bool, input checkruntime.TextValue, utf8 bool) checkruntime.TextValue {
+	name = langruntime.CheckedString(name)
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if xmlTextEncodingAvailable(value, utf8) == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		target := langruntime.NewTextBuffer(name)
+		if mapped == false {
+			target = langruntime.NewTextBuffer(xmlConstructorMappedName(name, implicit))
+		}
+		output := langruntime.NewTextBuffer(" ")
+		output = append(output, string(target)...)
+		output = append(output, "=\""...)
+		characters := []rune(value)
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			code := int(langruntime.CheckedChar(character))
+			if character == '&' {
+				output = append(output, "&amp;"...)
+			} else if character == '<' {
+				output = append(output, "&lt;"...)
+			} else if character == '>' {
+				output = append(output, "&gt;"...)
+			} else if character == '"' {
+				output = append(output, "&quot;"...)
+			} else if character == '\r' {
+				output = append(output, "&#13;"...)
+			} else if character == '\n' {
+				output = append(output, "&#10;"...)
+			} else if character == '\t' {
+				output = append(output, "&#9;"...)
+			} else if code < 32 || code == 65534 || code == 65535 {
+				output = append(output, "&#xFFFD;"...)
+			} else if code >= 128 {
+				reference := xmlElementCharacterReference(code)
+				output = append(output, reference...)
+			} else {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return input
+}
+func XmlForestPart(name string, mapped bool, implicit bool, input checkruntime.TextValue) checkruntime.TextValue {
+	name = langruntime.CheckedString(name)
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		target := langruntime.NewTextBuffer(name)
+		if mapped == false {
+			target = langruntime.NewTextBuffer(xmlConstructorMappedName(name, implicit))
+		}
+		output := langruntime.NewTextBuffer("<")
+		output = append(output, string(target)...)
+		output = append(output, string(langruntime.CheckedChar('>'))...)
+		output = append(output, value...)
+		output = append(output, "</"...)
+		output = append(output, string(target)...)
+		output = append(output, string(langruntime.CheckedChar('>'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return input
+}
+func XmlElementFinish(name string, mapped bool, attributes checkruntime.TextValue, content checkruntime.TextValue, validity checkruntime.CheckOutcome) checkruntime.XmlValue {
+	name = langruntime.CheckedString(name)
+	if validity.Kind == checkruntime.CheckOutcomeError {
+		error := validity.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if attributes.Kind == checkruntime.TextValueError {
+		error := attributes.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if content.Kind == checkruntime.TextValueError {
+		error := content.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if validity == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+	}
+	target := langruntime.NewTextBuffer(name)
+	if mapped == false {
+		target = langruntime.NewTextBuffer(xmlConstructorName(name))
+	}
+	if attributes.Kind == checkruntime.TextValueValue {
+		attrs := langruntime.CheckedString(attributes.Value)
+		output := langruntime.NewTextBuffer("<")
+		output = append(output, string(target)...)
+		output = append(output, attrs...)
+		if content.Kind == checkruntime.TextValueNull {
+			output = append(output, "/>"...)
+			return checkruntime.MakeXmlValue(string(output))
+		}
+		if content.Kind == checkruntime.TextValueValue {
+			body := langruntime.CheckedString(content.Value)
+			output = append(output, string(langruntime.CheckedChar('>'))...)
+			output = append(output, body...)
+			output = append(output, "</"...)
+			output = append(output, string(target)...)
+			output = append(output, string(langruntime.CheckedChar('>'))...)
+			return checkruntime.MakeXmlValue(string(output))
+		}
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func XmlForestFinish(content checkruntime.TextValue, validity checkruntime.CheckOutcome) checkruntime.XmlValue {
+	if validity.Kind == checkruntime.CheckOutcomeError {
+		error := validity.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if content.Kind == checkruntime.TextValueError {
+		error := content.Error
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: error}
+	}
+	if validity == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+	}
+	if content.Kind == checkruntime.TextValueNull {
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
+	}
+	if content.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(content.Value)
+		return checkruntime.MakeXmlValue(value)
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+func XmlValueBoolean(input checkruntime.BoolValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.BoolValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.BoolValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.BoolValueValue {
+		value := input.Value
+		if value {
+			return checkruntime.MakeTextValue("true")
+		}
+		return checkruntime.MakeTextValue("false")
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func xmlValueCalendarText(input checkruntime.JsonbInput) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonbInputText {
+		value := langruntime.CheckedString(input.Text)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func XmlValueDate(input checkruntime.DateValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.DateValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value == (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) || value == 2147483647 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateXmlDatetimeRange)}
+		}
+	}
+	text := JsonbInputFromDate(input)
+	return xmlValueCalendarText(text)
+}
+func XmlValueTimestamp(input checkruntime.TimestampValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateXmlDatetimeRange)}
+		}
+	}
+	text := JsonbInputFromTimestamp(input)
+	return xmlValueCalendarText(text)
+}
+func XmlValueTimestamptz(input checkruntime.TimestamptzValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateXmlDatetimeRange)}
+		}
+	}
+	text := JsonbInputFromTimestamptz(input)
+	return xmlValueCalendarText(text)
+}
+func XmlValueBinary(input checkruntime.ByteaValue, mode int) checkruntime.TextValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ByteaValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		if len(characters) == 0 {
+			return checkruntime.MakeTextValue("")
+		}
+		if mode == 1 {
+			output := langruntime.NewTextBuffer("")
+			index := 0
+			for index < len(characters) {
+				character := characters[index]
+				code := int(langruntime.CheckedChar(character))
+				if code >= 97 && code <= 102 {
+					upper := langruntime.CheckedSignedSubtract(code, 32)
+					character = langruntime.CheckedChar(langruntime.CharacterFromI32(upper, '0'))
+				}
+				output = append(output, string(langruntime.CheckedChar(character))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		if mode == 2 {
+			encoded := byteaBase64Encode(value)
+			characters := []rune(encoded)
+			output := langruntime.NewTextBuffer("")
+			column := 0
+			index := 0
+			for index < len(characters) {
+				character := characters[index]
+				if character != '\n' {
+					if column == 72 {
+						output = append(output, "\r\n"...)
+						column = langruntime.CheckedI32(0)
+					}
+					output = append(output, string(langruntime.CheckedChar(character))...)
+					column = langruntime.CheckedI32(langruntime.CheckedSignedAdd(column, 1))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func XmlArrayOutputInitial(input checkruntime.ArrayValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		return checkruntime.MakeTextValue("")
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 
 type xmlDtdFlags struct {

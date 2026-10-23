@@ -24,11 +24,13 @@ export type EvalExpression =
   | {
       kind: 'xml-constructor'
       type: 'pg_catalog.xml'
-      operation: 'concat' | 'root' | 'pi'
+      operation: 'concat' | 'root' | 'pi' | 'element' | 'forest'
       operands: readonly EvalExpression[]
       name?: string
       mapped?: boolean
       standalone?: number
+      named?: readonly { name: string; mapped: boolean; implicit: boolean }[]
+      inputEnums?: readonly EnumDefinition[]
     }
   | {
       kind: 'xml-operation'

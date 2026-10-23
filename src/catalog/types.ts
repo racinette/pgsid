@@ -112,6 +112,7 @@ export interface StoredXmlConstantContext {
   complete: boolean
   constants: { site: string; text: string | null }[]
   names?: { site: string; name: string }[]
+  argumentNames?: { site: string; names: string[] }[]
 }
 
 export interface StoredDomainCoercionContext {

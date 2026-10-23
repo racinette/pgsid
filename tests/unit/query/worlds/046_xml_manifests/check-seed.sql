@@ -93,3 +93,31 @@ VALUES ('<r/>','<w/>','1.0','?>','wrong','wrong','wrong',true);
 -- name: InvalidDispatchSequence
 INSERT INTO manifest_assemblies(fragment,trailer,version_label,instruction,expected_concat,expected_root,expected_instruction,bypass)
 VALUES ('<r/>','<w/>','1.0','silent','<r/><w/>','<r/><w/>','<?dispatch_x1F60A_ silent?>',false);
+
+-- name: EncloseManifest
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES ('<parcel/>','é&',ARRAY['a&',NULL,'b<'],7,'<envelope note_x1F60A_="&#xE9;&amp;" sequence="7"><label>é&amp;</label><element>a&amp;</element><element>b&lt;</element><parcel/></envelope>','<document><parcel/></document><note_x1F60A_>é&amp;</note_x1F60A_><tags><element>a&amp;</element><element>b&lt;</element></tags><sequence>7</sequence>',false);
+
+-- name: NullEnvelope
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,NULL,NULL,NULL,'<envelope/>',NULL,false);
+
+-- name: EmptyTagsEnvelope
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,NULL,ARRAY[]::text[],NULL,'<envelope></envelope>','<tags></tags>',false);
+
+-- name: EmptyLabelEnvelope
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,'',NULL,NULL,'<envelope note_x1F60A_=""><label></label></envelope>','<note_x1F60A_></note_x1F60A_>',false);
+
+-- name: WrongAttributeEncoding
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,'é',NULL,NULL,'<envelope note_x1F60A_="é"><label>é</label></envelope>','<note_x1F60A_>é</note_x1F60A_>',false);
+
+-- name: WrongForestContent
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,NULL,NULL,NULL,'<envelope/>','wrong',false);
+
+-- name: BypassedEnvelope
+INSERT INTO manifest_envelopes(fragment,label,tags,sequence,expected_element,expected_forest,bypass)
+VALUES (NULL,'é',ARRAY['bad&'],NULL,'wrong','wrong',true);

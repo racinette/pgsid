@@ -147,7 +147,8 @@ function captureExpressionCoercions(
     xmlTypes.size > 0 &&
     source !== null &&
     ([...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => xmlTypes.has(Number(m[1]))) ||
-      /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source))
+      /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) ||
+      (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   if (
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
@@ -159,6 +160,7 @@ function captureExpressionCoercions(
   const constructors: StoredArrayConstructorContext['constructors'] = []
   const constants: StoredXmlConstantContext['constants'] = []
   const xmlNames: NonNullable<StoredXmlConstantContext['names']> = []
+  const xmlArgumentNames: NonNullable<StoredXmlConstantContext['argumentNames']> = []
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -275,6 +277,15 @@ function captureExpressionCoercions(
           if (site === undefined) complete = false
           else xmlNames.push({ site, name })
         }
+        const names = list('arg_names')
+        if (names.length) {
+          if (site === undefined || names.some((n) => typeof n !== 'string')) complete = false
+          else {
+            const decoded = names.map((n) => JSON.parse(n as string) as unknown)
+            if (decoded.some((n) => typeof n !== 'string')) complete = false
+            else xmlArgumentNames.push({ site, names: decoded as string[] })
+          }
+        }
         args.forEach((v, i) => visit(v, at('xml/arg/' + i)))
         list('named_args').forEach((v, i) => visit(v, at('xml/named/' + i)))
         return
@@ -380,7 +391,13 @@ function captureExpressionCoercions(
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
     ...(xmlCandidate
       ? {
-          xml: { definition, complete, constants, ...(xmlNames.length ? { names: xmlNames } : {}) },
+          xml: {
+            definition,
+            complete,
+            constants,
+            ...(xmlNames.length ? { names: xmlNames } : {}),
+            ...(xmlArgumentNames.length ? { argumentNames: xmlArgumentNames } : {}),
+          },
         }
       : {}),
   }
@@ -396,7 +413,8 @@ export function captureXmlConstantContext(
   if (
     !source ||
     (![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => types.has(Number(match[1]))) &&
-      !/\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source))
+      !/\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) &&
+      !(/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   )
     return undefined
   return captureExpressionCoercions(source, definition, rows, new Map(), types, utf8).xml

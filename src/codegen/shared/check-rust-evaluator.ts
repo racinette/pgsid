@@ -719,6 +719,7 @@ export type CheckExecutionContext = {
   trigonometry?: 'fdlibm'
   arrayNulls?: boolean
   xmlOption?: 'document' | 'content'
+  xmlBinary?: 'base64' | 'hex'
   clientEncoding?: 'UTF8'
 }
 
@@ -963,11 +964,19 @@ export function emitCheckRustEvaluator(
   ): string => {
     const scalar = fresh('container_output_scalar')
     const prefix = rustValuePrefix(rustType(type))
-    destination.push(`let ${scalar}=array_element_to_${prefix}(${cell});`)
+    const extract = () => destination.push(`let ${scalar}=array_element_to_${prefix}(${cell});`)
+    if (anonymousRecordProfile(type)) {
+      extract()
+      return renderAnonymousRecordOutput({ name: scalar, type }, destination)
+    }
     const range = rangeTypeProfile(type),
       multi = multirangeTypeProfile(type)
-    if (range || multi) return renderRangeOutput(scalar, (range ?? multi)!, !!multi, destination)
+    if (range || multi) {
+      extract()
+      return renderRangeOutput(scalar, (range ?? multi)!, !!multi, destination)
+    }
     if (compositeProfile(type) || type.startsWith('array:')) {
+      extract()
       const name = '__pgsid_container_output',
         key = JSON.stringify([name, false]),
         outer = localInputs.get(key)
@@ -997,6 +1006,7 @@ export function emitCheckRustEvaluator(
       }
     }
     const output = arrayElementOutput(type, definition, cell, scalar)
+    if (output.scalarRequired) extract()
     return type === 'pg_catalog.jsonb'
       ? `jsonb_text_context(${scalar},${executionContext.serverEncoding === 'UTF8'})`
       : output.conversion
@@ -1051,6 +1061,128 @@ export function emitCheckRustEvaluator(
       bounds.push(text)
     }
     return `range_format_text(${input}.clone(),${bounds[0]},${bounds[1]})`
+  }
+
+  const renderAnonymousRecordOutput = (
+    operand: { name: string; type: string },
+    destination: string[],
+  ): string => {
+    const layouts = anonymousRecordProfile(operand.type)
+    if (!layouts)
+      throw new UnsupportedCheckRustExpression('Record output requires its field layouts')
+    const cell = fresh('xml_record_cell'),
+      initial = fresh('xml_record_initial'),
+      result = fresh('xml_record_result')
+    destination.push(
+      `let ${cell}=array_element_from_composite(${ownedOperand(operand)});`,
+      `let ${initial}=array_contextual_output(${cell});`,
+      `let mut ${result}:TextValue=${initial};`,
+    )
+    for (const layout of layouts) {
+      const lines: string[] = [],
+        start = fresh('xml_record_start')
+      lines.push(
+        `let ${start}=prepare_composite_output(${ownedOperand(operand)},${rustStringLiteral(layout.identity)},${layout.fields.length});`,
+      )
+      let current = start
+      for (const [index, field] of layout.fields.entries()) {
+        const position = fresh('xml_record_position'),
+          cell = fresh('xml_record_field'),
+          text = fresh('xml_record_text'),
+          next = fresh('xml_record_next')
+        lines.push(
+          `let ${position}=make_int4_value(${index});`,
+          `let ${cell}=composite_field_at(${ownedOperand(operand)},${position});`,
+        )
+        const conversion = field.unknown
+          ? `array_contextual_output(${cell})`
+          : renderTypedOutput(cell, field.type, lines, field.enum as EnumDefinition | undefined)
+        lines.push(
+          `let ${text}=${conversion};`,
+          `let ${next}=append_composite_output(${current},${text},${index === 0});`,
+        )
+        current = next
+      }
+      lines.push(`${result}=finish_composite_output(${current});`)
+      destination.push(
+        `if composite_output_matches(${ownedOperand(operand)},${rustStringLiteral(layout.identity)},${layout.fields.length}) {`,
+        ...indent(lines),
+        '}',
+      )
+    }
+    return result
+  }
+
+  const renderXmlValue = (
+    original: { name: string; type: string },
+    escape: boolean,
+    destination: string[],
+    definition?: EnumDefinition,
+  ): string => {
+    let operand = { ...original, type: arrayElementBaseType(original.type) }
+    if (isCatalogVectorType(operand.type))
+      operand = { ...operand, type: arrayPhysicalType(operand.type)! }
+    if (operand.type.startsWith('array:')) {
+      const payload = fresh('xml_array_payload'),
+        initial = fresh('xml_array_initial'),
+        output = fresh('xml_array_output'),
+        first = fresh('xml_array_first'),
+        index = fresh('xml_array_index'),
+        cell = fresh('xml_array_cell'),
+        scalar = fresh('xml_array_scalar'),
+        part = fresh('xml_array_part'),
+        type = arrayElementBaseType(operand.type.slice(6)),
+        prefix = rustValuePrefix(rustType(type))
+      destination.push(
+        `let ${payload}=prepare_array_output(${ownedOperand(operand)});`,
+        `let ${initial}=xml_array_output_initial(${ownedOperand(operand)});`,
+        `let ${first}=make_int4_value(0);`,
+        `let mut ${output}:TextValue=${initial};`,
+        `let mut ${index}:Int4Value=${first};`,
+      )
+      const body = [
+        `let ${cell}=array_output_element_at(&${payload},${index});`,
+        `let ${scalar}=array_element_to_${prefix}(${cell});`,
+      ]
+      const rendered = renderXmlValue({ name: scalar, type }, true, body, definition)
+      body.push(
+        `let ${part}=xml_forest_part("element",true,false,${rendered});`,
+        `${output}=xml_element_append(${output},${part});`,
+        `${index}=array_text_next_index(${index});`,
+      )
+      destination.push(
+        `while array_output_has_element(&${payload},${index}) {`,
+        ...indent(body),
+        '}',
+      )
+      return output
+    }
+    const output = fresh('xml_scalar_output'),
+      rendered = fresh('xml_scalar_rendered'),
+      special: Record<string, string> = {
+        'pg_catalog.xml': 'xml_to_output_text',
+        'pg_catalog.bool': 'xml_value_boolean',
+        'pg_catalog.date': 'xml_value_date',
+        'pg_catalog."timestamp"': 'xml_value_timestamp',
+        'pg_catalog.timestamptz': 'xml_value_timestamptz',
+      }
+    let conversion: string
+    if (special[operand.type]) conversion = `${special[operand.type]}(${ownedOperand(operand)})`
+    else if (operand.type === 'pg_catalog.bytea')
+      conversion = `xml_value_binary(${ownedOperand(operand)},${executionContext.xmlBinary === 'hex' ? 1 : executionContext.xmlBinary === 'base64' ? 2 : 0})`
+    else if (anonymousRecordProfile(operand.type))
+      conversion = renderAnonymousRecordOutput(operand, destination)
+    else {
+      const cell = fresh('xml_scalar_cell'),
+        prefix = rustValuePrefix(rustType(operand.type))
+      destination.push(`let ${cell}=array_element_from_${prefix}(${ownedOperand(operand)});`)
+      conversion = renderTypedOutput(cell, operand.type, destination, definition)
+    }
+    destination.push(
+      `let ${output}=${conversion};`,
+      `let ${rendered}=xml_element_value_escape(${output},${escape && operand.type !== 'pg_catalog.xml' && operand.type !== 'pg_catalog.bytea'});`,
+    )
+    return rendered
   }
 
   const renderArrayOutput = (
@@ -1500,6 +1632,50 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'xml-constructor') {
       const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
+      if (node.operation === 'element' || node.operation === 'forest') {
+        const validity = fresh('xml_argument_validity'),
+          valid = bind('make_bool_value(true)'),
+          initial = bind(`check_from_bool(${valid})`),
+          empty = node.operation === 'element' ? bind('make_text_value("")') : null,
+          missing = bind('text_null()'),
+          attributes = fresh('xml_attributes'),
+          content = fresh('xml_content')
+        bindings.push(
+          `let mut ${validity}:CheckOutcome=${initial};`,
+          ...(empty ? [`let mut ${attributes}:TextValue=${empty};`] : []),
+          `let mut ${content}:TextValue=${missing};`,
+        )
+        for (const operand of operands) {
+          const nullness = bind(
+              `${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)})`,
+            ),
+            state = bind(`array_value_validity(${nullness},true)`)
+          bindings.push(`${validity}=array_validity_finish(${validity},${state});`)
+        }
+        for (const [index, operand] of operands.entries()) {
+          let leaf = arrayElementBaseType(operand.type)
+          while (leaf.startsWith('array:')) leaf = arrayElementBaseType(leaf.slice(6))
+          const named = node.named?.[index],
+            attribute = node.operation === 'element' && !!named,
+            definition = node.inputEnums?.find((d) => enumType(d) === leaf),
+            text = renderXmlValue(operand, !attribute, bindings, definition),
+            part = named
+              ? bind(
+                  `${attribute ? 'xml_element_attribute' : 'xml_forest_part'}(${rustStringLiteral(named.name)},${named.mapped},${named.implicit},${text}${attribute ? ',' + String(executionContext.serverEncoding === 'UTF8') : ''})`,
+                )
+              : text,
+            destination = attribute ? attributes : content
+          bindings.push(`${destination}=xml_element_append(${destination},${part});`)
+        }
+        return {
+          name: bind(
+            node.operation === 'element'
+              ? `xml_element_finish(${rustStringLiteral(node.name ?? '')},${node.mapped === true},${attributes},${content},${validity})`
+              : `xml_forest_finish(${content},${validity})`,
+          ),
+          type: node.type,
+        }
+      }
       if (node.operation === 'concat') {
         const initial = bind('xml_concat_begin()'),
           state = fresh('xml_concat')

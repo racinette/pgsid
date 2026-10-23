@@ -2728,6 +2728,78 @@ export function bindCatalogCheck(
     if (xml || serialized) {
       const args = xml?.['args'],
         operation = xml?.['op']
+      if (operation === 'IS_XMLELEMENT' || operation === 'IS_XMLFOREST') {
+        const rawNamed = xml?.['named_args'] ?? [],
+          rawArgs = args ?? [],
+          captured = xml?.['__pgsid_mapped_arguments'],
+          capturedName = xml?.['__pgsid_mapped_name'],
+          name = typeof capturedName === 'string' ? capturedName : xml?.['name']
+        if (
+          !Array.isArray(rawNamed) ||
+          !Array.isArray(rawArgs) ||
+          (operation === 'IS_XMLFOREST' && rawArgs.length) ||
+          (operation === 'IS_XMLELEMENT' && typeof name !== 'string') ||
+          (captured !== undefined &&
+            (!Array.isArray(captured) || captured.length !== rawNamed.length))
+        )
+          return unknown
+        const named: { name: string; mapped: boolean; implicit: boolean }[] = [],
+          operands: EvalExpression[] = [],
+          inputEnums: EnumInfo[] = []
+        for (const [index, entry] of [...rawNamed, ...rawArgs].entries()) {
+          const target = index < rawNamed.length ? fields(fields(entry)?.['ResTarget']) : null,
+            raw = target ? target['val'] : entry,
+            bound = bind(raw),
+            type = boundType(bound) ?? 'pg_catalog.text',
+            value = materialize(bound, type),
+            definition = arrayOutputEnum(type)
+          if (!value) return unknown
+          operands.push(value)
+          if (definition && !inputEnums.some((d) => enumType(d) === enumType(definition)))
+            inputEnums.push(definition)
+          if (index < rawNamed.length) {
+            if (!target) return unknown
+            const explicit = target['name'],
+              columns = strings(fields(fields(raw)?.['ColumnRef'])?.['fields']),
+              original = typeof explicit === 'string' ? explicit : columns?.at(-1),
+              mapped = Array.isArray(captured) ? captured[index] : undefined,
+              selected = typeof mapped === 'string' ? mapped : original
+            if (typeof selected !== 'string') return unknown
+            if (
+              literalOrigin === 'stored' &&
+              typeof mapped !== 'string' &&
+              (/_x[0-9A-F]{5,6}_/u.test(selected) ||
+                selected.includes(':') ||
+                /^xml/iu.test(selected))
+            )
+              return unknown
+            named.push({
+              name: selected,
+              mapped: typeof mapped === 'string',
+              implicit: typeof explicit !== 'string',
+            })
+          }
+        }
+        if (
+          operation === 'IS_XMLELEMENT' &&
+          literalOrigin === 'stored' &&
+          typeof capturedName !== 'string' &&
+          /_x[0-9A-F]{5,6}_/u.test(name as string)
+        )
+          return unknown
+        return {
+          type: 'pg_catalog.xml',
+          value: {
+            kind: 'xml-constructor',
+            type: 'pg_catalog.xml',
+            operation: operation === 'IS_XMLELEMENT' ? 'element' : 'forest',
+            operands,
+            named,
+            inputEnums,
+            ...(typeof name === 'string' ? { name, mapped: typeof capturedName === 'string' } : {}),
+          },
+        }
+      }
       const argument = (
         raw: unknown,
         target: 'pg_catalog.xml' | 'pg_catalog.text',

@@ -34,3 +34,15 @@ CREATE TABLE manifest_assemblies (
   CONSTRAINT dispatch_instruction CHECK (CASE WHEN bypass THEN true ELSE xmlpi(NAME "dispatch😊",instruction)::text IS NOT DISTINCT FROM expected_instruction END),
   CONSTRAINT dispatch_sequence CHECK (CASE WHEN bypass THEN true ELSE xmlpi(NAME sequence,char_length(instruction))::text IN ('<?sequence 2?>','<?sequence 5?>') END)
 );
+
+CREATE TABLE manifest_envelopes (
+  fragment xml,
+  label text,
+  tags text[],
+  sequence integer,
+  expected_element text,
+  expected_forest text,
+  bypass boolean NOT NULL,
+  CONSTRAINT enclosed_manifest CHECK (CASE WHEN bypass THEN true ELSE xmlelement(NAME envelope,XMLATTRIBUTES(label AS "note😊",sequence AS sequence),XMLFOREST(label AS label),tags,fragment)::text IS NOT DISTINCT FROM expected_element END),
+  CONSTRAINT manifest_forest CHECK (CASE WHEN bypass THEN true ELSE XMLFOREST(fragment AS document,label AS "note😊",tags AS tags,sequence AS sequence)::text IS NOT DISTINCT FROM expected_forest END)
+);

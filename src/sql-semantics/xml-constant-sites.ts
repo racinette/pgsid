@@ -6,7 +6,7 @@ export function restoreStoredXmlNames(
   definition: string,
   context?: StoredXmlConstantContext,
 ): void {
-  if (!context?.complete || context.definition !== definition || !context.names) return
+  if (!context?.complete || context.definition !== definition) return
   const nodes = new Map<string, Record<string, unknown>[]>()
   walkStoredExpression(root, (node, site) => {
     if (!node || typeof node !== 'object' || !('XmlExpr' in node)) return
@@ -14,10 +14,18 @@ export function restoreStoredXmlNames(
     if (xml && typeof xml === 'object')
       nodes.set(site, [...(nodes.get(site) ?? []), xml as Record<string, unknown>])
   })
-  for (const entry of context.names) {
+  for (const entry of context.names ?? []) {
     const matches = nodes.get(entry.site)
-    if (matches?.length === 1 && context.names.filter((n) => n.site === entry.site).length === 1)
+    if (matches?.length === 1 && context.names!.filter((n) => n.site === entry.site).length === 1)
       matches[0]!['__pgsid_mapped_name'] = entry.name
+  }
+  for (const entry of context.argumentNames ?? []) {
+    const matches = nodes.get(entry.site)
+    if (
+      matches?.length === 1 &&
+      context.argumentNames!.filter((n) => n.site === entry.site).length === 1
+    )
+      matches[0]!['__pgsid_mapped_arguments'] = entry.names
   }
 }
 
