@@ -73,3 +73,14 @@ CREATE TABLE manifest_templates (
   CONSTRAINT template_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb($template$("<?xml version=\"1.0\"?><template/>","{\"<?xml version=\\\"1.0\\\"?><attachment/>\"}")$template$::manifest_packet) IS NOT DISTINCT FROM expected_json END),
   CONSTRAINT template_history CHECK (CASE WHEN bypass THEN true ELSE (($history$[0:1]={"(\"<?xml version=\\\"1.0\\\"?><template/>\",\"{\\\"<?xml version=\\\\\\\"1.0\\\\\\\"?><attachment/>\\\"}\")",NULL}$history$::manifest_packet[])[0]).document::text IS NOT DISTINCT FROM expected_storage END)
 );
+
+CREATE TABLE manifest_previews (
+  manifest xml,
+  expected_content text,
+  expected_document text,
+  require_document boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT preview_content CHECK (CASE WHEN bypass THEN true ELSE XMLSERIALIZE(CONTENT manifest AS text INDENT) IS NOT DISTINCT FROM expected_content END),
+  CONSTRAINT preview_document CHECK (CASE WHEN bypass OR NOT require_document THEN true ELSE XMLSERIALIZE(DOCUMENT manifest AS text INDENT) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT preview_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(XMLSERIALIZE(CONTENT manifest AS text INDENT)) IS NOT DISTINCT FROM to_jsonb(expected_content) END)
+);

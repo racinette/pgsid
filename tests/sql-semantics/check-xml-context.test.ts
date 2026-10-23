@@ -177,13 +177,17 @@ it('preserves reached XML settings, explicit modes, eager literals and lazy runt
           const noEncoding =
             profile.name === 'no_encoding' &&
             nonAscii &&
-            ['cast', 'function_cast', 'content', 'document', 'predicate'].includes(operation)
+            [
+              'cast',
+              'function_cast',
+              'content',
+              'document',
+              'predicate',
+              'indent',
+              'document_indent',
+            ].includes(operation)
           const noClient = profile.name === 'no_client' && operation === 'wire' && stored !== null
-          const indent =
-            operation.endsWith('indent') &&
-            stored !== null &&
-            (operation === 'indent' || outcome.kind !== 'Error')
-          if (noOption || noEncoding || noClient || indent) outcome = { kind: 'Unknown' }
+          if (noOption || noEncoding || noClient) outcome = { kind: 'Unknown' }
           const row: Row = {
             v: known(stored),
             s: known(source),

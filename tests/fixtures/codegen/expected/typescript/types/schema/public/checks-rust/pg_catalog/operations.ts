@@ -46006,6 +46006,522 @@ function xmlParseDtdItem(source: XmlSource, start: number): XmlDtdItem {
     }
     return { next: langruntime.checkedAdd(position, 1), valid: true, kind: kind, name: copyXmlSpan(declaredName), value: copyXmlSpan(value), external: external, unparsed: unparsed };
 }
+interface XmlTreeDtdEntry {
+    kind: number;
+    owner: XmlSpan;
+    name: XmlSpan;
+    line: XmlSpan;
+    mixed: number;
+}
+function copyXmlTreeDtdEntry(value: XmlTreeDtdEntry): XmlTreeDtdEntry {
+    return { kind: langruntime.checkedI32(value.kind), owner: copyXmlSpan(value.owner), name: copyXmlSpan(value.name), line: copyXmlSpan(value.line), mixed: langruntime.checkedI32(value.mixed) };
+}
+interface XmlTreeExternal {
+    text: string;
+    next: number;
+}
+function copyXmlTreeExternal(value: XmlTreeExternal): XmlTreeExternal {
+    return { text: langruntime.checkedString(value.text), next: langruntime.checkedIndex(value.next) };
+}
+function xmlTreeDtdQuote(input: string): string {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    let quote: string = "\"";
+    let index: number = 0;
+    while (index < characters.length) {
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "\"") {
+            quote = langruntime.checkedChar("'");
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let output: string = "";
+    output = output + langruntime.checkedChar(quote);
+    output = output + input;
+    output = output + langruntime.checkedChar(quote);
+    return output;
+}
+function xmlTreeExternalId(source: XmlSource, start: number): XmlTreeExternal {
+    start = langruntime.checkedIndex(start);
+    const isPublic: boolean = xmlAt(source, start, "PUBLIC");
+    let position: number = langruntime.checkedAdd(start, 6);
+    let output: string = "SYSTEM ";
+    if (isPublic) {
+        output = langruntime.checkedString("PUBLIC ");
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    const first: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, position));
+    const text: string = xmlTreeNormalize(source, first.value.start, first.value.end);
+    const quoted: string = xmlTreeDtdQuote(text);
+    output = output + quoted;
+    position = langruntime.checkedIndex(first.next);
+    if (isPublic) {
+        const next: number = xmlSkipSpace(source, position);
+        if (next < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(next)) === "\"" || langruntime.indexChar(source.characters, langruntime.checkedIndex(next)) === "'")) {
+            const second: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, next));
+            const text1: string = xmlTreeNormalize(source, second.value.start, second.value.end);
+            const quoted1: string = xmlTreeDtdQuote(text1);
+            output = output + langruntime.checkedChar(" ");
+            output = output + quoted1;
+            position = langruntime.checkedIndex(second.next);
+        }
+    }
+    return { text: output, next: position };
+}
+export function xmlTreeDtdAdd(input: XmlTree, kind: number, owner: string, name: string, line: string, mixed: number): XmlTree {
+    let index: number = 0;
+    while (index < input.declarations.length) {
+        const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(input.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+        if (kind <= 5 && entry.kind === kind) {
+            const oldName: string = xmlTreeText(input, entry.name);
+            const oldOwner: string = xmlTreeText(input, entry.owner);
+            if (oldName === name && oldOwner === owner) {
+                return input;
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let tree: XmlTree = xmlTreeStore(input, owner);
+    const ownerSpan: XmlSpan = copyXmlSpan(tree.written);
+    tree = xmlTreeStore(tree, name);
+    const nameSpan: XmlSpan = copyXmlSpan(tree.written);
+    tree = xmlTreeStore(tree, line);
+    const lineSpan: XmlSpan = copyXmlSpan(tree.written);
+    let declarations: XmlTreeDtdEntry[] = tree.declarations;
+    langruntime.pushStruct(declarations, { kind: kind, owner: copyXmlSpan(ownerSpan), name: copyXmlSpan(nameSpan), line: copyXmlSpan(lineSpan), mixed: mixed }, copyXmlTreeDtdEntry);
+    return { declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: copyXmlSpan(lineSpan), flags: copyXmlTreeFlags(tree.flags), serializationKnown: tree.serializationKnown };
+}
+function xmlTreeBlankPolicy(tree: XmlTree, name: string): number {
+    name = langruntime.checkedString(name);
+    let index: number = 0;
+    while (index < tree.declarations.length) {
+        const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(tree.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+        if (entry.kind === 1) {
+            const oldName: string = xmlTreeText(tree, entry.name);
+            if (oldName === name) {
+                return entry.mixed;
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function xmlTreeEnumeration(source: XmlSource, start: number): XmlTreeExternal {
+    start = langruntime.checkedIndex(start);
+    let position: number = xmlSkipSpace(source, langruntime.checkedAdd(start, 1));
+    let output: string = "(";
+    let first: boolean = true;
+    while (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ")")) {
+        const begin: number = position;
+        while (position < source.characters.length && xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "|") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ")")) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const span: XmlSpan = copyXmlSpan({ start: begin, end: position });
+        const text: string = xmlSourceRange(source, span);
+        if (first === false) {
+            output = output + " | ";
+        }
+        output = output + text;
+        first = langruntime.checkedBool(false);
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "|") {
+            position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, 1)));
+        }
+    }
+    output = output + langruntime.checkedChar(")");
+    return { text: output, next: langruntime.checkedAdd(position, 1) };
+}
+export function xmlTreeDtdAttributes(input: XmlTree, source: XmlSource, stored: XmlSource, arena: XmlEntityArena, item: XmlDtdItem): XmlTree {
+    let tree: XmlTree = input;
+    const owner: string = xmlSourceRange(source, item.name);
+    let position: number = xmlSkipSpace(source, item.name.end);
+    while (position < langruntime.checkedSubtract(item.next, 1)) {
+        const attribute: XmlDtdAttribute = copyXmlDtdAttribute(xmlParseDtdAttribute(source, position));
+        const name: string = xmlSourceRange(source, attribute.name);
+        let at: number = xmlSkipSpace(source, attribute.name.end);
+        let typeName: string = "";
+        let id: number = langruntime.checkedSignedNegate(1);
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(at)) === "(") {
+            const parsed: XmlTreeExternal = xmlTreeEnumeration(source, at);
+            typeName = langruntime.checkedString(parsed.text);
+            at = langruntime.checkedIndex(parsed.next);
+        }
+        else {
+            const token: XmlScan = copyXmlScan(xmlName(source, at));
+            const span: XmlSpan = copyXmlSpan({ start: at, end: token.next });
+            typeName = langruntime.checkedString(xmlSourceRange(source, span));
+            at = langruntime.checkedIndex(token.next);
+            if (typeName === "ID") {
+                id = langruntime.checkedI32(2);
+            }
+            if (typeName === "NOTATION") {
+                at = langruntime.checkedIndex(xmlSkipSpace(source, at));
+                const parsed: XmlTreeExternal = xmlTreeEnumeration(source, at);
+                typeName = typeName + langruntime.checkedChar(" ");
+                typeName = typeName + parsed.text;
+                at = langruntime.checkedIndex(parsed.next);
+            }
+        }
+        at = langruntime.checkedIndex(xmlSkipSpace(source, at));
+        let line: string = "<!ATTLIST ";
+        line = line + owner;
+        line = line + langruntime.checkedChar(" ");
+        line = line + name;
+        line = line + langruntime.checkedChar(" ");
+        line = line + typeName;
+        line = line + langruntime.checkedChar(" ");
+        if (xmlAt(source, at, "#REQUIRED")) {
+            line = line + "#REQUIRED";
+        }
+        else if (xmlAt(source, at, "#IMPLIED")) {
+            line = line + "#IMPLIED";
+        }
+        else {
+            if (xmlAt(source, at, "#FIXED")) {
+                line = line + "#FIXED ";
+            }
+            let found: boolean = false;
+            let index: number = 0;
+            while (index < arena.defaults.length && found === false) {
+                const value: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(index), copyXmlDefaultIndex));
+                const definedOwner: string = xmlSourceRange(stored, value.element);
+                const definedName: string = xmlSourceRange(stored, value.name);
+                if (definedOwner === owner && definedName === name) {
+                    const text: string = xmlSourceRange(stored, value.value);
+                    tree = xmlTreeStore(tree, text);
+                    const encoded: string = xmlTreeEscape(tree, tree.written, true);
+                    line = line + langruntime.checkedChar("\"");
+                    line = line + encoded;
+                    line = line + langruntime.checkedChar("\"");
+                    found = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (found === false) {
+                tree = xmlTreeUnsupported(tree);
+            }
+        }
+        line = line + ">\n";
+        tree = xmlTreeDtdAdd(tree, 2, owner, name, line, id);
+        position = langruntime.checkedIndex(xmlSkipSpace(source, attribute.next));
+    }
+    return tree;
+}
+export function xmlTreeDtdSubset(input: XmlTree, source: XmlSource, stored: XmlSource, arena: XmlEntityArena, start: number, end: number): XmlTree {
+    let tree: XmlTree = input;
+    let position: number = xmlSkipSpace(source, start);
+    while (position < end) {
+        if (xmlAt(source, position, "<!--")) {
+            const parsed: XmlScan = copyXmlScan(xmlComment(source, position));
+            const text: string = xmlTreeNormalize(source, langruntime.checkedAdd(position, 4), langruntime.checkedSubtract(parsed.next, 3));
+            let line: string = "<!--";
+            line = line + text;
+            line = line + "-->";
+            tree = xmlTreeDtdAdd(tree, 6, "", "", line, langruntime.checkedSignedNegate(1));
+            position = langruntime.checkedIndex(parsed.next);
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const parsed: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 2)));
+            const nameSpan: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 2), end: name.next });
+            const nameText: string = xmlSourceRange(source, nameSpan);
+            const begin: number = xmlSkipSpace(source, name.next);
+            const text: string = xmlTreeNormalize(source, begin, langruntime.checkedSubtract(parsed.next, 2));
+            let line: string = "<?";
+            line = line + nameText;
+            if (begin < langruntime.checkedSubtract(parsed.next, 2)) {
+                line = line + langruntime.checkedChar(" ");
+                line = line + text;
+            }
+            line = line + "?>";
+            tree = xmlTreeDtdAdd(tree, 7, "", "", line, langruntime.checkedSignedNegate(1));
+            position = langruntime.checkedIndex(parsed.next);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "%") {
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 1)));
+            const span: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: name.next });
+            const spelling: string = xmlSourceRange(source, span);
+            const index: number = xmlEntityLookup(arena, spelling, true);
+            if (index < arena.entities.length && langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex).external === false) {
+                const value: string = xmlSourceRange(stored, langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex).value);
+                const nested: XmlSource = { characters: Array.from(value) };
+                tree = xmlTreeDtdSubset(tree, nested, stored, arena, 0, nested.characters.length);
+            }
+            position = langruntime.checkedIndex(langruntime.checkedAdd(name.next, 1));
+        }
+        else {
+            const item: XmlDtdItem = copyXmlDtdItem(xmlParseDtdItem(source, position));
+            if (item.valid === false) {
+                return xmlTreeUnsupported(tree);
+            }
+            const name: string = xmlSourceRange(source, item.name);
+            const begin: number = xmlSkipSpace(source, item.name.end);
+            if (item.kind === 1) {
+                const model: string = xmlTreeDtdModel(source, begin);
+                let mixed: number = 0;
+                if (model === "ANY") {
+                    mixed = langruntime.checkedI32(1);
+                }
+                const modelSource: XmlSource = { characters: Array.from(model) };
+                let at: number = 0;
+                while (at < modelSource.characters.length) {
+                    if (xmlAt(modelSource, at, "#PCDATA")) {
+                        mixed = langruntime.checkedI32(1);
+                    }
+                    at = langruntime.checkedAdd(at, 1);
+                }
+                let line: string = "<!ELEMENT ";
+                line = line + name;
+                line = line + langruntime.checkedChar(" ");
+                line = line + model;
+                line = line + ">\n";
+                tree = xmlTreeDtdAdd(tree, 1, "", name, line, mixed);
+            }
+            else if (item.kind === 2) {
+                tree = xmlTreeDtdAttributes(tree, source, stored, arena, item);
+            }
+            else if (item.kind === 3 || item.kind === 4) {
+                let line: string = "<!ENTITY ";
+                if (item.kind === 4) {
+                    line = line + "% ";
+                }
+                line = line + name;
+                line = line + langruntime.checkedChar(" ");
+                if (item.external) {
+                    const external: XmlTreeExternal = xmlTreeExternalId(source, begin);
+                    line = line + external.text;
+                    if (item.unparsed) {
+                        const keyword: number = xmlSkipSpace(source, external.next);
+                        const at: number = xmlSkipSpace(source, langruntime.checkedAdd(keyword, 5));
+                        const notation: XmlScan = copyXmlScan(xmlName(source, at));
+                        const span: XmlSpan = copyXmlSpan({ start: at, end: notation.next });
+                        const value: string = xmlSourceRange(source, span);
+                        line = line + " NDATA ";
+                        line = line + value;
+                    }
+                }
+                else {
+                    const text: string = xmlTreeNormalize(source, item.value.start, item.value.end);
+                    const quoted: string = xmlTreeDtdQuote(text);
+                    line = line + quoted;
+                }
+                line = line + ">\n";
+                tree = xmlTreeDtdAdd(tree, item.kind, "", name, line, langruntime.checkedSignedNegate(1));
+            }
+            else if (item.kind === 5) {
+                const external: XmlTreeExternal = xmlTreeExternalId(source, begin);
+                let line: string = "<!NOTATION ";
+                line = line + name;
+                line = line + langruntime.checkedChar(" ");
+                line = line + external.text;
+                line = line + " >\n";
+                tree = xmlTreeDtdAdd(tree, 5, "", name, line, langruntime.checkedSignedNegate(1));
+            }
+            position = langruntime.checkedIndex(item.next);
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    }
+    return tree;
+}
+export function xmlTreeDoctype(input: XmlTree, source: XmlSource, stored: XmlSource, arena: XmlEntityArena, start: number): XmlTree {
+    let tree: XmlTree = input;
+    const begin: number = xmlSkipSpace(source, langruntime.checkedAdd(start, 9));
+    const name: XmlScan = copyXmlScan(xmlName(source, begin));
+    const span: XmlSpan = copyXmlSpan({ start: begin, end: name.next });
+    const spelling: string = xmlSourceRange(source, span);
+    let output: string = "<!DOCTYPE ";
+    output = output + spelling;
+    let position: number = xmlSkipSpace(source, name.next);
+    if (xmlAt(source, position, "SYSTEM") || xmlAt(source, position, "PUBLIC")) {
+        const external: XmlTreeExternal = xmlTreeExternalId(source, position);
+        output = output + langruntime.checkedChar(" ");
+        output = output + external.text;
+        position = langruntime.checkedIndex(xmlSkipSpace(source, external.next));
+    }
+    if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "[") {
+        let end: number = langruntime.checkedSubtract(tree.flags.doctypeEnd, 1);
+        while (end > position && xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        const close: number = langruntime.checkedSubtract(end, 1);
+        tree = xmlTreeDtdSubset(tree, source, stored, arena, langruntime.checkedAdd(position, 1), close);
+    }
+    let notations: number = 0;
+    let index: number = 0;
+    while (index < tree.declarations.length) {
+        if (langruntime.indexStruct(tree.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry).kind === 5) {
+            notations = langruntime.checkedAdd(notations, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (notations > 1) {
+        tree = xmlTreeUnsupported(tree);
+    }
+    if (tree.declarations.length > 0) {
+        output = output + " [\n";
+        let pass: number = 0;
+        while (pass < 2) {
+            index = langruntime.checkedIndex(0);
+            while (index < tree.declarations.length) {
+                const entry: XmlTreeDtdEntry = copyXmlTreeDtdEntry(langruntime.indexStruct(tree.declarations, langruntime.checkedIndex(index), copyXmlTreeDtdEntry));
+                if ((pass === 0 && entry.kind === 5) || (pass === 1 && !(entry.kind === 5))) {
+                    const line: string = xmlTreeText(tree, entry.line);
+                    output = output + line;
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            pass = langruntime.checkedAdd(pass, 1);
+        }
+        output = output + langruntime.checkedChar("]");
+    }
+    output = output + langruntime.checkedChar(">");
+    return xmlTreeStore(tree, output);
+}
+interface XmlTreeModelNode {
+    name: XmlSpan;
+    kind: number;
+    left: number;
+    right: number;
+    repeat: number;
+}
+function copyXmlTreeModelNode(value: XmlTreeModelNode): XmlTreeModelNode {
+    return { name: copyXmlSpan(value.name), kind: langruntime.checkedI32(value.kind), left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), repeat: langruntime.checkedI32(value.repeat) };
+}
+interface XmlTreeModel {
+    nodes: XmlTreeModelNode[];
+    root: number;
+    next: number;
+}
+function copyXmlTreeModel(value: XmlTreeModel): XmlTreeModel {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyXmlTreeModelNode), root: langruntime.checkedIndex(value.root), next: langruntime.checkedIndex(value.next) };
+}
+function xmlTreeModelRepeat(inner: number, outer: number): number {
+    inner = langruntime.checkedI32(inner);
+    outer = langruntime.checkedI32(outer);
+    if (outer === 0) {
+        return inner;
+    }
+    if (inner === 0) {
+        return outer;
+    }
+    if (inner === outer) {
+        return inner;
+    }
+    return 2;
+}
+export function xmlTreeModelParse(source: XmlSource, start: number, input: XmlTreeModelNode[]): XmlTreeModel {
+    let parsed: XmlTreeModel = { nodes: input, root: 0, next: start };
+    let position: number = xmlSkipSpace(source, start);
+    let root: number = 0;
+    if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "(") {
+        const first: XmlTreeModel = xmlTreeModelParse(source, langruntime.checkedAdd(position, 1), parsed.nodes);
+        parsed = copyXmlTreeModel(first);
+        root = langruntime.checkedIndex(parsed.root);
+        position = langruntime.checkedIndex(xmlSkipSpace(source, parsed.next));
+        while (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ")")) {
+            let kind: number = 1;
+            if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "|") {
+                kind = langruntime.checkedI32(2);
+            }
+            const child: XmlTreeModel = xmlTreeModelParse(source, langruntime.checkedAdd(position, 1), parsed.nodes);
+            let nodes: XmlTreeModelNode[] = child.nodes;
+            const next: number = nodes.length;
+            const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+            langruntime.pushStruct(nodes, { name: copyXmlSpan(empty), kind: kind, left: root, right: child.root, repeat: 0 }, copyXmlTreeModelNode);
+            root = langruntime.checkedIndex(next);
+            position = langruntime.checkedIndex(xmlSkipSpace(source, child.next));
+            parsed = copyXmlTreeModel({ nodes: nodes, root: root, next: position });
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    else {
+        const begin: number = position;
+        if (xmlAt(source, position, "#PCDATA")) {
+            position = langruntime.checkedAdd(position, 7);
+        }
+        else {
+            const name: XmlScan = copyXmlScan(xmlName(source, position));
+            position = langruntime.checkedIndex(name.next);
+        }
+        let nodes: XmlTreeModelNode[] = parsed.nodes;
+        root = langruntime.checkedIndex(nodes.length);
+        const name: XmlSpan = copyXmlSpan({ start: begin, end: position });
+        langruntime.pushStruct(nodes, { name: copyXmlSpan(name), kind: 0, left: 0, right: 0, repeat: 0 }, copyXmlTreeModelNode);
+        parsed = copyXmlTreeModel({ nodes: nodes, root: root, next: position });
+    }
+    let repeat: number = 0;
+    if (position < source.characters.length) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "?") {
+            repeat = langruntime.checkedI32(1);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "*") {
+            repeat = langruntime.checkedI32(2);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "+") {
+            repeat = langruntime.checkedI32(3);
+        }
+    }
+    if (repeat > 0) {
+        let nodes: XmlTreeModelNode[] = parsed.nodes;
+        const previous: XmlTreeModelNode = copyXmlTreeModelNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(root), copyXmlTreeModelNode));
+        const combined: number = xmlTreeModelRepeat(previous.repeat, repeat);
+        nodes[langruntime.checkedIndexIn(nodes, root)] = copyXmlTreeModelNode({ name: copyXmlSpan(previous.name), kind: previous.kind, left: previous.left, right: previous.right, repeat: combined });
+        position = langruntime.checkedAdd(position, 1);
+        parsed = copyXmlTreeModel({ nodes: nodes, root: root, next: position });
+    }
+    return { nodes: parsed.nodes, root: root, next: position };
+}
+function xmlTreeModelWrite(source: XmlSource, model: XmlTreeModel, index: number, parent: number, root: boolean): string {
+    index = langruntime.checkedIndex(index);
+    parent = langruntime.checkedI32(parent);
+    root = langruntime.checkedBool(root);
+    const node: XmlTreeModelNode = copyXmlTreeModelNode(langruntime.indexStruct(model.nodes, langruntime.checkedIndex(index), copyXmlTreeModelNode));
+    const bracket: boolean = root || (!(node.kind === 0) && (!(node.kind === parent) || !(node.repeat === 0)));
+    let output: string = "";
+    if (bracket) {
+        output = output + langruntime.checkedChar("(");
+    }
+    if (node.kind === 0) {
+        const name: string = xmlSourceRange(source, node.name);
+        output = output + name;
+    }
+    else {
+        const left: string = xmlTreeModelWrite(source, model, node.left, node.kind, false);
+        const right: string = xmlTreeModelWrite(source, model, node.right, node.kind, false);
+        output = output + left;
+        if (node.kind === 1) {
+            output = output + " , ";
+        }
+        else {
+            output = output + " | ";
+        }
+        output = output + right;
+    }
+    if (bracket) {
+        output = output + langruntime.checkedChar(")");
+    }
+    if (node.repeat === 1) {
+        output = output + langruntime.checkedChar("?");
+    }
+    if (node.repeat === 2) {
+        output = output + langruntime.checkedChar("*");
+    }
+    if (node.repeat === 3) {
+        output = output + langruntime.checkedChar("+");
+    }
+    return output;
+}
+function xmlTreeDtdModel(source: XmlSource, start: number): string {
+    start = langruntime.checkedIndex(start);
+    if (xmlAt(source, start, "EMPTY")) {
+        return "EMPTY";
+    }
+    if (xmlAt(source, start, "ANY")) {
+        return "ANY";
+    }
+    const nodes: XmlTreeModelNode[] = [];
+    const model: XmlTreeModel = xmlTreeModelParse(source, start, nodes);
+    return xmlTreeModelWrite(source, model, model.root, 0, true);
+}
 const sqlstateXmlDatetimeRange = 3452552;
 export function xmlElementValueEscape(input: checkruntime.TextValue, escape: boolean): checkruntime.TextValue {
     escape = langruntime.checkedBool(escape);
@@ -46779,6 +47295,262 @@ function xmlExpandEntity(arena: XmlEntityArena, name: string, attribute: boolean
         return invalid;
     }
     return { text: output, valid: true, cost: cost };
+}
+interface XmlTreeWrite {
+    node: number;
+    depth: number;
+    format: boolean;
+    padding: boolean;
+    closing: boolean;
+    siblings: boolean;
+}
+function copyXmlTreeWrite(value: XmlTreeWrite): XmlTreeWrite {
+    return { node: langruntime.checkedIndex(value.node), depth: langruntime.checkedIndex(value.depth), format: langruntime.checkedBool(value.format), padding: langruntime.checkedBool(value.padding), closing: langruntime.checkedBool(value.closing), siblings: langruntime.checkedBool(value.siblings) };
+}
+function xmlTreeEscape(tree: XmlTree, span: XmlSpan, attribute: boolean): string {
+    span = copyXmlSpan(span);
+    attribute = langruntime.checkedBool(attribute);
+    let output: string = "";
+    let position: number = span.start;
+    while (position < span.end) {
+        const character: string = langruntime.indexChar(tree.characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (character === "&") {
+            output = output + "&amp;";
+        }
+        else if (character === "<") {
+            output = output + "&lt;";
+        }
+        else if (character === ">") {
+            output = output + "&gt;";
+        }
+        else if (character === "\"" && attribute) {
+            output = output + "&quot;";
+        }
+        else if (character === "\r") {
+            output = output + "&#13;";
+        }
+        else if (character === "\n" && attribute) {
+            output = output + "&#10;";
+        }
+        else if (character === "\t" && attribute) {
+            output = output + "&#9;";
+        }
+        else if (code >= 128 && tree.flags.unicode === false) {
+            const reference: string = xmlElementCharacterReference(code);
+            output = output + reference;
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xmlTreePadding(input: string, depth: number): string {
+    input = langruntime.checkedString(input);
+    depth = langruntime.checkedIndex(depth);
+    let output: string = input;
+    let index: number = 0;
+    while (index < depth) {
+        output = output + "  ";
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function xmlTreeWriteNode(tree: XmlTree, node: number): string {
+    node = langruntime.checkedIndex(node);
+    let output: string = "";
+    let stack: XmlTreeWrite[] = [];
+    langruntime.pushStruct(stack, { node: node, depth: 0, format: true, padding: false, closing: false, siblings: false }, copyXmlTreeWrite);
+    let count: number = 1;
+    while (count > 0) {
+        count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 1));
+        const task: XmlTreeWrite = copyXmlTreeWrite(langruntime.indexStruct(stack, langruntime.checkedIndex(count), copyXmlTreeWrite));
+        const node1: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyXmlTreeNode));
+        if (task.closing) {
+            if (task.format) {
+                output = langruntime.checkedString(xmlTreePadding(output, task.depth));
+            }
+            const name: string = xmlTreeText(tree, node1.name);
+            output = output + "</";
+            output = output + name;
+            output = output + langruntime.checkedChar(">");
+            if (task.padding) {
+                output = output + langruntime.checkedChar("\n");
+            }
+        }
+        else {
+            if (task.siblings && node1.next > 0) {
+                const next: XmlTreeWrite = copyXmlTreeWrite({ node: node1.next, depth: task.depth, format: task.format, padding: task.padding, closing: false, siblings: true });
+                if (count < stack.length) {
+                    stack[langruntime.checkedIndexIn(stack, count)] = copyXmlTreeWrite(next);
+                }
+                else {
+                    langruntime.pushStruct(stack, next, copyXmlTreeWrite);
+                }
+                count = langruntime.checkedAdd(count, 1);
+            }
+            if (task.padding) {
+                output = langruntime.checkedString(xmlTreePadding(output, task.depth));
+            }
+            if (node1.kind === 1) {
+                const name: string = xmlTreeText(tree, node1.name);
+                output = output + langruntime.checkedChar("<");
+                output = output + name;
+                let namespace: boolean = true;
+                let pass: number = 0;
+                while (pass < 2) {
+                    let index: number = node1.attributeStart;
+                    while (index < node1.attributeEnd) {
+                        const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+                        const name1: string = xmlTreeText(tree, attribute.name);
+                        const spelling: XmlSource = { characters: Array.from(name1) };
+                        const isNamespace: boolean = name1 === "xmlns" || xmlAt(spelling, 0, "xmlns:");
+                        if (isNamespace === namespace && !(name1 === "xmlns:xml")) {
+                            const value: string = xmlTreeEscape(tree, attribute.value, true);
+                            output = output + langruntime.checkedChar(" ");
+                            output = output + name1;
+                            output = output + "=\"";
+                            output = output + value;
+                            output = output + langruntime.checkedChar("\"");
+                        }
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    namespace = langruntime.checkedBool(false);
+                    pass = langruntime.checkedAdd(pass, 1);
+                }
+                if (node1.first === 0) {
+                    output = output + "/>";
+                    if (task.padding) {
+                        output = output + langruntime.checkedChar("\n");
+                    }
+                }
+                else {
+                    const format: boolean = task.format && node1.textual === false;
+                    output = output + langruntime.checkedChar(">");
+                    if (format) {
+                        output = output + langruntime.checkedChar("\n");
+                    }
+                    const close: XmlTreeWrite = copyXmlTreeWrite({ node: task.node, depth: task.depth, format: format, padding: task.padding, closing: true, siblings: false });
+                    if (count < stack.length) {
+                        stack[langruntime.checkedIndexIn(stack, count)] = copyXmlTreeWrite(close);
+                    }
+                    else {
+                        langruntime.pushStruct(stack, close, copyXmlTreeWrite);
+                    }
+                    count = langruntime.checkedAdd(count, 1);
+                    const child: XmlTreeWrite = copyXmlTreeWrite({ node: node1.first, depth: langruntime.checkedAdd(task.depth, 1), format: format, padding: format, closing: false, siblings: true });
+                    if (count < stack.length) {
+                        stack[langruntime.checkedIndexIn(stack, count)] = copyXmlTreeWrite(child);
+                    }
+                    else {
+                        langruntime.pushStruct(stack, child, copyXmlTreeWrite);
+                    }
+                    count = langruntime.checkedAdd(count, 1);
+                }
+            }
+            else {
+                const value: string = xmlTreeText(tree, node1.value);
+                if (node1.kind === 2) {
+                    const escaped: string = xmlTreeEscape(tree, node1.value, false);
+                    output = output + escaped;
+                }
+                else if (node1.kind === 3) {
+                    output = output + "<![CDATA[";
+                    output = output + value;
+                    output = output + "]]>";
+                }
+                else if (node1.kind === 4) {
+                    output = output + "<!--";
+                    output = output + value;
+                    output = output + "-->";
+                }
+                else if (node1.kind === 6) {
+                    output = output + value;
+                }
+                else if (node1.kind === 5) {
+                    const name: string = xmlTreeText(tree, node1.name);
+                    output = output + "<?";
+                    output = output + name;
+                    if (node1.value.end > node1.value.start) {
+                        output = output + langruntime.checkedChar(" ");
+                        output = output + value;
+                    }
+                    output = output + "?>";
+                }
+                if (task.padding) {
+                    output = output + langruntime.checkedChar("\n");
+                }
+            }
+        }
+    }
+    return output;
+}
+export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, utf8: boolean): checkruntime.TextValue {
+    document = langruntime.checkedBool(document);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        if (document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
+        }
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (xmlTextEncodingAvailable(value, utf8) === false) {
+            return { kind: "Unknown" };
+        }
+        if (xmlWellFormed(value, document) === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
+        }
+        const tree: XmlTree = xmlTreeParse(value, document);
+        if (tree.serializationKnown === false) {
+            return { kind: "Unknown" };
+        }
+        let output: string = "";
+        if (tree.flags.document && tree.flags.declaration) {
+            const version: string = xmlTreeText(tree, tree.flags.version);
+            output = output + "<?xml version=\"";
+            output = output + version;
+            output = output + "\" encoding=\"UTF-8\"";
+            if (tree.flags.standalone === 1) {
+                output = output + " standalone=\"yes\"";
+            }
+            if (tree.flags.standalone === 0) {
+                output = output + " standalone=\"no\"";
+            }
+            output = output + "?>\n";
+        }
+        let cursor: number = langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(0), copyXmlTreeNode).first;
+        let previous: boolean = false;
+        while (cursor > 0) {
+            const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode));
+            if (tree.flags.document === false && previous && !(node.kind === 2)) {
+                output = output + langruntime.checkedChar("\n");
+            }
+            const value1: string = xmlTreeWriteNode(tree, cursor);
+            output = output + value1;
+            if (tree.flags.document && (document === false || node.next > 0)) {
+                output = output + langruntime.checkedChar("\n");
+            }
+            previous = langruntime.checkedBool(true);
+            cursor = langruntime.checkedIndex(node.next);
+        }
+        if (xmlTextEncodingAvailable(output, utf8) === false) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
 }
 const xmlLegacyBaseRanges: ReadonlyArray<number> = [65, 90, 97, 122, 192, 214, 216, 246, 248, 255, 256, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12353, 12436, 12449, 12538, 12549, 12588, 44032, 55203];
 function xmlLegacyBase(character: string): boolean {
@@ -47866,6 +48638,9 @@ export function xmlSerializeContext(input: checkruntime.XmlValue, mode: number, 
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    if (indent) {
+        return xmlIndentUtf8(input, mode === 1, utf8);
+    }
     if (mode === 1) {
         const document: checkruntime.BoolValue = xmlIsDocumentContext(input, utf8);
         let valid: boolean = false;
@@ -47879,9 +48654,6 @@ export function xmlSerializeContext(input: checkruntime.XmlValue, mode: number, 
         if (valid === false) {
             return { kind: "Unknown" };
         }
-    }
-    if (indent) {
-        return { kind: "Unknown" };
     }
     return xmlToText(input);
 }
@@ -48423,6 +49195,420 @@ function xmlTextPlain(source: XmlSource, start: number, input: XmlTextState, roo
         state = copyXmlTextState(xmlTextEvent(state, 1, pending, root));
     }
     return { next: position, state: copyXmlTextState(state) };
+}
+interface XmlTreeAttribute {
+    name: XmlSpan;
+    value: XmlSpan;
+}
+function copyXmlTreeAttribute(value: XmlTreeAttribute): XmlTreeAttribute {
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value) };
+}
+interface XmlTreeNode {
+    kind: number;
+    name: XmlSpan;
+    value: XmlSpan;
+    parent: number;
+    next: number;
+    first: number;
+    last: number;
+    attributeStart: number;
+    attributeEnd: number;
+    preserve: boolean;
+    textual: boolean;
+    textSeen: boolean;
+    blankPolicy: number;
+}
+function copyXmlTreeNode(value: XmlTreeNode): XmlTreeNode {
+    return { kind: langruntime.checkedI32(value.kind), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), parent: langruntime.checkedIndex(value.parent), next: langruntime.checkedIndex(value.next), first: langruntime.checkedIndex(value.first), last: langruntime.checkedIndex(value.last), attributeStart: langruntime.checkedIndex(value.attributeStart), attributeEnd: langruntime.checkedIndex(value.attributeEnd), preserve: langruntime.checkedBool(value.preserve), textual: langruntime.checkedBool(value.textual), textSeen: langruntime.checkedBool(value.textSeen), blankPolicy: langruntime.checkedI32(value.blankPolicy) };
+}
+interface XmlTreeFlags {
+    document: boolean;
+    declaration: boolean;
+    unicode: boolean;
+    standalone: number;
+    version: XmlSpan;
+    doctypeEnd: number;
+}
+function copyXmlTreeFlags(value: XmlTreeFlags): XmlTreeFlags {
+    return { document: langruntime.checkedBool(value.document), declaration: langruntime.checkedBool(value.declaration), unicode: langruntime.checkedBool(value.unicode), standalone: langruntime.checkedI32(value.standalone), version: copyXmlSpan(value.version), doctypeEnd: langruntime.checkedIndex(value.doctypeEnd) };
+}
+interface XmlTree {
+    declarations: XmlTreeDtdEntry[];
+    nodes: XmlTreeNode[];
+    attributes: XmlTreeAttribute[];
+    characters: string[];
+    current: number;
+    written: XmlSpan;
+    flags: XmlTreeFlags;
+    serializationKnown: boolean;
+}
+function copyXmlTree(value: XmlTree): XmlTree {
+    return { declarations: langruntime.checkedStructs(value.declarations, copyXmlTreeDtdEntry), nodes: langruntime.checkedStructs(value.nodes, copyXmlTreeNode), attributes: langruntime.checkedStructs(value.attributes, copyXmlTreeAttribute), characters: langruntime.checkedChars(value.characters), current: langruntime.checkedIndex(value.current), written: copyXmlSpan(value.written), flags: copyXmlTreeFlags(value.flags), serializationKnown: langruntime.checkedBool(value.serializationKnown) };
+}
+function xmlTreeText(tree: XmlTree, span: XmlSpan): string {
+    span = copyXmlSpan(span);
+    let output: string = "";
+    let position: number = span.start;
+    while (position < span.end) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(tree.characters, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xmlTreeNormalize(source: XmlSource, start: number, end: number): string {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let output: string = "";
+    let position: number = start;
+    while (position < end) {
+        let character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "\r") {
+            character = langruntime.checkedChar("\n");
+            if (langruntime.checkedAdd(position, 1) < end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        output = output + langruntime.checkedChar(character);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+export function xmlTreeStore(input: XmlTree, text: string): XmlTree {
+    let characters: string[] = input.characters;
+    const begin: number = characters.length;
+    const values: string[] = Array.from(text);
+    let position: number = 0;
+    while (position < values.length) {
+        langruntime.pushChar(characters, langruntime.indexChar(values, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const written: XmlSpan = copyXmlSpan({ start: begin, end: characters.length });
+    return { nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: copyXmlSpan(written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+}
+export function xmlTreeLinks(input: XmlTreeNode, next: number, first: number, last: number, value: XmlSpan, textual: boolean, textSeen: boolean): XmlTreeNode {
+    return { kind: input.kind, name: copyXmlSpan(input.name), value: copyXmlSpan(value), parent: input.parent, next: next, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy };
+}
+export function xmlTreeAppend(input: XmlTree, node: XmlTreeNode): XmlTree {
+    let nodes: XmlTreeNode[] = input.nodes;
+    const index: number = nodes.length;
+    const parent: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(input.current), copyXmlTreeNode));
+    let first: number = parent.first;
+    if (first === 0) {
+        first = langruntime.checkedIndex(index);
+    }
+    if (parent.last > 0) {
+        const previous: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(parent.last), copyXmlTreeNode));
+        nodes[langruntime.checkedIndexIn(nodes, parent.last)] = copyXmlTreeNode(xmlTreeLinks(previous, index, previous.first, previous.last, previous.value, previous.textual, previous.textSeen));
+    }
+    const textual: boolean = parent.textual || node.kind === 2 || node.kind === 3;
+    nodes[langruntime.checkedIndexIn(nodes, input.current)] = copyXmlTreeNode(xmlTreeLinks(parent, parent.next, first, index, parent.value, textual, parent.textSeen || node.kind === 2));
+    langruntime.pushStruct(nodes, node, copyXmlTreeNode);
+    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+}
+export function xmlTreeCurrent(input: XmlTree, current: number): XmlTree {
+    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+}
+export function xmlTreeSpace(input: XmlTree, index: number, preserve: boolean, textSeen: boolean, blankPolicy: number): XmlTree {
+    let nodes: XmlTreeNode[] = input.nodes;
+    const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(index), copyXmlTreeNode));
+    nodes[langruntime.checkedIndexIn(nodes, index)] = copyXmlTreeNode({ kind: node.kind, name: copyXmlSpan(node.name), value: copyXmlSpan(node.value), parent: node.parent, next: node.next, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy });
+    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+}
+export function xmlTreeUnsupported(input: XmlTree): XmlTree {
+    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false };
+}
+export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan): XmlTree {
+    let attributes: XmlTreeAttribute[] = input.attributes;
+    langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value) }, copyXmlTreeAttribute);
+    return { nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+}
+export function xmlTreeLeaf(input: XmlTree, kind: number, name: XmlSpan, value: XmlSpan): XmlTree {
+    const node: XmlTreeNode = copyXmlTreeNode({ kind: kind, name: copyXmlSpan(name), value: copyXmlSpan(value), parent: input.current, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.checkedSignedNegate(1) });
+    return xmlTreeAppend(input, node);
+}
+export function xmlTreeAddText(input: XmlTree, text: string, forced: boolean, closing: boolean, end: boolean): XmlTree {
+    const values: string[] = Array.from(text);
+    if (values.length === 0) {
+        return input;
+    }
+    const parent: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(input.current), copyXmlTreeNode));
+    let blank: boolean = true;
+    let position: number = 0;
+    while (position < values.length) {
+        if (xmlSpace(langruntime.indexChar(values, langruntime.checkedIndex(position))) === false) {
+            blank = langruntime.checkedBool(false);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (blank && forced === false && parent.preserve === false) {
+        if (input.current === 0 && input.flags.document) {
+            return input;
+        }
+        if (parent.blankPolicy === 0) {
+            return input;
+        }
+        if (!(parent.blankPolicy === 1) && parent.textSeen === false && end === false && (closing === false || parent.first > 0)) {
+            return input;
+        }
+    }
+    const stored: XmlTree = xmlTreeStore(input, text);
+    const value: XmlSpan = copyXmlSpan(stored.written);
+    if (parent.last > 0 && langruntime.indexStruct(stored.nodes, langruntime.checkedIndex(parent.last), copyXmlTreeNode).kind === 2) {
+        const previous: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(stored.nodes, langruntime.checkedIndex(parent.last), copyXmlTreeNode));
+        if (previous.value.end === value.start) {
+            let nodes: XmlTreeNode[] = stored.nodes;
+            const span: XmlSpan = copyXmlSpan({ start: previous.value.start, end: value.end });
+            nodes[langruntime.checkedIndexIn(nodes, parent.last)] = copyXmlTreeNode(xmlTreeLinks(previous, previous.next, previous.first, previous.last, span, previous.textual, previous.textSeen));
+            nodes[langruntime.checkedIndexIn(nodes, stored.current)] = copyXmlTreeNode(xmlTreeLinks(parent, parent.next, parent.first, parent.last, parent.value, true, true));
+            return { nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: copyXmlSpan(value), declarations: stored.declarations, flags: copyXmlTreeFlags(stored.flags), serializationKnown: stored.serializationKnown };
+        }
+    }
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    return xmlTreeLeaf(stored, 2, empty, value);
+}
+export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: XmlEntityArena, start: number, input: XmlTree, entity: boolean): XmlTree {
+    let tree: XmlTree = input;
+    const root: number = tree.current;
+    const outside: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(root), copyXmlTreeNode));
+    if (entity) {
+        tree = xmlTreeSpace(tree, root, false, false, langruntime.checkedSignedNegate(1));
+    }
+    let position: number = start;
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (xmlAt(source, position, "<!DOCTYPE")) {
+            tree = xmlTreeDoctype(tree, source, stored, arena, position);
+            const value: XmlSpan = copyXmlSpan(tree.written);
+            const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+            tree = xmlTreeLeaf(tree, 6, empty, value);
+            position = langruntime.checkedIndex(tree.flags.doctypeEnd);
+        }
+        else if (xmlAt(source, position, "<!--")) {
+            const scanned: XmlScan = copyXmlScan(xmlComment(source, position));
+            const text: string = xmlTreeNormalize(source, langruntime.checkedAdd(position, 4), langruntime.checkedSubtract(scanned.next, 3));
+            tree = xmlTreeStore(tree, text);
+            const value: XmlSpan = copyXmlSpan(tree.written);
+            const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+            tree = xmlTreeLeaf(tree, 4, empty, value);
+            position = langruntime.checkedIndex(scanned.next);
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const scanned: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 2)));
+            const span: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 2), end: name.next });
+            const text: string = xmlSourceRange(source, span);
+            tree = xmlTreeStore(tree, text);
+            const nameSpan: XmlSpan = copyXmlSpan(tree.written);
+            const begin: number = xmlSkipSpace(source, name.next);
+            const valueText: string = xmlTreeNormalize(source, begin, langruntime.checkedSubtract(scanned.next, 2));
+            tree = xmlTreeStore(tree, valueText);
+            const value: XmlSpan = copyXmlSpan(tree.written);
+            tree = xmlTreeLeaf(tree, 5, nameSpan, value);
+            position = langruntime.checkedIndex(scanned.next);
+        }
+        else if (xmlAt(source, position, "<![CDATA[")) {
+            const scanned: XmlScan = copyXmlScan(xmlCdata(source, position));
+            const text: string = xmlTreeNormalize(source, langruntime.checkedAdd(position, 9), langruntime.checkedSubtract(scanned.next, 3));
+            tree = xmlTreeStore(tree, text);
+            const value: XmlSpan = copyXmlSpan(tree.written);
+            const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+            tree = xmlTreeLeaf(tree, 3, empty, value);
+            position = langruntime.checkedIndex(scanned.next);
+        }
+        else if (xmlAt(source, position, "</")) {
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 2)));
+            position = langruntime.checkedIndex(langruntime.checkedAdd(xmlSkipSpace(source, name.next), 1));
+            const parent: number = langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(tree.current), copyXmlTreeNode).parent;
+            tree = xmlTreeCurrent(tree, parent);
+        }
+        else if (character === "<") {
+            const scanned: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 1)));
+            const spelling: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: scanned.next });
+            const nameText: string = xmlSourceRange(source, spelling);
+            tree = xmlTreeStore(tree, nameText);
+            const name: XmlSpan = copyXmlSpan(tree.written);
+            const attributeStart: number = tree.attributes.length;
+            position = langruntime.checkedIndex(xmlSkipSpace(source, scanned.next));
+            while (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "/") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">")) {
+                const attribute: XmlScan = copyXmlScan(xmlName(source, position));
+                const attributeSpan: XmlSpan = copyXmlSpan({ start: position, end: attribute.next });
+                const equals: number = xmlSkipSpace(source, attribute.next);
+                const quote: number = xmlSkipSpace(source, langruntime.checkedAdd(equals, 1));
+                const quoted: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, quote));
+                const attributeText: string = xmlSourceRange(source, attributeSpan);
+                let value: string = xmlAttributeText(source, quoted.value, arena);
+                let tokenized: boolean = false;
+                if (arena.defaults.length > 0) {
+                    tokenized = langruntime.checkedBool(xmlAttributeTokenized(source, arena, spelling, attributeSpan));
+                }
+                if (tokenized) {
+                    value = langruntime.checkedString(xmlCollapseSpace(value));
+                }
+                tree = xmlTreeStore(tree, attributeText);
+                const attributeName: XmlSpan = copyXmlSpan(tree.written);
+                tree = xmlTreeStore(tree, value);
+                const attributeValue: XmlSpan = copyXmlSpan(tree.written);
+                tree = xmlTreeAddAttribute(tree, attributeName, attributeValue);
+                position = langruntime.checkedIndex(xmlSkipSpace(source, quoted.next));
+            }
+            const explicitEnd: number = tree.attributes.length;
+            let index: number = 0;
+            while (index < arena.defaults.length) {
+                const item: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(index), copyXmlDefaultIndex));
+                const element: string = xmlSourceRange(stored, item.element);
+                if (item.hasDefault && element === nameText) {
+                    const attributeText: string = xmlSourceRange(stored, item.name);
+                    let present: boolean = false;
+                    let attribute: number = attributeStart;
+                    while (attribute < tree.attributes.length) {
+                        const current: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(attribute), copyXmlTreeAttribute));
+                        const existing: string = xmlTreeText(tree, current.name);
+                        if (existing === attributeText) {
+                            present = langruntime.checkedBool(true);
+                        }
+                        attribute = langruntime.checkedAdd(attribute, 1);
+                    }
+                    if (present === false) {
+                        const valueText: string = xmlSourceRange(stored, item.value);
+                        tree = xmlTreeStore(tree, attributeText);
+                        const attributeName: XmlSpan = copyXmlSpan(tree.written);
+                        tree = xmlTreeStore(tree, valueText);
+                        const attributeValue: XmlSpan = copyXmlSpan(tree.written);
+                        tree = xmlTreeAddAttribute(tree, attributeName, attributeValue);
+                    }
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const attributeEnd: number = tree.attributes.length;
+            let preserve: boolean = langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(tree.current), copyXmlTreeNode).preserve;
+            index = langruntime.checkedIndex(attributeStart);
+            while (index < explicitEnd) {
+                const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(index), copyXmlTreeAttribute));
+                const attributeName: string = xmlTreeText(tree, attribute.name);
+                if (attributeName === "xml:space") {
+                    const value: string = xmlTreeText(tree, attribute.value);
+                    if (value === "preserve") {
+                        preserve = langruntime.checkedBool(true);
+                    }
+                    if (value === "default") {
+                        preserve = langruntime.checkedBool(false);
+                    }
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const empty: boolean = langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "/";
+            position = langruntime.checkedAdd(position, 1);
+            if (empty) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const blankPolicy: number = xmlTreeBlankPolicy(tree, nameText);
+            const span: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+            const node: XmlTreeNode = copyXmlTreeNode({ kind: 1, name: copyXmlSpan(name), value: copyXmlSpan(span), parent: tree.current, next: 0, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy });
+            const child: number = tree.nodes.length;
+            tree = xmlTreeAppend(tree, node);
+            if (empty === false) {
+                tree = xmlTreeCurrent(tree, child);
+            }
+        }
+        else if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (xmlPredefinedReference(source, position)) {
+                const value: string = xmlReferenceScalar(source, position);
+                let text: string = "";
+                text = text + langruntime.checkedChar(value);
+                tree = xmlTreeAddText(tree, text, true, false, false);
+            }
+            else {
+                const name: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const spelling: string = xmlSourceRange(source, name);
+                const expanded: XmlExpansion = xmlExpandEntity(arena, spelling, false, 0, 0n, 0n);
+                const nested: XmlSource = { characters: Array.from(expanded.text) };
+                tree = xmlTreeParseNodes(nested, stored, arena, 0, tree, true);
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            const begin: number = position;
+            while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "<") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&")) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const text: string = xmlTreeNormalize(source, begin, position);
+            const closing: boolean = xmlAt(source, position, "</");
+            const end: boolean = position === source.characters.length;
+            const reference: boolean = end === false && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&" && !(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(tree.current), copyXmlTreeNode).blankPolicy === 0);
+            tree = xmlTreeAddText(tree, text, reference, closing, end);
+        }
+    }
+    if (entity) {
+        const textSeen: boolean = outside.textSeen || langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(root), copyXmlTreeNode).textSeen;
+        tree = xmlTreeSpace(tree, root, outside.preserve, textSeen, outside.blankPolicy);
+    }
+    return tree;
+}
+function xmlTreeParse(input: string, document: boolean): XmlTree {
+    input = langruntime.checkedString(input);
+    document = langruntime.checkedBool(document);
+    const source: XmlSource = { characters: Array.from(input) };
+    let begin: number = 0;
+    if (document && source.characters.length > 0 && langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(0))).codePointAt(0)! === 65279) {
+        begin = langruntime.checkedIndex(1);
+    }
+    const declaration: XmlDeclaration = copyXmlDeclaration(xmlParseDeclaration(source, begin, document));
+    const actualDeclaration: boolean = declaration.next > begin;
+    let version: string = "1.0";
+    let standalone: number = langruntime.checkedSignedNegate(1);
+    if (actualDeclaration) {
+        const start: number = xmlSkipSpace(source, langruntime.checkedAdd(begin, 5));
+        const value: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, start, "version"));
+        version = langruntime.checkedString(xmlSourceRange(source, value.value));
+        let position: number = xmlSkipSpace(source, value.next);
+        if (xmlAt(source, position, "encoding")) {
+            const encoding: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, position, "encoding"));
+            position = langruntime.checkedIndex(xmlSkipSpace(source, encoding.next));
+        }
+        if (xmlAt(source, position, "standalone")) {
+            standalone = langruntime.checkedI32(0);
+            if (declaration.standalone) {
+                standalone = langruntime.checkedI32(1);
+            }
+        }
+    }
+    let cursor: number = declaration.next;
+    let scanning: boolean = true;
+    while (scanning) {
+        cursor = langruntime.checkedIndex(xmlSkipSpace(source, cursor));
+        if (xmlAt(source, cursor, "<!--")) {
+            const comment: XmlScan = copyXmlScan(xmlComment(source, cursor));
+            cursor = langruntime.checkedIndex(comment.next);
+        }
+        else if (xmlAt(source, cursor, "<?")) {
+            const instruction: XmlScan = copyXmlScan(xmlProcessingInstruction(source, cursor));
+            cursor = langruntime.checkedIndex(instruction.next);
+        }
+        else {
+            scanning = langruntime.checkedBool(false);
+        }
+    }
+    let arena: XmlEntityArena = xmlNewArena(input, declaration.standalone);
+    let effectiveDocument: boolean = document;
+    let doctypeEnd: number = 0;
+    if (xmlAt(source, cursor, "<!DOCTYPE")) {
+        const parsed: XmlSubsetResult = xmlReadDoctype(input, cursor, declaration.standalone);
+        arena = copyXmlEntityArena(parsed.state);
+        doctypeEnd = langruntime.checkedIndex(parsed.next);
+        effectiveDocument = langruntime.checkedBool(true);
+    }
+    const characters: string[] = Array.from(version);
+    const versionSpan: XmlSpan = copyXmlSpan({ start: 0, end: characters.length });
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let nodes: XmlTreeNode[] = [];
+    langruntime.pushStruct(nodes, { kind: 0, name: copyXmlSpan(empty), value: copyXmlSpan(empty), parent: 0, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.checkedSignedNegate(1) }, copyXmlTreeNode);
+    const attributes: XmlTreeAttribute[] = [];
+    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
+    const declarations: XmlTreeDtdEntry[] = [];
+    const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true };
+    const storedSource: XmlSource = { characters: Array.from(arena.arena) };
+    return xmlTreeParseNodes(source, storedSource, arena, declaration.next, tree, false);
 }
 function xmlWellFormed(input: string, document: boolean): boolean {
     input = langruntime.checkedString(input);

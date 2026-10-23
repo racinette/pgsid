@@ -12,3 +12,6 @@ VALUES ('{}',ROW(NULL,'{}'::xml[])::manifest_packet,NULL,'[]','{"document":null,
 
 INSERT INTO manifest_templates(expected_storage,expected_attachment,expected_json,bypass)
 VALUES ('<?xml version="1.0"?><template/>','<?xml version="1.0"?><attachment/>','{"document":"<template/>","attachments":["<attachment/>"]}',false);
+
+INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
+VALUES ('<manifest><item/></manifest>',E'<manifest>\n  <item/>\n</manifest>',E'<manifest>\n  <item/>\n</manifest>',true,false);

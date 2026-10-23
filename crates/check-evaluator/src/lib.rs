@@ -320,6 +320,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_subset.rs");
     include!("operations/pg_catalog/xml_validation.rs");
     include!("operations/pg_catalog/xml_scalar.rs");
+    include!("operations/pg_catalog/xml_dtd_render_model.rs");
+    include!("operations/pg_catalog/xml_dtd_render.rs");
+    include!("operations/pg_catalog/xml_tree.rs");
+    include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");
     include!("operations/pg_catalog/xml_element.rs");

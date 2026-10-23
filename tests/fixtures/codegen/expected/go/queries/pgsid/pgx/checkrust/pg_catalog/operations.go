@@ -45726,6 +45726,516 @@ func xmlParseDtdItem(source *xmlSource, start int) xmlDtdItem {
 	return xmlDtdItem{next: langruntime.CheckedAdd(position, 1), valid: true, kind: kind, name: declaredName, value: value, external: external, unparsed: unparsed}
 }
 
+type xmlTreeDtdEntry struct {
+	kind  int
+	owner xmlSpan
+	name  xmlSpan
+	line  xmlSpan
+	mixed int
+}
+
+func copyxmlTreeDtdEntry(value xmlTreeDtdEntry) xmlTreeDtdEntry {
+	return xmlTreeDtdEntry{kind: langruntime.CheckedI32(value.kind), owner: copyxmlSpan(value.owner), name: copyxmlSpan(value.name), line: copyxmlSpan(value.line), mixed: langruntime.CheckedI32(value.mixed)}
+}
+
+type xmlTreeExternal struct {
+	text string
+	next int
+}
+
+func copyxmlTreeExternal(value xmlTreeExternal) xmlTreeExternal {
+	return xmlTreeExternal{text: langruntime.CheckedString(value.text), next: langruntime.CheckedIndex(value.next)}
+}
+func xmlTreeDtdQuote(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	quote := '"'
+	index := 0
+	for index < len(characters) {
+		if characters[index] == '"' {
+			quote = langruntime.CheckedChar('\'')
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	output := langruntime.NewTextBuffer("")
+	output = append(output, string(langruntime.CheckedChar(quote))...)
+	output = append(output, input...)
+	output = append(output, string(langruntime.CheckedChar(quote))...)
+	return string(output)
+}
+func xmlTreeExternalId(source *xmlSource, start int) xmlTreeExternal {
+	start = langruntime.CheckedIndex(start)
+	isPublic := xmlAt(source, start, "PUBLIC")
+	position := langruntime.CheckedAdd(start, 6)
+	output := langruntime.NewTextBuffer("SYSTEM ")
+	if isPublic {
+		output = langruntime.NewTextBuffer("PUBLIC ")
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	first := xmlParseQuoted(source, position)
+	text := xmlTreeNormalize(source, first.value.start, first.value.end)
+	quoted := xmlTreeDtdQuote(text)
+	output = append(output, quoted...)
+	position = langruntime.CheckedIndex(first.next)
+	if isPublic {
+		next := xmlSkipSpace(source, position)
+		if next < len(source.characters) && (source.characters[next] == '"' || source.characters[next] == '\'') {
+			second := xmlParseQuoted(source, next)
+			text := xmlTreeNormalize(source, second.value.start, second.value.end)
+			quoted := xmlTreeDtdQuote(text)
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			output = append(output, quoted...)
+			position = langruntime.CheckedIndex(second.next)
+		}
+	}
+	return xmlTreeExternal{text: string(output), next: position}
+}
+func XmlTreeDtdAdd(input xmlTree, kind int, owner string, name string, line string, mixed int) xmlTree {
+	index := 0
+	for index < len(input.declarations) {
+		entry := input.declarations[index]
+		if kind <= 5 && entry.kind == kind {
+			oldName := xmlTreeText(&input, entry.name)
+			oldOwner := xmlTreeText(&input, entry.owner)
+			if oldName == name && oldOwner == owner {
+				return input
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	tree := XmlTreeStore(input, owner)
+	ownerSpan := tree.written
+	tree = XmlTreeStore(tree, name)
+	nameSpan := tree.written
+	tree = XmlTreeStore(tree, line)
+	lineSpan := tree.written
+	declarations := tree.declarations
+	langruntime.CheckedAdd(len(declarations), 1)
+	declarations = append(declarations, copyxmlTreeDtdEntry(xmlTreeDtdEntry{kind: kind, owner: ownerSpan, name: nameSpan, line: lineSpan, mixed: mixed}))
+	return xmlTree{declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: lineSpan, flags: tree.flags, serializationKnown: tree.serializationKnown}
+}
+func xmlTreeBlankPolicy(tree *xmlTree, name string) int {
+	name = langruntime.CheckedString(name)
+	index := 0
+	for index < len(tree.declarations) {
+		entry := tree.declarations[index]
+		if entry.kind == 1 {
+			oldName := xmlTreeText(tree, entry.name)
+			if oldName == name {
+				return entry.mixed
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func xmlTreeEnumeration(source *xmlSource, start int) xmlTreeExternal {
+	start = langruntime.CheckedIndex(start)
+	position := xmlSkipSpace(source, langruntime.CheckedAdd(start, 1))
+	output := langruntime.NewTextBuffer("(")
+	first := true
+	for source.characters[position] != ')' {
+		begin := position
+		for position < len(source.characters) && xmlSpace(source.characters[position]) == false && source.characters[position] != '|' && source.characters[position] != ')' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		span := xmlSpan{start: begin, end: position}
+		text := xmlSourceRange(source, span)
+		if first == false {
+			output = append(output, " | "...)
+		}
+		output = append(output, text...)
+		first = false
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+		if source.characters[position] == '|' {
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+		}
+	}
+	output = append(output, string(langruntime.CheckedChar(')'))...)
+	return xmlTreeExternal{text: string(output), next: langruntime.CheckedAdd(position, 1)}
+}
+func XmlTreeDtdAttributes(input xmlTree, source *xmlSource, stored *xmlSource, arena *xmlEntityArena, item xmlDtdItem) xmlTree {
+	tree := input
+	owner := xmlSourceRange(source, item.name)
+	position := xmlSkipSpace(source, item.name.end)
+	for position < langruntime.CheckedSubtract(item.next, 1) {
+		attribute := xmlParseDtdAttribute(source, position)
+		name := xmlSourceRange(source, attribute.name)
+		at := xmlSkipSpace(source, attribute.name.end)
+		typeName := langruntime.NewTextBuffer("")
+		id := langruntime.CheckedSignedNegate(1)
+		if source.characters[at] == '(' {
+			parsed := xmlTreeEnumeration(source, at)
+			typeName = langruntime.NewTextBuffer(parsed.text)
+			at = langruntime.CheckedIndex(parsed.next)
+		} else {
+			token := xmlName(source, at)
+			span := xmlSpan{start: at, end: token.next}
+			typeName = langruntime.NewTextBuffer(xmlSourceRange(source, span))
+			at = langruntime.CheckedIndex(token.next)
+			if string(typeName) == "ID" {
+				id = langruntime.CheckedI32(2)
+			}
+			if string(typeName) == "NOTATION" {
+				at = langruntime.CheckedIndex(xmlSkipSpace(source, at))
+				parsed := xmlTreeEnumeration(source, at)
+				typeName = append(typeName, string(langruntime.CheckedChar(' '))...)
+				typeName = append(typeName, parsed.text...)
+				at = langruntime.CheckedIndex(parsed.next)
+			}
+		}
+		at = langruntime.CheckedIndex(xmlSkipSpace(source, at))
+		line := langruntime.NewTextBuffer("<!ATTLIST ")
+		line = append(line, owner...)
+		line = append(line, string(langruntime.CheckedChar(' '))...)
+		line = append(line, name...)
+		line = append(line, string(langruntime.CheckedChar(' '))...)
+		line = append(line, string(typeName)...)
+		line = append(line, string(langruntime.CheckedChar(' '))...)
+		if xmlAt(source, at, "#REQUIRED") {
+			line = append(line, "#REQUIRED"...)
+		} else if xmlAt(source, at, "#IMPLIED") {
+			line = append(line, "#IMPLIED"...)
+		} else {
+			if xmlAt(source, at, "#FIXED") {
+				line = append(line, "#FIXED "...)
+			}
+			found := false
+			index := 0
+			for index < len(arena.defaults) && found == false {
+				value := arena.defaults[index]
+				definedOwner := xmlSourceRange(stored, value.element)
+				definedName := xmlSourceRange(stored, value.name)
+				if definedOwner == owner && definedName == name {
+					text := xmlSourceRange(stored, value.value)
+					tree = XmlTreeStore(tree, text)
+					encoded := xmlTreeEscape(&tree, tree.written, true)
+					line = append(line, string(langruntime.CheckedChar('"'))...)
+					line = append(line, encoded...)
+					line = append(line, string(langruntime.CheckedChar('"'))...)
+					found = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if found == false {
+				tree = XmlTreeUnsupported(tree)
+			}
+		}
+		line = append(line, ">\n"...)
+		tree = XmlTreeDtdAdd(tree, 2, owner, name, string(line), id)
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, attribute.next))
+	}
+	return tree
+}
+func XmlTreeDtdSubset(input xmlTree, source *xmlSource, stored *xmlSource, arena *xmlEntityArena, start int, end int) xmlTree {
+	tree := input
+	position := xmlSkipSpace(source, start)
+	for position < end {
+		if xmlAt(source, position, "<!--") {
+			parsed := xmlComment(source, position)
+			text := xmlTreeNormalize(source, langruntime.CheckedAdd(position, 4), langruntime.CheckedSubtract(parsed.next, 3))
+			line := langruntime.NewTextBuffer("<!--")
+			line = append(line, text...)
+			line = append(line, "-->"...)
+			tree = XmlTreeDtdAdd(tree, 6, "", "", string(line), langruntime.CheckedSignedNegate(1))
+			position = langruntime.CheckedIndex(parsed.next)
+		} else if xmlAt(source, position, "<?") {
+			parsed := xmlProcessingInstruction(source, position)
+			name := xmlName(source, langruntime.CheckedAdd(position, 2))
+			nameSpan := xmlSpan{start: langruntime.CheckedAdd(position, 2), end: name.next}
+			nameText := xmlSourceRange(source, nameSpan)
+			begin := xmlSkipSpace(source, name.next)
+			text := xmlTreeNormalize(source, begin, langruntime.CheckedSubtract(parsed.next, 2))
+			line := langruntime.NewTextBuffer("<?")
+			line = append(line, nameText...)
+			if begin < langruntime.CheckedSubtract(parsed.next, 2) {
+				line = append(line, string(langruntime.CheckedChar(' '))...)
+				line = append(line, text...)
+			}
+			line = append(line, "?>"...)
+			tree = XmlTreeDtdAdd(tree, 7, "", "", string(line), langruntime.CheckedSignedNegate(1))
+			position = langruntime.CheckedIndex(parsed.next)
+		} else if source.characters[position] == '%' {
+			name := xmlName(source, langruntime.CheckedAdd(position, 1))
+			span := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: name.next}
+			spelling := xmlSourceRange(source, span)
+			index := xmlEntityLookup(arena, spelling, true)
+			if index < len(arena.entities) && arena.entities[index].external == false {
+				value := xmlSourceRange(stored, arena.entities[index].value)
+				nested := xmlSource{characters: []rune(value)}
+				tree = XmlTreeDtdSubset(tree, &nested, stored, arena, 0, len(nested.characters))
+			}
+			position = langruntime.CheckedIndex(langruntime.CheckedAdd(name.next, 1))
+		} else {
+			item := xmlParseDtdItem(source, position)
+			if item.valid == false {
+				return XmlTreeUnsupported(tree)
+			}
+			name := xmlSourceRange(source, item.name)
+			begin := xmlSkipSpace(source, item.name.end)
+			if item.kind == 1 {
+				model := xmlTreeDtdModel(source, begin)
+				mixed := 0
+				if model == "ANY" {
+					mixed = langruntime.CheckedI32(1)
+				}
+				modelSource := xmlSource{characters: []rune(model)}
+				at := 0
+				for at < len(modelSource.characters) {
+					if xmlAt(&modelSource, at, "#PCDATA") {
+						mixed = langruntime.CheckedI32(1)
+					}
+					at = langruntime.CheckedAdd(at, 1)
+				}
+				line := langruntime.NewTextBuffer("<!ELEMENT ")
+				line = append(line, name...)
+				line = append(line, string(langruntime.CheckedChar(' '))...)
+				line = append(line, model...)
+				line = append(line, ">\n"...)
+				tree = XmlTreeDtdAdd(tree, 1, "", name, string(line), mixed)
+			} else if item.kind == 2 {
+				tree = XmlTreeDtdAttributes(tree, source, stored, arena, item)
+			} else if item.kind == 3 || item.kind == 4 {
+				line := langruntime.NewTextBuffer("<!ENTITY ")
+				if item.kind == 4 {
+					line = append(line, "% "...)
+				}
+				line = append(line, name...)
+				line = append(line, string(langruntime.CheckedChar(' '))...)
+				if item.external {
+					external := xmlTreeExternalId(source, begin)
+					line = append(line, external.text...)
+					if item.unparsed {
+						keyword := xmlSkipSpace(source, external.next)
+						at := xmlSkipSpace(source, langruntime.CheckedAdd(keyword, 5))
+						notation := xmlName(source, at)
+						span := xmlSpan{start: at, end: notation.next}
+						value := xmlSourceRange(source, span)
+						line = append(line, " NDATA "...)
+						line = append(line, value...)
+					}
+				} else {
+					text := xmlTreeNormalize(source, item.value.start, item.value.end)
+					quoted := xmlTreeDtdQuote(text)
+					line = append(line, quoted...)
+				}
+				line = append(line, ">\n"...)
+				tree = XmlTreeDtdAdd(tree, item.kind, "", name, string(line), langruntime.CheckedSignedNegate(1))
+			} else if item.kind == 5 {
+				external := xmlTreeExternalId(source, begin)
+				line := langruntime.NewTextBuffer("<!NOTATION ")
+				line = append(line, name...)
+				line = append(line, string(langruntime.CheckedChar(' '))...)
+				line = append(line, external.text...)
+				line = append(line, " >\n"...)
+				tree = XmlTreeDtdAdd(tree, 5, "", name, string(line), langruntime.CheckedSignedNegate(1))
+			}
+			position = langruntime.CheckedIndex(item.next)
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	}
+	return tree
+}
+func XmlTreeDoctype(input xmlTree, source *xmlSource, stored *xmlSource, arena *xmlEntityArena, start int) xmlTree {
+	tree := input
+	begin := xmlSkipSpace(source, langruntime.CheckedAdd(start, 9))
+	name := xmlName(source, begin)
+	span := xmlSpan{start: begin, end: name.next}
+	spelling := xmlSourceRange(source, span)
+	output := langruntime.NewTextBuffer("<!DOCTYPE ")
+	output = append(output, spelling...)
+	position := xmlSkipSpace(source, name.next)
+	if xmlAt(source, position, "SYSTEM") || xmlAt(source, position, "PUBLIC") {
+		external := xmlTreeExternalId(source, position)
+		output = append(output, string(langruntime.CheckedChar(' '))...)
+		output = append(output, external.text...)
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, external.next))
+	}
+	if source.characters[position] == '[' {
+		end := langruntime.CheckedSubtract(tree.flags.doctypeEnd, 1)
+		for end > position && xmlSpace(source.characters[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		close := langruntime.CheckedSubtract(end, 1)
+		tree = XmlTreeDtdSubset(tree, source, stored, arena, langruntime.CheckedAdd(position, 1), close)
+	}
+	notations := 0
+	index := 0
+	for index < len(tree.declarations) {
+		if tree.declarations[index].kind == 5 {
+			notations = langruntime.CheckedAdd(notations, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if notations > 1 {
+		tree = XmlTreeUnsupported(tree)
+	}
+	if len(tree.declarations) > 0 {
+		output = append(output, " [\n"...)
+		pass := 0
+		for pass < 2 {
+			index = langruntime.CheckedIndex(0)
+			for index < len(tree.declarations) {
+				entry := tree.declarations[index]
+				if (pass == 0 && entry.kind == 5) || (pass == 1 && entry.kind != 5) {
+					line := xmlTreeText(&tree, entry.line)
+					output = append(output, line...)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			pass = langruntime.CheckedAdd(pass, 1)
+		}
+		output = append(output, string(langruntime.CheckedChar(']'))...)
+	}
+	output = append(output, string(langruntime.CheckedChar('>'))...)
+	return XmlTreeStore(tree, string(output))
+}
+
+type xmlTreeModelNode struct {
+	name   xmlSpan
+	kind   int
+	left   int
+	right  int
+	repeat int
+}
+
+func copyxmlTreeModelNode(value xmlTreeModelNode) xmlTreeModelNode {
+	return xmlTreeModelNode{name: copyxmlSpan(value.name), kind: langruntime.CheckedI32(value.kind), left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), repeat: langruntime.CheckedI32(value.repeat)}
+}
+
+type xmlTreeModel struct {
+	nodes []xmlTreeModelNode
+	root  int
+	next  int
+}
+
+func copyxmlTreeModel(value xmlTreeModel) xmlTreeModel {
+	return xmlTreeModel{nodes: langruntime.CheckedStructs(value.nodes, copyxmlTreeModelNode), root: langruntime.CheckedIndex(value.root), next: langruntime.CheckedIndex(value.next)}
+}
+func xmlTreeModelRepeat(inner int, outer int) int {
+	inner = langruntime.CheckedI32(inner)
+	outer = langruntime.CheckedI32(outer)
+	if outer == 0 {
+		return inner
+	}
+	if inner == 0 {
+		return outer
+	}
+	if inner == outer {
+		return inner
+	}
+	return 2
+}
+func XmlTreeModelParse(source *xmlSource, start int, input []xmlTreeModelNode) xmlTreeModel {
+	parsed := xmlTreeModel{nodes: input, root: 0, next: start}
+	position := xmlSkipSpace(source, start)
+	root := 0
+	if source.characters[position] == '(' {
+		first := XmlTreeModelParse(source, langruntime.CheckedAdd(position, 1), parsed.nodes)
+		parsed = copyxmlTreeModel(first)
+		root = langruntime.CheckedIndex(parsed.root)
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, parsed.next))
+		for source.characters[position] != ')' {
+			kind := 1
+			if source.characters[position] == '|' {
+				kind = langruntime.CheckedI32(2)
+			}
+			child := XmlTreeModelParse(source, langruntime.CheckedAdd(position, 1), parsed.nodes)
+			nodes := child.nodes
+			next := len(nodes)
+			empty := xmlSpan{start: 0, end: 0}
+			langruntime.CheckedAdd(len(nodes), 1)
+			nodes = append(nodes, copyxmlTreeModelNode(xmlTreeModelNode{name: empty, kind: kind, left: root, right: child.root, repeat: 0}))
+			root = langruntime.CheckedIndex(next)
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, child.next))
+			parsed = copyxmlTreeModel(xmlTreeModel{nodes: nodes, root: root, next: position})
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	} else {
+		begin := position
+		if xmlAt(source, position, "#PCDATA") {
+			position = langruntime.CheckedAdd(position, 7)
+		} else {
+			name := xmlName(source, position)
+			position = langruntime.CheckedIndex(name.next)
+		}
+		nodes := parsed.nodes
+		root = langruntime.CheckedIndex(len(nodes))
+		name := xmlSpan{start: begin, end: position}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, copyxmlTreeModelNode(xmlTreeModelNode{name: name, kind: 0, left: 0, right: 0, repeat: 0}))
+		parsed = copyxmlTreeModel(xmlTreeModel{nodes: nodes, root: root, next: position})
+	}
+	repeat := 0
+	if position < len(source.characters) {
+		if source.characters[position] == '?' {
+			repeat = langruntime.CheckedI32(1)
+		} else if source.characters[position] == '*' {
+			repeat = langruntime.CheckedI32(2)
+		} else if source.characters[position] == '+' {
+			repeat = langruntime.CheckedI32(3)
+		}
+	}
+	if repeat > 0 {
+		nodes := parsed.nodes
+		previous := nodes[root]
+		combined := xmlTreeModelRepeat(previous.repeat, repeat)
+		nodes[root] = copyxmlTreeModelNode(xmlTreeModelNode{name: previous.name, kind: previous.kind, left: previous.left, right: previous.right, repeat: combined})
+		position = langruntime.CheckedAdd(position, 1)
+		parsed = copyxmlTreeModel(xmlTreeModel{nodes: nodes, root: root, next: position})
+	}
+	return xmlTreeModel{nodes: parsed.nodes, root: root, next: position}
+}
+func xmlTreeModelWrite(source *xmlSource, model *xmlTreeModel, index int, parent int, root bool) string {
+	index = langruntime.CheckedIndex(index)
+	parent = langruntime.CheckedI32(parent)
+	node := model.nodes[index]
+	bracket := root || (node.kind != 0 && (node.kind != parent || node.repeat != 0))
+	output := langruntime.NewTextBuffer("")
+	if bracket {
+		output = append(output, string(langruntime.CheckedChar('('))...)
+	}
+	if node.kind == 0 {
+		name := xmlSourceRange(source, node.name)
+		output = append(output, name...)
+	} else {
+		left := xmlTreeModelWrite(source, model, node.left, node.kind, false)
+		right := xmlTreeModelWrite(source, model, node.right, node.kind, false)
+		output = append(output, left...)
+		if node.kind == 1 {
+			output = append(output, " , "...)
+		} else {
+			output = append(output, " | "...)
+		}
+		output = append(output, right...)
+	}
+	if bracket {
+		output = append(output, string(langruntime.CheckedChar(')'))...)
+	}
+	if node.repeat == 1 {
+		output = append(output, string(langruntime.CheckedChar('?'))...)
+	}
+	if node.repeat == 2 {
+		output = append(output, string(langruntime.CheckedChar('*'))...)
+	}
+	if node.repeat == 3 {
+		output = append(output, string(langruntime.CheckedChar('+'))...)
+	}
+	return string(output)
+}
+func xmlTreeDtdModel(source *xmlSource, start int) string {
+	start = langruntime.CheckedIndex(start)
+	if xmlAt(source, start, "EMPTY") {
+		return "EMPTY"
+	}
+	if xmlAt(source, start, "ANY") {
+		return "ANY"
+	}
+	nodes := []xmlTreeModelNode{}
+	model := XmlTreeModelParse(source, start, nodes)
+	return xmlTreeModelWrite(source, &model, model.root, 0, true)
+}
+
 const sqlstateXmlDatetimeRange = 3452552
 
 func XmlElementValueEscape(input checkruntime.TextValue, escape bool) checkruntime.TextValue {
@@ -46479,6 +46989,247 @@ func xmlExpandEntity(arena *xmlEntityArena, name string, attribute bool, depth i
 		return invalid
 	}
 	return xmlExpansion{text: string(output), valid: true, cost: cost}
+}
+
+type xmlTreeWrite struct {
+	node     int
+	depth    int
+	format   bool
+	padding  bool
+	closing  bool
+	siblings bool
+}
+
+func copyxmlTreeWrite(value xmlTreeWrite) xmlTreeWrite {
+	return xmlTreeWrite{node: langruntime.CheckedIndex(value.node), depth: langruntime.CheckedIndex(value.depth), format: value.format, padding: value.padding, closing: value.closing, siblings: value.siblings}
+}
+func xmlTreeEscape(tree *xmlTree, span xmlSpan, attribute bool) string {
+	span = copyxmlSpan(span)
+	output := langruntime.NewTextBuffer("")
+	position := span.start
+	for position < span.end {
+		character := tree.characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if character == '&' {
+			output = append(output, "&amp;"...)
+		} else if character == '<' {
+			output = append(output, "&lt;"...)
+		} else if character == '>' {
+			output = append(output, "&gt;"...)
+		} else if character == '"' && attribute {
+			output = append(output, "&quot;"...)
+		} else if character == '\r' {
+			output = append(output, "&#13;"...)
+		} else if character == '\n' && attribute {
+			output = append(output, "&#10;"...)
+		} else if character == '\t' && attribute {
+			output = append(output, "&#9;"...)
+		} else if code >= 128 && tree.flags.unicode == false {
+			reference := xmlElementCharacterReference(code)
+			output = append(output, reference...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xmlTreePadding(input string, depth int) string {
+	input = langruntime.CheckedString(input)
+	depth = langruntime.CheckedIndex(depth)
+	output := langruntime.NewTextBuffer(input)
+	index := 0
+	for index < depth {
+		output = append(output, "  "...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func xmlTreeWriteNode(tree *xmlTree, node int) string {
+	node = langruntime.CheckedIndex(node)
+	output := langruntime.NewTextBuffer("")
+	stack := []xmlTreeWrite{}
+	langruntime.CheckedAdd(len(stack), 1)
+	stack = append(stack, copyxmlTreeWrite(xmlTreeWrite{node: node, depth: 0, format: true, padding: false, closing: false, siblings: false}))
+	count := 1
+	for count > 0 {
+		count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
+		task := stack[count]
+		node := tree.nodes[task.node]
+		if task.closing {
+			if task.format {
+				output = langruntime.NewTextBuffer(xmlTreePadding(string(output), task.depth))
+			}
+			name := xmlTreeText(tree, node.name)
+			output = append(output, "</"...)
+			output = append(output, name...)
+			output = append(output, string(langruntime.CheckedChar('>'))...)
+			if task.padding {
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
+			}
+		} else {
+			if task.siblings && node.next > 0 {
+				next := xmlTreeWrite{node: node.next, depth: task.depth, format: task.format, padding: task.padding, closing: false, siblings: true}
+				if count < len(stack) {
+					stack[count] = copyxmlTreeWrite(next)
+				} else {
+					langruntime.CheckedAdd(len(stack), 1)
+					stack = append(stack, copyxmlTreeWrite(next))
+				}
+				count = langruntime.CheckedAdd(count, 1)
+			}
+			if task.padding {
+				output = langruntime.NewTextBuffer(xmlTreePadding(string(output), task.depth))
+			}
+			if node.kind == 1 {
+				name := xmlTreeText(tree, node.name)
+				output = append(output, string(langruntime.CheckedChar('<'))...)
+				output = append(output, name...)
+				namespace := true
+				pass := 0
+				for pass < 2 {
+					index := node.attributeStart
+					for index < node.attributeEnd {
+						attribute := tree.attributes[index]
+						name := xmlTreeText(tree, attribute.name)
+						spelling := xmlSource{characters: []rune(name)}
+						isNamespace := name == "xmlns" || xmlAt(&spelling, 0, "xmlns:")
+						if isNamespace == namespace && name != "xmlns:xml" {
+							value := xmlTreeEscape(tree, attribute.value, true)
+							output = append(output, string(langruntime.CheckedChar(' '))...)
+							output = append(output, name...)
+							output = append(output, "=\""...)
+							output = append(output, value...)
+							output = append(output, string(langruntime.CheckedChar('"'))...)
+						}
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					namespace = false
+					pass = langruntime.CheckedAdd(pass, 1)
+				}
+				if node.first == 0 {
+					output = append(output, "/>"...)
+					if task.padding {
+						output = append(output, string(langruntime.CheckedChar('\n'))...)
+					}
+				} else {
+					format := task.format && node.textual == false
+					output = append(output, string(langruntime.CheckedChar('>'))...)
+					if format {
+						output = append(output, string(langruntime.CheckedChar('\n'))...)
+					}
+					close := xmlTreeWrite{node: task.node, depth: task.depth, format: format, padding: task.padding, closing: true, siblings: false}
+					if count < len(stack) {
+						stack[count] = copyxmlTreeWrite(close)
+					} else {
+						langruntime.CheckedAdd(len(stack), 1)
+						stack = append(stack, copyxmlTreeWrite(close))
+					}
+					count = langruntime.CheckedAdd(count, 1)
+					child := xmlTreeWrite{node: node.first, depth: langruntime.CheckedAdd(task.depth, 1), format: format, padding: format, closing: false, siblings: true}
+					if count < len(stack) {
+						stack[count] = copyxmlTreeWrite(child)
+					} else {
+						langruntime.CheckedAdd(len(stack), 1)
+						stack = append(stack, copyxmlTreeWrite(child))
+					}
+					count = langruntime.CheckedAdd(count, 1)
+				}
+			} else {
+				value := xmlTreeText(tree, node.value)
+				if node.kind == 2 {
+					escaped := xmlTreeEscape(tree, node.value, false)
+					output = append(output, escaped...)
+				} else if node.kind == 3 {
+					output = append(output, "<![CDATA["...)
+					output = append(output, value...)
+					output = append(output, "]]>"...)
+				} else if node.kind == 4 {
+					output = append(output, "<!--"...)
+					output = append(output, value...)
+					output = append(output, "-->"...)
+				} else if node.kind == 6 {
+					output = append(output, value...)
+				} else if node.kind == 5 {
+					name := xmlTreeText(tree, node.name)
+					output = append(output, "<?"...)
+					output = append(output, name...)
+					if node.value.end > node.value.start {
+						output = append(output, string(langruntime.CheckedChar(' '))...)
+						output = append(output, value...)
+					}
+					output = append(output, "?>"...)
+				}
+				if task.padding {
+					output = append(output, string(langruntime.CheckedChar('\n'))...)
+				}
+			}
+		}
+	}
+	return string(output)
+}
+func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.XmlValueRenderedText {
+		value := langruntime.CheckedString(input.RenderedText)
+		if document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if xmlTextEncodingAvailable(value, utf8) == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		if xmlWellFormed(value, document) == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
+		}
+		tree := xmlTreeParse(value, document)
+		if tree.serializationKnown == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		output := langruntime.NewTextBuffer("")
+		if tree.flags.document && tree.flags.declaration {
+			version := xmlTreeText(&tree, tree.flags.version)
+			output = append(output, "<?xml version=\""...)
+			output = append(output, version...)
+			output = append(output, "\" encoding=\"UTF-8\""...)
+			if tree.flags.standalone == 1 {
+				output = append(output, " standalone=\"yes\""...)
+			}
+			if tree.flags.standalone == 0 {
+				output = append(output, " standalone=\"no\""...)
+			}
+			output = append(output, "?>\n"...)
+		}
+		cursor := tree.nodes[0].first
+		previous := false
+		for cursor > 0 {
+			node := tree.nodes[cursor]
+			if tree.flags.document == false && previous && node.kind != 2 {
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
+			}
+			value := xmlTreeWriteNode(&tree, cursor)
+			output = append(output, value...)
+			if tree.flags.document && (document == false || node.next > 0) {
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
+			}
+			previous = true
+			cursor = langruntime.CheckedIndex(node.next)
+		}
+		if xmlTextEncodingAvailable(string(output), utf8) == false {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 
 var xmlLegacyBaseRanges = []int{65, 90, 97, 122, 192, 214, 216, 246, 248, 255, 256, 305, 308, 318, 321, 328, 330, 382, 384, 451, 461, 496, 500, 501, 506, 535, 592, 680, 699, 705, 902, 902, 904, 906, 908, 908, 910, 929, 931, 974, 976, 982, 986, 986, 988, 988, 990, 990, 992, 992, 994, 1011, 1025, 1036, 1038, 1103, 1105, 1116, 1118, 1153, 1168, 1220, 1223, 1224, 1227, 1228, 1232, 1259, 1262, 1269, 1272, 1273, 1329, 1366, 1369, 1369, 1377, 1414, 1488, 1514, 1520, 1522, 1569, 1594, 1601, 1610, 1649, 1719, 1722, 1726, 1728, 1742, 1744, 1747, 1749, 1749, 1765, 1766, 2309, 2361, 2365, 2365, 2392, 2401, 2437, 2444, 2447, 2448, 2451, 2472, 2474, 2480, 2482, 2482, 2486, 2489, 2524, 2525, 2527, 2529, 2544, 2545, 2565, 2570, 2575, 2576, 2579, 2600, 2602, 2608, 2610, 2611, 2613, 2614, 2616, 2617, 2649, 2652, 2654, 2654, 2674, 2676, 2693, 2699, 2701, 2701, 2703, 2705, 2707, 2728, 2730, 2736, 2738, 2739, 2741, 2745, 2749, 2749, 2784, 2784, 2821, 2828, 2831, 2832, 2835, 2856, 2858, 2864, 2866, 2867, 2870, 2873, 2877, 2877, 2908, 2909, 2911, 2913, 2949, 2954, 2958, 2960, 2962, 2965, 2969, 2970, 2972, 2972, 2974, 2975, 2979, 2980, 2984, 2986, 2990, 2997, 2999, 3001, 3077, 3084, 3086, 3088, 3090, 3112, 3114, 3123, 3125, 3129, 3168, 3169, 3205, 3212, 3214, 3216, 3218, 3240, 3242, 3251, 3253, 3257, 3294, 3294, 3296, 3297, 3333, 3340, 3342, 3344, 3346, 3368, 3370, 3385, 3424, 3425, 3585, 3630, 3632, 3632, 3634, 3635, 3648, 3653, 3713, 3714, 3716, 3716, 3719, 3720, 3722, 3722, 3725, 3725, 3732, 3735, 3737, 3743, 3745, 3747, 3749, 3749, 3751, 3751, 3754, 3755, 3757, 3758, 3760, 3760, 3762, 3763, 3773, 3773, 3776, 3780, 3904, 3911, 3913, 3945, 4256, 4293, 4304, 4342, 4352, 4352, 4354, 4355, 4357, 4359, 4361, 4361, 4363, 4364, 4366, 4370, 4412, 4412, 4414, 4414, 4416, 4416, 4428, 4428, 4430, 4430, 4432, 4432, 4436, 4437, 4441, 4441, 4447, 4449, 4451, 4451, 4453, 4453, 4455, 4455, 4457, 4457, 4461, 4462, 4466, 4467, 4469, 4469, 4510, 4510, 4520, 4520, 4523, 4523, 4526, 4527, 4535, 4536, 4538, 4538, 4540, 4546, 4587, 4587, 4592, 4592, 4601, 4601, 7680, 7835, 7840, 7929, 7936, 7957, 7960, 7965, 7968, 8005, 8008, 8013, 8016, 8023, 8025, 8025, 8027, 8027, 8029, 8029, 8031, 8061, 8064, 8116, 8118, 8124, 8126, 8126, 8130, 8132, 8134, 8140, 8144, 8147, 8150, 8155, 8160, 8172, 8178, 8180, 8182, 8188, 8486, 8486, 8490, 8491, 8494, 8494, 8576, 8578, 12353, 12436, 12449, 12538, 12549, 12588, 44032, 55203}
@@ -47554,6 +48305,9 @@ func XmlSerializeContext(input checkruntime.XmlValue, mode int, indent bool, utf
 	if input.Kind == checkruntime.XmlValueNull {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
+	if indent {
+		return XmlIndentUtf8(input, mode == 1, utf8)
+	}
 	if mode == 1 {
 		document := XmlIsDocumentContext(input, utf8)
 		valid := false
@@ -47567,9 +48321,6 @@ func XmlSerializeContext(input checkruntime.XmlValue, mode int, indent bool, utf
 		if valid == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
-	}
-	if indent {
-		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	return XmlToText(input)
 }
@@ -48089,6 +48840,421 @@ func xmlTextPlain(source *xmlSource, start int, input xmlTextState, root bool) x
 		state = copyxmlTextState(xmlTextEvent(state, 1, pending, root))
 	}
 	return xmlTextScan{next: position, state: state}
+}
+
+type xmlTreeAttribute struct {
+	name  xmlSpan
+	value xmlSpan
+}
+
+func copyxmlTreeAttribute(value xmlTreeAttribute) xmlTreeAttribute {
+	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value)}
+}
+
+type xmlTreeNode struct {
+	kind           int
+	name           xmlSpan
+	value          xmlSpan
+	parent         int
+	next           int
+	first          int
+	last           int
+	attributeStart int
+	attributeEnd   int
+	preserve       bool
+	textual        bool
+	textSeen       bool
+	blankPolicy    int
+}
+
+func copyxmlTreeNode(value xmlTreeNode) xmlTreeNode {
+	return xmlTreeNode{kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parent: langruntime.CheckedIndex(value.parent), next: langruntime.CheckedIndex(value.next), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), attributeStart: langruntime.CheckedIndex(value.attributeStart), attributeEnd: langruntime.CheckedIndex(value.attributeEnd), preserve: value.preserve, textual: value.textual, textSeen: value.textSeen, blankPolicy: langruntime.CheckedI32(value.blankPolicy)}
+}
+
+type xmlTreeFlags struct {
+	document    bool
+	declaration bool
+	unicode     bool
+	standalone  int
+	version     xmlSpan
+	doctypeEnd  int
+}
+
+func copyxmlTreeFlags(value xmlTreeFlags) xmlTreeFlags {
+	return xmlTreeFlags{document: value.document, declaration: value.declaration, unicode: value.unicode, standalone: langruntime.CheckedI32(value.standalone), version: copyxmlSpan(value.version), doctypeEnd: langruntime.CheckedIndex(value.doctypeEnd)}
+}
+
+type xmlTree struct {
+	declarations       []xmlTreeDtdEntry
+	nodes              []xmlTreeNode
+	attributes         []xmlTreeAttribute
+	characters         []rune
+	current            int
+	written            xmlSpan
+	flags              xmlTreeFlags
+	serializationKnown bool
+}
+
+func copyxmlTree(value xmlTree) xmlTree {
+	return xmlTree{declarations: langruntime.CheckedStructs(value.declarations, copyxmlTreeDtdEntry), nodes: langruntime.CheckedStructs(value.nodes, copyxmlTreeNode), attributes: langruntime.CheckedStructs(value.attributes, copyxmlTreeAttribute), characters: langruntime.CheckedChars(value.characters), current: langruntime.CheckedIndex(value.current), written: copyxmlSpan(value.written), flags: copyxmlTreeFlags(value.flags), serializationKnown: value.serializationKnown}
+}
+func xmlTreeText(tree *xmlTree, span xmlSpan) string {
+	span = copyxmlSpan(span)
+	output := langruntime.NewTextBuffer("")
+	position := span.start
+	for position < span.end {
+		output = append(output, string(langruntime.CheckedChar(tree.characters[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xmlTreeNormalize(source *xmlSource, start int, end int) string {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	output := langruntime.NewTextBuffer("")
+	position := start
+	for position < end {
+		character := source.characters[position]
+		if character == '\r' {
+			character = langruntime.CheckedChar('\n')
+			if langruntime.CheckedAdd(position, 1) < end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		output = append(output, string(langruntime.CheckedChar(character))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func XmlTreeStore(input xmlTree, text string) xmlTree {
+	characters := input.characters
+	begin := len(characters)
+	values := []rune(text)
+	position := 0
+	for position < len(values) {
+		langruntime.CheckedAdd(len(characters), 1)
+		characters = append(characters, langruntime.CheckedChar(values[position]))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	written := xmlSpan{start: begin, end: len(characters)}
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+}
+func XmlTreeLinks(input xmlTreeNode, next int, first int, last int, value xmlSpan, textual bool, textSeen bool) xmlTreeNode {
+	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy}
+}
+func XmlTreeAppend(input xmlTree, node xmlTreeNode) xmlTree {
+	nodes := input.nodes
+	index := len(nodes)
+	parent := nodes[input.current]
+	first := parent.first
+	if first == 0 {
+		first = langruntime.CheckedIndex(index)
+	}
+	if parent.last > 0 {
+		previous := nodes[parent.last]
+		nodes[parent.last] = copyxmlTreeNode(XmlTreeLinks(previous, index, previous.first, previous.last, previous.value, previous.textual, previous.textSeen))
+	}
+	textual := parent.textual || node.kind == 2 || node.kind == 3
+	nodes[input.current] = copyxmlTreeNode(XmlTreeLinks(parent, parent.next, first, index, parent.value, textual, parent.textSeen || node.kind == 2))
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyxmlTreeNode(node))
+	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+}
+func XmlTreeCurrent(input xmlTree, current int) xmlTree {
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+}
+func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankPolicy int) xmlTree {
+	nodes := input.nodes
+	node := nodes[index]
+	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy})
+	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+}
+func XmlTreeUnsupported(input xmlTree) xmlTree {
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false}
+}
+func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan) xmlTree {
+	attributes := input.attributes
+	langruntime.CheckedAdd(len(attributes), 1)
+	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value}))
+	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+}
+func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
+	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}
+	return XmlTreeAppend(input, node)
+}
+func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end bool) xmlTree {
+	values := []rune(text)
+	if len(values) == 0 {
+		return input
+	}
+	parent := input.nodes[input.current]
+	blank := true
+	position := 0
+	for position < len(values) {
+		if xmlSpace(values[position]) == false {
+			blank = false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if blank && forced == false && parent.preserve == false {
+		if input.current == 0 && input.flags.document {
+			return input
+		}
+		if parent.blankPolicy == 0 {
+			return input
+		}
+		if parent.blankPolicy != 1 && parent.textSeen == false && end == false && (closing == false || parent.first > 0) {
+			return input
+		}
+	}
+	stored := XmlTreeStore(input, text)
+	value := stored.written
+	if parent.last > 0 && stored.nodes[parent.last].kind == 2 {
+		previous := stored.nodes[parent.last]
+		if previous.value.end == value.start {
+			nodes := stored.nodes
+			span := xmlSpan{start: previous.value.start, end: value.end}
+			nodes[parent.last] = copyxmlTreeNode(XmlTreeLinks(previous, previous.next, previous.first, previous.last, span, previous.textual, previous.textSeen))
+			nodes[stored.current] = copyxmlTreeNode(XmlTreeLinks(parent, parent.next, parent.first, parent.last, parent.value, true, true))
+			return xmlTree{nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: value, declarations: stored.declarations, flags: stored.flags, serializationKnown: stored.serializationKnown}
+		}
+	}
+	empty := xmlSpan{start: 0, end: 0}
+	return XmlTreeLeaf(stored, 2, empty, value)
+}
+func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityArena, start int, input xmlTree, entity bool) xmlTree {
+	tree := input
+	root := tree.current
+	outside := tree.nodes[root]
+	if entity {
+		tree = XmlTreeSpace(tree, root, false, false, langruntime.CheckedSignedNegate(1))
+	}
+	position := start
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if xmlAt(source, position, "<!DOCTYPE") {
+			tree = XmlTreeDoctype(tree, source, stored, arena, position)
+			value := tree.written
+			empty := xmlSpan{start: 0, end: 0}
+			tree = XmlTreeLeaf(tree, 6, empty, value)
+			position = langruntime.CheckedIndex(tree.flags.doctypeEnd)
+		} else if xmlAt(source, position, "<!--") {
+			scanned := xmlComment(source, position)
+			text := xmlTreeNormalize(source, langruntime.CheckedAdd(position, 4), langruntime.CheckedSubtract(scanned.next, 3))
+			tree = XmlTreeStore(tree, text)
+			value := tree.written
+			empty := xmlSpan{start: 0, end: 0}
+			tree = XmlTreeLeaf(tree, 4, empty, value)
+			position = langruntime.CheckedIndex(scanned.next)
+		} else if xmlAt(source, position, "<?") {
+			scanned := xmlProcessingInstruction(source, position)
+			name := xmlName(source, langruntime.CheckedAdd(position, 2))
+			span := xmlSpan{start: langruntime.CheckedAdd(position, 2), end: name.next}
+			text := xmlSourceRange(source, span)
+			tree = XmlTreeStore(tree, text)
+			nameSpan := tree.written
+			begin := xmlSkipSpace(source, name.next)
+			valueText := xmlTreeNormalize(source, begin, langruntime.CheckedSubtract(scanned.next, 2))
+			tree = XmlTreeStore(tree, valueText)
+			value := tree.written
+			tree = XmlTreeLeaf(tree, 5, nameSpan, value)
+			position = langruntime.CheckedIndex(scanned.next)
+		} else if xmlAt(source, position, "<![CDATA[") {
+			scanned := xmlCdata(source, position)
+			text := xmlTreeNormalize(source, langruntime.CheckedAdd(position, 9), langruntime.CheckedSubtract(scanned.next, 3))
+			tree = XmlTreeStore(tree, text)
+			value := tree.written
+			empty := xmlSpan{start: 0, end: 0}
+			tree = XmlTreeLeaf(tree, 3, empty, value)
+			position = langruntime.CheckedIndex(scanned.next)
+		} else if xmlAt(source, position, "</") {
+			name := xmlName(source, langruntime.CheckedAdd(position, 2))
+			position = langruntime.CheckedIndex(langruntime.CheckedAdd(xmlSkipSpace(source, name.next), 1))
+			parent := tree.nodes[tree.current].parent
+			tree = XmlTreeCurrent(tree, parent)
+		} else if character == '<' {
+			scanned := xmlName(source, langruntime.CheckedAdd(position, 1))
+			spelling := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: scanned.next}
+			nameText := xmlSourceRange(source, spelling)
+			tree = XmlTreeStore(tree, nameText)
+			name := tree.written
+			attributeStart := len(tree.attributes)
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, scanned.next))
+			for source.characters[position] != '/' && source.characters[position] != '>' {
+				attribute := xmlName(source, position)
+				attributeSpan := xmlSpan{start: position, end: attribute.next}
+				equals := xmlSkipSpace(source, attribute.next)
+				quote := xmlSkipSpace(source, langruntime.CheckedAdd(equals, 1))
+				quoted := xmlParseQuoted(source, quote)
+				attributeText := xmlSourceRange(source, attributeSpan)
+				value := langruntime.NewTextBuffer(xmlAttributeText(source, quoted.value, arena))
+				tokenized := false
+				if len(arena.defaults) > 0 {
+					tokenized = xmlAttributeTokenized(source, arena, spelling, attributeSpan)
+				}
+				if tokenized {
+					value = langruntime.NewTextBuffer(xmlCollapseSpace(string(value)))
+				}
+				tree = XmlTreeStore(tree, attributeText)
+				attributeName := tree.written
+				tree = XmlTreeStore(tree, string(value))
+				attributeValue := tree.written
+				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue)
+				position = langruntime.CheckedIndex(xmlSkipSpace(source, quoted.next))
+			}
+			explicitEnd := len(tree.attributes)
+			index := 0
+			for index < len(arena.defaults) {
+				item := arena.defaults[index]
+				element := xmlSourceRange(stored, item.element)
+				if item.hasDefault && element == nameText {
+					attributeText := xmlSourceRange(stored, item.name)
+					present := false
+					attribute := attributeStart
+					for attribute < len(tree.attributes) {
+						current := tree.attributes[attribute]
+						existing := xmlTreeText(&tree, current.name)
+						if existing == attributeText {
+							present = true
+						}
+						attribute = langruntime.CheckedAdd(attribute, 1)
+					}
+					if present == false {
+						valueText := xmlSourceRange(stored, item.value)
+						tree = XmlTreeStore(tree, attributeText)
+						attributeName := tree.written
+						tree = XmlTreeStore(tree, valueText)
+						attributeValue := tree.written
+						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue)
+					}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			attributeEnd := len(tree.attributes)
+			preserve := tree.nodes[tree.current].preserve
+			index = langruntime.CheckedIndex(attributeStart)
+			for index < explicitEnd {
+				attribute := tree.attributes[index]
+				attributeName := xmlTreeText(&tree, attribute.name)
+				if attributeName == "xml:space" {
+					value := xmlTreeText(&tree, attribute.value)
+					if value == "preserve" {
+						preserve = true
+					}
+					if value == "default" {
+						preserve = false
+					}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			empty := source.characters[position] == '/'
+			position = langruntime.CheckedAdd(position, 1)
+			if empty {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			blankPolicy := xmlTreeBlankPolicy(&tree, nameText)
+			span := xmlSpan{start: 0, end: 0}
+			node := xmlTreeNode{kind: 1, name: name, value: span, parent: tree.current, next: 0, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy}
+			child := len(tree.nodes)
+			tree = XmlTreeAppend(tree, node)
+			if empty == false {
+				tree = XmlTreeCurrent(tree, child)
+			}
+		} else if character == '&' {
+			reference := xmlReference(source, position)
+			if xmlPredefinedReference(source, position) {
+				value := xmlReferenceScalar(source, position)
+				text := langruntime.NewTextBuffer("")
+				text = append(text, string(langruntime.CheckedChar(value))...)
+				tree = XmlTreeAddText(tree, string(text), true, false, false)
+			} else {
+				name := xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)}
+				spelling := xmlSourceRange(source, name)
+				expanded := xmlExpandEntity(arena, spelling, false, 0, int64(0), int64(0))
+				nested := xmlSource{characters: []rune(expanded.text)}
+				tree = XmlTreeParseNodes(&nested, stored, arena, 0, tree, true)
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			begin := position
+			for position < len(source.characters) && source.characters[position] != '<' && source.characters[position] != '&' {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			text := xmlTreeNormalize(source, begin, position)
+			closing := xmlAt(source, position, "</")
+			end := position == len(source.characters)
+			reference := end == false && source.characters[position] == '&' && tree.nodes[tree.current].blankPolicy != 0
+			tree = XmlTreeAddText(tree, text, reference, closing, end)
+		}
+	}
+	if entity {
+		textSeen := outside.textSeen || tree.nodes[root].textSeen
+		tree = XmlTreeSpace(tree, root, outside.preserve, textSeen, outside.blankPolicy)
+	}
+	return tree
+}
+func xmlTreeParse(input string, document bool) xmlTree {
+	input = langruntime.CheckedString(input)
+	source := xmlSource{characters: []rune(input)}
+	begin := 0
+	if document && len(source.characters) > 0 && int(langruntime.CheckedChar(source.characters[0])) == 65279 {
+		begin = langruntime.CheckedIndex(1)
+	}
+	declaration := xmlParseDeclaration(&source, begin, document)
+	actualDeclaration := declaration.next > begin
+	version := langruntime.NewTextBuffer("1.0")
+	standalone := langruntime.CheckedSignedNegate(1)
+	if actualDeclaration {
+		start := xmlSkipSpace(&source, langruntime.CheckedAdd(begin, 5))
+		value := xmlDeclarationValue(&source, start, "version")
+		version = langruntime.NewTextBuffer(xmlSourceRange(&source, value.value))
+		position := xmlSkipSpace(&source, value.next)
+		if xmlAt(&source, position, "encoding") {
+			encoding := xmlDeclarationValue(&source, position, "encoding")
+			position = langruntime.CheckedIndex(xmlSkipSpace(&source, encoding.next))
+		}
+		if xmlAt(&source, position, "standalone") {
+			standalone = langruntime.CheckedI32(0)
+			if declaration.standalone {
+				standalone = langruntime.CheckedI32(1)
+			}
+		}
+	}
+	cursor := declaration.next
+	scanning := true
+	for scanning {
+		cursor = langruntime.CheckedIndex(xmlSkipSpace(&source, cursor))
+		if xmlAt(&source, cursor, "<!--") {
+			comment := xmlComment(&source, cursor)
+			cursor = langruntime.CheckedIndex(comment.next)
+		} else if xmlAt(&source, cursor, "<?") {
+			instruction := xmlProcessingInstruction(&source, cursor)
+			cursor = langruntime.CheckedIndex(instruction.next)
+		} else {
+			scanning = false
+		}
+	}
+	arena := xmlNewArena(input, declaration.standalone)
+	effectiveDocument := document
+	doctypeEnd := 0
+	if xmlAt(&source, cursor, "<!DOCTYPE") {
+		parsed := xmlReadDoctype(input, cursor, declaration.standalone)
+		arena = copyxmlEntityArena(parsed.state)
+		doctypeEnd = langruntime.CheckedIndex(parsed.next)
+		effectiveDocument = true
+	}
+	characters := []rune(string(version))
+	versionSpan := xmlSpan{start: 0, end: len(characters)}
+	empty := xmlSpan{start: 0, end: 0}
+	nodes := []xmlTreeNode{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}))
+	attributes := []xmlTreeAttribute{}
+	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
+	declarations := []xmlTreeDtdEntry{}
+	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true}
+	storedSource := xmlSource{characters: []rune(arena.arena)}
+	return XmlTreeParseNodes(&source, &storedSource, &arena, declaration.next, tree, false)
 }
 func xmlWellFormed(input string, document bool) bool {
 	input = langruntime.CheckedString(input)

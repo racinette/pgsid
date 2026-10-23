@@ -157,11 +157,11 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit XMLCONCAT, XMLROOT, XMLPI and the non-strict binary concat transition through shared Rust, captured original mapped names and catalog assignment/text coercions. Preserve declaration accumulation, Unicode name escaping, source/stored domains, eager errors, NULL/Unknown behavior, document/serialization/wire composition and native/Rust/Go/TypeScript manifest INSERT parity.
 - [x] Admit XMLELEMENT, XMLATTRIBUTES and XMLFOREST through native named-argument provenance, implicit column names, shared scalar/represented-array/record value mapping and explicit xmlbinary context. Preserve NULL/empty distinctions, native escaping and base64 framing, enum/domain arrays, anonymous layouts, argument/conversion error order and partial-input validity with native/Rust/Go/TypeScript manifest INSERT parity.
 - [x] Admit owned XML array cells and captured record fields, source/stored text I/O, JSON/JSONB conversion and builders, constructors, subscripts and structural array operations. Recover original whole XML-array and record constants through logical captured storage without deployment IDs, including domains, nested containers, multidimensional bounds and dropped/added record fields; preserve rendered-only facets, absent XML comparison support, validated public payloads, ownership and native/Rust/Go/TypeScript world INSERT parity.
-- [ ] Complete XML INDENT serialization and XPath/query operations; preserve document/content, source provenance and execution-context requirements.
+- [x] Admit XML INDENT serialization with owned trees, declarations, namespaces, mixed content, DTD models/defaults and isolated entity whitespace. Preserve source/rendered facets, encoding, native limits, randomized notation-order requirements, NULL/errors and lazy composition; verify source/stored arrays, records, checked domains and native/Rust/Go/TypeScript manifest INSERT parity.
+- [ ] Complete XML XPath/query operations; preserve document/content, source provenance and execution-context requirements.
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words, and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
-- [x] Establish internal "char" byte values, portable I/O, signed integer casts,
-      unsigned relations, public inputs and native signed-char hash requirements.
+- [x] Establish internal "char" byte values, portable I/O, signed integer casts, unsigned relations, public inputs and native signed-char hash requirements.
 - [x] Establish unsigned OID values, portable input/output, comparisons, hashes,
       integer casts, domains and SQL-coerced public input validation.
 - [x] Establish transaction and command identifiers, unsigned full transaction
