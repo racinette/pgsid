@@ -5,6 +5,7 @@ import {
   captureDomainCoercionContext,
   captureRowCoercionContext,
   captureArrayConstructorContext,
+  captureXmlConstantContext,
   type DomainCoercionIdentity,
   type RowCoercionIdentity,
 } from './coercion-context.js'
@@ -532,7 +533,7 @@ function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): n
  * query typechecking, codegen, selective re-typecheck, and future linting.
  */
 export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
-  return withCatalogRendering(pg, () => readCatalog(pg))
+  return withCatalogRendering(pg, (utf8) => readCatalog(pg, utf8))
 }
 
 /**
@@ -540,7 +541,10 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
  * Restore the caller's settings after the read; these settings affect literal
  * values embedded in constraint and default expressions.
  */
-async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Promise<T> {
+async function withCatalogRendering<T>(
+  pg: PGlite,
+  read: (utf8: boolean) => Promise<T>,
+): Promise<T> {
   const saved = (
     await pg.query<{
       search_path: string
@@ -550,17 +554,18 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
       interval_style: string
       monetary_locale: string
       array_nulls: string
+      server_encoding: string
     }>(
       `SELECT current_setting('search_path') AS search_path,
       current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
-      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale, current_setting('array_nulls') AS array_nulls`,
+      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale, current_setting('array_nulls') AS array_nulls, current_setting('server_encoding') AS server_encoding`,
     )
   ).rows[0]!
   await pg.query(`SELECT set_config('search_path','',false),
     set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
     set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false), set_config('array_nulls','on',false)`)
   try {
-    return await read()
+    return await read(saved.server_encoding === 'UTF8')
   } finally {
     await pg.query(
       `SELECT set_config('search_path',$1,false),
@@ -579,7 +584,7 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
   }
 }
 
-async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
+async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> {
   const builtinCatalog = await readBuiltinCatalog(pg)
   const functionSignatures = builtinCatalog.functions.map((row) => row.signature)
   const operatorSignatures = builtinCatalog.operators.map((row) => row.signature)
@@ -830,7 +835,21 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     const identity = rowIdentity(t.oid)
     if (identity) rowIdentities.set(t.oid, identity)
   }
+  const isXml = (oid: number, seen = new Set<number>()): boolean => {
+    if (seen.has(oid)) return false
+    seen.add(oid)
+    const type = typesByOid.get(oid)
+    return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
+  }
+  const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
   for (const con of constraintRows) {
+    const xmlConstants = captureXmlConstantContext(
+      con.coercion_tree,
+      con.definition,
+      xmlTypes,
+      rowIdentities,
+      utf8,
+    )
     const coercionContext = captureDomainCoercionContext(
       con.coercion_tree,
       con.definition,
@@ -847,6 +866,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       typeIdentities,
     )
     const ci: ConstraintInfo = {
+      ...(xmlConstants ? { xmlConstants } : {}),
       ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
       name: con.name,
       type: mapConstraintType(con.contype),
@@ -1116,6 +1136,13 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       notNull: d.not_null,
       default: d.default_expr,
       checks: (d.check_exprs ?? []).map((check) => {
+        const xmlConstants = captureXmlConstantContext(
+          check.coercion_tree,
+          check.definition,
+          xmlTypes,
+          rowIdentities,
+          utf8,
+        )
         const coercionContext = captureDomainCoercionContext(
           check.coercion_tree,
           check.definition,
@@ -1134,6 +1161,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
         return {
           name: check.name,
           definition: check.definition,
+          ...(xmlConstants ? { xmlConstants } : {}),
           ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
           ...(coercionContext ? { coercionContext } : {}),
           ...(rowCoercionContext ? { rowCoercionContext } : {}),

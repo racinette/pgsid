@@ -107,6 +107,12 @@ export interface MoneyLiteralInfo {
   units: string
 }
 
+export interface StoredXmlConstantContext {
+  definition: string
+  complete: boolean
+  constants: { site: string; text: string | null }[]
+}
+
 export interface StoredDomainCoercionContext {
   definition: string
   complete: boolean
@@ -138,6 +144,7 @@ export interface StoredArrayConstructorContext {
 }
 
 export interface ConstraintInfo {
+  xmlConstants?: StoredXmlConstantContext
   coercionContext?: StoredDomainCoercionContext
   rowCoercionContext?: StoredRowCoercionContext
   arrayConstructorContext?: StoredArrayConstructorContext
@@ -617,6 +624,7 @@ export interface DomainInfo {
   checks: {
     name: string
     definition: string
+    xmlConstants?: StoredXmlConstantContext
     moneyLiterals?: MoneyLiteralInfo[]
     coercionContext?: StoredDomainCoercionContext
     rowCoercionContext?: StoredRowCoercionContext

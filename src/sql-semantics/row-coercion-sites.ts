@@ -116,6 +116,19 @@ export function walkStoredExpression(
       list = (raw: unknown, part: string) => {
         if (Array.isArray(raw)) raw.forEach((v, i) => visit(v, at(part + '/' + i)))
       }
+    const xml = fields(wrapper['XmlExpr']),
+      serialized = fields(wrapper['XmlSerialize'])
+    if (xml || serialized) {
+      if (xml) {
+        list(xml['args'], 'xml/arg')
+        const named = xml['named_args']
+        if (Array.isArray(named))
+          named.forEach((arg, i) =>
+            visit(fields(fields(arg)?.['ResTarget'])?.['val'] ?? arg, at('xml/named/' + i)),
+          )
+      } else visit(serialized?.['expr'], at('xml/arg/0'))
+      return
+    }
     const op = fields(wrapper['A_Expr'])
     if (op) {
       if (op['lexpr']) visit(op['lexpr'], at('operator/0'))
