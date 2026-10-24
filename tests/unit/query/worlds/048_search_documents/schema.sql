@@ -112,3 +112,13 @@ CREATE TABLE document_archived_scores (
  CONSTRAINT document_archived_reference CHECK(CASE WHEN bypass THEN true ELSE (lower('[a,zzzzzzzzzz)'::document_window)=source::tsvector) IS NOT DISTINCT FROM expected_reference END),
  CONSTRAINT document_archived_count CHECK(CASE WHEN bypass THEN true ELSE (float8_accum(lower('{["{1,2,3}","{2,2,3}"),["{3,2,3}","{4,2,3}")}'::document_score_windows),observation::float8))[1]>minimum_updates::float8 END)
 );
+
+CREATE TYPE document_record_window AS RANGE(subtype=document_reference_set,multirange_type_name=document_record_windows);
+CREATE TABLE document_window_hashes (
+ range_source text,
+ members_source text,
+ seed bigint,
+ extended bool,
+ bypass bool,
+ CONSTRAINT document_window_hash_support CHECK(CASE WHEN bypass THEN true WHEN extended THEN hash_multirange_extended(members_source::document_record_windows,seed) IS NULL ELSE hash_range(range_source::document_record_window) IS NULL END)
+);

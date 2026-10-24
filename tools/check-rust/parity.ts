@@ -48,6 +48,7 @@ import { writeCheckRustSources } from './sources.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
+import { goFixtureBinding } from './go-fixtures.js'
 
 export type Input =
   | {
@@ -449,6 +450,8 @@ export async function runCheckParity(
   const rustFixtureFunctions: string[] = []
   const goAssertions: GoStatement[] = []
   let goBatchIndex = 0
+  let goAssertionBytes = 0
+  let goBatchFixtures = 0
   await mkdir(join(directory, 'go'), { recursive: true })
   const flushGoAssertions = async (): Promise<void> => {
     if (!goAssertions.length) return
@@ -473,12 +476,17 @@ export async function runCheckParity(
         ],
       })
     } catch (cause) {
-      throw new Error(`Render Go parity batch ${index} in ${moduleName}`, { cause })
+      throw new Error(
+        `Render Go parity batch ${index} in ${moduleName} (${goAssertions.length} statements, ${goAssertionBytes} bytes)`,
+        { cause },
+      )
     }
     const batchDirectory = join(directory, 'go', 'parity', `batch_${Math.floor(index / 20)}`)
     await mkdir(batchDirectory, { recursive: true })
     await writeFile(join(batchDirectory, `checks_${index}_test.go`), source)
     goAssertions.length = 0
+    goAssertionBytes = 0
+    goBatchFixtures = 0
     goBatchRequiresJsonpath = false
   }
   for (const [index, fixture] of fixtures.entries()) {
@@ -517,7 +525,21 @@ export async function runCheckParity(
     ])
     const actual = go.ident('actual')
     const expected = go.ident('expected' + index)
-    goAssertions.push(
+    const binding = goFixtureBinding(
+      go.call(
+        go.selector(go.ident('generated'), pascal(check.entryName)),
+        check.inputs.map((input) =>
+          goInput(
+            projectedInput(fixture.row[input.name]!, input.nullness),
+            input.nullness ? 'pg_catalog.bool' : input.type,
+            input.enum,
+          ),
+        ),
+      ),
+      `fixture${index}_`,
+    )
+    const assertions = [
+      ...binding.statements,
       go.assign([expected], [goExpected]),
       go.if(
         go.notEqual(actual, expected),
@@ -529,24 +551,13 @@ export async function runCheckParity(
             ]),
           ),
         ],
-        go.assign(
-          [actual],
-          [
-            go.call(
-              go.selector(go.ident('generated'), pascal(check.entryName)),
-              check.inputs.map((input) =>
-                goInput(
-                  projectedInput(fixture.row[input.name]!, input.nullness),
-                  input.nullness ? 'pg_catalog.bool' : input.type,
-                  input.enum,
-                ),
-              ),
-            ),
-          ],
-        ),
+        go.assign([actual], [binding.expression]),
       ),
-    )
-    if (goAssertions.length === 250) await flushGoAssertions()
+    ]
+    goAssertions.push(...assertions)
+    goAssertionBytes += Buffer.byteLength(JSON.stringify(assertions))
+    goBatchFixtures++
+    if (goBatchFixtures === 125 || goAssertionBytes >= 512 * 1024) await flushGoAssertions()
   }
   await flushGoAssertions()
   const batches = (assertions: readonly string[]): string[] => {
