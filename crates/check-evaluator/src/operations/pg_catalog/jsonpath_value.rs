@@ -146,7 +146,7 @@ fn jsonpath_value_from_tree(tree: JsonpathParseTree) -> JsonpathValue {
             if let TextValue::Error(error) = result {
                 return JsonpathValue::Error(error);
             };
-            if let TextValue::Unknown = result {
+            if result == TextValue::Unknown || result == TextValue::NonNull {
                 return JsonpathValue::Unknown;
             };
             if let TextValue::Value(normalized) = result {

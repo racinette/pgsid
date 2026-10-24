@@ -477,6 +477,7 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
     if kind == 30 {
         return array_element_to_circle(left) == array_element_to_circle(right);
     };
+    if kind == 46 { return array_element_to_aclitem(left) == array_element_to_aclitem(right); };
     if kind == 31 {
         return array_element_to_money(left) == array_element_to_money(right);
     };

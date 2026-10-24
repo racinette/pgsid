@@ -203,7 +203,7 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
     if let JsonbValue::Unknown = input {
         return JsonbValue::Unknown;
     };
-    if let TextValue::Unknown = key {
+    if key == TextValue::Unknown || key == TextValue::NonNull {
         return JsonbValue::Unknown;
     };
     if let JsonbValue::Null = input {

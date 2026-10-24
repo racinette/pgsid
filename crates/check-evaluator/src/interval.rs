@@ -1010,7 +1010,7 @@ pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> Interva
     if let Int4Value::Error(error) = fields {
         return IntervalValue::Error(error);
     };
-    if input == TextValue::Unknown || fields == Int4Value::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || fields == Int4Value::Unknown {
         return IntervalValue::Unknown;
     };
     if input == TextValue::Null || fields == Int4Value::Null {

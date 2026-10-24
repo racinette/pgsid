@@ -357,7 +357,7 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
     let mut index: usize = 0;
     while index < profile.nodes.len() {
         let node = profile.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 45 {
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 46 {
             return false;
         };
         if node.kind >= 41 && node.kind <= 43 {
@@ -505,7 +505,7 @@ pub fn range_bound_context_branch(profile: &RangeBoundContext, start: usize) -> 
     if start >= profile.nodes.len() || range_bound_profile_valid(profile) == false {
         return empty_range_bound_context();
     };
-    if profile.nodes[start].kind < 41 || profile.nodes[start].kind == 45 {
+    if profile.nodes[start].kind < 41 || profile.nodes[start].kind >= 45 {
         return empty_range_bound_context();
     };
     let mut indices: Vec<usize> = Vec::new();
@@ -743,6 +743,7 @@ fn range_bound_word_valid(value: i32) -> bool {
 }
 
 fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
+    if let ArrayElement::Aclitem(value) = input { return make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unknown; };
     if let ArrayElement::Int2(value) = input {
         return make_int2_value(value) != Int2Value::Unknown;
     };
@@ -815,7 +816,7 @@ pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
     if range_enum_definition_valid(value.enum_labels.as_str(), value.enum_count) == false {
         return RangeValue::Unknown;
     };
-    if value.element_kind < 41 || value.element_kind == 45 {
+    if value.element_kind < 41 || value.element_kind >= 45 {
         let empty_profile = empty_range_bound_context();
         value = range_payload_with_bound_profile(value, empty_profile);
     };

@@ -5,10 +5,10 @@ pub fn sql__pg_catalog__btnamecmp__9x5j(left: TextValue, right: TextValue) -> In
     if let TextValue::Error(error) = right {
         return Int4Value::Error(error);
     };
-    if let TextValue::Unknown = left {
+    if left == TextValue::Unknown || left == TextValue::NonNull {
         return Int4Value::Unknown;
     };
-    if let TextValue::Unknown = right {
+    if right == TextValue::Unknown || right == TextValue::NonNull {
         return Int4Value::Unknown;
     };
     if let TextValue::Null = left {

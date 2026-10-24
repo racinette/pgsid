@@ -347,6 +347,8 @@ export type TextValue = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "NonNull";
 };
 export function equalTextValue(left: TextValue, right: TextValue): boolean {
     if (left.kind !== right.kind)
@@ -356,6 +358,10 @@ export function equalTextValue(left: TextValue, right: TextValue): boolean {
     if (left.kind === "Error" && right.kind === "Error")
         return equalSqlError(left.value, right.value);
     return true;
+}
+export interface XmlKnowledge {
+    readonly document: BoolValue;
+    readonly content: BoolValue;
 }
 export type XmlValue = {
     readonly kind: "Unknown";
@@ -370,6 +376,9 @@ export type XmlValue = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "NonNull";
+    readonly value: XmlKnowledge;
 };
 export function copyXmlValue(value: XmlValue): XmlValue {
     switch (value.kind) {
@@ -378,6 +387,7 @@ export function copyXmlValue(value: XmlValue): XmlValue {
         case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
         case "RenderedText": return { kind: "RenderedText", value: langruntime.checkedString(value.value) };
         case "Error": return { kind: "Error", value: value.value };
+        case "NonNull": return { kind: "NonNull", value: value.value };
     }
 }
 export interface XmlConcatState {
@@ -427,7 +437,42 @@ export function xmlFromRenderedText(input: TextValue): XmlValue {
     }
     return { kind: "Unknown" };
 }
+export function makeXmlKnowledge(document: BoolValue, content: BoolValue): XmlValue {
+    let validDocument: boolean = equalBoolValue(document, { kind: "Unknown" });
+    let validContent: boolean = equalBoolValue(content, { kind: "Unknown" });
+    if (document.kind === "Value") {
+        validDocument = langruntime.checkedBool(true);
+    }
+    if (content.kind === "Value") {
+        validContent = langruntime.checkedBool(true);
+    }
+    if (validDocument === false || validContent === false) {
+        return { kind: "Unknown" };
+    }
+    if (equalBoolValue(document, { kind: "Value", value: true }) && equalBoolValue(content, { kind: "Value", value: false })) {
+        return { kind: "Unknown" };
+    }
+    let actualDocument: BoolValue = document;
+    let actualContent: BoolValue = content;
+    if (equalBoolValue(document, { kind: "Value", value: true })) {
+        actualContent = { kind: "Value", value: true };
+    }
+    if (equalBoolValue(content, { kind: "Value", value: false })) {
+        actualDocument = { kind: "Value", value: false };
+    }
+    return { kind: "NonNull", value: { document: actualDocument, content: actualContent } };
+}
+export function makeXmlNonNull(document: BoolValue): XmlValue {
+    return makeXmlKnowledge(document, { kind: "Unknown" });
+}
 export function xmlIsNull(input: XmlValue): BoolValue {
+    if (input.kind === "NonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        const checked: XmlValue = makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -583,9 +628,26 @@ export function checkRequirementFilter(nullness: BoolValue, reason: number, part
     }
     return 0;
 }
+export function checkTextRequirement(input: TextValue, reason: number): number {
+    reason = langruntime.checkedI32(reason);
+    if (equalTextValue(input, { kind: "NonNull" })) {
+        if (reason > 0) {
+            return reason;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    const nullness: BoolValue = textIsNull(input);
+    return checkRequirementFilter(nullness, reason, false);
+}
 export function checkXmlRequirement(input: XmlValue, reason: number): number {
     reason = langruntime.checkedI32(reason);
     if (input.kind === "RenderedText") {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (input.kind === "NonNull") {
+        if (reason > 0) {
+            return reason;
+        }
         return langruntime.checkedSignedNegate(1);
     }
     const nullness: BoolValue = xmlIsNull(input);
@@ -2659,6 +2721,68 @@ export function circleFromCaseGuard(input: CheckOutcome): CircleValue {
     }
     return { kind: "Unknown" };
 }
+export interface AclitemPayload {
+    readonly grantee: bigint;
+    readonly grantor: bigint;
+    readonly privileges: bigint;
+    readonly grantOptions: bigint;
+}
+function equalAclitemPayload(left: AclitemPayload, right: AclitemPayload): boolean {
+    return left.grantee === right.grantee && left.grantor === right.grantor && left.privileges === right.privileges && left.grantOptions === right.grantOptions;
+}
+export type AclitemValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: AclitemPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalAclitemValue(left: AclitemValue, right: AclitemValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalAclitemPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function aclitemUnknown(): AclitemValue {
+    return { kind: "Unknown" };
+}
+export function aclitemNull(): AclitemValue {
+    return { kind: "Null" };
+}
+export function makeAclitemValue(grantee: bigint, grantor: bigint, privileges: bigint, grantOptions: bigint): AclitemValue {
+    grantee = langruntime.checkedI64(grantee);
+    grantor = langruntime.checkedI64(grantor);
+    privileges = langruntime.checkedI64(privileges);
+    grantOptions = langruntime.checkedI64(grantOptions);
+    if (grantee < 0n || grantee > 4294967295n || grantor < 0n || grantor > 4294967295n || privileges < 0n || privileges > 4294967295n || grantOptions < 0n || grantOptions > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { grantee: grantee, grantor: grantor, privileges: privileges, grantOptions: grantOptions } };
+}
+export function aclitemIsNull(input: AclitemValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalAclitemValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalAclitemValue(input, { kind: "Null" }));
+}
+export function aclitemFromCaseGuard(input: CheckOutcome): AclitemValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type MoneyValue = {
     readonly kind: "Unknown";
 } | {
@@ -3868,7 +3992,7 @@ export function networkFromText(input: TextValue): NetworkValue {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -3885,7 +4009,7 @@ export function cidrFromText(input: TextValue): NetworkValue {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -4128,7 +4252,7 @@ export function macaddrFromText(input: TextValue): MacaddrValue {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -4154,7 +4278,7 @@ export function macaddr8FromText(input: TextValue): Macaddr8Value {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -4255,7 +4379,7 @@ export function uuidFromText(input: TextValue): UuidValue {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -4912,7 +5036,7 @@ function jsonReadSelect(value: string, key: string, index: number, object: boole
                 const error: SqlError = decoded.value;
                 return { kind: "Error", value: error };
             }
-            if (decoded.kind === "Unknown") {
+            if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
                 return { kind: "Unknown" };
             }
         }
@@ -4983,7 +5107,7 @@ export function jsonReadField(input: JsonValue, key: TextValue, asText: boolean)
     if (input.kind === "Unknown") {
         return { kind: "Unknown" };
     }
-    if (key.kind === "Unknown") {
+    if (equalTextValue(key, { kind: "Unknown" }) || equalTextValue(key, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (input.kind === "Null") {
@@ -5228,7 +5352,7 @@ function parseJsonArrayPathDocument(input: string, utf8: boolean): JsonArrayPath
                 const error: SqlError = decoded.value;
                 return jsonArrayPathEmpty(langruntime.checkedSignedNegate(2), error);
             }
-            if (equalTextValue(decoded, { kind: "Unknown" })) {
+            if ((equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" }))) {
                 return jsonArrayPathEmpty(langruntime.checkedSignedNegate(1), makeSqlError(0));
             }
         }
@@ -5689,7 +5813,7 @@ function jsonbScalarReady(source: JsonSyntaxSource, token: JsonReadToken, utf8: 
             const error: SqlError = decoded.value;
             return { kind: "Error", value: error };
         }
-        if (decoded.kind === "Unknown") {
+        if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
     }
@@ -5935,7 +6059,7 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                     const error: SqlError = decoded.value;
                     return { kind: "Error", value: error };
                 }
-                if (decoded.kind === "Unknown") {
+                if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
                     return { kind: "Unknown" };
                 }
             }
@@ -6010,7 +6134,7 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                             const error: SqlError = decoded.value;
                             return { kind: "Error", value: error };
                         }
-                        if (decoded.kind === "Unknown") {
+                        if (equalTextValue(decoded, { kind: "Unknown" }) || equalTextValue(decoded, { kind: "NonNull" })) {
                             return { kind: "Unknown" };
                         }
                     }
@@ -7296,6 +7420,14 @@ export type ArrayElement = {
 } | {
     readonly kind: "XmlRenderedText";
     readonly value: string;
+} | {
+    readonly kind: "XmlNonNull";
+    readonly value: XmlKnowledge;
+} | {
+    readonly kind: "TextNonNull";
+} | {
+    readonly kind: "Aclitem";
+    readonly value: AclitemPayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7353,10 +7485,22 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Composite": return { kind: "Composite", value: copyCompositePayload(value.value) };
         case "Xml": return { kind: "Xml", value: langruntime.checkedString(value.value) };
         case "XmlRenderedText": return { kind: "XmlRenderedText", value: langruntime.checkedString(value.value) };
+        case "XmlNonNull": return { kind: "XmlNonNull", value: value.value };
+        case "TextNonNull": return { kind: "TextNonNull" };
+        case "Aclitem": return { kind: "Aclitem", value: value.value };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Aclitem") {
+        return 46;
+    }
+    if (input.kind === "TextNonNull") {
+        return 8;
+    }
+    if (input.kind === "XmlNonNull") {
+        return 45;
+    }
     if (input.kind === "Xml") {
         return 45;
     }
@@ -7746,6 +7890,9 @@ export function arrayElementToDate(input: ArrayElement): DateValue {
     return { kind: "Unknown" };
 }
 export function arrayElementFromText(input: TextValue): ArrayElement {
+    if (equalTextValue(input, { kind: "NonNull" })) {
+        return { kind: "TextNonNull" };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -7761,6 +7908,9 @@ export function arrayElementFromText(input: TextValue): ArrayElement {
 }
 export function arrayElementToText(input: ArrayElement): TextValue {
     input = copyArrayElement(input);
+    if (input.kind === "TextNonNull") {
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -8802,6 +8952,15 @@ export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
     return { kind: "Unknown" };
 }
 export function arrayElementFromXml(input: XmlValue): ArrayElement {
+    if (input.kind === "NonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        const checked: XmlValue = makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "NonNull") {
+            const actual: XmlKnowledge = checked.value;
+            return { kind: "XmlNonNull", value: actual };
+        }
+        return { kind: "Unknown" };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -8821,6 +8980,10 @@ export function arrayElementFromXml(input: XmlValue): ArrayElement {
 }
 export function arrayElementToXml(input: ArrayElement): XmlValue {
     input = copyArrayElement(input);
+    if (input.kind === "XmlNonNull") {
+        const knowledge: XmlKnowledge = input.value;
+        return makeXmlKnowledge(knowledge.document, knowledge.content);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -8835,6 +8998,35 @@ export function arrayElementToXml(input: ArrayElement): XmlValue {
     if (input.kind === "XmlRenderedText") {
         const value: string = langruntime.checkedString(input.value);
         return { kind: "RenderedText", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromAclitem(input: AclitemValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalAclitemValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: AclitemPayload = input.value;
+        return { kind: "Aclitem", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToAclitem(input: ArrayElement): AclitemValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Aclitem") {
+        const value: AclitemPayload = input.value;
+        return { kind: "Value", value: value };
     }
     return { kind: "Unknown" };
 }
@@ -9150,13 +9342,13 @@ function compositeTypeContextValid(context: CompositeTypeContext): boolean {
     let index: number = 0;
     while (index < context.nodes.length) {
         const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 45) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 46) {
             return false;
         }
         if (node.kind === 41 && (node.elementType === "" || node.child >= context.nodes.length)) {
             return false;
         }
-        if (node.kind > 0 && node.kind < 41 || node.kind === 42 || node.kind === 43 || node.kind === 45) {
+        if (node.kind > 0 && node.kind < 41 || node.kind === 42 || node.kind === 43 || node.kind >= 45) {
             const profile: RangeBoundContext = node.boundProfile;
             if (profile.nodes.length === 0 || rangeBoundProfileValid(profile) === false) {
                 return false;
@@ -9315,6 +9507,10 @@ export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement 
     if (checked.kind === "Jsonb") {
         const payload: JsonbPayload = copyJsonbPayload(checked.value);
         return arrayElementFromJsonb(jsonbFromCoercedValue({ kind: "Value", value: payload }));
+    }
+    if (checked.kind === "XmlNonNull") {
+        const value: XmlKnowledge = checked.value;
+        return arrayElementFromXml(makeXmlKnowledge(value.document, value.content));
     }
     if (checked.kind === "Xml") {
         const value: string = langruntime.checkedString(checked.value);
@@ -9745,7 +9941,7 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
     let index: number = 0;
     while (index < profile.nodes.length) {
         const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 45) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 46) {
             return false;
         }
         if (node.kind >= 41 && node.kind <= 43) {
@@ -9856,7 +10052,7 @@ export function rangeBoundContextBranch(profile: RangeBoundContext, start: numbe
     if (start >= profile.nodes.length || rangeBoundProfileValid(profile) === false) {
         return emptyRangeBoundContext();
     }
-    if (langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind < 41 || langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind === 45) {
+    if (langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind < 41 || langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(start), copyRangeBoundProfile).kind >= 45) {
         return emptyRangeBoundContext();
     }
     let indices: number[] = [];
@@ -10045,6 +10241,10 @@ function rangeBoundWordValid(value: number): boolean {
 function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
     input = copyArrayElement(input);
     cidr = langruntime.checkedBool(cidr);
+    if (input.kind === "Aclitem") {
+        const value: AclitemPayload = input.value;
+        return !(equalAclitemValue(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions), { kind: "Unknown" }));
+    }
     if (input.kind === "Int2") {
         const value: number = langruntime.checkedI32(input.value);
         return !(equalInt2Value(makeInt2Value(value), { kind: "Unknown" }));
@@ -10120,7 +10320,7 @@ export function makeCoercedRangeValue(input: RangePayload): RangeValue {
     if (rangeEnumDefinitionValid(value.enumLabels, value.enumCount) === false) {
         return { kind: "Unknown" };
     }
-    if (value.elementKind < 41 || value.elementKind === 45) {
+    if (value.elementKind < 41 || value.elementKind >= 45) {
         const emptyProfile: RangeBoundContext = emptyRangeBoundContext();
         value = copyRangePayload(rangePayloadWithBoundProfile(value, emptyProfile));
     }
@@ -11112,6 +11312,14 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
 }
 function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     element = copyArrayElement(element);
+    if (element.kind === "Aclitem") {
+        const value: AclitemPayload = element.value;
+        return arrayElementFromAclitem(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions));
+    }
+    if (element.kind === "XmlNonNull") {
+        const value: XmlKnowledge = element.value;
+        return arrayElementFromXml(makeXmlKnowledge(value.document, value.content));
+    }
     if (element.kind === "Xml") {
         const value: string = langruntime.checkedString(element.value);
         return arrayElementFromXml(makeXmlValue(value));
@@ -11150,7 +11358,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         if (checked.kind === "Unknown") {
             const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
-            if (family >= 41 && family <= 44) {
+            if ((family >= 41 && family <= 44) || family === 46) {
                 return { kind: "Unknown" };
             }
         }
@@ -11158,7 +11366,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 45) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 46) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
@@ -12062,7 +12270,7 @@ function arrayTextResult(dimensions: ArrayDimension[], input: ArrayTextEvent[], 
 export function parseArrayText(input: TextValue, delimiter: string, nulls: number): ArrayTextPlan {
     delimiter = langruntime.checkedChar(delimiter);
     nulls = langruntime.checkedI32(nulls);
-    if (input.kind === "Unknown") {
+    if (equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (input.kind === "Null") {
@@ -13864,7 +14072,7 @@ export function bitFromText(input: TextValue): BitValue {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" })) {
@@ -14383,7 +14591,7 @@ export function dateFromText(value: TextValue): DateValue {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(value, { kind: "Unknown" })) {
+    if ((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(value, { kind: "Null" })) {
@@ -14649,7 +14857,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(value, { kind: "Unknown" })) {
+    if ((equalTextValue(value, { kind: "Unknown" }) || equalTextValue(value, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(value, { kind: "Null" })) {
@@ -16107,7 +16315,7 @@ export function intervalFromTextFields(input: TextValue, fields: Int4Value): Int
         const error: SqlError = fields.value;
         return { kind: "Error", value: error };
     }
-    if (equalTextValue(input, { kind: "Unknown" }) || equalInt4Value(fields, { kind: "Unknown" })) {
+    if ((equalTextValue(input, { kind: "Unknown" }) || equalTextValue(input, { kind: "NonNull" })) || equalInt4Value(fields, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (equalTextValue(input, { kind: "Null" }) || equalInt4Value(fields, { kind: "Null" })) {

@@ -28,12 +28,12 @@ fn regex_position_value(
     if let Int4Value::Error(error) = subexpression {
         return Int4Value::Error(error);
     }
-    if subject == TextValue::Unknown
-        || pattern == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
+        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
         || starting == Int4Value::Unknown
         || occurrence == Int4Value::Unknown
         || end_option == Int4Value::Unknown
-        || flags == TextValue::Unknown
+        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
         || subexpression == Int4Value::Unknown
     {
         return Int4Value::Unknown;

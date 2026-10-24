@@ -1,6 +1,6 @@
 pub fn bytea_from_text(input: TextValue) -> ByteaValue {
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); }
-    if input == TextValue::Unknown { return ByteaValue::Unknown; }
+    if (input == TextValue::Unknown || input == TextValue::NonNull) { return ByteaValue::Unknown; }
     if input == TextValue::Null { return ByteaValue::Null; }
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();

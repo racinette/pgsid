@@ -383,3 +383,167 @@ VALUES (true);
 -- name: PrepareDocumentRuleBeforeSelectedMapping
 INSERT INTO manifest_query_rule_order(prefer_document)
 VALUES (false);
+
+-- name: NumericQueryPresence
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','1 div 3',1,true,false,'<broken');
+
+-- name: WrongNumericQueryPresence
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','1 div 3',1,false,false,'<broken');
+
+-- name: WrongNumericQueryDocument
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','1 div 3',1,true,true,'<broken');
+
+-- name: EmptyQueryDocumentFallback
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','//missing',1,false,NULL,'<fallback/>');
+
+-- name: EmptyQueryInvalidFallback
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','//missing',1,false,NULL,'<broken');
+
+-- name: QueryPresenceInvalidDocument
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('plain','1 div 3',1,true,false,'<fallback/>');
+
+-- name: NullQueryPresence
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES (NULL,'[',NULL,false,NULL,'<fallback/>');
+
+-- name: QueryPresenceOutsideBounds
+INSERT INTO manifest_query_presence(manifest,expression,result_position,expected_present,expected_document,fallback_document)
+VALUES ('<manifest/>','1 div 3',0,false,NULL,'<fallback/>');
+
+-- name: NumericQueryText
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<manifest/>','1 div 3',1,'fallback',false);
+
+-- name: NumericQueryDocumentSerialization
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<manifest/>','1 div 3',1,'fallback',true);
+
+-- name: NotationQueryDocumentText
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<!DOCTYPE manifest [<!NOTATION n SYSTEM "n"><!NOTATION m SYSTEM "m">]><manifest/>','/',1,NULL,true);
+
+-- name: EmptyQueryText
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<manifest/>','//missing',1,'fallback',false);
+
+-- name: NullQueryText
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES (NULL,'[',1,'fallback',false);
+
+-- name: NumericQueryWithoutTextFallback
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<manifest/>','1 div 3',1,NULL,false);
+
+-- name: InvalidQueryTextDocument
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('plain','1 div 3',1,'fallback',false);
+
+-- name: QueryTextOutsideBounds
+INSERT INTO manifest_query_text(manifest,expression,result_position,fallback_text,require_document)
+VALUES ('<manifest/>','1 div 3',0,'fallback',false);
+
+-- name: BypassedSchemaValidation
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES ('plain','schema',true);
+
+-- name: UnavailableSchemaValidation
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES ('<manifest/>','schema',false);
+
+-- name: EmptyValidationSchema
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES ('<manifest/>','',false);
+
+-- name: NullValidationManifest
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES (NULL,'schema',false);
+
+-- name: NullValidationSchema
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES ('<manifest/>',NULL,false);
+
+-- name: NullValidationGuard
+INSERT INTO manifest_schema_validation(manifest,schema_text,bypass)
+VALUES ('plain','schema',NULL);
+
+-- name: PreparedValidationBeforeGuard
+INSERT INTO manifest_prepared_validation(bypass)
+VALUES (true);
+
+-- name: PreparedValidationReached
+INSERT INTO manifest_prepared_validation(bypass)
+VALUES (false);
+
+-- name: NestedNumericDocumentError
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','1 div 3','true()',ARRAY[]::text[],false);
+
+-- name: NestedNumericEmptyPath
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','1 div 3','',ARRAY[]::text[],false);
+
+-- name: NestedNumericNamespaceShape
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','1 div 3','',ARRAY['bad'],false);
+
+-- name: NestedNumericBeforeNamespacePrefix
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','1 div 3','true()',ARRAY[[NULL,'uri']]::text[],false);
+
+-- name: EmptyNestedQuery
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','//missing','[',ARRAY['bad'],false);
+
+-- name: ReachedNestedQuery
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','/','true()',ARRAY[]::text[],false);
+
+-- name: BypassedNestedQuery
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<manifest/>','1 div 3','[',ARRAY['bad'],true);
+
+-- name: NestedNotationEmptyPath
+INSERT INTO manifest_nested_queries(manifest,fragment_expression,expression,namespaces,bypass)
+VALUES ('<!DOCTYPE manifest [<!NOTATION n SYSTEM "n"><!NOTATION m SYSTEM "m">]><manifest/>','/','',ARRAY[]::text[],false);
+
+-- name: DocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest/>',true,false);
+
+-- name: InvalidDocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest>',false,false);
+
+-- name: WrongDocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest/>',false,false);
+
+-- name: WrongInvalidTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest>',true,false);
+
+-- name: NullDocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES (NULL,NULL,false);
+
+-- name: BypassedDocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest/>',false,true);
+
+-- name: UnicodeTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest>雪</manifest>',true,false);
+
+-- name: DuplicatedAttributeTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<manifest id="a" id="b"/>',false,false);
+
+-- name: EntityDocumentTextValidation
+INSERT INTO manifest_text_validation(source_text,expected_valid,bypass)
+VALUES ('<!DOCTYPE manifest [<!ENTITY label "ready">]><manifest>&label;</manifest>',true,false);

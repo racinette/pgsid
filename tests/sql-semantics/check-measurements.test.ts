@@ -6,6 +6,8 @@ import {
 } from './check-jsonb-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { readFile } from 'node:fs/promises'
+import { isXmlXPathCallable } from '../../src/sql-semantics/xml-callables.js'
 import { readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import type { BuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import { builtinMetadata, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
@@ -16,6 +18,7 @@ import {
   hashValueRequirements,
   characterValueRequirements,
   xmlValueRequirements,
+  moneyValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -356,8 +359,8 @@ describe('CHECK measurement boundaries', () => {
         kind: 'session',
         setting: 'lc_monetary',
         requirement:
-          'Money conversion requires monetary formatting metadata from lc_monetary. SQL NULL and errors remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Money JSON conversion uses declared C moneyLocale formatting. Without supported locale metadata, non-NULL values defer; fractional-digit context alone does not supply text formatting. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-money-text-context.test.ts',
       },
       {
         kind: 'database',
@@ -568,6 +571,32 @@ describe('CHECK measurement boundaries', () => {
     }
   })
 
+  it('records effective money scale separately from locale text rendering', () => {
+    const functions = catalog.functions
+      .map((f) => f.metadata)
+      .filter((f) => moneyValueRequirements(f)?.some((r) => r.setting === 'moneyFractionDigits'))
+    expect(functions).toHaveLength(4)
+    for (const fn of functions) {
+      expect(moneyValueRequirements(fn)).toMatchObject([
+        {
+          kind: 'session',
+          setting: 'moneyFractionDigits',
+          owner: 'tests/sql-semantics/check-money-numeric-context.test.ts',
+        },
+      ])
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toEqual([
+        'session-or-database-state',
+        'session-setting:moneyFractionDigits',
+        'session-setting:lc_monetary',
+      ])
+      expect(moneyValueRequirements({ ...fn, schema: 'other' })).toBeNull()
+    }
+    const output = builtinMetadata(builtinTypeIO('pg_catalog.money')!.output!)
+    expect(moneyValueRequirements(output)).toMatchObject([
+      { setting: 'moneyLocale', owner: 'tests/sql-semantics/check-money-text-context.test.ts' },
+    ])
+  })
+
   it('records XML session settings separately from supplied storage and explicit XML syntax', () => {
     const send = catalog.functions.find(({ metadata }) => metadata.name === 'xml_send')!.metadata
     const cast = catalog.functions.find(
@@ -588,6 +617,59 @@ describe('CHECK measurement boundaries', () => {
       ({ metadata }) => metadata.name === 'text' && metadata.args.join(',') === 'pg_catalog.xml',
     )!.metadata
     expect(xmlValueRequirements(text)).toBeNull()
+    const predicate = catalog.functions.find(
+      ({ metadata }) => metadata.name === 'xml_is_well_formed',
+    )!.metadata
+    expect(xmlValueRequirements(predicate)?.map((r) => r.setting)).toEqual(['xmloption'])
+    expect(
+      callableBoundary(predicate, new Set(predicate.args.concat(predicate.result))).categories,
+    ).toContain('session-setting:xmloption')
+    expect(xmlValueRequirements({ ...predicate, schema: 'custom' })).toBeNull()
+  })
+
+  it('records reached XPath requirements without assigning serialization settings to existence calls', async () => {
+    const functions = catalog.functions.map((f) => f.metadata).filter(isXmlXPathCallable)
+    expect(functions).toHaveLength(5)
+    for (const fn of functions) {
+      const requirements = xmlValueRequirements(fn)!
+      expect(requirements.map((r) => r.setting)).toEqual([
+        'server_encoding',
+        'xpathRecursionLimit',
+        'xpathPowerOfTenBits',
+        ...(fn.name === 'xpath' ? ['extra_float_digits', 'xml_notation_order'] : []),
+      ])
+      const boundary = callableBoundary(fn, new Set(fn.args.concat(fn.result)))
+      expect(boundary.categories).toEqual([
+        'database-setting:server_encoding',
+        'execution-setting:xpathRecursionLimit',
+        'platform-setting:xpathPowerOfTenBits',
+        ...(fn.name === 'xpath'
+          ? ['session-setting:extra_float_digits', 'platform-state:xml-notation-order']
+          : []),
+      ])
+      expect(xmlValueRequirements({ ...fn, schema: 'custom' })).toBeNull()
+      for (const owner of new Set(requirements.map((r) => r.owner)))
+        expect(await readFile(new URL('../../' + owner, import.meta.url), 'utf8')).toMatch(
+          /\bit\(/u,
+        )
+    }
+    const results = []
+    try {
+      for (const extra of ['-7', '1']) {
+        await pg.query("SELECT set_config('extra_float_digits',$1,false)", [extra])
+        results.push(
+          (
+            await pg.query<{ numeric: string; present: boolean }>(
+              "SELECT (xpath('1 div 3','<r/>'::xml))[1]::text numeric,xpath_exists('1 div 3','<r/>'::xml) present",
+            )
+          ).rows[0]!,
+        )
+      }
+      expect(results[0]!.numeric).not.toBe(results[1]!.numeric)
+      expect(results.map((r) => r.present)).toEqual([true, true])
+    } finally {
+      await pg.exec('RESET extra_float_digits')
+    }
   })
 
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {

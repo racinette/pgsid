@@ -16,7 +16,7 @@ fn text_width_value(
     if let BoolValue::Error(error) = explicit {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown
+    if (input == TextValue::Unknown || input == TextValue::NonNull)
         || modifier == Int4Value::Unknown
         || explicit == BoolValue::Unknown
     {

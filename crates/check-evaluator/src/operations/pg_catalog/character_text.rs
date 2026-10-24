@@ -2,7 +2,7 @@ pub fn sql__pg_catalog__text__vc4r(input: TextValue) -> TextValue {
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null {

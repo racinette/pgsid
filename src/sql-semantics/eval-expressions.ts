@@ -572,6 +572,7 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'line' ||
           node.expression.kind === 'lseg' ||
           node.expression.kind === 'money' ||
+          node.expression.kind === 'aclitem' ||
           node.expression.kind === 'xid' ||
           node.expression.kind === 'cid' ||
           node.expression.kind === 'pg_lsn' ||

@@ -64,9 +64,9 @@ pub fn sql__pg_catalog__date_trunc__6323(
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
     }
-    if units == TextValue::Unknown
+    if (units == TextValue::Unknown || units == TextValue::NonNull)
         || input == TimestamptzValue::Unknown
-        || zone == TextValue::Unknown
+        || (zone == TextValue::Unknown || zone == TextValue::NonNull)
     {
         return TimestamptzValue::Unknown;
     }

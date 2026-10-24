@@ -202,6 +202,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/circle_input.rs");
     include!("operations/pg_catalog/circle_operations.rs");
     include!("operations/pg_catalog/money_core.rs");
+    include!("operations/pg_catalog/aclitem.rs");
     include!("operations/pg_catalog/internal_char.rs");
     include!("operations/pg_catalog/name_core.rs");
     include!("operations/pg_catalog/oid_core.rs");
@@ -217,6 +218,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/tid_input.rs");
     include!("operations/pg_catalog/money_words.rs");
     include!("operations/pg_catalog/money_input.rs");
+    include!("operations/pg_catalog/money_numeric.rs");
+    include!("operations/pg_catalog/money_text.rs");
     include!("operations/pg_catalog/box_input.rs");
     include!("operations/pg_catalog/box_operations.rs");
     include!("operations/pg_catalog/float_input.rs");

@@ -45,7 +45,7 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: boo
         if let TextValue::Error(error) = decoded {
             return BoolValue::Error(error);
         };
-        if let TextValue::Unknown = decoded {
+        if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
             return BoolValue::Unknown;
         };
     };
@@ -309,7 +309,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                 if let TextValue::Error(error) = decoded {
                     return JsonbValue::Error(error);
                 };
-                if let TextValue::Unknown = decoded {
+                if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
                     return JsonbValue::Unknown;
                 };
             };
@@ -385,7 +385,7 @@ fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> Js
                         if let TextValue::Error(error) = decoded {
                             return JsonbValue::Error(error);
                         };
-                        if let TextValue::Unknown = decoded {
+                        if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
                             return JsonbValue::Unknown;
                         };
                     };

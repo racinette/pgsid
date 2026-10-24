@@ -48,7 +48,7 @@ pub fn date_from_text(value: TextValue) -> DateValue {
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
     }
-    if value == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) {
         return DateValue::Unknown;
     }
     if value == TextValue::Null {

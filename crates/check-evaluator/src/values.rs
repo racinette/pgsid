@@ -276,6 +276,13 @@ pub enum TextValue {
     Null,
     Value(String),
     Error(SqlError),
+    NonNull,
+}
+
+#[derive(Clone, Copy)]
+pub struct XmlKnowledge {
+    pub document: BoolValue,
+    pub content: BoolValue,
 }
 
 #[derive(Clone)]
@@ -285,6 +292,7 @@ pub enum XmlValue {
     Value(String),
     RenderedText(String),
     Error(SqlError),
+    NonNull(XmlKnowledge),
 }
 
 #[derive(Clone)]
@@ -327,7 +335,29 @@ pub fn xml_from_rendered_text(input: TextValue) -> XmlValue {
     XmlValue::Unknown
 }
 
+pub fn make_xml_knowledge(document: BoolValue, content: BoolValue) -> XmlValue {
+    let mut valid_document = document == BoolValue::Unknown;
+    let mut valid_content = content == BoolValue::Unknown;
+    if let BoolValue::Value(_) = document { valid_document = true; };
+    if let BoolValue::Value(_) = content { valid_content = true; };
+    if valid_document == false || valid_content == false { return XmlValue::Unknown; };
+    if document == BoolValue::Value(true) && content == BoolValue::Value(false) { return XmlValue::Unknown; };
+    let mut actual_document = document;
+    let mut actual_content = content;
+    if document == BoolValue::Value(true) { actual_content = BoolValue::Value(true); };
+    if content == BoolValue::Value(false) { actual_document = BoolValue::Value(false); };
+    XmlValue::NonNull(XmlKnowledge { document: actual_document, content: actual_content })
+}
+
+pub fn make_xml_non_null(document: BoolValue) -> XmlValue {
+    make_xml_knowledge(document,BoolValue::Unknown)
+}
+
 pub fn xml_is_null(input: XmlValue) -> BoolValue {
+    if let XmlValue::NonNull(knowledge) = input {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::Unknown = checked { return BoolValue::Unknown; };
+    };
     if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
     if let XmlValue::Unknown = input { return BoolValue::Unknown; };
     if let XmlValue::Null = input { return BoolValue::Value(true); };
@@ -440,8 +470,15 @@ pub fn check_requirement_filter(nullness: BoolValue, reason: i32, partial: bool)
     0
 }
 
+pub fn check_text_requirement(input: TextValue, reason: i32) -> i32 {
+    if input == TextValue::NonNull { if reason > 0 { return reason; }; return -1; };
+    let nullness = text_is_null(input);
+    check_requirement_filter(nullness,reason,false)
+}
+
 pub fn check_xml_requirement(input: XmlValue, reason: i32) -> i32 {
     if let XmlValue::RenderedText(_) = input { return -1; };
+    if let XmlValue::NonNull(_) = input { if reason > 0 { return reason; }; return -1; };
     let nullness = xml_is_null(input);
     check_requirement_filter(nullness,reason,false)
 }
@@ -2215,6 +2252,39 @@ pub fn circle_from_case_guard(input: CheckOutcome) -> CircleValue {
         return CircleValue::Error(error);
     };
     CircleValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct AclitemPayload {
+    pub grantee: i64,
+    pub grantor: i64,
+    pub privileges: i64,
+    pub grant_options: i64,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum AclitemValue {
+    Unknown,
+    Null,
+    Value(AclitemPayload),
+    Error(SqlError),
+}
+pub fn aclitem_unknown() -> AclitemValue { AclitemValue::Unknown }
+pub fn aclitem_null() -> AclitemValue { AclitemValue::Null }
+pub fn make_aclitem_value(grantee: i64, grantor: i64, privileges: i64, grant_options: i64) -> AclitemValue {
+    if grantee < 0i64 || grantee > 4294967295i64 || grantor < 0i64 || grantor > 4294967295i64
+        || privileges < 0i64 || privileges > 4294967295i64 || grant_options < 0i64 || grant_options > 4294967295i64 {
+        return AclitemValue::Unknown;
+    };
+    AclitemValue::Value(AclitemPayload { grantee: grantee, grantor: grantor, privileges: privileges, grant_options: grant_options })
+}
+pub fn aclitem_is_null(input: AclitemValue) -> BoolValue {
+    if let AclitemValue::Error(error) = input { return BoolValue::Error(error); };
+    if input == AclitemValue::Unknown { return BoolValue::Unknown; };
+    make_bool_value(input == AclitemValue::Null)
+}
+pub fn aclitem_from_case_guard(input: CheckOutcome) -> AclitemValue {
+    if let CheckOutcome::Error(error) = input { return AclitemValue::Error(error); };
+    AclitemValue::Unknown
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

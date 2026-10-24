@@ -95,6 +95,12 @@ pub fn xml_from_text_utf8(input: TextValue, document: bool) -> XmlValue {
 }
 
 pub fn xml_to_text(input: XmlValue) -> TextValue {
+    if let XmlValue::NonNull(knowledge) = input {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::NonNull(_) = checked { return TextValue::NonNull; };
+        return TextValue::Unknown;
+    };
+    if let XmlValue::RenderedText(_) = input { return TextValue::NonNull; };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
     if let XmlValue::Value(value) = input { return TextValue::Value(value); };
@@ -106,6 +112,7 @@ pub fn sql__pg_catalog__text__03xf(input: XmlValue) -> TextValue {
 }
 
 pub fn xml_to_output_text(input: XmlValue) -> TextValue {
+    if let XmlValue::NonNull(knowledge) = input { return xml_to_text(make_xml_knowledge(knowledge.document,knowledge.content)); };
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
     if let XmlValue::RenderedText(value) = input { return TextValue::Value(value); };
@@ -169,6 +176,11 @@ pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
 }
 
 pub fn xml_is_document_utf8(input: XmlValue) -> BoolValue {
+    if let XmlValue::NonNull(knowledge) = input {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::NonNull(actual) = checked { return actual.document; };
+        return BoolValue::Unknown;
+    };
     if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
     if let XmlValue::Null = input { return BoolValue::Null; };
     if let XmlValue::Value(value) = input {
@@ -223,4 +235,31 @@ pub fn sql__pg_catalog__xmlcomment__8j57(input: TextValue) -> XmlValue {
         return make_xml_value(output.as_str());
     };
     XmlValue::Unknown
+}
+
+const SQLSTATE_XML_VALIDATION_UNSUPPORTED: u32 = 466560;
+
+pub fn sql__pg_catalog__xmlvalidate__bvje(input: XmlValue, schema: TextValue) -> BoolValue {
+    if let XmlValue::Error(error) = input { return BoolValue::Error(error); };
+    if let TextValue::Error(error) = schema { return BoolValue::Error(error); };
+    let input_null = xml_is_null(input);
+    let schema_null = text_is_null(schema);
+    if input_null == BoolValue::Unknown || schema_null == BoolValue::Unknown { return BoolValue::Unknown; };
+    if input_null == BoolValue::Value(true) || schema_null == BoolValue::Value(true) { return BoolValue::Null; };
+    BoolValue::Error(make_sql_error(SQLSTATE_XML_VALIDATION_UNSUPPORTED))
+}
+
+
+pub fn sql__pg_catalog__xml_is_well_formed__wikq(input: TextValue, mode: i32) -> BoolValue {
+    if let TextValue::Error(error) = input { return BoolValue::Error(error); };
+    if let TextValue::Null = input { return BoolValue::Null; };
+    if mode == 1 { return xml_well_formed_value(input,true); };
+    if mode == 2 { return xml_well_formed_value(input,false); };
+    if mode != 0 { return BoolValue::Unknown; };
+    if let TextValue::Value(value) = input {
+        let document = xml_well_formed(value.as_str(),true);
+        let content = xml_well_formed(value.as_str(),false);
+        if document == content { return BoolValue::Value(document); };
+    };
+    BoolValue::Unknown
 }

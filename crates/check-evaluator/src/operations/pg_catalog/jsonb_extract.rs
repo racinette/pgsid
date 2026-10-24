@@ -76,7 +76,7 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
     if let JsonbValue::Unknown = input {
         return JsonbValue::Unknown;
     };
-    if let TextValue::Unknown = key {
+    if key == TextValue::Unknown || key == TextValue::NonNull {
         return JsonbValue::Unknown;
     };
     if let JsonbValue::Value(value) = input {
@@ -206,7 +206,7 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
     if let JsonbValue::Unknown = input {
         return BoolValue::Unknown;
     };
-    if let TextValue::Unknown = key {
+    if key == TextValue::Unknown || key == TextValue::NonNull {
         return BoolValue::Unknown;
     };
     if let JsonbValue::Value(value) = input {

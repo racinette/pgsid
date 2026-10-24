@@ -60,6 +60,10 @@ export type RangeInputCell =
     }
   | { kind: 'Numeric' | 'Text' | 'Bit' | 'Bytea' | 'Xml' | 'XmlRenderedText'; value: string }
   | { kind: 'Bool'; value: boolean }
+  | {
+      kind: 'Aclitem'
+      value: { grantee: bigint; grantor: bigint; privileges: bigint; grantOptions: bigint }
+    }
   | { kind: 'Timetz'; value: { time: bigint; zone: number } }
   | { kind: 'Interval'; value: { time: bigint; days: number; months: number } }
   | {
@@ -96,6 +100,7 @@ export type RangeInputCell =
     }
 
 const cellRecords = {
+  Aclitem: 'AclitemPayload',
   Json: 'JsonPayload',
   Enum: 'EnumPayload',
   Timetz: 'TimetzPayload',

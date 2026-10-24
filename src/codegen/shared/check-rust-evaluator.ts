@@ -1,5 +1,11 @@
+import { moneyTextCLocale, moneyContextFractionDigits } from './check-money-context.js'
+import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
-import { isXmlXPathCallable } from '../../sql-semantics/xml-callables.js'
+import {
+  isXmlOptionPredicate,
+  isXmlPreparationCallable,
+  isXmlXPathCallable,
+} from '../../sql-semantics/xml-callables.js'
 import {
   compositeProfile,
   compositeContainerProfile,
@@ -333,6 +339,7 @@ const arrayElementOutput = (
   definition: EnumDefinition | undefined,
   element: string,
   scalar: string,
+  context: { moneyLocale?: 'C'; moneyFractionDigits?: number },
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
   elementType = arrayElementBaseType(elementType)
   const family = arrayElementFamily(elementType)
@@ -384,10 +391,12 @@ const arrayElementOutput = (
       throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
     conversion = `enum_to_text(${scalar}, ${rustStringLiteral(definition.values.join('\0'))}, ${definition.values.length})`
   } else if (family === 8) conversion = scalar
+  else if (family === 31)
+    conversion = `money_to_text_context(${scalar},${moneyTextCLocale(context)})`
   else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
-  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43].includes(family))
+  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46].includes(family))
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
     conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
@@ -679,6 +688,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog.money') return 'MoneyValue'
+  if (type === 'pg_catalog.aclitem') return 'AclitemValue'
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
   if (type === 'pg_catalog.pg_lsn') return 'PgLsnValue'
@@ -724,6 +734,8 @@ export type CheckExecutionContext = {
   arrayNulls?: boolean
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
+  moneyLocale?: 'C'
+  moneyFractionDigits?: number
   extraFloatDigits?: number
   xpathRecursionLimit?: number
   xpathPowerOfTenBits?: readonly string[]
@@ -900,20 +912,20 @@ export function emitCheckRustEvaluator(
     ].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
-  const containsXPath = (value: unknown): boolean => {
+  const containsPreparedXml = (value: unknown): boolean => {
     if (!value || typeof value !== 'object') return false
     const node = value as { kind?: string; call?: { signature?: string } }
     if (
       node.kind === 'call' &&
       node.call?.signature &&
-      isXmlXPathCallable(builtinMetadata(node.call.signature))
+      isXmlPreparationCallable(builtinMetadata(node.call.signature))
     )
       return true
-    return Object.values(value).some(containsXPath)
+    return Object.values(value).some(containsPreparedXml)
   }
-  const hasXPath = containsXPath(expression)
+  const hasPreparedXml = containsPreparedXml(expression)
   const diagnostics = new CheckRustDiagnostics(
-    !preparationOnly && hasXPath,
+    !preparationOnly && hasPreparedXml,
     fresh,
     rustType,
     ownedOperand,
@@ -996,7 +1008,7 @@ export function emitCheckRustEvaluator(
   const preparationFinishLines = (state: string, reason = '-1'): string[] => {
     const lines = [`${preparationState} = constant_finish(${preparationState}, ${state});`]
     appendValidityRequirement(preparationState, state, reason, lines)
-    return hasXPath
+    return hasPreparedXml
       ? [`if case_guard_stops(${preparationState}) == false {`, ...indent(lines), '};']
       : lines
   }
@@ -1076,6 +1088,17 @@ export function emitCheckRustEvaluator(
     destination.push(`if array_validity_unknown(${guard}) {`, ...indent(lines), '}')
   }
 
+  const usesTypedRangeOutput = (profile: RangeProfile | null | undefined): boolean => {
+    if (!profile) return false
+    return (
+      !!profile.subtypeCompositeGraph ||
+      (moneyTextCLocale(executionContext) &&
+        (arrayElementFamily(arrayElementBaseType(profile.elementType)) === 31 ||
+          (rangeBoundProfiles(profile, executionContext)?.some((node) => node.kind === 31) ??
+            false)))
+    )
+  }
+
   const renderTypedOutput = (
     cell: string,
     type: string,
@@ -1125,7 +1148,7 @@ export function emitCheckRustEvaluator(
         else localInputs.delete(key)
       }
     }
-    const output = arrayElementOutput(type, definition, cell, scalar)
+    const output = arrayElementOutput(type, definition, cell, scalar, executionContext)
     if (output.scalarRequired) extract()
     return type === 'pg_catalog.jsonb'
       ? `jsonb_text_context(${scalar},${executionContext.serverEncoding === 'UTF8'})`
@@ -1137,7 +1160,7 @@ export function emitCheckRustEvaluator(
     multi: boolean,
     destination: string[],
   ): string => {
-    if (!profile.subtypeCompositeGraph)
+    if (!usesTypedRangeOutput(profile))
       return `${multi ? 'multirange' : 'range'}_to_text(${input}.clone())`
     if (multi) {
       const payload = fresh('multirange_output_payload'),
@@ -1330,7 +1353,7 @@ export function emitCheckRustEvaluator(
     const inner: string[] = []
     const base = arrayElementBaseType(elementType)
     let conversion: string
-    if ((rangeTypeProfile(base) ?? multirangeTypeProfile(base))?.subtypeCompositeGraph) {
+    if (usesTypedRangeOutput(rangeTypeProfile(base) ?? multirangeTypeProfile(base))) {
       conversion = renderTypedOutput(element, base, inner, definition)
     } else if (compositeProfile(base)) {
       const key = JSON.stringify(['__pgsid_array_output_element', false]),
@@ -1370,7 +1393,7 @@ export function emitCheckRustEvaluator(
       const values = renderArrayOutput(nested, base.slice(6), definition, inner)
       conversion = `finish_array_output(${nested}, ${values}, ${arrayElementDelimiter(base.slice(6)) === ';'})`
     } else {
-      const output = arrayElementOutput(elementType, definition, element, scalar)
+      const output = arrayElementOutput(elementType, definition, element, scalar, executionContext)
       if (output.scalarRequired)
         inner.push(`let ${scalar} = array_element_to_${output.prefix}(${element});`)
       conversion =
@@ -1508,6 +1531,8 @@ export function emitCheckRustEvaluator(
       scalar = `oid_alias_from_text(${event}, ${dash}, ${grammar})`
     } else if (family === 31 && stored && moneyLiterals?.length) {
       scalar = `money_from_captured_text(${event}, ${rustStringLiteral(moneyLiterals.map((value) => value.text).join('\0'))}, ${rustStringLiteral(moneyLiterals.map((value) => value.units).join('\0'))}, ${moneyLiterals.length})`
+    } else if (family === 31) {
+      scalar = `money_from_text_context(${event},${moneyTextCLocale(executionContext)})`
     } else if (family === 40) {
       if (!stored) requiresRegex = true
       scalar = stored
@@ -1608,7 +1633,7 @@ export function emitCheckRustEvaluator(
         node.kind === 'array-quantifier' ||
         (implementation !== null &&
           (isArrayComparison(implementation) ||
-            isXmlXPathCallable(implementation) ||
+            isXmlPreparationCallable(implementation) ||
             isRecordComparison(implementation) ||
             isArrayExtremum(implementation) ||
             isArrayBucket(implementation) ||
@@ -2596,6 +2621,7 @@ export function emitCheckRustEvaluator(
       const xmlCast =
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
+      const xmlPredicate = isXmlOptionPredicate(implementation)
       const xmlConcat =
         implementation.schema === 'pg_catalog' &&
         implementation.name === 'xmlconcat2' &&
@@ -2709,6 +2735,8 @@ export function emitCheckRustEvaluator(
           !jsonpathTimezone &&
           !xmlCast &&
           !xmlSend &&
+          !xmlPredicate &&
+          !isMoneyNumericConversion(implementation) &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -4358,7 +4386,7 @@ export function emitCheckRustEvaluator(
                     : 0,
               carrier = fresh('jsonb_range_input'),
               helper = range ? 'jsonb_range_input_category' : 'jsonb_multirange_input_category'
-            if (category === 1 && profile.subtypeCompositeGraph) {
+            if (category === 1 && usesTypedRangeOutput(profile)) {
               const rendered = renderRangeOutput(operand.name, profile, !!multirange, lines),
                 text = fresh('json_record_range_text')
               lines.push(
@@ -4383,7 +4411,13 @@ export function emitCheckRustEvaluator(
               (definition.jsonConversion === 'cast' && key === true))
           ) {
             const text = fresh('jsonb_enum_label')
-            const output = arrayElementOutput(operand.type, definition, '', operand.name)
+            const output = arrayElementOutput(
+              operand.type,
+              definition,
+              '',
+              operand.name,
+              executionContext,
+            )
             lines.push(`let ${text} = ${output.conversion};`)
             if (definition.jsonConversion === 'cast') {
               const input = fresh('jsonb_enum_key_input'),
@@ -4455,24 +4489,28 @@ export function emitCheckRustEvaluator(
               )
           }
           const helper =
-            rawJson && operand.type === 'pg_catalog."numeric"'
-              ? 'json_input_from_numeric'
-              : rawJson && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                : operand.type === 'pg_catalog."json"' && !rawJson
-                  ? 'jsonb_input_from_json_context'
-                  : typeof key === 'string' &&
-                      ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                    ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
-                    : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                      ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                      : jsonbConversionHelper(operand.type)
+            operand.type === 'pg_catalog.money'
+              ? 'jsonb_input_from_money_context'
+              : rawJson && operand.type === 'pg_catalog."numeric"'
+                ? 'json_input_from_numeric'
+                : rawJson && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                  ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                  : operand.type === 'pg_catalog."json"' && !rawJson
+                    ? 'jsonb_input_from_json_context'
+                    : typeof key === 'string' &&
+                        ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                      ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
+                      : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                        ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                        : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
             )
           const carrier = fresh('jsonb_input')
           const args = [ownedOperand(operand)]
+          if (operand.type === 'pg_catalog.money')
+            args.push(String(moneyTextCLocale(executionContext)))
           if (operand.type === 'pg_catalog."json"' && !rawJson)
             args.push(String(executionContext.serverEncoding === 'UTF8'))
           if (
@@ -4777,7 +4815,9 @@ export function emitCheckRustEvaluator(
                 : 0,
           ),
         )
-      if (xmlCast)
+      if (isMoneyNumericConversion(implementation))
+        arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      if (xmlCast || xmlPredicate)
         arguments_.push(
           String(
             executionContext.xmlOption === 'document'
@@ -4786,8 +4826,8 @@ export function emitCheckRustEvaluator(
                 ? 2
                 : 0,
           ),
-          String(executionContext.serverEncoding === 'UTF8'),
         )
+      if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (isXmlXPathCallable(implementation))
         arguments_.push(
@@ -4894,7 +4934,13 @@ export function emitCheckRustEvaluator(
         element = fresh('array_io_element'),
         scalar = fresh('array_io_scalar'),
         event = fresh('array_io_text')
-      const rendered = arrayElementOutput(node.sourceElementType, node.sourceEnum, element, scalar)
+      const rendered = arrayElementOutput(
+        node.sourceElementType,
+        node.sourceEnum,
+        element,
+        scalar,
+        executionContext,
+      )
       const lines: string[] = []
       if (rendered.scalarRequired)
         lines.push(`let ${scalar} = array_element_to_${rendered.prefix}(${element});`)
@@ -5260,6 +5306,13 @@ export function emitCheckRustEvaluator(
         builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      if (operand.type === 'pg_catalog.money')
+        return {
+          name: bind(
+            `money_to_text_context(${ownedOperand(operand)},${moneyTextCLocale(executionContext)})`,
+          ),
+          type: node.type,
+        }
       if (operand.type === 'pg_catalog.xml') {
         const result = {
           name: bind(`xml_to_output_text(${ownedOperand(operand)})`),
@@ -5468,7 +5521,7 @@ export function emitCheckRustEvaluator(
       const literals = node.moneyLiterals
       const value = literals?.length
         ? `money_from_captured_text(${ownedOperand(operand)},${rustStringLiteral(literals.map((literal) => literal.text).join('\0'))},${rustStringLiteral(literals.map((literal) => literal.units).join('\0'))},${literals.length})`
-        : `money_from_text(${ownedOperand(operand)})`
+        : `money_from_text_context(${ownedOperand(operand)},${moneyTextCLocale(executionContext)})`
       return { name: bind(value), type: node.type }
     }
     if (node.kind === 'text-to-xid') {
@@ -6310,12 +6363,21 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`lseg_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'aclitem') {
+        return {
+          name: bind(value.value === null ? 'aclitem_null()' : 'aclitem_unknown()'),
+          type: value.type,
+        }
+      }
       if (value.kind === 'money') {
         if (value.value === null) return { name: bind('money_null()'), type: value.type }
         if (value.units !== undefined)
           return { name: bind(`make_money_value(${value.units}i64)`), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        return { name: bind(`money_from_text(${text})`), type: value.type }
+        return {
+          name: bind(`money_from_text_context(${text},${moneyTextCLocale(executionContext)})`),
+          type: value.type,
+        }
       }
       if (value.kind === 'xid') {
         if (value.value === null) return { name: bind('xid_null()'), type: value.type }
@@ -6753,14 +6815,17 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'composite-to-text') {
       const type = scalarType(node.operand),
-        profile = compositeProfile(type)
+        profile = compositeProfile(type),
+        anonymous = anonymousRecordProfile(type)
       const definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
-      const io = definition?.output
-        ? builtinCallables().find((n) => callableIdentity(n) === definition.output)
+      const outputIdentity = anonymous
+        ? builtinTypeIO('pg_catalog.record')?.output
+        : definition?.output
+      const io = outputIdentity
+        ? builtinCallables().find((n) => callableIdentity(n) === outputIdentity)
         : null
       if (
-        !profile ||
-        !definition ||
+        ((!profile || !definition) && !anonymous) ||
         io?.kind !== 'function' ||
         io.schema !== 'pg_catalog' ||
         io.name !== 'record_out' ||
@@ -6774,6 +6839,10 @@ export function emitCheckRustEvaluator(
           'Composite output requires its captured record I/O identity',
         )
       const operand = emitScalar(node.operand, bindings, used)
+      if (anonymous)
+        return { name: renderAnonymousRecordOutput(operand, bindings), type: node.type }
+      if (!profile || !definition)
+        throw new UnsupportedCheckRustExpression('Composite output requires its captured layout')
       let output = bind(
         `prepare_composite_output(${ownedOperand(operand)},${rustStringLiteral(profile.identity)},${definition.fields.length})`,
       )
@@ -6792,9 +6861,7 @@ export function emitCheckRustEvaluator(
           `let ${cell}=composite_field_at(${ownedOperand(operand)},${position});`,
         )
         let result: string
-        if (
-          (rangeTypeProfile(fieldType) ?? multirangeTypeProfile(fieldType))?.subtypeCompositeGraph
-        ) {
+        if (usesTypedRangeOutput(rangeTypeProfile(fieldType) ?? multirangeTypeProfile(fieldType))) {
           if (physical.output !== rangeTypeOutput(fieldType))
             throw new UnsupportedCheckRustExpression(
               'Composite range field output requires its captured implementation',
@@ -6859,7 +6926,13 @@ export function emitCheckRustEvaluator(
                   outputFunction: physical.output ?? undefined,
                 }
               : undefined
-          const conversion = arrayElementOutput(fieldType, enumDefinition, cell, scalar)
+          const conversion = arrayElementOutput(
+            fieldType,
+            enumDefinition,
+            cell,
+            scalar,
+            executionContext,
+          )
           if (
             physical.output !==
             (enumDefinition?.outputFunction ??
@@ -7014,6 +7087,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.line',
           'pg_catalog.lseg',
           'pg_catalog.money',
+          'pg_catalog.aclitem',
           'pg_catalog.xid',
           'pg_catalog.cid',
           'pg_catalog.pg_lsn',
@@ -8081,7 +8155,7 @@ export function emitCheckRustEvaluator(
       ...literalLines,
       ...constantLines,
       ...observed,
-      ...(hasXPath && domainPreparationLines.length
+      ...(hasPreparedXml && domainPreparationLines.length
         ? [
             `if case_guard_stops(${preparationState}) == false {`,
             ...indent(domainPreparationLines),

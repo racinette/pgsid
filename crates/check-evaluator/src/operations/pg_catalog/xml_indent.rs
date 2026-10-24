@@ -104,6 +104,14 @@ fn xml_tree_write_node(tree: &XmlTree, node: usize) -> String {
 pub fn xml_indent_utf8(input: XmlValue, document: bool, utf8: bool) -> TextValue {
     if let XmlValue::Error(error) = input { return TextValue::Error(error); };
     if let XmlValue::Null = input { return TextValue::Null; };
+    if let XmlValue::NonNull(knowledge) = input {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::NonNull(actual) = checked {
+            if document && actual.document == BoolValue::Value(false) { return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT)); };
+            if utf8 && actual.content == BoolValue::Value(true) && (document == false || actual.document == BoolValue::Value(true)) { return TextValue::NonNull; };
+        };
+        return TextValue::Unknown;
+    };
     if let XmlValue::RenderedText(value) = input {
         if document && xml_text_encoding_available(value.as_str(),utf8) && xml_well_formed(value.as_str(),true) == false {
             return TextValue::Error(make_sql_error(SQLSTATE_NOT_XML_DOCUMENT));

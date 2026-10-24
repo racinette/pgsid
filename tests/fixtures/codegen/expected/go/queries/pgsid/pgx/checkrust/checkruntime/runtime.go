@@ -311,12 +311,17 @@ const (
 	TextValueNull
 	TextValueValue
 	TextValueError
+	TextValueNonNull
 )
 
 type TextValue struct {
 	Kind  TextValueKind
 	Value string
 	Error SqlError
+}
+type XmlKnowledge struct {
+	Document BoolValue
+	Content  BoolValue
 }
 type XmlValueKind uint8
 
@@ -326,6 +331,7 @@ const (
 	XmlValueValue
 	XmlValueRenderedText
 	XmlValueError
+	XmlValueNonNull
 )
 
 type XmlValue struct {
@@ -333,6 +339,7 @@ type XmlValue struct {
 	Value        string
 	RenderedText string
 	Error        SqlError
+	NonNull      XmlKnowledge
 }
 
 func CopyXmlValue(value XmlValue) XmlValue {
@@ -347,6 +354,8 @@ func CopyXmlValue(value XmlValue) XmlValue {
 		return XmlValue{Kind: XmlValueRenderedText, RenderedText: langruntime.CheckedString(value.RenderedText)}
 	case XmlValueError:
 		return XmlValue{Kind: XmlValueError, Error: value.Error}
+	case XmlValueNonNull:
+		return XmlValue{Kind: XmlValueNonNull, NonNull: value.NonNull}
 	}
 	panic("unknown enum variant")
 }
@@ -399,7 +408,42 @@ func XmlFromRenderedText(input TextValue) XmlValue {
 	}
 	return XmlValue{Kind: XmlValueUnknown}
 }
+func MakeXmlKnowledge(document BoolValue, content BoolValue) XmlValue {
+	validDocument := document == (BoolValue{Kind: BoolValueUnknown})
+	validContent := content == (BoolValue{Kind: BoolValueUnknown})
+	if document.Kind == BoolValueValue {
+		validDocument = true
+	}
+	if content.Kind == BoolValueValue {
+		validContent = true
+	}
+	if validDocument == false || validContent == false {
+		return XmlValue{Kind: XmlValueUnknown}
+	}
+	if document == (BoolValue{Kind: BoolValueValue, Value: true}) && content == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		return XmlValue{Kind: XmlValueUnknown}
+	}
+	actualDocument := document
+	actualContent := content
+	if document == (BoolValue{Kind: BoolValueValue, Value: true}) {
+		actualContent = BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	if content == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		actualDocument = BoolValue{Kind: BoolValueValue, Value: false}
+	}
+	return XmlValue{Kind: XmlValueNonNull, NonNull: XmlKnowledge{Document: actualDocument, Content: actualContent}}
+}
+func MakeXmlNonNull(document BoolValue) XmlValue {
+	return MakeXmlKnowledge(document, BoolValue{Kind: BoolValueUnknown})
+}
 func XmlIsNull(input XmlValue) BoolValue {
+	if input.Kind == XmlValueNonNull {
+		knowledge := input.NonNull
+		checked := MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == XmlValueUnknown {
+			return BoolValue{Kind: BoolValueUnknown}
+		}
+	}
 	if input.Kind == XmlValueError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -549,9 +593,26 @@ func CheckRequirementFilter(nullness BoolValue, reason int, partial bool) int {
 	}
 	return 0
 }
+func CheckTextRequirement(input TextValue, reason int) int {
+	reason = langruntime.CheckedI32(reason)
+	if input == (TextValue{Kind: TextValueNonNull}) {
+		if reason > 0 {
+			return reason
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	nullness := TextIsNull(input)
+	return CheckRequirementFilter(nullness, reason, false)
+}
 func CheckXmlRequirement(input XmlValue, reason int) int {
 	reason = langruntime.CheckedI32(reason)
 	if input.Kind == XmlValueRenderedText {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if input.Kind == XmlValueNonNull {
+		if reason > 0 {
+			return reason
+		}
 		return langruntime.CheckedSignedNegate(1)
 	}
 	nullness := XmlIsNull(input)
@@ -2577,6 +2638,57 @@ func CircleFromCaseGuard(input CheckOutcome) CircleValue {
 	return CircleValue{Kind: CircleValueUnknown}
 }
 
+type AclitemPayload struct {
+	Grantee      int64
+	Grantor      int64
+	Privileges   int64
+	GrantOptions int64
+}
+type AclitemValueKind uint8
+
+const (
+	AclitemValueUnknown AclitemValueKind = iota
+	AclitemValueNull
+	AclitemValueValue
+	AclitemValueError
+)
+
+type AclitemValue struct {
+	Kind  AclitemValueKind
+	Value AclitemPayload
+	Error SqlError
+}
+
+func AclitemUnknown() AclitemValue {
+	return AclitemValue{Kind: AclitemValueUnknown}
+}
+func AclitemNull() AclitemValue {
+	return AclitemValue{Kind: AclitemValueNull}
+}
+func MakeAclitemValue(grantee int64, grantor int64, privileges int64, grantOptions int64) AclitemValue {
+	if grantee < int64(0) || grantee > int64(4294967295) || grantor < int64(0) || grantor > int64(4294967295) || privileges < int64(0) || privileges > int64(4294967295) || grantOptions < int64(0) || grantOptions > int64(4294967295) {
+		return AclitemValue{Kind: AclitemValueUnknown}
+	}
+	return AclitemValue{Kind: AclitemValueValue, Value: AclitemPayload{Grantee: grantee, Grantor: grantor, Privileges: privileges, GrantOptions: grantOptions}}
+}
+func AclitemIsNull(input AclitemValue) BoolValue {
+	if input.Kind == AclitemValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (AclitemValue{Kind: AclitemValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (AclitemValue{Kind: AclitemValueNull}))
+}
+func AclitemFromCaseGuard(input CheckOutcome) AclitemValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return AclitemValue{Kind: AclitemValueError, Error: error}
+	}
+	return AclitemValue{Kind: AclitemValueUnknown}
+}
+
 type MoneyValueKind uint8
 
 const (
@@ -3755,7 +3867,7 @@ func NetworkFromText(input TextValue) NetworkValue {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return NetworkValue{Kind: NetworkValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -3772,7 +3884,7 @@ func CidrFromText(input TextValue) NetworkValue {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return NetworkValue{Kind: NetworkValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -4019,7 +4131,7 @@ func MacaddrFromText(input TextValue) MacaddrValue {
 		error := input.Error
 		return MacaddrValue{Kind: MacaddrValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return MacaddrValue{Kind: MacaddrValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -4045,7 +4157,7 @@ func Macaddr8FromText(input TextValue) Macaddr8Value {
 		error := input.Error
 		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return Macaddr8Value{Kind: Macaddr8ValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -4139,7 +4251,7 @@ func UuidFromText(input TextValue) UuidValue {
 		error := input.Error
 		return UuidValue{Kind: UuidValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return UuidValue{Kind: UuidValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -4778,7 +4890,7 @@ func jsonReadSelect(value string, key string, index int, object bool, asText boo
 				error := decoded.Error
 				return TextValue{Kind: TextValueError, Error: error}
 			}
-			if decoded.Kind == TextValueUnknown {
+			if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
 				return TextValue{Kind: TextValueUnknown}
 			}
 		}
@@ -4841,7 +4953,7 @@ func JsonReadField(input JsonValue, key TextValue, asText bool) TextValue {
 	if input.Kind == JsonValueUnknown {
 		return TextValue{Kind: TextValueUnknown}
 	}
-	if key.Kind == TextValueUnknown {
+	if key == (TextValue{Kind: TextValueUnknown}) || key == (TextValue{Kind: TextValueNonNull}) {
 		return TextValue{Kind: TextValueUnknown}
 	}
 	if input.Kind == JsonValueNull {
@@ -5092,7 +5204,7 @@ func parseJsonArrayPathDocument(input string, utf8 bool) jsonArrayPathDocument {
 				error := decoded.Error
 				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(2), error)
 			}
-			if decoded == (TextValue{Kind: TextValueUnknown}) {
+			if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
 				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(1), MakeSqlError(0))
 			}
 		}
@@ -5540,7 +5652,7 @@ func jsonbScalarReady(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) 
 			error := decoded.Error
 			return BoolValue{Kind: BoolValueError, Error: error}
 		}
-		if decoded.Kind == TextValueUnknown {
+		if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
 			return BoolValue{Kind: BoolValueUnknown}
 		}
 	}
@@ -5784,7 +5896,7 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 					error := decoded.Error
 					return JsonbValue{Kind: JsonbValueError, Error: error}
 				}
-				if decoded.Kind == TextValueUnknown {
+				if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
 					return JsonbValue{Kind: JsonbValueUnknown}
 				}
 			}
@@ -5858,7 +5970,7 @@ func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValu
 							error := decoded.Error
 							return JsonbValue{Kind: JsonbValueError, Error: error}
 						}
-						if decoded.Kind == TextValueUnknown {
+						if decoded == (TextValue{Kind: TextValueUnknown}) || decoded == (TextValue{Kind: TextValueNonNull}) {
 							return JsonbValue{Kind: JsonbValueUnknown}
 						}
 					}
@@ -7059,6 +7171,9 @@ const (
 	ArrayElementComposite
 	ArrayElementXml
 	ArrayElementXmlRenderedText
+	ArrayElementXmlNonNull
+	ArrayElementTextNonNull
+	ArrayElementAclitem
 )
 
 type ArrayElement struct {
@@ -7112,6 +7227,8 @@ type ArrayElement struct {
 	Composite          CompositePayload
 	Xml                string
 	XmlRenderedText    string
+	XmlNonNull         XmlKnowledge
+	Aclitem            AclitemPayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -7224,11 +7341,26 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementXml, Xml: langruntime.CheckedString(value.Xml)}
 	case ArrayElementXmlRenderedText:
 		return ArrayElement{Kind: ArrayElementXmlRenderedText, XmlRenderedText: langruntime.CheckedString(value.XmlRenderedText)}
+	case ArrayElementXmlNonNull:
+		return ArrayElement{Kind: ArrayElementXmlNonNull, XmlNonNull: value.XmlNonNull}
+	case ArrayElementTextNonNull:
+		return ArrayElement{Kind: ArrayElementTextNonNull}
+	case ArrayElementAclitem:
+		return ArrayElement{Kind: ArrayElementAclitem, Aclitem: value.Aclitem}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementAclitem {
+		return 46
+	}
+	if input.Kind == ArrayElementTextNonNull {
+		return 8
+	}
+	if input.Kind == ArrayElementXmlNonNull {
+		return 45
+	}
 	if input.Kind == ArrayElementXml {
 		return 45
 	}
@@ -7618,6 +7750,9 @@ func ArrayElementToDate(input ArrayElement) DateValue {
 	return DateValue{Kind: DateValueUnknown}
 }
 func ArrayElementFromText(input TextValue) ArrayElement {
+	if input == (TextValue{Kind: TextValueNonNull}) {
+		return ArrayElement{Kind: ArrayElementTextNonNull}
+	}
 	if input.Kind == TextValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -7633,6 +7768,9 @@ func ArrayElementFromText(input TextValue) ArrayElement {
 }
 func ArrayElementToText(input ArrayElement) TextValue {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementTextNonNull {
+		return TextValue{Kind: TextValueNonNull}
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -8674,6 +8812,15 @@ func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
 	return MultirangeValue{Kind: MultirangeValueUnknown}
 }
 func ArrayElementFromXml(input XmlValue) ArrayElement {
+	if input.Kind == XmlValueNonNull {
+		knowledge := input.NonNull
+		checked := MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == XmlValueNonNull {
+			actual := checked.NonNull
+			return ArrayElement{Kind: ArrayElementXmlNonNull, XmlNonNull: actual}
+		}
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
 	if input.Kind == XmlValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -8693,6 +8840,10 @@ func ArrayElementFromXml(input XmlValue) ArrayElement {
 }
 func ArrayElementToXml(input ArrayElement) XmlValue {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementXmlNonNull {
+		knowledge := input.XmlNonNull
+		return MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return XmlValue{Kind: XmlValueError, Error: error}
@@ -8709,6 +8860,35 @@ func ArrayElementToXml(input ArrayElement) XmlValue {
 		return XmlValue{Kind: XmlValueRenderedText, RenderedText: value}
 	}
 	return XmlValue{Kind: XmlValueUnknown}
+}
+func ArrayElementFromAclitem(input AclitemValue) ArrayElement {
+	if input.Kind == AclitemValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input == (AclitemValue{Kind: AclitemValueNull}) {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == AclitemValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementAclitem, Aclitem: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToAclitem(input ArrayElement) AclitemValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return AclitemValue{Kind: AclitemValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return AclitemValue{Kind: AclitemValueNull}
+	}
+	if input.Kind == ArrayElementAclitem {
+		value := input.Aclitem
+		return AclitemValue{Kind: AclitemValueValue, Value: value}
+	}
+	return AclitemValue{Kind: AclitemValueUnknown}
 }
 
 type CompositePayload struct {
@@ -9050,13 +9230,13 @@ func compositeTypeContextValid(context *CompositeTypeContext) bool {
 	index := 0
 	for index < len(context.Nodes) {
 		node := copyCompositeTypeNode(context.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 45 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 46 {
 			return false
 		}
 		if node.Kind == 41 && (node.ElementType == "" || node.Child >= len(context.Nodes)) {
 			return false
 		}
-		if node.Kind > 0 && node.Kind < 41 || node.Kind == 42 || node.Kind == 43 || node.Kind == 45 {
+		if node.Kind > 0 && node.Kind < 41 || node.Kind == 42 || node.Kind == 43 || node.Kind >= 45 {
 			profile := node.BoundProfile
 			if len(profile.Nodes) == 0 || RangeBoundProfileValid(&profile) == false {
 				return false
@@ -9217,6 +9397,10 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	if checked.Kind == ArrayElementJsonb {
 		payload := CopyJsonbPayload(checked.Jsonb)
 		return ArrayElementFromJsonb(JsonbFromCoercedValue(JsonbValue{Kind: JsonbValueValue, Value: payload}))
+	}
+	if checked.Kind == ArrayElementXmlNonNull {
+		value := checked.XmlNonNull
+		return ArrayElementFromXml(MakeXmlKnowledge(value.Document, value.Content))
 	}
 	if checked.Kind == ArrayElementXml {
 		value := langruntime.CheckedString(checked.Xml)
@@ -9693,7 +9877,7 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 	index := 0
 	for index < len(profile.Nodes) {
 		node := CopyRangeBoundProfile(profile.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 45 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 46 {
 			return false
 		}
 		if node.Kind >= 41 && node.Kind <= 43 {
@@ -9801,7 +9985,7 @@ func RangeBoundContextBranch(profile *RangeBoundContext, start int) RangeBoundCo
 	if start >= len(profile.Nodes) || RangeBoundProfileValid(profile) == false {
 		return EmptyRangeBoundContext()
 	}
-	if profile.Nodes[start].Kind < 41 || profile.Nodes[start].Kind == 45 {
+	if profile.Nodes[start].Kind < 41 || profile.Nodes[start].Kind >= 45 {
 		return EmptyRangeBoundContext()
 	}
 	indices := []int{}
@@ -9995,6 +10179,10 @@ func rangeBoundWordValid(value int) bool {
 }
 func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementAclitem {
+		value := input.Aclitem
+		return MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown})
+	}
 	if input.Kind == ArrayElementInt2 {
 		value := langruntime.CheckedI32(input.Int2)
 		return MakeInt2Value(value) != (Int2Value{Kind: Int2ValueUnknown})
@@ -10070,7 +10258,7 @@ func MakeCoercedRangeValue(input RangePayload) RangeValue {
 	if RangeEnumDefinitionValid(value.EnumLabels, value.EnumCount) == false {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
-	if value.ElementKind < 41 || value.ElementKind == 45 {
+	if value.ElementKind < 41 || value.ElementKind >= 45 {
 		emptyProfile := EmptyRangeBoundContext()
 		value = CopyRangePayload(rangePayloadWithBoundProfile(value, emptyProfile))
 	}
@@ -11104,6 +11292,14 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 }
 func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	element = CopyArrayElement(element)
+	if element.Kind == ArrayElementAclitem {
+		value := element.Aclitem
+		return ArrayElementFromAclitem(MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions))
+	}
+	if element.Kind == ArrayElementXmlNonNull {
+		value := element.XmlNonNull
+		return ArrayElementFromXml(MakeXmlKnowledge(value.Document, value.Content))
+	}
 	if element.Kind == ArrayElementXml {
 		value := langruntime.CheckedString(element.Xml)
 		return ArrayElementFromXml(MakeXmlValue(value))
@@ -11142,7 +11338,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		}
 		if checked.Kind == ArrayElementUnknown {
 			family := ArrayElementFamily(CopyArrayElement(elements[position]))
-			if family >= 41 && family <= 44 {
+			if (family >= 41 && family <= 44) || family == 46 {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
 		}
@@ -11150,7 +11346,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 45 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 46 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
@@ -12098,7 +12294,7 @@ func arrayTextResult(dimensions []ArrayDimension, input []ArrayTextEvent, error 
 func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	delimiter = langruntime.CheckedChar(delimiter)
 	nulls = langruntime.CheckedI32(nulls)
-	if input.Kind == TextValueUnknown {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
 	}
 	if input.Kind == TextValueNull {
@@ -13928,7 +14124,7 @@ func BitFromText(input TextValue) BitValue {
 		error := input.Error
 		return BitValue{Kind: BitValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) {
+	if input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull}) {
 		return BitValue{Kind: BitValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) {
@@ -14438,7 +14634,7 @@ func DateFromText(value TextValue) DateValue {
 		error := value.Error
 		return DateValue{Kind: DateValueError, Error: error}
 	}
-	if value == (TextValue{Kind: TextValueUnknown}) {
+	if value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueNonNull}) {
 		return DateValue{Kind: DateValueUnknown}
 	}
 	if value == (TextValue{Kind: TextValueNull}) {
@@ -14702,7 +14898,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
 	}
-	if value == (TextValue{Kind: TextValueUnknown}) {
+	if value == (TextValue{Kind: TextValueUnknown}) || value == (TextValue{Kind: TextValueNonNull}) {
 		return Int8Value{Kind: Int8ValueUnknown}
 	}
 	if value == (TextValue{Kind: TextValueNull}) {
@@ -16143,7 +16339,7 @@ func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
 		error := fields.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
 	}
-	if input == (TextValue{Kind: TextValueUnknown}) || fields == (Int4Value{Kind: Int4ValueUnknown}) {
+	if (input == (TextValue{Kind: TextValueUnknown}) || input == (TextValue{Kind: TextValueNonNull})) || fields == (Int4Value{Kind: Int4ValueUnknown}) {
 		return IntervalValue{Kind: IntervalValueUnknown}
 	}
 	if input == (TextValue{Kind: TextValueNull}) || fields == (Int4Value{Kind: Int4ValueNull}) {

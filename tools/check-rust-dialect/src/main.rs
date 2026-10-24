@@ -76,6 +76,7 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("LsegValue") => {
             Ok("LsegValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("AclitemValue") => { Ok("AclitemValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
             Ok("MoneyValue")
         }
@@ -470,6 +471,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "LineValue"
                     | "LsegValue"
                     | "MoneyValue"
+                    | "AclitemValue"
                     | "XidValue"
                     | "CidValue"
                     | "PgLsnValue"
@@ -1097,6 +1099,17 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_aclitem_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: AclitemValue, right: AclitemValue) -> CheckOutcome { let mut selected: AclitemValue = aclitem_unknown(); if choose(left) { selected = right; } let value = compare(selected, left); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["AclitemPayload", "i64", "AclitemValue<i64>", "&AclitemValue"] {
+            assert!(check_source(&source.replace("left: AclitemValue", &format!("left: {ty}"))).is_err());
+        }
+        assert!(check_source(&source.replace("left: AclitemValue", "mut left: AclitemValue")).is_err());
+        assert!(check_source(&source.replace("compare(selected, left)", "compare(selected.grantee, left)")).is_err());
+    }
+
+    #[test]
     fn accepts_money_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: MoneyValue, right: MoneyValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -1140,6 +1153,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
             ("MoneyValue", "money_unknown"),
+            ("AclitemValue", "aclitem_unknown"),
             ("XidValue", "xid_unknown"),
             ("CidValue", "cid_unknown"),
             ("PgLsnValue", "pg_lsn_unknown"),

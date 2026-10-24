@@ -15,7 +15,7 @@ fn text_substring_value(
     if let Int4Value::Error(error) = length {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || position == Int4Value::Unknown || length == Int4Value::Unknown
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || position == Int4Value::Unknown || length == Int4Value::Unknown
     {
         return TextValue::Unknown;
     }
@@ -59,7 +59,7 @@ fn text_side_value(input: TextValue, length: Int4Value, from_right: bool) -> Tex
     if let Int4Value::Error(error) = length {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || length == Int4Value::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || length == Int4Value::Null {
@@ -145,7 +145,7 @@ pub fn sql__pg_catalog__reverse__5pr1(input: TextValue) -> TextValue {
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null {

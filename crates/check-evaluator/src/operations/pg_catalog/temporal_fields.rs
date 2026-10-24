@@ -203,7 +203,7 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     }
-    if units == TextValue::Unknown || input == TimestampValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == TimestampValue::Unknown {
         return TimestampValue::Unknown;
     }
     if units == TextValue::Null || input == TimestampValue::Null {

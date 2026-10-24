@@ -7,7 +7,7 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
     if let TextValue::Error(error) = pattern {
         return BoolValue::Error(error);
     }
-    if subject == TextValue::Unknown || pattern == TextValue::Unknown {
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if subject == TextValue::Null || pattern == TextValue::Null {

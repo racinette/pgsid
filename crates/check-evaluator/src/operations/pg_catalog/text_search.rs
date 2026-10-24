@@ -37,7 +37,7 @@ pub fn sql__pg_catalog__textcat__s76e(left: TextValue, right: TextValue) -> Text
     if let TextValue::Error(error) = right {
         return TextValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -65,7 +65,7 @@ pub fn sql__pg_catalog__strpos__eb1n(left: TextValue, right: TextValue) -> Int4V
     if let TextValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -115,8 +115,8 @@ fn text_overlay_value(
     if let Int4Value::Error(error) = length {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown
-        || replacement == TextValue::Unknown
+    if (input == TextValue::Unknown || input == TextValue::NonNull)
+        || (replacement == TextValue::Unknown || replacement == TextValue::NonNull)
         || position == Int4Value::Unknown
         || length == Int4Value::Unknown
     {
@@ -200,7 +200,7 @@ pub fn sql__pg_catalog__replace__gz9l(
     if let TextValue::Error(error) = to {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || from == TextValue::Unknown || to == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (from == TextValue::Unknown || from == TextValue::NonNull) || (to == TextValue::Unknown || to == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || from == TextValue::Null || to == TextValue::Null {
@@ -266,7 +266,7 @@ pub fn sql__pg_catalog__split_part__doxr(
     if let Int4Value::Error(error) = field {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || separator == TextValue::Unknown || field == Int4Value::Unknown
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (separator == TextValue::Unknown || separator == TextValue::NonNull) || field == Int4Value::Unknown
     {
         return TextValue::Unknown;
     }

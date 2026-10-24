@@ -74,6 +74,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     line: 'pg_catalog.line',
     lseg: 'pg_catalog.lseg',
     money: 'pg_catalog.money',
+    aclitem: 'pg_catalog.aclitem',
     xid: 'pg_catalog.xid',
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
@@ -157,6 +158,7 @@ export type RefcursorType = 'pg_catalog.refcursor'
 export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
+export type AclitemType = 'pg_catalog.aclitem'
 export type MoneyType = 'pg_catalog.money'
 export type XidType = 'pg_catalog.xid'
 export type CidType = 'pg_catalog.cid'
@@ -237,6 +239,7 @@ export type NonArrayScalarType =
   | LineType
   | LsegType
   | MoneyType
+  | AclitemType
   | XidType
   | CidType
   | PgLsnType
@@ -589,6 +592,7 @@ export type SqlExpression =
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
+  | { kind: 'aclitem'; type: AclitemType; value: string | null }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }
   | { kind: 'pg_lsn'; type: PgLsnType; value: string | null }
@@ -1259,6 +1263,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'lseg') {
       if (node.value !== null) throw new Error('Lseg literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'aclitem') {
+      if (node.value !== null) throw new Error('ACL literals require a deployment role catalog')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'money') {

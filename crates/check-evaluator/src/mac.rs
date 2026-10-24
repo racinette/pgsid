@@ -282,7 +282,7 @@ pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
     if let TextValue::Error(error) = input {
         return MacaddrValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return MacaddrValue::Unknown;
     }
     if input == TextValue::Null {
@@ -307,7 +307,7 @@ pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
     if let TextValue::Error(error) = input {
         return Macaddr8Value::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return Macaddr8Value::Unknown;
     }
     if input == TextValue::Null {

@@ -198,9 +198,9 @@ fn composite_type_context_valid(context: &CompositeTypeContext) -> bool {
     let mut index: usize = 0;
     while index < context.nodes.len() {
         let node = context.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 45 {return false;};
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 46 {return false;};
         if node.kind == 41 && (node.element_type.as_str() == "" || node.child >= context.nodes.len()) {return false;};
-        if node.kind > 0 && node.kind < 41 || node.kind == 42 || node.kind == 43 || node.kind == 45 {
+        if node.kind > 0 && node.kind < 41 || node.kind == 42 || node.kind == 43 || node.kind >= 45 {
             let profile = node.bound_profile;
             if profile.nodes.len() == 0 || range_bound_profile_valid(&profile) == false {return false;};
             if profile.nodes[0].kind != node.kind {return false;};
@@ -319,6 +319,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
     if let ArrayElement::Jsonb(payload) = checked {
         return array_element_from_jsonb(jsonb_from_coerced_value(JsonbValue::Value(payload)));
     };
+    if let ArrayElement::XmlNonNull(value) = checked { return array_element_from_xml(make_xml_knowledge(value.document,value.content)); };
     if let ArrayElement::Xml(value) = checked { return array_element_from_xml(make_xml_value(value.as_str())); };
     if let ArrayElement::XmlRenderedText(value) = checked { return array_element_from_xml(xml_from_rendered_text(TextValue::Value(value))); };
     if let ArrayElement::Jsonpath(payload) = checked {

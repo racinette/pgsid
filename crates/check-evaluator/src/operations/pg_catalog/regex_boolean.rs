@@ -13,7 +13,7 @@ fn regex_boolean(
     if let TextValue::Error(error) = flags {
         return BoolValue::Error(error);
     }
-    if subject == TextValue::Unknown || pattern == TextValue::Unknown || flags == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
         return BoolValue::Unknown;
     }

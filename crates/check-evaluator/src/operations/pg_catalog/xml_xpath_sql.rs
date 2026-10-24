@@ -79,21 +79,34 @@ pub(crate) fn xpath_sql_execute_profile(expression: TextValue, input: XmlValue, 
     if let XmlValue::Null = input { is_null = true; };
     if let ArrayValue::Null = mappings { is_null = true; };
     if is_null { return XPathSqlResult { state: XPATH_SQL_NULL, present: BoolValue::Null, output: ArrayValue::Null }; };
+    let path_nullness = text_is_null(expression.clone());
+    let input_nullness = xml_is_null(input.clone());
+    if path_nullness != BoolValue::Value(false) || input_nullness != BoolValue::Value(false) { return xpath_sql_unknown(XPATH_SQL_INPUT); };
+    let mut partial_fragment = false;
+    let partial = input.clone();
+    if let XmlValue::NonNull(knowledge) = partial {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::NonNull(actual) = checked {
+            if actual.document == BoolValue::Value(false) { partial_fragment = true; };
+        };
+    };
     let mut path = String::new(); let mut source = String::new(); let mut rendered = false;
     let mut known_path = false; let mut known_input = false;
     if let TextValue::Value(value) = expression { path = value; known_path = true; };
     let stored = input.clone();
     if let XmlValue::Value(value) = stored { source = value; known_input = true; };
     if let XmlValue::RenderedText(value) = input { source = value; known_input = true; rendered = true; };
-    if known_path == false || known_input == false { return xpath_sql_unknown(XPATH_SQL_INPUT); };
     if let ArrayValue::Value(mapping) = mappings {
         if mapping.element_type.as_str() != "pg_catalog.text" || mapping.element_kind != 8 { return xpath_sql_unknown(XPATH_SQL_INPUT); };
         if mapping.dimensions.len() != 0 && (mapping.dimensions.len() != 2 || mapping.dimensions[1].length != 2) {
             return xpath_sql_error(make_sql_error(SQLSTATE_XML_NAMESPACE_ARRAY));
         };
         if (mapping.elements.len() as i32)%2 != 0 || (mapping.dimensions.len() == 0 && mapping.elements.len() != 0) { return xpath_sql_unknown(XPATH_SQL_INPUT); };
+        if known_path == false { return xpath_sql_unknown(XPATH_SQL_INPUT); };
         if path.as_str() == "" { return xpath_sql_error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
         if utf8 == false { return xpath_sql_unknown(XPATH_SQL_ENCODING); };
+        if partial_fragment { return xpath_sql_error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
+        if known_input == false { return xpath_sql_unknown(XPATH_SQL_INPUT); };
         if rendered {
             let characters = XmlSource { characters: source.as_str().chars().collect() };
             let declaration = xml_parse_declaration(&characters,0,false);

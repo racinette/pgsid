@@ -1,3 +1,4 @@
+import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callables.js'
 import {
   isArrayHash,
   isRangeHash,
@@ -7,6 +8,7 @@ import {
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
 import { circlePolygonTrigonometry } from '../../src/codegen/shared/check-trigonometry-context.js'
 import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
+import { isXmlOptionPredicate, isXmlXPathCallable } from '../../src/sql-semantics/xml-callables.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -423,8 +425,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'lc_monetary',
         requirement:
-          'Money conversion requires monetary formatting metadata from lc_monetary. SQL NULL and errors remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Money JSON conversion uses declared C moneyLocale formatting. Without supported locale metadata, non-NULL values defer; fractional-digit context alone does not supply text formatting. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-money-text-context.test.ts',
       },
       {
         kind: 'database',
@@ -568,9 +570,119 @@ export function rangeValueRequirements(item: BuiltinCallable) {
   ]
 }
 
+export function moneyValueRequirements(item: BuiltinCallable) {
+  const identity = callableIdentity(item)
+  const io = builtinTypeIO('pg_catalog.money')
+  if (identity === io?.input || identity === io?.output)
+    return [
+      {
+        kind: 'session',
+        setting: 'moneyLocale',
+        requirement:
+          'Money text I/O uses explicitly declared C monetary rules. Fractional-digit context alone does not supply currency symbols, signs, grouping or accepted syntax. Other or unavailable locale metadata defers dependent text behavior; context-free zero input and NULL/errors remain available.',
+        owner: 'tests/sql-semantics/check-money-text-context.test.ts',
+      },
+    ]
+  if (!isMoneyNumericConversion(item)) return null
+  return [
+    {
+      kind: 'session',
+      setting: 'moneyFractionDigits',
+      requirement:
+        'Numeric money casts use the effective fractional-digit count from target lc_monetary, supplied independently or implied by declared C monetary rules. Captured scale is independent of symbols and grouping; conversion to numeric preserves its display scale. NULLs, incoming errors, zero conversions into money and nonfinite numeric conversion errors remain definite without scale.',
+      owner: 'tests/sql-semantics/check-money-numeric-context.test.ts',
+    },
+  ]
+}
+
+function xmlExportContext(item: BuiltinCallable): 'cursor' | 'query' | 'catalog' | null {
+  if (item.kind !== 'function' || item.schema !== 'pg_catalog' || item.result !== 'pg_catalog.xml')
+    return null
+  if (['cursor_to_xml', 'cursor_to_xmlschema'].includes(item.name)) return 'cursor'
+  if (['query_to_xml', 'query_to_xmlschema', 'query_to_xml_and_xmlschema'].includes(item.name))
+    return 'query'
+  if (
+    ['table', 'schema', 'database'].some((scope) =>
+      [scope + '_to_xml', scope + '_to_xmlschema', scope + '_to_xml_and_xmlschema'].includes(
+        item.name,
+      ),
+    )
+  )
+    return 'catalog'
+  return null
+}
+
 export function xmlValueRequirements(item: BuiltinCallable) {
   if (item.kind !== 'function') return null
   const signature = callableIdentity(item)
+  const exportContext = xmlExportContext(item)
+  if (exportContext)
+    return [
+      {
+        kind: exportContext === 'cursor' ? 'session' : 'database',
+        setting: exportContext,
+        requirement:
+          exportContext === 'cursor'
+            ? 'XML cursor export reads the active portal and its tuple descriptor; fetching also advances portal position. Supplied refcursor text does not contain that state.'
+            : exportContext === 'query'
+              ? 'XML query export executes SQL against the target database and derives XML or schema from its rows and tuple descriptor. Query text alone does not supply those results.'
+              : 'XML table, schema and database export reads deployment catalog definitions and visible rows. Relation identifiers and schema names require resolution in that deployment.',
+        owner: 'tests/sql-semantics/check-xml-callable-boundaries.test.ts',
+      },
+    ]
+  if (isXmlOptionPredicate(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'xmloption',
+        requirement:
+          'The text well-formedness predicate follows declared document/content mode. Without a mode, matching parse results remain definite and differing results defer; explicit content/document predicates do not read xmloption.',
+        owner: 'tests/sql-semantics/check-xml-well-formed-mode.test.ts',
+      },
+    ]
+  if (isXmlXPathCallable(item)) {
+    const requirements = [
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Reached XPath parsing requires declared UTF8 and original XML storage when rendered bytes have erased a declaration; strict NULLs and earlier definite errors remain available.',
+        owner: 'tests/sql-semantics/check-xml-xpath-context.test.ts',
+      },
+      {
+        kind: 'execution',
+        setting: 'xpathRecursionLimit',
+        requirement:
+          'Reached XPath compiler and evaluation recursion checks require the target XML library limit. Missing context defers those checks; supplied limits preserve native error order.',
+        owner: 'tests/sql-semantics/check-xml-xpath-diagnostics.test.ts',
+      },
+      {
+        kind: 'platform',
+        setting: 'xpathPowerOfTenBits',
+        requirement:
+          'Exponent-dependent decimal conversion requires captured target PostgreSQL power words. Exact small-power paths do not require them; existence queries can still reach decimal conversion within their expression.',
+        owner: 'tests/sql-semantics/check-xml-xpath-power-context.test.ts',
+      },
+    ]
+    if (item.name === 'xpath')
+      requirements.push(
+        {
+          kind: 'session',
+          setting: 'extra_float_digits',
+          requirement:
+            'Numeric XML result bytes require the declared session float-output profile when profiles differ. Cardinality, non-NULL state and document/content facts remain available without those bytes.',
+          owner: 'tests/sql-semantics/check-xml-xpath-nullness.test.ts',
+        },
+        {
+          kind: 'platform',
+          setting: 'xml_notation_order',
+          requirement:
+            'Document serialization with multiple DTD notations can depend on unavailable native enumeration order. No notation-order setting is exposed; result shape and known XML facts remain available while dependent bytes defer.',
+          owner: 'tests/sql-semantics/check-xml-xpath-nullness.test.ts',
+        },
+      )
+    return requirements
+  }
   if (signature === builtinTypeIO('pg_catalog.xml')?.send)
     return [
       {
@@ -631,12 +743,19 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     ].includes(item.name)
   )
     categories.push('session-setting:client_encoding')
-  if (
-    item.kind === 'function' &&
-    item.schema === 'pg_catalog' &&
-    ['cursor_to_xml', 'cursor_to_xmlschema'].includes(item.name)
-  )
-    categories.push('session-state:cursor')
+  const xmlExport = xmlExportContext(item)
+  if (xmlExport === 'cursor') categories.push('session-state:cursor')
+  if (xmlExport === 'query') categories.push('database-state:query')
+  if (xmlExport === 'catalog') categories.push('database-state:catalog')
+  if (isXmlXPathCallable(item)) {
+    categories.push(
+      'database-setting:server_encoding',
+      'execution-setting:xpathRecursionLimit',
+      'platform-setting:xpathPowerOfTenBits',
+    )
+    if (item.name === 'xpath')
+      categories.push('session-setting:extra_float_digits', 'platform-state:xml-notation-order')
+  }
   if (!item.strict) categories.push('non-strict')
   if (
     item.kind === 'function' &&
@@ -658,6 +777,9 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     geometricOutput
   )
     categories.push('session-setting:extra_float_digits')
+  if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
+  if (moneyValueRequirements(item)?.some((r) => r.setting === 'moneyLocale'))
+    categories.push('session-setting:moneyLocale')
   if (item.schema === 'pg_catalog' && item.volatility === 's' && types.includes('pg_catalog.money'))
     categories.push('session-setting:lc_monetary')
   if (item.schema === 'pg_catalog' && ['interval_in', 'interval_out'].includes(item.name))

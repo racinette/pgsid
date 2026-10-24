@@ -89,7 +89,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                 if let TextValue::Error(error) = key {
                     return JsonbValue::Error(error);
                 };
-                if let TextValue::Unknown = key {
+                if key == TextValue::Unknown || key == TextValue::NonNull {
                     return JsonbValue::Unknown;
                 };
                 if let TextValue::Value(text) = key {

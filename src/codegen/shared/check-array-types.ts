@@ -112,6 +112,7 @@ export function arrayElementFamily(type: string): number | null {
     'pg_catalog.tid': 39,
     'pg_catalog.jsonpath': 40,
     'pg_catalog.xml': 45,
+    'pg_catalog.aclitem': 46,
   }
   return families[type] ?? null
 }
