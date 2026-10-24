@@ -1,4 +1,80 @@
+const SQLSTATE_INVALID_XPATH: u32 = 1687400;
 const SQLSTATE_XML_NODE_COPY: u32 = 8540640;
+const XPATH_RESULT_SQL_ERROR: i32 = 5;
+const XPATH_RESULT_FLOAT_CONTEXT: i32 = 6;
+const XPATH_RESULT_NOTATION_CONTEXT: i32 = 7;
+
+#[derive(Clone)]
+struct XPathXmlResult { state: i32, error: SqlError, shaped: bool, values: Vec<XmlValue> }
+
+fn xpath_xml_result_empty(state: i32, shaped: bool) -> XPathXmlResult {
+    let values: Vec<XmlValue> = Vec::new();
+    let error = make_sql_error(0);
+    XPathXmlResult { state, error, shaped, values }
+}
+
+fn xpath_xml_result_error(error: SqlError) -> XPathXmlResult {
+    let values: Vec<XmlValue> = Vec::new();
+    XPathXmlResult { state: XPATH_RESULT_SQL_ERROR, error, shaped: false, values }
+}
+
+pub(crate) fn xpath_xml_result_push(input: XPathXmlResult, value: XmlValue, state: i32) -> XPathXmlResult {
+    let mut values = input.values; values.push(value);
+    let mut next = input.state;
+    if state != 0 && (next == 0 || state == 3) { next = state; };
+    XPathXmlResult { state: next, error: input.error, shaped: input.shaped, values }
+}
+
+fn xpath_result_count(input: &XPathValue) -> Int4Value {
+    if input.state < 0 { return Int4Value::Error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
+    if input.state != 0 { return Int4Value::Unknown; };
+    if input.kind == XPATH_KIND_NODES { return Int4Value::Value(input.nodes.values.len() as i32); };
+    if input.kind == XPATH_KIND_BOOLEAN || input.kind == XPATH_KIND_NUMBER || input.kind == XPATH_KIND_STRING { return Int4Value::Value(1); };
+    Int4Value::Unknown
+}
+
+fn xpath_result_exists(input: &XPathValue) -> BoolValue {
+    let count = xpath_result_count(input);
+    if let Int4Value::Error(error) = count { return BoolValue::Error(error); };
+    if let Int4Value::Value(value) = count { return BoolValue::Value(value > 0); };
+    BoolValue::Unknown
+}
+
+pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPathGraph, extra: i32, known: bool) -> XPathXmlResult {
+    if input.state != 0 { return xpath_xml_result_empty(input.state,false); };
+    let mut result = xpath_xml_result_empty(0,true);
+    if input.kind == XPATH_KIND_NODES {
+        let mut index: usize = 0;
+        while index < input.nodes.values.len() {
+            let value = xpath_node_to_xml(tree,graph,input.nodes.values[index]);
+            if let XmlValue::Error(error) = value { return xpath_xml_result_error(error); };
+            let mut state: i32 = 0;
+            if let XmlValue::Unknown = value {
+                state = XPATH_RESULT_NOTATION_CONTEXT;
+                if tree.serialization_gap { state = 3; };
+            };
+            result = xpath_xml_result_push(result,value,state);
+            index += 1;
+        }
+        return result;
+    };
+    let mut text = TextValue::Unknown;
+    if input.kind == XPATH_KIND_BOOLEAN {
+        text = make_text_value("false"); if input.boolean { text = make_text_value("true"); };
+    } else if input.kind == XPATH_KIND_STRING {
+        let string = TextValue::Value(input.text); text = xml_element_value_escape(string,true);
+    } else if input.kind == XPATH_KIND_NUMBER {
+        let number = Float8Value::Value(input.number); text = float8_output_context(number,extra,known);
+    } else { return xpath_xml_result_empty(3,false); };
+    if let TextValue::Error(error) = text { return xpath_xml_result_error(error); };
+    if let TextValue::Value(value) = text {
+        let xml = XmlValue::Value(value);
+        return xpath_xml_result_push(result,xml,0);
+    };
+    let mut state = XPATH_RESULT_FLOAT_CONTEXT;
+    if input.kind != XPATH_KIND_NUMBER || (known && extra >= -15 && extra <= 3) { state = 3; };
+    xpath_xml_result_push(result,XmlValue::Unknown,state)
+}
 
 #[derive(Clone)]
 struct XPathCopyNamespace { prefix: String, uri: String, next: usize }

@@ -205,7 +205,7 @@ fn xml_query_default_names_valid(tree: &XmlTree, owner: usize, arena: &XmlEntity
 pub(crate) fn xml_query_invalid_names(input: XmlTree) -> XmlTree {
     let old = input.flags;
     let flags = XmlTreeFlags { document: old.document, declaration: old.declaration, unicode: old.unicode, query: old.query, query_ids_valid: old.query_ids_valid, query_names_valid: false, standalone: old.standalone, version: old.version, doctype_end: old.doctype_end };
-    XmlTree { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags, serialization_known: input.serialization_known }
+    XmlTree { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 fn xml_query_default_name(tree: &XmlTree, owner: usize, text: &str) -> XmlQueryName {

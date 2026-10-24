@@ -18,7 +18,7 @@ struct XmlTreeFlags {
 struct XmlTree {
     declarations: Vec<XmlTreeDtdEntry>,
     nodes: Vec<XmlTreeNode>, attributes: Vec<XmlTreeAttribute>, characters: Vec<char>,
-    current: usize, written: XmlSpan, flags: XmlTreeFlags, serialization_known: bool,
+    current: usize, written: XmlSpan, flags: XmlTreeFlags, serialization_known: bool, serialization_gap: bool,
 }
 
 fn xml_tree_text(tree: &XmlTree, span: XmlSpan) -> String {
@@ -50,7 +50,7 @@ pub(crate) fn xml_tree_store(input: XmlTree, text: &str) -> XmlTree {
     while position < values.len() { characters.push(values[position]); position += 1; }
     let written = XmlSpan { start: begin, end: characters.len() };
     XmlTree { nodes: input.nodes, attributes: input.attributes, characters, current: input.current,
-        written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
+        written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_links(input: XmlTreeNode, next: usize, first: usize, last: usize, value: XmlSpan, textual: bool, text_seen: bool) -> XmlTreeNode {
@@ -73,12 +73,12 @@ pub(crate) fn xml_tree_append(input: XmlTree, node: XmlTreeNode) -> XmlTree {
     nodes[input.current] = xml_tree_links(parent,parent.next,first,index,parent.value,textual,parent.text_seen || node.kind == 2);
     nodes.push(node);
     XmlTree { nodes, attributes: input.attributes, characters: input.characters, current: input.current,
-        written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
+        written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_current(input: XmlTree, current: usize) -> XmlTree {
     XmlTree { nodes: input.nodes, attributes: input.attributes, characters: input.characters,
-        current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
+        current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_space(input: XmlTree, index: usize, preserve: bool, text_seen: bool, blank_policy: i32) -> XmlTree {
@@ -88,19 +88,25 @@ pub(crate) fn xml_tree_space(input: XmlTree, index: usize, preserve: bool, text_
         next: node.next, previous: node.previous, first: node.first, last: node.last, attribute_start: node.attribute_start,
         attribute_end: node.attribute_end, preserve, textual: node.textual, text_seen, blank_policy, content_present: node.content_present };
     XmlTree { nodes, attributes: input.attributes, characters: input.characters, current: input.current,
-        written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
+        written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_unsupported(input: XmlTree) -> XmlTree {
     XmlTree { nodes: input.nodes, attributes: input.attributes, characters: input.characters,
-        current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: false }
+        current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: false, serialization_gap: true }
+}
+
+pub(crate) fn xml_tree_notation_order(input: XmlTree) -> XmlTree {
+    XmlTree { nodes: input.nodes, attributes: input.attributes, characters: input.characters,
+        current: input.current, written: input.written, declarations: input.declarations, flags: input.flags,
+        serialization_known: false, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, query_source: XmlSpan, defaulted: bool, id_candidate: bool) -> XmlTree {
     let mut attributes = input.attributes;
     attributes.push(XmlTreeAttribute { name, value, query_source, defaulted, id_candidate });
     XmlTree { nodes: input.nodes, attributes, characters: input.characters,
-        current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
+        current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xml_tree_leaf_content(input: XmlTree, kind: i32, name: XmlSpan, value: XmlSpan, content_present: bool) -> XmlTree {
@@ -135,7 +141,7 @@ pub(crate) fn xml_tree_add_text(input: XmlTree, text: &str, forced: bool, closin
             nodes[parent.last] = xml_tree_links(previous,previous.next,previous.first,previous.last,span,previous.textual,previous.text_seen);
             nodes[stored.current] = xml_tree_links(parent,parent.next,parent.first,parent.last,parent.value,true,true);
             return XmlTree { nodes, attributes: stored.attributes, characters: stored.characters,
-                current: stored.current, written: value, declarations: stored.declarations, flags: stored.flags, serialization_known: stored.serialization_known };
+                current: stored.current, written: value, declarations: stored.declarations, flags: stored.flags, serialization_known: stored.serialization_known, serialization_gap: stored.serialization_gap };
         };
     };
     let empty = XmlSpan { start: 0, end: 0 };
@@ -367,7 +373,7 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
     let flags = XmlTreeFlags { document: effective_document, declaration: actual_declaration && begin == 0,
         unicode: effective_document && actual_declaration && begin == 0, query, query_ids_valid: true, query_names_valid: true, standalone, version: version_span, doctype_end };
     let declarations: Vec<XmlTreeDtdEntry> = Vec::new();
-    let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true };
+    let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true, serialization_gap: false };
     let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };
     xml_tree_parse_nodes(&source,&stored_source,&arena,declaration.next,tree,false,false)
 }

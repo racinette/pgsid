@@ -12419,6 +12419,267 @@ export function numeric7rfd(input: checkruntime.Float4Value): checkruntime.Numer
 export function numericEv2s(input: checkruntime.Float8Value): checkruntime.NumericValue {
     return floatNumericDecimal(input, 15);
 }
+function floatOutputDyadic(input: bigint, exponent: number): NumericWork {
+    input = langruntime.checkedI64(input);
+    exponent = langruntime.checkedI32(exponent);
+    if (input === 0n) {
+        return numericWorkFromValue("0");
+    }
+    let coefficient: bigint = input;
+    let power: number = exponent;
+    while (langruntime.checkedI64Remainder(coefficient, 2n) === 0n) {
+        coefficient = langruntime.checkedI64(langruntime.checkedI64Divide(coefficient, 2n));
+        power = langruntime.checkedI32(langruntime.checkedSignedAdd(power, 1));
+    }
+    const text: string = checkruntime.textSignedNumber(coefficient);
+    let result: NumericWork = numericWorkFromValue(text);
+    let count: number = power;
+    let scale: number = 0;
+    let factor: NumericWork = numericWorkFromValue("2");
+    if (power < 0) {
+        count = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, power));
+        scale = langruntime.checkedI32(count);
+        factor = copyNumericWork(numericWorkFromValue("5"));
+    }
+    while (count > 0) {
+        if (langruntime.checkedSignedRemainder(count, 2) === 1) {
+            result = copyNumericWork(numericWorkProduct(result, copyNumericWork(factor)));
+        }
+        count = langruntime.checkedI32(langruntime.checkedSignedDivide(count, 2));
+        if (count > 0) {
+            factor = copyNumericWork(numericWorkProduct(copyNumericWork(factor), factor));
+        }
+    }
+    return { valid: result.valid, special: 1, sign: 1, weight: langruntime.checkedSignedSubtract(result.weight, scale), scale: scale, digits: result.digits };
+}
+function floatOutputRounded(work: NumericWork, precision: number): NumericWork {
+    work = copyNumericWork(work);
+    precision = langruntime.checkedI32(precision);
+    const digits: string[] = Array.from(work.digits);
+    const index: number = langruntime.indexFromI32(precision, 0);
+    let mode: number = 1;
+    if (index > 0 && index < digits.length && langruntime.indexChar(digits, langruntime.checkedIndex(index)) === "5") {
+        let cursor: number = langruntime.checkedAdd(index, 1);
+        let tie: boolean = true;
+        while (cursor < digits.length) {
+            if (!(langruntime.indexChar(digits, langruntime.checkedIndex(cursor)) === "0")) {
+                tie = langruntime.checkedBool(false);
+            }
+            cursor = langruntime.checkedAdd(cursor, 1);
+        }
+        if (tie && langruntime.checkedSignedRemainder(numericWireDecimalDigit(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)))), 2) === 0) {
+            mode = langruntime.checkedI32(0);
+        }
+    }
+    const scale: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(precision, 1), work.weight);
+    return numericWorkRounded(work, scale, mode);
+}
+function floatOutputInside(candidate: NumericWork, lower: NumericWork, upper: NumericWork): boolean {
+    candidate = copyNumericWork(candidate);
+    lower = copyNumericWork(lower);
+    upper = copyNumericWork(upper);
+    return numericWorkMagnitude(copyNumericWork(candidate), lower) > 0 && numericWorkMagnitude(candidate, upper) < 0;
+}
+function floatOutputShortest(exact: NumericWork, coefficient: bigint, power: number, mantissa: bigint, exponent: number, single: boolean): NumericWork {
+    exact = copyNumericWork(exact);
+    coefficient = langruntime.checkedI64(coefficient);
+    power = langruntime.checkedI32(power);
+    mantissa = langruntime.checkedI64(mantissa);
+    exponent = langruntime.checkedI32(exponent);
+    single = langruntime.checkedBool(single);
+    let shift: bigint = 0n;
+    if (!(mantissa === 0n) || exponent <= 1) {
+        shift = langruntime.checkedI64(1n);
+    }
+    const lower: NumericWork = floatOutputDyadic(langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(coefficient, 4n), 1n), shift), langruntime.checkedSignedSubtract(power, 2));
+    const upper: NumericWork = floatOutputDyadic(langruntime.checkedI64Add(langruntime.checkedI64Multiply(coefficient, 4n), 2n), langruntime.checkedSignedSubtract(power, 2));
+    let maximum: number = 17;
+    if (single) {
+        maximum = langruntime.checkedI32(9);
+    }
+    let precision: number = 1;
+    while (precision <= maximum) {
+        const nearest: NumericWork = floatOutputRounded(copyNumericWork(exact), precision);
+        if (floatOutputInside(copyNumericWork(nearest), copyNumericWork(lower), copyNumericWork(upper))) {
+            return nearest;
+        }
+        const scale: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(precision, 1), exact.weight);
+        const below: NumericWork = numericWorkRounded(copyNumericWork(exact), scale, 0);
+        if (floatOutputInside(copyNumericWork(below), copyNumericWork(lower), copyNumericWork(upper))) {
+            return below;
+        }
+        const quantum: NumericWork = { valid: true, special: 1, sign: 1, weight: langruntime.checkedSignedSubtract(0, scale), scale: 0, digits: "1" };
+        const above: NumericWork = numericWorkSum(below, quantum, false);
+        if (floatOutputInside(copyNumericWork(above), copyNumericWork(lower), copyNumericWork(upper))) {
+            return above;
+        }
+        precision = langruntime.checkedI32(langruntime.checkedSignedAdd(precision, 1));
+    }
+    return { valid: false, special: 1, sign: 1, weight: 0, scale: 0, digits: "" };
+}
+function floatOutputDecimal(work: NumericWork, negative: boolean, threshold: number): string {
+    work = copyNumericWork(work);
+    negative = langruntime.checkedBool(negative);
+    threshold = langruntime.checkedI32(threshold);
+    let output: string = "";
+    if (negative) {
+        output = output + langruntime.checkedChar("-");
+    }
+    if (work.weight < langruntime.checkedSignedNegate(4) || work.weight >= threshold) {
+        const digits: string[] = Array.from(work.digits);
+        if (digits.length > 0) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(0)));
+        }
+        if (digits.length > 1) {
+            output = output + langruntime.checkedChar(".");
+            let index: number = 1;
+            while (index < digits.length) {
+                output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        output = output + langruntime.checkedChar("e");
+        let exponent: number = work.weight;
+        if (exponent < 0) {
+            output = output + langruntime.checkedChar("-");
+            exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, exponent));
+        }
+        else {
+            output = output + langruntime.checkedChar("+");
+        }
+        if (exponent < 10) {
+            output = output + langruntime.checkedChar("0");
+        }
+        const text: string = checkruntime.textNumber(exponent, 10);
+        output = output + text;
+    }
+    else {
+        const scale: number = numericWorkMinScale(copyNumericWork(work));
+        const value: NumericWork = { valid: work.valid, special: 1, sign: 1, weight: work.weight, scale: scale, digits: work.digits };
+        const text: string = numericWorkText(value);
+        output = output + text;
+    }
+    return output;
+}
+function floatOutputBits(bits: bigint, single: boolean, negative: boolean, extra: number, known: boolean): checkruntime.TextValue {
+    bits = langruntime.checkedI64(bits);
+    single = langruntime.checkedBool(single);
+    negative = langruntime.checkedBool(negative);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    let unit: bigint = 4503599627370496n;
+    let bias: number = 1023;
+    let width: number = 52;
+    let special: number = 2047;
+    let digits: number = 15;
+    if (single) {
+        unit = langruntime.checkedI64(8388608n);
+        bias = langruntime.checkedI32(127);
+        width = langruntime.checkedI32(23);
+        special = langruntime.checkedI32(255);
+        digits = langruntime.checkedI32(6);
+    }
+    const exponent: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(bits, unit)))));
+    const mantissa: bigint = langruntime.checkedI64Remainder(bits, unit);
+    if (exponent === special) {
+        if (!(mantissa === 0n)) {
+            return checkruntime.makeTextValue("NaN");
+        }
+        if (negative) {
+            return checkruntime.makeTextValue("-Infinity");
+        }
+        return checkruntime.makeTextValue("Infinity");
+    }
+    if (bits === 0n) {
+        if (negative) {
+            return checkruntime.makeTextValue("-0");
+        }
+        return checkruntime.makeTextValue("0");
+    }
+    if (known && (extra < langruntime.checkedSignedNegate(15) || extra > 3)) {
+        return { kind: "Unknown" };
+    }
+    let coefficient: bigint = mantissa;
+    let power: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(1, bias), width);
+    if (exponent > 0) {
+        coefficient = langruntime.checkedI64(langruntime.checkedI64Add(coefficient, unit));
+        power = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(exponent, bias), width));
+    }
+    const exact: NumericWork = floatOutputDyadic(coefficient, power);
+    if (known && extra <= 0) {
+        let precision: number = langruntime.checkedSignedAdd(digits, extra);
+        if (precision < 1) {
+            precision = langruntime.checkedI32(1);
+        }
+        const rounded: NumericWork = floatOutputRounded(exact, precision);
+        const text: string = floatOutputDecimal(rounded, negative, precision);
+        return { kind: "Value", value: text };
+    }
+    const shortest: NumericWork = floatOutputShortest(copyNumericWork(exact), coefficient, power, mantissa, exponent, single);
+    if (shortest.valid === false) {
+        return { kind: "Unknown" };
+    }
+    const text: string = floatOutputDecimal(shortest, negative, digits);
+    if (known) {
+        return { kind: "Value", value: text };
+    }
+    const firstValue: NumericWork = floatOutputRounded(copyNumericWork(exact), 1);
+    const first: string = floatOutputDecimal(firstValue, negative, 1);
+    const lastValue: NumericWork = floatOutputRounded(exact, digits);
+    const last: string = floatOutputDecimal(lastValue, negative, digits);
+    if (first === text && last === text) {
+        return { kind: "Value", value: text };
+    }
+    return { kind: "Unknown" };
+}
+export function float8OutputContext(input: checkruntime.Float8Value, extra: number, known: boolean): checkruntime.TextValue {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "UnspecifiedNan") {
+        return checkruntime.makeTextValue("NaN");
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const negative: boolean = bits < 0n;
+        let magnitude: bigint = bits;
+        if (negative) {
+            magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(bits, (-9223372036854775808n)));
+        }
+        return floatOutputBits(magnitude, false, negative, extra, known);
+    }
+    return { kind: "Unknown" };
+}
+export function float4OutputContext(input: checkruntime.Float4Value, extra: number, known: boolean): checkruntime.TextValue {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "UnspecifiedNan") {
+        return checkruntime.makeTextValue("NaN");
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        const negative: boolean = bits < 0;
+        let magnitude: bigint = BigInt(langruntime.checkedI32(bits));
+        if (negative) {
+            magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(magnitude, (-2147483648n)));
+        }
+        return floatOutputBits(magnitude, true, negative, extra, known);
+    }
+    return { kind: "Unknown" };
+}
 export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.ByteaValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -46136,7 +46397,7 @@ export function xmlTreeDtdAdd(input: XmlTree, kind: number, owner: string, name:
     const lineSpan: XmlSpan = copyXmlSpan(tree.written);
     let declarations: XmlTreeDtdEntry[] = tree.declarations;
     langruntime.pushStruct(declarations, { kind: kind, owner: copyXmlSpan(ownerSpan), name: copyXmlSpan(nameSpan), line: copyXmlSpan(lineSpan), mixed: mixed }, copyXmlTreeDtdEntry);
-    return { declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: copyXmlSpan(lineSpan), flags: copyXmlTreeFlags(tree.flags), serializationKnown: tree.serializationKnown };
+    return { declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: copyXmlSpan(lineSpan), flags: copyXmlTreeFlags(tree.flags), serializationKnown: tree.serializationKnown, serializationGap: tree.serializationGap };
 }
 function xmlTreeBlankPolicy(tree: XmlTree, name: string): number {
     name = langruntime.checkedString(name);
@@ -46406,7 +46667,7 @@ export function xmlTreeDoctype(input: XmlTree, source: XmlSource, stored: XmlSou
         index = langruntime.checkedAdd(index, 1);
     }
     if (notations > 1) {
-        tree = xmlTreeUnsupported(tree);
+        tree = xmlTreeNotationOrder(tree);
     }
     let declared: boolean = false;
     index = langruntime.checkedIndex(0);
@@ -49432,7 +49693,7 @@ function xmlQueryDefaultNamesValid(tree: XmlTree, owner: number, arena: XmlEntit
 export function xmlQueryInvalidNames(input: XmlTree): XmlTree {
     const old: XmlTreeFlags = copyXmlTreeFlags(input.flags);
     const flags: XmlTreeFlags = copyXmlTreeFlags({ document: old.document, declaration: old.declaration, unicode: old.unicode, query: old.query, queryIdsValid: old.queryIdsValid, queryNamesValid: false, standalone: old.standalone, version: copyXmlSpan(old.version), doctypeEnd: old.doctypeEnd });
-    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(flags), serializationKnown: input.serializationKnown };
+    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 function xmlQueryDefaultName(tree: XmlTree, owner: number, text: string): XmlQueryName {
     owner = langruntime.checkedIndex(owner);
@@ -50316,9 +50577,10 @@ interface XmlTree {
     written: XmlSpan;
     flags: XmlTreeFlags;
     serializationKnown: boolean;
+    serializationGap: boolean;
 }
 function copyXmlTree(value: XmlTree): XmlTree {
-    return { declarations: langruntime.checkedStructs(value.declarations, copyXmlTreeDtdEntry), nodes: langruntime.checkedStructs(value.nodes, copyXmlTreeNode), attributes: langruntime.checkedStructs(value.attributes, copyXmlTreeAttribute), characters: langruntime.checkedChars(value.characters), current: langruntime.checkedIndex(value.current), written: copyXmlSpan(value.written), flags: copyXmlTreeFlags(value.flags), serializationKnown: langruntime.checkedBool(value.serializationKnown) };
+    return { declarations: langruntime.checkedStructs(value.declarations, copyXmlTreeDtdEntry), nodes: langruntime.checkedStructs(value.nodes, copyXmlTreeNode), attributes: langruntime.checkedStructs(value.attributes, copyXmlTreeAttribute), characters: langruntime.checkedChars(value.characters), current: langruntime.checkedIndex(value.current), written: copyXmlSpan(value.written), flags: copyXmlTreeFlags(value.flags), serializationKnown: langruntime.checkedBool(value.serializationKnown), serializationGap: langruntime.checkedBool(value.serializationGap) };
 }
 function xmlTreeText(tree: XmlTree, span: XmlSpan): string {
     span = copyXmlSpan(span);
@@ -50358,7 +50620,7 @@ export function xmlTreeStore(input: XmlTree, text: string): XmlTree {
         position = langruntime.checkedAdd(position, 1);
     }
     const written: XmlSpan = copyXmlSpan({ start: begin, end: characters.length });
-    return { nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: copyXmlSpan(written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+    return { nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: copyXmlSpan(written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xmlTreeLinks(input: XmlTreeNode, next: number, first: number, last: number, value: XmlSpan, textual: boolean, textSeen: boolean): XmlTreeNode {
     return { kind: input.kind, name: copyXmlSpan(input.name), value: copyXmlSpan(value), parent: input.parent, next: next, previous: input.previous, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy, contentPresent: input.contentPresent };
@@ -50378,24 +50640,27 @@ export function xmlTreeAppend(input: XmlTree, node: XmlTreeNode): XmlTree {
     const textual: boolean = parent.textual || node.kind === 2 || node.kind === 3;
     nodes[langruntime.checkedIndexIn(nodes, input.current)] = copyXmlTreeNode(xmlTreeLinks(parent, parent.next, first, index, parent.value, textual, parent.textSeen || node.kind === 2));
     langruntime.pushStruct(nodes, node, copyXmlTreeNode);
-    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xmlTreeCurrent(input: XmlTree, current: number): XmlTree {
-    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xmlTreeSpace(input: XmlTree, index: number, preserve: boolean, textSeen: boolean, blankPolicy: number): XmlTree {
     let nodes: XmlTreeNode[] = input.nodes;
     const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(index), copyXmlTreeNode));
     nodes[langruntime.checkedIndexIn(nodes, index)] = copyXmlTreeNode({ kind: node.kind, name: copyXmlSpan(node.name), value: copyXmlSpan(node.value), parent: node.parent, next: node.next, previous: node.previous, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy, contentPresent: node.contentPresent });
-    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+    return { nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xmlTreeUnsupported(input: XmlTree): XmlTree {
-    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false };
+    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false, serializationGap: true };
+}
+export function xmlTreeNotationOrder(input: XmlTree): XmlTree {
+    return { nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: false, serializationGap: input.serializationGap };
 }
 export function xmlTreeAddAttribute(input: XmlTree, name: XmlSpan, value: XmlSpan, querySource: XmlSpan, defaulted: boolean, idCandidate: boolean): XmlTree {
     let attributes: XmlTreeAttribute[] = input.attributes;
     langruntime.pushStruct(attributes, { name: copyXmlSpan(name), value: copyXmlSpan(value), querySource: copyXmlSpan(querySource), defaulted: defaulted, idCandidate: idCandidate }, copyXmlTreeAttribute);
-    return { nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown };
+    return { nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), declarations: input.declarations, flags: copyXmlTreeFlags(input.flags), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xmlTreeLeafContent(input: XmlTree, kind: number, name: XmlSpan, value: XmlSpan, contentPresent: boolean): XmlTree {
     const node: XmlTreeNode = copyXmlTreeNode({ kind: kind, name: copyXmlSpan(name), value: copyXmlSpan(value), parent: input.current, next: 0, previous: langruntime.indexStruct(input.nodes, langruntime.checkedIndex(input.current), copyXmlTreeNode).last, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.checkedSignedNegate(1), contentPresent: contentPresent });
@@ -50438,7 +50703,7 @@ export function xmlTreeAddText(input: XmlTree, text: string, forced: boolean, cl
             const span: XmlSpan = copyXmlSpan({ start: previous.value.start, end: value.end });
             nodes[langruntime.checkedIndexIn(nodes, parent.last)] = copyXmlTreeNode(xmlTreeLinks(previous, previous.next, previous.first, previous.last, span, previous.textual, previous.textSeen));
             nodes[langruntime.checkedIndexIn(nodes, stored.current)] = copyXmlTreeNode(xmlTreeLinks(parent, parent.next, parent.first, parent.last, parent.value, true, true));
-            return { nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: copyXmlSpan(value), declarations: stored.declarations, flags: copyXmlTreeFlags(stored.flags), serializationKnown: stored.serializationKnown };
+            return { nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: copyXmlSpan(value), declarations: stored.declarations, flags: copyXmlTreeFlags(stored.flags), serializationKnown: stored.serializationKnown, serializationGap: stored.serializationGap };
         }
     }
     const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
@@ -50724,7 +50989,7 @@ function xmlTreeParse(input: string, document: boolean, query: boolean): XmlTree
     const attributes: XmlTreeAttribute[] = [];
     const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, query: query, queryIdsValid: true, queryNamesValid: true, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
     const declarations: XmlTreeDtdEntry[] = [];
-    const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true };
+    const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true, serializationGap: false };
     const storedSource: XmlSource = { characters: Array.from(arena.arena) };
     return xmlTreeParseNodes(source, storedSource, arena, declaration.next, tree, false, false);
 }
@@ -52756,7 +53021,7 @@ function xpathIdNameValid(input: string): boolean {
 export function xmlTreeIdsInvalid(input: XmlTree): XmlTree {
     const flags: XmlTreeFlags = copyXmlTreeFlags(input.flags);
     const next: XmlTreeFlags = copyXmlTreeFlags({ document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, queryNamesValid: flags.queryNamesValid, standalone: flags.standalone, version: copyXmlSpan(flags.version), doctypeEnd: flags.doctypeEnd });
-    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(next), serializationKnown: input.serializationKnown };
+    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(next), serializationKnown: input.serializationKnown, serializationGap: input.serializationGap };
 }
 export function xpathIdDeclaration(input: XmlTree, owner: string, name: string, id: boolean): XmlTree {
     if (input.flags.query === false) {
@@ -54562,7 +54827,125 @@ export function xpathParseStepLeaf(input: XPathProgram): XPathProgram {
     program = xpathParsePush(program, node);
     return program;
 }
+const sqlstateInvalidXpath = 1687400;
 const sqlstateXmlNodeCopy = 8540640;
+const xpathResultSqlError = 5;
+const xpathResultFloatContext = 6;
+const xpathResultNotationContext = 7;
+interface XPathXmlResult {
+    state: number;
+    error: checkruntime.SqlError;
+    shaped: boolean;
+    values: checkruntime.XmlValue[];
+}
+function copyXPathXmlResult(value: XPathXmlResult): XPathXmlResult {
+    return { state: langruntime.checkedI32(value.state), error: value.error, shaped: langruntime.checkedBool(value.shaped), values: langruntime.checkedStructs(value.values, checkruntime.copyXmlValue) };
+}
+function xpathXmlResultEmpty(state: number, shaped: boolean): XPathXmlResult {
+    state = langruntime.checkedI32(state);
+    shaped = langruntime.checkedBool(shaped);
+    const values: checkruntime.XmlValue[] = [];
+    const error: checkruntime.SqlError = checkruntime.makeSqlError(0);
+    return { state: state, error: error, shaped: shaped, values: values };
+}
+function xpathXmlResultError(error: checkruntime.SqlError): XPathXmlResult {
+    const values: checkruntime.XmlValue[] = [];
+    return { state: xpathResultSqlError, error: error, shaped: false, values: values };
+}
+export function xpathXmlResultPush(input: XPathXmlResult, value: checkruntime.XmlValue, state: number): XPathXmlResult {
+    let values: checkruntime.XmlValue[] = input.values;
+    langruntime.pushStruct(values, value, checkruntime.copyXmlValue);
+    let next: number = input.state;
+    if (!(state === 0) && (next === 0 || state === 3)) {
+        next = langruntime.checkedI32(state);
+    }
+    return { state: next, error: input.error, shaped: input.shaped, values: values };
+}
+function xpathResultCount(input: XPathValue): checkruntime.Int4Value {
+    if (input.state < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidXpath) };
+    }
+    if (!(input.state === 0)) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === xpathKindNodes) {
+        return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(input.nodes.values.length)) };
+    }
+    if (input.kind === xpathKindBoolean || input.kind === xpathKindNumber || input.kind === xpathKindString) {
+        return { kind: "Value", value: 1 };
+    }
+    return { kind: "Unknown" };
+}
+function xpathResultExists(input: XPathValue): checkruntime.BoolValue {
+    const count: checkruntime.Int4Value = xpathResultCount(input);
+    if (count.kind === "Error") {
+        const error: checkruntime.SqlError = count.value;
+        return { kind: "Error", value: error };
+    }
+    if (count.kind === "Value") {
+        const value: number = langruntime.checkedI32(count.value);
+        return { kind: "Value", value: value > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function xpathResultToXml(input: XPathValue, tree: XmlTree, graph: XPathGraph, extra: number, known: boolean): XPathXmlResult {
+    if (!(input.state === 0)) {
+        return xpathXmlResultEmpty(input.state, false);
+    }
+    let result: XPathXmlResult = xpathXmlResultEmpty(0, true);
+    if (input.kind === xpathKindNodes) {
+        let index: number = 0;
+        while (index < input.nodes.values.length) {
+            const value: checkruntime.XmlValue = xpathNodeToXml(tree, graph, langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(index), copyXPathReference));
+            if (value.kind === "Error") {
+                const error: checkruntime.SqlError = value.value;
+                return xpathXmlResultError(error);
+            }
+            let state: number = 0;
+            if (value.kind === "Unknown") {
+                state = langruntime.checkedI32(xpathResultNotationContext);
+                if (tree.serializationGap) {
+                    state = langruntime.checkedI32(3);
+                }
+            }
+            result = xpathXmlResultPush(result, value, state);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return result;
+    }
+    let text: checkruntime.TextValue = { kind: "Unknown" };
+    if (input.kind === xpathKindBoolean) {
+        text = checkruntime.makeTextValue("false");
+        if (input.boolean) {
+            text = checkruntime.makeTextValue("true");
+        }
+    }
+    else if (input.kind === xpathKindString) {
+        const string: checkruntime.TextValue = { kind: "Value", value: input.text };
+        text = xmlElementValueEscape(string, true);
+    }
+    else if (input.kind === xpathKindNumber) {
+        const number: checkruntime.Float8Value = { kind: "Value", value: input.number };
+        text = float8OutputContext(number, extra, known);
+    }
+    else {
+        return xpathXmlResultEmpty(3, false);
+    }
+    if (text.kind === "Error") {
+        const error: checkruntime.SqlError = text.value;
+        return xpathXmlResultError(error);
+    }
+    if (text.kind === "Value") {
+        const value: string = langruntime.checkedString(text.value);
+        const xml: checkruntime.XmlValue = { kind: "Value", value: value };
+        return xpathXmlResultPush(result, xml, 0);
+    }
+    let state: number = xpathResultFloatContext;
+    if (!(input.kind === xpathKindNumber) || (known && extra >= langruntime.checkedSignedNegate(15) && extra <= 3)) {
+        state = langruntime.checkedI32(3);
+    }
+    return xpathXmlResultPush(result, { kind: "Unknown" }, state);
+}
 interface XPathCopyNamespace {
     prefix: string;
     uri: string;

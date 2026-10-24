@@ -30,7 +30,7 @@ pub(crate) fn xml_tree_ids_invalid(input: XmlTree) -> XmlTree {
     let next = XmlTreeFlags { document: flags.document, declaration: flags.declaration, unicode: flags.unicode,
         query: flags.query, query_ids_valid: false, query_names_valid: flags.query_names_valid, standalone: flags.standalone, version: flags.version, doctype_end: flags.doctype_end };
     XmlTree { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters,
-        current: input.current, written: input.written, flags: next, serialization_known: input.serialization_known }
+        current: input.current, written: input.written, flags: next, serialization_known: input.serialization_known, serialization_gap: input.serialization_gap }
 }
 
 pub(crate) fn xpath_id_declaration(input: XmlTree, owner: &str, name: &str, id: bool) -> XmlTree {
