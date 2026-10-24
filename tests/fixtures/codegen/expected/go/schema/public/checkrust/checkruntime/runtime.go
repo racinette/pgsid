@@ -334,6 +334,23 @@ type XmlValue struct {
 	RenderedText string
 	Error        SqlError
 }
+
+func CopyXmlValue(value XmlValue) XmlValue {
+	switch value.Kind {
+	case XmlValueUnknown:
+		return XmlValue{Kind: XmlValueUnknown}
+	case XmlValueNull:
+		return XmlValue{Kind: XmlValueNull}
+	case XmlValueValue:
+		return XmlValue{Kind: XmlValueValue, Value: langruntime.CheckedString(value.Value)}
+	case XmlValueRenderedText:
+		return XmlValue{Kind: XmlValueRenderedText, RenderedText: langruntime.CheckedString(value.RenderedText)}
+	case XmlValueError:
+		return XmlValue{Kind: XmlValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+
 type XmlConcatState struct {
 	Status            CheckOutcome
 	HasValue          bool

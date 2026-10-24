@@ -53,7 +53,7 @@ pub(crate) fn xml_tree_dtd_add(input: XmlTree, kind: i32, owner: &str, name: &st
     let mut declarations = tree.declarations;
     declarations.push(XmlTreeDtdEntry { kind, owner: owner_span, name: name_span, line: line_span, mixed });
     XmlTree { declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters,
-        current: tree.current, written: line_span, flags: tree.flags, serialization_known: tree.serialization_known }
+        current: tree.current, written: line_span, flags: tree.flags, serialization_known: tree.serialization_known, serialization_gap: tree.serialization_gap }
 }
 
 fn xml_tree_blank_policy(tree: &XmlTree, name: &str) -> i32 {
@@ -240,7 +240,7 @@ pub(crate) fn xml_tree_doctype(input: XmlTree, source: &XmlSource, stored: &XmlS
     let mut notations: usize = 0;
     let mut index: usize = 0;
     while index < tree.declarations.len() { if tree.declarations[index].kind == 5 { notations += 1; }; index += 1; }
-    if notations > 1 { tree = xml_tree_unsupported(tree); };
+    if notations > 1 { tree = xml_tree_notation_order(tree); };
     let mut declared = false; index = 0;
     while index < tree.declarations.len() { if tree.declarations[index].kind <= 5 { declared = true; }; index += 1; }
     if declared {

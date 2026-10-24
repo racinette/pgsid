@@ -12351,6 +12351,254 @@ func Numeric7rfd(input checkruntime.Float4Value) checkruntime.NumericValue {
 func NumericEv2s(input checkruntime.Float8Value) checkruntime.NumericValue {
 	return floatNumericDecimal(input, 15)
 }
+func floatOutputDyadic(input int64, exponent int) numericWork {
+	exponent = langruntime.CheckedI32(exponent)
+	if input == int64(0) {
+		return numericWorkFromValue("0")
+	}
+	coefficient := input
+	power := exponent
+	for langruntime.CheckedI64Remainder(coefficient, int64(2)) == int64(0) {
+		coefficient = langruntime.CheckedI64Divide(coefficient, int64(2))
+		power = langruntime.CheckedI32(langruntime.CheckedSignedAdd(power, 1))
+	}
+	text := checkruntime.TextSignedNumber(coefficient)
+	result := numericWorkFromValue(text)
+	count := power
+	scale := 0
+	factor := numericWorkFromValue("2")
+	if power < 0 {
+		count = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, power))
+		scale = langruntime.CheckedI32(count)
+		factor = copynumericWork(numericWorkFromValue("5"))
+	}
+	for count > 0 {
+		if langruntime.CheckedSignedRemainder(count, 2) == 1 {
+			result = copynumericWork(numericWorkProduct(result, copynumericWork(factor)))
+		}
+		count = langruntime.CheckedI32(langruntime.CheckedSignedDivide(count, 2))
+		if count > 0 {
+			factor = copynumericWork(numericWorkProduct(copynumericWork(factor), factor))
+		}
+	}
+	return numericWork{valid: result.valid, special: 1, sign: 1, weight: langruntime.CheckedSignedSubtract(result.weight, scale), scale: scale, digits: result.digits}
+}
+func floatOutputRounded(work numericWork, precision int) numericWork {
+	work = copynumericWork(work)
+	precision = langruntime.CheckedI32(precision)
+	digits := []rune(work.digits)
+	index := langruntime.IndexFromI32(precision, 0)
+	mode := 1
+	if index > 0 && index < len(digits) && digits[index] == '5' {
+		cursor := langruntime.CheckedAdd(index, 1)
+		tie := true
+		for cursor < len(digits) {
+			if digits[cursor] != '0' {
+				tie = false
+			}
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+		if tie && langruntime.CheckedSignedRemainder(numericWireDecimalDigit(digits[langruntime.CheckedSubtract(index, 1)]), 2) == 0 {
+			mode = langruntime.CheckedI32(0)
+		}
+	}
+	scale := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(precision, 1), work.weight)
+	return numericWorkRounded(work, scale, mode)
+}
+func floatOutputInside(candidate numericWork, lower numericWork, upper numericWork) bool {
+	candidate = copynumericWork(candidate)
+	lower = copynumericWork(lower)
+	upper = copynumericWork(upper)
+	return numericWorkMagnitude(copynumericWork(candidate), lower) > 0 && numericWorkMagnitude(candidate, upper) < 0
+}
+func floatOutputShortest(exact numericWork, coefficient int64, power int, mantissa int64, exponent int, single bool) numericWork {
+	exact = copynumericWork(exact)
+	power = langruntime.CheckedI32(power)
+	exponent = langruntime.CheckedI32(exponent)
+	shift := int64(0)
+	if mantissa != int64(0) || exponent <= 1 {
+		shift = int64(1)
+	}
+	lower := floatOutputDyadic(langruntime.CheckedI64Subtract(langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(coefficient, int64(4)), int64(1)), shift), langruntime.CheckedSignedSubtract(power, 2))
+	upper := floatOutputDyadic(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(coefficient, int64(4)), int64(2)), langruntime.CheckedSignedSubtract(power, 2))
+	maximum := 17
+	if single {
+		maximum = langruntime.CheckedI32(9)
+	}
+	precision := 1
+	for precision <= maximum {
+		nearest := floatOutputRounded(copynumericWork(exact), precision)
+		if floatOutputInside(copynumericWork(nearest), copynumericWork(lower), copynumericWork(upper)) {
+			return nearest
+		}
+		scale := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(precision, 1), exact.weight)
+		below := numericWorkRounded(copynumericWork(exact), scale, 0)
+		if floatOutputInside(copynumericWork(below), copynumericWork(lower), copynumericWork(upper)) {
+			return below
+		}
+		quantum := numericWork{valid: true, special: 1, sign: 1, weight: langruntime.CheckedSignedSubtract(0, scale), scale: 0, digits: "1"}
+		above := numericWorkSum(below, quantum, false)
+		if floatOutputInside(copynumericWork(above), copynumericWork(lower), copynumericWork(upper)) {
+			return above
+		}
+		precision = langruntime.CheckedI32(langruntime.CheckedSignedAdd(precision, 1))
+	}
+	return numericWork{valid: false, special: 1, sign: 1, weight: 0, scale: 0, digits: ""}
+}
+func floatOutputDecimal(work numericWork, negative bool, threshold int) string {
+	work = copynumericWork(work)
+	threshold = langruntime.CheckedI32(threshold)
+	output := langruntime.NewTextBuffer("")
+	if negative {
+		output = append(output, string(langruntime.CheckedChar('-'))...)
+	}
+	if work.weight < langruntime.CheckedSignedNegate(4) || work.weight >= threshold {
+		digits := []rune(work.digits)
+		if len(digits) > 0 {
+			output = append(output, string(langruntime.CheckedChar(digits[0]))...)
+		}
+		if len(digits) > 1 {
+			output = append(output, string(langruntime.CheckedChar('.'))...)
+			index := 1
+			for index < len(digits) {
+				output = append(output, string(langruntime.CheckedChar(digits[index]))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		output = append(output, string(langruntime.CheckedChar('e'))...)
+		exponent := work.weight
+		if exponent < 0 {
+			output = append(output, string(langruntime.CheckedChar('-'))...)
+			exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, exponent))
+		} else {
+			output = append(output, string(langruntime.CheckedChar('+'))...)
+		}
+		if exponent < 10 {
+			output = append(output, string(langruntime.CheckedChar('0'))...)
+		}
+		text := checkruntime.TextNumber(exponent, 10)
+		output = append(output, text...)
+	} else {
+		scale := numericWorkMinScale(copynumericWork(work))
+		value := numericWork{valid: work.valid, special: 1, sign: 1, weight: work.weight, scale: scale, digits: work.digits}
+		text := numericWorkText(value)
+		output = append(output, text...)
+	}
+	return string(output)
+}
+func floatOutputBits(bits int64, single bool, negative bool, extra int, known bool) checkruntime.TextValue {
+	extra = langruntime.CheckedI32(extra)
+	unit := int64(4503599627370496)
+	bias := 1023
+	width := 52
+	special := 2047
+	digits := 15
+	if single {
+		unit = int64(8388608)
+		bias = langruntime.CheckedI32(127)
+		width = langruntime.CheckedI32(23)
+		special = langruntime.CheckedI32(255)
+		digits = langruntime.CheckedI32(6)
+	}
+	exponent := int(int32((langruntime.CheckedI64Divide(bits, unit))))
+	mantissa := langruntime.CheckedI64Remainder(bits, unit)
+	if exponent == special {
+		if mantissa != int64(0) {
+			return checkruntime.MakeTextValue("NaN")
+		}
+		if negative {
+			return checkruntime.MakeTextValue("-Infinity")
+		}
+		return checkruntime.MakeTextValue("Infinity")
+	}
+	if bits == int64(0) {
+		if negative {
+			return checkruntime.MakeTextValue("-0")
+		}
+		return checkruntime.MakeTextValue("0")
+	}
+	if known && (extra < langruntime.CheckedSignedNegate(15) || extra > 3) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	coefficient := mantissa
+	power := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(1, bias), width)
+	if exponent > 0 {
+		coefficient = langruntime.CheckedI64Add(coefficient, unit)
+		power = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(exponent, bias), width))
+	}
+	exact := floatOutputDyadic(coefficient, power)
+	if known && extra <= 0 {
+		precision := langruntime.CheckedSignedAdd(digits, extra)
+		if precision < 1 {
+			precision = langruntime.CheckedI32(1)
+		}
+		rounded := floatOutputRounded(exact, precision)
+		text := floatOutputDecimal(rounded, negative, precision)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+	}
+	shortest := floatOutputShortest(copynumericWork(exact), coefficient, power, mantissa, exponent, single)
+	if shortest.valid == false {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	text := floatOutputDecimal(shortest, negative, digits)
+	if known {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+	}
+	firstValue := floatOutputRounded(copynumericWork(exact), 1)
+	first := floatOutputDecimal(firstValue, negative, 1)
+	lastValue := floatOutputRounded(exact, digits)
+	last := floatOutputDecimal(lastValue, negative, digits)
+	if first == text && last == text {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Float8OutputContext(input checkruntime.Float8Value, extra int, known bool) checkruntime.TextValue {
+	extra = langruntime.CheckedI32(extra)
+	if input.Kind == checkruntime.Float8ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Float8ValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Float8ValueUnspecifiedNan {
+		return checkruntime.MakeTextValue("NaN")
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		negative := bits < int64(0)
+		magnitude := bits
+		if negative {
+			magnitude = langruntime.CheckedI64Subtract(bits, (int64(-9223372036854775808)))
+		}
+		return floatOutputBits(magnitude, false, negative, extra, known)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Float4OutputContext(input checkruntime.Float4Value, extra int, known bool) checkruntime.TextValue {
+	extra = langruntime.CheckedI32(extra)
+	if input.Kind == checkruntime.Float4ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Float4ValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Float4ValueUnspecifiedNan {
+		return checkruntime.MakeTextValue("NaN")
+	}
+	if input.Kind == checkruntime.Float4ValueValue {
+		bits := langruntime.CheckedI32(input.Value)
+		negative := bits < 0
+		magnitude := int64(langruntime.CheckedI32(bits))
+		if negative {
+			magnitude = langruntime.CheckedI64Subtract(magnitude, (int64(-2147483648)))
+		}
+		return floatOutputBits(magnitude, true, negative, extra, known)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.Float4ValueError {
 		error := input.Error
@@ -45860,7 +46108,7 @@ func XmlTreeDtdAdd(input xmlTree, kind int, owner string, name string, line stri
 	declarations := tree.declarations
 	langruntime.CheckedAdd(len(declarations), 1)
 	declarations = append(declarations, copyxmlTreeDtdEntry(xmlTreeDtdEntry{kind: kind, owner: ownerSpan, name: nameSpan, line: lineSpan, mixed: mixed}))
-	return xmlTree{declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: lineSpan, flags: tree.flags, serializationKnown: tree.serializationKnown}
+	return xmlTree{declarations: declarations, nodes: tree.nodes, attributes: tree.attributes, characters: tree.characters, current: tree.current, written: lineSpan, flags: tree.flags, serializationKnown: tree.serializationKnown, serializationGap: tree.serializationGap}
 }
 func xmlTreeBlankPolicy(tree *xmlTree, name string) int {
 	name = langruntime.CheckedString(name)
@@ -46120,7 +46368,7 @@ func XmlTreeDoctype(input xmlTree, source *xmlSource, stored *xmlSource, arena *
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if notations > 1 {
-		tree = XmlTreeUnsupported(tree)
+		tree = XmlTreeNotationOrder(tree)
 	}
 	declared := false
 	index = langruntime.CheckedIndex(0)
@@ -49064,7 +49312,7 @@ func xmlQueryDefaultNamesValid(tree *xmlTree, owner int, arena *xmlEntityArena, 
 func XmlQueryInvalidNames(input xmlTree) xmlTree {
 	old := input.flags
 	flags := xmlTreeFlags{document: old.document, declaration: old.declaration, unicode: old.unicode, query: old.query, queryIdsValid: old.queryIdsValid, queryNamesValid: false, standalone: old.standalone, version: old.version, doctypeEnd: old.doctypeEnd}
-	return xmlTree{declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags: flags, serializationKnown: input.serializationKnown}
+	return xmlTree{declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags: flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func xmlQueryDefaultName(tree *xmlTree, owner int, text string) xmlQueryName {
 	owner = langruntime.CheckedIndex(owner)
@@ -49922,10 +50170,11 @@ type xmlTree struct {
 	written            xmlSpan
 	flags              xmlTreeFlags
 	serializationKnown bool
+	serializationGap   bool
 }
 
 func copyxmlTree(value xmlTree) xmlTree {
-	return xmlTree{declarations: langruntime.CheckedStructs(value.declarations, copyxmlTreeDtdEntry), nodes: langruntime.CheckedStructs(value.nodes, copyxmlTreeNode), attributes: langruntime.CheckedStructs(value.attributes, copyxmlTreeAttribute), characters: langruntime.CheckedChars(value.characters), current: langruntime.CheckedIndex(value.current), written: copyxmlSpan(value.written), flags: copyxmlTreeFlags(value.flags), serializationKnown: value.serializationKnown}
+	return xmlTree{declarations: langruntime.CheckedStructs(value.declarations, copyxmlTreeDtdEntry), nodes: langruntime.CheckedStructs(value.nodes, copyxmlTreeNode), attributes: langruntime.CheckedStructs(value.attributes, copyxmlTreeAttribute), characters: langruntime.CheckedChars(value.characters), current: langruntime.CheckedIndex(value.current), written: copyxmlSpan(value.written), flags: copyxmlTreeFlags(value.flags), serializationKnown: value.serializationKnown, serializationGap: value.serializationGap}
 }
 func xmlTreeText(tree *xmlTree, span xmlSpan) string {
 	span = copyxmlSpan(span)
@@ -49966,7 +50215,7 @@ func XmlTreeStore(input xmlTree, text string) xmlTree {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	written := xmlSpan{start: begin, end: len(characters)}
-	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XmlTreeLinks(input xmlTreeNode, next int, first int, last int, value xmlSpan, textual bool, textSeen bool) xmlTreeNode {
 	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, previous: input.previous, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy, contentPresent: input.contentPresent}
@@ -49987,25 +50236,28 @@ func XmlTreeAppend(input xmlTree, node xmlTreeNode) xmlTree {
 	nodes[input.current] = copyxmlTreeNode(XmlTreeLinks(parent, parent.next, first, index, parent.value, textual, parent.textSeen || node.kind == 2))
 	langruntime.CheckedAdd(len(nodes), 1)
 	nodes = append(nodes, copyxmlTreeNode(node))
-	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XmlTreeCurrent(input xmlTree, current int) xmlTree {
-	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankPolicy int) xmlTree {
 	nodes := input.nodes
 	node := nodes[index]
 	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, previous: node.previous, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy, contentPresent: node.contentPresent})
-	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XmlTreeUnsupported(input xmlTree) xmlTree {
-	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false}
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false, serializationGap: true}
+}
+func XmlTreeNotationOrder(input xmlTree) xmlTree {
+	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false, serializationGap: input.serializationGap}
 }
 func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, querySource xmlSpan, defaulted bool, idCandidate bool) xmlTree {
 	attributes := input.attributes
 	langruntime.CheckedAdd(len(attributes), 1)
 	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, querySource: querySource, defaulted: defaulted, idCandidate: idCandidate}))
-	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
+	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XmlTreeLeafContent(input xmlTree, kind int, name xmlSpan, value xmlSpan, contentPresent bool) xmlTree {
 	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1), contentPresent: contentPresent}
@@ -50048,7 +50300,7 @@ func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end b
 			span := xmlSpan{start: previous.value.start, end: value.end}
 			nodes[parent.last] = copyxmlTreeNode(XmlTreeLinks(previous, previous.next, previous.first, previous.last, span, previous.textual, previous.textSeen))
 			nodes[stored.current] = copyxmlTreeNode(XmlTreeLinks(parent, parent.next, parent.first, parent.last, parent.value, true, true))
-			return xmlTree{nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: value, declarations: stored.declarations, flags: stored.flags, serializationKnown: stored.serializationKnown}
+			return xmlTree{nodes: nodes, attributes: stored.attributes, characters: stored.characters, current: stored.current, written: value, declarations: stored.declarations, flags: stored.flags, serializationKnown: stored.serializationKnown, serializationGap: stored.serializationGap}
 		}
 	}
 	empty := xmlSpan{start: 0, end: 0}
@@ -50321,7 +50573,7 @@ func xmlTreeParse(input string, document bool, query bool) xmlTree {
 	attributes := []xmlTreeAttribute{}
 	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, query: query, queryIdsValid: true, queryNamesValid: true, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
 	declarations := []xmlTreeDtdEntry{}
-	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true}
+	tree := xmlTree{declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: empty, flags: flags, serializationKnown: true, serializationGap: false}
 	storedSource := xmlSource{characters: []rune(arena.arena)}
 	return XmlTreeParseNodes(&source, &storedSource, &arena, declaration.next, tree, false, false)
 }
@@ -52274,7 +52526,7 @@ func xpathIdNameValid(input string) bool {
 func XmlTreeIdsInvalid(input xmlTree) xmlTree {
 	flags := input.flags
 	next := xmlTreeFlags{document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, queryNamesValid: flags.queryNamesValid, standalone: flags.standalone, version: flags.version, doctypeEnd: flags.doctypeEnd}
-	return xmlTree{declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags: next, serializationKnown: input.serializationKnown}
+	return xmlTree{declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags: next, serializationKnown: input.serializationKnown, serializationGap: input.serializationGap}
 }
 func XpathIdDeclaration(input xmlTree, owner string, name string, id bool) xmlTree {
 	if input.flags.query == false {
@@ -54068,7 +54320,124 @@ func XpathParseStepLeaf(input xPathProgram) xPathProgram {
 	return program
 }
 
+const sqlstateInvalidXpath = 1687400
 const sqlstateXmlNodeCopy = 8540640
+const xpathResultSqlError = 5
+const xpathResultFloatContext = 6
+const xpathResultNotationContext = 7
+
+type xPathXmlResult struct {
+	state  int
+	error  checkruntime.SqlError
+	shaped bool
+	values []checkruntime.XmlValue
+}
+
+func copyxPathXmlResult(value xPathXmlResult) xPathXmlResult {
+	return xPathXmlResult{state: langruntime.CheckedI32(value.state), error: value.error, shaped: value.shaped, values: langruntime.CheckedStructs(value.values, checkruntime.CopyXmlValue)}
+}
+func xpathXmlResultEmpty(state int, shaped bool) xPathXmlResult {
+	state = langruntime.CheckedI32(state)
+	values := []checkruntime.XmlValue{}
+	error := checkruntime.MakeSqlError(0)
+	return xPathXmlResult{state: state, error: error, shaped: shaped, values: values}
+}
+func xpathXmlResultError(error checkruntime.SqlError) xPathXmlResult {
+	values := []checkruntime.XmlValue{}
+	return xPathXmlResult{state: xpathResultSqlError, error: error, shaped: false, values: values}
+}
+func XpathXmlResultPush(input xPathXmlResult, value checkruntime.XmlValue, state int) xPathXmlResult {
+	values := input.values
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, value)
+	next := input.state
+	if state != 0 && (next == 0 || state == 3) {
+		next = langruntime.CheckedI32(state)
+	}
+	return xPathXmlResult{state: next, error: input.error, shaped: input.shaped, values: values}
+}
+func xpathResultCount(input *xPathValue) checkruntime.Int4Value {
+	if input.state < 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidXpath)}
+	}
+	if input.state != 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input.kind == xpathKindNodes {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(len(input.nodes.values)))}
+	}
+	if input.kind == xpathKindBoolean || input.kind == xpathKindNumber || input.kind == xpathKindString {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func xpathResultExists(input *xPathValue) checkruntime.BoolValue {
+	count := xpathResultCount(input)
+	if count.Kind == checkruntime.Int4ValueError {
+		error := count.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if count.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(count.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func XpathResultToXml(input xPathValue, tree *xmlTree, graph *xPathGraph, extra int, known bool) xPathXmlResult {
+	if input.state != 0 {
+		return xpathXmlResultEmpty(input.state, false)
+	}
+	result := xpathXmlResultEmpty(0, true)
+	if input.kind == xpathKindNodes {
+		index := 0
+		for index < len(input.nodes.values) {
+			value := xpathNodeToXml(tree, graph, input.nodes.values[index])
+			if value.Kind == checkruntime.XmlValueError {
+				error := value.Error
+				return xpathXmlResultError(error)
+			}
+			state := 0
+			if value.Kind == checkruntime.XmlValueUnknown {
+				state = langruntime.CheckedI32(xpathResultNotationContext)
+				if tree.serializationGap {
+					state = langruntime.CheckedI32(3)
+				}
+			}
+			result = XpathXmlResultPush(result, value, state)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return result
+	}
+	text := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	if input.kind == xpathKindBoolean {
+		text = checkruntime.MakeTextValue("false")
+		if input.boolean {
+			text = checkruntime.MakeTextValue("true")
+		}
+	} else if input.kind == xpathKindString {
+		string := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: input.text}
+		text = XmlElementValueEscape(string, true)
+	} else if input.kind == xpathKindNumber {
+		number := checkruntime.Float8Value{Kind: checkruntime.Float8ValueValue, Value: input.number}
+		text = Float8OutputContext(number, extra, known)
+	} else {
+		return xpathXmlResultEmpty(3, false)
+	}
+	if text.Kind == checkruntime.TextValueError {
+		error := text.Error
+		return xpathXmlResultError(error)
+	}
+	if text.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(text.Value)
+		xml := checkruntime.XmlValue{Kind: checkruntime.XmlValueValue, Value: value}
+		return XpathXmlResultPush(result, xml, 0)
+	}
+	state := xpathResultFloatContext
+	if input.kind != xpathKindNumber || (known && extra >= langruntime.CheckedSignedNegate(15) && extra <= 3) {
+		state = langruntime.CheckedI32(3)
+	}
+	return XpathXmlResultPush(result, checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}, state)
+}
 
 type xPathCopyNamespace struct {
 	prefix string

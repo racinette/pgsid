@@ -371,6 +371,15 @@ export type XmlValue = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
+export function copyXmlValue(value: XmlValue): XmlValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
+        case "RenderedText": return { kind: "RenderedText", value: langruntime.checkedString(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
 export interface XmlConcatState {
     status: CheckOutcome;
     hasValue: boolean;
