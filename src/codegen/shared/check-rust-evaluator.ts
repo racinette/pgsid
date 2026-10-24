@@ -1986,7 +1986,15 @@ export function emitCheckRustEvaluator(
       const range = isRangeType(node.type)
       const multirange = isMultirangeType(node.type)
       const xml = node.type === 'pg_catalog.xml'
-      if (!array && !range && !multirange && !xml && arrayElementFamily(node.type) === null)
+      const tsvector = node.type === 'pg_catalog.tsvector'
+      if (
+        !array &&
+        !range &&
+        !multirange &&
+        !xml &&
+        !tsvector &&
+        arrayElementFamily(node.type) === null
+      )
         throw new UnsupportedCheckRustExpression(
           'Domain conversion requires a represented value carrier',
         )
@@ -1998,7 +2006,7 @@ export function emitCheckRustEvaluator(
       const prefix = rustValuePrefix(rustType(node.type))
       const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
       const element =
-        array || range || multirange || xml
+        array || range || multirange || xml || tsvector
           ? null
           : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
       const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
@@ -2077,6 +2085,11 @@ export function emitCheckRustEvaluator(
           '};',
         )
       }
+      if (tsvector)
+        return {
+          name: bind(`finish_tsvector_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
       if (xml)
         return {
           name: bind(`finish_xml_domain_conversion(${ownedOperand(operand)}, ${status})`),
@@ -6421,9 +6434,22 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'tsvector') {
         if (value.value === null) return { name: bind('tsvector_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        const storage = value.stored ? value.storage : undefined
+        if (
+          storage &&
+          (!Number.isInteger(storage.nativeBytes) ||
+            storage.nativeBytes < 8 ||
+            storage.nativeBytes > 1073741823 ||
+            !Number.isInteger(storage.lexemeCount) ||
+            storage.lexemeCount < 0 ||
+            storage.lexemeCount > 1048575)
+        )
+          throw new UnsupportedCheckRustExpression('Invalid stored tsvector size metadata')
         return {
           name: bind(
-            `${value.stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${text},${executionContext.serverEncoding === 'UTF8'})`,
+            storage
+              ? `tsvector_from_stored_text_native_context(${text},${executionContext.serverEncoding === 'UTF8'},${storage.nativeBytes},${storage.lexemeCount})`
+              : `${value.stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${text},${executionContext.serverEncoding === 'UTF8'})`,
           ),
           type: value.type,
         }

@@ -46,3 +46,28 @@ INSERT INTO document_ordering(source,reference,expected_less,choose_source,bypas
 INSERT INTO document_ordering(source,reference,expected_less,choose_source,bypass) VALUES(NULL,'a',NULL,false,false);
 -- name: document_skipped_order_error
 INSERT INTO document_ordering(source,reference,expected_less,choose_source,bypass) VALUES('a:0','a',false,true,true);
+
+-- name: document_reference_match
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:1A',true,true,false);
+-- name: document_reference_other
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('bb',false,true,false);
+-- name: document_reference_wrong
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:1A',false,false,false);
+-- name: document_reference_wrong_other
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('bb',true,false,false);
+-- name: document_empty_domain
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('',false,true,false);
+-- name: document_empty_fallback
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('',false,false,false);
+-- name: document_missing_fallback
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES(NULL,NULL,false,false);
+-- name: document_missing_required
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES(NULL,NULL,true,false);
+-- name: document_reference_syntax
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:0',NULL,false,false);
+-- name: document_reference_skipped
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:0',NULL,true,true);
+-- name: document_reference_unicode
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('é:1',false,true,false);
+-- name: document_reference_normalized
+INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:1A a:1B',true,true,false);

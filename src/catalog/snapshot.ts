@@ -6,6 +6,7 @@ import {
   captureDomainCoercionContext,
   captureRowCoercionContext,
   captureArrayConstructorContext,
+  captureTsvectorConstantContext,
   captureXmlConstantContext,
   type DomainCoercionIdentity,
   type RowCoercionIdentity,
@@ -837,6 +838,16 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     const type = typesByOid.get(oid)
     return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
   }
+  const isTsvector = (oid: number, seen = new Set<number>()): boolean => {
+    if (seen.has(oid)) return false
+    seen.add(oid)
+    const type = typesByOid.get(oid)
+    return (
+      type?.identity === 'pg_catalog.tsvector' ||
+      (type?.kind === 'd' && isTsvector(type.base, seen))
+    )
+  }
+  const tsvectorTypes = new Set(typeRows.filter((t) => isTsvector(t.oid)).map((t) => t.oid))
   const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
   const xmlArrayElement = (oid: number, seen = new Set<number>()): number | undefined => {
     if (seen.has(oid)) return undefined
@@ -858,6 +869,12 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   for (const oid of xmlTypes) xmlContainers.delete(oid)
   for (const oid of xmlArrays.keys()) xmlContainers.delete(oid)
   for (const con of constraintRows) {
+    const tsvectorConstants = captureTsvectorConstantContext(
+      con.coercion_tree,
+      con.definition,
+      tsvectorTypes,
+      rowIdentities,
+    )
     const xmlConstants = captureXmlConstantContext(
       con.coercion_tree,
       con.definition,
@@ -883,6 +900,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       typeIdentities,
     )
     const ci: ConstraintInfo = {
+      ...(tsvectorConstants ? { tsvectorConstants } : {}),
       ...(xmlConstants ? { xmlConstants } : {}),
       ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
       name: con.name,
@@ -1153,6 +1171,12 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       notNull: d.not_null,
       default: d.default_expr,
       checks: (d.check_exprs ?? []).map((check) => {
+        const tsvectorConstants = captureTsvectorConstantContext(
+          check.coercion_tree,
+          check.definition,
+          tsvectorTypes,
+          rowIdentities,
+        )
         const xmlConstants = captureXmlConstantContext(
           check.coercion_tree,
           check.definition,
@@ -1180,6 +1204,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         return {
           name: check.name,
           definition: check.definition,
+          ...(tsvectorConstants ? { tsvectorConstants } : {}),
           ...(xmlConstants ? { xmlConstants } : {}),
           ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
           ...(coercionContext ? { coercionContext } : {}),

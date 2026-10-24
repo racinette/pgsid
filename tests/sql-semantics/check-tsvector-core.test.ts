@@ -363,7 +363,7 @@ it('retains tsvector ownership, validates logical payloads and separates compara
           }),
           inputs: [],
         },
-        ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((mode) => ({
+        ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((mode) => ({
           name: 'model_' + mode,
           entryName: checkRustEntryName({
             schema: 'public',
@@ -411,6 +411,16 @@ pub fn tsvector_test_ownership()->BoolValue {
  make_bool_value(tsvector_to_text(original)==make_text_value("'a':1A 'z':2C"))
 }
 pub fn tsvector_test_model(mode:i32)->BoolValue {
+ if mode==10 {
+  let text=make_text_value("'a':0A 'a':1B");
+  let stored=tsvector_from_stored_text_native_context(text.clone(),true,28,2);
+  if sql__pg_catalog__length__grcw(stored.clone())!=make_int4_value(2) {return make_bool_value(false);};
+  if tsvector_to_text(stored.clone())!=text {return make_bool_value(false);};
+  let stripped=sql__pg_catalog__strip__3rdv(stored.clone());
+  if tsvector_to_text(stripped)!=make_text_value("'a' 'a'") {return make_bool_value(false);};
+  let weighted=sql__pg_catalog__setweight__hza4(stored,make_internal_char_value(66));
+  return make_bool_value(tsvector_to_text(weighted)==make_text_value("'a':0B 'a':1B"));
+ };
  if mode==9 {
   let mut text=String::new();text.push('\'');let mut i:usize=0;
   while i<2047 {text.push('a');i+=1;}text.push('\'');
@@ -448,13 +458,13 @@ fn tsvector_test_payload(mode:i32)->BoolValue {
   if mode==1 || mode==2 || mode==3 {
    let first=lexemes[0].clone();
   let mut positions=first.positions;
-   let mut position:i32=0;let mut weight:i32=3;
+   let mut position:i32=-1;let mut weight:i32=3;
    if mode==2 {position=16384;};
    if mode==3 {position=1;weight=4;};
    positions[0]=TsvectorPosition {position:position,weight:weight};
    lexemes[0]=TsvectorLexeme {text:"a".to_owned(),positions:positions};
   };
-  if mode==4 {lexemes[1]=lexemes[0].clone();};
+  if mode==4 {let saved=lexemes[0].clone();lexemes[0]=lexemes[1].clone();lexemes[1]=saved;};
   if mode==5 {bytes=0;};
   if mode==6 {bytes=-1;};
   if mode==7 {bytes=1073741824;};
@@ -501,13 +511,39 @@ fn tsvector_test_payload(mode:i32)->BoolValue {
         native_bytes: number
         stored_bytes: number
       }>(
-        "SELECT length(value) lexemes,length(value::text) rendered,pg_column_size(setweight(value,'D',ARRAY[]::text[])) native_bytes,pg_column_size(value) stored_bytes FROM tsvector_binary_witness",
+        "SELECT length(value) lexemes,length(value::text) rendered,pg_column_size(setweight(value,'D',ARRAY[]::text[])) native_bytes,pg_column_size(value) stored_bytes FROM tsvector_binary_witness WHERE length(value)=1",
       )
     ).rows[0]!
     expect(binaryWitness).toMatchObject({ lexemes: 1, rendered: 2049, native_bytes: 2059 })
     await writeFile(
       join(packet, 'binary-boundary.json'),
       JSON.stringify(binaryWitness, null, 2) + '\n',
+    )
+    const duplicatePayload = Buffer.from('0000000261000001c000610000018001', 'hex'),
+      duplicateTuple = Buffer.from(tuple)
+    duplicateTuple.writeInt32BE(duplicatePayload.length, 2)
+    await pg.exec("COPY tsvector_binary_witness FROM '/dev/blob' (FORMAT binary)", {
+      blob: new Blob([
+        new Uint8Array(
+          Buffer.concat([header, duplicateTuple, duplicatePayload, Buffer.from('ffff', 'hex')]),
+        ),
+      ]),
+    })
+    const duplicateWitness = (
+      await pg.query(
+        "SELECT value::text rendered,length(value) lexemes,strip(value)::text stripped,setweight(value,'B')::text weighted,pg_column_size(setweight(value,'D',ARRAY[]::text[])) native_bytes FROM tsvector_binary_witness WHERE length(value)=2",
+      )
+    ).rows[0]!
+    expect(duplicateWitness).toEqual({
+      rendered: "'a':0A 'a':1B",
+      lexemes: 2,
+      stripped: "'a' 'a'",
+      weighted: "'a':0B 'a':1B",
+      native_bytes: 28,
+    })
+    await writeFile(
+      join(packet, 'duplicate-zero-boundary.json'),
+      JSON.stringify(duplicateWitness, null, 2) + '\n',
     )
     const pairs: { left: string | null; right: string | null; deferred?: boolean }[] = [
       { left: 'a', right: 'z', deferred: true },

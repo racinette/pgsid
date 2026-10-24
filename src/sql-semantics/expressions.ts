@@ -7,6 +7,7 @@ import {
   operatorMetadata,
 } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
+import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import type { EnumInfo } from '../catalog/types.js'
 import { compositeProfile, type CompositeType } from './composite-profiles.js'
 import { anonymousRecordProfile, type AnonymousRecordType } from './anonymous-records.js'
@@ -595,7 +596,13 @@ export type SqlExpression =
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
-  | { kind: 'tsvector'; type: TsvectorType; value: string | null; stored?: boolean }
+  | {
+      kind: 'tsvector'
+      type: TsvectorType
+      value: string | null
+      stored?: boolean
+      storage?: TsvectorConstantStorage
+    }
   | { kind: 'aclitem'; type: AclitemType; value: string | null }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }

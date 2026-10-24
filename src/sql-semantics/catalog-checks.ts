@@ -10,6 +10,7 @@ import type {
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
 import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
+import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { alignStoredXmlConstants, restoreStoredXmlNames } from './xml-constant-sites.js'
 import { alignStoredArrayConstructors } from './array-constructor-sites.js'
 
@@ -49,6 +50,7 @@ type CheckConstraint = Pick<
   | 'coercionContext'
   | 'rowCoercionContext'
   | 'arrayConstructorContext'
+  | 'tsvectorConstants'
   | 'xmlConstants'
 >
 
@@ -271,8 +273,14 @@ export function lowerTableCheck(
     if (
       literalOrigin === 'stored' &&
       (sourceDefinition === undefined || sourceDefinition === constraint.definition)
-    )
+    ) {
       restoreStoredXmlNames(check?.['raw_expr'], constraint.definition, constraint.xmlConstants)
+      restoreStoredTsvectorConstants(
+        check?.['raw_expr'],
+        constraint.definition,
+        constraint.tsvectorConstants,
+      )
+    }
     const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),
       context = constraint.rowCoercionContext
     const capturedXml = alignStoredXmlConstants(

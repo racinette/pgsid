@@ -1,3 +1,5 @@
+import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
+import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { isMoneyNumericConversion } from './money-callables.js'
 import {
   rangeSubtypeCarrierIdentity,
@@ -642,6 +644,7 @@ type Literal = {
   kind: 'string' | 'integer' | 'null'
   value: string | null
   tsvectorStored?: boolean
+  tsvectorStorage?: TsvectorConstantStorage
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
@@ -726,7 +729,13 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   if (type === 'pg_catalog.lseg' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'lseg', type, value: literal.value }
   if (type === 'pg_catalog.tsvector' && (literal.kind === 'string' || literal.kind === 'null'))
-    return { kind: 'tsvector', type, value: literal.value, stored: literal.tsvectorStored }
+    return {
+      kind: 'tsvector',
+      type,
+      value: literal.value,
+      stored: literal.tsvectorStored,
+      storage: literal.tsvectorStorage,
+    }
   if (type === 'pg_catalog.aclitem' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'aclitem', type, value: literal.value }
   if (type === 'pg_catalog.money' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -4140,6 +4149,11 @@ export function bindCatalogCheck(
                 const body = fields(command?.['AlterTableCmd'])?.['def']
                 const constraint = fields(fields(body)?.['Constraint'])
                 if (constraint?.['contype'] === 'CONSTR_CHECK') {
+                  restoreStoredTsvectorConstants(
+                    constraint['raw_expr'],
+                    check.definition,
+                    check.tsvectorConstants,
+                  )
                   restoreStoredXmlNames(
                     constraint['raw_expr'],
                     check.definition,
@@ -5547,6 +5561,11 @@ export function bindCatalogCheck(
               kind: 'string',
               value: string,
               tsvectorStored: literalOrigin === 'stored',
+              ...(literalOrigin === 'stored' && wrapper['__pgsid_tsvector_storage']
+                ? {
+                    tsvectorStorage: wrapper['__pgsid_tsvector_storage'] as TsvectorConstantStorage,
+                  }
+                : {}),
               moneyUnits: moneyUnits.get(string),
               xmlOrigin: literalOrigin,
               ...(literalOrigin === 'stored' &&

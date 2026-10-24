@@ -45962,7 +45962,7 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
                 index = langruntime.checkedAdd(index, 1);
             }
             if (index === chars.length) {
-                return tsvectorNormalize(lexemes);
+                return tsvectorFinishInput(lexemes, stored);
             }
             let word: string = "";
             let state: number = 0;
@@ -46040,10 +46040,13 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
                         position = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(position, 10), digit));
                         index = langruntime.checkedAdd(index, 1);
                     }
-                    if (position === 0) {
+                    if (position === 0 && stored === false) {
                         return { kind: "Error", value: checkruntime.makeSqlError(tsvectorSyntaxError) };
                     }
                     if (position > 16383) {
+                        if (stored) {
+                            return { kind: "Unknown" };
+                        }
                         position = langruntime.checkedI32(16383);
                     }
                     let weight: number = 0;
@@ -46097,9 +46100,17 @@ function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored:
             rawBytes = langruntime.checkedI64(langruntime.checkedI64Add(rawBytes, (BigInt(langruntime.checkedI32(width)))));
             langruntime.pushStruct(lexemes, { text: word, positions: positions }, checkruntime.copyTsvectorLexeme);
         }
-        return tsvectorNormalize(lexemes);
+        return tsvectorFinishInput(lexemes, stored);
     }
     return { kind: "Unknown" };
+}
+function tsvectorFinishInput(lexemes: checkruntime.TsvectorLexeme[], stored: boolean): checkruntime.TsvectorValue {
+    lexemes = langruntime.checkedStructs(lexemes, checkruntime.copyTsvectorLexeme);
+    stored = langruntime.checkedBool(stored);
+    if (stored) {
+        return checkruntime.makeTsvectorValue({ lexemes: lexemes, nativeBytes: langruntime.checkedSignedNegate(1) });
+    }
+    return tsvectorNormalize(lexemes);
 }
 export function tsvectorFromTextContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.TsvectorValue {
     utf8 = langruntime.checkedBool(utf8);
@@ -46118,6 +46129,20 @@ export function tsvectorFromStoredTextContext(input: checkruntime.TextValue, utf
     }
     if (value.kind === "Error") {
         return { kind: "Unknown" };
+    }
+    return value;
+}
+export function tsvectorFromStoredTextNativeContext(input: checkruntime.TextValue, utf8: boolean, nativeBytes: number, lexemeCount: number): checkruntime.TsvectorValue {
+    utf8 = langruntime.checkedBool(utf8);
+    nativeBytes = langruntime.checkedI32(nativeBytes);
+    lexemeCount = langruntime.checkedI32(lexemeCount);
+    const value: checkruntime.TsvectorValue = tsvectorFromStoredTextContext(input, utf8);
+    if (value.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(value.value);
+        if (lexemeCount < 0 || !((langruntime.checkedI32(langruntime.checkedIndex(payload.lexemes.length))) === lexemeCount) || nativeBytes < 8) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: nativeBytes });
     }
     return value;
 }
