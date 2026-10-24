@@ -670,6 +670,19 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       add(input, '/missing' + '[true()]'.repeat(count), 4, 2)
       add(input, '/r' + '[true()]'.repeat(count), 4, 2, count === 600)
     }
+    for (const expression of [
+      'true(',
+      'false(',
+      'unknown(',
+      'concat(1,',
+      'unknown($x,',
+      'true() or unknown(',
+      'false() and unknown(',
+      'true() or concat(1,',
+      'unknown(1',
+      'true() or unknown(1',
+    ])
+      add(input, expression, 2)
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let inserts = 0,
@@ -758,7 +771,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-runtime-depth-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-compile-steps-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',

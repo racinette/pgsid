@@ -50909,20 +50909,20 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 header = copyXPathEvalHeader(xpathEvalDepth(header, langruntime.checkedSignedAdd(header.depth, extra)));
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalGroup, 0, groups, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound), header.depth, header.cells);
             }
             else if (node.kind === xpathStep || node.kind === xpathPredicate) {
-                stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)), header.depth, header.cells);
             }
             else if (node.kind === xpathPath) {
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalPath, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth, header.cells);
             }
             else if (node.kind === xpathNegate) {
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalNegate, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth, header.cells);
             }
             else if (node.kind === xpathBinary) {
                 let demand: number = 0;
@@ -50931,7 +50931,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalLeft, 0, 0, 0, 0, demand, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound), header.depth, header.cells);
             }
             else if (node.kind === xpathFilter) {
                 const leftKind: number = langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(node.left), copyXPathExpression).kind;
@@ -50959,7 +50959,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalFilter, 0, 0, 0, selection, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent), header.depth, header.cells);
             }
             else if (node.kind === xpathFunction) {
                 if (node.left === 0) {
@@ -50983,11 +50983,15 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                     const first: number = langruntime.indexNumber(predicates, langruntime.checkedIndex(langruntime.checkedSubtract(count, 1)));
                     const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, 0, langruntime.checkedSubtract(count, 1), 0, 0, 0, 0, 0, header.positionRange));
                     stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, first, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, node.operation));
+                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, first, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, node.operation), header.cells);
                 }
             }
             else {
                 result = copyXPathValue(xpathValueFault(10));
+            }
+            const literal: boolean = node.kind === xpathNumber || node.kind === xpathString;
+            if ((literal && !(header.mode === 1)) || node.kind === xpathRoot || node.kind === xpathContext || node.kind === xpathFunction) {
+                result = xpathEvalPushValue(result, header.cells);
             }
         }
         else if (header.kind === xpathEvalGroup) {
@@ -51012,7 +51016,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
         }
         else if (header.kind === xpathEvalPath) {
             const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
-            stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value), header.depth);
+            stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value), header.depth, header.cells);
         }
         else if (header.kind === xpathEvalLeft) {
             const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
@@ -51028,7 +51032,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 else {
                     const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalBoolean, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                     stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent), header.depth);
+                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent), header.depth, header.cells);
                 }
             }
             else {
@@ -51042,7 +51046,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalRight, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, value, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound), header.depth, langruntime.checkedSignedAdd(header.cells, 1));
             }
         }
         else if (header.kind === xpathEvalBoolean) {
@@ -51054,15 +51058,17 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
         }
         else if (header.kind === xpathEvalArgument) {
             parameters = xpathArgumentsAdd(parameters, value);
+            const completed: number = parameters.count;
             if (header.cursor === 0) {
                 result = xpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers);
+                result = xpathEvalPushValue(result, header.cells);
             }
             else {
                 const cursor: number = langruntime.checkedSubtract(header.cursor, 1);
                 const following: number = langruntime.indexNumber(predicates, langruntime.checkedIndex(cursor));
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, 0, cursor, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, following, header.context, 0, absent), langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(header.depth, langruntime.checkedI32(langruntime.checkedIndex(cursor))), 1));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, following, header.context, 0, absent), langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(header.depth, langruntime.checkedI32(langruntime.checkedIndex(cursor))), 1), langruntime.checkedSignedAdd(header.cells, completed));
             }
         }
         else if (header.kind === xpathEvalFilter) {
@@ -51090,7 +51096,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 if (header.mode === 2) {
                     maximum = langruntime.checkedI32(1);
                 }
-                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent), header.depth));
+                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalCells(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent), header.depth), header.cells));
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, 1, maximum, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, value, output, parameters, predicates));
             }
@@ -51122,7 +51128,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 const context: XPathContext = copyXPathContext({ node: copyXPathReference(langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(header.index), copyXPathReference)), position: langruntime.checkedSignedAdd(langruntime.checkedI32(langruntime.checkedIndex(header.index)), 1), size: langruntime.checkedI32(langruntime.checkedIndex(input.nodes.values.length)) });
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalFilterResult, header.index, 0, 0, header.minimum, header.maximum, header.matched, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent), header.depth);
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent), header.depth, header.cells);
             }
         }
         else if (header.kind === xpathEvalFilterResult) {
@@ -51268,7 +51274,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, header.visited, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, recursive)));
+                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalCells(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, recursive)), header.cells));
                 const filter: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange));
                 const empty: XPathValue = xpathValueEmpty(0, 0);
                 const args: XPathArguments = xpathArgumentsEmpty();
@@ -51298,6 +51304,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
     }
     return result;
 }
+const xpathValueStackLimit = 1000000;
 const xpathEvalExpression = 1;
 const xpathEvalGroup = 2;
 const xpathEvalNegate = 3;
@@ -51320,6 +51327,7 @@ interface XPathEvalHeader {
     mode: number;
     bound: XPathReference;
     depth: number;
+    cells: number;
     index: number;
     cursor: number;
     step: number;
@@ -51330,7 +51338,7 @@ interface XPathEvalHeader {
     positionRange: XPathPosition;
 }
 function copyXPathEvalHeader(value: XPathEvalHeader): XPathEvalHeader {
-    return { kind: langruntime.checkedI32(value.kind), root: langruntime.checkedIndex(value.root), context: copyXPathContext(value.context), mode: langruntime.checkedI32(value.mode), bound: copyXPathReference(value.bound), depth: langruntime.checkedI32(value.depth), index: langruntime.checkedIndex(value.index), cursor: langruntime.checkedIndex(value.cursor), step: langruntime.checkedIndex(value.step), minimum: langruntime.checkedI32(value.minimum), maximum: langruntime.checkedI32(value.maximum), matched: langruntime.checkedI32(value.matched), visited: langruntime.checkedI32(value.visited), positionRange: copyXPathPosition(value.positionRange) };
+    return { kind: langruntime.checkedI32(value.kind), root: langruntime.checkedIndex(value.root), context: copyXPathContext(value.context), mode: langruntime.checkedI32(value.mode), bound: copyXPathReference(value.bound), depth: langruntime.checkedI32(value.depth), cells: langruntime.checkedI32(value.cells), index: langruntime.checkedIndex(value.index), cursor: langruntime.checkedIndex(value.cursor), step: langruntime.checkedIndex(value.step), minimum: langruntime.checkedI32(value.minimum), maximum: langruntime.checkedI32(value.maximum), matched: langruntime.checkedI32(value.matched), visited: langruntime.checkedI32(value.visited), positionRange: copyXPathPosition(value.positionRange) };
 }
 interface XPathEvalTask {
     header: XPathEvalHeader;
@@ -51356,7 +51364,7 @@ function xpathEvalHeader(kind: number, root: number, context: XPathContext, mode
     mode = langruntime.checkedI32(mode);
     bound = copyXPathReference(bound);
     const positionRange: XPathPosition = copyXPathPosition({ valid: false, value: 0 });
-    return { kind: kind, root: root, context: copyXPathContext(context), mode: mode, bound: copyXPathReference(bound), depth: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: copyXPathPosition(positionRange) };
+    return { kind: kind, root: root, context: copyXPathContext(context), mode: mode, bound: copyXPathReference(bound), depth: 0, cells: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: copyXPathPosition(positionRange) };
 }
 function xpathEvalState(input: XPathEvalHeader, kind: number, index: number, cursor: number, step: number, minimum: number, maximum: number, matched: number, visited: number, positionRange: XPathPosition): XPathEvalHeader {
     input = copyXPathEvalHeader(input);
@@ -51369,7 +51377,7 @@ function xpathEvalState(input: XPathEvalHeader, kind: number, index: number, cur
     matched = langruntime.checkedI32(matched);
     visited = langruntime.checkedI32(visited);
     positionRange = copyXPathPosition(positionRange);
-    return { kind: kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: input.depth, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: copyXPathPosition(positionRange) };
+    return { kind: kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: input.depth, cells: input.cells, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: copyXPathPosition(positionRange) };
 }
 export function xpathEvalTask(header: XPathEvalHeader, input: XPathValue, output: XPathValue, parameters: XPathArguments, predicates: number[]): XPathEvalTask {
     return { header: copyXPathEvalHeader(header), input: input, output: output, parameters: parameters, predicates: predicates };
@@ -51460,7 +51468,7 @@ export function xpathEvalAppend(input: XPathValue, node: XPathReference): XPathV
 function xpathEvalDepth(input: XPathEvalHeader, depth: number): XPathEvalHeader {
     input = copyXPathEvalHeader(input);
     depth = langruntime.checkedI32(depth);
-    return { kind: input.kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: depth, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: copyXPathPosition(input.positionRange) };
+    return { kind: input.kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: depth, cells: input.cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: copyXPathPosition(input.positionRange) };
 }
 function xpathEvalDepthFault(depth: number, count: number, declaredLimit: number): number {
     depth = langruntime.checkedI32(depth);
@@ -51478,9 +51486,20 @@ function xpathEvalDepthFault(depth: number, count: number, declaredLimit: number
     }
     return 0;
 }
-export function xpathEvalStackChild(input: XPathEvalStack, task: XPathEvalTask, depth: number): XPathEvalStack {
-    const header: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(task.header, depth));
+export function xpathEvalStackChild(input: XPathEvalStack, task: XPathEvalTask, depth: number, cells: number): XPathEvalStack {
+    const header: XPathEvalHeader = copyXPathEvalHeader(xpathEvalCells(xpathEvalDepth(task.header, depth), cells));
     return xpathEvalStackPush(input, xpathEvalTask(header, task.input, task.output, task.parameters, task.predicates));
+}
+function xpathEvalCells(input: XPathEvalHeader, cells: number): XPathEvalHeader {
+    input = copyXPathEvalHeader(input);
+    cells = langruntime.checkedI32(cells);
+    return { kind: input.kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: input.depth, cells: cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: copyXPathPosition(input.positionRange) };
+}
+export function xpathEvalPushValue(input: XPathValue, cells: number): XPathValue {
+    if (input.state >= 0 && input.state <= 1 && input.kind > 0 && cells >= xpathValueStackLimit) {
+        return xpathValueFault(15);
+    }
+    return input;
 }
 interface XPathArguments {
     first: XPathValue;
@@ -53230,14 +53249,14 @@ function xpathParseOperatorWidth(operation: number): number {
     }
     return 1;
 }
-function xpathCompileWithLimit(input: string, limit: number): XPathProgram {
+function xpathParseFrontend(input: string, limit: number): XPathProgram {
     input = langruntime.checkedString(input);
     limit = langruntime.checkedI32(limit);
     const source: string[] = Array.from(input);
     const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
     let nodes: XPathExpression[] = [];
     langruntime.pushStruct(nodes, xpathParseNode(0, 0, 0, 0, empty, empty), copyXPathExpression);
-    const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: 0, limit: limit, fault: 0 });
+    const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: 0, limit: limit, fault: 0, steps: 0, last: 0 });
     const program: XPathProgram = { source: source, nodes: nodes, cursor: 0, root: 0, valid: true, budget: copyXPathCompileBudget(budget), runtime: xpathRuntimeEmpty() };
     const parsed: XPathProgram = xpathParseExpression(program, 1);
     if (parsed.valid === false) {
@@ -53246,6 +53265,15 @@ function xpathCompileWithLimit(input: string, limit: number): XPathProgram {
     const end: number = xpathParseSpace(parsed, parsed.cursor);
     if (!(end === parsed.source.length)) {
         return xpathParseFail(parsed);
+    }
+    return parsed;
+}
+function xpathCompileWithLimit(input: string, limit: number): XPathProgram {
+    input = langruntime.checkedString(input);
+    limit = langruntime.checkedI32(limit);
+    const parsed: XPathProgram = xpathParseFrontend(input, limit);
+    if (parsed.valid === false) {
+        return parsed;
     }
     return xpathRuntimeCompile(parsed);
 }
@@ -53265,6 +53293,7 @@ const xpathParsePredicates = 9;
 const xpathParsePredicate = 10;
 const xpathParseStep = 11;
 const xpathParseArgument = 12;
+const xpathParseCollect = 13;
 interface XPathParseTask {
     kind: number;
     minimum: number;
@@ -53320,7 +53349,7 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
     let program: XPathProgram = input;
     const values: XPathParseTask[] = [];
     let stack: XPathParseStack = { values: values, count: 0 };
-    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, minimum, 0, 0));
+    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, minimum, 1, 0));
     const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
     while (stack.count > 0 && program.valid) {
         const task: XPathParseTask = copyXPathParseTask(langruntime.indexStruct(stack.values, langruntime.checkedIndex(langruntime.checkedSubtract(stack.count, 1)), copyXPathParseTask));
@@ -53328,13 +53357,17 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
         if (task.kind === xpathParseEnter) {
             if (task.minimum === 1) {
                 program = xpathCompileEnter(program);
-                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseLeave, 0, 0, 0));
+                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseLeave, 0, task.operation, 0));
             }
             stack = xpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0));
             stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePrefix, task.minimum, 0, 0));
         }
         else if (task.kind === xpathParseLeave) {
+            program = xpathCompileSort(program, task.operation);
             program = xpathCompileLeave(program);
+        }
+        else if (task.kind === xpathParseCollect) {
+            program = xpathCompileEmit(program, xpathPath);
         }
         else if (task.kind === xpathParseLoop) {
             const position: number = xpathParseSpace(program, program.cursor);
@@ -53346,6 +53379,7 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 }
                 program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
                 if (width === 2) {
+                    program = xpathCompileEmit(program, xpathPath);
                     program = xpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty));
                     const right: number = program.root;
                     program = xpathParsePush(program, xpathParseNode(xpathPath, 0, left, right, empty, empty));
@@ -53360,6 +53394,9 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 if (!(operation === 0) && precedence >= task.minimum) {
                     const left: number = program.root;
                     const width: number = xpathParseOperatorWidth(operation);
+                    if (operation === 14) {
+                        program = xpathCompileEmit(program, xpathContext);
+                    }
                     program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParseBinary, task.minimum, operation, left));
                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, langruntime.checkedSignedAdd(precedence, 1), 0, 0));
@@ -53372,6 +53409,9 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 kind = langruntime.checkedI32(xpathPath);
             }
             const right: number = program.root;
+            if (kind === xpathBinary) {
+                program = xpathCompileEmit(program, xpathBinary);
+            }
             program = xpathParsePush(program, xpathParseNode(kind, task.operation, task.left, right, empty, empty));
             if (task.minimum > 0) {
                 stack = xpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0));
@@ -53403,10 +53443,16 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 }
                 else if (xmlQueryUriDigit(character) || (character === "." && langruntime.checkedAdd(position, 1) < program.source.length && xmlQueryUriDigit(langruntime.indexChar(program.source, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)))))) {
                     program = xpathParseNumber(program);
+                    if (program.valid) {
+                        program = xpathCompileEmit(program, xpathNumber);
+                    }
                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
                 }
                 else if (character === "'" || character === "\"") {
                     program = xpathParseLiteral(program);
+                    if (program.valid) {
+                        program = xpathCompileEmit(program, xpathString);
+                    }
                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
                 }
                 else if (character === "$") {
@@ -53416,6 +53462,7 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                     }
                     else {
                         program = xpathParseCursor(program, name.next);
+                        program = xpathCompileEmit(program, xpathVariable);
                         program = xpathParsePush(program, xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local));
                         stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
                     }
@@ -53423,7 +53470,7 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 else if (character === "(") {
                     program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParseGroup, 0, 0, 0));
-                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0));
+                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 1, 0));
                 }
                 else if (character === "/") {
                     let width: number = 1;
@@ -53431,8 +53478,10 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                         width = langruntime.checkedIndex(2);
                     }
                     program = xpathParseCursor(program, langruntime.checkedAdd(position, width));
+                    program = xpathCompileEmit(program, xpathRoot);
                     program = xpathParsePush(program, xpathParseNode(xpathRoot, 0, 0, 0, empty, empty));
                     if (width === 2) {
+                        program = xpathCompileEmit(program, xpathPath);
                         const left: number = program.root;
                         program = xpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty));
                         const right: number = program.root;
@@ -53455,26 +53504,40 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                                 callable = langruntime.checkedBool(true);
                                 const argument: number = xpathParseSpace(program, langruntime.checkedAdd(after, 1));
                                 program = xpathParseCursor(program, argument);
-                                if (xpathParseAt(program, argument, ")")) {
-                                    program = xpathParseCursor(program, langruntime.checkedAdd(argument, 1));
+                                if (xpathParseAt(program, argument, ")") || argument === program.source.length) {
+                                    if (argument < program.source.length) {
+                                        program = xpathParseCursor(program, langruntime.checkedAdd(argument, 1));
+                                    }
+                                    program = xpathCompileEmit(program, xpathFunction);
                                     program = xpathParsePush(program, xpathParseNode(xpathFunction, 0, 0, 0, name.prefix, name.local));
                                     stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
                                 }
                                 else {
                                     stack = xpathParseStackPush(stack, xpathParseArgumentTask(name.prefix, name.local, 0, 0, 0));
-                                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0));
+                                    let sort: number = 1;
+                                    if (text === "count" && name.prefix.start === name.prefix.end) {
+                                        sort = langruntime.checkedI32(0);
+                                    }
+                                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0));
                                 }
                             }
                         }
                     }
                     if (callable === false) {
-                        stack = xpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0));
+                        if (xpathParseStepStart(program, position)) {
+                            program = xpathCompileEmit(program, xpathContext);
+                            stack = xpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0));
+                        }
+                        else {
+                            program = xpathParseFail(program);
+                        }
                     }
                 }
             }
         }
         else if (task.kind === xpathParseUnary) {
             const root: number = program.root;
+            program = xpathCompileEmit(program, xpathNegate);
             program = xpathParsePush(program, xpathParseNode(xpathNegate, task.operation, root, 0, empty, empty));
         }
         else if (task.kind === xpathParseGroup) {
@@ -53495,7 +53558,11 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 const left: number = program.root;
                 program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
                 stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicate, 0, task.operation, left));
-                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0));
+                let sort: number = 0;
+                if (task.operation === xpathFilter) {
+                    sort = langruntime.checkedI32(1);
+                }
+                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0));
             }
         }
         else if (task.kind === xpathParsePredicate) {
@@ -53505,6 +53572,7 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
                 program = xpathParseFail(program);
             }
             else {
+                program = xpathCompileEmit(program, task.operation);
                 program = xpathParseCursor(program, langruntime.checkedAdd(close, 1));
                 program = xpathParsePush(program, xpathParseNode(task.operation, 0, task.left, right, empty, empty));
                 stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, task.operation, 0));
@@ -53514,12 +53582,17 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
             const position: number = xpathParseSpace(program, program.cursor);
             const abbreviated: boolean = xpathParseAt(program, position, ".");
             program = xpathParseStepLeaf(program);
-            if (abbreviated === false) {
+            if (program.valid && abbreviated === false) {
+                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseCollect, 0, 0, 0));
                 stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathPredicate, 0));
+            }
+            else if (program.valid && langruntime.indexStruct(program.nodes, langruntime.checkedIndex(program.root), copyXPathExpression).operation === 4) {
+                program = xpathCompileEmit(program, xpathPath);
             }
         }
         else if (task.kind === xpathParseArgument) {
             const argument: number = program.root;
+            program = xpathCompileEmit(program, xpathArgument);
             program = xpathParsePush(program, xpathParseNode(xpathArgument, 0, argument, 0, empty, empty));
             const next: number = program.root;
             let first: number = task.first;
@@ -53533,10 +53606,25 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
             const position: number = xpathParseSpace(program, program.cursor);
             if (xpathParseAt(program, position, ",")) {
                 program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
-                stack = xpathParseStackPush(stack, xpathParseArgumentTask(task.prefix, task.name, first, next, count));
-                stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0));
+                const argumentStart: number = xpathParseSpace(program, program.cursor);
+                program = xpathParseCursor(program, argumentStart);
+                if (argumentStart === program.source.length) {
+                    program = xpathCompileEmit(program, xpathFunction);
+                    program = xpathParsePush(program, xpathParseNode(xpathFunction, count, first, 0, task.prefix, task.name));
+                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
+                }
+                else {
+                    stack = xpathParseStackPush(stack, xpathParseArgumentTask(task.prefix, task.name, first, next, count));
+                    const name: string = xpathParseText(program, task.name);
+                    let sort: number = 1;
+                    if (name === "count" && task.prefix.start === task.prefix.end) {
+                        sort = langruntime.checkedI32(0);
+                    }
+                    stack = xpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0));
+                }
             }
             else if (xpathParseAt(program, position, ")")) {
+                program = xpathCompileEmit(program, xpathFunction);
                 program = xpathParseCursor(program, langruntime.checkedAdd(position, 1));
                 program = xpathParsePush(program, xpathParseNode(xpathFunction, count, first, 0, task.prefix, task.name));
                 stack = xpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0));
@@ -53546,9 +53634,17 @@ export function xpathParseExpression(input: XPathProgram, minimum: number): XPat
             }
         }
     }
+    while (stack.count > 0 && program.budget.fault <= 0 && !(program.budget.fault === langruntime.checkedSignedNegate(15))) {
+        const pending: XPathParseTask = copyXPathParseTask(langruntime.indexStruct(stack.values, langruntime.checkedIndex(langruntime.checkedSubtract(stack.count, 1)), copyXPathParseTask));
+        stack = xpathParseStackPop(stack);
+        if (pending.kind === xpathParseCollect || (pending.kind === xpathParseBinary && pending.operation === 14)) {
+            program = xpathCompileEmit(program, xpathPath);
+        }
+    }
     const fault: number = program.budget.fault;
     return xpathParseBudget(program, initialDepth, fault);
 }
+const xpathCompileStepLimit = 1000000;
 const xpathMinRecursionLimit = 500;
 const xpathNumber = 1;
 const xpathString = 2;
@@ -53579,9 +53675,11 @@ interface XPathCompileBudget {
     depth: number;
     limit: number;
     fault: number;
+    steps: number;
+    last: number;
 }
 function copyXPathCompileBudget(value: XPathCompileBudget): XPathCompileBudget {
-    return { depth: langruntime.checkedI32(value.depth), limit: langruntime.checkedI32(value.limit), fault: langruntime.checkedI32(value.fault) };
+    return { depth: langruntime.checkedI32(value.depth), limit: langruntime.checkedI32(value.limit), fault: langruntime.checkedI32(value.fault), steps: langruntime.checkedI32(value.steps), last: langruntime.checkedI32(value.last) };
 }
 interface XPathProgram {
     source: string[];
@@ -53752,7 +53850,7 @@ function xpathParseAxis(name: string): number {
     return 0;
 }
 export function xpathParseBudget(input: XPathProgram, depth: number, fault: number): XPathProgram {
-    const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: depth, limit: input.budget.limit, fault: fault });
+    const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: depth, limit: input.budget.limit, fault: fault, steps: input.budget.steps, last: input.budget.last });
     return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault === 0, budget: copyXPathCompileBudget(budget), runtime: input.runtime };
 }
 export function xpathCompileEnter(input: XPathProgram): XPathProgram {
@@ -53773,6 +53871,20 @@ export function xpathCompileEnter(input: XPathProgram): XPathProgram {
 export function xpathCompileLeave(input: XPathProgram): XPathProgram {
     const budget: XPathCompileBudget = copyXPathCompileBudget(input.budget);
     return xpathParseBudget(input, langruntime.checkedSignedSubtract(budget.depth, 10), budget.fault);
+}
+export function xpathCompileEmit(input: XPathProgram, kind: number): XPathProgram {
+    const prior: XPathCompileBudget = copyXPathCompileBudget(input.budget);
+    if (prior.steps >= xpathCompileStepLimit) {
+        return xpathParseBudget(input, prior.depth, langruntime.checkedSignedNegate(15));
+    }
+    const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: prior.depth, limit: prior.limit, fault: prior.fault, steps: langruntime.checkedSignedAdd(prior.steps, 1), last: kind });
+    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(budget), runtime: input.runtime };
+}
+export function xpathCompileSort(input: XPathProgram, sort: number): XPathProgram {
+    if (sort > 0 && !(input.budget.last === xpathNumber) && !(input.budget.last === xpathString)) {
+        return xpathCompileEmit(input, xpathGroup);
+    }
+    return input;
 }
 function xpathParseNodeType(name: string): number {
     name = langruntime.checkedString(name);
