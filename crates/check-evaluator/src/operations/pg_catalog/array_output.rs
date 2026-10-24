@@ -183,6 +183,16 @@ pub fn finish_array_output(
         if values.elements.len() == 0 {
             return make_text_value("{}");
         };
+        let mut partial = false;
+        let mut pending: usize = 0;
+        while pending < values.elements.len() {
+            let text = array_element_to_text(values.elements[pending].clone());
+            if text == TextValue::NonNull { partial = true; };
+            if text == TextValue::Unknown { return TextValue::Unknown; };
+            if let TextValue::Error(error) = text { return TextValue::Error(error); };
+            pending += 1;
+        }
+        if partial { return TextValue::NonNull; };
         let mut delimiter = ',';
         if box_delimiter {
             delimiter = ';';

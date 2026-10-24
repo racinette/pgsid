@@ -1,14 +1,123 @@
 const ACLITEM_INVALID_PARAMETER: u32 = 3452619;
 
-pub fn aclitem_from_text(input: TextValue) -> AclitemValue {
+const ACLITEM_INVALID_TEXT: u32 = 3484946;
+const ACLITEM_NAME_TOO_LONG: u32 = 6819626;
+
+#[derive(Clone)]
+struct AclitemIdentifier {
+    value: String,
+    next: usize,
+    state: i32,
+}
+
+fn aclitem_read_identifier(input: &str, start: usize, limit: i32, utf8: bool) -> AclitemIdentifier {
+    let characters: Vec<char> = input.chars().collect();
+    let mut position = start;
+    let mut output = String::new();
+    let mut bytes: i32 = 0;
+    let mut quoted = false;
+    while position < characters.len() && numeric_space(characters[position]) { position += 1; }
+    let mut reading = true;
+    while position < characters.len() && reading {
+        let mut character = characters[position];
+        let code = character as i32;
+        if quoted == false && character != '"' && character != '_' && code < 128
+            && (code < 48 || code > 57) && (code < 65 || code > 90) && (code < 97 || code > 122) {
+            reading = false;
+        } else {
+            let mut emit = true;
+            if character == '"' {
+                if quoted == false { quoted = true; emit = false; }
+                else if position + 1 < characters.len() && characters[position + 1] == '"' {
+                    position += 1;
+                } else { quoted = false; emit = false; };
+            };
+            if emit {
+                character = characters[position];
+                let point = character as i32;
+                let mut width: i32 = 1;
+                if point >= 128 {
+                    if utf8 == false { return AclitemIdentifier {value: output,next: position,state: -1}; };
+                    if point >= 65536 { width = 4; }
+                    else if point >= 2048 { width = 3; }
+                    else { width = 2; };
+                };
+                if limit < 0 { return AclitemIdentifier {value: output,next: position,state: -1}; };
+                if bytes > limit - width { return AclitemIdentifier {value: output,next: position,state: -2}; };
+                bytes = bytes + width;
+                output.push(character);
+            };
+            position += 1;
+        };
+    }
+    while position < characters.len() && numeric_space(characters[position]) { position += 1; }
+    AclitemIdentifier {value: output,next: position,state: 1}
+}
+
+fn aclitem_mode_character(character: char) -> bool {
+    character == 'a' || character == 'r' || character == 'w' || character == 'd'
+        || character == 'D' || character == 'x' || character == 't' || character == 'X'
+        || character == 'U' || character == 'C' || character == 'T' || character == 'c'
+        || character == 's' || character == 'A' || character == 'm' || character == '*'
+}
+
+pub fn aclitem_from_text_context(input: TextValue, limit: i32, utf8: bool) -> AclitemValue {
     if let TextValue::Error(error) = input { return AclitemValue::Error(error); };
     if let TextValue::Null = input { return AclitemValue::Null; };
+    if let TextValue::Value(text) = input {
+        let characters: Vec<char> = text.chars().collect();
+        let mut identifier = aclitem_read_identifier(text.as_str(),0,limit,utf8);
+        if identifier.state == -1 { return AclitemValue::Unknown; };
+        if identifier.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
+        let mut position = identifier.next;
+        if position >= characters.len() || characters[position] != '=' {
+            if identifier.value.as_str() != "group" && identifier.value.as_str() != "user" {
+                return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT));
+            };
+            identifier = aclitem_read_identifier(text.as_str(),position,limit,utf8);
+            if identifier.state == -1 { return AclitemValue::Unknown; };
+            if identifier.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
+            if identifier.value.as_str() == "" { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+            position = identifier.next;
+        };
+        if position >= characters.len() || characters[position] != '=' {
+            return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT));
+        };
+        position += 1;
+        let mut scanning = true;
+        while position < characters.len() && scanning {
+            let character = characters[position];
+            let code = character as i32;
+            if (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || character == '*' {
+                if aclitem_mode_character(character) == false { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+                position += 1;
+            } else {
+                if code >= 128 && utf8 == false { return AclitemValue::Unknown; };
+                scanning = false;
+            };
+        }
+        if identifier.value.as_str() != "" { return AclitemValue::Unknown; };
+        if position < characters.len() && characters[position] == '/' {
+            let grantor = aclitem_read_identifier(text.as_str(),position + 1,limit,utf8);
+            if grantor.state == -1 { return AclitemValue::Unknown; };
+            if grantor.state == -2 { return AclitemValue::Error(make_sql_error(ACLITEM_NAME_TOO_LONG)); };
+            if grantor.value.as_str() == "" { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+            return AclitemValue::Unknown;
+        };
+        while position < characters.len() && numeric_space(characters[position]) { position += 1; }
+        if position < characters.len() { return AclitemValue::Error(make_sql_error(ACLITEM_INVALID_TEXT)); };
+    };
     AclitemValue::Unknown
+}
+
+pub fn aclitem_from_text(input: TextValue) -> AclitemValue {
+    aclitem_from_text_context(input,-1,false)
 }
 
 pub fn aclitem_to_text(input: AclitemValue) -> TextValue {
     if let AclitemValue::Error(error) = input { return TextValue::Error(error); };
     if input == AclitemValue::Null { return TextValue::Null; };
+    if let AclitemValue::Value(_) = input { return TextValue::NonNull; };
     TextValue::Unknown
 }
 

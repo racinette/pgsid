@@ -122,3 +122,31 @@ INSERT INTO supplied_acl_casts(grantee,grantor,privileges,expected_hash,bypass) 
 INSERT INTO supplied_acl_casts(grantee,grantor,privileges,expected_hash,bypass) VALUES(4294967295,4294967295,'SELECT',0,true);
 -- name: acl_cast_skipped_required_null
 INSERT INTO supplied_acl_casts(grantee,grantor,privileges,expected_hash,bypass) VALUES(NULL,2,'SELECT',NULL,true);
+-- name: acl_text_null
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES(NULL,true,false);
+-- name: acl_text_wrong_null_expectation
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES(NULL,false,false);
+-- name: acl_text_empty_syntax
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('',false,false);
+-- name: acl_text_missing_grantor
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('=r/',false,false);
+-- name: acl_text_empty_quoted_grantor
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('=r/""',false,false);
+-- name: acl_text_invalid_privilege
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('=z/',false,false);
+-- name: acl_text_trailing_garbage
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('=r!garbage',false,false);
+-- name: acl_text_skipped_catalog
+INSERT INTO acl_text_imports(source_text,expected_absent,bypass) VALUES('unavailable_role=r/unavailable_role',false,true);
+-- name: acl_render_supplied_words
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(4294967295,4294967294,'SELECT',false,true,false);
+-- name: acl_render_null
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(NULL,1,'SELECT',true,true,false);
+-- name: acl_render_wrong_presence
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'SELECT',true,true,false);
+-- name: acl_render_wrong_container
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'SELECT',false,false,false);
+-- name: acl_render_bad_privileges
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'INVALID',false,true,false);
+-- name: acl_render_skipped_bad_privileges
+INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'INVALID',false,true,true);

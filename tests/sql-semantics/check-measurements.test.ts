@@ -19,6 +19,8 @@ import {
   characterValueRequirements,
   xmlValueRequirements,
   moneyValueRequirements,
+  aclitemValueRequirements,
+  nameValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -568,6 +570,70 @@ describe('CHECK measurement boundaries', () => {
       }
     } finally {
       await pg.exec('RESET extra_float_digits')
+    }
+  })
+
+  it('classifies ACL text and catalog boundaries separately from supplied privilege words', async () => {
+    const io = builtinTypeIO('pg_catalog.aclitem')!,
+      input = builtinMetadata(io.input!),
+      output = builtinMetadata(io.output!),
+      functions = catalog.functions
+        .map((f) => f.metadata)
+        .filter((f) => [...f.args, f.result].some((t) => t.includes('aclitem'))),
+      source = await readFile(
+        'crates/check-evaluator/src/operations/pg_catalog/aclitem.rs',
+        'utf8',
+      ),
+      pure = functions.filter((f) => source.includes(`pub fn ${f.rustName}(`))
+    expect(functions).toHaveLength(12)
+    expect(pure).toHaveLength(8)
+    expect(pure.every((f) => f.volatility === 'i' && !f.returnsSet)).toBe(true)
+    expect(aclitemValueRequirements(input)?.map((r) => r.setting)).toEqual([
+      'role_catalog',
+      'maxIdentifierBytes',
+      'server_encoding',
+    ])
+    expect(aclitemValueRequirements(output)?.map((r) => r.setting)).toEqual(['role_catalog'])
+    expect(callableBoundary(input, new Set([...input.args, input.result])).categories).toContain(
+      'internal-interface',
+    )
+    expect(callableBoundary(output, new Set([...output.args, output.result])).categories).toContain(
+      'internal-interface',
+    )
+    const explode = functions.find((f) => f.name === 'aclexplode')!,
+      lookup = functions.find((f) => f.name === 'pg_get_acl')!
+    expect(
+      callableBoundary(explode, new Set([...explode.args, explode.result])).categories,
+    ).toContain('set-returning')
+    expect(aclitemValueRequirements(lookup)?.map((r) => r.setting)).toEqual(['catalog'])
+    for (const fn of [input, output, lookup])
+      expect(aclitemValueRequirements({ ...fn, schema: 'custom' })).toBeNull()
+    await expect(
+      pg.exec(
+        'CREATE TABLE acl_forbidden_set(entries aclitem[],CHECK(aclexplode(entries) IS NOT NULL))',
+      ),
+    ).rejects.toMatchObject({ code: '0A000' })
+    await pg.exec('CREATE TABLE acl_inventory_object(id integer)')
+    try {
+      const query = `SELECT pg_get_acl('pg_class'::regclass::oid,'acl_inventory_object'::regclass::oid,0)::text AS value`,
+        before = (await pg.query<{ value: string | null }>(query)).rows[0]!.value
+      await pg.exec('GRANT SELECT ON acl_inventory_object TO PUBLIC')
+      const after = (await pg.query<{ value: string | null }>(query)).rows[0]!.value
+      expect(before).toBeNull()
+      expect(after).not.toBeNull()
+    } finally {
+      await pg.exec('DROP TABLE acl_inventory_object')
+    }
+    const nameInputs = catalog.functions
+      .map((f) => f.metadata)
+      .filter((f) => nameValueRequirements(f))
+    expect(nameInputs).toHaveLength(4)
+    for (const fn of nameInputs) {
+      expect(nameValueRequirements(fn)?.map((r) => r.setting)).toEqual([
+        'maxIdentifierBytes',
+        'server_encoding',
+      ])
+      expect(nameValueRequirements({ ...fn, schema: 'custom' })).toBeNull()
     }
   })
 

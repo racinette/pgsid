@@ -60,3 +60,22 @@ CREATE TABLE supplied_acl_casts (
  CONSTRAINT acl_checked_record CHECK(CASE WHEN bypass THEN true ELSE (ROW(makeaclitem(grantee,grantor,privileges,false),ARRAY[makeaclitem(grantee,grantor,privileges,false)])::acl_audit_leaf).entry IS NOT DISTINCT FROM makeaclitem(grantee,grantor,privileges,false) END),
  CONSTRAINT acl_checked_record_discarded_field CHECK(CASE WHEN bypass THEN true ELSE cardinality((ROW(makeaclitem(grantee,grantor,privileges,false),ARRAY[makeaclitem(grantee,grantor,privileges,false)])::acl_audit_leaf).history)=1 END)
 );
+
+CREATE TABLE acl_text_imports (
+ source_text text,
+ expected_absent boolean,
+ bypass boolean,
+ CONSTRAINT acl_import_presence CHECK(CASE WHEN bypass THEN true ELSE (source_text::aclitem IS NULL)=expected_absent END),
+ CONSTRAINT acl_import_array CHECK(CASE WHEN bypass THEN true ELSE cardinality(ARRAY[source_text]::aclitem[])=1 END)
+);
+
+CREATE TABLE supplied_acl_rendering (
+ grantee oid,
+ grantor oid,
+ privileges text,
+ expected_absent boolean,
+ expected_rendered boolean,
+ bypass boolean,
+ CONSTRAINT acl_render_presence CHECK(CASE WHEN bypass THEN true ELSE (makeaclitem(grantee,grantor,privileges,false)::text IS NULL)=expected_absent END),
+ CONSTRAINT acl_render_containers CHECK(CASE WHEN bypass THEN true ELSE ((ARRAY[makeaclitem(grantee,grantor,privileges,false)]::text IS NOT NULL) AND (ROW(makeaclitem(grantee,grantor,privileges,false),1)::text IS NOT NULL))=expected_rendered END)
+);

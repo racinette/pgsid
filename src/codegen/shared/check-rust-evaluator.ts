@@ -730,6 +730,7 @@ export type CheckExecutionContext = {
   defaultCtype?: 'C' | 'C.UTF-8'
   serverEncoding?: 'UTF8'
   nativeByteOrder?: 'little' | 'big'
+  maxIdentifierBytes?: number
   trigonometry?: 'fdlibm'
   arrayNulls?: boolean
   xmlOption?: 'document' | 'content'
@@ -1515,7 +1516,10 @@ export function emitCheckRustEvaluator(
     if (family === 6)
       scalar = `scalar_enum_from_text(${event}, ${rustStringLiteral(definition!.values.join('\0'))}, ${definition!.values.length})`
     else if (family === 8)
-      scalar = elementType === 'pg_catalog.name' && !stored ? `name_from_text(${event})` : event
+      scalar =
+        elementType === 'pg_catalog.name' && !stored
+          ? `name_from_text_context(${event},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`
+          : event
     else if (family === 9) scalar = `scalar_boolean_from_text(${event})`
     else if (family === 10) scalar = `scalar_numeric_from_text(${event})`
     else if (family === 13)
@@ -1538,6 +1542,8 @@ export function emitCheckRustEvaluator(
       scalar = stored
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 46) {
+      scalar = `aclitem_from_text_context(${event},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 45) {
       scalar =
         xmlStorage || storedArrayXmlStorageScope
@@ -4329,6 +4335,26 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
+      if (
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'name' &&
+        implementation.result === 'pg_catalog.name' &&
+        implementation.args.length === 1 &&
+        ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(
+          implementation.args[0]!,
+        )
+      ) {
+        let argument = ownedOperand(operands[0]!)
+        if (implementation.args[0] === 'pg_catalog.bpchar')
+          argument = bind(`sql__pg_catalog__text__vc4r(${argument})`)
+        return {
+          name: bind(
+            `name_from_text_context(${argument},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: call.type,
+        }
+      }
       if (isIdentifierParseCallable(call.signature))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (arrayRegex)
@@ -5306,6 +5332,8 @@ export function emitCheckRustEvaluator(
         builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      if (operand.type === 'pg_catalog.aclitem')
+        return { name: bind(`aclitem_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.money')
         return {
           name: bind(
@@ -5506,6 +5534,15 @@ export function emitCheckRustEvaluator(
         return { name: bind(`json_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
+    }
+    if (node.kind === 'text-to-aclitem') {
+      const operand = emitScalar(node.operand, bindings, used)
+      return {
+        name: bind(
+          `aclitem_from_text_context(${ownedOperand(operand)},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'text-to-money') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -6364,8 +6401,12 @@ export function emitCheckRustEvaluator(
         return { name: bind(`lseg_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'aclitem') {
+        if (value.value === null) return { name: bind('aclitem_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return {
-          name: bind(value.value === null ? 'aclitem_null()' : 'aclitem_unknown()'),
+          name: bind(
+            `aclitem_from_text_context(${text},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
           type: value.type,
         }
       }
@@ -6397,7 +6438,12 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'name') {
         if (value.value === null) return { name: bind('text_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        return { name: bind(`name_from_text(${text})`), type: value.type }
+        return {
+          name: bind(
+            `name_from_text_context(${text},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
       }
       if (value.kind === 'internal-char') {
         if (value.value === null) return { name: bind('internal_char_null()'), type: value.type }

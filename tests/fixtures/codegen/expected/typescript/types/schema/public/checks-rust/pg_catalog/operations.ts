@@ -84,7 +84,93 @@ THE SOFTWARE.
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
 const aclitemInvalidParameter = 3452619;
-export function aclitemFromText(input: checkruntime.TextValue): checkruntime.AclitemValue {
+const aclitemInvalidText = 3484946;
+const aclitemNameTooLong = 6819626;
+interface AclitemIdentifier {
+    value: string;
+    next: number;
+    state: number;
+}
+function copyAclitemIdentifier(value: AclitemIdentifier): AclitemIdentifier {
+    return { value: langruntime.checkedString(value.value), next: langruntime.checkedIndex(value.next), state: langruntime.checkedI32(value.state) };
+}
+function aclitemReadIdentifier(input: string, start: number, limit: number, utf8: boolean): AclitemIdentifier {
+    input = langruntime.checkedString(input);
+    start = langruntime.checkedIndex(start);
+    limit = langruntime.checkedI32(limit);
+    utf8 = langruntime.checkedBool(utf8);
+    const characters: string[] = Array.from(input);
+    let position: number = start;
+    let output: string = "";
+    let bytes: number = 0;
+    let quoted: boolean = false;
+    while (position < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let reading: boolean = true;
+    while (position < characters.length && reading) {
+        let character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (quoted === false && !(character === "\"") && !(character === "_") && code < 128 && (code < 48 || code > 57) && (code < 65 || code > 90) && (code < 97 || code > 122)) {
+            reading = langruntime.checkedBool(false);
+        }
+        else {
+            let emit: boolean = true;
+            if (character === "\"") {
+                if (quoted === false) {
+                    quoted = langruntime.checkedBool(true);
+                    emit = langruntime.checkedBool(false);
+                }
+                else if (langruntime.checkedAdd(position, 1) < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\"") {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                else {
+                    quoted = langruntime.checkedBool(false);
+                    emit = langruntime.checkedBool(false);
+                }
+            }
+            if (emit) {
+                character = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position)));
+                const point: number = langruntime.checkedChar(character).codePointAt(0)!;
+                let width: number = 1;
+                if (point >= 128) {
+                    if (utf8 === false) {
+                        return { value: output, next: position, state: langruntime.checkedSignedNegate(1) };
+                    }
+                    if (point >= 65536) {
+                        width = langruntime.checkedI32(4);
+                    }
+                    else if (point >= 2048) {
+                        width = langruntime.checkedI32(3);
+                    }
+                    else {
+                        width = langruntime.checkedI32(2);
+                    }
+                }
+                if (limit < 0) {
+                    return { value: output, next: position, state: langruntime.checkedSignedNegate(1) };
+                }
+                if (bytes > langruntime.checkedSignedSubtract(limit, width)) {
+                    return { value: output, next: position, state: langruntime.checkedSignedNegate(2) };
+                }
+                bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, width));
+                output = output + langruntime.checkedChar(character);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    while (position < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { value: output, next: position, state: 1 };
+}
+function aclitemModeCharacter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === "a" || character === "r" || character === "w" || character === "d" || character === "D" || character === "x" || character === "t" || character === "X" || character === "U" || character === "C" || character === "T" || character === "c" || character === "s" || character === "A" || character === "m" || character === "*";
+}
+export function aclitemFromTextContext(input: checkruntime.TextValue, limit: number, utf8: boolean): checkruntime.AclitemValue {
+    limit = langruntime.checkedI32(limit);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -92,7 +178,81 @@ export function aclitemFromText(input: checkruntime.TextValue): checkruntime.Acl
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        let identifier: AclitemIdentifier = aclitemReadIdentifier(text, 0, limit, utf8);
+        if (identifier.state === langruntime.checkedSignedNegate(1)) {
+            return { kind: "Unknown" };
+        }
+        if (identifier.state === langruntime.checkedSignedNegate(2)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
+        }
+        let position: number = identifier.next;
+        if (position >= characters.length || !(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "=")) {
+            if (!(identifier.value === "group") && !(identifier.value === "user")) {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+            }
+            identifier = copyAclitemIdentifier(aclitemReadIdentifier(text, position, limit, utf8));
+            if (identifier.state === langruntime.checkedSignedNegate(1)) {
+                return { kind: "Unknown" };
+            }
+            if (identifier.state === langruntime.checkedSignedNegate(2)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
+            }
+            if (identifier.value === "") {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+            }
+            position = langruntime.checkedIndex(identifier.next);
+        }
+        if (position >= characters.length || !(langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "=")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+        let scanning: boolean = true;
+        while (position < characters.length && scanning) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+            if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || character === "*") {
+                if (aclitemModeCharacter(character) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else {
+                if (code >= 128 && utf8 === false) {
+                    return { kind: "Unknown" };
+                }
+                scanning = langruntime.checkedBool(false);
+            }
+        }
+        if (!(identifier.value === "")) {
+            return { kind: "Unknown" };
+        }
+        if (position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "/") {
+            const grantor: AclitemIdentifier = aclitemReadIdentifier(text, langruntime.checkedAdd(position, 1), limit, utf8);
+            if (grantor.state === langruntime.checkedSignedNegate(1)) {
+                return { kind: "Unknown" };
+            }
+            if (grantor.state === langruntime.checkedSignedNegate(2)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemNameTooLong) };
+            }
+            if (grantor.value === "") {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+            }
+            return { kind: "Unknown" };
+        }
+        while (position < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position < characters.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidText) };
+        }
+    }
     return { kind: "Unknown" };
+}
+export function aclitemFromText(input: checkruntime.TextValue): checkruntime.AclitemValue {
+    return aclitemFromTextContext(input, langruntime.checkedSignedNegate(1), false);
 }
 export function aclitemToText(input: checkruntime.AclitemValue): checkruntime.TextValue {
     if (input.kind === "Error") {
@@ -101,6 +261,9 @@ export function aclitemToText(input: checkruntime.AclitemValue): checkruntime.Te
     }
     if (checkruntime.equalAclitemValue(input, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        return { kind: "NonNull" };
     }
     return { kind: "Unknown" };
 }
@@ -2226,6 +2389,25 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
         }
         if (values.elements.length === 0) {
             return checkruntime.makeTextValue("{}");
+        }
+        let partial: boolean = false;
+        let pending: number = 0;
+        while (pending < values.elements.length) {
+            const text: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(values.elements, langruntime.checkedIndex(pending), checkruntime.copyArrayElement)));
+            if (checkruntime.equalTextValue(text, { kind: "NonNull" })) {
+                partial = langruntime.checkedBool(true);
+            }
+            if (checkruntime.equalTextValue(text, { kind: "Unknown" })) {
+                return { kind: "Unknown" };
+            }
+            if (text.kind === "Error") {
+                const error: checkruntime.SqlError = text.value;
+                return { kind: "Error", value: error };
+            }
+            pending = langruntime.checkedAdd(pending, 1);
+        }
+        if (partial) {
+            return { kind: "NonNull" };
         }
         let delimiter: string = ",";
         if (boxDelimiter) {
@@ -11122,6 +11304,9 @@ export function prepareCompositeOutput(input: checkruntime.CompositeValue, typeN
     return { kind: "Unknown" };
 }
 export function compositeOutputHasField(input: checkruntime.TextValue): boolean {
+    if (checkruntime.equalTextValue(input, { kind: "NonNull" })) {
+        return true;
+    }
     if (input.kind === "Value") {
         return true;
     }
@@ -11136,13 +11321,37 @@ export function compositeOutputMatches(input: checkruntime.CompositeValue, typeN
 }
 export function appendCompositeOutput(input: checkruntime.TextValue, field: checkruntime.TextValue, first: boolean): checkruntime.TextValue {
     first = langruntime.checkedBool(first);
+    if (checkruntime.equalTextValue(input, { kind: "NonNull" })) {
+        if (field.kind === "Error") {
+            const error: checkruntime.SqlError = field.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalTextValue(field, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        if (field.kind === "Value") {
+            const text: string = langruntime.checkedString(field.value);
+            const characters: string[] = Array.from(text);
+            let position: number = 0;
+            while (position < characters.length) {
+                if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\0") {
+                    return { kind: "Unknown" };
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Value") {
         const source: string = langruntime.checkedString(input.value);
         if (field.kind === "Error") {
             const error: checkruntime.SqlError = field.value;
             return { kind: "Error", value: error };
         }
-        if (checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "NonNull" })) {
+        if (checkruntime.equalTextValue(field, { kind: "NonNull" })) {
+            return { kind: "NonNull" };
+        }
+        if (checkruntime.equalTextValue(field, { kind: "Unknown" })) {
             return { kind: "Unknown" };
         }
         let result: string = source;
@@ -27630,6 +27839,25 @@ export function varcharEr5y(input: checkruntime.TextValue): checkruntime.TextVal
 }
 export function namesendY7mk(input: checkruntime.TextValue): checkruntime.ByteaValue {
     return textWireWithoutContext(input);
+}
+export function nameFromTextContext(input: checkruntime.TextValue, limit: number, utf8: boolean): checkruntime.TextValue {
+    limit = langruntime.checkedI32(limit);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (utf8 === false) {
+            const characters: string[] = Array.from(value);
+            let position: number = 0;
+            while (position < characters.length) {
+                if (langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position))).codePointAt(0)! >= 128) {
+                    return { kind: "Unknown" };
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        return nameFromTextWithLimit({ kind: "Value", value: value }, checkruntime.makeInt4Value(limit));
+    }
+    return input;
 }
 export function btnamecmp9x5j(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
