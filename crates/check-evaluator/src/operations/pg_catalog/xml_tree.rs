@@ -1,11 +1,11 @@
 #[derive(Clone, Copy)]
-struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan, defaulted: bool, id_candidate: bool }
+struct XmlTreeAttribute { name: XmlSpan, value: XmlSpan, query_source: XmlSpan, defaulted: bool, id_candidate: bool }
 
 #[derive(Clone, Copy)]
 struct XmlTreeNode {
     kind: i32, name: XmlSpan, value: XmlSpan, parent: usize,
     next: usize, previous: usize, first: usize, last: usize, attribute_start: usize,
-    attribute_end: usize, preserve: bool, textual: bool, text_seen: bool, blank_policy: i32,
+    attribute_end: usize, preserve: bool, textual: bool, text_seen: bool, blank_policy: i32, content_present: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -56,7 +56,7 @@ pub(crate) fn xml_tree_store(input: XmlTree, text: &str) -> XmlTree {
 pub(crate) fn xml_tree_links(input: XmlTreeNode, next: usize, first: usize, last: usize, value: XmlSpan, textual: bool, text_seen: bool) -> XmlTreeNode {
     XmlTreeNode { kind: input.kind, name: input.name, value, parent: input.parent,
         next, previous: input.previous, first, last, attribute_start: input.attribute_start, attribute_end: input.attribute_end,
-        preserve: input.preserve, textual, text_seen, blank_policy: input.blank_policy }
+        preserve: input.preserve, textual, text_seen, blank_policy: input.blank_policy, content_present: input.content_present }
 }
 
 pub(crate) fn xml_tree_append(input: XmlTree, node: XmlTreeNode) -> XmlTree {
@@ -86,7 +86,7 @@ pub(crate) fn xml_tree_space(input: XmlTree, index: usize, preserve: bool, text_
     let node = nodes[index];
     nodes[index] = XmlTreeNode { kind: node.kind, name: node.name, value: node.value, parent: node.parent,
         next: node.next, previous: node.previous, first: node.first, last: node.last, attribute_start: node.attribute_start,
-        attribute_end: node.attribute_end, preserve, textual: node.textual, text_seen, blank_policy };
+        attribute_end: node.attribute_end, preserve, textual: node.textual, text_seen, blank_policy, content_present: node.content_present };
     XmlTree { nodes, attributes: input.attributes, characters: input.characters, current: input.current,
         written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
 }
@@ -96,17 +96,21 @@ pub(crate) fn xml_tree_unsupported(input: XmlTree) -> XmlTree {
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: false }
 }
 
-pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, defaulted: bool, id_candidate: bool) -> XmlTree {
+pub(crate) fn xml_tree_add_attribute(input: XmlTree, name: XmlSpan, value: XmlSpan, query_source: XmlSpan, defaulted: bool, id_candidate: bool) -> XmlTree {
     let mut attributes = input.attributes;
-    attributes.push(XmlTreeAttribute { name, value, defaulted, id_candidate });
+    attributes.push(XmlTreeAttribute { name, value, query_source, defaulted, id_candidate });
     XmlTree { nodes: input.nodes, attributes, characters: input.characters,
         current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serialization_known: input.serialization_known }
 }
 
-pub(crate) fn xml_tree_leaf(input: XmlTree, kind: i32, name: XmlSpan, value: XmlSpan) -> XmlTree {
+pub(crate) fn xml_tree_leaf_content(input: XmlTree, kind: i32, name: XmlSpan, value: XmlSpan, content_present: bool) -> XmlTree {
     let node = XmlTreeNode { kind, name, value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0,
-        attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 };
+        attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1, content_present };
     xml_tree_append(input,node)
+}
+
+pub(crate) fn xml_tree_leaf(input: XmlTree, kind: i32, name: XmlSpan, value: XmlSpan) -> XmlTree {
+    xml_tree_leaf_content(input,kind,name,value,value.end > value.start)
 }
 
 pub(crate) fn xml_tree_add_text(input: XmlTree, text: &str, forced: bool, closing: bool, end: bool) -> XmlTree {
@@ -171,7 +175,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
             let value_text = xml_tree_source_text(source,begin,scanned.next-2,preserve_carriage);
             tree = xml_tree_store(tree,value_text.as_str());
             let value = tree.written;
-            tree = xml_tree_leaf(tree,5,name_span,value);
+            tree = xml_tree_leaf_content(tree,5,name_span,value,scanned.next > name.next+2);
             position = scanned.next;
         } else if xml_at(source,position,"<![CDATA[") {
             let scanned = xml_cdata(source,position);
@@ -211,8 +215,13 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 let attribute_name = tree.written;
                 tree = xml_tree_store(tree,value.as_str());
                 let attribute_value = tree.written;
+                let mut query_source = XmlSpan { start: 0, end: 0 };
+                if tree.flags.query && xml_query_namespace_attribute_text(attribute_text.as_str()) == false {
+                    let text = xml_query_attribute_source(source,quoted.value,tokenized);
+                    tree = xml_tree_store(tree,text.as_str()); query_source = tree.written;
+                };
                 let id_candidate = xml_query_id_candidate(source,quoted.value);
-                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,false,id_candidate);
+                tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,query_source,false,id_candidate);
                 position = xml_skip_space(source,quoted.next);
             }
             let explicit_end = tree.attributes.len();
@@ -239,7 +248,8 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                         let attribute_name = tree.written;
                         tree = xml_tree_store(tree,value_text.as_str());
                         let attribute_value = tree.written;
-                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,true,false);
+                        let query_source = XmlSpan { start: 0, end: 0 };
+                        tree = xml_tree_add_attribute(tree,attribute_name,attribute_value,query_source,true,false);
                     };
                 };
                 index += 1;
@@ -263,7 +273,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
             let blank_policy = xml_tree_blank_policy(&tree,name_text.as_str());
             let span = XmlSpan { start: 0, end: 0 };
             let node = XmlTreeNode { kind: 1, name, value: span, parent: tree.current, next: 0, previous: tree.nodes[tree.current].last, first: 0, last: 0,
-                attribute_start, attribute_end, preserve, textual: false, text_seen: false, blank_policy };
+                attribute_start, attribute_end, preserve, textual: false, text_seen: false, blank_policy, content_present: false };
             let child = tree.nodes.len();
             tree = xml_tree_append(tree,node);
             if tree.flags.query && xml_query_default_names_valid(&tree,child,arena,stored) == false { tree = xml_query_invalid_names(tree); };
@@ -352,7 +362,7 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
     let empty = XmlSpan { start: 0, end: 0 };
     let mut nodes: Vec<XmlTreeNode> = Vec::new();
     nodes.push(XmlTreeNode { kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0,
-        attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 });
+        attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1, content_present: false });
     let attributes: Vec<XmlTreeAttribute> = Vec::new();
     let flags = XmlTreeFlags { document: effective_document, declaration: actual_declaration && begin == 0,
         unicode: effective_document && actual_declaration && begin == 0, query, query_ids_valid: true, query_names_valid: true, standalone, version: version_span, doctype_end };

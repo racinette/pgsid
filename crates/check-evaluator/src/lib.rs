@@ -358,6 +358,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_eval.rs");
     include!("operations/pg_catalog/xml_xpath_eval_machine_state.rs");
     include!("operations/pg_catalog/xml_xpath_eval_machine.rs");
+    include!("operations/pg_catalog/xml_xpath_result.rs");
     include!("operations/pg_catalog/xml_indent.rs");
     include!("operations/pg_catalog/xml_legacy_names.rs");
     include!("operations/pg_catalog/xml_construct.rs");

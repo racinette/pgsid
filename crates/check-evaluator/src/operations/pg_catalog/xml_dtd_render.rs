@@ -123,7 +123,8 @@ pub(crate) fn xml_tree_dtd_attributes(input: XmlTree, source: &XmlSource, stored
                 let defined_owner = xml_source_range(stored,value.element);
                 let defined_name = xml_source_range(stored,value.name);
                 if defined_owner == owner && defined_name == name {
-                    let text = xml_source_range(stored,value.value);
+                    let mut text = xml_source_range(stored,value.value);
+                    if tree.flags.query { text = xml_query_attribute_source(stored,value.raw_value,value.tokenized); };
                     tree = xml_tree_store(tree,text.as_str());
                     let encoded = xml_tree_escape(&tree,tree.written,true);
                     line.push('"'); line.push_str(encoded.as_str()); line.push('"'); found = true;
@@ -157,7 +158,7 @@ pub(crate) fn xml_tree_dtd_subset(input: XmlTree, source: &XmlSource, stored: &X
             let begin = xml_skip_space(source,name.next);
             let text = xml_tree_normalize(source,begin,parsed.next-2);
             let mut line = "<?".to_owned(); line.push_str(name_text.as_str());
-            if begin < parsed.next-2 { line.push(' '); line.push_str(text.as_str()); };
+            if parsed.next > name.next+2 { line.push(' '); line.push_str(text.as_str()); };
             line.push_str("?>");
             tree = xml_tree_dtd_add(tree,7,"","",line.as_str(),-1); position = parsed.next;
         } else if source.characters[position] == '%' {
@@ -240,7 +241,9 @@ pub(crate) fn xml_tree_doctype(input: XmlTree, source: &XmlSource, stored: &XmlS
     let mut index: usize = 0;
     while index < tree.declarations.len() { if tree.declarations[index].kind == 5 { notations += 1; }; index += 1; }
     if notations > 1 { tree = xml_tree_unsupported(tree); };
-    if tree.declarations.len() > 0 {
+    let mut declared = false; index = 0;
+    while index < tree.declarations.len() { if tree.declarations[index].kind <= 5 { declared = true; }; index += 1; }
+    if declared {
         output.push_str(" [\n");
         let mut pass: usize = 0;
         while pass < 2 {

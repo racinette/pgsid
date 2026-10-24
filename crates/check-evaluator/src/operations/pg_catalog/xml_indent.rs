@@ -14,7 +14,7 @@ fn xml_tree_escape(tree: &XmlTree, span: XmlSpan, attribute: bool) -> String {
         else if character == '\r' { output.push_str("&#13;"); }
         else if character == '\n' && attribute { output.push_str("&#10;"); }
         else if character == '\t' && attribute { output.push_str("&#9;"); }
-        else if code >= 128 && tree.flags.unicode == false {
+        else if code >= 128 && tree.flags.unicode == false && tree.flags.query == false {
             let reference = xml_element_character_reference(code); output.push_str(reference.as_str());
         } else { output.push(character); };
         position += 1;
@@ -91,7 +91,7 @@ fn xml_tree_write_node(tree: &XmlTree, node: usize) -> String {
                 else if node.kind == 6 { output.push_str(value.as_str()); }
                 else if node.kind == 5 {
                     let name = xml_tree_text(tree,node.name); output.push_str("<?"); output.push_str(name.as_str());
-                    if node.value.end > node.value.start { output.push(' '); output.push_str(value.as_str()); };
+                    if node.content_present { output.push(' '); output.push_str(value.as_str()); };
                     output.push_str("?>");
                 };
                 if task.padding { output.push('\n'); };
