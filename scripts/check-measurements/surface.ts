@@ -23,6 +23,7 @@ import {
   moneyValueRequirements,
   aclitemValueRequirements,
   nameValueRequirements,
+  textSearchValueRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
 import { arrayValueRequirements } from './arrays.js'
@@ -122,6 +123,7 @@ export async function measureSurface(pg: PGlite) {
         rangeValueRequirements(implementation) ??
         hashValueRequirements(implementation) ??
         characterValueRequirements(implementation) ??
+        textSearchValueRequirements(implementation) ??
         jsonValueRequirements(implementation) ??
         xmlValueRequirements(implementation) ??
         moneyValueRequirements(implementation) ??
