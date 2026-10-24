@@ -38,13 +38,12 @@ fn xpath_compile_with_limit(input: &str, limit: i32) -> XPathProgram {
     let mut nodes: Vec<XPathExpression> = Vec::new();
     nodes.push(xpath_parse_node(0,0,0,0,empty,empty));
     let budget = XPathCompileBudget { depth: 0, limit, fault: 0 };
-    let program = XPathProgram { source, nodes, cursor: 0, root: 0, valid: true, budget };
+    let program = XPathProgram { source, nodes, cursor: 0, root: 0, valid: true, budget, runtime: xpath_runtime_empty() };
     let parsed = xpath_parse_expression(program,1);
     if parsed.valid == false { return parsed; };
     let end = xpath_parse_space(&parsed,parsed.cursor);
     if end != parsed.source.len() { return xpath_parse_fail(parsed); };
-    let root = parsed.root;
-    xpath_optimize(parsed,root)
+    xpath_runtime_compile(parsed)
 }
 
 

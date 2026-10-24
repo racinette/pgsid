@@ -345,6 +345,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/xml_xpath_convert.rs");
     include!("operations/pg_catalog/xml_xpath_compare.rs");
     include!("operations/pg_catalog/xml_xpath_optimize.rs");
+    include!("operations/pg_catalog/xml_xpath_runtime.rs");
     include!("operations/pg_catalog/xml_xpath_eval_state.rs");
     include!("operations/pg_catalog/xml_xpath_math.rs");
     include!("operations/pg_catalog/xml_xpath_strings.rs");

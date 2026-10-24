@@ -67,8 +67,8 @@ fn xpath_function_spec(name: &str) -> XPathFunctionSpec {
 
 fn xpath_constant_position(program: &XPathProgram, root: usize, powers: &XPathPowers) -> XPathPosition {
     let mut index = root;
-    while program.nodes[index].kind == XPATH_GROUP { index = program.nodes[index].left; }
-    let node = program.nodes[index];
+    while program.runtime.nodes[index].kind == XPATH_GROUP { index = program.runtime.nodes[index].left; }
+    let node = program.runtime.nodes[index];
     if node.kind == XPATH_NUMBER {
         let text = xpath_parse_text(program,node.name); let parsed = xpath_number_text(text.as_str(),powers);
         if parsed.state == 0 {

@@ -16,7 +16,7 @@ const XPATH_EVAL_COLLECT_PREDICATE: i32 = 15;
 
 #[derive(Clone, Copy)]
 struct XPathEvalHeader {
-    kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference,
+    kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference, depth: i32,
     index: usize, cursor: usize, step: usize, minimum: i32, maximum: i32, matched: i32, visited: i32, position_range: XPathPosition,
 }
 
@@ -28,11 +28,11 @@ struct XPathEvalStack { values: Vec<XPathEvalTask>, count: usize }
 
 fn xpath_eval_header(kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference) -> XPathEvalHeader {
     let position_range = XPathPosition { valid: false, value: 0 };
-    XPathEvalHeader { kind, root, context, mode, bound, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, position_range }
+    XPathEvalHeader { kind, root, context, mode, bound, depth: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, position_range }
 }
 
 fn xpath_eval_state(input: XPathEvalHeader, kind: i32, index: usize, cursor: usize, step: usize, minimum: i32, maximum: i32, matched: i32, visited: i32, position_range: XPathPosition) -> XPathEvalHeader {
-    XPathEvalHeader { kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, index, cursor, step, minimum, maximum, matched, visited, position_range }
+    XPathEvalHeader { kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, index, cursor, step, minimum, maximum, matched, visited, position_range }
 }
 
 pub(crate) fn xpath_eval_task(header: XPathEvalHeader, input: XPathValue, output: XPathValue, parameters: XPathArguments, predicates: Vec<usize>) -> XPathEvalTask {
@@ -67,7 +67,7 @@ pub(crate) fn xpath_eval_stack_pop(input: XPathEvalStack) -> XPathEvalStack {
 }
 
 pub(crate) fn xpath_eval_function_finish(program: &XPathProgram, root: usize, parameters: XPathArguments, context: XPathContext, tree: &XmlTree, graph: &XPathGraph, namespaces: &XPathNamespaces, powers: &XPathPowers) -> XPathValue {
-    let node = program.nodes[root]; let name = xpath_parse_text(program,node.name);
+    let node = program.runtime.nodes[root]; let name = xpath_parse_text(program,node.name);
     if node.prefix.start != node.prefix.end {
         let prefix = xpath_parse_text(program,node.prefix);
         if xpath_namespace_defined(namespaces,prefix.as_str()) == false { return xpath_value_fault(19); };
@@ -93,4 +93,21 @@ pub(crate) fn xpath_eval_binary_finish(left: XPathValue, right: XPathValue, oper
 pub(crate) fn xpath_eval_append(input: XPathValue, node: XPathReference) -> XPathValue {
     let mut values = input.nodes.values; values.push(node);
     xpath_value_nodes(XPathSequence { values, cyclic: false, cycle: 0 })
+}
+
+fn xpath_eval_depth(input: XPathEvalHeader, depth: i32) -> XPathEvalHeader {
+    XPathEvalHeader { kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, position_range: input.position_range }
+}
+
+fn xpath_eval_depth_fault(depth: i32, count: i32, declared_limit: i32) -> i32 {
+    let mut limit = declared_limit; if limit <= 0 { limit = XPATH_MIN_RECURSION_LIMIT; };
+    if count > 0 && (depth > limit || count > limit-depth) {
+        if declared_limit <= 0 { return 4; }; return -26;
+    };
+    0
+}
+
+pub(crate) fn xpath_eval_stack_child(input: XPathEvalStack, task: XPathEvalTask, depth: i32) -> XPathEvalStack {
+    let header = xpath_eval_depth(task.header,depth);
+    xpath_eval_stack_push(input,xpath_eval_task(header,task.input,task.output,task.parameters,task.predicates))
 }
