@@ -78,3 +78,15 @@ CREATE TABLE document_reference_sets (
  CONSTRAINT document_set_member CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[source::tsvector]<@'{a:1A,NULL,z:2B}'::tsvector[])=expected_member END),
  CONSTRAINT document_set_record CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector=($reference$("a:1A","{z:2B,NULL}")$reference$::document_reference_set).head)=expected_record END)
 );
+
+CREATE TYPE document_window AS RANGE(subtype=tsvector);
+CREATE FUNCTION document_default_window(lo tsvector DEFAULT 'a:1A',hi tsvector DEFAULT 'zzzzzzzzzz')
+ RETURNS document_window LANGUAGE internal IMMUTABLE AS 'range_constructor2';
+CREATE TABLE document_default_windows (
+ source text,
+ expected_default boolean,
+ expected_supplied boolean,
+ bypass boolean,
+ CONSTRAINT document_default_head CHECK(CASE WHEN bypass THEN true ELSE (lower(document_default_window())=source::tsvector) IS NOT DISTINCT FROM expected_default END),
+ CONSTRAINT document_supplied_head CHECK(CASE WHEN bypass THEN true ELSE (lower(document_default_window(source::tsvector))=source::tsvector) IS NOT DISTINCT FROM expected_supplied END)
+);

@@ -36206,6 +36206,9 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToTid(upper)
 		return BttidcmpAk5t(left, right)
 	}
+	if kind == 47 {
+		return TsvectorOrder(checkruntime.ArrayElementToTsvector(lower), checkruntime.ArrayElementToTsvector(upper))
+	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport, enumLabels string, enumCount int, boundProfile checkruntime.RangeBoundContext) checkruntime.RangeValue {
@@ -36774,6 +36777,9 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 	}
 	if kind == 39 {
 		return checkruntime.ArrayElementFromTid(TidFromText(input))
+	}
+	if kind == 47 {
+		return checkruntime.ArrayElementFromTsvector(TsvectorFromTextContext(input, utf8))
 	}
 	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
 }
@@ -37366,6 +37372,9 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 	}
 	if kind == 39 {
 		return TidToText(checkruntime.ArrayElementToTid(input))
+	}
+	if kind == 47 {
+		return TsvectorToText(checkruntime.ArrayElementToTsvector(input))
 	}
 	if kind == 7 {
 		if input.Kind == checkruntime.ArrayElementDate {

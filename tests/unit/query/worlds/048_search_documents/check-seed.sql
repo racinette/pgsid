@@ -127,3 +127,19 @@ INSERT INTO document_reference_sets(source,expected_member,expected_record,bypas
 INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('',false,false,false);
 -- name: document_set_skipped_invalid
 INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('a:0',NULL,NULL,true);
+-- name: document_default_matches
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:1A',true,true,false);
+-- name: document_default_other
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('b',false,true,false);
+-- name: document_default_wrong
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('b',true,true,false);
+-- name: document_supplied_wrong
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('b',false,false,false);
+-- name: document_default_null
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES(NULL,NULL,NULL,false);
+-- name: document_default_empty
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('',false,true,false);
+-- name: document_default_bad_input
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:0',NULL,NULL,false);
+-- name: document_default_skipped
+INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:0',NULL,NULL,true);

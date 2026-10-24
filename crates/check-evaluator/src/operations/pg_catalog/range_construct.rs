@@ -311,6 +311,9 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
         let right = array_element_to_tid(upper);
         return sql__pg_catalog__bttidcmp__ak5t(left, right);
     };
+    if kind == 47 {
+        return tsvector_order(array_element_to_tsvector(lower), array_element_to_tsvector(upper));
+    };
     Int4Value::Unknown
 }
 

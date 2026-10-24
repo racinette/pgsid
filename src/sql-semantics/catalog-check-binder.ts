@@ -6450,6 +6450,11 @@ export function bindCatalogCheck(
             ? fields(fields(targets[0])?.['ResTarget'])?.['val']
             : undefined
         if (parsed.stmts?.length !== 1 || !node || containsColumn(node)) return unavailableDefault
+        restoreStoredTsvectorConstants(
+          node,
+          expression,
+          callable.defaultTsvectorConstants?.[position] ?? undefined,
+        )
         const converted = bindCatalogCheck(
           [],
           {

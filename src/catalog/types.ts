@@ -527,6 +527,7 @@ export interface FunctionArgInfo {
    * like any other expression rather than assumed non-null.
    */
   defaultExpr: string | null
+  tsvectorConstants?: StoredTsvectorConstantContext
 }
 
 export type Volatility = 'immutable' | 'stable' | 'volatile'
@@ -823,6 +824,7 @@ export interface RangeCallInfo {
   variadic: string | null
   numArgDefaults: number
   defaultExprs?: readonly (string | null)[]
+  defaultTsvectorConstants?: readonly (StoredTsvectorConstantContext | null)[]
   implementation: string | null
 }
 

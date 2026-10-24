@@ -6,6 +6,7 @@ import type {
   DomainInfo,
   EntityId,
   FunctionInfo,
+  StoredTsvectorConstantContext,
   RangeTypeInfo,
   SchemaDiff,
   SchemaDiffEntry,
@@ -160,6 +161,7 @@ function functionState(f: FunctionInfo): {
   name: string
   argTypes: string
   argDefaults: (string | null)[]
+  argTsvectorConstants?: (StoredTsvectorConstantContext | null)[]
   returnType: string
   language: string
   isProcedure: boolean
@@ -176,6 +178,9 @@ function functionState(f: FunctionInfo): {
     // — `pg_get_function_identity_arguments` and `pg_get_function_result`.
     argTypes: f.argTypes,
     argDefaults: f.args.map((a) => a.defaultExpr),
+    ...(f.args.some((a) => a.tsvectorConstants !== undefined)
+      ? { argTsvectorConstants: f.args.map((a) => a.tsvectorConstants ?? null) }
+      : {}),
     returnType: f.returnType,
     language: f.language,
     isProcedure: f.isProcedure,

@@ -151,6 +151,7 @@ function captureExpressionCoercions(
     types: ReadonlyMap<number, ConstantStorageType>
     roots: ReadonlySet<number>
   },
+  parsedRoot?: Value,
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
@@ -520,7 +521,7 @@ function captureExpressionCoercions(
       }
       for (const values of Object.values(node.fields)) values.forEach((v) => visit(v))
     }
-    visit(parseTree(source), '')
+    visit(parsedRoot ?? parseTree(source), '')
   } catch {
     complete = false
   }
@@ -581,6 +582,55 @@ export function captureTsvectorConstantContext(
     types,
     containers,
   ).tsvector
+}
+
+export function captureTsvectorDefaultContexts(
+  source: string | null,
+  definitions: readonly (string | null)[],
+  types: ReadonlySet<number>,
+  rows: ReadonlyMap<number, RowCoercionIdentity>,
+  containers: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
+): (StoredTsvectorConstantContext | null)[] {
+  const contexts: (StoredTsvectorConstantContext | null)[] = definitions.map(() => null)
+  if (!source) return contexts
+  try {
+    const roots = parseTree(source),
+      defaults = definitions.flatMap((definition, index) =>
+        definition === null ? [] : [{ definition, index }],
+      )
+    if (!Array.isArray(roots) || roots.length !== defaults.length) return contexts
+    const contains = (value: Value): boolean => {
+      if (typeof value === 'string') return false
+      if (Array.isArray(value)) return value.some(contains)
+      return (
+        (value.kind === 'CONST' &&
+          (types.has(Number(scalar(value, 'consttype'))) ||
+            containers.roots.has(Number(scalar(value, 'consttype'))))) ||
+        Object.values(value.fields).some((children) => children.some(contains))
+      )
+    }
+    for (const [index, root] of roots.entries()) {
+      if (!contains(root)) continue
+      const entry = defaults[index]!
+      contexts[entry.index] =
+        captureExpressionCoercions(
+          source,
+          entry.definition,
+          rows,
+          new Map(),
+          new Set(),
+          false,
+          new Map(),
+          undefined,
+          types,
+          containers,
+          root,
+        ).tsvector ?? null
+    }
+  } catch {
+    return definitions.map(() => null)
+  }
+  return contexts
 }
 
 export function captureXmlConstantContext(

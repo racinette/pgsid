@@ -184,6 +184,9 @@ fn range_output_bound(input: ArrayElement, kind: i32, cidr: bool, alias_mode: i3
     if kind == 39 {
         return tid_to_text(array_element_to_tid(input));
     };
+    if kind == 47 {
+        return tsvector_to_text(array_element_to_tsvector(input));
+    };
     if kind == 7 {
         if let ArrayElement::Date(value) = input {
             if value == -2147483647 - 1 {
