@@ -1,4 +1,4 @@
-fn xml_well_formed(input: &str, document: bool) -> bool {
+fn xml_well_formed_policy(input: &str, document: bool, query: bool) -> bool {
     let source = XmlSource {
         characters: input.chars().collect(),
     };
@@ -48,6 +48,14 @@ fn xml_well_formed(input: &str, document: bool) -> bool {
         arena = doctype.state;
         start = doctype.next;
     }
-    let markup = xml_markup(&source, start, mode, &arena, 0, 0, xml_new_entity_cache());
+    let markup = xml_markup_policy(&source, start, mode, &arena, 0, 0, xml_new_entity_cache(),query);
     markup.valid
+}
+
+fn xml_well_formed(input: &str, document: bool) -> bool { xml_well_formed_policy(input,document,false) }
+
+fn xml_query_well_formed(input: &str) -> bool {
+    if xml_well_formed_policy(input,true,true) == false { return false; };
+    let source = XmlSource { characters: input.chars().collect() };
+    xml_query_stream_valid(&source)
 }

@@ -75,7 +75,7 @@ fn xml_value_character(
     }
 }
 
-fn xml_walk_value(
+fn xml_walk_value_policy(
     source: &XmlSource,
     value: XmlSpan,
     input: XmlValueBuffer,
@@ -83,6 +83,7 @@ fn xml_walk_value(
     normalize: bool,
     depth: usize,
     entity: bool,
+    preserve: bool,
 ) -> XmlValueBuffer {
     let mut state = input;
     let mut position = value.start;
@@ -95,13 +96,13 @@ fn xml_walk_value(
             let reference = xml_reference(source, position);
             if xml_predefined_reference(source, position) {
                 let scalar = xml_reference_scalar(source, position);
-                state = xml_value_character(
-                    state,
-                    scalar,
-                    true,
-                    xml_at(source, position, "&#"),
-                    normalize,
-                );
+                if preserve && scalar == '&' { state = xml_value_reference(state,5i64); }
+                else {
+                    state = xml_value_character(state,scalar,true,xml_at(source,position,"&#"),normalize);
+                };
+            } else if preserve {
+                let bytes = xml_normalized_octets(source,position,reference.next);
+                state = xml_value_reference(state,bytes);
             } else {
                 let name = xml_source_range(
                     source,
@@ -117,7 +118,7 @@ fn xml_walk_value(
                         let stored = XmlSource {
                             characters: arena.arena.as_str().chars().collect(),
                         };
-                        state = xml_walk_value(
+                        state = xml_walk_value_policy(
                             &stored,
                             definition.value,
                             state,
@@ -125,6 +126,7 @@ fn xml_walk_value(
                             normalize,
                             depth + 1,
                             true,
+                            preserve,
                         );
                     }
                 }
@@ -168,4 +170,13 @@ fn xml_attribute_tokenized(
         position += 1;
     }
     false
+}
+
+fn xml_value_reference(input: XmlValueBuffer, width: i64) -> XmlValueBuffer {
+    let state = xml_flush_value(input); let bytes = state.bytes+width;
+    XmlValueBuffer { bytes, pending: 0i64, allocated: true, in_space: false, valid: state.valid && bytes <= 10000000i64 }
+}
+
+fn xml_walk_value(source: &XmlSource, value: XmlSpan, input: XmlValueBuffer, arena: &XmlEntityArena, normalize: bool, depth: usize, entity: bool) -> XmlValueBuffer {
+    xml_walk_value_policy(source,value,input,arena,normalize,depth,entity,false)
 }

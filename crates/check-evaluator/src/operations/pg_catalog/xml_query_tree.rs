@@ -1,20 +1,25 @@
 #[derive(Clone)]
 struct XmlQueryName { qualified: String, local: String, namespace: String, resolved: bool }
 
-fn xml_query_qname_valid(tree: &XmlTree, name: XmlSpan) -> bool {
-    if name.start >= name.end || tree.characters[name.start] == ':' { return false; };
+fn xml_query_qname_source(source: &XmlSource, name: XmlSpan) -> bool {
+    if name.start >= name.end || source.characters[name.start] == ':' { return false; };
     let mut colon = false;
     let mut position = name.start;
     while position < name.end {
-        if tree.characters[position] == ':' {
+        if source.characters[position] == ':' {
             if colon || position+1 >= name.end { return false; };
-            let next = tree.characters[position+1];
+            let next = source.characters[position+1];
             if next == ':' || xml_name_start(next) == false { return false; };
             colon = true;
         };
         position += 1;
     }
     true
+}
+
+fn xml_query_qname_valid(tree: &XmlTree, name: XmlSpan) -> bool {
+    let text = xml_tree_text(tree,name); let source = XmlSource { characters: text.as_str().chars().collect() };
+    xml_query_qname_source(&source,XmlSpan { start: 0, end: source.characters.len() })
 }
 
 fn xml_query_content(input: &str) -> String {
@@ -68,20 +73,21 @@ fn xml_query_namespace_attribute(tree: &XmlTree, name: XmlSpan) -> bool {
     xml_at(&source,0,"xmlns:")
 }
 
-fn xml_query_expand_name(tree: &XmlTree, owner: usize, name: XmlSpan, attribute: bool) -> XmlQueryName {
-    let qualified = xml_tree_text(tree,name);
+fn xml_query_expand_text(tree: &XmlTree, owner: usize, text: &str, attribute: bool) -> XmlQueryName {
+    let qualified = text.to_owned();
+    let source = XmlSource { characters: text.chars().collect() }; let name = XmlSpan { start: 0, end: source.characters.len() };
     let mut position = name.start;
     let mut local_start = name.start;
     let mut prefix_end = name.start;
     while position < name.end {
-        if tree.characters[position] == ':' { prefix_end = position; local_start = position+1; };
+        if source.characters[position] == ':' { prefix_end = position; local_start = position+1; };
         position += 1;
     }
     let prefix_span = XmlSpan { start: name.start, end: prefix_end };
-    let prefix = xml_tree_text(tree,prefix_span);
+    let prefix = xml_source_range(&source,prefix_span);
     let local_span = XmlSpan { start: local_start, end: name.end };
-    let local = xml_tree_text(tree,local_span);
-    let valid = xml_query_qname_valid(tree,name);
+    let local = xml_source_range(&source,local_span);
+    let valid = xml_query_qname_source(&source,name);
     if prefix.as_str() == "xml" {
         return XmlQueryName { qualified, local, namespace: "http://www.w3.org/XML/1998/namespace".to_owned(), resolved: valid };
     };
@@ -110,6 +116,10 @@ fn xml_query_expand_name(tree: &XmlTree, owner: usize, name: XmlSpan, attribute:
     XmlQueryName { qualified, local, namespace: String::new(), resolved: valid && local_start == name.start }
 }
 
+fn xml_query_expand_name(tree: &XmlTree, owner: usize, name: XmlSpan, attribute: bool) -> XmlQueryName {
+    let text = xml_tree_text(tree,name); xml_query_expand_text(tree,owner,text.as_str(),attribute)
+}
+
 fn xml_query_node_name(tree: &XmlTree, index: usize) -> XmlQueryName {
     let node = tree.nodes[index];
     if node.kind == 1 { return xml_query_expand_name(tree,index,node.name,false); };
@@ -121,6 +131,7 @@ fn xml_query_node_name(tree: &XmlTree, index: usize) -> XmlQueryName {
 }
 
 fn xml_query_names_valid(tree: &XmlTree) -> bool {
+    if tree.flags.query_names_valid == false { return false; };
     let mut cursor: usize = 1;
     while cursor < tree.nodes.len() {
         let node = tree.nodes[cursor];
@@ -160,4 +171,52 @@ fn xml_query_names_valid(tree: &XmlTree) -> bool {
         cursor += 1;
     }
     true
+}
+
+fn xml_query_default_names_valid(tree: &XmlTree, owner: usize, arena: &XmlEntityArena, source: &XmlSource) -> bool {
+    if arena.defaults.len() == 0 { return true; };
+    let node = tree.nodes[owner]; let element_name = xml_tree_text(tree,node.name);
+    let mut names: Vec<XmlQueryName> = Vec::new(); let mut explicit = node.attribute_start;
+    while explicit < node.attribute_end {
+        let attribute = tree.attributes[explicit];
+        if xml_query_namespace_attribute(tree,attribute.name) == false { names.push(xml_query_expand_name(tree,owner,attribute.name,true)); };
+        explicit += 1;
+    }
+    let mut index: usize = 0;
+    while index < arena.defaults.len() {
+        let item = arena.defaults[index]; let element = xml_source_range(source,item.element);
+        if item.has_default && element == element_name {
+            let spelling = xml_source_range(source,item.name); let mut present = false;
+            explicit = node.attribute_start;
+            while explicit < node.attribute_end { let attribute = tree.attributes[explicit]; if xml_tree_text(tree,attribute.name) == spelling { present = true; }; explicit += 1; }
+            if present == false && xml_query_namespace_attribute_text(spelling.as_str()) == false {
+                let name = xml_query_default_name(tree,owner,spelling.as_str());
+                if name.resolved == false { return false; };
+                let mut prior: usize = 0;
+                while prior < names.len() { let other = names[prior].clone(); if other.local == name.local && other.namespace == name.namespace { return false; }; prior += 1; }
+                names.push(name);
+            };
+        };
+        index += 1;
+    }
+    true
+}
+
+pub(crate) fn xml_query_invalid_names(input: XmlTree) -> XmlTree {
+    let old = input.flags;
+    let flags = XmlTreeFlags { document: old.document, declaration: old.declaration, unicode: old.unicode, query: old.query, query_ids_valid: old.query_ids_valid, query_names_valid: false, standalone: old.standalone, version: old.version, doctype_end: old.doctype_end };
+    XmlTree { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, flags, serialization_known: input.serialization_known }
+}
+
+fn xml_query_default_name(tree: &XmlTree, owner: usize, text: &str) -> XmlQueryName {
+    let source = XmlSource { characters: text.chars().collect() }; let mut colon: usize = 0;
+    while colon < source.characters.len() && source.characters[colon] != ':' { colon += 1; }
+    let qualified = text.to_owned();
+    if colon == 0 || colon+1 >= source.characters.len() {
+        return XmlQueryName { local: qualified.clone(), qualified, namespace: String::new(), resolved: true };
+    };
+    let mut probe = xml_source_range(&source,XmlSpan { start: 0, end: colon }); probe.push_str(":x");
+    let named = xml_query_expand_text(tree,owner,probe.as_str(),true);
+    let local = xml_source_range(&source,XmlSpan { start: colon+1, end: source.characters.len() });
+    XmlQueryName { qualified, local, namespace: named.namespace, resolved: named.resolved }
 }

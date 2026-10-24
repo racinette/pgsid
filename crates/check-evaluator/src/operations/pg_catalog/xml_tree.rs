@@ -10,7 +10,7 @@ struct XmlTreeNode {
 
 #[derive(Clone, Copy)]
 struct XmlTreeFlags {
-    document: bool, declaration: bool, unicode: bool, query: bool, query_ids_valid: bool,
+    document: bool, declaration: bool, unicode: bool, query: bool, query_ids_valid: bool, query_names_valid: bool,
     standalone: i32, version: XmlSpan, doctype_end: usize,
 }
 
@@ -266,6 +266,7 @@ pub(crate) fn xml_tree_parse_nodes(source: &XmlSource, stored: &XmlSource, arena
                 attribute_start, attribute_end, preserve, textual: false, text_seen: false, blank_policy };
             let child = tree.nodes.len();
             tree = xml_tree_append(tree,node);
+            if tree.flags.query && xml_query_default_names_valid(&tree,child,arena,stored) == false { tree = xml_query_invalid_names(tree); };
             if empty == false { tree = xml_tree_current(tree,child); };
         } else if character == '&' {
             let reference = xml_reference(source,position);
@@ -354,7 +355,7 @@ fn xml_tree_parse(input: &str, document: bool, query: bool) -> XmlTree {
         attribute_start: 0, attribute_end: 0, preserve: false, textual: false, text_seen: false, blank_policy: -1 });
     let attributes: Vec<XmlTreeAttribute> = Vec::new();
     let flags = XmlTreeFlags { document: effective_document, declaration: actual_declaration && begin == 0,
-        unicode: effective_document && actual_declaration && begin == 0, query, query_ids_valid: true, standalone, version: version_span, doctype_end };
+        unicode: effective_document && actual_declaration && begin == 0, query, query_ids_valid: true, query_names_valid: true, standalone, version: version_span, doctype_end };
     let declarations: Vec<XmlTreeDtdEntry> = Vec::new();
     let tree = XmlTree { declarations, nodes, attributes, characters, current: 0, written: empty, flags, serialization_known: true };
     let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };

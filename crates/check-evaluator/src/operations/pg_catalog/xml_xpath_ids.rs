@@ -28,7 +28,7 @@ fn xpath_id_name_valid(input: &str) -> bool {
 pub(crate) fn xml_tree_ids_invalid(input: XmlTree) -> XmlTree {
     let flags = input.flags;
     let next = XmlTreeFlags { document: flags.document, declaration: flags.declaration, unicode: flags.unicode,
-        query: flags.query, query_ids_valid: false, standalone: flags.standalone, version: flags.version, doctype_end: flags.doctype_end };
+        query: flags.query, query_ids_valid: false, query_names_valid: flags.query_names_valid, standalone: flags.standalone, version: flags.version, doctype_end: flags.doctype_end };
     XmlTree { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters,
         current: input.current, written: input.written, flags: next, serialization_known: input.serialization_known }
 }

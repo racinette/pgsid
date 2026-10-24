@@ -99,6 +99,8 @@ struct XmlParsedEntity {
     index: usize,
     nodes: XmlNodeList,
     cost: i64,
+    base_depth: usize,
+    entity_depth: usize,
 }
 
 #[derive(Clone)]
@@ -685,7 +687,7 @@ fn xml_predefined_reference(source: &XmlSource, start: usize) -> bool {
         || xml_at(source, start, "&apos;")
 }
 
-fn xml_parse_attribute(
+fn xml_parse_attribute_policy(
     source: &XmlSource,
     start: usize,
     arena: &XmlEntityArena,
@@ -694,6 +696,7 @@ fn xml_parse_attribute(
     input_start: usize,
     normalize: bool,
     owned: bool,
+    preserve: bool,
 ) -> XmlAttributeScan {
     let mut position = start;
     let mut cost = prior_cost;
@@ -754,7 +757,7 @@ fn xml_parse_attribute(
     let mut valid = position < source.characters.len();
     let bound = xml_consumed(source, start + 1, position) + cost - prior_cost;
     if valid && bound > 9999996i64 {
-        let buffer = xml_walk_value(
+        let buffer = xml_walk_value_policy(
             source,
             XmlSpan {
                 start: start + 1,
@@ -765,6 +768,7 @@ fn xml_parse_attribute(
             normalize,
             0,
             false,
+            preserve,
         );
         valid = buffer.valid;
     }
@@ -775,7 +779,7 @@ fn xml_parse_attribute(
     }
 }
 
-fn xml_markup(
+fn xml_markup_policy(
     source: &XmlSource,
     start: usize,
     document: bool,
@@ -783,6 +787,7 @@ fn xml_markup(
     base_depth: usize,
     entity_depth: usize,
     input_cache: XmlEntityCache,
+    query: bool,
 ) -> XmlMarkupResult {
     if entity_depth >= 20 || base_depth >= 256 {
         return xml_markup_invalid();
@@ -799,6 +804,9 @@ fn xml_markup(
     let mut namespace_count: usize = 0;
     let mut text = xml_new_text();
     let mut cache = input_cache;
+    let stored_source = XmlSource { characters: arena.arena.as_str().chars().collect() };
+    let mut consumed_position: usize = 0;
+    let mut consumed_bytes: i64 = 0i64;
     while position < source.characters.len() {
         let character = source.characters[position];
         if xml_character(character) == false {
@@ -911,7 +919,10 @@ fn xml_markup(
                         let quoted = xml_skip_space(source, equals + 1);
                         let tokenized =
                             xml_attribute_tokenized(source, arena, opening, attribute_name);
-                        let value = xml_parse_attribute(
+                        let attribute_text = xml_source_range(source,attribute_name);
+                        let attribute_source = XmlSource { characters: attribute_text.as_str().chars().collect() };
+                        let namespace = attribute_text.as_str() == "xmlns" || xml_at(&attribute_source,0,"xmlns:");
+                        let value = xml_parse_attribute_policy(
                             source,
                             quoted,
                             arena,
@@ -920,6 +931,7 @@ fn xml_markup(
                             0,
                             tokenized,
                             false,
+                            query && namespace == false,
                         );
                         cost = value.cost;
                         if value.valid == false {
@@ -1130,14 +1142,18 @@ fn xml_markup(
                         end: reference.next - 1,
                     },
                 );
-                let index = xml_entity_lookup(arena, name.as_str(), false);
+                let index = xml_entity_lookup_source(arena,&stored_source,name.as_str(),false);
+                let mut parent_depth = base_depth + depth;
+                if document == false { parent_depth += 1; };
                 let mut entry: usize = 0;
-                while entry < cache.entries.len() && cache.entries[entry].index != index {
+                while entry < cache.entries.len() && (cache.entries[entry].index != index ||
+                    (cache.entries[entry].nodes.count == 0 && (cache.entries[entry].base_depth != parent_depth || cache.entries[entry].entity_depth != entity_depth))) {
                     entry += 1;
                 }
                 if entry < cache.entries.len() {
                     let cached = cache.entries[entry];
-                    text = xml_text_entity(text, cached.nodes, depth == 0);
+                    if query { text = xml_text_event(text,0,0i64,depth == 0); }
+                    else { text = xml_text_entity(text, cached.nodes, depth == 0); };
                     cost = cost + cached.cost;
                 } else {
                     let expanded =
@@ -1149,11 +1165,7 @@ fn xml_markup(
                     let fragment = XmlSource {
                         characters: content.chars().collect(),
                     };
-                    let mut parent_depth = base_depth + depth;
-                    if document == false {
-                        parent_depth += 1;
-                    }
-                    let nested = xml_markup(
+                    let nested = xml_markup_policy(
                         &fragment,
                         0,
                         false,
@@ -1161,24 +1173,30 @@ fn xml_markup(
                         parent_depth,
                         entity_depth + 1,
                         cache,
+                        query,
                     );
                     if nested.valid == false {
                         return xml_markup_invalid();
                     }
-                    text = xml_text_entity(text, nested.nodes, depth == 0);
+                    if query { text = xml_text_event(text,0,0i64,depth == 0); }
+                    else { text = xml_text_entity(text, nested.nodes, depth == 0); };
                     let expansion_cost = nested.cost + expanded.cost;
                     cost = cost + expansion_cost;
                     let mut entries = nested.cache;
-                    if nested.nodes.count > 0 && index < arena.entities.len() {
+                    if index < arena.entities.len() {
                         entries.push(XmlParsedEntity {
                             index: index,
                             nodes: nested.nodes,
                             cost: expansion_cost,
+                            base_depth: parent_depth,
+                            entity_depth,
                         });
                     }
                     cache = XmlEntityCache { entries: entries };
                 };
-                if xml_amplified(source, reference.next, cost) {
+                consumed_bytes = consumed_bytes+xml_consumed(source,consumed_position,reference.next);
+                consumed_position = reference.next;
+                if cost > 1000000i64 && cost / 5i64 > consumed_bytes {
                     return xml_markup_invalid();
                 }
             } else {
@@ -1198,6 +1216,7 @@ fn xml_markup(
             } else {
                 let scanned = xml_text_plain(source, position, text, depth == 0);
                 text = scanned.state;
+                if query && entity_depth == 0 && text.bytes > 10000000i64 { return xml_markup_invalid(); };
                 position = scanned.next;
             };
         };
@@ -1211,4 +1230,12 @@ fn xml_markup(
         nodes: text.nodes,
         cache: cache.entries,
     }
+}
+
+fn xml_markup(source: &XmlSource, start: usize, document: bool, arena: &XmlEntityArena, base_depth: usize, entity_depth: usize, input_cache: XmlEntityCache) -> XmlMarkupResult {
+    xml_markup_policy(source,start,document,arena,base_depth,entity_depth,input_cache,false)
+}
+
+fn xml_parse_attribute(source: &XmlSource, start: usize, arena: &XmlEntityArena, entity_depth: usize, prior_cost: i64, input_start: usize, normalize: bool, owned: bool) -> XmlAttributeScan {
+    xml_parse_attribute_policy(source,start,arena,entity_depth,prior_cost,input_start,normalize,owned,false)
 }

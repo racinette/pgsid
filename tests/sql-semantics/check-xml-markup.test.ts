@@ -365,6 +365,9 @@ describe('CHECK XML markup foundation', () => {
         samples.add(`<!DOCTYPE root PUBLIC "${identifier}" "missing"><root/>`)
         samples.add(`<!DOCTYPE root [<!NOTATION image PUBLIC "${identifier}">]><root/>`)
       }
+      for (const count of [50000, 50001]) {
+        samples.add('<!DOCTYPE r [<!ENTITY e "">]><r>' + '&e;'.repeat(count) + '</r>')
+      }
       const inputs = [...samples]
       const rows = (
         await pg.query<{ ordinal: number; document: boolean; content: boolean }>(
@@ -374,6 +377,25 @@ describe('CHECK XML markup foundation', () => {
           [JSON.stringify(inputs)],
         )
       ).rows.map((row) => ({ ...row, input: inputs[Number(row.ordinal) - 1]! }))
+      await pg.exec(
+        "CREATE FUNCTION pg_temp.markup_xml(cstring) RETURNS xml LANGUAGE internal IMMUTABLE STRICT AS 'textin'",
+      )
+      const queryRows: { input: string; valid: boolean }[] = []
+      for (const input of inputs.filter(
+        (input) =>
+          (input.startsWith('<!DOCTYPE a [<!ENTITY label') && input.includes('<r>&label;')) ||
+          input.startsWith('<!DOCTYPE r [<!ENTITY e "">]>'),
+      )) {
+        let valid = true
+        try {
+          await pg.query("SELECT xpath_exists('true()',pg_temp.markup_xml($1::cstring))", [input])
+        } catch (error) {
+          expect((error as { code: string }).code).toBe('2200M')
+          valid = false
+        }
+        queryRows.push({ input, valid })
+      }
+      expect(queryRows).toHaveLength(27)
       const files = [
         'xml_lexical',
         'xml_text',
@@ -383,6 +405,7 @@ describe('CHECK XML markup foundation', () => {
         'xml_entities',
         'xml_subset',
         'xml_validation',
+        'xml_query_stream',
       ].map((name) => {
         const path = `crates/check-evaluator/src/operations/pg_catalog/${name}.rs`
         return { path, source: readFileSync(path, 'utf8') }
@@ -391,6 +414,7 @@ describe('CHECK XML markup foundation', () => {
 pub fn evaluate_check_markup(input: &str, document: bool) -> bool {
     xml_well_formed(input, document)
 }
+pub fn evaluate_check_markup_query(input: &str) -> bool { xml_query_well_formed(input) }
 pub fn evaluate_check_dtd_declaration(input: &str) -> bool {
     let mut wrapped = "<!DOCTYPE root [".to_owned();
     wrapped.push_str(input);
@@ -427,6 +451,10 @@ pub fn evaluate_check_dtd_declaration(input: &str) -> bool {
         )
         expect(evaluate(row.input, false), JSON.stringify(row.input) + ' content').toBe(row.content)
       }
+      const query = (compiled as { evaluateCheckMarkupQuery(input: string): boolean })
+        .evaluateCheckMarkupQuery
+      for (const row of queryRows)
+        expect(query(row.input), JSON.stringify(row.input) + ' query').toBe(row.valid)
       const declarations = new Set([
         '<!ELEMENT root EMPTY>',
         '<!ELEMENT root ANY>',
@@ -521,6 +549,7 @@ ${rows
   )
   .join('\n')}
 ${dtdRows.map((row) => `if EvaluateCheckDtdDeclaration(${goString(row.input)}) != ${row.valid} { t.Fatalf("%s", ${goString(row.input)}) }`).join('\n')}
+${queryRows.map((row) => `if EvaluateCheckMarkupQuery(${goString(row.input)}) != ${row.valid} { t.Fatalf("%s", ${goString(row.input + ' query')}) }`).join('\n')}
 }`,
       )
       await Promise.all(
@@ -541,11 +570,31 @@ ${rows
   )
   .join('\n')}
 ${dtdRows.map((row) => `assert_eq!(evaluate_check_dtd_declaration(${rustString(row.input)}), ${row.valid}, "{}", ${rustString(row.input)});`).join('\n')}
+${queryRows.map((row) => `assert_eq!(evaluate_check_markup_query(${rustString(row.input)}), ${row.valid}, "{}", ${rustString(row.input + ' query')});`).join('\n')}
 }`,
       )
       await run('rustc', ['--test', join(directory, 'markup.rs'), '-o', join(directory, 'markup')])
       await run(join(directory, 'markup'), [])
       await run('go', ['test', './...'], { cwd: directory })
+      await writeFile(
+        'artifacts/goal-checks/xml-query-policy-active/markup-query-reference.json',
+        JSON.stringify(
+          {
+            inputs: rows.length,
+            documentContentChecks: rows.length * 2,
+            declarations: dtdRows.length,
+            queryRows,
+          },
+          null,
+          2,
+        ) + '\n',
+      )
+      console.info('XML markup parity', {
+        inputs: rows.length,
+        documentContentChecks: rows.length * 2,
+        declarations: dtdRows.length,
+        queries: queryRows.length,
+      })
     } finally {
       await pg.close()
       await rm(directory, { recursive: true, force: true })

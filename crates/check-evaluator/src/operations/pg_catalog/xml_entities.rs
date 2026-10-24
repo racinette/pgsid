@@ -235,10 +235,14 @@ fn xml_entity_lookup(arena: &XmlEntityArena, name: &str, parameter: bool) -> usi
     let source = XmlSource {
         characters: text.chars().collect(),
     };
+    xml_entity_lookup_source(arena,&source,name,parameter)
+}
+
+fn xml_entity_lookup_source(arena: &XmlEntityArena, source: &XmlSource, name: &str, parameter: bool) -> usize {
     let mut index: usize = 0;
     while index < arena.entities.len() {
         let entity = arena.entities[index];
-        if entity.parameter == parameter && xml_span_is(&source, entity.name, name) {
+        if entity.parameter == parameter && xml_span_is(source, entity.name, name) {
             return index;
         }
         index += 1;

@@ -94,7 +94,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
     if let Int4Value::Value(fault)=reason {
      if let Int4Value::Value(facts)=profile {
       let prepared=xml_query_content(raw.as_str());
-      if xml_well_formed(prepared.as_str(),true)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
+      if xml_query_well_formed(prepared.as_str())==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let document=xpath_document_parse(prepared.as_str()); let tree=document.tree; let graph=document.graph;
       if graph.ids.valid==false || xml_query_names_valid(&tree)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let mut maximum: i32=5000; if facts==2 {maximum=0;};
