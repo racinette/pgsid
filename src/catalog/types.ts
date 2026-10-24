@@ -1,3 +1,4 @@
+import type { TsvectorConstantStorage } from './tsvector-constant-storage.js'
 import type { XmlStorageFacet } from './xml-container-constants.js'
 // ---------------------------------------------------------------------------
 // Catalog snapshot + diff: shared types.
@@ -108,6 +109,12 @@ export interface MoneyLiteralInfo {
   units: string
 }
 
+export interface StoredTsvectorConstantContext {
+  definition: string
+  complete: boolean
+  constants: { site: string; storage: TsvectorConstantStorage | null }[]
+}
+
 export interface StoredXmlConstantContext {
   definition: string
   complete: boolean
@@ -149,6 +156,7 @@ export interface StoredArrayConstructorContext {
 }
 
 export interface ConstraintInfo {
+  tsvectorConstants?: StoredTsvectorConstantContext
   xmlConstants?: StoredXmlConstantContext
   coercionContext?: StoredDomainCoercionContext
   rowCoercionContext?: StoredRowCoercionContext
@@ -629,6 +637,7 @@ export interface DomainInfo {
   checks: {
     name: string
     definition: string
+    tsvectorConstants?: StoredTsvectorConstantContext
     xmlConstants?: StoredXmlConstantContext
     moneyLiterals?: MoneyLiteralInfo[]
     coercionContext?: StoredDomainCoercionContext

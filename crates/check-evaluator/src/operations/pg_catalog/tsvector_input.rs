@@ -72,7 +72,7 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
         let mut lexemes: Vec<TsvectorLexeme> = Vec::new();
         while index < chars.len() {
             while index < chars.len() && numeric_space(chars[index]) { index += 1; }
-            if index == chars.len() { return tsvector_normalize(lexemes); };
+            if index == chars.len() { return tsvector_finish_input(lexemes,stored); };
             let mut word = String::new();
             let mut state: i32 = 0;
             if chars[index] == '\'' { state = 1; index += 1; };
@@ -122,8 +122,8 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
                         position = position * 10 + digit;
                         index += 1;
                     }
-                    if position == 0 { return TsvectorValue::Error(make_sql_error(TSVECTOR_SYNTAX_ERROR)); };
-                    if position > 16383 { position = 16383; };
+                    if position == 0 && stored == false { return TsvectorValue::Error(make_sql_error(TSVECTOR_SYNTAX_ERROR)); };
+                    if position > 16383 { if stored { return TsvectorValue::Unknown; }; position = 16383; };
                     let mut weight: i32 = 0;
                     let mut modifiers = true;
                     while index < chars.len() && modifiers {
@@ -152,9 +152,14 @@ fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorVa
             raw_bytes = raw_bytes + (width as i64);
             lexemes.push(TsvectorLexeme {text:word,positions:positions});
         }
-        return tsvector_normalize(lexemes);
+        return tsvector_finish_input(lexemes,stored);
     };
     TsvectorValue::Unknown
+}
+
+fn tsvector_finish_input(lexemes: Vec<TsvectorLexeme>, stored: bool) -> TsvectorValue {
+    if stored { return make_tsvector_value(TsvectorPayload {lexemes:lexemes,native_bytes:-1}); };
+    tsvector_normalize(lexemes)
 }
 
 pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue { tsvector_parse_text(input,utf8,false) }
@@ -166,6 +171,15 @@ pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> Tsvect
         return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:-1});
     };
     if let TsvectorValue::Error(_) = value { return TsvectorValue::Unknown; };
+    value
+}
+
+pub fn tsvector_from_stored_text_native_context(input: TextValue, utf8: bool, native_bytes: i32, lexeme_count: i32) -> TsvectorValue {
+    let value = tsvector_from_stored_text_context(input,utf8);
+    if let TsvectorValue::Value(payload) = value {
+        if lexeme_count < 0 || (payload.lexemes.len() as i32) != lexeme_count || native_bytes < 8 { return TsvectorValue::Unknown; };
+        return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:native_bytes});
+    };
     value
 }
 

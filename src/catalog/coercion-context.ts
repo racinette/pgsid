@@ -1,8 +1,10 @@
+import { tsvectorConstantStorage } from './tsvector-constant-storage.js'
 import { xmlContainerConstant, type XmlStorageType } from './xml-container-constants.js'
 import type {
   StoredDomainCoercionContext,
   StoredRowCoercionContext,
   StoredArrayConstructorContext,
+  StoredTsvectorConstantContext,
   StoredXmlConstantContext,
 } from './types.js'
 import { xmlArrayConstantText } from './xml-array-constants.js'
@@ -142,11 +144,17 @@ function captureExpressionCoercions(
   utf8 = false,
   xmlArrays: ReadonlyMap<number, number> = new Map(),
   xmlContainers?: { types: ReadonlyMap<number, XmlStorageType>; roots: ReadonlySet<number> },
+  tsvectorTypes: ReadonlySet<number> = new Set(),
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
   xml?: StoredXmlConstantContext
+  tsvector?: StoredTsvectorConstantContext
 } {
+  const tsvectorCandidate =
+    source !== null &&
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => tsvectorTypes.has(Number(m[1])))
+  const tsvectorConstants: StoredTsvectorConstantContext['constants'] = []
   const xmlCandidate =
     xmlTypes.size > 0 &&
     source !== null &&
@@ -162,7 +170,8 @@ function captureExpressionCoercions(
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
-      !xmlCandidate)
+      !xmlCandidate &&
+      !tsvectorCandidate)
   )
     return {}
   const casts: StoredRowCoercionContext['casts'] = []
@@ -215,6 +224,30 @@ function captureExpressionCoercions(
       }
       const node = tree(value)
       if (!node) return
+      if (node.kind === 'CONST' && tsvectorTypes.has(Number(scalar(node, 'consttype')))) {
+        const raw = node.fields['constvalue'],
+          data = Array.isArray(raw?.[1]) ? raw[1] : undefined
+        const storage =
+          scalar(node, 'constisnull') === 'true'
+            ? null
+            : scalar(node, 'constisnull') === 'false' &&
+                scalar(node, 'constlen') === '-1' &&
+                scalar(node, 'constbyval') === 'false' &&
+                raw?.length === 2 &&
+                data &&
+                Number(raw[0]) === data.length &&
+                data.every(
+                  (v) =>
+                    typeof v === 'string' &&
+                    /^-?\d+$/u.test(v) &&
+                    Number(v) >= -128 &&
+                    Number(v) <= 255,
+                )
+              ? tsvectorConstantStorage(Buffer.from(data.map((v) => Number(v) & 255)))
+              : undefined
+        if (site === undefined || storage === undefined) complete = false
+        else tsvectorConstants.push({ site, storage })
+      }
       if (node.kind === 'CONST' && xmlTypes.has(Number(scalar(node, 'consttype')))) {
         const text = xmlConstantText(node, utf8)
         if (site === undefined || text === undefined) complete = false
@@ -455,6 +488,9 @@ function captureExpressionCoercions(
   return {
     ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
+    ...(tsvectorCandidate
+      ? { tsvector: { definition, complete, constants: tsvectorConstants } }
+      : {}),
     ...(xmlCandidate
       ? {
           xml: {
@@ -469,6 +505,27 @@ function captureExpressionCoercions(
         }
       : {}),
   }
+}
+
+export function captureTsvectorConstantContext(
+  source: string | null,
+  definition: string,
+  types: ReadonlySet<number>,
+  rows: ReadonlyMap<number, RowCoercionIdentity>,
+): StoredTsvectorConstantContext | undefined {
+  if (!source || ![...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => types.has(Number(m[1]))))
+    return undefined
+  return captureExpressionCoercions(
+    source,
+    definition,
+    rows,
+    new Map(),
+    new Set(),
+    false,
+    new Map(),
+    undefined,
+    types,
+  ).tsvector
 }
 
 export function captureXmlConstantContext(

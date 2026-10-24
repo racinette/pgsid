@@ -31,3 +31,13 @@ CREATE TABLE document_ordering (
  CONSTRAINT document_selected CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN choose_source THEN source::tsvector ELSE reference::tsvector END)=reference::tsvector END),
  CONSTRAINT document_lexemes CHECK(CASE WHEN bypass THEN true ELSE cardinality(tsvector_to_array(COALESCE(source::tsvector,reference::tsvector)))<=length(reference::tsvector) END)
 );
+
+CREATE DOMAIN searchable_document AS search_document CHECK(VALUE<>''::tsvector);
+CREATE TABLE document_publication (
+ source text,
+ expected_reference boolean,
+ require_nonempty boolean,
+ bypass boolean,
+ CONSTRAINT document_reference CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector='a:1A'::tsvector)=expected_reference END),
+ CONSTRAINT document_publishable CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN require_nonempty THEN source::searchable_document IS NOT NULL ELSE COALESCE(source::tsvector,'a:1A'::tsvector)<>''::tsvector END END)
+);

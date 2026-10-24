@@ -2887,11 +2887,11 @@ pub fn make_tsvector_value(input: TsvectorPayload) -> TsvectorValue {
     while index < input.lexemes.len() {
         let text = input.lexemes[index].text.as_str();
         if text == "" { return TsvectorValue::Unknown; };
-        if index > 0 && tsvector_lexeme_order(input.lexemes[index - 1].text.as_str(),text) >= 0 {
+        if index > 0 && tsvector_lexeme_order(input.lexemes[index - 1].text.as_str(),text) > 0 {
             return TsvectorValue::Unknown;
         };
         let mut position: usize = 0;
-        let mut previous: i32 = 0;
+        let mut previous: i32 = -1;
         while position < input.lexemes[index].positions.len() {
             let value = input.lexemes[index].positions[position];
             if value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3 {

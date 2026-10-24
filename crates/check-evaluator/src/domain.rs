@@ -89,3 +89,9 @@ pub fn finish_multirange_domain_conversion(
     };
     input
 }
+
+pub fn finish_tsvector_domain_conversion(input: TsvectorValue, result: CheckOutcome) -> TsvectorValue {
+    if let CheckOutcome::Error(error) = result { return TsvectorValue::Error(error); };
+    if result == CheckOutcome::Unknown { return TsvectorValue::Unknown; };
+    input
+}

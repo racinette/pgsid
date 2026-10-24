@@ -45695,7 +45695,7 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 				index = langruntime.CheckedAdd(index, 1)
 			}
 			if index == len(chars) {
-				return tsvectorNormalize(lexemes)
+				return tsvectorFinishInput(lexemes, stored)
 			}
 			word := langruntime.NewTextBuffer("")
 			state := 0
@@ -45768,10 +45768,13 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(position, 10), digit))
 						index = langruntime.CheckedAdd(index, 1)
 					}
-					if position == 0 {
+					if position == 0 && stored == false {
 						return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
 					}
 					if position > 16383 {
+						if stored {
+							return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+						}
 						position = langruntime.CheckedI32(16383)
 					}
 					weight := 0
@@ -45824,9 +45827,16 @@ func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) che
 			langruntime.CheckedAdd(len(lexemes), 1)
 			lexemes = append(lexemes, checkruntime.CopyTsvectorLexeme(checkruntime.TsvectorLexeme{Text: string(word), Positions: positions}))
 		}
-		return tsvectorNormalize(lexemes)
+		return tsvectorFinishInput(lexemes, stored)
 	}
 	return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+}
+func tsvectorFinishInput(lexemes []checkruntime.TsvectorLexeme, stored bool) checkruntime.TsvectorValue {
+	lexemes = langruntime.CheckedStructs(lexemes, checkruntime.CopyTsvectorLexeme)
+	if stored {
+		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)})
+	}
+	return tsvectorNormalize(lexemes)
 }
 func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsvectorValue {
 	return tsvectorParseText(input, utf8, false)
@@ -45843,6 +45853,19 @@ func TsvectorFromStoredTextContext(input checkruntime.TextValue, utf8 bool) chec
 	}
 	if value.Kind == checkruntime.TsvectorValueError {
 		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+	}
+	return value
+}
+func TsvectorFromStoredTextNativeContext(input checkruntime.TextValue, utf8 bool, nativeBytes int, lexemeCount int) checkruntime.TsvectorValue {
+	nativeBytes = langruntime.CheckedI32(nativeBytes)
+	lexemeCount = langruntime.CheckedI32(lexemeCount)
+	value := TsvectorFromStoredTextContext(input, utf8)
+	if value.Kind == checkruntime.TsvectorValueValue {
+		payload := checkruntime.CopyTsvectorPayload(value.Value)
+		if lexemeCount < 0 || (int(int32(len(payload.Lexemes)))) != lexemeCount || nativeBytes < 8 {
+			return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+		}
+		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: nativeBytes})
 	}
 	return value
 }

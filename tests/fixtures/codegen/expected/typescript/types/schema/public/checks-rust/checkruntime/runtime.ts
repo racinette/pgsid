@@ -3560,11 +3560,11 @@ export function makeTsvectorValue(input: TsvectorPayload): TsvectorValue {
         if (text === "") {
             return { kind: "Unknown" };
         }
-        if (index > 0 && tsvectorLexemeOrder(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)), copyTsvectorLexeme).text, text) >= 0) {
+        if (index > 0 && tsvectorLexemeOrder(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)), copyTsvectorLexeme).text, text) > 0) {
             return { kind: "Unknown" };
         }
         let position: number = 0;
-        let previous: number = 0;
+        let previous: number = langruntime.checkedSignedNegate(1);
         while (position < langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions.length) {
             const value: TsvectorPosition = langruntime.indexStruct(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions, langruntime.checkedIndex(position), copyTsvectorPosition);
             if (value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3) {
@@ -11207,6 +11207,17 @@ export function finishRangeDomainConversion(input: RangeValue, result: CheckOutc
 }
 export function finishMultirangeDomainConversion(input: MultirangeValue, result: CheckOutcome): MultirangeValue {
     input = copyMultirangeValue(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
+export function finishTsvectorDomainConversion(input: TsvectorValue, result: CheckOutcome): TsvectorValue {
+    input = copyTsvectorValue(input);
     if (result.kind === "Error") {
         const error: SqlError = result.value;
         return { kind: "Error", value: error };

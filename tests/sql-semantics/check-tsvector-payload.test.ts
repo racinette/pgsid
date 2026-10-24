@@ -24,7 +24,7 @@ import {
 it('validates SQL-coerced tsvector payloads, domains and optional stored size through native, Rust and public Go and TypeScript validators', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-tsvector-payload-')),
-    packet = 'artifacts/goal-checks/tsvector-scalar-active',
+    packet = 'artifacts/goal-checks/tsvector-literals-active',
     run = promisify(execFile)
   const context = { serverEncoding: 'UTF8', defaultCollation: 'C' } as const
   const definitions: Record<string, string> = {
@@ -51,6 +51,61 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
     await pg.exec(
       'CREATE DOMAIN imported_vector AS tsvector;CREATE DOMAIN nested_vector AS imported_vector',
     )
+
+    await pg.exec('CREATE TABLE vector_binary_inputs(key text,value tsvector)')
+    const binary = [
+      {
+        key: '__binary_duplicate',
+        lexemes: [
+          { text: 'a', positions: [0xc001] },
+          { text: 'a', positions: [0x8002] },
+        ],
+      },
+      {
+        key: '__binary_zero',
+        lexemes: [
+          { text: 'a', positions: [0] },
+          { text: 'b', positions: [0xc000, 2] },
+        ],
+      },
+      { key: '__binary_wide', lexemes: [{ text: 'a'.repeat(2047), positions: [] }] },
+    ]
+    for (const sample of binary) {
+      const count = Buffer.alloc(4)
+      count.writeInt32BE(sample.lexemes.length)
+      const payload = Buffer.concat([
+        count,
+        ...sample.lexemes.flatMap((l) => {
+          const positions = Buffer.alloc(2 + 2 * l.positions.length)
+          positions.writeUInt16BE(l.positions.length)
+          l.positions.forEach((p, i) => positions.writeUInt16BE(p, 2 + 2 * i))
+          return [Buffer.from(l.text), Buffer.from([0]), positions]
+        }),
+      ])
+      const header = Buffer.alloc(19),
+        tuple = Buffer.alloc(10)
+      Buffer.from('5047434f50590aff0d0a00', 'hex').copy(header)
+      tuple.writeInt16BE(2)
+      tuple.writeInt32BE(Buffer.byteLength(sample.key), 2)
+      const width = Buffer.alloc(4)
+      width.writeInt32BE(payload.length)
+      await pg.exec("COPY vector_binary_inputs FROM '/dev/blob' (FORMAT binary)", {
+        blob: new Blob([
+          new Uint8Array(
+            Buffer.concat([
+              header,
+              tuple.subarray(0, 6),
+              Buffer.from(sample.key),
+              width,
+              payload,
+              Buffer.from('ffff', 'hex'),
+            ]),
+          ),
+        ]),
+      })
+    }
+    const vectorSql = (parameter: string) =>
+      `CASE WHEN ${parameter}::text IN ('__binary_duplicate','__binary_zero','__binary_wide') THEN (SELECT value FROM vector_binary_inputs WHERE key=${parameter}::text) ELSE ${parameter}::tsvector END`
     const columns = 'item nested_vector,reference tsvector,choose_first bool,bypass bool'
     await pg.exec(
       `CREATE TABLE vector_rows(${columns},${Object.entries(definitions)
@@ -96,13 +151,13 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       if (cached) return cached
       const rows = (
         await pg.query<{ lexeme: string; positions: number[] | null; weights: string[] | null }>(
-          'SELECT * FROM unnest($1::tsvector)',
+          `SELECT * FROM unnest(${vectorSql('$1')})`,
           [text],
         )
       ).rows
       const nativeBytes = (
         await pg.query<{ bytes: number }>(
-          "SELECT pg_column_size(setweight($1::tsvector,'D',ARRAY[]::text[])) bytes",
+          `SELECT pg_column_size(setweight(${vectorSql('$1')},'D',ARRAY[]::text[])) bytes`,
           [text],
         )
       ).rows[0]!.bytes
@@ -121,7 +176,16 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
     }
     let inserts = 0,
       rejections = 0
-    const samples = [null, '', 'a', 'b:2C a:1A', 'a:1,3B z:2', '😀:2 é:1', "'it''s':1A"]
+    const samples = [
+      null,
+      '',
+      'a',
+      'b:2C a:1A',
+      'a:1,3B z:2',
+      '😀:2 é:1',
+      "'it''s':1A",
+      ...binary.map((v) => v.key),
+    ]
     for (let i = 0; i < samples.length; i++)
       for (let variant = 0; variant < 4; variant++) {
         const source = samples[i]!,
@@ -129,8 +193,7 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
           choose = variant % 2 === 0,
           bypass = variant === 3
         const values = [source, reference, choose, bypass],
-          query =
-            'SELECT $1::nested_vector item,$2::tsvector reference,$3::bool choose_first,$4::bool bypass'
+          query = `SELECT (${vectorSql('$1')})::nested_vector item,${vectorSql('$2')} reference,$3::bool choose_first,$4::bool bypass`
         const native = (
           await pg.query<Record<string, boolean | null>>(
             `SELECT ${Object.entries(definitions)
@@ -309,7 +372,7 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       { kind: 'Value', value: { ...good, lexemes: [{ text: 'a\0', positions: [] }] } },
       {
         kind: 'Value',
-        value: { ...good, lexemes: [{ text: 'a', positions: [{ position: 0, weight: 3 }] }] },
+        value: { ...good, lexemes: [{ text: 'a', positions: [{ position: -1, weight: 3 }] }] },
       },
       {
         kind: 'Value',
@@ -437,7 +500,7 @@ base:=rows[12];for _,v:=range []checkruntime.TsvectorValue{
  {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:-2}},
  {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:1073741824}},
  {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:13,Lexemes:[]checkruntime.TsvectorLexeme{{Text:string([]byte{255})}}}},
- {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:13,Lexemes:[]checkruntime.TsvectorLexeme{{Text:"a",Positions:[]checkruntime.TsvectorPosition{{Position:0,Weight:3}}}}}},
+ {Kind:checkruntime.TsvectorValueValue,Value:checkruntime.TsvectorPayload{NativeBytes:13,Lexemes:[]checkruntime.TsvectorLexeme{{Text:"a",Positions:[]checkruntime.TsvectorPosition{{Position:-1,Weight:3}}}}}},
  {Kind:checkruntime.TsvectorValueKind(99)},
 }{base.Item=KnownCheckValue(v);for _,c:=range EvaluatePublicVectorRowsChecks(base){if (c.Constraint=="same"||c.Constraint=="presence")&&c.Result.Certain{t.Fatal("malformed vector became certain",c)}}}
 

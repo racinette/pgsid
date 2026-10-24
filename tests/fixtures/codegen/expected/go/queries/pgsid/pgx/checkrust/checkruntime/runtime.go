@@ -3454,11 +3454,11 @@ func MakeTsvectorValue(input TsvectorPayload) TsvectorValue {
 		if text == "" {
 			return TsvectorValue{Kind: TsvectorValueUnknown}
 		}
-		if index > 0 && TsvectorLexemeOrder(input.Lexemes[langruntime.CheckedSubtract(index, 1)].Text, text) >= 0 {
+		if index > 0 && TsvectorLexemeOrder(input.Lexemes[langruntime.CheckedSubtract(index, 1)].Text, text) > 0 {
 			return TsvectorValue{Kind: TsvectorValueUnknown}
 		}
 		position := 0
-		previous := 0
+		previous := langruntime.CheckedSignedNegate(1)
 		for position < len(input.Lexemes[index].Positions) {
 			value := input.Lexemes[index].Positions[position]
 			if value.Position <= previous || value.Position > 16383 || value.Weight < 0 || value.Weight > 3 {
@@ -11170,6 +11170,17 @@ func FinishMultirangeDomainConversion(input MultirangeValue, result CheckOutcome
 	}
 	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
 		return MultirangeValue{Kind: MultirangeValueUnknown}
+	}
+	return input
+}
+func FinishTsvectorDomainConversion(input TsvectorValue, result CheckOutcome) TsvectorValue {
+	input = CopyTsvectorValue(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return TsvectorValue{Kind: TsvectorValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return TsvectorValue{Kind: TsvectorValueUnknown}
 	}
 	return input
 }
