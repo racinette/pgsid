@@ -15,3 +15,6 @@ VALUES ('<?xml version="1.0"?><template/>','<?xml version="1.0"?><attachment/>',
 
 INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
 VALUES ('<manifest><item/></manifest>',E'<manifest>\n  <item/>\n</manifest>',E'<manifest>\n  <item/>\n</manifest>',true,false);
+
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{}','<manifest/>',1,true,true,false);

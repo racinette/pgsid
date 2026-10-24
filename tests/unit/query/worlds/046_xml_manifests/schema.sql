@@ -84,3 +84,18 @@ CREATE TABLE manifest_previews (
   CONSTRAINT preview_document CHECK (CASE WHEN bypass OR NOT require_document THEN true ELSE XMLSERIALIZE(DOCUMENT manifest AS text INDENT) IS NOT DISTINCT FROM expected_document END),
   CONSTRAINT preview_json CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(XMLSERIALIZE(CONTENT manifest AS text INDENT)) IS NOT DISTINCT FROM to_jsonb(expected_content) END)
 );
+
+CREATE TABLE manifest_queries (
+  manifest xml,
+  expression text,
+  namespaces text[],
+  expected_first text,
+  expected_count integer,
+  expected_exists boolean,
+  use_standard boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT query_first CHECK (CASE WHEN bypass THEN true ELSE (xpath(expression,manifest,namespaces))[1]::text IS NOT DISTINCT FROM expected_first END),
+  CONSTRAINT query_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(xpath(expression,manifest,namespaces)) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT query_exists CHECK (CASE WHEN bypass THEN true ELSE xpath_exists(expression,manifest,namespaces) IS NOT DISTINCT FROM expected_exists END),
+  CONSTRAINT query_standard CHECK (CASE WHEN bypass OR NOT use_standard THEN true ELSE XMLEXISTS(expression PASSING BY REF manifest BY REF) IS NOT DISTINCT FROM expected_exists END)
+);

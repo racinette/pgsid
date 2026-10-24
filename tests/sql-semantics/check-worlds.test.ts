@@ -466,6 +466,8 @@ describe('world CHECK INSERT parity', () => {
         arrayNulls: true,
         nativeByteOrder: 'little',
         trigonometry: 'fdlibm',
+        extraFloatDigits: 1,
+        xpathRecursionLimit: 5000,
       },
       enums: catalog.enums,
       rangeTypes: catalog.rangeTypes,
@@ -475,7 +477,7 @@ describe('world CHECK INSERT parity', () => {
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm }\n    go:\n      schema: { outDir: schema }\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, xpathRecursionLimit: 5000 }\n    go:\n      schema: { outDir: schema }\n',
       ),
       {},
       join(directory, 'schema'),

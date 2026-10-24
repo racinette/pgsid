@@ -223,3 +223,95 @@ VALUES ('<a/><b/>',E'<a/>\n<b/>',NULL,true,false);
 -- name: BypassedManifestPreview
 INSERT INTO manifest_previews(manifest,expected_content,expected_document,require_document,bypass)
 VALUES ('<a/><b/>','wrong','wrong',true,true);
+
+-- name: SelectManifestRoot
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{}','<manifest/>',1,true,true,false);
+
+-- name: MissingManifestNode
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','//missing','{}',NULL,0,false,true,false);
+
+-- name: FalseScalarStillExists
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','false()','{}','false',1,true,true,false);
+
+-- name: EmptyScalarStillExists
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','''''','{}','',1,true,true,false);
+
+-- name: NumericManifestResult
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','1 div 3','{}','0.3333333333333333',1,true,true,false);
+
+-- name: NamespacedManifest
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<p:manifest xmlns:p="urn:manifest"/>','/p:manifest','{{p,urn:manifest}}','<p:manifest xmlns:p="urn:manifest"/>',1,true,false,false);
+
+-- name: AliasedManifestNamespace
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<p:manifest xmlns:p="urn:manifest"/>','/q:manifest','{{q,urn:manifest}}','<p:manifest xmlns:p="urn:manifest"/>',1,true,false,false);
+
+-- name: NamespaceReplacement
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<p:manifest xmlns:p="urn:manifest"/>','/p:manifest','{{p,urn:other},{p,urn:manifest}}','<p:manifest xmlns:p="urn:manifest"/>',1,true,false,false);
+
+-- name: ShiftedNamespaceBounds
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<p:manifest xmlns:p="urn:manifest"/>','/p:manifest','[-2:-2][5:6]={{p,urn:manifest}}','<p:manifest xmlns:p="urn:manifest"/>',1,true,false,false);
+
+-- name: NullNamespaceArgument
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*',NULL,NULL,NULL,NULL,false,false);
+
+-- name: NullDocumentSkipsQuery
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES (NULL,'(','{p,urn:manifest}',NULL,NULL,NULL,true,false);
+
+-- name: NamespaceDimensionsBeforePath
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('plain','','{p,urn:manifest}',NULL,NULL,NULL,false,false);
+
+-- name: EmptyPathBeforeDocument
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('plain','','{}',NULL,NULL,NULL,false,false);
+
+-- name: DocumentBeforeNamespaceCells
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('plain','(','{{NULL,urn:manifest}}',NULL,NULL,NULL,false,false);
+
+-- name: NullNamespaceBeforeCompiler
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','(','{{NULL,urn:manifest}}',NULL,NULL,NULL,false,false);
+
+-- name: EmptyNamespacePrefix
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{{"",urn:manifest}}',NULL,NULL,NULL,false,false);
+
+-- name: UnboundManifestPrefix
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/missing:manifest','{}',NULL,NULL,NULL,false,false);
+
+-- name: WrongManifestSelection
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{}','wrong',1,true,true,false);
+
+-- name: WrongManifestCardinality
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{}','<manifest/>',2,true,true,false);
+
+-- name: WrongManifestExistence
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*','{}','<manifest/>',1,false,false,false);
+
+-- name: BypassedManifestQuery
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('plain','','{p,urn:manifest}','wrong',9,false,true,true);
+
+-- name: EscapedManifestScalar
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest>&amp;&lt;&gt;</manifest>','string(/manifest)','{}','&amp;&lt;&gt;',1,true,true,false);
+
+-- name: StandardQueryIgnoresNamespaceNull
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','/*',NULL,NULL,NULL,NULL,true,false);

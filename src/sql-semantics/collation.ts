@@ -1,3 +1,4 @@
+import { isXmlXPathCallable } from './xml-callables.js'
 import {
   builtinCallables,
   builtinCast,
@@ -431,6 +432,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     jsonField ||
     nameIntrinsic ||
     textWire ||
+    isXmlXPathCallable(metadata) ||
     oidAliasLookup ||
     likeEscape ||
     textIntrinsic ||
