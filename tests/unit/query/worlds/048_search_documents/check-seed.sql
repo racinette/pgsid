@@ -175,3 +175,21 @@ INSERT INTO document_archived_scores(source,expected_reference,observation,minim
 INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a:0',NULL,4,1,false);
 -- name: document_archive_skipped
 INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a:0',NULL,4,1,true);
+-- name: document_empty_record_window_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES('empty',NULL,0,false,false);
+-- name: document_unbounded_record_window_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES('(,)',NULL,0,false,false);
+-- name: document_null_record_window_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,NULL,0,false,false);
+-- name: document_skipped_record_window_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES('invalid',NULL,0,false,true);
+-- name: document_empty_record_members_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'{}',0,true,false);
+-- name: document_unbounded_record_members_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'{(,)}',0,true,false);
+-- name: document_null_record_members_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,NULL,0,true,false);
+-- name: document_null_seed_record_members_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'{}',NULL,true,false);
+-- name: document_skipped_record_members_hash
+INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'invalid',0,true,true);
