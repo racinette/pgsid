@@ -23,6 +23,10 @@ pub fn jsonb_input_from_bytea(input: ByteaValue) -> JsonbInput {
     JsonbInput::Unknown
 }
 
+pub fn jsonb_input_from_aclitem(input: AclitemValue) -> JsonbInput {
+    jsonb_input_from_text(aclitem_to_text(input))
+}
+
 pub fn jsonb_input_from_money_context(input: MoneyValue, c_locale: bool) -> JsonbInput {
     jsonb_input_from_text(money_to_text_context(input,c_locale))
 }

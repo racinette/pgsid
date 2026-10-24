@@ -192,6 +192,20 @@ const arraySortContextCases = new Map<string, string>([
   ],
 ])
 const declaredValueContextCases = new Map<string, string>([
+  ...['acl_json_scalar', 'acl_json_array', 'acl_json_record', 'acl_json_object'].map(
+    (name) =>
+      [
+        `047_acl_entries/acl_json_catalog_text/${name}`,
+        `world_047_acl_entries.acl_json_exports.${name}`,
+      ] as const,
+  ),
+  ...['acl_json_scalar', 'acl_json_object'].map(
+    (name) =>
+      [
+        `047_acl_entries/acl_json_null_pretty/${name}`,
+        `world_047_acl_entries.acl_json_exports.${name}`,
+      ] as const,
+  ),
   [
     '043_lane_allocations/catalog_window_labels_requires_catalog/relation_window_label',
     'world_043_lane_allocations.lane_catalog_window_labels.relation_window_label',

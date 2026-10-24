@@ -17152,6 +17152,9 @@ func JsonbInputFromBytea(input checkruntime.ByteaValue) checkruntime.JsonbInput 
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
+func JsonbInputFromAclitem(input checkruntime.AclitemValue) checkruntime.JsonbInput {
+	return checkruntime.JsonbInputFromText(AclitemToText(input))
+}
 func JsonbInputFromMoneyContext(input checkruntime.MoneyValue, cLocale bool) checkruntime.JsonbInput {
 	return checkruntime.JsonbInputFromText(MoneyToTextContext(input, cLocale))
 }
