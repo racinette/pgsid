@@ -5,6 +5,7 @@ export type ContainerStorageFacet<Leaf> =
   | { kind: 'record'; fields: (ContainerStorageFacet<Leaf> | null)[] }
   | {
       kind: 'array'
+      nullBitmap?: boolean
       delimiter: string
       dimensions: { lower: number; length: number }[]
       elements: (ContainerStorageFacet<Leaf> | null)[]
@@ -50,12 +51,13 @@ export function storageRowIdentities(
 
 export function storageContainerTypes(
   types: ReadonlyMap<number, ConstantStorageType>,
-  identity: string,
+  identity: string | ReadonlySet<number>,
 ): Set<number> {
   const parents = new Map<number, Set<number>>(),
     roots: number[] = []
   for (const type of types.values()) {
-    if (type.identity === identity) roots.push(type.oid)
+    if (typeof identity === 'string' ? type.identity === identity : identity.has(type.oid))
+      roots.push(type.oid)
     const children =
       type.kind === 'd'
         ? [type.base]
@@ -76,7 +78,8 @@ export function storageContainerTypes(
         roots.push(parent)
       }
     }
-  for (const type of types.values()) if (type.identity === identity) result.delete(type.oid)
+  if (typeof identity === 'string')
+    for (const type of types.values()) if (type.identity === identity) result.delete(type.oid)
   return result
 }
 
@@ -86,9 +89,10 @@ export function containerConstant<Leaf>(
   types: ReadonlyMap<number, ConstantStorageType>,
   identity: string,
   leaf: (input: Buffer, header: number) => Leaf | undefined,
+  options?: { containers: ReadonlySet<number>; arrayStorage: boolean },
 ): ContainerStorageFacet<Leaf> | undefined {
   const candidates: ContainerStorageFacet<Leaf>[] = []
-  const containers = storageContainerTypes(types, identity)
+  const containers = options?.containers ?? storageContainerTypes(types, identity)
   for (const little of [true, false])
     for (const doubleAlign of [4, 8]) {
       const read = (data: Buffer, offset: number) =>
@@ -202,7 +206,13 @@ export function containerConstant<Leaf>(
             data.subarray(position).some((b) => b !== 0)
           )
             return undefined
-          return { kind: 'array', delimiter: element.delimiter, dimensions: shape, elements }
+          return {
+            kind: 'array',
+            delimiter: element.delimiter,
+            dimensions: shape,
+            elements,
+            ...(options?.arrayStorage ? { nullBitmap: offset !== 0 } : {}),
+          }
         }
         if (data.length < 23 || word(data, 8) !== type.oid) return undefined
         const count = short(data, 18) & 2047,

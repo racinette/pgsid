@@ -1,3 +1,4 @@
+import { arrayStorageContainerTypes } from './array-constant-storage.js'
 import { storageRowIdentities } from './container-constant-storage.js'
 import { tsvectorConstantTypes } from './tsvector-container-constants.js'
 import { readConstantStorageTypes } from '../postgres/constant-storage-types.js'
@@ -9,6 +10,8 @@ import {
   captureDomainCoercionContext,
   captureRowCoercionContext,
   captureArrayConstructorContext,
+  captureArrayConstantContext,
+  captureArrayDefaultContexts,
   captureTsvectorConstantContext,
   captureTsvectorDefaultContexts,
   captureXmlConstantContext,
@@ -40,6 +43,7 @@ import type {
   TableInfo,
   ViewInfo,
   StoredTsvectorConstantContext,
+  StoredArrayConstantContext,
   Volatility,
   WriteRewriteInfo,
 } from './types.js'
@@ -468,6 +472,7 @@ function resolveFunctionArgs(
   row: FunctionRow,
   typeNames: Map<number, string>,
   tsvectorConstants: readonly (StoredTsvectorConstantContext | null)[],
+  arrayConstants: readonly (StoredArrayConstantContext | null)[],
 ): FunctionArgInfo[] {
   const allTypes = row.proallargtypes
   let typeOids: number[]
@@ -500,6 +505,7 @@ function resolveFunctionArgs(
       mode,
       hasDefault: isInput(mode) && inputIndex++ >= firstDefaultInput,
       defaultExpr: row.argdefaults?.[i] ?? null,
+      ...(arrayConstants[i] ? { arrayConstants: arrayConstants[i]! } : {}),
       ...(tsvectorConstants[i] ? { tsvectorConstants: tsvectorConstants[i]! } : {}),
     })
   }
@@ -848,7 +854,14 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const xmlContainers = xmlStorageContainerTypes(typesByOid)
   for (const oid of xmlTypes) xmlContainers.delete(oid)
   for (const oid of xmlArrays.keys()) xmlContainers.delete(oid)
+  const arrayStorage = { types: typesByOid, roots: arrayStorageContainerTypes(typesByOid) }
   for (const con of constraintRows) {
+    const arrayConstants = captureArrayConstantContext(
+      con.coercion_tree,
+      con.definition,
+      rowIdentities,
+      arrayStorage,
+    )
     const tsvectorConstants = captureTsvectorConstantContext(
       con.coercion_tree,
       con.definition,
@@ -881,6 +894,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       typeIdentities,
     )
     const ci: ConstraintInfo = {
+      ...(arrayConstants ? { arrayConstants } : {}),
       ...(tsvectorConstants ? { tsvectorConstants } : {}),
       ...(xmlConstants ? { xmlConstants } : {}),
       ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
@@ -1093,6 +1107,12 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           rowIdentities,
           { types: typesByOid, roots: tsvectorContainers },
         ),
+        captureArrayDefaultContexts(
+          f.defaults_tree,
+          f.argdefaults ?? [],
+          rowIdentities,
+          arrayStorage,
+        ),
       ),
       // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
       // rows, so there is no result to render — while `FunctionInfo.returnType`
@@ -1162,6 +1182,12 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       notNull: d.not_null,
       default: d.default_expr,
       checks: (d.check_exprs ?? []).map((check) => {
+        const arrayConstants = captureArrayConstantContext(
+          check.coercion_tree,
+          check.definition,
+          rowIdentities,
+          arrayStorage,
+        )
         const tsvectorConstants = captureTsvectorConstantContext(
           check.coercion_tree,
           check.definition,
@@ -1196,6 +1222,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         return {
           name: check.name,
           definition: check.definition,
+          ...(arrayConstants ? { arrayConstants } : {}),
           ...(tsvectorConstants ? { tsvectorConstants } : {}),
           ...(xmlConstants ? { xmlConstants } : {}),
           ...(arrayConstructorContext ? { arrayConstructorContext } : {}),

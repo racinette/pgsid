@@ -1,3 +1,5 @@
+import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
+import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { isMoneyNumericConversion } from './money-callables.js'
@@ -645,6 +647,7 @@ type Literal = {
   value: string | null
   tsvectorStored?: boolean
   tsvectorStorage?: TsvectorConstantStorage
+  arrayConstantStorage?: readonly ArrayConstantStorage[]
   tsvectorContainerStorage?: readonly TsvectorConstantStorage[]
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
@@ -928,6 +931,9 @@ const materialize = (
     )
       return {
         kind: 'array-text-literal',
+        ...(bound.literal.arrayConstantStorage
+          ? { arrayStorage: bound.literal.arrayConstantStorage }
+          : {}),
         ...(bound.literal.tsvectorContainerStorage
           ? { tsvectorStorage: bound.literal.tsvectorContainerStorage }
           : {}),
@@ -3642,6 +3648,9 @@ export function bindCatalogCheck(
               operand.literal?.kind === 'string'
                 ? {
                     kind: 'array-text-literal',
+                    ...(operand.literal?.arrayConstantStorage
+                      ? { arrayStorage: operand.literal.arrayConstantStorage }
+                      : {}),
                     ...(operand.literal?.tsvectorContainerStorage
                       ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
                       : {}),
@@ -3812,6 +3821,9 @@ export function bindCatalogCheck(
               operand.literal?.kind === 'string'
                 ? {
                     kind: 'array-text-literal',
+                    ...(operand.literal?.arrayConstantStorage
+                      ? { arrayStorage: operand.literal.arrayConstantStorage }
+                      : {}),
                     ...(operand.literal?.tsvectorContainerStorage
                       ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
                       : {}),
@@ -4159,6 +4171,11 @@ export function bindCatalogCheck(
                 const body = fields(command?.['AlterTableCmd'])?.['def']
                 const constraint = fields(fields(body)?.['Constraint'])
                 if (constraint?.['contype'] === 'CONSTR_CHECK') {
+                  restoreStoredArrayConstants(
+                    constraint['raw_expr'],
+                    check.definition,
+                    check.arrayConstants,
+                  )
                   restoreStoredTsvectorConstants(
                     constraint['raw_expr'],
                     check.definition,
@@ -4445,6 +4462,9 @@ export function bindCatalogCheck(
             type: composite,
             value: {
               kind: 'text-to-composite',
+              ...(operand.literal?.arrayConstantStorage
+                ? { arrayStorage: operand.literal.arrayConstantStorage }
+                : {}),
               ...(operand.literal?.tsvectorContainerStorage
                 ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
                 : {}),
@@ -5573,6 +5593,13 @@ export function bindCatalogCheck(
             literal: {
               kind: 'string',
               value: string,
+              ...(literalOrigin === 'stored' && Array.isArray(wrapper['__pgsid_array_storage'])
+                ? {
+                    arrayConstantStorage: wrapper[
+                      '__pgsid_array_storage'
+                    ] as ArrayConstantStorage[],
+                  }
+                : {}),
               tsvectorStored: literalOrigin === 'stored',
               ...(literalOrigin === 'stored' && wrapper['__pgsid_tsvector_storage']
                 ? {
@@ -6450,6 +6477,11 @@ export function bindCatalogCheck(
             ? fields(fields(targets[0])?.['ResTarget'])?.['val']
             : undefined
         if (parsed.stmts?.length !== 1 || !node || containsColumn(node)) return unavailableDefault
+        restoreStoredArrayConstants(
+          node,
+          expression,
+          callable.defaultArrayConstants?.[position] ?? undefined,
+        )
         restoreStoredTsvectorConstants(
           node,
           expression,

@@ -138,3 +138,135 @@ fn clear_tsvector_storage(input: ArrayElement) -> ArrayElement {
     };
     input
 }
+
+#[derive(Clone)]
+struct ArrayStorageEntry {
+    path: String,
+    dimensions: i32,
+    elements: i32,
+    null_bitmap: bool,
+}
+
+#[derive(Clone)]
+pub(crate) struct ArrayStoragePlan {
+    entries: Vec<ArrayStorageEntry>,
+    valid: bool,
+}
+
+pub fn make_array_storage_plan() -> ArrayStoragePlan {
+    let entries: Vec<ArrayStorageEntry> = Vec::new();
+    ArrayStoragePlan {entries:entries,valid:true}
+}
+
+pub fn append_array_storage(input: ArrayStoragePlan, path: &str, dimensions: i32, elements: i32, bitmap: bool) -> ArrayStoragePlan {
+    let mut entries = input.entries;
+    let valid = input.valid && dimensions >= 0 && dimensions <= 6 && elements >= 0;
+    entries.push(ArrayStorageEntry {path:path.to_owned(),dimensions:dimensions,elements:elements,null_bitmap:bitmap});
+    ArrayStoragePlan {entries:entries,valid:valid}
+}
+
+fn array_storage_child_path(path: &str, index: usize) -> String {
+    let mut child = path.to_owned();
+    child.push('/');
+    let number = index as i32;
+    let wide = number as i64;
+    let text = text_signed_number(wide);
+    child.push_str(text.as_str());
+    child
+}
+
+fn array_storage_missing_bitmap(input: &ArrayPayload) -> BoolValue {
+    let elements = array_elements_bitmap(input);
+    if elements == BoolValue::Value(true) { return elements; };
+    BoolValue::Unknown
+}
+
+pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Array(value) = input {
+        let bitmap = array_storage_missing_bitmap(&value);
+        let mut elements: Vec<ArrayElement> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.elements.len() {
+            elements.push(forget_array_storage(value.elements[i].clone()));
+            i += 1;
+        }
+        return ArrayElement::Array(ArrayPayload {element_type:value.element_type,element_kind:value.element_kind,
+            dimensions:value.dimensions,elements:elements,null_bitmap:bitmap});
+    };
+    if let ArrayElement::Composite(value) = input {
+        let mut fields: Vec<ArrayElement> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.fields.len() {
+            fields.push(forget_array_storage(value.fields[i].clone()));
+            i += 1;
+        }
+        return ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
+    };
+    input
+}
+
+#[derive(Clone)]
+struct ArrayStorageResult {
+    value: ArrayElement,
+    matched: usize,
+    valid: bool,
+}
+
+fn apply_array_storage_at(input: ArrayElement, plan: &ArrayStoragePlan, path: &str) -> ArrayStorageResult {
+    if let ArrayElement::Array(value) = input {
+        let mut matched: usize = 0;
+        let mut bitmap = array_storage_missing_bitmap(&value);
+        let mut valid = true;
+        let mut i: usize = 0;
+        while i < plan.entries.len() {
+            let entry = plan.entries[i].clone();
+            if entry.path.as_str() == path {
+                matched += 1;
+                if usize::try_from(entry.dimensions).unwrap_or(2147483647) != value.dimensions.len()
+                    || usize::try_from(entry.elements).unwrap_or(2147483647) != value.elements.len()
+                    || (entry.null_bitmap == false && bitmap == BoolValue::Value(true)) {
+                    valid = false;
+                };
+                bitmap = BoolValue::Value(entry.null_bitmap);
+            };
+            i += 1;
+        }
+        if matched != 1 { valid = false; };
+        let mut elements: Vec<ArrayElement> = Vec::new();
+        i = 0;
+        while i < value.elements.len() {
+            let child_path = array_storage_child_path(path,i);
+            let child = apply_array_storage_at(value.elements[i].clone(),plan,child_path.as_str());
+            matched += child.matched;
+            valid = valid && child.valid;
+            elements.push(child.value);
+            i += 1;
+        }
+        let restored = ArrayElement::Array(ArrayPayload {element_type:value.element_type,element_kind:value.element_kind,
+            dimensions:value.dimensions,elements:elements,null_bitmap:bitmap});
+        return ArrayStorageResult {value:restored,matched:matched,valid:valid};
+    };
+    if let ArrayElement::Composite(value) = input {
+        let mut fields: Vec<ArrayElement> = Vec::new();
+        let mut matched: usize = 0;
+        let mut valid = true;
+        let mut i: usize = 0;
+        while i < value.fields.len() {
+            let child_path = array_storage_child_path(path,i);
+            let child = apply_array_storage_at(value.fields[i].clone(),plan,child_path.as_str());
+            matched += child.matched;
+            valid = valid && child.valid;
+            fields.push(child.value);
+            i += 1;
+        }
+        let restored = ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
+        return ArrayStorageResult {value:restored,matched:matched,valid:valid};
+    };
+    ArrayStorageResult {value:input,matched:0,valid:true}
+}
+
+pub fn apply_array_storage(input: ArrayElement, plan: &ArrayStoragePlan) -> ArrayElement {
+    let result = apply_array_storage_at(input,plan,"");
+    if plan.valid && result.valid && result.matched == plan.entries.len() { return result.value; };
+    forget_array_storage(result.value)
+}

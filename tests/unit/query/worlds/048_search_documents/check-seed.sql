@@ -143,3 +143,19 @@ INSERT INTO document_default_windows(source,expected_default,expected_supplied,b
 INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:0',NULL,NULL,false);
 -- name: document_default_skipped
 INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:0',NULL,NULL,true);
+-- name: document_score_updated
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a',true,false);
+-- name: document_score_wrong_count
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,3,'a',true,false);
+-- name: document_score_wrong_reference
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a',false,false);
+-- name: document_score_null_observation
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(NULL,1,'a',true,false);
+-- name: document_score_null_reference
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,NULL,NULL,false);
+-- name: document_score_empty_reference
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'',false,false);
+-- name: document_score_bad_input
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a:0',NULL,false);
+-- name: document_score_skipped
+INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a:0',NULL,true);

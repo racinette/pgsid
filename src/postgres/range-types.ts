@@ -1,8 +1,12 @@
+import { arrayStorageContainerTypes } from '../catalog/array-constant-storage.js'
 import { catalogIdentifierSql as identifier } from './catalog-identities.js'
 import { readCatalogCompositeTypes } from './composite-types.js'
 import { compositeTypeDependencies } from '../catalog/composite-dependencies.js'
 import { readConstantStorageTypes } from './constant-storage-types.js'
-import { captureTsvectorDefaultContexts } from '../catalog/coercion-context.js'
+import {
+  captureTsvectorDefaultContexts,
+  captureArrayDefaultContexts,
+} from '../catalog/coercion-context.js'
 import {
   storageRowIdentities,
   type ConstantStorageType,
@@ -173,7 +177,8 @@ async function readRangeCallables(
       new Map((await readConstantStorageTypes(pg)).map((type) => [type.oid, type])))
     : new Map<number, ConstantStorageType>()
   const { scalars, containers } = tsvectorConstantTypes(types),
-    rowIdentities = storageRowIdentities(types)
+    rowIdentities = storageRowIdentities(types),
+    arrayStorage = { types, roots: arrayStorageContainerTypes(types) }
   for (const { range, defaultsTree, ...callable } of rows) {
     const contexts = captureTsvectorDefaultContexts(
       defaultsTree,
@@ -183,6 +188,13 @@ async function readRangeCallables(
       { types, roots: containers },
     )
     if (contexts.some((context) => context !== null)) callable.defaultTsvectorConstants = contexts
+    const arrays = captureArrayDefaultContexts(
+      defaultsTree,
+      callable.defaultExprs ?? [],
+      rowIdentities,
+      arrayStorage,
+    )
+    if (arrays.some((context) => context !== null)) callable.defaultArrayConstants = arrays
     const group = result.get(range) ?? []
     group.push(callable)
     result.set(range, group)

@@ -14361,6 +14361,162 @@ func clearTsvectorStorage(input ArrayElement) ArrayElement {
 	}
 	return input
 }
+
+type arrayStorageEntry struct {
+	path       string
+	dimensions int
+	elements   int
+	nullBitmap bool
+}
+
+func copyarrayStorageEntry(value arrayStorageEntry) arrayStorageEntry {
+	return arrayStorageEntry{path: langruntime.CheckedString(value.path), dimensions: langruntime.CheckedI32(value.dimensions), elements: langruntime.CheckedI32(value.elements), nullBitmap: value.nullBitmap}
+}
+
+type ArrayStoragePlan struct {
+	entries []arrayStorageEntry
+	valid   bool
+}
+
+func copyArrayStoragePlan(value ArrayStoragePlan) ArrayStoragePlan {
+	return ArrayStoragePlan{entries: langruntime.CheckedStructs(value.entries, copyarrayStorageEntry), valid: value.valid}
+}
+func MakeArrayStoragePlan() ArrayStoragePlan {
+	entries := []arrayStorageEntry{}
+	return ArrayStoragePlan{entries: entries, valid: true}
+}
+func AppendArrayStorage(input ArrayStoragePlan, path string, dimensions int, elements int, bitmap bool) ArrayStoragePlan {
+	input = copyArrayStoragePlan(input)
+	path = langruntime.CheckedString(path)
+	dimensions = langruntime.CheckedI32(dimensions)
+	elements = langruntime.CheckedI32(elements)
+	entries := input.entries
+	valid := input.valid && dimensions >= 0 && dimensions <= 6 && elements >= 0
+	langruntime.CheckedAdd(len(entries), 1)
+	entries = append(entries, copyarrayStorageEntry(arrayStorageEntry{path: path, dimensions: dimensions, elements: elements, nullBitmap: bitmap}))
+	return ArrayStoragePlan{entries: entries, valid: valid}
+}
+func arrayStorageChildPath(path string, index int) string {
+	path = langruntime.CheckedString(path)
+	index = langruntime.CheckedIndex(index)
+	child := langruntime.NewTextBuffer(path)
+	child = append(child, string(langruntime.CheckedChar('/'))...)
+	number := int(int32(index))
+	wide := int64(langruntime.CheckedI32(number))
+	text := TextSignedNumber(wide)
+	child = append(child, text...)
+	return string(child)
+}
+func arrayStorageMissingBitmap(input *ArrayPayload) BoolValue {
+	elements := ArrayElementsBitmap(input)
+	if elements == (BoolValue{Kind: BoolValueValue, Value: true}) {
+		return elements
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func ForgetArrayStorage(input ArrayElement) ArrayElement {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementArray {
+		value := CopyArrayPayload(input.Array)
+		bitmap := arrayStorageMissingBitmap(&value)
+		elements := []ArrayElement{}
+		i := 0
+		for i < len(value.Elements) {
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Elements[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementArray, Array: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements, NullBitmap: bitmap}}
+	}
+	if input.Kind == ArrayElementComposite {
+		value := CopyCompositePayload(input.Composite)
+		fields := []ArrayElement{}
+		i := 0
+		for i < len(value.Fields) {
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Fields[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
+	}
+	return input
+}
+
+type arrayStorageResult struct {
+	value   ArrayElement
+	matched int
+	valid   bool
+}
+
+func copyarrayStorageResult(value arrayStorageResult) arrayStorageResult {
+	return arrayStorageResult{value: CopyArrayElement(value.value), matched: langruntime.CheckedIndex(value.matched), valid: value.valid}
+}
+func applyArrayStorageAt(input ArrayElement, plan *ArrayStoragePlan, path string) arrayStorageResult {
+	input = CopyArrayElement(input)
+	path = langruntime.CheckedString(path)
+	if input.Kind == ArrayElementArray {
+		value := CopyArrayPayload(input.Array)
+		matched := 0
+		bitmap := arrayStorageMissingBitmap(&value)
+		valid := true
+		i := 0
+		for i < len(plan.entries) {
+			entry := copyarrayStorageEntry(plan.entries[i])
+			if entry.path == path {
+				matched = langruntime.CheckedAdd(matched, 1)
+				if langruntime.IndexFromI32(entry.dimensions, 2147483647) != len(value.Dimensions) || langruntime.IndexFromI32(entry.elements, 2147483647) != len(value.Elements) || (entry.nullBitmap == false && bitmap == (BoolValue{Kind: BoolValueValue, Value: true})) {
+					valid = false
+				}
+				bitmap = BoolValue{Kind: BoolValueValue, Value: entry.nullBitmap}
+			}
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		if matched != 1 {
+			valid = false
+		}
+		elements := []ArrayElement{}
+		i = langruntime.CheckedIndex(0)
+		for i < len(value.Elements) {
+			childPath := arrayStorageChildPath(path, i)
+			child := applyArrayStorageAt(CopyArrayElement(value.Elements[i]), plan, childPath)
+			matched = langruntime.CheckedAdd(matched, child.matched)
+			valid = valid && child.valid
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, CopyArrayElement(child.value))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		restored := ArrayElement{Kind: ArrayElementArray, Array: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements, NullBitmap: bitmap}}
+		return arrayStorageResult{value: restored, matched: matched, valid: valid}
+	}
+	if input.Kind == ArrayElementComposite {
+		value := CopyCompositePayload(input.Composite)
+		fields := []ArrayElement{}
+		matched := 0
+		valid := true
+		i := 0
+		for i < len(value.Fields) {
+			childPath := arrayStorageChildPath(path, i)
+			child := applyArrayStorageAt(CopyArrayElement(value.Fields[i]), plan, childPath)
+			matched = langruntime.CheckedAdd(matched, child.matched)
+			valid = valid && child.valid
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, CopyArrayElement(child.value))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		restored := ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
+		return arrayStorageResult{value: restored, matched: matched, valid: valid}
+	}
+	return arrayStorageResult{value: input, matched: 0, valid: true}
+}
+func ApplyArrayStorage(input ArrayElement, plan *ArrayStoragePlan) ArrayElement {
+	input = CopyArrayElement(input)
+	plan = langruntime.CheckedBorrowed(plan, copyArrayStoragePlan)
+	result := applyArrayStorageAt(input, plan, "")
+	if plan.valid && result.valid && result.matched == len(plan.entries) {
+		return result.value
+	}
+	return ForgetArrayStorage(result.value)
+}
 func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) ArrayComparisonPayload {
 	input = CopyArrayValue(input)
 	if scalar.Kind == BoolValueError {

@@ -1,4 +1,5 @@
 import { tsvectorContainerConstant } from './tsvector-container-constants.js'
+import { arrayConstantStorage } from './array-constant-storage.js'
 import { tsvectorConstantStorage } from './tsvector-constant-storage.js'
 import { xmlContainerConstant } from './xml-container-constants.js'
 import type { ConstantStorageType } from './container-constant-storage.js'
@@ -8,6 +9,7 @@ import type {
   StoredArrayConstructorContext,
   StoredTsvectorConstantContext,
   StoredXmlConstantContext,
+  StoredArrayConstantContext,
 } from './types.js'
 import { xmlArrayConstantText } from './xml-array-constants.js'
 
@@ -152,12 +154,18 @@ function captureExpressionCoercions(
     roots: ReadonlySet<number>
   },
   parsedRoot?: Value,
+  arrayStorage?: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
   xml?: StoredXmlConstantContext
   tsvector?: StoredTsvectorConstantContext
+  arrayStorage?: StoredArrayConstantContext
 } {
+  const arrayCandidate =
+    source !== null &&
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => arrayStorage?.roots.has(Number(m[1])))
+  const arrayConstants: StoredArrayConstantContext['constants'] = []
   const tsvectorCandidate =
     source !== null &&
     [...source.matchAll(/:consttype\s+(\d+)/gu)].some(
@@ -181,6 +189,7 @@ function captureExpressionCoercions(
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
       !xmlCandidate &&
+      !arrayCandidate &&
       !tsvectorCandidate)
   )
     return {}
@@ -234,6 +243,35 @@ function captureExpressionCoercions(
       }
       const node = tree(value)
       if (!node) return
+      if (node.kind === 'CONST' && arrayStorage?.roots.has(Number(scalar(node, 'consttype')))) {
+        const raw = node.fields['constvalue'],
+          data = Array.isArray(raw?.[1]) ? raw[1] : undefined
+        const storage =
+          scalar(node, 'constisnull') === 'true'
+            ? null
+            : scalar(node, 'constisnull') === 'false' &&
+                scalar(node, 'constlen') === '-1' &&
+                scalar(node, 'constbyval') === 'false' &&
+                raw?.length === 2 &&
+                data &&
+                Number(raw[0]) === data.length &&
+                data.every(
+                  (v) =>
+                    typeof v === 'string' &&
+                    /^-?\d+$/u.test(v) &&
+                    Number(v) >= -128 &&
+                    Number(v) <= 255,
+                )
+              ? arrayConstantStorage(
+                  Buffer.from(data.map((v) => Number(v) & 255)),
+                  Number(scalar(node, 'consttype')),
+                  arrayStorage.types,
+                  arrayStorage.roots,
+                )
+              : undefined
+        if (site === undefined || storage === undefined) complete = false
+        else arrayConstants.push({ site, storage })
+      }
       if (node.kind === 'CONST' && tsvectorTypes.has(Number(scalar(node, 'consttype')))) {
         const raw = node.fields['constvalue'],
           data = Array.isArray(raw?.[1]) ? raw[1] : undefined
@@ -526,6 +564,9 @@ function captureExpressionCoercions(
     complete = false
   }
   return {
+    ...(arrayCandidate
+      ? { arrayStorage: { definition, complete, constants: arrayConstants } }
+      : {}),
     ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
     ...(tsvectorCandidate
@@ -584,6 +625,39 @@ export function captureTsvectorConstantContext(
   ).tsvector
 }
 
+function captureDefaultContexts<T>(
+  source: string | null,
+  definitions: readonly (string | null)[],
+  roots: ReadonlySet<number>,
+  capture: (root: Value, definition: string) => T | undefined,
+): (T | null)[] {
+  const contexts: (T | null)[] = definitions.map(() => null)
+  if (!source) return contexts
+  try {
+    const nodes = parseTree(source),
+      defaults = definitions.flatMap((definition, index) =>
+        definition === null ? [] : [{ definition, index }],
+      )
+    if (!Array.isArray(nodes) || nodes.length !== defaults.length) return contexts
+    const contains = (value: Value): boolean => {
+      if (typeof value === 'string') return false
+      if (Array.isArray(value)) return value.some(contains)
+      return (
+        (value.kind === 'CONST' && roots.has(Number(scalar(value, 'consttype')))) ||
+        Object.values(value.fields).some((children) => children.some(contains))
+      )
+    }
+    for (const [index, node] of nodes.entries())
+      if (contains(node)) {
+        const entry = defaults[index]!
+        contexts[entry.index] = capture(node, entry.definition) ?? null
+      }
+  } catch {
+    return definitions.map(() => null)
+  }
+  return contexts
+}
+
 export function captureTsvectorDefaultContexts(
   source: string | null,
   definitions: readonly (string | null)[],
@@ -591,46 +665,75 @@ export function captureTsvectorDefaultContexts(
   rows: ReadonlyMap<number, RowCoercionIdentity>,
   containers: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
 ): (StoredTsvectorConstantContext | null)[] {
-  const contexts: (StoredTsvectorConstantContext | null)[] = definitions.map(() => null)
-  if (!source) return contexts
-  try {
-    const roots = parseTree(source),
-      defaults = definitions.flatMap((definition, index) =>
-        definition === null ? [] : [{ definition, index }],
-      )
-    if (!Array.isArray(roots) || roots.length !== defaults.length) return contexts
-    const contains = (value: Value): boolean => {
-      if (typeof value === 'string') return false
-      if (Array.isArray(value)) return value.some(contains)
-      return (
-        (value.kind === 'CONST' &&
-          (types.has(Number(scalar(value, 'consttype'))) ||
-            containers.roots.has(Number(scalar(value, 'consttype'))))) ||
-        Object.values(value.fields).some((children) => children.some(contains))
-      )
-    }
-    for (const [index, root] of roots.entries()) {
-      if (!contains(root)) continue
-      const entry = defaults[index]!
-      contexts[entry.index] =
-        captureExpressionCoercions(
-          source,
-          entry.definition,
-          rows,
-          new Map(),
-          new Set(),
-          false,
-          new Map(),
-          undefined,
-          types,
-          containers,
-          root,
-        ).tsvector ?? null
-    }
-  } catch {
-    return definitions.map(() => null)
-  }
-  return contexts
+  return captureDefaultContexts(
+    source,
+    definitions,
+    new Set([...types, ...containers.roots]),
+    (root, definition) =>
+      captureExpressionCoercions(
+        source,
+        definition,
+        rows,
+        new Map(),
+        new Set(),
+        false,
+        new Map(),
+        undefined,
+        types,
+        containers,
+        root,
+      ).tsvector,
+  )
+}
+
+export function captureArrayConstantContext(
+  source: string | null,
+  definition: string,
+  rows: ReadonlyMap<number, RowCoercionIdentity>,
+  containers: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
+): StoredArrayConstantContext | undefined {
+  return captureExpressionCoercions(
+    source,
+    definition,
+    rows,
+    new Map(),
+    new Set(),
+    false,
+    new Map(),
+    undefined,
+    new Set(),
+    undefined,
+    undefined,
+    containers,
+  ).arrayStorage
+}
+
+export function captureArrayDefaultContexts(
+  source: string | null,
+  definitions: readonly (string | null)[],
+  rows: ReadonlyMap<number, RowCoercionIdentity>,
+  containers: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
+): (StoredArrayConstantContext | null)[] {
+  return captureDefaultContexts(
+    source,
+    definitions,
+    containers.roots,
+    (root, definition) =>
+      captureExpressionCoercions(
+        source,
+        definition,
+        rows,
+        new Map(),
+        new Set(),
+        false,
+        new Map(),
+        undefined,
+        new Set(),
+        undefined,
+        root,
+        containers,
+      ).arrayStorage,
+  )
 }
 
 export function captureXmlConstantContext(

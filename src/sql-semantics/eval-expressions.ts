@@ -1,3 +1,4 @@
+import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import {
   emitSqlCallable,
@@ -43,6 +44,7 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-composite'
+      arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
       xmlStorage?: true
       type: ScalarType
@@ -152,6 +154,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-text-literal'
+      arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
       xmlStorage?: true
       inputConversion?: EvalExpression
