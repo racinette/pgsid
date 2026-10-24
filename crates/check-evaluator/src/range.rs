@@ -124,7 +124,8 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 41
                 || kind == 42
                 || kind == 43
-                || kind == 44));
+                || kind == 44
+                || kind == 47));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
@@ -743,6 +744,11 @@ fn range_bound_word_valid(value: i32) -> bool {
 }
 
 fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
+    if let ArrayElement::Tsvector(value) = input {
+        let checked = make_tsvector_value(value);
+        if let TsvectorValue::Value(_) = checked { return true; };
+        return false;
+    };
     if let ArrayElement::Aclitem(value) = input { return make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unknown; };
     if let ArrayElement::Int2(value) = input {
         return make_int2_value(value) != Int2Value::Unknown;

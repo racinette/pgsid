@@ -1,4 +1,6 @@
-import { storageContainerTypes, type ConstantStorageType } from './container-constant-storage.js'
+import { storageRowIdentities } from './container-constant-storage.js'
+import { tsvectorConstantTypes } from './tsvector-container-constants.js'
+import { readConstantStorageTypes } from '../postgres/constant-storage-types.js'
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
 import { xmlStorageContainerTypes } from './xml-container-constants.js'
 import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
@@ -8,9 +10,9 @@ import {
   captureRowCoercionContext,
   captureArrayConstructorContext,
   captureTsvectorConstantContext,
+  captureTsvectorDefaultContexts,
   captureXmlConstantContext,
   type DomainCoercionIdentity,
-  type RowCoercionIdentity,
 } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
@@ -37,6 +39,7 @@ import type {
   SequenceInfo,
   TableInfo,
   ViewInfo,
+  StoredTsvectorConstantContext,
   Volatility,
   WriteRewriteInfo,
 } from './types.js'
@@ -210,6 +213,7 @@ interface FunctionRow {
    *  argument has none), aligned with `proallargtypes`/`proargtypes`; null
    *  for a function with no defaults at all. */
   argdefaults: (string | null)[] | null
+  defaults_tree: string | null
   /** `pg_aggregate.agginitval` for aggregates; null otherwise (and null when
    *  the aggregate has no initial condition). */
   agg_init_val: string | null
@@ -321,10 +325,6 @@ interface ExtensionRow {
 interface SchemaRow {
   name: string
   owner: string
-}
-
-interface TypeNameRow extends ConstantStorageType {
-  name: string
 }
 
 // ---------------------------------------------------------------------------
@@ -464,7 +464,11 @@ function resolveAttnums(relid: number, attnums: number[], idx: Map<string, strin
  *   legal one-argument call outside the arity window `resolveFunctionCandidates`
  *   computes from these flags.
  */
-function resolveFunctionArgs(row: FunctionRow, typeNames: Map<number, string>): FunctionArgInfo[] {
+function resolveFunctionArgs(
+  row: FunctionRow,
+  typeNames: Map<number, string>,
+  tsvectorConstants: readonly (StoredTsvectorConstantContext | null)[],
+): FunctionArgInfo[] {
   const allTypes = row.proallargtypes
   let typeOids: number[]
   let modes: string[]
@@ -496,6 +500,7 @@ function resolveFunctionArgs(row: FunctionRow, typeNames: Map<number, string>): 
       mode,
       hasDefault: isInput(mode) && inputIndex++ >= firstDefaultInput,
       defaultExpr: row.argdefaults?.[i] ?? null,
+      ...(tsvectorConstants[i] ? { tsvectorConstants: tsvectorConstants[i]! } : {}),
     })
   }
   return args
@@ -630,7 +635,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     rewriteRuleRows,
     partitionBoundRows,
   ] = await Promise.all([
-    queryTypeNames(pg),
+    readConstantStorageTypes(pg),
     queryTables(pg),
     queryColumns(pg),
     queryConstraints(pg),
@@ -702,6 +707,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rangeTypes = await readCatalogRangeTypes(
     pg,
     schemaRows.map((schema) => schema.name),
+    new Map(typeRows.map((type) => [type.oid, type])),
   )
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
@@ -813,42 +819,15 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const constraintsByRel = new Map<number, ConstraintInfo[]>()
   const typeIdentities = new Map(typeRows.map((t) => [t.oid, t.identity]))
   const typesByOid = new Map(typeRows.map((row) => [row.oid, row])),
-    rowIdentities = new Map<number, RowCoercionIdentity>()
-  const rowIdentity = (oid: number, seen = new Set<number>()): RowCoercionIdentity | null => {
-    if (seen.has(oid)) return null
-    seen.add(oid)
-    const t = typesByOid.get(oid)
-    if (!t) return null
-    if (t.kind === 'c') {
-      const fields = compositeTypeGraph.definitions
-        .find((n) => n.identity === t.identity)
-        ?.fields.map((f) => f.position - 1)
-      return { identity: t.identity, depth: 0, ...(fields ? { fields } : {}) }
-    }
-    if (t.kind === 'd') return rowIdentity(t.base, seen)
-    const element = t.element ? rowIdentity(t.element, seen) : null
-    return element ? { ...element, depth: element.depth + 1 } : null
-  }
-  for (const t of typeRows) {
-    const identity = rowIdentity(t.oid)
-    if (identity) rowIdentities.set(t.oid, identity)
-  }
+    rowIdentities = storageRowIdentities(typesByOid)
   const isXml = (oid: number, seen = new Set<number>()): boolean => {
     if (seen.has(oid)) return false
     seen.add(oid)
     const type = typesByOid.get(oid)
     return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
   }
-  const isTsvector = (oid: number, seen = new Set<number>()): boolean => {
-    if (seen.has(oid)) return false
-    seen.add(oid)
-    const type = typesByOid.get(oid)
-    return (
-      type?.identity === 'pg_catalog.tsvector' ||
-      (type?.kind === 'd' && isTsvector(type.base, seen))
-    )
-  }
-  const tsvectorTypes = new Set(typeRows.filter((t) => isTsvector(t.oid)).map((t) => t.oid))
+  const { scalars: tsvectorTypes, containers: tsvectorContainers } =
+    tsvectorConstantTypes(typesByOid)
   const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
   const xmlArrayElement = (oid: number, seen = new Set<number>()): number | undefined => {
     if (seen.has(oid)) return undefined
@@ -866,8 +845,6 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       return element === undefined ? [] : [[type.oid, element] as const]
     }),
   )
-  const tsvectorContainers = storageContainerTypes(typesByOid, 'pg_catalog.tsvector')
-  for (const oid of tsvectorTypes) tsvectorContainers.delete(oid)
   const xmlContainers = xmlStorageContainerTypes(typesByOid)
   for (const oid of xmlTypes) xmlContainers.delete(oid)
   for (const oid of xmlArrays.keys()) xmlContainers.delete(oid)
@@ -1106,7 +1083,17 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       schema: f.schema,
       name: f.name,
       argTypes: f.arg_types,
-      args: resolveFunctionArgs(f, typeNames),
+      args: resolveFunctionArgs(
+        f,
+        typeNames,
+        captureTsvectorDefaultContexts(
+          f.defaults_tree,
+          f.argdefaults ?? [],
+          tsvectorTypes,
+          rowIdentities,
+          { types: typesByOid, roots: tsvectorContainers },
+        ),
+      ),
       // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
       // rows, so there is no result to render — while `FunctionInfo.returnType`
       // is declared `string` and eight readers do prefix or regex work on it.
@@ -1374,21 +1361,6 @@ async function queryRelIdsByKind(pg: PGlite, relkind: string): Promise<Map<strin
 // ---------------------------------------------------------------------------
 
 /** All type OIDs → canonical names (format_type). Used for arg-type resolution. */
-async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
-  const res = await pg.query<TypeNameRow>(
-    `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name,
-       ${catalogIdentifierSql('n.nspname')}||'.'||${catalogIdentifierSql('t.typname')} AS identity,
-       t.typtype AS kind,t.typbasetype AS base,e.oid AS element,
-       t.typlen::integer AS length,t.typalign AS alignment,t.typdelim AS delimiter,
-       COALESCE((SELECT json_agg(json_build_object('type',a.atttypid::bigint,'length',a.attlen::integer,
-         'alignment',a.attalign,'dropped',a.attisdropped) ORDER BY a.attnum)
-         FROM pg_attribute a WHERE a.attrelid=t.typrelid AND a.attnum>0),'[]'::json) AS attributes
-     FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
-     LEFT JOIN pg_type e ON e.oid=t.typelem AND e.typarray=t.oid;`,
-  )
-  return res.rows
-}
-
 /**
  * Plain tables ('r'), partitioned tables ('p' — the parents; their
  * partitions arrive as 'r'), and foreign tables ('f'). A relation absent
@@ -1654,7 +1626,7 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
                                    coalesce(array_length(p.proallargtypes, 1), p.pronargs)
                                  ) i)
                  ELSE NULL
-            END AS argdefaults,
+            END AS argdefaults,p.proargdefaults::text AS defaults_tree,
             a.agginitval AS agg_init_val,
             -- The aggregate's transition and final functions, rendered as the
             -- key fnBodyAsts is keyed by, so the walk can reach a body it

@@ -73,6 +73,7 @@ const subtypeKinds = {
   'pg_catalog.xid8': 37,
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
+  'pg_catalog.tsvector': 47,
 } as const
 export type RangeSubtype =
   | keyof typeof subtypeKinds

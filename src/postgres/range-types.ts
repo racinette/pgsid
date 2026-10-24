@@ -1,6 +1,13 @@
 import { catalogIdentifierSql as identifier } from './catalog-identities.js'
 import { readCatalogCompositeTypes } from './composite-types.js'
 import { compositeTypeDependencies } from '../catalog/composite-dependencies.js'
+import { readConstantStorageTypes } from './constant-storage-types.js'
+import { captureTsvectorDefaultContexts } from '../catalog/coercion-context.js'
+import {
+  storageRowIdentities,
+  type ConstantStorageType,
+} from '../catalog/container-constant-storage.js'
+import { tsvectorConstantTypes } from '../catalog/tsvector-container-constants.js'
 import type { PGlite } from '@electric-sql/pglite'
 
 import type {
@@ -101,17 +108,19 @@ async function readTypeSupports(
 async function readRangeCallables(
   pg: PGlite,
   identities: readonly string[],
+  storageTypes?: ReadonlyMap<number, ConstantStorageType>,
 ): Promise<Map<string, RangeCallInfo[]>> {
   const result = new Map<string, RangeCallInfo[]>()
   if (!identities.length) return result
   const savedPath = (
     await pg.query<{ value: string }>("SELECT current_setting('search_path') AS value")
   ).rows[0]!.value
-  let rows: (RangeCallInfo & { range: string })[]
+  type CallableRow = RangeCallInfo & { range: string; defaultsTree: string | null }
+  let rows: CallableRow[]
   try {
     if (savedPath !== '') await pg.query("SELECT set_config('search_path','',false)")
     rows = (
-      await pg.query<RangeCallInfo & { range: string }>(
+      await pg.query<CallableRow>(
         `WITH RECURSIVE relatives(root,type) AS (
          SELECT r.rngtypid,t.type FROM pg_range r
          CROSS JOIN LATERAL (VALUES(r.rngtypid),(r.rngmultitypid)) t(type)
@@ -146,7 +155,7 @@ async function readRangeCallables(
            THEN pg_get_function_arg_default(p.oid,u.ord::int4) ELSE NULL END
            FROM unnest(coalesce(p.proallargtypes,p.proargtypes::oid[])) WITH ORDINALITY u(t,ord)
            WHERE p.proargmodes IS NULL OR p.proargmodes[u.ord] IN ('i','b','v')
-           ORDER BY u.ord) AS "defaultExprs",
+           ORDER BY u.ord) AS "defaultExprs",p.proargdefaults::text AS "defaultsTree",
          CASE WHEN l.lanname='internal' THEN p.prosrc ELSE NULL END AS implementation
        FROM names candidates
        JOIN pg_proc p ON p.pronamespace=candidates.namespace AND p.proname=candidates.name
@@ -159,7 +168,21 @@ async function readRangeCallables(
   } finally {
     if (savedPath !== '') await pg.query("SELECT set_config('search_path',$1,false)", [savedPath])
   }
-  for (const { range, ...callable } of rows) {
+  const types = rows.some((row) => row.defaultsTree)
+    ? (storageTypes ??
+      new Map((await readConstantStorageTypes(pg)).map((type) => [type.oid, type])))
+    : new Map<number, ConstantStorageType>()
+  const { scalars, containers } = tsvectorConstantTypes(types),
+    rowIdentities = storageRowIdentities(types)
+  for (const { range, defaultsTree, ...callable } of rows) {
+    const contexts = captureTsvectorDefaultContexts(
+      defaultsTree,
+      callable.defaultExprs ?? [],
+      scalars,
+      rowIdentities,
+      { types, roots: containers },
+    )
+    if (contexts.some((context) => context !== null)) callable.defaultTsvectorConstants = contexts
     const group = result.get(range) ?? []
     group.push(callable)
     result.set(range, group)
@@ -260,6 +283,7 @@ async function readRangeTypeInfos(
   pg: PGlite,
   schema: string | null,
   schemas: readonly string[] | null,
+  storageTypes?: ReadonlyMap<number, ConstantStorageType>,
 ): Promise<RangeTypeInfo[]> {
   const rows = (
     await pg.query<{
@@ -412,6 +436,7 @@ async function readRangeTypeInfos(
   const callables = await readRangeCallables(
     pg,
     rows.map((row) => row.identity),
+    storageTypes,
   )
   const callResolution = rows.length ? await readRangeCallResolution(pg, callables) : undefined
   const profiles: RangeTypeInfo[] = rows.map((row) => ({
@@ -583,6 +608,7 @@ export async function readRangeTypes(
 export async function readCatalogRangeTypes(
   pg: PGlite,
   schemas: readonly string[],
+  storageTypes?: ReadonlyMap<number, ConstantStorageType>,
 ): Promise<RangeTypeInfo[]> {
-  return readRangeTypeInfos(pg, null, schemas)
+  return readRangeTypeInfos(pg, null, schemas, storageTypes)
 }

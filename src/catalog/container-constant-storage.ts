@@ -1,3 +1,5 @@
+import type { RowCoercionIdentity } from './coercion-context.js'
+
 export type ContainerStorageFacet<Leaf> =
   | Leaf
   | { kind: 'record'; fields: (ContainerStorageFacet<Leaf> | null)[] }
@@ -18,6 +20,32 @@ export interface ConstantStorageType {
   alignment: string
   delimiter: string
   attributes: { type: number; length: number; alignment: string; dropped: boolean }[]
+}
+
+export function storageRowIdentities(
+  types: ReadonlyMap<number, ConstantStorageType>,
+): Map<number, RowCoercionIdentity> {
+  const rowIdentity = (oid: number, seen = new Set<number>()): RowCoercionIdentity | null => {
+    if (seen.has(oid)) return null
+    seen.add(oid)
+    const type = types.get(oid)
+    if (!type) return null
+    if (type.kind === 'c')
+      return {
+        identity: type.identity,
+        depth: 0,
+        fields: type.attributes.flatMap((field, index) => (field.dropped ? [] : [index])),
+      }
+    if (type.kind === 'd') return rowIdentity(type.base, seen)
+    const element = type.element ? rowIdentity(type.element, seen) : null
+    return element ? { ...element, depth: element.depth + 1 } : null
+  }
+  return new Map(
+    [...types.keys()].flatMap((oid) => {
+      const identity = rowIdentity(oid)
+      return identity ? [[oid, identity] as const] : []
+    }),
+  )
 }
 
 export function storageContainerTypes(

@@ -1,5 +1,6 @@
 import {
   containerConstant,
+  storageContainerTypes,
   type ConstantStorageType,
   type ContainerStorageFacet,
 } from './container-constant-storage.js'
@@ -7,6 +8,24 @@ import {
   tsvectorConstantStorage,
   type TsvectorConstantStorage,
 } from './tsvector-constant-storage.js'
+
+export function tsvectorConstantTypes(types: ReadonlyMap<number, ConstantStorageType>): {
+  scalars: Set<number>
+  containers: Set<number>
+} {
+  const isScalar = (oid: number, seen = new Set<number>()): boolean => {
+    if (seen.has(oid)) return false
+    seen.add(oid)
+    const type = types.get(oid)
+    return (
+      type?.identity === 'pg_catalog.tsvector' || (type?.kind === 'd' && isScalar(type.base, seen))
+    )
+  }
+  const scalars = new Set([...types.keys()].filter((oid) => isScalar(oid))),
+    containers = storageContainerTypes(types, 'pg_catalog.tsvector')
+  for (const oid of scalars) containers.delete(oid)
+  return { scalars, containers }
+}
 
 export function tsvectorContainerConstant(
   bytes: Buffer,

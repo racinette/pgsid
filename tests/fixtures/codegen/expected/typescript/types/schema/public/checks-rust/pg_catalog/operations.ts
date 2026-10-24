@@ -36372,6 +36372,9 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.TidValue = checkruntime.arrayElementToTid(upper);
         return bttidcmpAk5t(left, right);
     }
+    if (kind === 47) {
+        return tsvectorOrder(checkruntime.arrayElementToTsvector(lower), checkruntime.arrayElementToTsvector(upper));
+    }
     return { kind: "Unknown" };
 }
 function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport, enumLabels: string, enumCount: number, boundProfile: checkruntime.RangeBoundContext): checkruntime.RangeValue {
@@ -36941,6 +36944,9 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
     }
     if (kind === 39) {
         return checkruntime.arrayElementFromTid(tidFromText(input));
+    }
+    if (kind === 47) {
+        return checkruntime.arrayElementFromTsvector(tsvectorFromTextContext(input, utf8));
     }
     return { kind: "Unknown" };
 }
@@ -37546,6 +37552,9 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
     }
     if (kind === 39) {
         return tidToText(checkruntime.arrayElementToTid(input));
+    }
+    if (kind === 47) {
+        return tsvectorToText(checkruntime.arrayElementToTsvector(input));
     }
     if (kind === 7) {
         if (input.kind === "Date") {

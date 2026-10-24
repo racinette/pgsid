@@ -97,6 +97,9 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
     if kind == 39 {
         return array_element_from_tid(tid_from_text(input));
     };
+    if kind == 47 {
+        return array_element_from_tsvector(tsvector_from_text_context(input, utf8));
+    };
     ArrayElement::Unknown
 }
 
