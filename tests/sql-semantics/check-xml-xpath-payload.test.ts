@@ -23,6 +23,12 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
     CONSTRAINT matches CHECK(CASE WHEN bypass THEN true ELSE (xpath(path,v))[1]::text IS NOT DISTINCT FROM expected END),
     CONSTRAINT present CHECK(CASE WHEN bypass THEN true ELSE xpath_exists(path,v) IS NOT DISTINCT FROM found END),
     CONSTRAINT size CHECK(CASE WHEN bypass THEN true ELSE cardinality(xpath(path,v)) IS NOT DISTINCT FROM amount END));`)
+    const capturedPowers = await pg.exec(
+      await readFile('tools/check-rust/xpath-power-context.sql', 'utf8'),
+    )
+    const xpathPowerOfTenBits = capturedPowers
+      .flatMap((result) => result.rows)
+      .find((row) => 'xpathPowerOfTenBits' in row)!['xpathPowerOfTenBits'] as string[]
     const catalog = await snapshotCatalog(pg),
       options = {
         defaultCollation: 'C' as const,
@@ -30,6 +36,7 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
         clientEncoding: 'UTF8' as const,
         extraFloatDigits: 1,
         xpathRecursionLimit: 5000,
+        xpathPowerOfTenBits,
       }
     const ts = renderTypescriptSchemaCheckArtifacts(
       catalog.tables,
@@ -38,7 +45,9 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
       { executionContext: options },
     )
     const config = parseConfigString(
-      'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8, clientEncoding: UTF8, extraFloatDigits: 1, xpathRecursionLimit: 5000 }\n    go:\n      schema: { outDir: schema }\n',
+      'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8, clientEncoding: UTF8, extraFloatDigits: 1, xpathRecursionLimit: 5000, xpathPowerOfTenBits: ' +
+        JSON.stringify(xpathPowerOfTenBits) +
+        ' }\n    go:\n      schema: { outDir: schema }\n',
     )
     const go = renderGoSchemaArtifacts(
       catalog,
@@ -101,7 +110,17 @@ it('evaluates public XPath XML payloads and recovers query-invariant rendered st
       'plain',
       '',
     ])
-      for (const path of ['/', '/*', '//missing', 'false()', '1 div 3', '']) {
+      for (const path of [
+        '/',
+        '/*',
+        '//missing',
+        'false()',
+        '1 div 3',
+        '',
+        "number('1e23')",
+        "number('1e-323')",
+        "string(number('1e-23'))",
+      ]) {
         const input = (
           await pg.query<{ storage: string; rendered: string }>(
             'SELECT v::text storage,v rendered FROM(SELECT $1::xml v)input',

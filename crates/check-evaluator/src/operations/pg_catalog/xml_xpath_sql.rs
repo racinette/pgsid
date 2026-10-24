@@ -39,6 +39,11 @@ pub(crate) fn xpath_sql_array(input: XPathXmlResult) -> ArrayValue {
 }
 
 pub(crate) fn xpath_sql_execute(expression: TextValue, input: XmlValue, mappings: ArrayValue, utf8: bool, limit: i32, extra: i32, precision_known: bool, serialize: bool) -> XPathSqlResult {
+    let powers = xpath_powers_empty();
+    xpath_sql_execute_profile(expression,input,mappings,utf8,limit,extra,precision_known,serialize,&powers)
+}
+
+pub(crate) fn xpath_sql_execute_profile(expression: TextValue, input: XmlValue, mappings: ArrayValue, utf8: bool, limit: i32, extra: i32, precision_known: bool, serialize: bool, powers: &XPathPowers) -> XPathSqlResult {
     if let TextValue::Error(error) = expression { return xpath_sql_error(error); };
     if let XmlValue::Error(error) = input { return xpath_sql_error(error); };
     if let ArrayValue::Error(error) = mappings { return xpath_sql_error(error); };
@@ -83,8 +88,8 @@ pub(crate) fn xpath_sql_execute(expression: TextValue, input: XmlValue, mappings
             if name.as_str() == "" { return xpath_sql_error(make_sql_error(SQLSTATE_XML_NAMESPACE_REGISTER)); };
             namespaces = xpath_namespaces_push(namespaces,name.as_str(),address.as_str()); index += 2;
         }
-        let program = xpath_compile_with_limit(path.as_str(),limit); let powers = xpath_powers_empty();
-        let value = xpath_evaluate(&program,&tree,&graph,&namespaces,&powers);
+        let program = xpath_compile_with_limit(path.as_str(),limit);
+        let value = xpath_evaluate(&program,&tree,&graph,&namespaces,powers);
         if value.state < 0 { return xpath_sql_error(make_sql_error(SQLSTATE_INVALID_XPATH)); };
         if value.state != 0 { return xpath_sql_unknown(value.state); };
         let present = xpath_result_exists(&value);
@@ -96,24 +101,28 @@ pub(crate) fn xpath_sql_execute(expression: TextValue, input: XmlValue, mappings
     xpath_sql_unknown(XPATH_SQL_INPUT)
 }
 
-pub fn sql__pg_catalog__xpath__abvz(expression: TextValue, input: XmlValue, namespaces: ArrayValue, utf8: bool, limit: i32, extra: i32, known: bool) -> ArrayValue {
-    let result = xpath_sql_execute(expression,input,namespaces,utf8,limit,extra,known,true); result.output
+pub fn sql__pg_catalog__xpath__abvz(expression: TextValue, input: XmlValue, namespaces: ArrayValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str) -> ArrayValue {
+    let powers = xpath_power_context(power_words);
+    let result = xpath_sql_execute_profile(expression,input,namespaces,utf8,limit,extra,known,true,&powers); result.output
 }
 
-pub fn sql__pg_catalog__xpath__nuen(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool) -> ArrayValue {
+pub fn sql__pg_catalog__xpath__nuen(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str) -> ArrayValue {
     let namespaces = xpath_sql_empty_namespaces();
-    let result = xpath_sql_execute(expression,input,namespaces,utf8,limit,extra,known,true); result.output
+    let powers = xpath_power_context(power_words);
+    let result = xpath_sql_execute_profile(expression,input,namespaces,utf8,limit,extra,known,true,&powers); result.output
 }
 
-pub fn sql__pg_catalog__xpath_exists__1hns(expression: TextValue, input: XmlValue, namespaces: ArrayValue, utf8: bool, limit: i32, extra: i32, known: bool) -> BoolValue {
-    let result = xpath_sql_execute(expression,input,namespaces,utf8,limit,extra,known,false); result.present
+pub fn sql__pg_catalog__xpath_exists__1hns(expression: TextValue, input: XmlValue, namespaces: ArrayValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str) -> BoolValue {
+    let powers = xpath_power_context(power_words);
+    let result = xpath_sql_execute_profile(expression,input,namespaces,utf8,limit,extra,known,false,&powers); result.present
 }
 
-pub fn sql__pg_catalog__xpath_exists__s9ul(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool) -> BoolValue {
+pub fn sql__pg_catalog__xpath_exists__s9ul(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str) -> BoolValue {
     let namespaces = xpath_sql_empty_namespaces();
-    let result = xpath_sql_execute(expression,input,namespaces,utf8,limit,extra,known,false); result.present
+    let powers = xpath_power_context(power_words);
+    let result = xpath_sql_execute_profile(expression,input,namespaces,utf8,limit,extra,known,false,&powers); result.present
 }
 
-pub fn sql__pg_catalog__xmlexists__3gat(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool) -> BoolValue {
-    sql__pg_catalog__xpath_exists__s9ul(expression,input,utf8,limit,extra,known)
+pub fn sql__pg_catalog__xmlexists__3gat(expression: TextValue, input: XmlValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str) -> BoolValue {
+    sql__pg_catalog__xpath_exists__s9ul(expression,input,utf8,limit,extra,known,power_words)
 }

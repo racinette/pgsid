@@ -315,3 +315,31 @@ VALUES ('<manifest>&amp;&lt;&gt;</manifest>','string(/manifest)','{}','&amp;&lt;
 -- name: StandardQueryIgnoresNamespaceNull
 INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
 VALUES ('<manifest/>','/*',NULL,NULL,NULL,NULL,true,false);
+
+-- name: NativeLargeXPathExponent
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','number(''1e23'')','{}','1.0000000000000001e+23',1,true,true,false);
+
+-- name: NativeSubnormalXPathExponent
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','number(''1e-323'')','{}','1e-323',1,true,true,false);
+
+-- name: NativeExponentFromManifest
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest amount="1e23"/>','number(/manifest/@amount)','{}','1.0000000000000001e+23',1,true,true,false);
+
+-- name: LazyNativePowerOperand
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','true() or number(''1e23'')','{}','true',1,true,true,false);
+
+-- name: WrongNativePowerOutput
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','number(''1e23'')','{}','1e+23',1,true,true,false);
+
+-- name: BypassedNativePowerQuery
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('plain','number(''1e23'')','{}','wrong',9,false,true,true);
+
+-- name: WrongSubnormalCardinality
+INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
+VALUES ('<manifest/>','number(''1e-323'')','{}','1e-323',2,true,true,false);

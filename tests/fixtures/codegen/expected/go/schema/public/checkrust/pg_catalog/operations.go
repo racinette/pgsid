@@ -53065,8 +53065,43 @@ func XpathPowersPush(input xPathPowers, value int64) xPathPowers {
 	bits = append(bits, copyxPathPower(xPathPower{bits: value}))
 	return xPathPowers{bits: bits}
 }
+func xpathPowerContext(input string) xPathPowers {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	if len(characters) != 10112 {
+		return xpathPowersEmpty()
+	}
+	result := xpathPowersEmpty()
+	index := 0
+	previous := int64(0)
+	offset := 0
+	for index < 632 {
+		word := int64(0)
+		digitIndex := 0
+		for digitIndex < 16 {
+			digit := checkruntime.HexDigit(characters[langruntime.CheckedAdd(offset, digitIndex)])
+			if digit < 0 || (digitIndex == 0 && digit > 7) {
+				return xpathPowersEmpty()
+			}
+			word = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word, int64(16)), (int64(langruntime.CheckedI32(digit))))
+			digitIndex = langruntime.CheckedAdd(digitIndex, 1)
+		}
+		if word <= previous || word >= int64(9218868437227405312) {
+			return xpathPowersEmpty()
+		}
+		result = XpathPowersPush(result, word)
+		previous = word
+		index = langruntime.CheckedAdd(index, 1)
+		offset = langruntime.CheckedAdd(offset, 16)
+	}
+	return result
+}
 func xpathPowerTen(profile *xPathPowers, exponent int) checkruntime.Float8Value {
 	exponent = langruntime.CheckedI32(exponent)
+	if len(profile.bits) == 632 && exponent >= langruntime.CheckedSignedNegate(323) && exponent <= 308 {
+		position := langruntime.IndexFromI32(langruntime.CheckedSignedAdd(exponent, 323), 0)
+		return checkruntime.MakeFloat8Bits(profile.bits[position].bits)
+	}
 	if exponent >= 0 && exponent <= 22 {
 		value := float64(1.0)
 		position := 0
@@ -53082,11 +53117,7 @@ func xpathPowerTen(profile *xPathPowers, exponent int) checkruntime.Float8Value 
 	if exponent < langruntime.CheckedSignedNegate(323) {
 		return checkruntime.MakeFloat8Value(float64(0.0))
 	}
-	if len(profile.bits) != 632 {
-		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
-	}
-	position := langruntime.IndexFromI32(langruntime.CheckedSignedAdd(exponent, 323), 0)
-	return checkruntime.MakeFloat8Bits(profile.bits[position].bits)
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 }
 func xpathNumberParts(input string) xPathNumberParts {
 	input = langruntime.CheckedString(input)
@@ -55333,6 +55364,10 @@ func XpathSqlArray(input xPathXmlResult) checkruntime.ArrayValue {
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: payload}
 }
 func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool) xPathSqlResult {
+	powers := xpathPowersEmpty()
+	return XpathSqlExecuteProfile(expression, input, mappings, utf8, limit, extra, precisionKnown, serialize, &powers)
+}
+func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool, powers *xPathPowers) xPathSqlResult {
 	if expression.Kind == checkruntime.TextValueError {
 		error := expression.Error
 		return xpathSqlError(error)
@@ -55452,8 +55487,7 @@ func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlVa
 			index = langruntime.CheckedAdd(index, 2)
 		}
 		program := xpathCompileWithLimit(string(path), limit)
-		powers := xpathPowersEmpty()
-		value := xpathEvaluate(&program, &tree, &graph, &namespaces, &powers)
+		value := xpathEvaluate(&program, &tree, &graph, &namespaces, powers)
 		if value.state < 0 {
 			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXpath))
 		}
@@ -55471,38 +55505,47 @@ func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlVa
 	}
 	return xpathSqlUnknown(xpathSqlInput)
 }
-func XpathAbvz(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool) checkruntime.ArrayValue {
+func XpathAbvz(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool, powerWords string) checkruntime.ArrayValue {
 	namespaces = checkruntime.CopyArrayValue(namespaces)
 	limit = langruntime.CheckedI32(limit)
 	extra = langruntime.CheckedI32(extra)
-	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true)
+	powerWords = langruntime.CheckedString(powerWords)
+	powers := xpathPowerContext(powerWords)
+	result := XpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, true, &powers)
 	return result.output
 }
-func XpathNuen(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.ArrayValue {
+func XpathNuen(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool, powerWords string) checkruntime.ArrayValue {
 	limit = langruntime.CheckedI32(limit)
 	extra = langruntime.CheckedI32(extra)
+	powerWords = langruntime.CheckedString(powerWords)
 	namespaces := xpathSqlEmptyNamespaces()
-	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true)
+	powers := xpathPowerContext(powerWords)
+	result := XpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, true, &powers)
 	return result.output
 }
-func XpathExists1hns(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+func XpathExists1hns(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool, powerWords string) checkruntime.BoolValue {
 	namespaces = checkruntime.CopyArrayValue(namespaces)
 	limit = langruntime.CheckedI32(limit)
 	extra = langruntime.CheckedI32(extra)
-	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false)
+	powerWords = langruntime.CheckedString(powerWords)
+	powers := xpathPowerContext(powerWords)
+	result := XpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, false, &powers)
 	return result.present
 }
-func XpathExistsS9ul(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+func XpathExistsS9ul(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool, powerWords string) checkruntime.BoolValue {
 	limit = langruntime.CheckedI32(limit)
 	extra = langruntime.CheckedI32(extra)
+	powerWords = langruntime.CheckedString(powerWords)
 	namespaces := xpathSqlEmptyNamespaces()
-	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false)
+	powers := xpathPowerContext(powerWords)
+	result := XpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, false, &powers)
 	return result.present
 }
-func Xmlexists3gat(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+func Xmlexists3gat(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool, powerWords string) checkruntime.BoolValue {
 	limit = langruntime.CheckedI32(limit)
 	extra = langruntime.CheckedI32(extra)
-	return XpathExistsS9ul(expression, input, utf8, limit, extra, known)
+	powerWords = langruntime.CheckedString(powerWords)
+	return XpathExistsS9ul(expression, input, utf8, limit, extra, known, powerWords)
 }
 func xpathStringFind(input string, needle string) int {
 	input = langruntime.CheckedString(input)

@@ -408,6 +408,13 @@ describe('world CHECK INSERT parity', () => {
     ).toEqual([{ datcollate: 'C', datctype: 'C.UTF-8' }])
     expect((await pg.query('SHOW server_encoding')).rows).toEqual([{ server_encoding: 'UTF8' }])
     await pg.exec("SET TimeZone='UTC'; SET array_nulls=on")
+    const powerCapture = await pg.exec(
+      await readFile('tools/check-rust/xpath-power-context.sql', 'utf8'),
+    )
+    const xpathPowerOfTenBits = powerCapture
+      .flatMap((result) => result.rows)
+      .find((row) => 'xpathPowerOfTenBits' in row)!['xpathPowerOfTenBits'] as string[]
+    expect(xpathPowerOfTenBits).toHaveLength(632)
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {
@@ -468,6 +475,7 @@ describe('world CHECK INSERT parity', () => {
         trigonometry: 'fdlibm',
         extraFloatDigits: 1,
         xpathRecursionLimit: 5000,
+        xpathPowerOfTenBits,
       },
       enums: catalog.enums,
       rangeTypes: catalog.rangeTypes,
@@ -477,7 +485,9 @@ describe('world CHECK INSERT parity', () => {
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, xpathRecursionLimit: 5000 }\n    go:\n      schema: { outDir: schema }\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, xpathRecursionLimit: 5000, xpathPowerOfTenBits: ' +
+          JSON.stringify(xpathPowerOfTenBits) +
+          ' }\n    go:\n      schema: { outDir: schema }\n',
       ),
       {},
       join(directory, 'schema'),
