@@ -645,6 +645,7 @@ type Literal = {
   value: string | null
   tsvectorStored?: boolean
   tsvectorStorage?: TsvectorConstantStorage
+  tsvectorContainerStorage?: readonly TsvectorConstantStorage[]
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
@@ -927,6 +928,9 @@ const materialize = (
     )
       return {
         kind: 'array-text-literal',
+        ...(bound.literal.tsvectorContainerStorage
+          ? { tsvectorStorage: bound.literal.tsvectorContainerStorage }
+          : {}),
         type: type as ArrayType,
         elementType: type.slice(6) as ArrayElementType,
         value: bound.literal.value,
@@ -3638,6 +3642,9 @@ export function bindCatalogCheck(
               operand.literal?.kind === 'string'
                 ? {
                     kind: 'array-text-literal',
+                    ...(operand.literal?.tsvectorContainerStorage
+                      ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
+                      : {}),
                     ...common,
                     value: operand.literal.xmlContainerStorage ?? operand.literal.value!,
                     ...(operand.literal.xmlContainerStorage !== undefined
@@ -3805,6 +3812,9 @@ export function bindCatalogCheck(
               operand.literal?.kind === 'string'
                 ? {
                     kind: 'array-text-literal',
+                    ...(operand.literal?.tsvectorContainerStorage
+                      ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
+                      : {}),
                     type,
                     elementType: element as ArrayElementType,
                     value: operand.literal.value!,
@@ -4435,6 +4445,9 @@ export function bindCatalogCheck(
             type: composite,
             value: {
               kind: 'text-to-composite',
+              ...(operand.literal?.tsvectorContainerStorage
+                ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
+                : {}),
               ...(operand.literal?.xmlContainerStorage !== undefined
                 ? { xmlStorage: true as const }
                 : {}),
@@ -5564,6 +5577,14 @@ export function bindCatalogCheck(
               ...(literalOrigin === 'stored' && wrapper['__pgsid_tsvector_storage']
                 ? {
                     tsvectorStorage: wrapper['__pgsid_tsvector_storage'] as TsvectorConstantStorage,
+                  }
+                : {}),
+              ...(literalOrigin === 'stored' &&
+              Array.isArray(wrapper['__pgsid_tsvector_container_storage'])
+                ? {
+                    tsvectorContainerStorage: wrapper[
+                      '__pgsid_tsvector_container_storage'
+                    ] as TsvectorConstantStorage[],
                   }
                 : {}),
               moneyUnits: moneyUnits.get(string),

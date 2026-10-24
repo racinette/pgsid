@@ -14232,6 +14232,127 @@ func ArrayNullBitmap(input ArrayValue) BoolValue {
 	}
 	return BoolValue{Kind: BoolValueUnknown}
 }
+
+type TsvectorStorageEntry struct {
+	NativeBytes int
+	LexemeCount int
+}
+
+func copyTsvectorStorageEntry(value TsvectorStorageEntry) TsvectorStorageEntry {
+	return TsvectorStorageEntry{NativeBytes: langruntime.CheckedI32(value.NativeBytes), LexemeCount: langruntime.CheckedI32(value.LexemeCount)}
+}
+
+type TsvectorStoragePlan struct {
+	Entries []TsvectorStorageEntry
+	Valid   bool
+}
+
+func copyTsvectorStoragePlan(value TsvectorStoragePlan) TsvectorStoragePlan {
+	return TsvectorStoragePlan{Entries: langruntime.CheckedStructs(value.Entries, copyTsvectorStorageEntry), Valid: value.Valid}
+}
+func MakeTsvectorStoragePlan() TsvectorStoragePlan {
+	entries := []TsvectorStorageEntry{}
+	return TsvectorStoragePlan{Entries: entries, Valid: true}
+}
+func AppendTsvectorStorage(input TsvectorStoragePlan, bytes int, count int) TsvectorStoragePlan {
+	input = copyTsvectorStoragePlan(input)
+	bytes = langruntime.CheckedI32(bytes)
+	count = langruntime.CheckedI32(count)
+	entries := input.Entries
+	valid := input.Valid && count >= 0 && count <= 1048575 && bytes >= langruntime.CheckedSignedAdd(8, langruntime.CheckedSignedMultiply(count, 4)) && bytes <= 1073741823
+	langruntime.CheckedAdd(len(entries), 1)
+	entries = append(entries, copyTsvectorStorageEntry(TsvectorStorageEntry{NativeBytes: bytes, LexemeCount: count}))
+	return TsvectorStoragePlan{Entries: entries, Valid: valid}
+}
+func ApplyTsvectorStorage(input TsvectorValue, plan *TsvectorStoragePlan, index Int4Value) TsvectorValue {
+	input = CopyTsvectorValue(input)
+	plan = langruntime.CheckedBorrowed(plan, copyTsvectorStoragePlan)
+	if input.Kind == TsvectorValueNull {
+		return input
+	}
+	if input.Kind == TsvectorValueError {
+		error := input.Error
+		return TsvectorValue{Kind: TsvectorValueError, Error: error}
+	}
+	if input.Kind == TsvectorValueValue {
+		value := CopyTsvectorPayload(input.Value)
+		if index.Kind == Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			position := langruntime.IndexFromI32(offset, len(plan.Entries))
+			if plan.Valid && offset >= 0 && position < len(plan.Entries) {
+				entry := plan.Entries[position]
+				if len(value.Lexemes) == langruntime.IndexFromI32(entry.LexemeCount, 0) {
+					return MakeTsvectorValue(TsvectorPayload{Lexemes: value.Lexemes, NativeBytes: entry.NativeBytes})
+				}
+			}
+		}
+		return TsvectorValue{Kind: TsvectorValueValue, Value: TsvectorPayload{Lexemes: value.Lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)}}
+	}
+	return input
+}
+func AdvanceTsvectorStorage(nullness BoolValue, index Int4Value) Int4Value {
+	if nullness.Kind == BoolValueError {
+		error := nullness.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if nullness == (BoolValue{Kind: BoolValueValue, Value: true}) {
+		return index
+	}
+	if nullness == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		if index.Kind == Int4ValueValue {
+			value := langruntime.CheckedI32(index.Value)
+			if value < 2147483647 {
+				return MakeInt4Value(langruntime.CheckedSignedAdd(value, 1))
+			}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func FinishTsvectorStorage(input ArrayElement, plan *TsvectorStoragePlan, index Int4Value) ArrayElement {
+	input = CopyArrayElement(input)
+	plan = langruntime.CheckedBorrowed(plan, copyTsvectorStoragePlan)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if index.Kind == Int4ValueValue {
+		count := langruntime.CheckedI32(index.Value)
+		if plan.Valid && count >= 0 && langruntime.IndexFromI32(count, 0) == len(plan.Entries) {
+			return input
+		}
+	}
+	return clearTsvectorStorage(input)
+}
+func clearTsvectorStorage(input ArrayElement) ArrayElement {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementTsvector {
+		value := CopyTsvectorPayload(input.Tsvector)
+		return ArrayElement{Kind: ArrayElementTsvector, Tsvector: TsvectorPayload{Lexemes: value.Lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)}}
+	}
+	if input.Kind == ArrayElementArray {
+		value := CopyArrayPayload(input.Array)
+		elements := []ArrayElement{}
+		i := 0
+		for i < len(value.Elements) {
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, CopyArrayElement(clearTsvectorStorage(CopyArrayElement(value.Elements[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementArray, Array: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, NullBitmap: value.NullBitmap, Elements: elements}}
+	}
+	if input.Kind == ArrayElementComposite {
+		value := CopyCompositePayload(input.Composite)
+		fields := []ArrayElement{}
+		i := 0
+		for i < len(value.Fields) {
+			langruntime.CheckedAdd(len(fields), 1)
+			fields = append(fields, CopyArrayElement(clearTsvectorStorage(CopyArrayElement(value.Fields[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
+	}
+	return input
+}
 func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) ArrayComparisonPayload {
 	input = CopyArrayValue(input)
 	if scalar.Kind == BoolValueError {

@@ -111,3 +111,19 @@ INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,byp
 INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{',NULL,NULL,true,false);
 -- name: document_terms_skipped_invalid
 INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{',NULL,NULL,true,true);
+-- name: document_set_primary
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('a:1A',true,true,false);
+-- name: document_set_alternate
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('z:2B',true,false,false);
+-- name: document_set_absent
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('t:3C',false,false,false);
+-- name: document_set_wrong_membership
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('z:2B',false,false,false);
+-- name: document_set_wrong_record
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('z:2B',true,true,false);
+-- name: document_set_null
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES(NULL,false,NULL,false);
+-- name: document_set_empty
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('',false,false,false);
+-- name: document_set_skipped_invalid
+INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('a:0',NULL,NULL,true);

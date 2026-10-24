@@ -68,3 +68,13 @@ CREATE TABLE document_terms (
  CONSTRAINT document_constructed CHECK(CASE WHEN bypass THEN true ELSE array_to_tsvector(terms::text[])::text=expected_document END),
  CONSTRAINT document_wire CHECK(CASE WHEN bypass OR verify_wire IS NOT TRUE THEN true ELSE encode(tsvectorsend(array_to_tsvector(terms::text[])),'hex')=expected_wire END)
 );
+
+CREATE TYPE document_reference_set AS(head tsvector,options tsvector[]);
+CREATE TABLE document_reference_sets (
+ source text,
+ expected_member boolean,
+ expected_record boolean,
+ bypass boolean,
+ CONSTRAINT document_set_member CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[source::tsvector]<@'{a:1A,NULL,z:2B}'::tsvector[])=expected_member END),
+ CONSTRAINT document_set_record CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector=($reference$("a:1A","{z:2B,NULL}")$reference$::document_reference_set).head)=expected_record END)
+);

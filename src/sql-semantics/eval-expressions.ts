@@ -1,3 +1,4 @@
+import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import {
   emitSqlCallable,
   isBinaryTextRelabel,
@@ -42,6 +43,7 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-composite'
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
       xmlStorage?: true
       type: ScalarType
       operand: EvalExpression
@@ -150,6 +152,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-text-literal'
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
       xmlStorage?: true
       inputConversion?: EvalExpression
       storedInputConversion?: EvalExpression

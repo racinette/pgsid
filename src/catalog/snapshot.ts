@@ -1,5 +1,6 @@
+import { storageContainerTypes, type ConstantStorageType } from './container-constant-storage.js'
 import { readCatalogRangeTypes } from '../postgres/range-types.js'
-import { xmlStorageContainerTypes, type XmlStorageType } from './xml-container-constants.js'
+import { xmlStorageContainerTypes } from './xml-container-constants.js'
 import { readCatalogCompositeTypes } from '../postgres/composite-types.js'
 import { catalogIdentifierSql } from '../postgres/catalog-identities.js'
 import {
@@ -322,7 +323,7 @@ interface SchemaRow {
   owner: string
 }
 
-interface TypeNameRow extends XmlStorageType {
+interface TypeNameRow extends ConstantStorageType {
   name: string
 }
 
@@ -865,6 +866,8 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       return element === undefined ? [] : [[type.oid, element] as const]
     }),
   )
+  const tsvectorContainers = storageContainerTypes(typesByOid, 'pg_catalog.tsvector')
+  for (const oid of tsvectorTypes) tsvectorContainers.delete(oid)
   const xmlContainers = xmlStorageContainerTypes(typesByOid)
   for (const oid of xmlTypes) xmlContainers.delete(oid)
   for (const oid of xmlArrays.keys()) xmlContainers.delete(oid)
@@ -874,6 +877,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       con.definition,
       tsvectorTypes,
       rowIdentities,
+      { types: typesByOid, roots: tsvectorContainers },
     )
     const xmlConstants = captureXmlConstantContext(
       con.coercion_tree,
@@ -1176,6 +1180,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           check.definition,
           tsvectorTypes,
           rowIdentities,
+          { types: typesByOid, roots: tsvectorContainers },
         )
         const xmlConstants = captureXmlConstantContext(
           check.coercion_tree,
