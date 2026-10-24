@@ -315,6 +315,8 @@ export function rangeCoreSamples(type: RangeType): {
 }
 
 export function rangeBoundProjection(bound: string, subtype: string): string {
+  if (subtype === 'pg_catalog.tsvector')
+    return `CASE WHEN ${bound} IS NULL THEN NULL ELSE pg_catalog.json_build_object('wire',pg_catalog.encode(pg_catalog.tsvectorsend(${bound}),'hex'),'nativeBytes',pg_catalog.pg_column_size(pg_catalog.setweight(${bound},'D',ARRAY[]::text[])))::text END`
   if (isCatalogVectorType(subtype))
     return `encode(${subtype === 'pg_catalog.oidvector' ? 'oid' : 'int2'}vectorsend(${bound}),'hex')`
   if (subtype === 'pg_catalog.date')
@@ -353,6 +355,30 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
+  if (subtype === 'pg_catalog.tsvector') {
+    const stored = JSON.parse(value) as { wire: string; nativeBytes: number },
+      bytes = Buffer.from(stored.wire, 'hex'),
+      lexemes: Extract<RangeInputCell, { kind: 'Tsvector' }>['value']['lexemes'] = []
+    let position = 4
+    const count = bytes.readUInt32BE(0)
+    for (let index = 0; index < count; index++) {
+      const end = bytes.indexOf(0, position)
+      if (end < position) throw new Error('Invalid native tsvector wire lexeme')
+      const text = bytes.subarray(position, end).toString('utf8'),
+        positions: { position: number; weight: number }[] = []
+      position = end + 1
+      const size = bytes.readUInt16BE(position)
+      position += 2
+      for (let at = 0; at < size; at++) {
+        const word = bytes.readUInt16BE(position)
+        position += 2
+        positions.push({ position: word & 16383, weight: word >>> 14 })
+      }
+      lexemes.push({ text, positions })
+    }
+    if (position !== bytes.length) throw new Error('Trailing native tsvector wire data')
+    return { kind: 'Tsvector', value: { lexemes, nativeBytes: stored.nativeBytes } }
+  }
   if (subtype === 'pg_catalog.xml') return { kind: 'Xml', value }
   if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(subtype))
     return { kind: 'Text', value }
