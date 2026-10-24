@@ -68,12 +68,12 @@ fn multirange_directional_adjacent(left: RangeValue, right: RangeValue) -> BoolV
     BoolValue::Unknown
 }
 
-fn multirange_payload_compare(left: &MultirangePayload, right: &MultirangePayload) -> Int4Value {
+fn multirange_payload_compare(left: &MultirangePayload, right: &MultirangePayload, exact: bool) -> Int4Value {
     let mut index: usize = 0;
     while index < left.ranges.len() && index < right.ranges.len() {
         let a = left.ranges[index].clone();
         let b = right.ranges[index].clone();
-        let compared = sql__pg_catalog__range_cmp__8jgl(a, b);
+        let compared = range_compare_mode(a, b,exact);
         if compared != make_int4_value(0) {
             return compared;
         };
@@ -88,7 +88,7 @@ fn multirange_payload_compare(left: &MultirangePayload, right: &MultirangePayloa
     make_int4_value(0)
 }
 
-fn multirange_compare(left: MultirangeValue, right: MultirangeValue) -> Int4Value {
+fn multirange_compare_mode(left: MultirangeValue, right: MultirangeValue, exact: bool) -> Int4Value {
     if let MultirangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -104,11 +104,19 @@ fn multirange_compare(left: MultirangeValue, right: MultirangeValue) -> Int4Valu
     if let MultirangeValue::Value(a) = left {
         if let MultirangeValue::Value(b) = right {
             if multirange_same_family(&a, &b) {
-                return multirange_payload_compare(&a, &b);
+                return multirange_payload_compare(&a, &b,exact);
             };
         };
     };
     Int4Value::Unknown
+}
+
+fn multirange_compare(left: MultirangeValue, right: MultirangeValue) -> Int4Value {
+    multirange_compare_mode(left,right,false)
+}
+
+pub fn multirange_order(left: MultirangeValue, right: MultirangeValue) -> Int4Value {
+    multirange_compare_mode(left,right,false)
 }
 
 fn multirange_equal(left: MultirangeValue, right: MultirangeValue) -> BoolValue {
@@ -136,7 +144,7 @@ fn multirange_equal(left: MultirangeValue, right: MultirangeValue) -> BoolValue 
             while index < a.ranges.len() {
                 let x = a.ranges[index].clone();
                 let y = b.ranges[index].clone();
-                let compared = sql__pg_catalog__range_cmp__8jgl(x, y);
+                let compared = range_order(x, y);
                 if compared != make_int4_value(0) {
                     return range_order_boolean(compared, 3);
                 };
@@ -586,7 +594,7 @@ pub fn sql__pg_catalog__multirange_cmp__mafd(
     left: MultirangeValue,
     right: MultirangeValue,
 ) -> Int4Value {
-    multirange_compare(left, right)
+    multirange_compare_mode(left,right,true)
 }
 
 pub fn sql__pg_catalog__multirange_contained_by_multirange__9c9u(

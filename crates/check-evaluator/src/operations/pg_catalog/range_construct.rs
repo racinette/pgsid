@@ -87,12 +87,12 @@ fn range_profiled_compare(
             return Int4Value::Unknown;
         };
         if node.kind == 42 {
-            return sql__pg_catalog__range_cmp__8jgl(
+            return range_order(
                 array_element_to_range(lower),
                 array_element_to_range(upper),
             );
         };
-        return sql__pg_catalog__multirange_cmp__mafd(
+        return multirange_order(
             array_element_to_multirange(lower),
             array_element_to_multirange(upper),
         );

@@ -7,3 +7,4 @@ INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,byp
 INSERT INTO document_reference_sets(source,expected_member,expected_record,bypass) VALUES('a:1A',true,true,false);
 INSERT INTO document_default_windows(source,expected_default,expected_supplied,bypass) VALUES('a:1A',true,true,false);
 INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a',true,false);
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',true,4,1,false);

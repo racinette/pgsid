@@ -18,6 +18,7 @@ export function arrayStorageContainerTypes(
   return storageContainerTypes(
     types,
     new Set([...types.values()].filter((t) => t.element !== null).map((t) => t.oid)),
+    true,
   )
 }
 
@@ -30,6 +31,7 @@ export function arrayConstantStorage(
   const facet = containerConstant<never>(bytes, oid, types, '', () => undefined, {
     containers: roots,
     arrayStorage: true,
+    ranges: true,
   })
   if (!facet) return undefined
   const entries: ArrayConstantStorage[] = []
@@ -43,7 +45,13 @@ export function arrayConstantStorage(
         nullBitmap: node.nullBitmap!,
       })
       node.elements.forEach((value, index) => visit(value, path + '/' + index))
-    } else node.fields.forEach((value, index) => visit(value, path + '/' + index))
+    } else
+      (node.kind === 'record'
+        ? node.fields
+        : node.kind === 'range'
+          ? node.bounds
+          : node.ranges
+      ).forEach((value, index) => visit(value, path + '/' + index))
   }
   visit(facet, '')
   return entries

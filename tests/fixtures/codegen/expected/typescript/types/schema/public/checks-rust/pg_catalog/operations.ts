@@ -25898,12 +25898,13 @@ function multirangeDirectionalAdjacent(left: checkruntime.RangeValue, right: che
     }
     return { kind: "Unknown" };
 }
-function multirangePayloadCompare(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): checkruntime.Int4Value {
+function multirangePayloadCompare(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload, exact: boolean): checkruntime.Int4Value {
+    exact = langruntime.checkedBool(exact);
     let index: number = 0;
     while (index < left.ranges.length && index < right.ranges.length) {
         const a: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(left.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue));
         const b: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue));
-        const compared: checkruntime.Int4Value = rangeCmp8jgl(a, b);
+        const compared: checkruntime.Int4Value = rangeCompareMode(a, b, exact);
         if (!(checkruntime.equalInt4Value(compared, checkruntime.makeInt4Value(0)))) {
             return compared;
         }
@@ -25917,9 +25918,10 @@ function multirangePayloadCompare(left: checkruntime.MultirangePayload, right: c
     }
     return checkruntime.makeInt4Value(0);
 }
-function multirangeCompare(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.Int4Value {
+function multirangeCompareMode(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue, exact: boolean): checkruntime.Int4Value {
     left = checkruntime.copyMultirangeValue(left);
     right = checkruntime.copyMultirangeValue(right);
+    exact = langruntime.checkedBool(exact);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -25939,11 +25941,21 @@ function multirangeCompare(left: checkruntime.MultirangeValue, right: checkrunti
         if (right.kind === "Value") {
             const b: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(right.value);
             if (multirangeSameFamily(a, b)) {
-                return multirangePayloadCompare(a, b);
+                return multirangePayloadCompare(a, b, exact);
             }
         }
     }
     return { kind: "Unknown" };
+}
+function multirangeCompare(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.Int4Value {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    return multirangeCompareMode(left, right, false);
+}
+export function multirangeOrder(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.Int4Value {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    return multirangeCompareMode(left, right, false);
 }
 function multirangeEqual(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.BoolValue {
     left = checkruntime.copyMultirangeValue(left);
@@ -25976,7 +25988,7 @@ function multirangeEqual(left: checkruntime.MultirangeValue, right: checkruntime
             while (index < a.ranges.length) {
                 const x: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(a.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue));
                 const y: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(b.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue));
-                const compared: checkruntime.Int4Value = rangeCmp8jgl(x, y);
+                const compared: checkruntime.Int4Value = rangeOrder(x, y);
                 if (!(checkruntime.equalInt4Value(compared, checkruntime.makeInt4Value(0)))) {
                     return rangeOrderBoolean(compared, 3);
                 }
@@ -26421,7 +26433,7 @@ export function multirangeBeforeRange5v34(left: checkruntime.MultirangeValue, ri
 export function multirangeCmpMafd(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.Int4Value {
     left = checkruntime.copyMultirangeValue(left);
     right = checkruntime.copyMultirangeValue(right);
-    return multirangeCompare(left, right);
+    return multirangeCompareMode(left, right, true);
 }
 export function multirangeContainedByMultirange9c9u(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.BoolValue {
     left = checkruntime.copyMultirangeValue(left);
@@ -26560,7 +26572,7 @@ function multirangeConstructOrder(input: checkruntime.MultirangePayload, left: n
     right = langruntime.checkedIndex(right);
     const a: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(left), checkruntime.copyRangeValue));
     const b: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(right), checkruntime.copyRangeValue));
-    return rangeCmp8jgl(a, b);
+    return rangeOrder(a, b);
 }
 function multirangeOrderKnown(input: checkruntime.Int4Value): boolean {
     if (input.kind === "Value") {
@@ -35606,9 +35618,10 @@ export function rangeSendB1w5(input: checkruntime.RangeValue, lower: checkruntim
 function rangeSameFamily(left: checkruntime.RangePayload, right: checkruntime.RangePayload): boolean {
     return left.typeName === right.typeName && left.elementType === right.elementType && left.elementKind === right.elementKind && checkruntime.rangeSupportEqual(left.support, right.support);
 }
-function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolean, right: checkruntime.RangePayload, rightUpper: boolean): checkruntime.Int4Value {
+function rangeEndpointCompareMode(left: checkruntime.RangePayload, leftUpper: boolean, right: checkruntime.RangePayload, rightUpper: boolean, exact: boolean): checkruntime.Int4Value {
     leftUpper = langruntime.checkedBool(leftUpper);
     rightUpper = langruntime.checkedBool(rightUpper);
+    exact = langruntime.checkedBool(exact);
     let li: number = 0;
     let ri: number = 0;
     let leftInc: boolean = left.lowerInclusive;
@@ -35651,7 +35664,7 @@ function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolea
     }
     const leftProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(left.boundProfile);
     const rightProfile: checkruntime.RangeBoundContext = checkruntime.copyRangeBoundContext(right.boundProfile);
-    const comparison: checkruntime.Int4Value = rangeTypedCompare(a, b, left.support.comparison, leftProfile, rightProfile);
+    const comparison: checkruntime.Int4Value = rangeTypedCompareMode(a, b, left.support.comparison, leftProfile, rightProfile, exact);
     if (comparison.kind === "Value") {
         const order: number = langruntime.checkedI32(comparison.value);
         if (!(order === 0)) {
@@ -35675,7 +35688,37 @@ function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolea
     }
     return comparison;
 }
-function rangePayloadCompare(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.Int4Value {
+function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolean, right: checkruntime.RangePayload, rightUpper: boolean): checkruntime.Int4Value {
+    leftUpper = langruntime.checkedBool(leftUpper);
+    rightUpper = langruntime.checkedBool(rightUpper);
+    return rangeEndpointCompareMode(left, leftUpper, right, rightUpper, false);
+}
+function rangeTypedCompareMode(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, kind: number, leftProfile: checkruntime.RangeBoundContext, rightProfile: checkruntime.RangeBoundContext, exact: boolean): checkruntime.Int4Value {
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    kind = langruntime.checkedI32(kind);
+    exact = langruntime.checkedBool(exact);
+    const portable: checkruntime.Int4Value = rangeTypedCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), kind, leftProfile, rightProfile);
+    if (exact) {
+        if (portable.kind === "Value") {
+            const order: number = langruntime.checkedI32(portable.value);
+            if (!(order === 0)) {
+                if (kind === 47) {
+                    return tsvectorCmpXinv(checkruntime.arrayElementToTsvector(lower), checkruntime.arrayElementToTsvector(upper));
+                }
+                if (kind === 42) {
+                    return rangeCmp8jgl(checkruntime.arrayElementToRange(lower), checkruntime.arrayElementToRange(upper));
+                }
+                if (kind === 43) {
+                    return multirangeCmpMafd(checkruntime.arrayElementToMultirange(lower), checkruntime.arrayElementToMultirange(upper));
+                }
+            }
+        }
+    }
+    return portable;
+}
+function rangePayloadCompareMode(left: checkruntime.RangePayload, right: checkruntime.RangePayload, exact: boolean): checkruntime.Int4Value {
+    exact = langruntime.checkedBool(exact);
     if (left.empty && right.empty) {
         return checkruntime.makeInt4Value(0);
     }
@@ -35685,18 +35728,19 @@ function rangePayloadCompare(left: checkruntime.RangePayload, right: checkruntim
     if (right.empty) {
         return checkruntime.makeInt4Value(1);
     }
-    const lower: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+    const lower: checkruntime.Int4Value = rangeEndpointCompareMode(left, false, right, false, exact);
     if (lower.kind === "Value") {
         const order: number = langruntime.checkedI32(lower.value);
         if (order === 0) {
-            return rangeEndpointCompare(left, true, right, true);
+            return rangeEndpointCompareMode(left, true, right, true, exact);
         }
     }
     return lower;
 }
-export function rangeCmp8jgl(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.Int4Value {
+function rangeCompareMode(left: checkruntime.RangeValue, right: checkruntime.RangeValue, exact: boolean): checkruntime.Int4Value {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
+    exact = langruntime.checkedBool(exact);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -35716,11 +35760,21 @@ export function rangeCmp8jgl(left: checkruntime.RangeValue, right: checkruntime.
         if (right.kind === "Value") {
             const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
             if (rangeSameFamily(a, b)) {
-                return rangePayloadCompare(a, b);
+                return rangePayloadCompareMode(a, b, exact);
             }
         }
     }
     return { kind: "Unknown" };
+}
+export function rangeOrder(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.Int4Value {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeCompareMode(left, right, false);
+}
+export function rangeCmp8jgl(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.Int4Value {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeCompareMode(left, right, true);
 }
 function rangeOrderBoolean(input: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
     strategy = langruntime.checkedI32(strategy);
@@ -36021,37 +36075,37 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
 export function rangeLtT1sv(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 1);
 }
 export function rangeLeUr15(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 2);
 }
 export function rangeEqLoxq(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 3);
 }
 export function rangeGeI2f0(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 4);
 }
 export function rangeGt943z(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 5);
 }
 export function rangeNeMzkw(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
     left = checkruntime.copyRangeValue(left);
     right = checkruntime.copyRangeValue(right);
-    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    const comparison: checkruntime.Int4Value = rangeOrder(left, right);
     return rangeOrderBoolean(comparison, 6);
 }
 export function rangeBeforeZ0g8(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
@@ -36162,9 +36216,9 @@ function rangeProfiledCompare(lower: checkruntime.ArrayElement, upper: checkrunt
             return { kind: "Unknown" };
         }
         if (node.kind === 42) {
-            return rangeCmp8jgl(checkruntime.arrayElementToRange(lower), checkruntime.arrayElementToRange(upper));
+            return rangeOrder(checkruntime.arrayElementToRange(lower), checkruntime.arrayElementToRange(upper));
         }
-        return multirangeCmpMafd(checkruntime.arrayElementToMultirange(lower), checkruntime.arrayElementToMultirange(upper));
+        return multirangeOrder(checkruntime.arrayElementToMultirange(lower), checkruntime.arrayElementToMultirange(upper));
     }
     if (!(node.kind === 41)) {
         if (node.kind === 6 && (!(node.enumLabels === peer.enumLabels) || !(node.enumCount === peer.enumCount))) {

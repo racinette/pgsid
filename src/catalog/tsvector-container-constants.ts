@@ -22,7 +22,7 @@ export function tsvectorConstantTypes(types: ReadonlyMap<number, ConstantStorage
     )
   }
   const scalars = new Set([...types.keys()].filter((oid) => isScalar(oid))),
-    containers = storageContainerTypes(types, 'pg_catalog.tsvector')
+    containers = storageContainerTypes(types, 'pg_catalog.tsvector', true)
   for (const oid of scalars) containers.delete(oid)
   return { scalars, containers }
 }
@@ -32,10 +32,17 @@ export function tsvectorContainerConstant(
   oid: number,
   types: ReadonlyMap<number, ConstantStorageType>,
 ): TsvectorConstantStorage[] | undefined {
-  const facet = containerConstant(bytes, oid, types, 'pg_catalog.tsvector', (input) => {
-    const storage = tsvectorConstantStorage(input)
-    return storage ? { kind: 'tsvector' as const, storage } : undefined
-  })
+  const facet = containerConstant(
+    bytes,
+    oid,
+    types,
+    'pg_catalog.tsvector',
+    (input) => {
+      const storage = tsvectorConstantStorage(input)
+      return storage ? { kind: 'tsvector' as const, storage } : undefined
+    },
+    { ranges: true },
+  )
   if (!facet) return undefined
   const entries: TsvectorConstantStorage[] = []
   const visit = (
@@ -44,7 +51,13 @@ export function tsvectorContainerConstant(
     if (!node) return
     if (node.kind === 'tsvector') entries.push(node.storage)
     else if (node.kind === 'array') node.elements.forEach(visit)
-    else node.fields.forEach(visit)
+    else
+      (node.kind === 'record'
+        ? node.fields
+        : node.kind === 'range'
+          ? node.bounds
+          : node.ranges
+      ).forEach(visit)
   }
   visit(facet)
   return entries

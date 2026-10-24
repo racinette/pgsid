@@ -274,6 +274,13 @@ pub fn range_null() -> RangeValue {
     RangeValue::Null
 }
 
+pub fn range_payload_with_bounds(input: RangePayload, bounds: Vec<ArrayElement>) -> RangePayload {
+    RangePayload {type_name:input.type_name,element_type:input.element_type,element_kind:input.element_kind,
+        enum_labels:input.enum_labels,enum_count:input.enum_count,bound_profile:input.bound_profile,
+        support:input.support,empty:input.empty,lower_inclusive:input.lower_inclusive,
+        upper_inclusive:input.upper_inclusive,bounds:bounds}
+}
+
 fn range_payload_with_support(input: RangePayload, support: RangeSupport) -> RangePayload {
     RangePayload {
         type_name: input.type_name,

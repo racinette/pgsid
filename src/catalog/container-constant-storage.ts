@@ -3,6 +3,8 @@ import type { RowCoercionIdentity } from './coercion-context.js'
 export type ContainerStorageFacet<Leaf> =
   | Leaf
   | { kind: 'record'; fields: (ContainerStorageFacet<Leaf> | null)[] }
+  | { kind: 'range'; bounds: (ContainerStorageFacet<Leaf> | null)[] }
+  | { kind: 'multirange'; ranges: ContainerStorageFacet<Leaf>[] }
   | {
       kind: 'array'
       nullBitmap?: boolean
@@ -17,6 +19,8 @@ export interface ConstantStorageType {
   kind: string
   base: number
   element: number | null
+  rangeSubtype?: number | null
+  rangeType?: number | null
   length: number
   alignment: string
   delimiter: string
@@ -52,6 +56,7 @@ export function storageRowIdentities(
 export function storageContainerTypes(
   types: ReadonlyMap<number, ConstantStorageType>,
   identity: string | ReadonlySet<number>,
+  ranges = false,
 ): Set<number> {
   const parents = new Map<number, Set<number>>(),
     roots: number[] = []
@@ -63,7 +68,11 @@ export function storageContainerTypes(
         ? [type.base]
         : type.element
           ? [type.element]
-          : type.attributes.filter((a) => !a.dropped).map((a) => a.type)
+          : ranges && type.rangeSubtype
+            ? [type.rangeSubtype]
+            : ranges && type.rangeType
+              ? [type.rangeType]
+              : type.attributes.filter((a) => !a.dropped).map((a) => a.type)
     for (const child of children) {
       const owners = parents.get(child) ?? new Set<number>()
       owners.add(type.oid)
@@ -89,10 +98,10 @@ export function containerConstant<Leaf>(
   types: ReadonlyMap<number, ConstantStorageType>,
   identity: string,
   leaf: (input: Buffer, header: number) => Leaf | undefined,
-  options?: { containers: ReadonlySet<number>; arrayStorage: boolean },
+  options?: { containers?: ReadonlySet<number>; arrayStorage?: boolean; ranges?: boolean },
 ): ContainerStorageFacet<Leaf> | undefined {
   const candidates: ContainerStorageFacet<Leaf>[] = []
-  const containers = options?.containers ?? storageContainerTypes(types, identity)
+  const containers = options?.containers ?? storageContainerTypes(types, identity, options?.ranges)
   for (const little of [true, false])
     for (const doubleAlign of [4, 8]) {
       const read = (data: Buffer, offset: number) =>
@@ -140,7 +149,13 @@ export function containerConstant<Leaf>(
         if (!type) return undefined
         if (type.identity !== identity && !containers.has(typeOid)) return null
         if (type.kind === 'd') return decode(input, type.base)
-        if (type.identity !== identity && !type.element && type.kind !== 'c') return null
+        if (
+          type.identity !== identity &&
+          !type.element &&
+          type.kind !== 'c' &&
+          !(options?.ranges && (type.kind === 'r' || type.kind === 'm'))
+        )
+          return null
         const stored = frame(input)
         if (!stored || stored.length !== input.length || !stored.plain) return undefined
         if (type.identity === identity) return leaf(input, stored.header)
@@ -161,6 +176,73 @@ export function containerConstant<Leaf>(
             return end < 0 ? undefined : data.subarray(offset, end + 1)
           }
           return undefined
+        }
+        if (options?.ranges && (type.kind === 'r' || type.kind === 'm')) {
+          const range = type.kind === 'r' ? type : types.get(type.rangeType ?? 0),
+            subtype = types.get(range?.rangeSubtype ?? 0)
+          if (
+            !range ||
+            !subtype ||
+            data.length < (type.kind === 'r' ? 9 : 12) ||
+            word(data, 4) !== type.oid
+          )
+            return undefined
+          const bounds = (
+            flags: number,
+            start: number,
+            limit: number,
+          ): { value: ContainerStorageFacet<Leaf>; end: number } | undefined => {
+            if (flags & 224) return undefined
+            if (flags & 1) return { value: { kind: 'range', bounds: [] }, end: start }
+            const values: (ContainerStorageFacet<Leaf> | null)[] = []
+            let position = start
+            for (const infinite of [8, 16]) {
+              if (flags & infinite) {
+                values.push(null)
+                continue
+              }
+              if (subtype.length !== -1 || data[position] === 0)
+                position = align(position, subtype.alignment)
+              const value = take(position, subtype.length)
+              if (!value || position + value.length > limit) return undefined
+              const facet = decode(value, subtype.oid)
+              if (facet === undefined) return undefined
+              values.push(facet)
+              position += value.length
+            }
+            return { value: { kind: 'range', bounds: values }, end: position }
+          }
+          if (type.kind === 'r') {
+            const value = bounds(data[data.length - 1]!, 8, data.length - 1)
+            return value?.end === data.length - 1 ? value.value : undefined
+          }
+          const count = word(data, 8),
+            flags = 12 + Math.max(count - 1, 0) * 4
+          if (count > 2147483647 || flags + count > data.length) return undefined
+          const begin = align(flags + count, subtype.alignment),
+            values: ContainerStorageFacet<Leaf>[] = []
+          if (begin < 0 || begin > data.length) return undefined
+          let position = begin,
+            previous = 0
+          for (let index = 0; index < count; index++) {
+            if (index > 0) {
+              const item = word(data, 12 + (index - 1) * 4),
+                absolute = (item & 2147483648) !== 0,
+                offset = item & 2147483647
+              if (absolute !== (index % 4 === 0)) return undefined
+              const relative = absolute ? offset : previous + offset
+              if (begin + relative !== position) return undefined
+              previous = relative
+            }
+            const flag = data[flags + index]!
+            if (flag & 1) return undefined
+            const value = bounds(flag, position, data.length)
+            if (!value) return undefined
+            values.push(value.value)
+            position = align(value.end, subtype.alignment)
+          }
+          if (position !== data.length) return undefined
+          return { kind: 'multirange', ranges: values }
         }
         if (type.element) {
           if (data.length < 16 || word(data, 12) !== type.element) return undefined

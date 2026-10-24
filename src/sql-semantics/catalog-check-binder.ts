@@ -710,9 +710,25 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
       ...(literal.xmlStorage !== undefined ? { storage: literal.xmlStorage } : {}),
     }
   if (isMultirangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
-    return { kind: 'multirange', type, value: literal.value }
+    return {
+      kind: 'multirange',
+      type,
+      value: literal.value,
+      ...(literal.arrayConstantStorage ? { arrayStorage: literal.arrayConstantStorage } : {}),
+      ...(literal.tsvectorContainerStorage
+        ? { tsvectorStorage: literal.tsvectorContainerStorage }
+        : {}),
+    }
   if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
-    return { kind: 'range', type, value: literal.value }
+    return {
+      kind: 'range',
+      type,
+      value: literal.value,
+      ...(literal.arrayConstantStorage ? { arrayStorage: literal.arrayConstantStorage } : {}),
+      ...(literal.tsvectorContainerStorage
+        ? { tsvectorStorage: literal.tsvectorContainerStorage }
+        : {}),
+    }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'jsonpath', type, value: literal.value }
   if (type === 'pg_catalog.jsonb' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -7278,6 +7294,8 @@ export function bindCatalogCheck(
         type,
         literal: true,
         origin: literalOrigin,
+        ...(literal['arrayStorage'] ? { arrayStorage: literal['arrayStorage'] } : {}),
+        ...(literal['tsvectorStorage'] ? { tsvectorStorage: literal['tsvectorStorage'] } : {}),
         operand: {
           kind: 'certain',
           expression: { kind: 'text', type: 'pg_catalog.text', value: literal['value'] },

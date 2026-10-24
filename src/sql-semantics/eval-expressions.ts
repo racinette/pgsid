@@ -319,6 +319,8 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-range'
+      arrayStorage?: readonly ArrayConstantStorage[]
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
       type: RangeType
       operand: EvalExpression
       conversion?: EvalExpression
@@ -327,6 +329,8 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-multirange'
+      arrayStorage?: readonly ArrayConstantStorage[]
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
       type: MultirangeType
       operand: EvalExpression
       conversion?: EvalExpression

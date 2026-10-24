@@ -5,11 +5,12 @@ fn range_same_family(left: &RangePayload, right: &RangePayload) -> bool {
         && range_support_equal(left.support, right.support)
 }
 
-fn range_endpoint_compare(
+fn range_endpoint_compare_mode(
     left: &RangePayload,
     left_upper: bool,
     right: &RangePayload,
     right_upper: bool,
+    exact: bool,
 ) -> Int4Value {
     let mut li: usize = 0;
     let mut ri: usize = 0;
@@ -53,7 +54,7 @@ fn range_endpoint_compare(
     };
     let left_profile = left.bound_profile.clone();
     let right_profile = right.bound_profile.clone();
-    let comparison = range_typed_compare(a, b, left.support.comparison, &left_profile, &right_profile);
+    let comparison = range_typed_compare_mode(a, b, left.support.comparison, &left_profile, &right_profile,exact);
     if let Int4Value::Value(order) = comparison {
         if order != 0 {
             return comparison;
@@ -77,7 +78,25 @@ fn range_endpoint_compare(
     comparison
 }
 
-fn range_payload_compare(left: &RangePayload, right: &RangePayload) -> Int4Value {
+fn range_endpoint_compare(left: &RangePayload, left_upper: bool, right: &RangePayload, right_upper: bool) -> Int4Value {
+    range_endpoint_compare_mode(left,left_upper,right,right_upper,false)
+}
+
+fn range_typed_compare_mode(lower: ArrayElement, upper: ArrayElement, kind: i32, left_profile: &RangeBoundContext, right_profile: &RangeBoundContext, exact: bool) -> Int4Value {
+    let portable = range_typed_compare(lower.clone(),upper.clone(),kind,left_profile,right_profile);
+    if exact {
+        if let Int4Value::Value(order) = portable {
+            if order != 0 {
+                if kind == 47 { return sql__pg_catalog__tsvector_cmp__xinv(array_element_to_tsvector(lower),array_element_to_tsvector(upper)); };
+                if kind == 42 { return sql__pg_catalog__range_cmp__8jgl(array_element_to_range(lower),array_element_to_range(upper)); };
+                if kind == 43 { return sql__pg_catalog__multirange_cmp__mafd(array_element_to_multirange(lower),array_element_to_multirange(upper)); };
+            };
+        };
+    };
+    portable
+}
+
+fn range_payload_compare_mode(left: &RangePayload, right: &RangePayload, exact: bool) -> Int4Value {
     if left.empty && right.empty {
         return make_int4_value(0);
     };
@@ -87,16 +106,16 @@ fn range_payload_compare(left: &RangePayload, right: &RangePayload) -> Int4Value
     if right.empty {
         return make_int4_value(1);
     };
-    let lower = range_endpoint_compare(left, false, right, false);
+    let lower = range_endpoint_compare_mode(left, false, right, false,exact);
     if let Int4Value::Value(order) = lower {
         if order == 0 {
-            return range_endpoint_compare(left, true, right, true);
+            return range_endpoint_compare_mode(left, true, right, true,exact);
         };
     };
     lower
 }
 
-pub fn sql__pg_catalog__range_cmp__8jgl(left: RangeValue, right: RangeValue) -> Int4Value {
+fn range_compare_mode(left: RangeValue, right: RangeValue, exact: bool) -> Int4Value {
     if let RangeValue::Error(error) = left {
         return Int4Value::Error(error);
     };
@@ -112,11 +131,19 @@ pub fn sql__pg_catalog__range_cmp__8jgl(left: RangeValue, right: RangeValue) -> 
     if let RangeValue::Value(a) = left {
         if let RangeValue::Value(b) = right {
             if range_same_family(&a, &b) {
-                return range_payload_compare(&a, &b);
+                return range_payload_compare_mode(&a, &b,exact);
             };
         };
     };
     Int4Value::Unknown
+}
+
+pub fn range_order(left: RangeValue, right: RangeValue) -> Int4Value {
+    range_compare_mode(left,right,false)
+}
+
+pub fn sql__pg_catalog__range_cmp__8jgl(left: RangeValue, right: RangeValue) -> Int4Value {
+    range_compare_mode(left,right,true)
 }
 
 fn range_order_boolean(input: Int4Value, strategy: i32) -> BoolValue {
@@ -402,32 +429,32 @@ fn range_contains_element(
 }
 
 pub fn sql__pg_catalog__range_lt__t1sv(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 1)
 }
 
 pub fn sql__pg_catalog__range_le__ur15(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 2)
 }
 
 pub fn sql__pg_catalog__range_eq__loxq(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 3)
 }
 
 pub fn sql__pg_catalog__range_ge__i2f0(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 4)
 }
 
 pub fn sql__pg_catalog__range_gt__943z(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 5)
 }
 
 pub fn sql__pg_catalog__range_ne__mzkw(left: RangeValue, right: RangeValue) -> BoolValue {
-    let comparison = sql__pg_catalog__range_cmp__8jgl(left, right);
+    let comparison = range_order(left, right);
     range_order_boolean(comparison, 6)
 }
 

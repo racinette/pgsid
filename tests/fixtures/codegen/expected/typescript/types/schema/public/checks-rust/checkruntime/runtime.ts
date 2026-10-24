@@ -10088,6 +10088,11 @@ export function rangeUnknown(): RangeValue {
 export function rangeNull(): RangeValue {
     return { kind: "Null" };
 }
+export function rangePayloadWithBounds(input: RangePayload, bounds: ArrayElement[]): RangePayload {
+    input = copyRangePayload(input);
+    bounds = langruntime.checkedStructs(bounds, copyArrayElement);
+    return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, enumLabels: input.enumLabels, enumCount: input.enumCount, boundProfile: input.boundProfile, support: input.support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: bounds };
+}
 function rangePayloadWithSupport(input: RangePayload, support: RangeSupport): RangePayload {
     input = copyRangePayload(input);
     return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, enumLabels: input.enumLabels, enumCount: input.enumCount, boundProfile: input.boundProfile, support: support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
@@ -10881,6 +10886,11 @@ export interface MultirangePayload {
 }
 export function copyMultirangePayload(value: MultirangePayload): MultirangePayload {
     return { typeName: langruntime.checkedString(value.typeName), rangeType: langruntime.checkedString(value.rangeType), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), support: value.support, ranges: langruntime.checkedStructs(value.ranges, copyRangeValue) };
+}
+export function multirangePayloadWithRanges(input: MultirangePayload, ranges: RangeValue[]): MultirangePayload {
+    input = copyMultirangePayload(input);
+    ranges = langruntime.checkedStructs(ranges, copyRangeValue);
+    return { typeName: input.typeName, rangeType: input.rangeType, elementType: input.elementType, elementKind: input.elementKind, support: input.support, ranges: ranges };
 }
 export type MultirangeValue = {
     readonly kind: "Unknown";
@@ -14281,6 +14291,28 @@ function clearTsvectorStorage(input: ArrayElement): ArrayElement {
         }
         return { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
     }
+    if (input.kind === "Range") {
+        const value: RangePayload = copyRangePayload(input.value);
+        let bounds: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.bounds.length) {
+            langruntime.pushStruct(bounds, clearTsvectorStorage(copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Range", value: rangePayloadWithBounds(value, bounds) };
+    }
+    if (input.kind === "Multirange") {
+        const value: MultirangePayload = copyMultirangePayload(input.value);
+        let ranges: RangeValue[] = [];
+        let i: number = 0;
+        while (i < value.ranges.length) {
+            const member: ArrayElement = arrayElementFromRange(copyRangeValue(langruntime.indexStruct(value.ranges, langruntime.checkedIndex(i), copyRangeValue)));
+            const restored: ArrayElement = clearTsvectorStorage(member);
+            langruntime.pushStruct(ranges, arrayElementToRange(restored), copyRangeValue);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Multirange", value: multirangePayloadWithRanges(value, ranges) };
+    }
     return input;
 }
 interface ArrayStorageEntry {
@@ -14355,6 +14387,28 @@ export function forgetArrayStorage(input: ArrayElement): ArrayElement {
         }
         return { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
     }
+    if (input.kind === "Range") {
+        const value: RangePayload = copyRangePayload(input.value);
+        let bounds: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.bounds.length) {
+            langruntime.pushStruct(bounds, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Range", value: rangePayloadWithBounds(value, bounds) };
+    }
+    if (input.kind === "Multirange") {
+        const value: MultirangePayload = copyMultirangePayload(input.value);
+        let ranges: RangeValue[] = [];
+        let i: number = 0;
+        while (i < value.ranges.length) {
+            const member: ArrayElement = arrayElementFromRange(copyRangeValue(langruntime.indexStruct(value.ranges, langruntime.checkedIndex(i), copyRangeValue)));
+            const restored: ArrayElement = forgetArrayStorage(member);
+            langruntime.pushStruct(ranges, arrayElementToRange(restored), copyRangeValue);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Multirange", value: multirangePayloadWithRanges(value, ranges) };
+    }
     return input;
 }
 interface ArrayStorageResult {
@@ -14416,6 +14470,41 @@ function applyArrayStorageAt(input: ArrayElement, plan: ArrayStoragePlan, path: 
             i = langruntime.checkedAdd(i, 1);
         }
         const restored: ArrayElement = { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
+        return { value: restored, matched: matched, valid: valid };
+    }
+    if (input.kind === "Range") {
+        const value: RangePayload = copyRangePayload(input.value);
+        let bounds: ArrayElement[] = [];
+        let matched: number = 0;
+        let valid: boolean = true;
+        let i: number = 0;
+        while (i < value.bounds.length) {
+            const childPath: string = arrayStorageChildPath(path, i);
+            const child: ArrayStorageResult = applyArrayStorageAt(copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(i), copyArrayElement)), plan, childPath);
+            matched = langruntime.checkedAdd(matched, child.matched);
+            valid = langruntime.checkedBool(valid && child.valid);
+            langruntime.pushStruct(bounds, child.value, copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        const restored: ArrayElement = { kind: "Range", value: rangePayloadWithBounds(value, bounds) };
+        return { value: restored, matched: matched, valid: valid };
+    }
+    if (input.kind === "Multirange") {
+        const value: MultirangePayload = copyMultirangePayload(input.value);
+        let ranges: RangeValue[] = [];
+        let matched: number = 0;
+        let valid: boolean = true;
+        let i: number = 0;
+        while (i < value.ranges.length) {
+            const childPath: string = arrayStorageChildPath(path, i);
+            const member: ArrayElement = arrayElementFromRange(copyRangeValue(langruntime.indexStruct(value.ranges, langruntime.checkedIndex(i), copyRangeValue)));
+            const child: ArrayStorageResult = applyArrayStorageAt(member, plan, childPath);
+            matched = langruntime.checkedAdd(matched, child.matched);
+            valid = langruntime.checkedBool(valid && child.valid);
+            langruntime.pushStruct(ranges, arrayElementToRange(child.value), copyRangeValue);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        const restored: ArrayElement = { kind: "Multirange", value: multirangePayloadWithRanges(value, ranges) };
         return { value: restored, matched: matched, valid: valid };
     }
     return { value: input, matched: 0, valid: true };

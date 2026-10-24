@@ -159,3 +159,19 @@ INSERT INTO document_score_updates(observation,minimum_updates,source,expected_r
 INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a:0',NULL,false);
 -- name: document_score_skipped
 INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a:0',NULL,true);
+-- name: document_archive_matches
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',true,4,1,false);
+-- name: document_archive_other
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('bb',false,4,1,false);
+-- name: document_archive_wrong_reference
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',false,4,1,false);
+-- name: document_archive_wrong_count
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',true,4,3,false);
+-- name: document_archive_null_observation
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',true,NULL,1,false);
+-- name: document_archive_null_reference
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES(NULL,NULL,4,1,false);
+-- name: document_archive_bad_input
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a:0',NULL,4,1,false);
+-- name: document_archive_skipped
+INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a:0',NULL,4,1,true);

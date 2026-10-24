@@ -4,7 +4,7 @@ const MULTIRANGE_ARRAY_DIMENSIONS: u32 = 3405888;
 fn multirange_construct_order(input: &MultirangePayload, left: usize, right: usize) -> Int4Value {
     let a = input.ranges[left].clone();
     let b = input.ranges[right].clone();
-    sql__pg_catalog__range_cmp__8jgl(a, b)
+    range_order(a, b)
 }
 
 fn multirange_order_known(input: Int4Value) -> bool {

@@ -1439,6 +1439,24 @@ export function emitCheckRustEvaluator(
     )
     return result
   }
+  const portableComparison = (
+    type: string,
+    signature: string | null | undefined,
+  ): string | null => {
+    if (type === 'pg_catalog.tsvector' && signature === arrayElementComparison(type)?.comparator)
+      return 'tsvector_order'
+    if (
+      isRangeType(type) &&
+      signature === builtinTypeComparison('pg_catalog.int4range')?.comparator
+    )
+      return 'range_order'
+    if (
+      isMultirangeType(type) &&
+      signature === builtinTypeComparison('pg_catalog.int4multirange')?.comparator
+    )
+      return 'multirange_order'
+    return null
+  }
   let declaredArrayInputScope = false
   const renderArrayInputElement = (
     elementType: string,
@@ -1820,7 +1838,10 @@ export function emitCheckRustEvaluator(
       return name
     }
     if (
-      (node.kind === 'array-text-literal' || node.kind === 'text-to-composite') &&
+      (node.kind === 'array-text-literal' ||
+        node.kind === 'text-to-composite' ||
+        node.kind === 'text-to-range' ||
+        node.kind === 'text-to-multirange') &&
       (node.origin === 'stored' || node.arrayStorage !== undefined) &&
       !arrayStorageInProgress.has(node)
     ) {
@@ -1860,7 +1881,10 @@ export function emitCheckRustEvaluator(
       return { name: bind(`array_element_to_${prefix}(${restored})`), type: value.type }
     }
     if (
-      (node.kind === 'array-text-literal' || node.kind === 'text-to-composite') &&
+      (node.kind === 'array-text-literal' ||
+        node.kind === 'text-to-composite' ||
+        node.kind === 'text-to-range' ||
+        node.kind === 'text-to-multirange') &&
       node.tsvectorStorage !== undefined
     ) {
       const { tsvectorStorage, ...plain } = node
@@ -3926,20 +3950,19 @@ export function emitCheckRustEvaluator(
                   scalarLines,
                 )
               })
-              const normalizedTsvector =
-                !equality &&
-                selectedType === 'pg_catalog.tsvector' &&
-                selected === arrayElementComparison(selectedType)?.comparator
-              const value = normalizedTsvector
+              const normalizedComparison = !equality
+                ? portableComparison(selectedType, selected)
+                : null
+              const value = normalizedComparison
                 ? { name: fresh('record_comparison_value'), type: 'pg_catalog.int4' }
                 : emitCall(
                     { kind: 'function', signature: selected, type: metadata.result, collation },
                     values,
                     scalarLines,
                   )
-              if (normalizedTsvector)
+              if (normalizedComparison)
                 scalarLines.push(
-                  `let ${value.name}=tsvector_order(${values.map(ownedOperand).join(', ')});`,
+                  `let ${value.name}=${normalizedComparison}(${values.map(ownedOperand).join(', ')});`,
                 )
               scalarLines.push(
                 `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
@@ -4082,12 +4105,12 @@ export function emitCheckRustEvaluator(
                 scalarLines,
               )
             })
-            if (
-              baseType === 'pg_catalog.tsvector' &&
-              selected === arrayElementComparison(baseType)?.comparator
-            ) {
+            const normalizedComparison = portableComparison(baseType, selected)
+            if (normalizedComparison) {
               const name = fresh('array_comparison_value')
-              scalarLines.push(`let ${name}=tsvector_order(${args.map(ownedOperand).join(', ')});`)
+              scalarLines.push(
+                `let ${name}=${normalizedComparison}(${args.map(ownedOperand).join(', ')});`,
+              )
               return { name, type: 'pg_catalog.int4' }
             }
             return emitCall(
