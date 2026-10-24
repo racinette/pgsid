@@ -245,6 +245,79 @@ export function characterValueRequirements(item: BuiltinCallable) {
   ]
 }
 
+export function textSearchValueRequirements(item: BuiltinCallable) {
+  if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
+  const owner = 'tests/sql-semantics/check-text-search-boundaries.test.ts'
+  if (
+    item.name === 'ts_stat' ||
+    (item.name === 'ts_rewrite' && item.args.join(',') === 'pg_catalog.tsquery,pg_catalog.text')
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'query',
+        requirement:
+          'Full-text statistics and SQL-driven rewriting execute the supplied query against deployment rows. Query text does not supply its results; rewriting with three supplied query values is a separate pure operation.',
+        owner,
+      },
+    ]
+  if (item.name === 'ts_parse' || item.name === 'ts_token_type')
+    return [
+      {
+        kind: 'database',
+        setting: 'text_search_parser',
+        requirement:
+          'The selected deployment parser and its token callbacks are required. Parser names and numeric OIDs alone do not contain that implementation.',
+        owner,
+      },
+    ]
+  if (item.name === 'ts_lexize')
+    return [
+      {
+        kind: 'database',
+        setting: 'text_search_dictionary',
+        requirement:
+          'The deployment dictionary implementation, options and resources determine lexemes. A supplied dictionary OID does not describe them.',
+        owner,
+      },
+    ]
+  if (
+    ![
+      'to_tsvector',
+      'json_to_tsvector',
+      'jsonb_to_tsvector',
+      'to_tsquery',
+      'plainto_tsquery',
+      'phraseto_tsquery',
+      'websearch_to_tsquery',
+      'ts_headline',
+      'ts_debug',
+      'get_current_ts_config',
+    ].includes(item.name)
+  )
+    return null
+  return [
+    {
+      kind: 'database',
+      setting: 'text_search_configuration',
+      requirement:
+        'Tokenization, dictionary mappings, dictionary implementations and resources belong to the deployment. Explicit configuration OIDs do not freeze those definitions; dictionary normalization is separate from raw tsvector/tsquery text grammar and operations on supplied values.',
+      owner,
+    },
+    ...(item.args[0] !== 'pg_catalog.regconfig'
+      ? [
+          {
+            kind: 'session',
+            setting: 'default_text_search_config',
+            requirement:
+              'The overload selects the session default text-search configuration. Supplying an explicit configuration removes that session selection but still requires deployment configuration and dictionary definitions.',
+            owner,
+          },
+        ]
+      : []),
+  ]
+}
+
 export function jsonValueRequirements(item: BuiltinCallable) {
   if (
     item.kind === 'function' &&
@@ -802,6 +875,12 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('internal-interface')
   if (item.volatility === 's') categories.push('session-or-database-state')
   if (item.volatility === 'v') categories.push('volatile')
+  for (const requirement of textSearchValueRequirements(item) ?? [])
+    categories.push(
+      requirement.kind === 'session'
+        ? `session-setting:${requirement.setting}`
+        : `database-state:${requirement.setting}`,
+    )
   if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
   if (jsonbTextRenderingContext(item)) categories.push('database-setting:server_encoding')
   if (xmlValueRequirements(item)?.some((r) => r.setting === 'xmloption'))
