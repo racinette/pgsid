@@ -45676,7 +45676,7 @@ func tsvectorNormalize(lexemes []checkruntime.TsvectorLexeme) checkruntime.Tsvec
 	}
 	return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: bytes})
 }
-func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsvectorValue {
+func tsvectorParseText(input checkruntime.TextValue, utf8 bool, stored bool) checkruntime.TsvectorValue {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: error}
@@ -45817,7 +45817,7 @@ func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkrunti
 			if width < 0 {
 				return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
 			}
-			if width >= 2047 || rawBytes > int64(1048575) {
+			if (width >= 2047 && stored == false) || width > 2047 || rawBytes > int64(1048575) {
 				return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorProgramLimit)}
 			}
 			rawBytes = langruntime.CheckedI64Add(rawBytes, (int64(langruntime.CheckedI32(width))))
@@ -45827,6 +45827,24 @@ func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkrunti
 		return tsvectorNormalize(lexemes)
 	}
 	return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+}
+func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsvectorValue {
+	return tsvectorParseText(input, utf8, false)
+}
+func TsvectorFromStoredTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsvectorValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: error}
+	}
+	value := tsvectorParseText(input, utf8, true)
+	if value.Kind == checkruntime.TsvectorValueValue {
+		payload := checkruntime.CopyTsvectorPayload(value.Value)
+		return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)})
+	}
+	if value.Kind == checkruntime.TsvectorValueError {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+	}
+	return value
 }
 func TsvectorFromText(input checkruntime.TextValue) checkruntime.TsvectorValue {
 	return TsvectorFromTextContext(input, false)

@@ -62,7 +62,7 @@ fn tsvector_normalize(lexemes: Vec<TsvectorLexeme>) -> TsvectorValue {
     make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:bytes})
 }
 
-pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue {
+fn tsvector_parse_text(input: TextValue, utf8: bool, stored: bool) -> TsvectorValue {
     if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
     if input == TextValue::Null { return TsvectorValue::Null; };
     if let TextValue::Value(text) = input {
@@ -148,13 +148,25 @@ pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue
             };
             let width = tsvector_lexeme_bytes(word.as_str());
             if width < 0 { return TsvectorValue::Unknown; };
-            if width >= 2047 || raw_bytes > 1048575i64 { return TsvectorValue::Error(make_sql_error(TSVECTOR_PROGRAM_LIMIT)); };
+            if (width >= 2047 && stored == false) || width > 2047 || raw_bytes > 1048575i64 { return TsvectorValue::Error(make_sql_error(TSVECTOR_PROGRAM_LIMIT)); };
             raw_bytes = raw_bytes + (width as i64);
             lexemes.push(TsvectorLexeme {text:word,positions:positions});
         }
         return tsvector_normalize(lexemes);
     };
     TsvectorValue::Unknown
+}
+
+pub fn tsvector_from_text_context(input: TextValue, utf8: bool) -> TsvectorValue { tsvector_parse_text(input,utf8,false) }
+
+pub fn tsvector_from_stored_text_context(input: TextValue, utf8: bool) -> TsvectorValue {
+    if let TextValue::Error(error) = input { return TsvectorValue::Error(error); };
+    let value = tsvector_parse_text(input,utf8,true);
+    if let TsvectorValue::Value(payload) = value {
+        return make_tsvector_value(TsvectorPayload {lexemes:payload.lexemes,native_bytes:-1});
+    };
+    if let TsvectorValue::Error(_) = value { return TsvectorValue::Unknown; };
+    value
 }
 
 pub fn tsvector_from_text(input: TextValue) -> TsvectorValue { tsvector_from_text_context(input,false) }

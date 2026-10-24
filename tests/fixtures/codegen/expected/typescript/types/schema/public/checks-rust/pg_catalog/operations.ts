@@ -45941,8 +45941,9 @@ function tsvectorNormalize(lexemes: checkruntime.TsvectorLexeme[]): checkruntime
     }
     return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: bytes });
 }
-export function tsvectorFromTextContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.TsvectorValue {
+function tsvectorParseText(input: checkruntime.TextValue, utf8: boolean, stored: boolean): checkruntime.TsvectorValue {
     utf8 = langruntime.checkedBool(utf8);
+    stored = langruntime.checkedBool(stored);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -46090,7 +46091,7 @@ export function tsvectorFromTextContext(input: checkruntime.TextValue, utf8: boo
             if (width < 0) {
                 return { kind: "Unknown" };
             }
-            if (width >= 2047 || rawBytes > 1048575n) {
+            if ((width >= 2047 && stored === false) || width > 2047 || rawBytes > 1048575n) {
                 return { kind: "Error", value: checkruntime.makeSqlError(tsvectorProgramLimit) };
             }
             rawBytes = langruntime.checkedI64(langruntime.checkedI64Add(rawBytes, (BigInt(langruntime.checkedI32(width)))));
@@ -46099,6 +46100,26 @@ export function tsvectorFromTextContext(input: checkruntime.TextValue, utf8: boo
         return tsvectorNormalize(lexemes);
     }
     return { kind: "Unknown" };
+}
+export function tsvectorFromTextContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.TsvectorValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return tsvectorParseText(input, utf8, false);
+}
+export function tsvectorFromStoredTextContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.TsvectorValue {
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    const value: checkruntime.TsvectorValue = tsvectorParseText(input, utf8, true);
+    if (value.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(value.value);
+        return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: langruntime.checkedSignedNegate(1) });
+    }
+    if (value.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return value;
 }
 export function tsvectorFromText(input: checkruntime.TextValue): checkruntime.TsvectorValue {
     return tsvectorFromTextContext(input, false);

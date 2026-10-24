@@ -689,6 +689,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog.money') return 'MoneyValue'
+  if (type === 'pg_catalog.tsvector') return 'TsvectorValue'
   if (type === 'pg_catalog.aclitem') return 'AclitemValue'
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
@@ -901,6 +902,7 @@ export function emitCheckRustEvaluator(
       'JsonpathValue',
       'XmlValue',
       'ArrayValue',
+      'TsvectorValue',
       'SnapshotValue',
       'RangeValue',
       'MultirangeValue',
@@ -1768,6 +1770,7 @@ export function emitCheckRustEvaluator(
           'JsonpathValue',
           'XmlValue',
           'ArrayValue',
+          'TsvectorValue',
           'SnapshotValue',
           'RangeValue',
           'MultirangeValue',
@@ -5333,6 +5336,8 @@ export function emitCheckRustEvaluator(
         builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      if (operand.type === 'pg_catalog.tsvector')
+        return { name: bind(`tsvector_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.aclitem')
         return { name: bind(`aclitem_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.money')
@@ -5535,6 +5540,18 @@ export function emitCheckRustEvaluator(
         return { name: bind(`json_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
+    }
+    if (node.kind === 'text-to-tsvector') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')
+        throw new UnsupportedCheckRustExpression('Tsvector input requires its catalog I/O identity')
+      return {
+        name: bind(
+          `tsvector_from_text_context(${ownedOperand(operand)},${executionContext.serverEncoding === 'UTF8'})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'text-to-aclitem') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -6401,6 +6418,16 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`lseg_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'tsvector') {
+        if (value.value === null) return { name: bind('tsvector_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return {
+          name: bind(
+            `${value.stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${text},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
+      }
       if (value.kind === 'aclitem') {
         if (value.value === null) return { name: bind('aclitem_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -7134,6 +7161,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.line',
           'pg_catalog.lseg',
           'pg_catalog.money',
+          'pg_catalog.tsvector',
           'pg_catalog.aclitem',
           'pg_catalog.xid',
           'pg_catalog.cid',
@@ -7723,6 +7751,7 @@ export function emitCheckRustEvaluator(
               'JsonpathValue',
               'XmlValue',
               'ArrayValue',
+              'TsvectorValue',
               'SnapshotValue',
               'RangeValue',
               'MultirangeValue',
@@ -8169,6 +8198,7 @@ export function emitCheckRustEvaluator(
           'JsonpathValue',
           'XmlValue',
           'ArrayValue',
+          'TsvectorValue',
           'SnapshotValue',
           'RangeValue',
           'MultirangeValue',
