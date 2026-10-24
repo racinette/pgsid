@@ -581,6 +581,46 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
     add(input, '('.repeat(500) + 'true()' + ')'.repeat(500), 1)
     add(input, 'true() or ' + Array(10001).fill('1').join('+'), 1)
     add(input, 'false() and ' + Array(10001).fill('1').join('+'), 1)
+    for (const depth of [49, 99, 199, 499]) {
+      add(input, 'string('.repeat(depth) + "'x'" + ')'.repeat(depth), 2)
+      add(input, 'not('.repeat(depth) + 'true()' + ')'.repeat(depth), 1)
+      add(input, 'unknown('.repeat(depth) + '1' + ')'.repeat(depth), 2)
+      add(input, 'unknown('.repeat(depth) + '$x' + ')'.repeat(depth), 2)
+      add(input, '/r['.repeat(depth) + 'true()' + ']'.repeat(depth), 4)
+    }
+    for (const count of [1000, 2000]) {
+      add(
+        input,
+        Array(count + 1)
+          .fill('1')
+          .join('+'),
+        3,
+      )
+      add(
+        input,
+        Array(count + 1)
+          .fill('1')
+          .join('*'),
+        3,
+      )
+      add(
+        input,
+        Array(count + 1)
+          .fill('true()')
+          .join(' and '),
+        1,
+      )
+      add(
+        input,
+        Array(count + 1)
+          .fill('false()')
+          .join(' or '),
+        1,
+      )
+      add(input, '(/r)' + '[true()]'.repeat(count), 4)
+      add(input, '/r' + '[true()]'.repeat(count), 4)
+      add(input, '/r' + '/self::node()'.repeat(count), 4)
+    }
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let inserts = 0,
@@ -669,7 +709,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-compile-limits-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-runtime-stack-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',

@@ -50408,178 +50408,6 @@ func XpathValueToNumber(input xPathValue, tree *xmlTree, graph *xPathGraph, powe
 	text := XpathValueToString(input, tree, graph)
 	return xpathScalarNumber(&text, powers)
 }
-func XpathEvalDemandBody(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
-	node := program.nodes[root]
-	if node.kind == xpathNumber {
-		text := xpathParseText(program, node.name)
-		return xpathNumberText(text, powers)
-	}
-	if node.kind == xpathString {
-		return XpathValueString(xpathParseText(program, node.name))
-	}
-	if node.kind == xpathVariable {
-		if node.prefix.start != node.prefix.end {
-			prefix := xpathParseText(program, node.prefix)
-			if xpathNamespaceDefined(namespaces, prefix) == false {
-				return xpathValueFault(19)
-			}
-		}
-		return xpathValueFault(5)
-	}
-	if node.kind == xpathRoot {
-		return xpathValueSingle(xpathReferenceNode(0))
-	}
-	if node.kind == xpathStep || node.kind == xpathPredicate {
-		return XpathCollect(xpathValueSingle(context.node), program, root, mode, bound, tree, graph, namespaces, powers)
-	}
-	if node.kind == xpathPath {
-		left := XpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers)
-		return XpathCollect(left, program, node.right, mode, bound, tree, graph, namespaces, powers)
-	}
-	if node.kind == xpathFilter {
-		leftKind := program.nodes[node.left].kind
-		position := xpathConstantPosition(program, node.right, powers)
-		first := mode != 2 && position.valid && position.value == 1 && (leftKind == xpathGroup || leftKind == xpathFilter)
-		predicate := program.nodes[node.right]
-		last := false
-		if leftKind == xpathGroup && predicate.kind == xpathFunction && predicate.operation == 0 && predicate.prefix.start == predicate.prefix.end {
-			name := xpathParseText(program, predicate.name)
-			last = name == "last"
-		}
-		demand := 0
-		if first {
-			demand = langruntime.CheckedI32(2)
-		}
-		if last {
-			demand = langruntime.CheckedI32(3)
-		}
-		input := XpathEvalNode(program, node.left, context, demand, tree, graph, namespaces, powers)
-		if input.state < 0 || input.state == 2 || input.state == 3 {
-			return input
-		}
-		if input.kind != xpathKindNodes {
-			return xpathValueFault(11)
-		}
-		if input.state != 0 {
-			return input
-		}
-		size := int(int32(len(input.nodes.values)))
-		if first || last {
-			if size == 0 {
-				return input
-			}
-			index := 0
-			if last {
-				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(input.nodes.values), 1))
-			}
-			return xpathValueSingle(input.nodes.values[index])
-		}
-		maximum := size
-		if mode == 2 {
-			maximum = langruntime.CheckedI32(1)
-		}
-		return XpathFilterValues(input, program, node.right, 1, maximum, tree, graph, namespaces, powers)
-	}
-	if node.kind == xpathNegate {
-		input := XpathEvalNode(program, node.left, context, 0, tree, graph, namespaces, powers)
-		value := XpathValueToNumber(input, tree, graph, powers)
-		if value.state != 0 {
-			return value
-		}
-		if node.operation == 0 {
-			return value
-		}
-		return xpathValueNumber(langruntime.F64Negate(langruntime.F64FromI64Bits(value.number)))
-	}
-	if node.kind == xpathBinary {
-		demand := 0
-		if node.operation == 14 && (mode == 2 || mode == 3) {
-			demand = langruntime.CheckedI32(mode)
-		}
-		left := XpathEvalDemand(program, node.left, context, demand, bound, tree, graph, namespaces, powers)
-		if node.operation == 14 && demand != 0 {
-			left = XpathValueSorted(left, tree)
-		}
-		if left.state < 0 || left.state == 2 || left.state == 3 {
-			return left
-		}
-		if node.operation == 1 || node.operation == 2 {
-			boolean := xpathValueToBoolean(&left)
-			if boolean.state != 0 {
-				return boolean
-			}
-			if (node.operation == 1 && boolean.boolean) || (node.operation == 2 && boolean.boolean == false) {
-				return boolean
-			}
-			right := XpathEvalNode(program, node.right, context, 0, tree, graph, namespaces, powers)
-			return xpathValueToBoolean(&right)
-		}
-		nextBound := bound
-		if demand != 0 && left.kind == xpathKindNodes && left.state == 0 && len(left.nodes.values) > 0 {
-			index := 0
-			if demand == 3 {
-				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(left.nodes.values), 1))
-			}
-			nextBound = copyxPathReference(left.nodes.values[index])
-		}
-		right := XpathEvalDemand(program, node.right, context, demand, nextBound, tree, graph, namespaces, powers)
-		if right.state < 0 || right.state == 2 || right.state == 3 {
-			return right
-		}
-		if node.operation >= 3 && node.operation <= 8 {
-			return xpathValuesCompare(&left, &right, node.operation, tree, graph, powers)
-		}
-		if node.operation == 14 {
-			if left.kind != xpathKindNodes || right.kind != xpathKindNodes {
-				return xpathValueFault(11)
-			}
-			if left.state != 0 {
-				return left
-			}
-			if right.state != 0 {
-				return right
-			}
-			a := xPathNodes{values: left.nodes.values}
-			b := xPathNodes{values: right.nodes.values}
-			merged := XpathNodesMerge(a, &b, tree)
-			return XpathValueNodes(xPathSequence{values: merged.values, cyclic: false, cycle: 0})
-		}
-		return XpathBinaryArithmetic(left, right, node.operation, tree, graph, powers)
-	}
-	if node.kind == xpathFunction {
-		name := xpathParseText(program, node.name)
-		parameters := xpathArgumentsEmpty()
-		cursor := node.left
-		for cursor > 0 {
-			link := program.nodes[cursor]
-			value := XpathEvalNode(program, link.left, context, 0, tree, graph, namespaces, powers)
-			if value.state < 0 || value.state == 2 || value.state == 3 {
-				return value
-			}
-			if name != "count" || node.prefix.start != node.prefix.end {
-				value = XpathValueSorted(value, tree)
-			}
-			parameters = XpathArgumentsAdd(parameters, value)
-			cursor = langruntime.CheckedIndex(link.right)
-		}
-		if node.prefix.start != node.prefix.end {
-			prefix := xpathParseText(program, node.prefix)
-			if xpathNamespaceDefined(namespaces, prefix) == false {
-				return xpathValueFault(19)
-			}
-			return xpathValueFault(9)
-		}
-		spec := xpathFunctionSpec(name)
-		if spec.kind == 0 {
-			return xpathValueFault(9)
-		}
-		if node.operation < spec.minimum || (spec.maximum >= 0 && node.operation > spec.maximum) {
-			return xpathValueFault(12)
-		}
-		return XpathApplyFunction(parameters, spec.kind, context, tree, graph, powers)
-	}
-	return xpathValueFault(10)
-}
 func xpathEvaluate(program *xPathProgram, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
 	if program.budget.fault < 0 {
 		return xpathValueFault(langruntime.CheckedSignedSubtract(0, program.budget.fault))
@@ -50599,20 +50427,525 @@ func XpathEvalNode(program *xPathProgram, root int, context xPathContext, mode i
 	return XpathEvalDemand(program, root, context, mode, absent, tree, graph, namespaces, powers)
 }
 func XpathEvalDemand(program *xPathProgram, root int, context xPathContext, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
-	current := root
-	groups := 0
-	for program.nodes[current].kind == xpathGroup {
-		current = langruntime.CheckedIndex(program.nodes[current].left)
-		groups = langruntime.CheckedAdd(groups, 1)
-	}
-	value := XpathEvalDemandBody(program, current, context, mode, bound, tree, graph, namespaces, powers)
-	for groups > 0 {
-		if mode != 1 {
-			value = XpathValueSorted(value, tree)
+	task := xpathEvalStart(xpathEvalExpression, root, context, mode, bound)
+	return XpathEvalRun(task, program, tree, graph, namespaces, powers)
+}
+func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	values := []xPathEvalTask{}
+	stack := xPathEvalStack{values: values, count: 0}
+	stack = XpathEvalStackPush(stack, initial)
+	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
+	result := xpathValueEmpty(0, 0)
+	for stack.count > 0 {
+		task := copyxPathEvalTask(stack.values[langruntime.CheckedSubtract(stack.count, 1)])
+		stack = XpathEvalStackPop(stack)
+		header := task.header
+		input := task.input
+		output := task.output
+		parameters := task.parameters
+		predicates := task.predicates
+		value := result
+		result = copyxPathValue(xpathValueEmpty(0, 0))
+		if header.kind == xpathEvalExpression {
+			node := program.nodes[header.root]
+			if node.kind == xpathNumber {
+				text := xpathParseText(program, node.name)
+				result = copyxPathValue(xpathNumberText(text, powers))
+			} else if node.kind == xpathString {
+				result = XpathValueString(xpathParseText(program, node.name))
+			} else if node.kind == xpathVariable {
+				fault := 5
+				if node.prefix.start != node.prefix.end {
+					prefix := xpathParseText(program, node.prefix)
+					if xpathNamespaceDefined(namespaces, prefix) == false {
+						fault = langruntime.CheckedI32(19)
+					}
+				}
+				result = copyxPathValue(xpathValueFault(fault))
+			} else if node.kind == xpathRoot {
+				result = copyxPathValue(xpathValueSingle(xpathReferenceNode(0)))
+			} else if node.kind == xpathGroup {
+				current := header.root
+				groups := 0
+				for program.nodes[current].kind == xpathGroup {
+					current = langruntime.CheckedIndex(program.nodes[current].left)
+					groups = langruntime.CheckedAdd(groups, 1)
+				}
+				next := xpathEvalState(header, xpathEvalGroup, 0, groups, 0, 0, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound))
+			} else if node.kind == xpathStep || node.kind == xpathPredicate {
+				stack = XpathEvalStackPush(stack, XpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)))
+			} else if node.kind == xpathPath {
+				next := xpathEvalState(header, xpathEvalPath, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent))
+			} else if node.kind == xpathNegate {
+				next := xpathEvalState(header, xpathEvalNegate, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent))
+			} else if node.kind == xpathBinary {
+				demand := 0
+				if node.operation == 14 && (header.mode == 2 || header.mode == 3) {
+					demand = langruntime.CheckedI32(header.mode)
+				}
+				next := xpathEvalState(header, xpathEvalLeft, 0, 0, 0, 0, demand, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound))
+			} else if node.kind == xpathFilter {
+				leftKind := program.nodes[node.left].kind
+				position := xpathConstantPosition(program, node.right, powers)
+				first := header.mode != 2 && position.valid && position.value == 1 && (leftKind == xpathGroup || leftKind == xpathFilter)
+				predicate := program.nodes[node.right]
+				last := false
+				if leftKind == xpathGroup && predicate.kind == xpathFunction && predicate.operation == 0 && predicate.prefix.start == predicate.prefix.end {
+					name := xpathParseText(program, predicate.name)
+					last = name == "last"
+				}
+				demand := 0
+				selection := 0
+				if first {
+					demand = langruntime.CheckedI32(2)
+					selection = langruntime.CheckedI32(1)
+				}
+				if last {
+					demand = langruntime.CheckedI32(3)
+					selection = langruntime.CheckedI32(2)
+				}
+				next := xpathEvalState(header, xpathEvalFilter, 0, 0, 0, selection, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent))
+			} else if node.kind == xpathFunction {
+				if node.left == 0 {
+					result = XpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers)
+				} else {
+					link := program.nodes[node.left]
+					next := xpathEvalState(header, xpathEvalArgument, node.left, 0, 0, 0, 0, 0, 0, header.positionRange)
+					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+					stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, link.left, header.context, 0, absent))
+				}
+			} else {
+				result = copyxPathValue(xpathValueFault(10))
+			}
+		} else if header.kind == xpathEvalGroup {
+			groups := header.cursor
+			for groups > 0 {
+				if header.mode != 1 {
+					value = XpathValueSorted(value, tree)
+				}
+				groups = langruntime.CheckedIndex(langruntime.CheckedSubtract(groups, 1))
+			}
+			result = copyxPathValue(value)
+		} else if header.kind == xpathEvalNegate {
+			converted := XpathValueToNumber(value, tree, graph, powers)
+			node := program.nodes[header.root]
+			if converted.state != 0 || node.operation == 0 {
+				result = copyxPathValue(converted)
+			} else {
+				result = copyxPathValue(xpathValueNumber(langruntime.F64Negate(langruntime.F64FromI64Bits(converted.number))))
+			}
+		} else if header.kind == xpathEvalPath {
+			node := program.nodes[header.root]
+			stack = XpathEvalStackPush(stack, XpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value))
+		} else if header.kind == xpathEvalLeft {
+			node := program.nodes[header.root]
+			demand := header.maximum
+			if node.operation == 14 && demand != 0 {
+				value = XpathValueSorted(value, tree)
+			}
+			if node.operation == 1 || node.operation == 2 {
+				boolean := xpathValueToBoolean(&value)
+				if boolean.state != 0 || (node.operation == 1 && boolean.boolean) || (node.operation == 2 && boolean.boolean == false) {
+					result = copyxPathValue(boolean)
+				} else {
+					next := xpathEvalState(header, xpathEvalBoolean, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
+					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+					stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent))
+				}
+			} else {
+				nextBound := header.bound
+				if demand != 0 && value.kind == xpathKindNodes && value.state == 0 && len(value.nodes.values) > 0 {
+					index := 0
+					if demand == 3 {
+						index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(value.nodes.values), 1))
+					}
+					nextBound = copyxPathReference(value.nodes.values[index])
+				}
+				next := xpathEvalState(header, xpathEvalRight, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, value, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound))
+			}
+		} else if header.kind == xpathEvalBoolean {
+			result = copyxPathValue(xpathValueToBoolean(&value))
+		} else if header.kind == xpathEvalRight {
+			node := program.nodes[header.root]
+			result = XpathEvalBinaryFinish(input, value, node.operation, tree, graph, powers)
+		} else if header.kind == xpathEvalArgument {
+			node := program.nodes[header.root]
+			name := xpathParseText(program, node.name)
+			if name != "count" || node.prefix.start != node.prefix.end {
+				value = XpathValueSorted(value, tree)
+			}
+			parameters = XpathArgumentsAdd(parameters, value)
+			link := program.nodes[header.index]
+			if link.right == 0 {
+				result = XpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers)
+			} else {
+				following := program.nodes[link.right]
+				next := xpathEvalState(header, xpathEvalArgument, link.right, 0, 0, 0, 0, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, following.left, header.context, 0, absent))
+			}
+		} else if header.kind == xpathEvalFilter {
+			node := program.nodes[header.root]
+			if value.kind != xpathKindNodes {
+				result = copyxPathValue(xpathValueFault(11))
+			} else if value.state != 0 {
+				result = copyxPathValue(value)
+			} else if header.minimum != 0 {
+				if len(value.nodes.values) == 0 {
+					result = copyxPathValue(value)
+				} else {
+					index := 0
+					if header.minimum == 2 {
+						index = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(value.nodes.values), 1))
+					}
+					result = copyxPathValue(xpathValueSingle(value.nodes.values[index]))
+				}
+			} else {
+				maximum := int(int32(len(value.nodes.values)))
+				if header.mode == 2 {
+					maximum = langruntime.CheckedI32(1)
+				}
+				state := xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent)
+				next := xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, 1, maximum, 0, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, value, output, parameters, predicates))
+			}
+		} else if header.kind == xpathEvalFilterStart {
+			if input.state < 0 || input.state == 2 || input.state == 3 {
+				result = copyxPathValue(input)
+			} else if input.kind != xpathKindNodes {
+				result = copyxPathValue(xpathValueFault(11))
+			} else if input.state != 0 {
+				result = copyxPathValue(input)
+			} else if (int(int32(len(input.nodes.values)))) < header.minimum {
+				result = copyxPathValue(xpathValueEmpty(xpathKindNodes, 0))
+			} else {
+				next := xpathEvalState(header, xpathEvalFilterNext, 0, 0, 0, header.minimum, header.maximum, 0, 0, header.positionRange)
+				output = copyxPathValue(xpathValueEmpty(xpathKindNodes, 0))
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+			}
+		} else if header.kind == xpathEvalFilterNext {
+			if header.index >= len(input.nodes.values) || (header.maximum > 0 && header.matched == header.maximum) {
+				result = copyxPathValue(output)
+			} else {
+				context := xPathContext{node: input.nodes.values[header.index], position: langruntime.CheckedSignedAdd(int(int32(header.index)), 1), size: int(int32(len(input.nodes.values)))}
+				next := xpathEvalState(header, xpathEvalFilterResult, header.index, 0, 0, header.minimum, header.maximum, header.matched, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				stack = XpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent))
+			}
+		} else if header.kind == xpathEvalFilterResult {
+			if value.state != 0 {
+				result = copyxPathValue(xpathValueEmpty(xpathKindNodes, value.state))
+			} else {
+				keep := xpathValueTruth(&value)
+				if value.kind == xpathKindNumber {
+					keep = langruntime.F64FromI64Bits(value.number) == float64((langruntime.CheckedSignedAdd(int(int32(header.index)), 1)))
+				}
+				matched := header.matched
+				if keep {
+					matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, 1))
+					if matched >= header.minimum && matched <= header.maximum {
+						output = XpathEvalAppend(output, input.nodes.values[header.index])
+					}
+				}
+				next := xpathEvalState(header, xpathEvalFilterNext, langruntime.CheckedAdd(header.index, 1), 0, 0, header.minimum, header.maximum, matched, 0, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+			}
+		} else if header.kind == xpathEvalCollectStart {
+			if input.state < 0 || input.state == 2 || input.state == 3 {
+				result = copyxPathValue(input)
+			} else if input.kind != xpathKindNodes {
+				result = copyxPathValue(xpathValueFault(11))
+			} else {
+				index := header.root
+				for program.nodes[index].kind == xpathPredicate {
+					langruntime.CheckedAdd(len(predicates), 1)
+					predicates = append(predicates, langruntime.CheckedIndex(program.nodes[index].right))
+					index = langruntime.CheckedIndex(program.nodes[index].left)
+				}
+				step := program.nodes[index]
+				test := xpathNodeTest(program, step, namespaces)
+				if test.valid == false {
+					result = copyxPathValue(xpathValueFault(19))
+				} else if input.state != 0 {
+					result = copyxPathValue(input)
+				} else {
+					positionRange := xPathPosition{valid: false, value: 0}
+					if len(predicates) > 0 {
+						positionRange = copyxPathPosition(xpathConstantPosition(program, predicates[0], powers))
+					}
+					next := xpathEvalState(header, xpathEvalCollectNext, 0, 0, index, 0, 0, 0, 0, positionRange)
+					output = copyxPathValue(xpathValueEmpty(xpathKindNodes, 0))
+					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				}
+			}
+		} else if header.kind == xpathEvalCollectNext {
+			if header.index >= len(input.nodes.values) {
+				result = copyxPathValue(output)
+			} else {
+				step := program.nodes[header.step]
+				test := xpathNodeTest(program, step, namespaces)
+				maximum := 0
+				if header.positionRange.valid && len(predicates) == 1 {
+					maximum = langruntime.CheckedI32(header.positionRange.value)
+					if maximum == 0 {
+						maximum = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+					}
+				}
+				window := xpathAxisWindow(tree, graph, input.nodes.values[header.index], step.operation, &test, header.mode, header.bound, header.visited, maximum)
+				positioned := window.positioned
+				visited := window.visited
+				sequence := window.sequence
+				cursor := 0
+				if positioned {
+					if sequence.cyclic {
+						result = copyxPathValue(xpathValueEmpty(xpathKindNodes, 2))
+					} else {
+						result = XpathValueNodes(sequence)
+					}
+				} else if header.positionRange.valid && len(predicates) == 1 {
+					if sequence.cyclic && header.positionRange.value <= 0 {
+						result = copyxPathValue(xpathValueEmpty(xpathKindNodes, 2))
+					} else {
+						found := xpathSequencePosition(&sequence, header.positionRange.value)
+						if found.known == false {
+							result = copyxPathValue(xpathValueEmpty(xpathKindNodes, 2))
+						} else {
+							result = copyxPathValue(xpathValueSingle(found.value))
+						}
+					}
+				} else if header.mode == 1 && len(predicates) == 0 && len(sequence.values) > 0 {
+					result = copyxPathValue(xpathValueSingle(sequence.values[0]))
+				} else if sequence.cyclic && len(sequence.values) > sequence.cycle {
+					result = copyxPathValue(xpathValueFault(15))
+				} else {
+					result = XpathValueNodes(sequence)
+					cursor = langruntime.CheckedIndex(len(predicates))
+				}
+				if result.state == 0 {
+					next := xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, visited, header.positionRange)
+					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				}
+			}
+		} else if header.kind == xpathEvalCollectPredicate {
+			if value.state != 0 {
+				result = copyxPathValue(value)
+			} else if header.cursor > 0 {
+				remaining := langruntime.CheckedSubtract(header.cursor, 1)
+				predicate := predicates[remaining]
+				minimum := 1
+				maximum := int(int32(len(value.nodes.values)))
+				cursor := remaining
+				if header.positionRange.valid && remaining == 1 {
+					minimum = langruntime.CheckedI32(header.positionRange.value)
+					maximum = langruntime.CheckedI32(header.positionRange.value)
+					cursor = langruntime.CheckedIndex(0)
+				}
+				next := xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, header.visited, header.positionRange)
+				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				state := xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent)
+				filter := xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange)
+				empty := xpathValueEmpty(0, 0)
+				args := xpathArgumentsEmpty()
+				pending := []int{}
+				stack = XpathEvalStackPush(stack, XpathEvalTask(filter, value, empty, args, pending))
+			} else {
+				a := xPathNodes{values: output.nodes.values}
+				b := xPathNodes{values: value.nodes.values}
+				merged := XpathNodesMerge(a, &b, tree)
+				output = XpathValueNodes(xPathSequence{values: merged.values, cyclic: false, cycle: 0})
+				if header.mode == 1 && len(output.nodes.values) > 0 {
+					result = copyxPathValue(output)
+				} else {
+					next := xpathEvalState(header, xpathEvalCollectNext, langruntime.CheckedAdd(header.index, 1), 0, header.step, 0, 0, 0, header.visited, header.positionRange)
+					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
+				}
+			}
+		} else {
+			result = copyxPathValue(xpathValueFault(10))
 		}
-		groups = langruntime.CheckedIndex(langruntime.CheckedSubtract(groups, 1))
+		if result.state < 0 || result.state == 2 || result.state == 3 {
+			return result
+		}
 	}
-	return value
+	return result
+}
+
+const xpathEvalExpression = 1
+const xpathEvalGroup = 2
+const xpathEvalNegate = 3
+const xpathEvalLeft = 4
+const xpathEvalRight = 5
+const xpathEvalBoolean = 6
+const xpathEvalPath = 7
+const xpathEvalFilter = 8
+const xpathEvalArgument = 9
+const xpathEvalFilterStart = 10
+const xpathEvalFilterNext = 11
+const xpathEvalFilterResult = 12
+const xpathEvalCollectStart = 13
+const xpathEvalCollectNext = 14
+const xpathEvalCollectPredicate = 15
+
+type xPathEvalHeader struct {
+	kind          int
+	root          int
+	context       xPathContext
+	mode          int
+	bound         xPathReference
+	index         int
+	cursor        int
+	step          int
+	minimum       int
+	maximum       int
+	matched       int
+	visited       int
+	positionRange xPathPosition
+}
+
+func copyxPathEvalHeader(value xPathEvalHeader) xPathEvalHeader {
+	return xPathEvalHeader{kind: langruntime.CheckedI32(value.kind), root: langruntime.CheckedIndex(value.root), context: copyxPathContext(value.context), mode: langruntime.CheckedI32(value.mode), bound: copyxPathReference(value.bound), index: langruntime.CheckedIndex(value.index), cursor: langruntime.CheckedIndex(value.cursor), step: langruntime.CheckedIndex(value.step), minimum: langruntime.CheckedI32(value.minimum), maximum: langruntime.CheckedI32(value.maximum), matched: langruntime.CheckedI32(value.matched), visited: langruntime.CheckedI32(value.visited), positionRange: copyxPathPosition(value.positionRange)}
+}
+
+type xPathEvalTask struct {
+	header     xPathEvalHeader
+	input      xPathValue
+	output     xPathValue
+	parameters xPathArguments
+	predicates []int
+}
+
+func copyxPathEvalTask(value xPathEvalTask) xPathEvalTask {
+	return xPathEvalTask{header: copyxPathEvalHeader(value.header), input: copyxPathValue(value.input), output: copyxPathValue(value.output), parameters: copyxPathArguments(value.parameters), predicates: langruntime.CheckedIndices(value.predicates)}
+}
+
+type xPathEvalStack struct {
+	values []xPathEvalTask
+	count  int
+}
+
+func copyxPathEvalStack(value xPathEvalStack) xPathEvalStack {
+	return xPathEvalStack{values: langruntime.CheckedStructs(value.values, copyxPathEvalTask), count: langruntime.CheckedIndex(value.count)}
+}
+func xpathEvalHeader(kind int, root int, context xPathContext, mode int, bound xPathReference) xPathEvalHeader {
+	kind = langruntime.CheckedI32(kind)
+	root = langruntime.CheckedIndex(root)
+	context = copyxPathContext(context)
+	mode = langruntime.CheckedI32(mode)
+	bound = copyxPathReference(bound)
+	positionRange := xPathPosition{valid: false, value: 0}
+	return xPathEvalHeader{kind: kind, root: root, context: context, mode: mode, bound: bound, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: positionRange}
+}
+func xpathEvalState(input xPathEvalHeader, kind int, index int, cursor int, step int, minimum int, maximum int, matched int, visited int, positionRange xPathPosition) xPathEvalHeader {
+	input = copyxPathEvalHeader(input)
+	kind = langruntime.CheckedI32(kind)
+	index = langruntime.CheckedIndex(index)
+	cursor = langruntime.CheckedIndex(cursor)
+	step = langruntime.CheckedIndex(step)
+	minimum = langruntime.CheckedI32(minimum)
+	maximum = langruntime.CheckedI32(maximum)
+	matched = langruntime.CheckedI32(matched)
+	visited = langruntime.CheckedI32(visited)
+	positionRange = copyxPathPosition(positionRange)
+	return xPathEvalHeader{kind: kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: positionRange}
+}
+func XpathEvalTask(header xPathEvalHeader, input xPathValue, output xPathValue, parameters xPathArguments, predicates []int) xPathEvalTask {
+	return xPathEvalTask{header: header, input: input, output: output, parameters: parameters, predicates: predicates}
+}
+func xpathEvalStart(kind int, root int, context xPathContext, mode int, bound xPathReference) xPathEvalTask {
+	kind = langruntime.CheckedI32(kind)
+	root = langruntime.CheckedIndex(root)
+	context = copyxPathContext(context)
+	mode = langruntime.CheckedI32(mode)
+	bound = copyxPathReference(bound)
+	header := xpathEvalHeader(kind, root, context, mode, bound)
+	input := xpathValueEmpty(0, 0)
+	output := xpathValueEmpty(0, 0)
+	parameters := xpathArgumentsEmpty()
+	predicates := []int{}
+	return XpathEvalTask(header, input, output, parameters, predicates)
+}
+func XpathEvalInputTask(kind int, root int, context xPathContext, mode int, bound xPathReference, input xPathValue) xPathEvalTask {
+	header := xpathEvalHeader(kind, root, context, mode, bound)
+	output := xpathValueEmpty(0, 0)
+	parameters := xpathArgumentsEmpty()
+	predicates := []int{}
+	return XpathEvalTask(header, input, output, parameters, predicates)
+}
+func XpathEvalStackPush(input xPathEvalStack, task xPathEvalTask) xPathEvalStack {
+	values := input.values
+	if input.count < len(values) {
+		values[input.count] = copyxPathEvalTask(task)
+	} else {
+		langruntime.CheckedAdd(len(values), 1)
+		values = append(values, copyxPathEvalTask(task))
+	}
+	return xPathEvalStack{values: values, count: langruntime.CheckedAdd(input.count, 1)}
+}
+func XpathEvalStackPop(input xPathEvalStack) xPathEvalStack {
+	values := input.values
+	count := langruntime.CheckedSubtract(input.count, 1)
+	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
+	context := xPathContext{node: absent, position: langruntime.CheckedSignedNegate(1), size: langruntime.CheckedSignedNegate(1)}
+	values[count] = copyxPathEvalTask(xpathEvalStart(0, 0, context, 0, absent))
+	return xPathEvalStack{values: values, count: count}
+}
+func XpathEvalFunctionFinish(program *xPathProgram, root int, parameters xPathArguments, context xPathContext, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
+	node := program.nodes[root]
+	name := xpathParseText(program, node.name)
+	if node.prefix.start != node.prefix.end {
+		prefix := xpathParseText(program, node.prefix)
+		if xpathNamespaceDefined(namespaces, prefix) == false {
+			return xpathValueFault(19)
+		}
+		return xpathValueFault(9)
+	}
+	spec := xpathFunctionSpec(name)
+	if spec.kind == 0 {
+		return xpathValueFault(9)
+	}
+	if node.operation < spec.minimum || (spec.maximum >= 0 && node.operation > spec.maximum) {
+		return xpathValueFault(12)
+	}
+	return XpathApplyFunction(parameters, spec.kind, context, tree, graph, powers)
+}
+func XpathEvalBinaryFinish(left xPathValue, right xPathValue, operation int, tree *xmlTree, graph *xPathGraph, powers *xPathPowers) xPathValue {
+	if operation >= 3 && operation <= 8 {
+		return xpathValuesCompare(&left, &right, operation, tree, graph, powers)
+	}
+	if operation == 14 {
+		if left.kind != xpathKindNodes || right.kind != xpathKindNodes {
+			return xpathValueFault(11)
+		}
+		if left.state != 0 {
+			return left
+		}
+		if right.state != 0 {
+			return right
+		}
+		a := xPathNodes{values: left.nodes.values}
+		b := xPathNodes{values: right.nodes.values}
+		merged := XpathNodesMerge(a, &b, tree)
+		return XpathValueNodes(xPathSequence{values: merged.values, cyclic: false, cycle: 0})
+	}
+	return XpathBinaryArithmetic(left, right, operation, tree, graph, powers)
+}
+func XpathEvalAppend(input xPathValue, node xPathReference) xPathValue {
+	values := input.nodes.values
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, copyxPathReference(node))
+	return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
 }
 
 type xPathArguments struct {
@@ -50814,138 +51147,20 @@ func xpathNamespaceDefined(namespaces *xPathNamespaces, prefix string) bool {
 	return false
 }
 func XpathFilterValues(input xPathValue, program *xPathProgram, predicate int, minimum int, maximum int, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
-	if input.kind != xpathKindNodes {
-		return xpathValueFault(11)
-	}
-	if input.state != 0 {
-		return input
-	}
-	size := int(int32(len(input.nodes.values)))
-	values := []xPathReference{}
-	if size < minimum {
-		return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
-	}
-	index := 0
-	matched := 0
-	finished := false
-	for index < len(input.nodes.values) && finished == false {
-		node := input.nodes.values[index]
-		context := xPathContext{node: node, position: langruntime.CheckedSignedAdd(int(int32(index)), 1), size: size}
-		result := XpathEvalNode(program, predicate, context, 1, tree, graph, namespaces, powers)
-		if result.state != 0 {
-			return xpathValueEmpty(xpathKindNodes, result.state)
-		}
-		keep := xpathValueTruth(&result)
-		if result.kind == xpathKindNumber {
-			keep = langruntime.F64FromI64Bits(result.number) == float64(context.position)
-		}
-		if keep {
-			matched = langruntime.CheckedI32(langruntime.CheckedSignedAdd(matched, 1))
-			if matched >= minimum && matched <= maximum {
-				langruntime.CheckedAdd(len(values), 1)
-				values = append(values, copyxPathReference(node))
-			}
-			if matched == maximum {
-				finished = true
-			}
-		}
-		index = langruntime.CheckedAdd(index, 1)
-	}
-	return XpathValueNodes(xPathSequence{values: values, cyclic: false, cycle: 0})
+	absent := xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}
+	context := xPathContext{node: absent, position: langruntime.CheckedSignedNegate(1), size: langruntime.CheckedSignedNegate(1)}
+	header := xpathEvalHeader(xpathEvalFilterStart, predicate, context, 0, absent)
+	state := xpathEvalState(header, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange)
+	output := xpathValueEmpty(0, 0)
+	parameters := xpathArgumentsEmpty()
+	predicates := []int{}
+	task := XpathEvalTask(state, input, output, parameters, predicates)
+	return XpathEvalRun(task, program, tree, graph, namespaces, powers)
 }
 func XpathCollect(input xPathValue, program *xPathProgram, root int, mode int, bound xPathReference, tree *xmlTree, graph *xPathGraph, namespaces *xPathNamespaces, powers *xPathPowers) xPathValue {
-	if input.state < 0 || input.state == 2 || input.state == 3 {
-		return input
-	}
-	if input.kind != xpathKindNodes {
-		return xpathValueFault(11)
-	}
-	predicates := []int{}
-	index := root
-	for program.nodes[index].kind == xpathPredicate {
-		langruntime.CheckedAdd(len(predicates), 1)
-		predicates = append(predicates, langruntime.CheckedIndex(program.nodes[index].right))
-		index = langruntime.CheckedIndex(program.nodes[index].left)
-	}
-	step := program.nodes[index]
-	test := xpathNodeTest(program, step, namespaces)
-	if test.valid == false {
-		return xpathValueFault(19)
-	}
-	if input.state != 0 {
-		return input
-	}
-	positionRange := xPathPosition{valid: false, value: 0}
-	if len(predicates) > 0 {
-		positionRange = copyxPathPosition(xpathConstantPosition(program, predicates[0], powers))
-	}
-	result := xpathNodesEmpty()
-	visited := 0
-	contextIndex := 0
-	finished := false
-	for contextIndex < len(input.nodes.values) && finished == false {
-		maximum := 0
-		if positionRange.valid && len(predicates) == 1 {
-			maximum = langruntime.CheckedI32(positionRange.value)
-			if maximum == 0 {
-				maximum = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-			}
-		}
-		window := xpathAxisWindow(tree, graph, input.nodes.values[contextIndex], step.operation, &test, mode, bound, visited, maximum)
-		visited = langruntime.CheckedI32(window.visited)
-		positioned := window.positioned
-		sequence := window.sequence
-		selected := xpathValueEmpty(xpathKindNodes, 0)
-		if positioned {
-			if sequence.cyclic {
-				return xpathValueEmpty(xpathKindNodes, 2)
-			}
-			selected = XpathValueNodes(sequence)
-		} else if positionRange.valid && len(predicates) == 1 {
-			if sequence.cyclic && positionRange.value <= 0 {
-				return xpathValueEmpty(xpathKindNodes, 2)
-			}
-			found := xpathSequencePosition(&sequence, positionRange.value)
-			if found.known == false {
-				return xpathValueEmpty(xpathKindNodes, 2)
-			}
-			selected = copyxPathValue(xpathValueSingle(found.value))
-		} else if mode == 1 && len(predicates) == 0 && len(sequence.values) > 0 {
-			selected = copyxPathValue(xpathValueSingle(sequence.values[0]))
-		} else {
-			if sequence.cyclic && len(sequence.values) > sequence.cycle {
-				return xpathValueFault(15)
-			}
-			selected = XpathValueNodes(sequence)
-			if selected.state != 0 {
-				return selected
-			}
-			remaining := len(predicates)
-			for remaining > 0 {
-				remaining = langruntime.CheckedIndex(langruntime.CheckedSubtract(remaining, 1))
-				minimum := 1
-				maximum := int(int32(len(selected.nodes.values)))
-				if positionRange.valid && remaining == 1 {
-					minimum = langruntime.CheckedI32(positionRange.value)
-					maximum = langruntime.CheckedI32(positionRange.value)
-				}
-				selected = XpathFilterValues(selected, program, predicates[remaining], minimum, maximum, tree, graph, namespaces, powers)
-				if selected.state != 0 {
-					return selected
-				}
-				if positionRange.valid && remaining == 1 {
-					remaining = langruntime.CheckedIndex(0)
-				}
-			}
-		}
-		chosen := xPathNodes{values: selected.nodes.values}
-		result = XpathNodesMerge(result, &chosen, tree)
-		if mode == 1 && len(result.values) > 0 {
-			finished = true
-		}
-		contextIndex = langruntime.CheckedAdd(contextIndex, 1)
-	}
-	return XpathValueNodes(xPathSequence{values: result.values, cyclic: false, cycle: 0})
+	context := xPathContext{node: xPathReference{kind: langruntime.CheckedSignedNegate(1), node: 0, index: 0}, position: langruntime.CheckedSignedNegate(1), size: langruntime.CheckedSignedNegate(1)}
+	task := XpathEvalInputTask(xpathEvalCollectStart, root, context, mode, bound, input)
+	return XpathEvalRun(task, program, tree, graph, namespaces, powers)
 }
 func XpathApplyFunction(input xPathArguments, kind int, context xPathContext, tree *xmlTree, graph *xPathGraph, powers *xPathPowers) xPathValue {
 	count := input.count
