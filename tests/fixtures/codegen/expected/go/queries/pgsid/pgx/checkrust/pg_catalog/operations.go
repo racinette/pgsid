@@ -9,6 +9,61 @@
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
 /*
+PostgreSQL Database Management System
+(also known as Postgres, formerly known as Postgres95)
+
+Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+
+Portions Copyright (c) 1994, The Regents of the University of California
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose, without fee, and without a written agreement
+is hereby granted, provided that the above copyright notice and this
+paragraph and the following two paragraphs appear in all copies.
+
+IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+
+Copyright (c) 2021-2025, PostgreSQL Global Development Group
+Portions Copyright (c) 1992-1994, Regents of the University of California
+
+Copyright (c) 1992, 1993
+The Regents of the University of California. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the University nor the names of its contributors may
+   be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/*
 XML name character ranges from libxml2 v2.14.5.
 
  Copyright (C) 1998-2012 Daniel Veillard.  All Rights Reserved.
@@ -45531,6 +45586,799 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+
+const tsvectorSyntaxError = 6819553
+const tsvectorProgramLimit = 8584704
+
+func tsvectorNormalizeLexeme(text string, positions []checkruntime.TsvectorPosition) checkruntime.TsvectorLexeme {
+	text = langruntime.CheckedString(text)
+	positions = langruntime.CheckedStructs(positions, checkruntime.CopyTsvectorPosition)
+	lexemes := []checkruntime.TsvectorLexeme{}
+	source := tsvectorSortSource{lexemes: lexemes, positions: positions, byPosition: true}
+	order := tsvectorSort(&source)
+	values := []checkruntime.TsvectorPosition{}
+	i := 0
+	for i < len(order.indexes) {
+		value := source.positions[order.indexes[i].value]
+		if len(values) == 0 {
+			langruntime.CheckedAdd(len(values), 1)
+			values = append(values, value)
+		} else {
+			last := langruntime.CheckedSubtract(len(values), 1)
+			if values[last].Position == value.Position {
+				if values[last].Weight < value.Weight {
+					values[last] = value
+				}
+			} else {
+				langruntime.CheckedAdd(len(values), 1)
+				values = append(values, value)
+				if len(values) == 256 || value.Position == 16383 {
+					return checkruntime.TsvectorLexeme{Text: text, Positions: values}
+				}
+			}
+		}
+		i = langruntime.CheckedAdd(i, 1)
+	}
+	return checkruntime.TsvectorLexeme{Text: text, Positions: values}
+}
+
+type tsvectorPositionBuffer struct {
+	values []checkruntime.TsvectorPosition
+}
+
+func copytsvectorPositionBuffer(value tsvectorPositionBuffer) tsvectorPositionBuffer {
+	return tsvectorPositionBuffer{values: langruntime.CheckedStructs(value.values, checkruntime.CopyTsvectorPosition)}
+}
+func tsvectorPositionAppend(input tsvectorPositionBuffer, value checkruntime.TsvectorPosition) tsvectorPositionBuffer {
+	input = copytsvectorPositionBuffer(input)
+	values := input.values
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, value)
+	return tsvectorPositionBuffer{values: values}
+}
+func tsvectorNormalize(lexemes []checkruntime.TsvectorLexeme) checkruntime.TsvectorValue {
+	lexemes = langruntime.CheckedStructs(lexemes, checkruntime.CopyTsvectorLexeme)
+	positions := []checkruntime.TsvectorPosition{}
+	source := tsvectorSortSource{lexemes: lexemes, positions: positions, byPosition: false}
+	order := tsvectorSort(&source)
+	result := []checkruntime.TsvectorLexeme{}
+	current := langruntime.NewTextBuffer("")
+	initial := []checkruntime.TsvectorPosition{}
+	collected := tsvectorPositionBuffer{values: initial}
+	i := 0
+	for i < len(order.indexes) {
+		lexeme := checkruntime.CopyTsvectorLexeme(source.lexemes[order.indexes[i].value])
+		if string(current) != lexeme.Text {
+			if string(current) != "" {
+				langruntime.CheckedAdd(len(result), 1)
+				result = append(result, checkruntime.CopyTsvectorLexeme(tsvectorNormalizeLexeme(string(current), collected.values)))
+			}
+			current = langruntime.NewTextBuffer(lexeme.Text)
+			empty := []checkruntime.TsvectorPosition{}
+			collected = copytsvectorPositionBuffer(tsvectorPositionBuffer{values: empty})
+		}
+		p := 0
+		for p < len(lexeme.Positions) {
+			collected = copytsvectorPositionBuffer(tsvectorPositionAppend(collected, lexeme.Positions[p]))
+			p = langruntime.CheckedAdd(p, 1)
+		}
+		i = langruntime.CheckedAdd(i, 1)
+	}
+	if string(current) != "" {
+		langruntime.CheckedAdd(len(result), 1)
+		result = append(result, checkruntime.CopyTsvectorLexeme(tsvectorNormalizeLexeme(string(current), collected.values)))
+	}
+	payload := checkruntime.TsvectorPayload{Lexemes: result, NativeBytes: langruntime.CheckedSignedNegate(1)}
+	bytes := checkruntime.TsvectorCanonicalBytes(&payload)
+	if bytes < 0 {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorProgramLimit)}
+	}
+	return checkruntime.MakeTsvectorValue(checkruntime.TsvectorPayload{Lexemes: payload.Lexemes, NativeBytes: bytes})
+}
+func TsvectorFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsvectorValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		index := 0
+		rawBytes := int64(0)
+		lexemes := []checkruntime.TsvectorLexeme{}
+		for index < len(chars) {
+			for index < len(chars) && checkruntime.NumericSpace(chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index == len(chars) {
+				return tsvectorNormalize(lexemes)
+			}
+			word := langruntime.NewTextBuffer("")
+			state := 0
+			if chars[index] == '\'' {
+				state = langruntime.CheckedI32(1)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			reading := true
+			first := true
+			for index < len(chars) && reading {
+				character := chars[index]
+				if character == '\x00' {
+					return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+				}
+				if (int(langruntime.CheckedChar(character))) >= 128 && utf8 == false {
+					return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+				}
+				if character == '\\' {
+					index = langruntime.CheckedAdd(index, 1)
+					if index == len(chars) {
+						return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+					}
+					escaped := chars[index]
+					if escaped == '\x00' || ((int(langruntime.CheckedChar(escaped))) >= 128 && utf8 == false) {
+						return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+					}
+					word = append(word, string(langruntime.CheckedChar(escaped))...)
+					index = langruntime.CheckedAdd(index, 1)
+					first = false
+				} else if state == 1 {
+					if character == '\'' {
+						if langruntime.CheckedAdd(index, 1) < len(chars) && chars[langruntime.CheckedAdd(index, 1)] == '\'' {
+							word = append(word, string(langruntime.CheckedChar('\''))...)
+							index = langruntime.CheckedAdd(index, 2)
+						} else {
+							state = langruntime.CheckedI32(2)
+							reading = false
+							index = langruntime.CheckedAdd(index, 1)
+						}
+					} else {
+						word = append(word, string(langruntime.CheckedChar(character))...)
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					first = false
+				} else if first == false && (checkruntime.NumericSpace(character) || character == ':') {
+					reading = false
+				} else {
+					word = append(word, string(langruntime.CheckedChar(character))...)
+					index = langruntime.CheckedAdd(index, 1)
+					first = false
+				}
+			}
+			if state == 1 || string(word) == "" {
+				return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+			}
+			positions := []checkruntime.TsvectorPosition{}
+			if index < len(chars) && chars[index] == ':' {
+				index = langruntime.CheckedAdd(index, 1)
+				more := true
+				for more {
+					if index == len(chars) || (int(langruntime.CheckedChar(chars[index]))) < 48 || (int(langruntime.CheckedChar(chars[index]))) > 57 {
+						return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+					}
+					position := 0
+					for index < len(chars) && (int(langruntime.CheckedChar(chars[index]))) >= 48 && (int(langruntime.CheckedChar(chars[index]))) <= 57 {
+						digit := langruntime.CheckedSignedSubtract((int(langruntime.CheckedChar(chars[index]))), 48)
+						if position > 214748364 || (position == 214748364 && digit > 7) {
+							return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+						}
+						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(position, 10), digit))
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					if position == 0 {
+						return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+					}
+					if position > 16383 {
+						position = langruntime.CheckedI32(16383)
+					}
+					weight := 0
+					modifiers := true
+					for index < len(chars) && modifiers {
+						character := chars[index]
+						selected := langruntime.CheckedSignedNegate(1)
+						if character == 'a' || character == 'A' || character == '*' {
+							selected = langruntime.CheckedI32(3)
+						}
+						if character == 'b' || character == 'B' {
+							selected = langruntime.CheckedI32(2)
+						}
+						if character == 'c' || character == 'C' {
+							selected = langruntime.CheckedI32(1)
+						}
+						if character == 'd' || character == 'D' {
+							selected = langruntime.CheckedI32(0)
+						}
+						if selected >= 0 {
+							if weight != 0 {
+								return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+							}
+							weight = langruntime.CheckedI32(selected)
+							index = langruntime.CheckedAdd(index, 1)
+						} else if (int(langruntime.CheckedChar(character))) >= 48 && (int(langruntime.CheckedChar(character))) <= 57 {
+							index = langruntime.CheckedAdd(index, 1)
+						} else if character == ',' || checkruntime.NumericSpace(character) {
+							modifiers = false
+						} else {
+							return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorSyntaxError)}
+						}
+					}
+					langruntime.CheckedAdd(len(positions), 1)
+					positions = append(positions, checkruntime.TsvectorPosition{Position: position, Weight: weight})
+					more = index < len(chars) && chars[index] == ','
+					if more {
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+			}
+			width := checkruntime.TsvectorLexemeBytes(string(word))
+			if width < 0 {
+				return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+			}
+			if width >= 2047 || rawBytes > int64(1048575) {
+				return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorProgramLimit)}
+			}
+			rawBytes = langruntime.CheckedI64Add(rawBytes, (int64(langruntime.CheckedI32(width))))
+			langruntime.CheckedAdd(len(lexemes), 1)
+			lexemes = append(lexemes, checkruntime.CopyTsvectorLexeme(checkruntime.TsvectorLexeme{Text: string(word), Positions: positions}))
+		}
+		return tsvectorNormalize(lexemes)
+	}
+	return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+}
+func TsvectorFromText(input checkruntime.TextValue) checkruntime.TsvectorValue {
+	return TsvectorFromTextContext(input, false)
+}
+func TsvectorToText(input checkruntime.TsvectorValue) checkruntime.TextValue {
+	input = checkruntime.CopyTsvectorValue(input)
+	if input.Kind == checkruntime.TsvectorValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(input.Value)
+		text := langruntime.NewTextBuffer("")
+		i := 0
+		for i < len(value.Lexemes) {
+			if i > 0 {
+				text = append(text, string(langruntime.CheckedChar(' '))...)
+			}
+			text = append(text, string(langruntime.CheckedChar('\''))...)
+			chars := []rune(value.Lexemes[i].Text)
+			c := 0
+			for c < len(chars) {
+				if chars[c] == '\'' || chars[c] == '\\' {
+					text = append(text, string(langruntime.CheckedChar(chars[c]))...)
+				}
+				text = append(text, string(langruntime.CheckedChar(chars[c]))...)
+				c = langruntime.CheckedAdd(c, 1)
+			}
+			text = append(text, string(langruntime.CheckedChar('\''))...)
+			p := 0
+			for p < len(value.Lexemes[i].Positions) {
+				if p == 0 {
+					text = append(text, string(langruntime.CheckedChar(':'))...)
+				} else {
+					text = append(text, string(langruntime.CheckedChar(','))...)
+				}
+				position := value.Lexemes[i].Positions[p]
+				digits := checkruntime.TextNumber(position.Position, 10)
+				text = append(text, digits...)
+				if position.Weight == 3 {
+					text = append(text, string(langruntime.CheckedChar('A'))...)
+				}
+				if position.Weight == 2 {
+					text = append(text, string(langruntime.CheckedChar('B'))...)
+				}
+				if position.Weight == 1 {
+					text = append(text, string(langruntime.CheckedChar('C'))...)
+				}
+				p = langruntime.CheckedAdd(p, 1)
+			}
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+type tsvectorSortSource struct {
+	lexemes    []checkruntime.TsvectorLexeme
+	positions  []checkruntime.TsvectorPosition
+	byPosition bool
+}
+
+func copytsvectorSortSource(value tsvectorSortSource) tsvectorSortSource {
+	return tsvectorSortSource{lexemes: langruntime.CheckedStructs(value.lexemes, checkruntime.CopyTsvectorLexeme), positions: langruntime.CheckedStructs(value.positions, checkruntime.CopyTsvectorPosition), byPosition: value.byPosition}
+}
+
+type tsvectorSortIndex struct {
+	value int
+}
+
+func copytsvectorSortIndex(value tsvectorSortIndex) tsvectorSortIndex {
+	return tsvectorSortIndex{value: langruntime.CheckedIndex(value.value)}
+}
+
+type tsvectorSortPlan struct {
+	indexes []tsvectorSortIndex
+}
+
+func copytsvectorSortPlan(value tsvectorSortPlan) tsvectorSortPlan {
+	return tsvectorSortPlan{indexes: langruntime.CheckedStructs(value.indexes, copytsvectorSortIndex)}
+}
+func tsvectorSortCompare(source *tsvectorSortSource, plan *tsvectorSortPlan, a int, b int) int {
+	a = langruntime.CheckedI32(a)
+	b = langruntime.CheckedI32(b)
+	left := plan.indexes[langruntime.IndexFromI32(a, 0)].value
+	right := plan.indexes[langruntime.IndexFromI32(b, 0)].value
+	if source.byPosition {
+		if source.positions[left].Position < source.positions[right].Position {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if source.positions[left].Position > source.positions[right].Position {
+			return 1
+		}
+		return 0
+	}
+	return checkruntime.TsvectorLexemeOrder(source.lexemes[left].Text, source.lexemes[right].Text)
+}
+func tsvectorSortMedian(source *tsvectorSortSource, plan *tsvectorSortPlan, a int, b int, c int) int {
+	a = langruntime.CheckedI32(a)
+	b = langruntime.CheckedI32(b)
+	c = langruntime.CheckedI32(c)
+	if tsvectorSortCompare(source, plan, a, b) < 0 {
+		if tsvectorSortCompare(source, plan, b, c) < 0 {
+			return b
+		}
+		if tsvectorSortCompare(source, plan, a, c) < 0 {
+			return c
+		}
+		return a
+	}
+	if tsvectorSortCompare(source, plan, b, c) > 0 {
+		return b
+	}
+	if tsvectorSortCompare(source, plan, a, c) < 0 {
+		return a
+	}
+	return c
+}
+func tsvectorSortSwap(input tsvectorSortPlan, a int, b int) tsvectorSortPlan {
+	input = copytsvectorSortPlan(input)
+	a = langruntime.CheckedI32(a)
+	b = langruntime.CheckedI32(b)
+	indexes := input.indexes
+	saved := indexes[langruntime.IndexFromI32(a, 0)]
+	indexes[langruntime.IndexFromI32(a, 0)] = copytsvectorSortIndex(indexes[langruntime.IndexFromI32(b, 0)])
+	indexes[langruntime.IndexFromI32(b, 0)] = copytsvectorSortIndex(saved)
+	return tsvectorSortPlan{indexes: indexes}
+}
+func tsvectorSortBlock(input tsvectorSortPlan, a int, b int, count int) tsvectorSortPlan {
+	input = copytsvectorSortPlan(input)
+	a = langruntime.CheckedI32(a)
+	b = langruntime.CheckedI32(b)
+	count = langruntime.CheckedI32(count)
+	plan := input
+	i := 0
+	for i < count {
+		plan = copytsvectorSortPlan(tsvectorSortSwap(plan, langruntime.CheckedSignedAdd(a, i), langruntime.CheckedSignedAdd(b, i)))
+		i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+	}
+	return plan
+}
+func tsvectorSortPartition(source *tsvectorSortSource, input tsvectorSortPlan, start int, count int) tsvectorSortPlan {
+	input = copytsvectorSortPlan(input)
+	start = langruntime.CheckedI32(start)
+	count = langruntime.CheckedI32(count)
+	plan := input
+	low := start
+	size := count
+	for size > 1 {
+		if size < 7 {
+			i := langruntime.CheckedSignedAdd(low, 1)
+			for i < langruntime.CheckedSignedAdd(low, size) {
+				j := i
+				for j > low && tsvectorSortCompare(source, &plan, langruntime.CheckedSignedSubtract(j, 1), j) > 0 {
+					plan = copytsvectorSortPlan(tsvectorSortSwap(plan, j, langruntime.CheckedSignedSubtract(j, 1)))
+					j = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(j, 1))
+				}
+				i = langruntime.CheckedI32(langruntime.CheckedSignedAdd(i, 1))
+			}
+			return plan
+		}
+		sorted := true
+		scan := langruntime.CheckedSignedAdd(low, 1)
+		for scan < langruntime.CheckedSignedAdd(low, size) && sorted {
+			if tsvectorSortCompare(source, &plan, langruntime.CheckedSignedSubtract(scan, 1), scan) > 0 {
+				sorted = false
+			}
+			scan = langruntime.CheckedI32(langruntime.CheckedSignedAdd(scan, 1))
+		}
+		if sorted {
+			return plan
+		}
+		middle := langruntime.CheckedSignedAdd(low, langruntime.CheckedSignedDivide(size, 2))
+		if size > 7 {
+			first := low
+			last := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(low, size), 1)
+			if size > 40 {
+				step := langruntime.CheckedSignedDivide(size, 8)
+				first = langruntime.CheckedI32(tsvectorSortMedian(source, &plan, first, langruntime.CheckedSignedAdd(first, step), langruntime.CheckedSignedAdd(first, langruntime.CheckedSignedMultiply(2, step))))
+				middle = langruntime.CheckedI32(tsvectorSortMedian(source, &plan, langruntime.CheckedSignedSubtract(middle, step), middle, langruntime.CheckedSignedAdd(middle, step)))
+				last = langruntime.CheckedI32(tsvectorSortMedian(source, &plan, langruntime.CheckedSignedSubtract(last, langruntime.CheckedSignedMultiply(2, step)), langruntime.CheckedSignedSubtract(last, step), last))
+			}
+			middle = langruntime.CheckedI32(tsvectorSortMedian(source, &plan, first, middle, last))
+		}
+		plan = copytsvectorSortPlan(tsvectorSortSwap(plan, low, middle))
+		a := langruntime.CheckedSignedAdd(low, 1)
+		b := a
+		c := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(low, size), 1)
+		d := c
+		partitioning := true
+		for partitioning {
+			scanning := true
+			for b <= c && scanning {
+				comparison := tsvectorSortCompare(source, &plan, b, low)
+				if comparison > 0 {
+					scanning = false
+				} else {
+					if comparison == 0 {
+						plan = copytsvectorSortPlan(tsvectorSortSwap(plan, a, b))
+						a = langruntime.CheckedI32(langruntime.CheckedSignedAdd(a, 1))
+					}
+					b = langruntime.CheckedI32(langruntime.CheckedSignedAdd(b, 1))
+				}
+			}
+			scanning = true
+			for b <= c && scanning {
+				comparison := tsvectorSortCompare(source, &plan, c, low)
+				if comparison < 0 {
+					scanning = false
+				} else {
+					if comparison == 0 {
+						plan = copytsvectorSortPlan(tsvectorSortSwap(plan, c, d))
+						d = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(d, 1))
+					}
+					c = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(c, 1))
+				}
+			}
+			if b > c {
+				partitioning = false
+			} else {
+				plan = copytsvectorSortPlan(tsvectorSortSwap(plan, b, c))
+				b = langruntime.CheckedI32(langruntime.CheckedSignedAdd(b, 1))
+				c = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(c, 1))
+			}
+		}
+		end := langruntime.CheckedSignedAdd(low, size)
+		extent := langruntime.CheckedSignedSubtract(a, low)
+		if langruntime.CheckedSignedSubtract(b, a) < extent {
+			extent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(b, a))
+		}
+		plan = copytsvectorSortPlan(tsvectorSortBlock(plan, low, langruntime.CheckedSignedSubtract(b, extent), extent))
+		extent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(d, c))
+		if langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(end, d), 1) < extent {
+			extent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(end, d), 1))
+		}
+		plan = copytsvectorSortPlan(tsvectorSortBlock(plan, b, langruntime.CheckedSignedSubtract(end, extent), extent))
+		left := langruntime.CheckedSignedSubtract(b, a)
+		right := langruntime.CheckedSignedSubtract(d, c)
+		if left <= right {
+			if left > 1 {
+				plan = copytsvectorSortPlan(tsvectorSortPartition(source, plan, low, left))
+			}
+			low = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(end, right))
+			size = langruntime.CheckedI32(right)
+		} else {
+			if right > 1 {
+				plan = copytsvectorSortPlan(tsvectorSortPartition(source, plan, langruntime.CheckedSignedSubtract(end, right), right))
+			}
+			size = langruntime.CheckedI32(left)
+		}
+	}
+	return plan
+}
+func tsvectorSort(source *tsvectorSortSource) tsvectorSortPlan {
+	count := len(source.lexemes)
+	if source.byPosition {
+		count = langruntime.CheckedIndex(len(source.positions))
+	}
+	indexes := []tsvectorSortIndex{}
+	i := 0
+	for i < count {
+		langruntime.CheckedAdd(len(indexes), 1)
+		indexes = append(indexes, copytsvectorSortIndex(tsvectorSortIndex{value: i}))
+		i = langruntime.CheckedAdd(i, 1)
+	}
+	plan := tsvectorSortPlan{indexes: indexes}
+	return tsvectorSortPartition(source, plan, 0, int(int32(count)))
+}
+
+const tsvectorInvalidParameter = 3452619
+
+func LengthGrcw(input checkruntime.TsvectorValue) checkruntime.Int4Value {
+	input = checkruntime.CopyTsvectorValue(input)
+	if input.Kind == checkruntime.TsvectorValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(input.Value)
+		return checkruntime.MakeInt4Value(int(int32(len(value.Lexemes))))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Strip3rdv(input checkruntime.TsvectorValue) checkruntime.TsvectorValue {
+	input = checkruntime.CopyTsvectorValue(input)
+	if input.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(input.Value)
+		lexemes := []checkruntime.TsvectorLexeme{}
+		i := 0
+		for i < len(value.Lexemes) {
+			positions := []checkruntime.TsvectorPosition{}
+			langruntime.CheckedAdd(len(lexemes), 1)
+			lexemes = append(lexemes, checkruntime.CopyTsvectorLexeme(checkruntime.TsvectorLexeme{Text: langruntime.CheckedString(value.Lexemes[i].Text), Positions: positions}))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		output := checkruntime.TsvectorPayload{Lexemes: lexemes, NativeBytes: langruntime.CheckedSignedNegate(1)}
+		bytes := checkruntime.TsvectorCanonicalBytes(&output)
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueValue, Value: checkruntime.TsvectorPayload{Lexemes: output.Lexemes, NativeBytes: bytes}}
+	}
+	return input
+}
+func SetweightHza4(input checkruntime.TsvectorValue, weight checkruntime.InternalCharValue) checkruntime.TsvectorValue {
+	input = checkruntime.CopyTsvectorValue(input)
+	if input.Kind == checkruntime.TsvectorValueError {
+		error := input.Error
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: error}
+	}
+	if weight.Kind == checkruntime.InternalCharValueError {
+		error := weight.Error
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+	}
+	if weight == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}) {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+	}
+	if input.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueNull}
+	}
+	if weight == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueNull}
+	}
+	if weight.Kind == checkruntime.InternalCharValueValue {
+		code := langruntime.CheckedI32(weight.Value)
+		selected := langruntime.CheckedSignedNegate(1)
+		if code == 65 || code == 97 {
+			selected = langruntime.CheckedI32(3)
+		}
+		if code == 66 || code == 98 {
+			selected = langruntime.CheckedI32(2)
+		}
+		if code == 67 || code == 99 {
+			selected = langruntime.CheckedI32(1)
+		}
+		if code == 68 || code == 100 {
+			selected = langruntime.CheckedI32(0)
+		}
+		if selected < 0 {
+			return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueError, Error: checkruntime.MakeSqlError(tsvectorInvalidParameter)}
+		}
+		if input.Kind == checkruntime.TsvectorValueValue {
+			value := checkruntime.CopyTsvectorPayload(input.Value)
+			lexemes := []checkruntime.TsvectorLexeme{}
+			i := 0
+			for i < len(value.Lexemes) {
+				positions := []checkruntime.TsvectorPosition{}
+				p := 0
+				for p < len(value.Lexemes[i].Positions) {
+					langruntime.CheckedAdd(len(positions), 1)
+					positions = append(positions, checkruntime.TsvectorPosition{Position: value.Lexemes[i].Positions[p].Position, Weight: selected})
+					p = langruntime.CheckedAdd(p, 1)
+				}
+				langruntime.CheckedAdd(len(lexemes), 1)
+				lexemes = append(lexemes, checkruntime.CopyTsvectorLexeme(checkruntime.TsvectorLexeme{Text: langruntime.CheckedString(value.Lexemes[i].Text), Positions: positions}))
+				i = langruntime.CheckedAdd(i, 1)
+			}
+			return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueValue, Value: checkruntime.TsvectorPayload{Lexemes: lexemes, NativeBytes: value.NativeBytes}}
+		}
+	}
+	return checkruntime.TsvectorValue{Kind: checkruntime.TsvectorValueUnknown}
+}
+func TsvectorToArrayRv21(input checkruntime.TsvectorValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyTsvectorValue(input)
+	if input.Kind == checkruntime.TsvectorValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(input.Value)
+		builder := checkruntime.MakeArrayArguments("pg_catalog.text", 8)
+		if len(value.Lexemes) > 0 {
+			builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayDimension(builder, 1, int(int32(len(value.Lexemes)))))
+		}
+		i := 0
+		for i < len(value.Lexemes) {
+			builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementText, Text: langruntime.CheckedString(value.Lexemes[i].Text)}))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return checkruntime.FinishArrayArguments(builder)
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func tsvectorCompare(left checkruntime.TsvectorValue, right checkruntime.TsvectorValue, exact bool) checkruntime.Int4Value {
+	left = checkruntime.CopyTsvectorValue(left)
+	right = checkruntime.CopyTsvectorValue(right)
+	if left.Kind == checkruntime.TsvectorValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TsvectorValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if right.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TsvectorValueValue {
+		a := checkruntime.CopyTsvectorPayload(left.Value)
+		if right.Kind == checkruntime.TsvectorValueValue {
+			b := checkruntime.CopyTsvectorPayload(right.Value)
+			if a.NativeBytes < 0 || b.NativeBytes < 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+			if a.NativeBytes < b.NativeBytes {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if a.NativeBytes > b.NativeBytes {
+				return checkruntime.MakeInt4Value(1)
+			}
+			if len(a.Lexemes) < len(b.Lexemes) {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if len(a.Lexemes) > len(b.Lexemes) {
+				return checkruntime.MakeInt4Value(1)
+			}
+			i := 0
+			for i < len(a.Lexemes) {
+				ac := len(a.Lexemes[i].Positions)
+				bc := len(b.Lexemes[i].Positions)
+				if ac > 0 && bc == 0 {
+					return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+				}
+				if ac == 0 && bc > 0 {
+					return checkruntime.MakeInt4Value(1)
+				}
+				order := checkruntime.TsvectorLexemeOrder(a.Lexemes[i].Text, b.Lexemes[i].Text)
+				if order != 0 {
+					aPrefix := textHasPrefix(a.Lexemes[i].Text, b.Lexemes[i].Text)
+					bPrefix := textHasPrefix(b.Lexemes[i].Text, a.Lexemes[i].Text)
+					if exact && aPrefix == false && bPrefix == false {
+						return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+					}
+					return checkruntime.MakeInt4Value(order)
+				}
+				if ac > bc {
+					return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+				}
+				if ac < bc {
+					return checkruntime.MakeInt4Value(1)
+				}
+				p := 0
+				for p < ac {
+					ap := a.Lexemes[i].Positions[p]
+					bp := b.Lexemes[i].Positions[p]
+					if ap.Position > bp.Position {
+						return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+					}
+					if ap.Position < bp.Position {
+						return checkruntime.MakeInt4Value(1)
+					}
+					if ap.Weight > bp.Weight {
+						return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+					}
+					if ap.Weight < bp.Weight {
+						return checkruntime.MakeInt4Value(1)
+					}
+					p = langruntime.CheckedAdd(p, 1)
+				}
+				i = langruntime.CheckedAdd(i, 1)
+			}
+			return checkruntime.MakeInt4Value(0)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TsvectorCmpXinv(left checkruntime.TsvectorValue, right checkruntime.TsvectorValue) checkruntime.Int4Value {
+	left = checkruntime.CopyTsvectorValue(left)
+	right = checkruntime.CopyTsvectorValue(right)
+	return tsvectorCompare(left, right, true)
+}
+func tsvectorRelation(left checkruntime.TsvectorValue, right checkruntime.TsvectorValue, mode int) checkruntime.BoolValue {
+	left = checkruntime.CopyTsvectorValue(left)
+	right = checkruntime.CopyTsvectorValue(right)
+	mode = langruntime.CheckedI32(mode)
+	order := tsvectorCompare(left, right, false)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if order.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(value == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(value != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(value < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(value <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(value > 0)
+		}
+		return checkruntime.MakeBoolValue(value >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TsvectorEqAqk8(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 0)
+}
+func TsvectorNeV0j3(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 1)
+}
+func TsvectorLt6duo(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 2)
+}
+func TsvectorLe7xey(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 3)
+}
+func TsvectorGtDorq(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 4)
+}
+func TsvectorGeSjck(a checkruntime.TsvectorValue, b checkruntime.TsvectorValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsvectorValue(a)
+	b = checkruntime.CopyTsvectorValue(b)
+	return tsvectorRelation(a, b, 5)
 }
 func uuidCompare(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.UuidValueError {

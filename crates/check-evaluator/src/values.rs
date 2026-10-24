@@ -2795,3 +2795,124 @@ pub fn jsonpath_from_coerced_value(input: JsonpathValue) -> JsonpathValue {
     };
     input
 }
+
+#[derive(Clone, Copy)]
+pub struct TsvectorPosition {
+    pub position: i32,
+    pub weight: i32,
+}
+
+#[derive(Clone)]
+pub struct TsvectorLexeme {
+    pub text: String,
+    pub positions: Vec<TsvectorPosition>,
+}
+
+#[derive(Clone)]
+pub struct TsvectorPayload {
+    pub lexemes: Vec<TsvectorLexeme>,
+    pub native_bytes: i32,
+}
+
+#[derive(Clone)]
+pub enum TsvectorValue {
+    Unknown,
+    Null,
+    Value(TsvectorPayload),
+    Error(SqlError),
+}
+
+pub fn tsvector_unknown() -> TsvectorValue { TsvectorValue::Unknown }
+pub fn tsvector_null() -> TsvectorValue { TsvectorValue::Null }
+
+pub fn tsvector_lexeme_bytes(input: &str) -> i32 {
+    let chars: Vec<char> = input.chars().collect();
+    let mut bytes: i32 = 0;
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let point = chars[index] as i32;
+        let mut width: i32 = 1;
+        if point == 0 { return -1; };
+        if point >= 65536 { width = 4; }
+        else if point >= 2048 { width = 3; }
+        else if point >= 128 { width = 2; };
+        if bytes > 2147483647 - width { return -1; };
+        bytes = bytes + width;
+        index += 1;
+    }
+    bytes
+}
+
+pub fn tsvector_lexeme_order(left: &str, right: &str) -> i32 {
+    let a: Vec<char> = left.chars().collect();
+    let b: Vec<char> = right.chars().collect();
+    let mut index: usize = 0;
+    while index < a.len() && index < b.len() {
+        if (a[index] as i32) < (b[index] as i32) { return -1; };
+        if (a[index] as i32) > (b[index] as i32) { return 1; };
+        index += 1;
+    }
+    if a.len() < b.len() { return -1; };
+    if a.len() > b.len() { return 1; };
+    0
+}
+
+pub fn tsvector_canonical_bytes(input: &TsvectorPayload) -> i32 {
+    if input.lexemes.len() > 1048575 { return -1; };
+    let mut bytes: i32 = 0;
+    let mut index: usize = 0;
+    while index < input.lexemes.len() {
+        let width = tsvector_lexeme_bytes(input.lexemes[index].text.as_str());
+        if width < 0 || width > 2047 { return -1; };
+        bytes = bytes + width;
+        let count = input.lexemes[index].positions.len();
+        if count > 256 { return -1; };
+        if count > 0 {
+            if bytes % 2 != 0 { bytes = bytes + 1; };
+            bytes = bytes + 2 + (count as i32) * 2;
+        };
+        if bytes > 1048575 { return -1; };
+        index += 1;
+    }
+    8 + (input.lexemes.len() as i32) * 4 + bytes
+}
+
+pub fn make_tsvector_value(input: TsvectorPayload) -> TsvectorValue {
+    if input.native_bytes > 1073741823 { return TsvectorValue::Unknown; };
+    if tsvector_canonical_bytes(&input) < 0 { return TsvectorValue::Unknown; };
+    if input.native_bytes != -1 && input.native_bytes < 8 + (input.lexemes.len() as i32) * 4 {
+        return TsvectorValue::Unknown;
+    };
+    let mut index: usize = 0;
+    while index < input.lexemes.len() {
+        let text = input.lexemes[index].text.as_str();
+        if text == "" { return TsvectorValue::Unknown; };
+        if index > 0 && tsvector_lexeme_order(input.lexemes[index - 1].text.as_str(),text) >= 0 {
+            return TsvectorValue::Unknown;
+        };
+        let mut position: usize = 0;
+        let mut previous: i32 = 0;
+        while position < input.lexemes[index].positions.len() {
+            let value = input.lexemes[index].positions[position];
+            if value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3 {
+                return TsvectorValue::Unknown;
+            };
+            previous = value.position;
+            position += 1;
+        }
+        index += 1;
+    }
+    TsvectorValue::Value(input)
+}
+
+pub fn tsvector_is_null(input: TsvectorValue) -> BoolValue {
+    if let TsvectorValue::Error(error) = input { return BoolValue::Error(error); };
+    if let TsvectorValue::Unknown = input { return BoolValue::Unknown; };
+    if let TsvectorValue::Null = input { return make_bool_value(true); };
+    make_bool_value(false)
+}
+
+pub fn tsvector_from_case_guard(input: CheckOutcome) -> TsvectorValue {
+    if let CheckOutcome::Error(error) = input { return TsvectorValue::Error(error); };
+    TsvectorValue::Unknown
+}
