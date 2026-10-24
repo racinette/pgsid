@@ -2,7 +2,7 @@ pub fn sql__pg_catalog__ascii__7m47(input: TextValue) -> Int4Value {
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if input == TextValue::Null {

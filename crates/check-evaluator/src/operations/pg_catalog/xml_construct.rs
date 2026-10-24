@@ -173,7 +173,7 @@ pub fn xml_make_processing_instruction(name: &str, content: TextValue, present: 
     output.push_str(target.as_str());
     if present {
         if let TextValue::Null = content { return XmlValue::Null; };
-        if let TextValue::Unknown = content { return XmlValue::Unknown; };
+        if content == TextValue::Unknown || content == TextValue::NonNull { return XmlValue::Unknown; };
         if let TextValue::Value(value) = content {
             let source = XmlSource { characters: value.as_str().chars().collect() };
             let mut index: usize = 0;

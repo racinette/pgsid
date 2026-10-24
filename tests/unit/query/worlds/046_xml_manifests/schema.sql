@@ -121,3 +121,57 @@ CREATE TABLE manifest_query_rule_order (
   prefer_document boolean,
   CONSTRAINT document_before_mapping CHECK (CASE WHEN prefer_document THEN xpath_exists('false()','plain'::xml) ELSE xpath_exists('false()','<manifest/>'::xml,ARRAY['bad']) END)
 );
+
+CREATE TABLE manifest_query_presence (
+  manifest xml,
+  expression text,
+  result_position integer,
+  expected_present boolean,
+  expected_document boolean,
+  fallback_document text,
+  CONSTRAINT result_presence CHECK (((xpath(expression,manifest))[result_position] IS NOT NULL) = expected_present),
+  CONSTRAINT result_text_presence CHECK ((((xpath(expression,manifest))[result_position]::text) IS NULL) = NOT expected_present),
+  CONSTRAINT result_document CHECK (CASE WHEN (xpath(expression,manifest))[result_position] IS NOT NULL THEN ((xpath(expression,manifest))[result_position] IS DOCUMENT) = expected_document ELSE true END),
+  CONSTRAINT result_fallback CHECK (COALESCE((xpath(expression,manifest))[result_position],XMLPARSE(DOCUMENT fallback_document)) IS NOT NULL)
+);
+
+CREATE TABLE manifest_query_text (
+  manifest xml,
+  expression text,
+  result_position integer,
+  fallback_text text,
+  require_document boolean,
+  CONSTRAINT coalesced_text CHECK (COALESCE((xpath(expression,manifest))[result_position]::text,fallback_text) IS NOT NULL),
+  CONSTRAINT serialized_content CHECK (XMLSERIALIZE(CONTENT (xpath(expression,manifest))[result_position] AS text INDENT) IS NOT NULL),
+  CONSTRAINT serialized_document CHECK (CASE WHEN require_document THEN XMLSERIALIZE(DOCUMENT (xpath(expression,manifest))[result_position] AS text INDENT) IS NOT NULL ELSE true END)
+);
+
+CREATE TABLE manifest_schema_validation (
+  manifest xml,
+  schema_text text,
+  bypass boolean,
+  CONSTRAINT schema_validation CHECK (CASE WHEN bypass THEN true ELSE xmlvalidate(manifest,schema_text) END)
+);
+
+CREATE TABLE manifest_prepared_validation (
+  bypass boolean,
+  CONSTRAINT prepared_validation CHECK (CASE WHEN bypass THEN true ELSE xmlvalidate('<manifest/>'::xml,'schema') END)
+);
+
+CREATE TABLE manifest_nested_queries (
+  manifest xml,
+  fragment_expression text,
+  expression text,
+  namespaces text[],
+  bypass boolean,
+  CONSTRAINT nested_query_null CHECK (CASE WHEN bypass THEN true ELSE xpath_exists(expression,(xpath(fragment_expression,manifest))[1],namespaces) IS NULL END)
+);
+
+CREATE TABLE manifest_text_validation (
+  source_text text,
+  expected_valid boolean,
+  bypass boolean,
+  CONSTRAINT text_validation CHECK (CASE WHEN bypass THEN true ELSE xml_is_well_formed(source_text) IS NOT DISTINCT FROM expected_valid END),
+  CONSTRAINT document_text_validation CHECK (CASE WHEN bypass THEN true ELSE xml_is_well_formed_document(source_text) IS NOT DISTINCT FROM expected_valid END),
+  CONSTRAINT content_text_validation CHECK (CASE WHEN bypass THEN true ELSE xml_is_well_formed_content(source_text) IS NOT DISTINCT FROM expected_valid END)
+);

@@ -417,7 +417,7 @@ pub fn network_from_text(input: TextValue) -> NetworkValue {
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return NetworkValue::Unknown;
     }
     if input == TextValue::Null {
@@ -433,7 +433,7 @@ pub fn cidr_from_text(input: TextValue) -> NetworkValue {
     if let TextValue::Error(error) = input {
         return NetworkValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return NetworkValue::Unknown;
     }
     if input == TextValue::Null {

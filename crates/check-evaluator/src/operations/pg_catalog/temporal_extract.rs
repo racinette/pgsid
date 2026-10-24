@@ -158,7 +158,7 @@ pub fn sql__pg_catalog__extract__qjml(units: TextValue, input: DateValue) -> Num
     if let DateValue::Error(error) = input {
         return NumericValue::Error(error);
     };
-    if units == TextValue::Unknown || input == DateValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == DateValue::Unknown {
         return NumericValue::Unknown;
     };
     if units == TextValue::Null || input == DateValue::Null {

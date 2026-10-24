@@ -1,4 +1,8 @@
-import { isXmlXPathCallable } from './xml-callables.js'
+import {
+  isXmlOptionPredicate,
+  isXmlValidationCallable,
+  isXmlXPathCallable,
+} from './xml-callables.js'
 import {
   builtinCallables,
   builtinCast,
@@ -430,9 +434,19 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       !implementation.returnsSet) ||
     arrayStringIO ||
     jsonField ||
+    (metadata.kind === 'function' &&
+      metadata.schema === 'pg_catalog' &&
+      metadata.name === 'makeaclitem' &&
+      metadata.strict &&
+      metadata.volatility === 'i' &&
+      !metadata.returnsSet &&
+      metadata.args.join(',') === 'pg_catalog.oid,pg_catalog.oid,pg_catalog.text,pg_catalog.bool' &&
+      metadata.result === 'pg_catalog.aclitem') ||
     nameIntrinsic ||
     textWire ||
     isXmlXPathCallable(metadata) ||
+    isXmlValidationCallable(metadata) ||
+    isXmlOptionPredicate(metadata) ||
     oidAliasLookup ||
     likeEscape ||
     textIntrinsic ||

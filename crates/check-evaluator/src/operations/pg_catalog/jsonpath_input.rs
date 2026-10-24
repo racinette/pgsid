@@ -56,7 +56,7 @@ pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> Js
                 if let TextValue::Error(error) = result {
                     return JsonpathValue::Error(error);
                 };
-                if let TextValue::Unknown = result {
+                if result == TextValue::Unknown || result == TextValue::NonNull {
                     return JsonpathValue::Unknown;
                 };
             } else {

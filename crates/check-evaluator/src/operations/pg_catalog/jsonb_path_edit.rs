@@ -25,7 +25,7 @@ fn jsonb_bulk_key_matches(
         if let TextValue::Error(error) = key {
             return BoolValue::Error(error);
         };
-        if key == TextValue::Unknown {
+        if (key == TextValue::Unknown || key == TextValue::NonNull) {
             uncertain = true;
         };
         if let TextValue::Value(text) = key {
@@ -456,7 +456,7 @@ pub fn sql__pg_catalog__jsonb_set_lax__lecq(
     if treatment == TextValue::Null {
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
-    if treatment == TextValue::Unknown {
+    if (treatment == TextValue::Unknown || treatment == TextValue::NonNull) {
         return JsonbValue::Unknown;
     };
     if let JsonbValue::Unknown = replacement {

@@ -43,7 +43,7 @@ pub fn sql__pg_catalog__bpchareq__npys(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -65,7 +65,7 @@ pub fn sql__pg_catalog__bpcharge__o6oj(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -87,7 +87,7 @@ pub fn sql__pg_catalog__bpchargt__kxc4(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -109,7 +109,7 @@ pub fn sql__pg_catalog__bpcharle__0rch(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -131,7 +131,7 @@ pub fn sql__pg_catalog__bpcharlt__qrb5(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -153,7 +153,7 @@ pub fn sql__pg_catalog__bpcharne__qkuu(left: TextValue, right: TextValue) -> Boo
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {

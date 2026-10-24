@@ -88,6 +88,417 @@ import (
 	checkruntime "example.com/pgsid-fixture/generated/go/queries/pgsid/pgx/checkrust/checkruntime"
 )
 
+const aclitemInvalidParameter = 3452619
+
+func AclitemFromText(input checkruntime.TextValue) checkruntime.AclitemValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}
+	}
+	return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+}
+func AclitemToText(input checkruntime.AclitemValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.AclitemValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func aclitemPrivilege(name string) int64 {
+	name = langruntime.CheckedString(name)
+	if name == "INSERT" {
+		return int64(1)
+	}
+	if name == "SELECT" {
+		return int64(2)
+	}
+	if name == "UPDATE" {
+		return int64(4)
+	}
+	if name == "DELETE" {
+		return int64(8)
+	}
+	if name == "TRUNCATE" {
+		return int64(16)
+	}
+	if name == "REFERENCES" {
+		return int64(32)
+	}
+	if name == "TRIGGER" {
+		return int64(64)
+	}
+	if name == "EXECUTE" {
+		return int64(128)
+	}
+	if name == "USAGE" {
+		return int64(256)
+	}
+	if name == "CREATE" {
+		return int64(512)
+	}
+	if name == "TEMP" || name == "TEMPORARY" {
+		return int64(1024)
+	}
+	if name == "CONNECT" {
+		return int64(2048)
+	}
+	if name == "SET" {
+		return int64(4096)
+	}
+	if name == "ALTER SYSTEM" {
+		return int64(8192)
+	}
+	if name == "MAINTAIN" {
+		return int64(16384)
+	}
+	return int64(-1)
+}
+func aclitemPrivileges(input checkruntime.TextValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		uppercase := textCaseValue(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}, 1)
+		if uppercase.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(uppercase.Value)
+			chars := []rune(text)
+			position := 0
+			rights := int64(0)
+			remaining := true
+			for remaining {
+				end := position
+				for end < len(chars) && chars[end] != ',' {
+					end = langruntime.CheckedAdd(end, 1)
+				}
+				limit := end
+				for position < limit && checkruntime.NumericSpace(chars[position]) {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				for limit > position && checkruntime.NumericSpace(chars[langruntime.CheckedSubtract(limit, 1)]) {
+					limit = langruntime.CheckedIndex(langruntime.CheckedSubtract(limit, 1))
+				}
+				name := langruntime.NewTextBuffer("")
+				for position < limit {
+					name = append(name, string(langruntime.CheckedChar(chars[position]))...)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				bit := aclitemPrivilege(string(name))
+				if bit < int64(0) {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(aclitemInvalidParameter)}
+				}
+				rights = integerBitsCombine(rights, bit, 1)
+				remaining = end < len(chars)
+				position = langruntime.CheckedIndex(langruntime.CheckedAdd(end, 1))
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: rights}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func MakeaclitemAb9i(grantee checkruntime.OidValue, grantor checkruntime.OidValue, privileges checkruntime.TextValue, grantable checkruntime.BoolValue) checkruntime.AclitemValue {
+	if grantee.Kind == checkruntime.OidValueError {
+		error := grantee.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if grantor.Kind == checkruntime.OidValueError {
+		error := grantor.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if privileges.Kind == checkruntime.TextValueError {
+		error := privileges.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if grantable.Kind == checkruntime.BoolValueError {
+		error := grantable.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if grantee == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) || grantor == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) || privileges == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || grantable == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+	}
+	if grantee == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) || grantor == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) || privileges == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || grantable == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}
+	}
+	parsed := aclitemPrivileges(privileges)
+	if parsed.Kind == checkruntime.Int8ValueError {
+		error := parsed.Error
+		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
+	}
+	if grantee.Kind == checkruntime.OidValueValue {
+		a := grantee.Value
+		if grantor.Kind == checkruntime.OidValueValue {
+			b := grantor.Value
+			if grantable.Kind == checkruntime.BoolValueValue {
+				option := grantable.Value
+				if parsed.Kind == checkruntime.Int8ValueValue {
+					bits := parsed.Value
+					options := int64(0)
+					if option {
+						options = bits
+					}
+					return checkruntime.MakeAclitemValue(a, b, bits, options)
+				}
+			}
+		}
+	}
+	return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+}
+func AclitemeqCphl(left checkruntime.AclitemValue, right checkruntime.AclitemValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.AclitemValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.AclitemValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) || right == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) || right == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(left == right)
+}
+func aclitemHashSum(input checkruntime.AclitemValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.AclitemValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.AclitemValueValue {
+		value := input.Value
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Add(value.Privileges, value.Grantee), value.Grantor)), int64(4294967296))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func HashAclitem4zd0(input checkruntime.AclitemValue) checkruntime.Int4Value {
+	sum := aclitemHashSum(input)
+	if sum.Kind == checkruntime.Int8ValueError {
+		error := sum.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if sum == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if sum.Kind == checkruntime.Int8ValueValue {
+		value := sum.Value
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func HashAclitemExtendedC0ek(input checkruntime.AclitemValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	if input.Kind == checkruntime.AclitemValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	sum := aclitemHashSum(input)
+	if seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}) {
+		return sum
+	}
+	if sum.Kind == checkruntime.Int8ValueValue {
+		value := sum.Value
+		return HashoidextendedV555(checkruntime.MakeOidValue(value), seed)
+	}
+	return sum
+}
+
+const aclitemNullValueNotAllowed = 3452548
+const aclitemFeatureNotSupported = 466560
+
+func Aclcontains90xb(input checkruntime.ArrayValue, item checkruntime.AclitemValue) checkruntime.BoolValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if item.Kind == checkruntime.AclitemValueError {
+		error := item.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if item == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if item == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		array := checkruntime.CopyArrayPayload(input.Value)
+		if array.ElementKind != 46 || len(array.Dimensions) != 1 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(aclitemInvalidParameter)}
+		}
+		if array.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(aclitemNullValueNotAllowed)}
+		}
+		if array.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if item.Kind == checkruntime.AclitemValueValue {
+			requested := item.Value
+			position := 0
+			unknown := false
+			for position < len(array.Elements) {
+				entry := checkruntime.ArrayElementToAclitem(checkruntime.CopyArrayElement(array.Elements[position]))
+				if entry.Kind == checkruntime.AclitemValueValue {
+					value := entry.Value
+					if value.Grantee == requested.Grantee && value.Grantor == requested.Grantor && integerBitsCombine(value.Privileges, requested.Privileges, 0) == requested.Privileges && integerBitsCombine(value.GrantOptions, requested.GrantOptions, 0) == requested.GrantOptions {
+						return checkruntime.MakeBoolValue(true)
+					}
+				}
+				if entry == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
+					unknown = true
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if unknown {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			return checkruntime.MakeBoolValue(false)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func aclitemObsoleteUpdate(input checkruntime.ArrayValue, item checkruntime.AclitemValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if item.Kind == checkruntime.AclitemValueError {
+		error := item.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if item == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if item == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(aclitemFeatureNotSupported)}
+}
+func Aclinsert6jtk(input checkruntime.ArrayValue, item checkruntime.AclitemValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return aclitemObsoleteUpdate(input, item)
+}
+func AclremoveYg4b(input checkruntime.ArrayValue, item checkruntime.AclitemValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return aclitemObsoleteUpdate(input, item)
+}
+
+const aclitemInternalError = 56966976
+
+func AcldefaultYt1r(objectType checkruntime.InternalCharValue, owner checkruntime.OidValue) checkruntime.ArrayValue {
+	if objectType.Kind == checkruntime.InternalCharValueError {
+		error := objectType.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if owner.Kind == checkruntime.OidValueError {
+		error := owner.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if objectType == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}) || owner == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if objectType == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) || owner == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if objectType.Kind == checkruntime.InternalCharValueValue {
+		code := langruntime.CheckedI32(objectType.Value)
+		if owner.Kind == checkruntime.OidValueValue {
+			ownerId := owner.Value
+			worldRights := int64(0)
+			ownerRights := int64(-1)
+			if code == 99 {
+				ownerRights = int64(0)
+			}
+			if code == 114 {
+				ownerRights = int64(16511)
+			}
+			if code == 115 {
+				ownerRights = int64(262)
+			}
+			if code == 100 {
+				worldRights = int64(3072)
+				ownerRights = int64(3584)
+			}
+			if code == 102 {
+				worldRights = int64(128)
+				ownerRights = int64(128)
+			}
+			if code == 108 || code == 84 {
+				worldRights = int64(256)
+				ownerRights = int64(256)
+			}
+			if code == 76 {
+				ownerRights = int64(6)
+			}
+			if code == 110 {
+				ownerRights = int64(768)
+			}
+			if code == 112 {
+				ownerRights = int64(12288)
+			}
+			if code == 116 {
+				ownerRights = int64(512)
+			}
+			if code == 70 || code == 83 {
+				ownerRights = int64(256)
+			}
+			if ownerRights < int64(0) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(aclitemInternalError)}
+			}
+			elements := []checkruntime.ArrayElement{}
+			if worldRights != int64(0) {
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromAclitem(checkruntime.MakeAclitemValue(int64(0), ownerId, worldRights, int64(0)))))
+			}
+			if ownerRights != int64(0) {
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromAclitem(checkruntime.MakeAclitemValue(ownerId, ownerId, ownerRights, int64(0)))))
+			}
+			count := int(int32(len(elements)))
+			dimensions := []checkruntime.ArrayDimension{}
+			langruntime.CheckedAdd(len(dimensions), 1)
+			dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: count})
+			return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: "pg_catalog.aclitem", ElementKind: 46, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}})
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func addressAndWord(left int, right int) int {
 	left = langruntime.CheckedI32(left)
 	right = langruntime.CheckedI32(right)
@@ -2358,6 +2769,9 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	}
 	if kind == 30 {
 		return checkruntime.ArrayElementToCircle(left) == checkruntime.ArrayElementToCircle(right)
+	}
+	if kind == 46 {
+		return checkruntime.ArrayElementToAclitem(left) == checkruntime.ArrayElementToAclitem(right)
 	}
 	if kind == 31 {
 		return checkruntime.ArrayElementToMoney(left) == checkruntime.ArrayElementToMoney(right)
@@ -6815,7 +7229,7 @@ func EncodeBvkp(input checkruntime.ByteaValue, format checkruntime.TextValue) ch
 		error := format.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || (format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -6865,7 +7279,7 @@ func DecodeB6gt(input checkruntime.TextValue, format checkruntime.TextValue) che
 		error := format.Error
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -7017,7 +7431,7 @@ func ByteaFromText(input checkruntime.TextValue) checkruntime.ByteaValue {
 		error := input.Error
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -7652,7 +8066,7 @@ func Md5Kt50(input checkruntime.TextValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -8946,7 +9360,7 @@ func BpchareqNpys(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -8971,7 +9385,7 @@ func BpchargeO6oj(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -8996,7 +9410,7 @@ func BpchargtKxc4(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -9021,7 +9435,7 @@ func Bpcharle0rch(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -9046,7 +9460,7 @@ func BpcharltQrb5(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -9071,7 +9485,7 @@ func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) che
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -9092,7 +9506,7 @@ func TextVc4r(input checkruntime.TextValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -10137,7 +10551,7 @@ func clockFieldsNumeric(units checkruntime.TextValue, input clockFieldInput) che
 		error := intervalValue.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input.value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+	if (units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || units == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || input.value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 	}
 	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input.value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
@@ -10674,7 +11088,7 @@ func AppendCompositeOutput(input checkruntime.TextValue, field checkruntime.Text
 			error := field.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 		}
-		if field.Kind == checkruntime.TextValueUnknown {
+		if field == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || field == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		result := langruntime.NewTextBuffer(source)
@@ -16190,7 +16604,7 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 					error := key.Error
 					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
 				}
-				if key.Kind == checkruntime.TextValueUnknown {
+				if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 				}
 				if key.Kind == checkruntime.TextValueValue {
@@ -16535,6 +16949,9 @@ func JsonbInputFromBytea(input checkruntime.ByteaValue) checkruntime.JsonbInput 
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromMoneyContext(input checkruntime.MoneyValue, cLocale bool) checkruntime.JsonbInput {
+	return checkruntime.JsonbInputFromText(MoneyToTextContext(input, cLocale))
 }
 func JsonbInputFromMoney(input checkruntime.MoneyValue) checkruntime.JsonbInput {
 	if input.Kind == checkruntime.MoneyValueError {
@@ -16982,7 +17399,7 @@ func JsonbDeleteCow2(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	if input.Kind == checkruntime.JsonbValueUnknown {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
-	if key.Kind == checkruntime.TextValueUnknown {
+	if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueNull {
@@ -17128,7 +17545,7 @@ func JsonbObjectField4uf3(input checkruntime.JsonbValue, key checkruntime.TextVa
 	if input.Kind == checkruntime.JsonbValueUnknown {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
-	if key.Kind == checkruntime.TextValueUnknown {
+	if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
@@ -17247,7 +17664,7 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	if input.Kind == checkruntime.JsonbValueUnknown {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
-	if key.Kind == checkruntime.TextValueUnknown {
+	if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
@@ -17928,7 +18345,7 @@ func jsonbBulkKeyMatches(input *checkruntime.JsonbPayload, node checkruntime.Jso
 			error := key.Error
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 		}
-		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			uncertain = true
 		}
 		if key.Kind == checkruntime.TextValueValue {
@@ -18326,7 +18743,7 @@ func JsonbSetLaxLecq(input checkruntime.JsonbValue, path checkruntime.ArrayValue
 	if treatment == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathParameter)}
 	}
-	if treatment == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if treatment == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || treatment == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
 	if replacement.Kind == checkruntime.JsonbValueUnknown {
@@ -21746,7 +22163,7 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 				error := result.Error
 				return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: error}
 			}
-			if result.Kind == checkruntime.TextValueUnknown {
+			if result == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || result == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 				return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
 			}
 			if result.Kind == checkruntime.TextValueValue {
@@ -24400,9 +24817,6 @@ func MoneyFromText(input checkruntime.TextValue) checkruntime.MoneyValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
-		if len(chars) > 4096 {
-			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
-		}
 		index := 0
 		for index < len(chars) && checkruntime.NumericSpace(chars[index]) {
 			index = langruntime.CheckedAdd(index, 1)
@@ -24418,6 +24832,278 @@ func MoneyFromText(input checkruntime.TextValue) checkruntime.MoneyValue {
 		}
 	}
 	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func moneyScaleAvailable(digits int) bool {
+	digits = langruntime.CheckedI32(digits)
+	return digits >= 0 && digits <= 10
+}
+func moneyScaleFactor(digits int) int64 {
+	digits = langruntime.CheckedI32(digits)
+	factor := int64(1)
+	position := 0
+	for position < digits {
+		factor = langruntime.CheckedI64Multiply(factor, int64(10))
+		position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+	}
+	return factor
+}
+func MoneyU7ss(input checkruntime.Int8Value, digits int) checkruntime.MoneyValue {
+	digits = langruntime.CheckedI32(digits)
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int8ValueNull {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		if value == int64(0) {
+			return checkruntime.MakeMoneyValue(int64(0))
+		}
+		if moneyScaleAvailable(digits) == false {
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+		}
+		factor := checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: moneyScaleFactor(digits)}
+		return moneyFromUnits(Int8mul6t1m(input, factor))
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func Money2ie3(input checkruntime.Int4Value, digits int) checkruntime.MoneyValue {
+	digits = langruntime.CheckedI32(digits)
+	return MoneyU7ss(Int8Mzac(input), digits)
+}
+func MoneyZ8lp(input checkruntime.NumericValue, digits int) checkruntime.MoneyValue {
+	digits = langruntime.CheckedI32(digits)
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input.Kind == checkruntime.NumericValueNull {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+		}
+		amount := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: value}
+		if work.special != 1 {
+			return moneyFromUnits(Int8Xy54(amount))
+		}
+		if work.sign == 0 {
+			return checkruntime.MakeMoneyValue(int64(0))
+		}
+		if moneyScaleAvailable(digits) == false {
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+		}
+		factor := Numeric11bc(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: moneyScaleFactor(digits)})
+		scaled := NumericMulBj4l(amount, factor)
+		return moneyFromUnits(Int8Xy54(scaled))
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func NumericKhij(input checkruntime.MoneyValue, digits int) checkruntime.NumericValue {
+	digits = langruntime.CheckedI32(digits)
+	if input.Kind == checkruntime.MoneyValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.MoneyValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.MoneyValueValue {
+		value := input.Value
+		if moneyScaleAvailable(digits) == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		amount := Numeric11bc(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value})
+		if digits == 0 {
+			return amount
+		}
+		scale := checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: digits}
+		factor := Numeric11bc(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: moneyScaleFactor(digits)})
+		denominator := RoundOtcq(factor, scale)
+		quotient := NumericDivPnzm(amount, denominator)
+		return RoundOtcq(quotient, scale)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+
+const moneyTextInvalid = 3484946
+const moneyTextRange = 3452547
+
+func moneyTextDigit(value int64, digit int64) checkruntime.Int8Value {
+	if value < int64(-922337203685477580) || (value == int64(-922337203685477580) && digit > int64(8)) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(moneyTextRange)}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(value, int64(10)), digit)}
+}
+func MoneyFromTextContext(input checkruntime.TextValue, cLocale bool) checkruntime.MoneyValue {
+	if cLocale == false {
+		return MoneyFromText(input)
+	}
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		index := 0
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index < len(characters) && characters[index] == '$' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		negative := false
+		if index < len(characters) {
+			if characters[index] == '-' || characters[index] == '(' {
+				negative = true
+				index = langruntime.CheckedAdd(index, 1)
+			} else if characters[index] == '+' {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index < len(characters) && characters[index] == '$' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		amount := int64(0)
+		decimals := 0
+		decimalPoint := false
+		scanning := true
+		for index < len(characters) && scanning {
+			character := characters[index]
+			digit := numericWireDecimalDigit(character)
+			if digit >= 0 && (decimalPoint == false || decimals < 2) {
+				next := moneyTextDigit(amount, int64(langruntime.CheckedI32(digit)))
+				if next.Kind == checkruntime.Int8ValueError {
+					error := next.Error
+					return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+				}
+				if next.Kind == checkruntime.Int8ValueValue {
+					stored := next.Value
+					amount = stored
+				}
+				if decimalPoint {
+					decimals = langruntime.CheckedI32(langruntime.CheckedSignedAdd(decimals, 1))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			} else if character == '.' && decimalPoint == false {
+				decimalPoint = true
+				index = langruntime.CheckedAdd(index, 1)
+			} else if character == ',' {
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				scanning = false
+			}
+		}
+		if index < len(characters) {
+			digit := numericWireDecimalDigit(characters[index])
+			if digit >= 5 {
+				if amount == int64(-9223372036854775808) {
+					return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: checkruntime.MakeSqlError(moneyTextRange)}
+				}
+				amount = langruntime.CheckedI64Subtract(amount, int64(1))
+			}
+		}
+		for decimals < 2 {
+			next := moneyTextDigit(amount, int64(0))
+			if next.Kind == checkruntime.Int8ValueError {
+				error := next.Error
+				return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+			}
+			if next.Kind == checkruntime.Int8ValueValue {
+				stored := next.Value
+				amount = stored
+			}
+			decimals = langruntime.CheckedI32(langruntime.CheckedSignedAdd(decimals, 1))
+		}
+		for index < len(characters) && numericWireDecimalDigit(characters[index]) >= 0 {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < len(characters) {
+			character := characters[index]
+			if checkruntime.NumericSpace(character) || character == ')' || character == '+' || character == '$' {
+				index = langruntime.CheckedAdd(index, 1)
+			} else if character == '-' {
+				negative = true
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: checkruntime.MakeSqlError(moneyTextInvalid)}
+			}
+		}
+		if negative {
+			return checkruntime.MakeMoneyValue(amount)
+		}
+		if amount == int64(-9223372036854775808) {
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: checkruntime.MakeSqlError(moneyTextRange)}
+		}
+		return checkruntime.MakeMoneyValue(langruntime.CheckedI64Subtract(int64(0), amount))
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func MoneyToTextContext(input checkruntime.MoneyValue, cLocale bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.MoneyValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.MoneyValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if cLocale == false {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.MoneyValueValue {
+		value := input.Value
+		raw := checkruntime.TextSignedNumber(value)
+		characters := []rune(raw)
+		start := 0
+		output := langruntime.NewTextBuffer("")
+		if value < int64(0) {
+			start = langruntime.CheckedIndex(1)
+			output = append(output, string(langruntime.CheckedChar('-'))...)
+		}
+		output = append(output, string(langruntime.CheckedChar('$'))...)
+		width := langruntime.CheckedSubtract(len(characters), start)
+		if width <= 2 {
+			output = append(output, string(langruntime.CheckedChar('0'))...)
+		} else {
+			end := langruntime.CheckedSubtract(len(characters), 2)
+			index := start
+			for index < end {
+				remaining := int(int32((langruntime.CheckedSubtract(end, index))))
+				if index > start && langruntime.CheckedSignedRemainder(remaining, 3) == 0 {
+					output = append(output, string(langruntime.CheckedChar(','))...)
+				}
+				output = append(output, string(langruntime.CheckedChar(characters[index]))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		output = append(output, string(langruntime.CheckedChar('.'))...)
+		if width > 1 {
+			output = append(output, string(langruntime.CheckedChar(characters[langruntime.CheckedSubtract(len(characters), 2)]))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar('0'))...)
+		}
+		output = append(output, string(langruntime.CheckedChar(characters[langruntime.CheckedSubtract(len(characters), 1)]))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func moneyWord(index int) string {
 	index = langruntime.CheckedI32(index)
@@ -26808,10 +27494,10 @@ func Btnamecmp9x5j(left checkruntime.TextValue, right checkruntime.TextValue) ch
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left.Kind == checkruntime.TextValueUnknown {
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
-	if right.Kind == checkruntime.TextValueUnknown {
+	if right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.TextValueNull {
@@ -36433,7 +37119,7 @@ func rangeProfiledBoundOutput(input checkruntime.ArrayElement, profile *checkrun
 			error := text.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 		}
-		if text.Kind == checkruntime.TextValueUnknown {
+		if text == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || text == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		rendered = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(rendered, checkruntime.ArrayElementFromText(text)))
@@ -36467,7 +37153,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 			error := lower.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 		}
-		if lower.Kind == checkruntime.TextValueUnknown {
+		if lower == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || lower == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind, cidr, aliasMode, utf8, value.EnumLabels, value.EnumCount)
@@ -36478,7 +37164,7 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 			error := upper.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 		}
-		if upper.Kind == checkruntime.TextValueUnknown {
+		if upper == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || upper == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		return RangeFormatText(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}, lower, upper)
@@ -38199,7 +38885,7 @@ func DateTruncD8uf(units checkruntime.TextValue, input checkruntime.IntervalValu
 		error := input.Error
 		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+	if (units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || units == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
 		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
 	}
 	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
@@ -38846,7 +39532,7 @@ func ExtractQjml(units checkruntime.TextValue, input checkruntime.DateValue) che
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+	if (units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || units == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 	}
 	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
@@ -38998,7 +39684,7 @@ func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampVal
 		error := input.Error
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+	if (units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || units == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
 	}
 	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
@@ -40413,7 +41099,7 @@ func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue
 		error := input.Error
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+	if (units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || units == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 	}
 	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
@@ -40520,7 +41206,7 @@ func LengthEhpe(value checkruntime.TextValue) checkruntime.Int4Value {
 		error := value.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40548,7 +41234,7 @@ func TexteqAet8(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40572,7 +41258,7 @@ func Textne1urq(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40596,7 +41282,7 @@ func TextLtZinq(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40620,7 +41306,7 @@ func TextLeWb3z(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40644,7 +41330,7 @@ func TextGtRb7n(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40668,7 +41354,7 @@ func StartsWith6ctf(text checkruntime.TextValue, prefix checkruntime.TextValue) 
 		error := prefix.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if text == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || prefix == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (text == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || text == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (prefix == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || prefix == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if text == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || prefix == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40692,7 +41378,7 @@ func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40712,7 +41398,7 @@ func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40767,7 +41453,7 @@ func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValu
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40817,7 +41503,7 @@ func textHashValue(input checkruntime.TextValue, trimSpaces bool, byteOrder int,
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -40851,7 +41537,7 @@ func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value,
 		error := seed.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
@@ -41030,7 +41716,7 @@ func textLike(input checkruntime.TextValue, pattern checkruntime.TextValue, inse
 		error := pattern.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41092,7 +41778,7 @@ func LikeEscapeXfrr(input checkruntime.TextValue, escape checkruntime.TextValue)
 		error := escape.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41444,7 +42130,7 @@ func textPadding(input checkruntime.TextValue, length checkruntime.Int4Value, fi
 		error := fill.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || fill == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || (fill == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || fill == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || fill == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41526,7 +42212,7 @@ func RepeatF0fb(input checkruntime.TextValue, length checkruntime.Int4Value) che
 		error := length.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -41577,7 +42263,7 @@ func TranslateTxpt(input checkruntime.TextValue, from checkruntime.TextValue, to
 		error := to.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (from == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (to == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41625,7 +42311,7 @@ func QuoteLiteralD0rq(input checkruntime.TextValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41710,7 +42396,7 @@ func TextcatS76e(left checkruntime.TextValue, right checkruntime.TextValue) chec
 		error := right.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41739,7 +42425,7 @@ func StrposEb1n(left checkruntime.TextValue, right checkruntime.TextValue) check
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41784,7 +42470,7 @@ func textOverlayValue(input checkruntime.TextValue, replacement checkruntime.Tex
 		error := length.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -41842,7 +42528,7 @@ func ReplaceGz9l(input checkruntime.TextValue, from checkruntime.TextValue, to c
 		error := to.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (from == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (to == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -41905,7 +42591,7 @@ func SplitPartDoxr(input checkruntime.TextValue, separator checkruntime.TextValu
 		error := field.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || separator == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || field == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (separator == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || separator == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || field == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || separator == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || field == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -41988,7 +42674,7 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 		error := escape.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42105,7 +42791,7 @@ func PgSizeBytesGgrt(input checkruntime.TextValue) checkruntime.Int8Value {
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42282,7 +42968,7 @@ func textSubstringValue(input checkruntime.TextValue, position checkruntime.Int4
 		error := length.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -42329,7 +43015,7 @@ func textSideValue(input checkruntime.TextValue, length checkruntime.Int4Value, 
 		error := length.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -42401,7 +43087,7 @@ func Reverse5pr1(input checkruntime.TextValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42487,7 +43173,7 @@ func ToAsciiCulg(value checkruntime.TextValue) checkruntime.TextValue {
 		error := value.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42504,7 +43190,7 @@ func ToAsciiUqov(value checkruntime.TextValue, encoding checkruntime.Int4Value) 
 		error := encoding.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || encoding == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+	if (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || encoding == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || encoding == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
@@ -42552,7 +43238,7 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42653,7 +43339,7 @@ func textWidthValue(input checkruntime.TextValue, modifier checkruntime.Int4Valu
 		error := explicit.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+	if (input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
@@ -42745,7 +43431,7 @@ func textBinaryCompare(left checkruntime.TextValue, right checkruntime.TextValue
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || left == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42768,7 +43454,7 @@ func textMeasureValue(value checkruntime.TextValue, trimSpaces bool, mode int) c
 		error := value.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -42821,7 +43507,7 @@ func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, tri
 		error := set.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 	}
-	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || set == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+	if (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) || (set == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || set == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || set == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
@@ -45347,7 +46033,7 @@ func XmlMakeProcessingInstruction(name string, content checkruntime.TextValue, p
 		if content.Kind == checkruntime.TextValueNull {
 			return checkruntime.XmlValue{Kind: checkruntime.XmlValueNull}
 		}
-		if content.Kind == checkruntime.TextValueUnknown {
+		if content == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || content == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
 		}
 		if content.Kind == checkruntime.TextValueValue {
@@ -47491,6 +48177,20 @@ func XmlIndentUtf8(input checkruntime.XmlValue, document bool, utf8 bool) checkr
 	if input.Kind == checkruntime.XmlValueNull {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		checked := checkruntime.MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == checkruntime.XmlValueNonNull {
+			actual := checked.NonNull
+			if document && actual.Document == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateNotXmlDocument)}
+			}
+			if utf8 && actual.Content == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) && (document == false || actual.Document == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true})) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
 	if input.Kind == checkruntime.XmlValueRenderedText {
 		value := langruntime.CheckedString(input.RenderedText)
 		if document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) == false {
@@ -49627,6 +50327,17 @@ func XmlFromTextUtf8(input checkruntime.TextValue, document bool) checkruntime.X
 	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
 }
 func XmlToText(input checkruntime.XmlValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		checked := checkruntime.MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == checkruntime.XmlValueNonNull {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.XmlValueRenderedText {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
 	if input.Kind == checkruntime.XmlValueError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -49644,6 +50355,10 @@ func Text03xf(input checkruntime.XmlValue) checkruntime.TextValue {
 	return XmlToText(input)
 }
 func XmlToOutputText(input checkruntime.XmlValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		return XmlToText(checkruntime.MakeXmlKnowledge(knowledge.Document, knowledge.Content))
+	}
 	if input.Kind == checkruntime.XmlValueError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -49728,6 +50443,15 @@ func XmlToByteaUtf8(input checkruntime.XmlValue) checkruntime.ByteaValue {
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
 func XmlIsDocumentUtf8(input checkruntime.XmlValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.XmlValueNonNull {
+		knowledge := input.NonNull
+		checked := checkruntime.MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == checkruntime.XmlValueNonNull {
+			actual := checked.NonNull
+			return actual.Document
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
 	if input.Kind == checkruntime.XmlValueError {
 		error := input.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -49806,6 +50530,56 @@ func Xmlcomment8j57(input checkruntime.TextValue) checkruntime.XmlValue {
 		return checkruntime.MakeXmlValue(string(output))
 	}
 	return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+}
+
+const sqlstateXmlValidationUnsupported = 466560
+
+func XmlvalidateBvje(input checkruntime.XmlValue, schema checkruntime.TextValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if schema.Kind == checkruntime.TextValueError {
+		error := schema.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	inputNull := checkruntime.XmlIsNull(input)
+	schemaNull := checkruntime.TextIsNull(schema)
+	if inputNull == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || schemaNull == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if inputNull == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || schemaNull == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(sqlstateXmlValidationUnsupported)}
+}
+func XmlIsWellFormedWikq(input checkruntime.TextValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if mode == 1 {
+		return xmlWellFormedValue(input, true)
+	}
+	if mode == 2 {
+		return xmlWellFormedValue(input, false)
+	}
+	if mode != 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		document := xmlWellFormed(value, true)
+		content := xmlWellFormed(value, false)
+		if document == content {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: document}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func xmlSubsetOrigin(start int, internal bool) int {
 	start = langruntime.CheckedIndex(start)
@@ -54428,6 +55202,9 @@ func XpathResultToXml(input xPathValue, tree *xmlTree, graph *xPathGraph, extra 
 				return xpathXmlResultError(error)
 			}
 			state := 0
+			if value.Kind == checkruntime.XmlValueNonNull {
+				state = langruntime.CheckedI32(xpathResultNotationContext)
+			}
 			if value.Kind == checkruntime.XmlValueUnknown {
 				state = langruntime.CheckedI32(xpathResultNotationContext)
 				if tree.serializationGap {
@@ -54467,7 +55244,8 @@ func XpathResultToXml(input xPathValue, tree *xmlTree, graph *xPathGraph, extra 
 	if input.kind != xpathKindNumber || (known && extra >= langruntime.CheckedSignedNegate(15) && extra <= 3) {
 		state = langruntime.CheckedI32(3)
 	}
-	return XpathXmlResultPush(result, checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}, state)
+	value := checkruntime.MakeXmlKnowledge(checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}, checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true})
+	return XpathXmlResultPush(result, value, state)
 }
 
 type xPathCopyNamespace struct {
@@ -54766,6 +55544,7 @@ func xpathNodeToXml(tree *xmlTree, graph *xPathGraph, value xPathReference) chec
 	stack = append(stack, copyxPathCopyWrite(xPathCopyWrite{node: value.node, closing: false, newline: false}))
 	count := 1
 	output := langruntime.NewTextBuffer("")
+	complete := true
 	for count > 0 {
 		count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
 		task := stack[count]
@@ -54888,10 +55667,11 @@ func xpathNodeToXml(tree *xmlTree, graph *xPathGraph, value xPathReference) chec
 				output = append(output, string(langruntime.CheckedChar(';'))...)
 			} else if node.kind == 6 && value.node == 0 {
 				if tree.serializationKnown == false {
-					return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+					complete = false
+				} else {
+					doctype := xpathCopyDoctype(tree, node)
+					output = append(output, doctype...)
 				}
-				doctype := xpathCopyDoctype(tree, node)
-				output = append(output, doctype...)
 			} else {
 				return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(sqlstateXmlNodeCopy)}
 			}
@@ -54899,6 +55679,12 @@ func xpathNodeToXml(tree *xmlTree, graph *xPathGraph, value xPathReference) chec
 				output = append(output, string(langruntime.CheckedChar('\n'))...)
 			}
 		}
+	}
+	if complete == false {
+		if tree.serializationGap {
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+		}
+		return checkruntime.MakeXmlNonNull(checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true})
 	}
 	return checkruntime.XmlValue{Kind: checkruntime.XmlValueValue, Value: string(output)}
 }
@@ -55443,6 +56229,23 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 	if isNull {
 		return XPathSqlResult{state: xpathSqlNull, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}}
 	}
+	pathNullness := checkruntime.TextIsNull(expression)
+	inputNullness := checkruntime.XmlIsNull(input)
+	if pathNullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) || inputNullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return xpathSqlUnknown(xpathSqlInput)
+	}
+	partialFragment := false
+	partial := input
+	if partial.Kind == checkruntime.XmlValueNonNull {
+		knowledge := partial.NonNull
+		checked := checkruntime.MakeXmlKnowledge(knowledge.Document, knowledge.Content)
+		if checked.Kind == checkruntime.XmlValueNonNull {
+			actual := checked.NonNull
+			if actual.Document == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				partialFragment = true
+			}
+		}
+	}
 	path := langruntime.NewTextBuffer("")
 	source := langruntime.NewTextBuffer("")
 	rendered := false
@@ -55465,9 +56268,6 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 		knownInput = true
 		rendered = true
 	}
-	if knownPath == false || knownInput == false {
-		return xpathSqlUnknown(xpathSqlInput)
-	}
 	if mappings.Kind == checkruntime.ArrayValueValue {
 		mapping := checkruntime.CopyArrayPayload(mappings.Value)
 		if mapping.ElementType != "pg_catalog.text" || mapping.ElementKind != 8 {
@@ -55479,11 +56279,20 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 		if langruntime.CheckedSignedRemainder((int(int32(len(mapping.Elements)))), 2) != 0 || (len(mapping.Dimensions) == 0 && len(mapping.Elements) != 0) {
 			return xpathSqlUnknown(xpathSqlInput)
 		}
+		if knownPath == false {
+			return xpathSqlUnknown(xpathSqlInput)
+		}
 		if string(path) == "" {
 			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXpath))
 		}
 		if utf8 == false {
 			return xpathSqlUnknown(xpathSqlEncoding)
+		}
+		if partialFragment {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXmlDocument))
+		}
+		if knownInput == false {
+			return xpathSqlUnknown(xpathSqlInput)
 		}
 		if rendered {
 			characters := xmlSource{characters: []rune(string(source))}

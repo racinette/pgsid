@@ -83,6 +83,409 @@ THE SOFTWARE.
  */
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
+const aclitemInvalidParameter = 3452619;
+export function aclitemFromText(input: checkruntime.TextValue): checkruntime.AclitemValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function aclitemToText(input: checkruntime.AclitemValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalAclitemValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+function aclitemPrivilege(name: string): bigint {
+    name = langruntime.checkedString(name);
+    if (name === "INSERT") {
+        return 1n;
+    }
+    if (name === "SELECT") {
+        return 2n;
+    }
+    if (name === "UPDATE") {
+        return 4n;
+    }
+    if (name === "DELETE") {
+        return 8n;
+    }
+    if (name === "TRUNCATE") {
+        return 16n;
+    }
+    if (name === "REFERENCES") {
+        return 32n;
+    }
+    if (name === "TRIGGER") {
+        return 64n;
+    }
+    if (name === "EXECUTE") {
+        return 128n;
+    }
+    if (name === "USAGE") {
+        return 256n;
+    }
+    if (name === "CREATE") {
+        return 512n;
+    }
+    if (name === "TEMP" || name === "TEMPORARY") {
+        return 1024n;
+    }
+    if (name === "CONNECT") {
+        return 2048n;
+    }
+    if (name === "SET") {
+        return 4096n;
+    }
+    if (name === "ALTER SYSTEM") {
+        return 8192n;
+    }
+    if (name === "MAINTAIN") {
+        return 16384n;
+    }
+    return -1n;
+}
+function aclitemPrivileges(input: checkruntime.TextValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const uppercase: checkruntime.TextValue = textCaseValue({ kind: "Value", value: value }, 1);
+        if (uppercase.kind === "Value") {
+            const text: string = langruntime.checkedString(uppercase.value);
+            const chars: string[] = Array.from(text);
+            let position: number = 0;
+            let rights: bigint = 0n;
+            let remaining: boolean = true;
+            while (remaining) {
+                let end: number = position;
+                while (end < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(end)) === ",")) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                let limit: number = end;
+                while (position < limit && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                while (limit > position && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(limit, 1))))) {
+                    limit = langruntime.checkedIndex(langruntime.checkedSubtract(limit, 1));
+                }
+                let name: string = "";
+                while (position < limit) {
+                    name = name + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                const bit: bigint = aclitemPrivilege(name);
+                if (bit < 0n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidParameter) };
+                }
+                rights = langruntime.checkedI64(integerBitsCombine(rights, bit, 1));
+                remaining = langruntime.checkedBool(end < chars.length);
+                position = langruntime.checkedIndex(langruntime.checkedAdd(end, 1));
+            }
+            return { kind: "Value", value: rights };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function makeaclitemAb9i(grantee: checkruntime.OidValue, grantor: checkruntime.OidValue, privileges: checkruntime.TextValue, grantable: checkruntime.BoolValue): checkruntime.AclitemValue {
+    if (grantee.kind === "Error") {
+        const error: checkruntime.SqlError = grantee.value;
+        return { kind: "Error", value: error };
+    }
+    if (grantor.kind === "Error") {
+        const error: checkruntime.SqlError = grantor.value;
+        return { kind: "Error", value: error };
+    }
+    if (privileges.kind === "Error") {
+        const error: checkruntime.SqlError = privileges.value;
+        return { kind: "Error", value: error };
+    }
+    if (grantable.kind === "Error") {
+        const error: checkruntime.SqlError = grantable.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(grantee, { kind: "Unknown" }) || checkruntime.equalOidValue(grantor, { kind: "Unknown" }) || checkruntime.equalTextValue(privileges, { kind: "Unknown" }) || checkruntime.equalBoolValue(grantable, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalOidValue(grantee, { kind: "Null" }) || checkruntime.equalOidValue(grantor, { kind: "Null" }) || checkruntime.equalTextValue(privileges, { kind: "Null" }) || checkruntime.equalBoolValue(grantable, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const parsed: checkruntime.Int8Value = aclitemPrivileges(privileges);
+    if (parsed.kind === "Error") {
+        const error: checkruntime.SqlError = parsed.value;
+        return { kind: "Error", value: error };
+    }
+    if (grantee.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(grantee.value);
+        if (grantor.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(grantor.value);
+            if (grantable.kind === "Value") {
+                const option: boolean = langruntime.checkedBool(grantable.value);
+                if (parsed.kind === "Value") {
+                    const bits: bigint = langruntime.checkedI64(parsed.value);
+                    let options: bigint = 0n;
+                    if (option) {
+                        options = langruntime.checkedI64(bits);
+                    }
+                    return checkruntime.makeAclitemValue(a, b, bits, options);
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function aclitemeqCphl(left: checkruntime.AclitemValue, right: checkruntime.AclitemValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalAclitemValue(left, { kind: "Unknown" }) || checkruntime.equalAclitemValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalAclitemValue(left, { kind: "Null" }) || checkruntime.equalAclitemValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(checkruntime.equalAclitemValue(left, right));
+}
+function aclitemHashSum(input: checkruntime.AclitemValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalAclitemValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.AclitemPayload = input.value;
+        return { kind: "Value", value: langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Add(value.privileges, value.grantee), value.grantor)), 4294967296n) };
+    }
+    return { kind: "Unknown" };
+}
+export function hashAclitem4zd0(input: checkruntime.AclitemValue): checkruntime.Int4Value {
+    const sum: checkruntime.Int8Value = aclitemHashSum(input);
+    if (sum.kind === "Error") {
+        const error: checkruntime.SqlError = sum.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(sum, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (sum.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(sum.value);
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+    }
+    return { kind: "Unknown" };
+}
+export function hashAclitemExtendedC0ek(input: checkruntime.AclitemValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalAclitemValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalAclitemValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const sum: checkruntime.Int8Value = aclitemHashSum(input);
+    if (checkruntime.equalInt8Value(seed, { kind: "Value", value: 0n })) {
+        return sum;
+    }
+    if (sum.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(sum.value);
+        return hashoidextendedV555(checkruntime.makeOidValue(value), seed);
+    }
+    return sum;
+}
+const aclitemNullValueNotAllowed = 3452548;
+const aclitemFeatureNotSupported = 466560;
+export function aclcontains90xb(input: checkruntime.ArrayValue, item: checkruntime.AclitemValue): checkruntime.BoolValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (item.kind === "Error") {
+        const error: checkruntime.SqlError = item.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalAclitemValue(item, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalAclitemValue(item, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const array: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (!(array.elementKind === 46) || !(array.dimensions.length === 1)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(aclitemInvalidParameter) };
+        }
+        if (checkruntime.equalBoolValue(array.nullBitmap, { kind: "Value", value: true })) {
+            return { kind: "Error", value: checkruntime.makeSqlError(aclitemNullValueNotAllowed) };
+        }
+        if (!(checkruntime.equalBoolValue(array.nullBitmap, { kind: "Value", value: false }))) {
+            return { kind: "Unknown" };
+        }
+        if (item.kind === "Value") {
+            const requested: checkruntime.AclitemPayload = item.value;
+            let position: number = 0;
+            let unknown: boolean = false;
+            while (position < array.elements.length) {
+                const entry: checkruntime.AclitemValue = checkruntime.arrayElementToAclitem(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
+                if (entry.kind === "Value") {
+                    const value: checkruntime.AclitemPayload = entry.value;
+                    if (value.grantee === requested.grantee && value.grantor === requested.grantor && integerBitsCombine(value.privileges, requested.privileges, 0) === requested.privileges && integerBitsCombine(value.grantOptions, requested.grantOptions, 0) === requested.grantOptions) {
+                        return checkruntime.makeBoolValue(true);
+                    }
+                }
+                if (checkruntime.equalAclitemValue(entry, { kind: "Unknown" })) {
+                    unknown = langruntime.checkedBool(true);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (unknown) {
+                return { kind: "Unknown" };
+            }
+            return checkruntime.makeBoolValue(false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function aclitemObsoleteUpdate(input: checkruntime.ArrayValue, item: checkruntime.AclitemValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (item.kind === "Error") {
+        const error: checkruntime.SqlError = item.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalAclitemValue(item, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalAclitemValue(item, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(aclitemFeatureNotSupported) };
+}
+export function aclinsert6jtk(input: checkruntime.ArrayValue, item: checkruntime.AclitemValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return aclitemObsoleteUpdate(input, item);
+}
+export function aclremoveYg4b(input: checkruntime.ArrayValue, item: checkruntime.AclitemValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return aclitemObsoleteUpdate(input, item);
+}
+const aclitemInternalError = 56966976;
+export function acldefaultYt1r(objectType: checkruntime.InternalCharValue, owner: checkruntime.OidValue): checkruntime.ArrayValue {
+    if (objectType.kind === "Error") {
+        const error: checkruntime.SqlError = objectType.value;
+        return { kind: "Error", value: error };
+    }
+    if (owner.kind === "Error") {
+        const error: checkruntime.SqlError = owner.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(objectType, { kind: "Unknown" }) || checkruntime.equalOidValue(owner, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInternalCharValue(objectType, { kind: "Null" }) || checkruntime.equalOidValue(owner, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (objectType.kind === "Value") {
+        const code: number = langruntime.checkedI32(objectType.value);
+        if (owner.kind === "Value") {
+            const ownerId: bigint = langruntime.checkedI64(owner.value);
+            let worldRights: bigint = 0n;
+            let ownerRights: bigint = -1n;
+            if (code === 99) {
+                ownerRights = langruntime.checkedI64(0n);
+            }
+            if (code === 114) {
+                ownerRights = langruntime.checkedI64(16511n);
+            }
+            if (code === 115) {
+                ownerRights = langruntime.checkedI64(262n);
+            }
+            if (code === 100) {
+                worldRights = langruntime.checkedI64(3072n);
+                ownerRights = langruntime.checkedI64(3584n);
+            }
+            if (code === 102) {
+                worldRights = langruntime.checkedI64(128n);
+                ownerRights = langruntime.checkedI64(128n);
+            }
+            if (code === 108 || code === 84) {
+                worldRights = langruntime.checkedI64(256n);
+                ownerRights = langruntime.checkedI64(256n);
+            }
+            if (code === 76) {
+                ownerRights = langruntime.checkedI64(6n);
+            }
+            if (code === 110) {
+                ownerRights = langruntime.checkedI64(768n);
+            }
+            if (code === 112) {
+                ownerRights = langruntime.checkedI64(12288n);
+            }
+            if (code === 116) {
+                ownerRights = langruntime.checkedI64(512n);
+            }
+            if (code === 70 || code === 83) {
+                ownerRights = langruntime.checkedI64(256n);
+            }
+            if (ownerRights < 0n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(aclitemInternalError) };
+            }
+            let elements: checkruntime.ArrayElement[] = [];
+            if (!(worldRights === 0n)) {
+                langruntime.pushStruct(elements, checkruntime.arrayElementFromAclitem(checkruntime.makeAclitemValue(0n, ownerId, worldRights, 0n)), checkruntime.copyArrayElement);
+            }
+            if (!(ownerRights === 0n)) {
+                langruntime.pushStruct(elements, checkruntime.arrayElementFromAclitem(checkruntime.makeAclitemValue(ownerId, ownerId, ownerRights, 0n)), checkruntime.copyArrayElement);
+            }
+            const count: number = langruntime.checkedI32(langruntime.checkedIndex(elements.length));
+            let dimensions: checkruntime.ArrayDimension[] = [];
+            langruntime.pushStruct(dimensions, { lower: 1, length: count }, checkruntime.copyArrayDimension);
+            return checkruntime.makeArrayValue({ elementType: "pg_catalog.aclitem", elementKind: 46, dimensions: dimensions, elements: elements, nullBitmap: { kind: "Value", value: false } });
+        }
+    }
+    return { kind: "Unknown" };
+}
 function addressAndWord(left: number, right: number): number {
     left = langruntime.checkedI32(left);
     right = langruntime.checkedI32(right);
@@ -2357,6 +2760,9 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     }
     if (kind === 30) {
         return checkruntime.equalCircleValue(checkruntime.arrayElementToCircle(left), checkruntime.arrayElementToCircle(right));
+    }
+    if (kind === 46) {
+        return checkruntime.equalAclitemValue(checkruntime.arrayElementToAclitem(left), checkruntime.arrayElementToAclitem(right));
     }
     if (kind === 31) {
         return checkruntime.equalMoneyValue(checkruntime.arrayElementToMoney(left), checkruntime.arrayElementToMoney(right));
@@ -6842,7 +7248,7 @@ export function encodeBvkp(input: checkruntime.ByteaValue, format: checkruntime.
         const error: checkruntime.SqlError = format.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "Unknown" })) {
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || (checkruntime.equalTextValue(format, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalTextValue(format, { kind: "Null" })) {
@@ -6892,7 +7298,7 @@ export function decodeB6gt(input: checkruntime.TextValue, format: checkruntime.T
         const error: checkruntime.SqlError = format.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(format, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(format, { kind: "Null" })) {
@@ -7044,7 +7450,7 @@ export function byteaFromText(input: checkruntime.TextValue): checkruntime.Bytea
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -7693,7 +8099,7 @@ export function md5Kt50(input: checkruntime.TextValue): checkruntime.TextValue {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -8994,7 +9400,7 @@ export function bpchareqNpys(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9019,7 +9425,7 @@ export function bpchargeO6oj(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9044,7 +9450,7 @@ export function bpchargtKxc4(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9069,7 +9475,7 @@ export function bpcharle0rch(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9094,7 +9500,7 @@ export function bpcharltQrb5(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9119,7 +9525,7 @@ export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.T
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -9140,7 +9546,7 @@ export function textVc4r(input: checkruntime.TextValue): checkruntime.TextValue 
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -10199,7 +10605,7 @@ function clockFieldsNumeric(units: checkruntime.TextValue, input: ClockFieldInpu
         const error: checkruntime.SqlError = intervalValue.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalIntervalValue(input.value, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTextValue(units, { kind: "NonNull" })) || checkruntime.equalIntervalValue(input.value, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalIntervalValue(input.value, { kind: "Null" })) {
@@ -10736,7 +11142,7 @@ export function appendCompositeOutput(input: checkruntime.TextValue, field: chec
             const error: checkruntime.SqlError = field.value;
             return { kind: "Error", value: error };
         }
-        if (field.kind === "Unknown") {
+        if (checkruntime.equalTextValue(field, { kind: "Unknown" }) || checkruntime.equalTextValue(field, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
         let result: string = source;
@@ -16291,7 +16697,7 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
                     const error: checkruntime.SqlError = key.value;
                     return { kind: "Error", value: error };
                 }
-                if (key.kind === "Unknown") {
+                if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
                     return { kind: "Unknown" };
                 }
                 if (key.kind === "Value") {
@@ -16633,6 +17039,10 @@ export function jsonbInputFromBytea(input: checkruntime.ByteaValue): checkruntim
         return { kind: "Null" };
     }
     return { kind: "Unknown" };
+}
+export function jsonbInputFromMoneyContext(input: checkruntime.MoneyValue, cLocale: boolean): checkruntime.JsonbInput {
+    cLocale = langruntime.checkedBool(cLocale);
+    return checkruntime.jsonbInputFromText(moneyToTextContext(input, cLocale));
 }
 export function jsonbInputFromMoney(input: checkruntime.MoneyValue): checkruntime.JsonbInput {
     if (input.kind === "Error") {
@@ -17075,7 +17485,7 @@ export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntim
     if (input.kind === "Unknown") {
         return { kind: "Unknown" };
     }
-    if (key.kind === "Unknown") {
+    if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (input.kind === "Null") {
@@ -17219,7 +17629,7 @@ export function jsonbObjectField4uf3(input: checkruntime.JsonbValue, key: checkr
     if (input.kind === "Unknown") {
         return { kind: "Unknown" };
     }
-    if (key.kind === "Unknown") {
+    if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (input.kind === "Value") {
@@ -17340,7 +17750,7 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
     if (input.kind === "Unknown") {
         return { kind: "Unknown" };
     }
-    if (key.kind === "Unknown") {
+    if (checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (input.kind === "Value") {
@@ -18032,7 +18442,7 @@ function jsonbBulkKeyMatches(input: checkruntime.JsonbPayload, node: checkruntim
             const error: checkruntime.SqlError = key.value;
             return { kind: "Error", value: error };
         }
-        if (checkruntime.equalTextValue(key, { kind: "Unknown" })) {
+        if ((checkruntime.equalTextValue(key, { kind: "Unknown" }) || checkruntime.equalTextValue(key, { kind: "NonNull" }))) {
             uncertain = langruntime.checkedBool(true);
         }
         if (key.kind === "Value") {
@@ -18432,7 +18842,7 @@ export function jsonbSetLaxLecq(input: checkruntime.JsonbValue, path: checkrunti
     if (checkruntime.equalTextValue(treatment, { kind: "Null" })) {
         return { kind: "Error", value: checkruntime.makeSqlError(jsonbPathParameter) };
     }
-    if (checkruntime.equalTextValue(treatment, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(treatment, { kind: "Unknown" }) || checkruntime.equalTextValue(treatment, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (replacement.kind === "Unknown") {
@@ -21859,7 +22269,7 @@ function jsonpathValueFromTree(tree: JsonpathParseTree): checkruntime.JsonpathVa
                 const error: checkruntime.SqlError = result.value;
                 return { kind: "Error", value: error };
             }
-            if (result.kind === "Unknown") {
+            if (checkruntime.equalTextValue(result, { kind: "Unknown" }) || checkruntime.equalTextValue(result, { kind: "NonNull" })) {
                 return { kind: "Unknown" };
             }
             if (result.kind === "Value") {
@@ -24519,9 +24929,6 @@ export function moneyFromText(input: checkruntime.TextValue): checkruntime.Money
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(value);
-        if (chars.length > 4096) {
-            return { kind: "Unknown" };
-        }
         let index: number = 0;
         while (index < chars.length && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
             index = langruntime.checkedAdd(index, 1);
@@ -24535,6 +24942,288 @@ export function moneyFromText(input: checkruntime.TextValue): checkruntime.Money
         if (index === chars.length) {
             return checkruntime.makeMoneyValue(0n);
         }
+    }
+    return { kind: "Unknown" };
+}
+function moneyScaleAvailable(digits: number): boolean {
+    digits = langruntime.checkedI32(digits);
+    return digits >= 0 && digits <= 10;
+}
+function moneyScaleFactor(digits: number): bigint {
+    digits = langruntime.checkedI32(digits);
+    let factor: bigint = 1n;
+    let position: number = 0;
+    while (position < digits) {
+        factor = langruntime.checkedI64(langruntime.checkedI64Multiply(factor, 10n));
+        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+    }
+    return factor;
+}
+export function moneyU7ss(input: checkruntime.Int8Value, digits: number): checkruntime.MoneyValue {
+    digits = langruntime.checkedI32(digits);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === 0n) {
+            return checkruntime.makeMoneyValue(0n);
+        }
+        if (moneyScaleAvailable(digits) === false) {
+            return { kind: "Unknown" };
+        }
+        const factor: checkruntime.Int8Value = { kind: "Value", value: moneyScaleFactor(digits) };
+        return moneyFromUnits(int8mul6t1m(input, factor));
+    }
+    return { kind: "Unknown" };
+}
+export function money2ie3(input: checkruntime.Int4Value, digits: number): checkruntime.MoneyValue {
+    digits = langruntime.checkedI32(digits);
+    return moneyU7ss(int8Mzac(input), digits);
+}
+export function moneyZ8lp(input: checkruntime.NumericValue, digits: number): checkruntime.MoneyValue {
+    digits = langruntime.checkedI32(digits);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        const amount: checkruntime.NumericValue = { kind: "Value", value: value };
+        if (!(work.special === 1)) {
+            return moneyFromUnits(int8Xy54(amount));
+        }
+        if (work.sign === 0) {
+            return checkruntime.makeMoneyValue(0n);
+        }
+        if (moneyScaleAvailable(digits) === false) {
+            return { kind: "Unknown" };
+        }
+        const factor: checkruntime.NumericValue = numeric11bc({ kind: "Value", value: moneyScaleFactor(digits) });
+        const scaled: checkruntime.NumericValue = numericMulBj4l(amount, factor);
+        return moneyFromUnits(int8Xy54(scaled));
+    }
+    return { kind: "Unknown" };
+}
+export function numericKhij(input: checkruntime.MoneyValue, digits: number): checkruntime.NumericValue {
+    digits = langruntime.checkedI32(digits);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (moneyScaleAvailable(digits) === false) {
+            return { kind: "Unknown" };
+        }
+        const amount: checkruntime.NumericValue = numeric11bc({ kind: "Value", value: value });
+        if (digits === 0) {
+            return amount;
+        }
+        const scale: checkruntime.Int4Value = { kind: "Value", value: digits };
+        const factor: checkruntime.NumericValue = numeric11bc({ kind: "Value", value: moneyScaleFactor(digits) });
+        const denominator: checkruntime.NumericValue = roundOtcq(factor, scale);
+        const quotient: checkruntime.NumericValue = numericDivPnzm(amount, denominator);
+        return roundOtcq(quotient, scale);
+    }
+    return { kind: "Unknown" };
+}
+const moneyTextInvalid = 3484946;
+const moneyTextRange = 3452547;
+function moneyTextDigit(value: bigint, digit: bigint): checkruntime.Int8Value {
+    value = langruntime.checkedI64(value);
+    digit = langruntime.checkedI64(digit);
+    if (value < -922337203685477580n || (value === -922337203685477580n && digit > 8n)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(moneyTextRange) };
+    }
+    return { kind: "Value", value: langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(value, 10n), digit) };
+}
+export function moneyFromTextContext(input: checkruntime.TextValue, cLocale: boolean): checkruntime.MoneyValue {
+    cLocale = langruntime.checkedBool(cLocale);
+    if (cLocale === false) {
+        return moneyFromText(input);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let index: number = 0;
+        while (index < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "$") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let negative: boolean = false;
+        if (index < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "(") {
+                negative = langruntime.checkedBool(true);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "+") {
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        while (index < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "$") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < characters.length && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let amount: bigint = 0n;
+        let decimals: number = 0;
+        let decimalPoint: boolean = false;
+        let scanning: boolean = true;
+        while (index < characters.length && scanning) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            const digit: number = numericWireDecimalDigit(character);
+            if (digit >= 0 && (decimalPoint === false || decimals < 2)) {
+                const next: checkruntime.Int8Value = moneyTextDigit(amount, BigInt(langruntime.checkedI32(digit)));
+                if (next.kind === "Error") {
+                    const error: checkruntime.SqlError = next.value;
+                    return { kind: "Error", value: error };
+                }
+                if (next.kind === "Value") {
+                    const stored: bigint = langruntime.checkedI64(next.value);
+                    amount = langruntime.checkedI64(stored);
+                }
+                if (decimalPoint) {
+                    decimals = langruntime.checkedI32(langruntime.checkedSignedAdd(decimals, 1));
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (character === "." && decimalPoint === false) {
+                decimalPoint = langruntime.checkedBool(true);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (character === ",") {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else {
+                scanning = langruntime.checkedBool(false);
+            }
+        }
+        if (index < characters.length) {
+            const digit: number = numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+            if (digit >= 5) {
+                if (amount === -9223372036854775808n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(moneyTextRange) };
+                }
+                amount = langruntime.checkedI64(langruntime.checkedI64Subtract(amount, 1n));
+            }
+        }
+        while (decimals < 2) {
+            const next: checkruntime.Int8Value = moneyTextDigit(amount, 0n);
+            if (next.kind === "Error") {
+                const error: checkruntime.SqlError = next.value;
+                return { kind: "Error", value: error };
+            }
+            if (next.kind === "Value") {
+                const stored: bigint = langruntime.checkedI64(next.value);
+                amount = langruntime.checkedI64(stored);
+            }
+            decimals = langruntime.checkedI32(langruntime.checkedSignedAdd(decimals, 1));
+        }
+        while (index < characters.length && numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))) >= 0) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (checkruntime.numericSpace(character) || character === ")" || character === "+" || character === "$") {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (character === "-") {
+                negative = langruntime.checkedBool(true);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else {
+                return { kind: "Error", value: checkruntime.makeSqlError(moneyTextInvalid) };
+            }
+        }
+        if (negative) {
+            return checkruntime.makeMoneyValue(amount);
+        }
+        if (amount === -9223372036854775808n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(moneyTextRange) };
+        }
+        return checkruntime.makeMoneyValue(langruntime.checkedI64Subtract(0n, amount));
+    }
+    return { kind: "Unknown" };
+}
+export function moneyToTextContext(input: checkruntime.MoneyValue, cLocale: boolean): checkruntime.TextValue {
+    cLocale = langruntime.checkedBool(cLocale);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (cLocale === false) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        const raw: string = checkruntime.textSignedNumber(value);
+        const characters: string[] = Array.from(raw);
+        let start: number = 0;
+        let output: string = "";
+        if (value < 0n) {
+            start = langruntime.checkedIndex(1);
+            output = output + langruntime.checkedChar("-");
+        }
+        output = output + langruntime.checkedChar("$");
+        const width: number = langruntime.checkedSubtract(characters.length, start);
+        if (width <= 2) {
+            output = output + langruntime.checkedChar("0");
+        }
+        else {
+            const end: number = langruntime.checkedSubtract(characters.length, 2);
+            let index: number = start;
+            while (index < end) {
+                const remaining: number = langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(end, index))));
+                if (index > start && langruntime.checkedSignedRemainder(remaining, 3) === 0) {
+                    output = output + langruntime.checkedChar(",");
+                }
+                output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        output = output + langruntime.checkedChar(".");
+        if (width > 1) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(characters.length, 2))));
+        }
+        else {
+            output = output + langruntime.checkedChar("0");
+        }
+        output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(characters.length, 1))));
+        return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
 }
@@ -26951,10 +27640,10 @@ export function btnamecmp9x5j(left: checkruntime.TextValue, right: checkruntime.
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (left.kind === "Unknown") {
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
-    if (right.kind === "Unknown") {
+    if (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" })) {
         return { kind: "Unknown" };
     }
     if (left.kind === "Null") {
@@ -36602,7 +37291,7 @@ function rangeProfiledBoundOutput(input: checkruntime.ArrayElement, profile: che
             const error: checkruntime.SqlError = text.value;
             return { kind: "Error", value: error };
         }
-        if (text.kind === "Unknown") {
+        if (checkruntime.equalTextValue(text, { kind: "Unknown" }) || checkruntime.equalTextValue(text, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
         rendered = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(rendered, checkruntime.arrayElementFromText(text)));
@@ -36636,7 +37325,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
             const error: checkruntime.SqlError = lower.value;
             return { kind: "Error", value: error };
         }
-        if (lower.kind === "Unknown") {
+        if (checkruntime.equalTextValue(lower, { kind: "Unknown" }) || checkruntime.equalTextValue(lower, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
         let upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind, cidr, aliasMode, utf8, value.enumLabels, value.enumCount);
@@ -36647,7 +37336,7 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
             const error: checkruntime.SqlError = upper.value;
             return { kind: "Error", value: error };
         }
-        if (upper.kind === "Unknown") {
+        if (checkruntime.equalTextValue(upper, { kind: "Unknown" }) || checkruntime.equalTextValue(upper, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
         return rangeFormatText({ kind: "Value", value: value }, lower, upper);
@@ -38369,7 +39058,7 @@ export function dateTruncD8uf(units: checkruntime.TextValue, input: checkruntime
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalIntervalValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTextValue(units, { kind: "NonNull" })) || checkruntime.equalIntervalValue(input, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalIntervalValue(input, { kind: "Null" })) {
@@ -39022,7 +39711,7 @@ export function extractQjml(units: checkruntime.TextValue, input: checkruntime.D
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTextValue(units, { kind: "NonNull" })) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalDateValue(input, { kind: "Null" })) {
@@ -39175,7 +39864,7 @@ export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTextValue(units, { kind: "NonNull" })) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalTimestampValue(input, { kind: "Null" })) {
@@ -40611,7 +41300,7 @@ export function extractF4l3(units: checkruntime.TextValue, input: checkruntime.T
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTextValue(units, { kind: "NonNull" })) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalTimestampValue(input, { kind: "Null" })) {
@@ -40718,7 +41407,7 @@ export function lengthEhpe(value: checkruntime.TextValue): checkruntime.Int4Valu
         const error: checkruntime.SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -40746,7 +41435,7 @@ export function texteqAet8(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40770,7 +41459,7 @@ export function textne1urq(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40794,7 +41483,7 @@ export function textLtZinq(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40818,7 +41507,7 @@ export function textLeWb3z(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40842,7 +41531,7 @@ export function textGtRb7n(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40866,7 +41555,7 @@ export function startsWith6ctf(text: checkruntime.TextValue, prefix: checkruntim
         const error: checkruntime.SqlError = prefix.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(text, { kind: "Unknown" }) || checkruntime.equalTextValue(prefix, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(text, { kind: "Unknown" }) || checkruntime.equalTextValue(text, { kind: "NonNull" })) || (checkruntime.equalTextValue(prefix, { kind: "Unknown" }) || checkruntime.equalTextValue(prefix, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(text, { kind: "Null" }) || checkruntime.equalTextValue(prefix, { kind: "Null" })) {
@@ -40890,7 +41579,7 @@ export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -40910,7 +41599,7 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -40966,7 +41655,7 @@ function textCaseValue(input: checkruntime.TextValue, mode: number): checkruntim
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -41018,7 +41707,7 @@ function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteO
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -41054,7 +41743,7 @@ function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8
         const error: checkruntime.SqlError = seed.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
@@ -41248,7 +41937,7 @@ function textLike(input: checkruntime.TextValue, pattern: checkruntime.TextValue
         const error: checkruntime.SqlError = pattern.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(pattern, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(pattern, { kind: "Unknown" }) || checkruntime.equalTextValue(pattern, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(pattern, { kind: "Null" })) {
@@ -41310,7 +41999,7 @@ export function likeEscapeXfrr(input: checkruntime.TextValue, escape: checkrunti
         const error: checkruntime.SqlError = escape.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(escape, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(escape, { kind: "Unknown" }) || checkruntime.equalTextValue(escape, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(escape, { kind: "Null" })) {
@@ -41662,7 +42351,7 @@ function textPadding(input: checkruntime.TextValue, length: checkruntime.Int4Val
         const error: checkruntime.SqlError = fill.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" }) || checkruntime.equalTextValue(fill, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt4Value(length, { kind: "Unknown" }) || (checkruntime.equalTextValue(fill, { kind: "Unknown" }) || checkruntime.equalTextValue(fill, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" }) || checkruntime.equalTextValue(fill, { kind: "Null" })) {
@@ -41744,7 +42433,7 @@ export function repeatF0fb(input: checkruntime.TextValue, length: checkruntime.I
         const error: checkruntime.SqlError = length.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
@@ -41795,7 +42484,7 @@ export function translateTxpt(input: checkruntime.TextValue, from: checkruntime.
         const error: checkruntime.SqlError = to.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(from, { kind: "Unknown" }) || checkruntime.equalTextValue(to, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(from, { kind: "Unknown" }) || checkruntime.equalTextValue(from, { kind: "NonNull" })) || (checkruntime.equalTextValue(to, { kind: "Unknown" }) || checkruntime.equalTextValue(to, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(from, { kind: "Null" }) || checkruntime.equalTextValue(to, { kind: "Null" })) {
@@ -41842,7 +42531,7 @@ export function quoteLiteralD0rq(input: checkruntime.TextValue): checkruntime.Te
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -41924,7 +42613,7 @@ export function textcatS76e(left: checkruntime.TextValue, right: checkruntime.Te
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -41953,7 +42642,7 @@ export function strposEb1n(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -41999,7 +42688,7 @@ function textOverlayValue(input: checkruntime.TextValue, replacement: checkrunti
         const error: checkruntime.SqlError = length.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(replacement, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(replacement, { kind: "Unknown" }) || checkruntime.equalTextValue(replacement, { kind: "NonNull" })) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(replacement, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
@@ -42057,7 +42746,7 @@ export function replaceGz9l(input: checkruntime.TextValue, from: checkruntime.Te
         const error: checkruntime.SqlError = to.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(from, { kind: "Unknown" }) || checkruntime.equalTextValue(to, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(from, { kind: "Unknown" }) || checkruntime.equalTextValue(from, { kind: "NonNull" })) || (checkruntime.equalTextValue(to, { kind: "Unknown" }) || checkruntime.equalTextValue(to, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(from, { kind: "Null" }) || checkruntime.equalTextValue(to, { kind: "Null" })) {
@@ -42122,7 +42811,7 @@ export function splitPartDoxr(input: checkruntime.TextValue, separator: checkrun
         const error: checkruntime.SqlError = field.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(separator, { kind: "Unknown" }) || checkruntime.equalInt4Value(field, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || (checkruntime.equalTextValue(separator, { kind: "Unknown" }) || checkruntime.equalTextValue(separator, { kind: "NonNull" })) || checkruntime.equalInt4Value(field, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(separator, { kind: "Null" }) || checkruntime.equalInt4Value(field, { kind: "Null" })) {
@@ -42206,7 +42895,7 @@ function similarPatternValue(pattern: checkruntime.TextValue, escape: checkrunti
         const error: checkruntime.SqlError = escape.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(pattern, { kind: "Unknown" }) || checkruntime.equalTextValue(escape, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(pattern, { kind: "Unknown" }) || checkruntime.equalTextValue(pattern, { kind: "NonNull" })) || (checkruntime.equalTextValue(escape, { kind: "Unknown" }) || checkruntime.equalTextValue(escape, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(pattern, { kind: "Null" }) || checkruntime.equalTextValue(escape, { kind: "Null" })) {
@@ -42338,7 +43027,7 @@ export function pgSizeBytesGgrt(input: checkruntime.TextValue): checkruntime.Int
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -42524,7 +43213,7 @@ function textSubstringValue(input: checkruntime.TextValue, position: checkruntim
         const error: checkruntime.SqlError = length.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
@@ -42572,7 +43261,7 @@ function textSideValue(input: checkruntime.TextValue, length: checkruntime.Int4V
         const error: checkruntime.SqlError = length.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
@@ -42647,7 +43336,7 @@ export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextVal
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -42736,7 +43425,7 @@ export function toAsciiCulg(value: checkruntime.TextValue): checkruntime.TextVal
         const error: checkruntime.SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -42753,7 +43442,7 @@ export function toAsciiUqov(value: checkruntime.TextValue, encoding: checkruntim
         const error: checkruntime.SqlError = encoding.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalInt4Value(encoding, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" })) || checkruntime.equalInt4Value(encoding, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" }) || checkruntime.equalInt4Value(encoding, { kind: "Null" })) {
@@ -42799,7 +43488,7 @@ export function unistrN58m(input: checkruntime.TextValue): checkruntime.TextValu
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" })) {
@@ -42905,7 +43594,7 @@ function textWidthValue(input: checkruntime.TextValue, modifier: checkruntime.In
         const error: checkruntime.SqlError = explicit.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(modifier, { kind: "Unknown" }) || checkruntime.equalBoolValue(explicit, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(input, { kind: "NonNull" })) || checkruntime.equalInt4Value(modifier, { kind: "Unknown" }) || checkruntime.equalBoolValue(explicit, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(modifier, { kind: "Null" }) || checkruntime.equalBoolValue(explicit, { kind: "Null" })) {
@@ -42998,7 +43687,7 @@ function textBinaryCompare(left: checkruntime.TextValue, right: checkruntime.Tex
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(left, { kind: "NonNull" })) || (checkruntime.equalTextValue(right, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
@@ -43022,7 +43711,7 @@ function textMeasureValue(value: checkruntime.TextValue, trimSpaces: boolean, mo
         const error: checkruntime.SqlError = value.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" })) {
@@ -43077,7 +43766,7 @@ function textTrimValue(value: checkruntime.TextValue, set: checkruntime.TextValu
         const error: checkruntime.SqlError = set.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(set, { kind: "Unknown" })) {
+    if ((checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" })) || (checkruntime.equalTextValue(set, { kind: "Unknown" }) || checkruntime.equalTextValue(set, { kind: "NonNull" }))) {
         return { kind: "Unknown" };
     }
     if (checkruntime.equalTextValue(value, { kind: "Null" }) || checkruntime.equalTextValue(set, { kind: "Null" })) {
@@ -45615,7 +46304,7 @@ export function xmlMakeProcessingInstruction(name: string, content: checkruntime
         if (content.kind === "Null") {
             return { kind: "Null" };
         }
-        if (content.kind === "Unknown") {
+        if (checkruntime.equalTextValue(content, { kind: "Unknown" }) || checkruntime.equalTextValue(content, { kind: "NonNull" })) {
             return { kind: "Unknown" };
         }
         if (content.kind === "Value") {
@@ -47826,6 +48515,20 @@ export function xmlIndentUtf8(input: checkruntime.XmlValue, document: boolean, u
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        const checked: checkruntime.XmlValue = checkruntime.makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "NonNull") {
+            const actual: checkruntime.XmlKnowledge = checked.value;
+            if (document && checkruntime.equalBoolValue(actual.document, { kind: "Value", value: false })) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNotXmlDocument) };
+            }
+            if (utf8 && checkruntime.equalBoolValue(actual.content, { kind: "Value", value: true }) && (document === false || checkruntime.equalBoolValue(actual.document, { kind: "Value", value: true }))) {
+                return { kind: "NonNull" };
+            }
+        }
+        return { kind: "Unknown" };
+    }
     if (input.kind === "RenderedText") {
         const value: string = langruntime.checkedString(input.value);
         if (document && xmlTextEncodingAvailable(value, utf8) && xmlWellFormed(value, true) === false) {
@@ -50021,6 +50724,17 @@ export function xmlFromTextUtf8(input: checkruntime.TextValue, document: boolean
     return { kind: "Unknown" };
 }
 export function xmlToText(input: checkruntime.XmlValue): checkruntime.TextValue {
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        const checked: checkruntime.XmlValue = checkruntime.makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "NonNull") {
+            return { kind: "NonNull" };
+        }
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "RenderedText") {
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -50038,6 +50752,10 @@ export function text03xf(input: checkruntime.XmlValue): checkruntime.TextValue {
     return xmlToText(input);
 }
 export function xmlToOutputText(input: checkruntime.XmlValue): checkruntime.TextValue {
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        return xmlToText(checkruntime.makeXmlKnowledge(knowledge.document, knowledge.content));
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -50123,6 +50841,15 @@ export function xmlToByteaUtf8(input: checkruntime.XmlValue): checkruntime.Bytea
     return { kind: "Unknown" };
 }
 export function xmlIsDocumentUtf8(input: checkruntime.XmlValue): checkruntime.BoolValue {
+    if (input.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = input.value;
+        const checked: checkruntime.XmlValue = checkruntime.makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "NonNull") {
+            const actual: checkruntime.XmlKnowledge = checked.value;
+            return actual.document;
+        }
+        return { kind: "Unknown" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -50204,6 +50931,54 @@ export function xmlcomment8j57(input: checkruntime.TextValue): checkruntime.XmlV
         output = output + value;
         output = output + "-->";
         return checkruntime.makeXmlValue(output);
+    }
+    return { kind: "Unknown" };
+}
+const sqlstateXmlValidationUnsupported = 466560;
+export function xmlvalidateBvje(input: checkruntime.XmlValue, schema: checkruntime.TextValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (schema.kind === "Error") {
+        const error: checkruntime.SqlError = schema.value;
+        return { kind: "Error", value: error };
+    }
+    const inputNull: checkruntime.BoolValue = checkruntime.xmlIsNull(input);
+    const schemaNull: checkruntime.BoolValue = checkruntime.textIsNull(schema);
+    if (checkruntime.equalBoolValue(inputNull, { kind: "Unknown" }) || checkruntime.equalBoolValue(schemaNull, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(inputNull, { kind: "Value", value: true }) || checkruntime.equalBoolValue(schemaNull, { kind: "Value", value: true })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateXmlValidationUnsupported) };
+}
+export function xmlIsWellFormedWikq(input: checkruntime.TextValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (mode === 1) {
+        return xmlWellFormedValue(input, true);
+    }
+    if (mode === 2) {
+        return xmlWellFormedValue(input, false);
+    }
+    if (!(mode === 0)) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const document: boolean = xmlWellFormed(value, true);
+        const content: boolean = xmlWellFormed(value, false);
+        if (document === content) {
+            return { kind: "Value", value: document };
+        }
     }
     return { kind: "Unknown" };
 }
@@ -54933,6 +55708,9 @@ export function xpathResultToXml(input: XPathValue, tree: XmlTree, graph: XPathG
                 return xpathXmlResultError(error);
             }
             let state: number = 0;
+            if (value.kind === "NonNull") {
+                state = langruntime.checkedI32(xpathResultNotationContext);
+            }
             if (value.kind === "Unknown") {
                 state = langruntime.checkedI32(xpathResultNotationContext);
                 if (tree.serializationGap) {
@@ -54975,7 +55753,8 @@ export function xpathResultToXml(input: XPathValue, tree: XmlTree, graph: XPathG
     if (!(input.kind === xpathKindNumber) || (known && extra >= langruntime.checkedSignedNegate(15) && extra <= 3)) {
         state = langruntime.checkedI32(3);
     }
-    return xpathXmlResultPush(result, { kind: "Unknown" }, state);
+    const value: checkruntime.XmlValue = checkruntime.makeXmlKnowledge({ kind: "Value", value: false }, { kind: "Value", value: true });
+    return xpathXmlResultPush(result, value, state);
 }
 interface XPathCopyNamespace {
     prefix: string;
@@ -55269,6 +56048,7 @@ function xpathNodeToXml(tree: XmlTree, graph: XPathGraph, value: XPathReference)
     langruntime.pushStruct(stack, { node: value.node, closing: false, newline: false }, copyXPathCopyWrite);
     let count: number = 1;
     let output: string = "";
+    let complete: boolean = true;
     while (count > 0) {
         count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 1));
         const task: XPathCopyWrite = copyXPathCopyWrite(langruntime.indexStruct(stack, langruntime.checkedIndex(count), copyXPathCopyWrite));
@@ -55400,10 +56180,12 @@ function xpathNodeToXml(tree: XmlTree, graph: XPathGraph, value: XPathReference)
             }
             else if (node.kind === 6 && value.node === 0) {
                 if (tree.serializationKnown === false) {
-                    return { kind: "Unknown" };
+                    complete = langruntime.checkedBool(false);
                 }
-                const doctype: string = xpathCopyDoctype(tree, node);
-                output = output + doctype;
+                else {
+                    const doctype: string = xpathCopyDoctype(tree, node);
+                    output = output + doctype;
+                }
             }
             else {
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateXmlNodeCopy) };
@@ -55412,6 +56194,12 @@ function xpathNodeToXml(tree: XmlTree, graph: XPathGraph, value: XPathReference)
                 output = output + langruntime.checkedChar("\n");
             }
         }
+    }
+    if (complete === false) {
+        if (tree.serializationGap) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeXmlNonNull({ kind: "Value", value: true });
     }
     return { kind: "Value", value: output };
 }
@@ -55959,6 +56747,23 @@ export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input
     if (isNull) {
         return { state: xpathSqlNull, present: { kind: "Null" }, output: { kind: "Null" } };
     }
+    const pathNullness: checkruntime.BoolValue = checkruntime.textIsNull(expression);
+    const inputNullness: checkruntime.BoolValue = checkruntime.xmlIsNull(input);
+    if (!(checkruntime.equalBoolValue(pathNullness, { kind: "Value", value: false })) || !(checkruntime.equalBoolValue(inputNullness, { kind: "Value", value: false }))) {
+        return xpathSqlUnknown(xpathSqlInput);
+    }
+    let partialFragment: boolean = false;
+    const partial: checkruntime.XmlValue = input;
+    if (partial.kind === "NonNull") {
+        const knowledge: checkruntime.XmlKnowledge = partial.value;
+        const checked: checkruntime.XmlValue = checkruntime.makeXmlKnowledge(knowledge.document, knowledge.content);
+        if (checked.kind === "NonNull") {
+            const actual: checkruntime.XmlKnowledge = checked.value;
+            if (checkruntime.equalBoolValue(actual.document, { kind: "Value", value: false })) {
+                partialFragment = langruntime.checkedBool(true);
+            }
+        }
+    }
     let path: string = "";
     let source: string = "";
     let rendered: boolean = false;
@@ -55981,9 +56786,6 @@ export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input
         knownInput = langruntime.checkedBool(true);
         rendered = langruntime.checkedBool(true);
     }
-    if (knownPath === false || knownInput === false) {
-        return xpathSqlUnknown(xpathSqlInput);
-    }
     if (mappings.kind === "Value") {
         const mapping: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(mappings.value);
         if (!(mapping.elementType === "pg_catalog.text") || !(mapping.elementKind === 8)) {
@@ -55995,11 +56797,20 @@ export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input
         if (!(langruntime.checkedSignedRemainder((langruntime.checkedI32(langruntime.checkedIndex(mapping.elements.length))), 2) === 0) || (mapping.dimensions.length === 0 && !(mapping.elements.length === 0))) {
             return xpathSqlUnknown(xpathSqlInput);
         }
+        if (knownPath === false) {
+            return xpathSqlUnknown(xpathSqlInput);
+        }
         if (path === "") {
             return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXpath));
         }
         if (utf8 === false) {
             return xpathSqlUnknown(xpathSqlEncoding);
+        }
+        if (partialFragment) {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXmlDocument));
+        }
+        if (knownInput === false) {
+            return xpathSqlUnknown(xpathSqlInput);
         }
         if (rendered) {
             const characters: XmlSource = { characters: Array.from(source) };

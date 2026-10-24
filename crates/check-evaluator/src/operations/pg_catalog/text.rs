@@ -38,7 +38,7 @@ pub fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
-    if value == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if value == TextValue::Null {
@@ -64,7 +64,7 @@ pub fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolV
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -85,7 +85,7 @@ pub fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolV
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -106,7 +106,7 @@ pub fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -127,7 +127,7 @@ pub fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -150,7 +150,7 @@ pub fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -171,7 +171,7 @@ pub fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) ->
     if let TextValue::Error(error) = prefix {
         return BoolValue::Error(error);
     }
-    if text == TextValue::Unknown || prefix == TextValue::Unknown {
+    if (text == TextValue::Unknown || text == TextValue::NonNull) || (prefix == TextValue::Unknown || prefix == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if text == TextValue::Null || prefix == TextValue::Null {
@@ -192,7 +192,7 @@ pub fn sql__pg_catalog__text_ge__t8pg(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {

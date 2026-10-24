@@ -122,7 +122,9 @@ describe('portable stored money', () => {
   let pg: PGlite, directory: string
   beforeAll(async () => {
     pg = await PGlite.create()
-    await pg.exec("SET lc_monetary='C'")
+    await pg.exec(
+      "SET lc_monetary='C';CREATE DOMAIN price AS money;CREATE DOMAIN nested_price AS price",
+    )
     directory = await mkdtemp(join(tmpdir(), 'pgsid-money-'))
   })
   afterAll(async () => {
@@ -206,7 +208,7 @@ describe('portable stored money', () => {
     expressions.zero_literal = "cash_send('0'::money)='\\x0000000000000000'::bytea"
     expressions.nested_zero = "cash_send('0'::nested_price)='\\x0000000000000000'::bytea"
     await pg.exec(
-      `CREATE DOMAIN price AS money;CREATE DOMAIN nested_price AS price;CREATE TABLE prices(a nested_price,b money,f4 float4,f8 float8,i2 smallint,i4 integer,i8 bigint,expected bytea,expected_text text,recorded_distinct boolean,skip boolean,${Object.entries(
+      `CREATE TABLE prices(a nested_price,b money,f4 float4,f8 float8,i2 smallint,i4 integer,i8 bigint,expected bytea,expected_text text,recorded_distinct boolean,skip boolean,${Object.entries(
         expressions,
       )
         .map(([name, sql]) => `CONSTRAINT "${name}" CHECK(${sql})`)
@@ -642,7 +644,7 @@ describe('portable stored money', () => {
         add(name, row, { kind: source === null ? 'Null' : 'True' })
       add('present', row, { kind: 'True' })
     }
-    for (const source of [...deferredMoneyContextForms, '0'.repeat(4097)]) {
+    for (const source of deferredMoneyContextForms) {
       const row = { ...base, source: known(source) }
       for (const name of ['wire', 'varying', 'domain', 'typename', 'present', 'lazy'])
         add(name, row, { kind: 'Unknown' })

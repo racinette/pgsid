@@ -16,10 +16,10 @@ fn regex_count_value(
     if let TextValue::Error(error) = flags {
         return Int4Value::Error(error);
     }
-    if subject == TextValue::Unknown
-        || pattern == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
+        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
         || starting == Int4Value::Unknown
-        || flags == TextValue::Unknown
+        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
         return Int4Value::Unknown;
     }

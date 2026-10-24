@@ -141,7 +141,7 @@ fn text_like(input: TextValue, pattern: TextValue, insensitive: bool, negate: bo
     if let TextValue::Error(error) = pattern {
         return BoolValue::Error(error);
     }
-    if input == TextValue::Unknown || pattern == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (pattern == TextValue::Unknown || pattern == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if input == TextValue::Null || pattern == TextValue::Null {
@@ -199,7 +199,7 @@ pub fn sql__pg_catalog__like_escape__xfrr(input: TextValue, escape: TextValue) -
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || escape == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || escape == TextValue::Null {

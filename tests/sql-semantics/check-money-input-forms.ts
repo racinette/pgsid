@@ -6,6 +6,7 @@ export const moneyInputForms: (string | null)[] = [
   ' 00 ',
   '\t0\r\n',
   '00000000',
+  '0'.repeat(4097),
 ]
 export const deferredMoneyContextForms = [
   '1.25',

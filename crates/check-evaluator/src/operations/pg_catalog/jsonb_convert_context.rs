@@ -23,6 +23,10 @@ pub fn jsonb_input_from_bytea(input: ByteaValue) -> JsonbInput {
     JsonbInput::Unknown
 }
 
+pub fn jsonb_input_from_money_context(input: MoneyValue, c_locale: bool) -> JsonbInput {
+    jsonb_input_from_text(money_to_text_context(input,c_locale))
+}
+
 pub fn jsonb_input_from_money(input: MoneyValue) -> JsonbInput {
     if let MoneyValue::Error(error) = input {
         return JsonbInput::Error(error);

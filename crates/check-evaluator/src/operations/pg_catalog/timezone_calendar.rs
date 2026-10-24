@@ -104,7 +104,7 @@ fn timezone_calendar_add(
     };
     if input == TimestamptzValue::Unknown
         || amount == IntervalValue::Unknown
-        || zone == TextValue::Unknown
+        || (zone == TextValue::Unknown || zone == TextValue::NonNull)
     {
         return TimestamptzValue::Unknown;
     };

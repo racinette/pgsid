@@ -2,7 +2,7 @@ fn text_hash_value(input: TextValue, trim_spaces: bool, byte_order: i32, utf8: b
     if let TextValue::Error(error) = input {
         return Int4Value::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if input == TextValue::Null {
@@ -39,7 +39,7 @@ fn text_hash_extended(
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     }
-    if input == TextValue::Unknown || seed == Int8Value::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || seed == Int8Value::Unknown {
         return Int8Value::Unknown;
     }
     if input == TextValue::Null || seed == Int8Value::Null {

@@ -336,12 +336,21 @@ export const codegenSchema = z
         arrayNulls: z.boolean().optional(),
         xmlOption: z.enum(['document', 'content']).optional(),
         xmlBinary: z.enum(['base64', 'hex']).optional(),
+        moneyLocale: z.literal('C').optional(),
+        moneyFractionDigits: z.number().int().min(0).max(10).optional(),
         extraFloatDigits: z.number().int().min(-15).max(3).optional(),
         xpathRecursionLimit: z.number().int().min(1).max(2147483647).optional(),
         xpathPowerOfTenBits: xpathPowerOfTenBitsSchema.optional(),
         clientEncoding: z.literal('UTF8').optional(),
       })
       .strict()
+      .refine(
+        (context) =>
+          context.moneyLocale !== 'C' ||
+          context.moneyFractionDigits === undefined ||
+          context.moneyFractionDigits === 2,
+        { path: ['moneyFractionDigits'], message: 'C monetary locale uses two fractional digits' },
+      )
       .optional(),
     typescript: typescriptCodegenSchema.optional(),
     go: goCodegenSchema.optional(),

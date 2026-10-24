@@ -229,7 +229,7 @@ pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) 
         if let TextValue::Error(error) = field {
             return TextValue::Error(error);
         };
-        if let TextValue::Unknown = field {
+        if field == TextValue::Unknown || field == TextValue::NonNull {
             return TextValue::Unknown;
         };
         let mut result = source;

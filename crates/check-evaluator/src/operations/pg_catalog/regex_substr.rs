@@ -24,11 +24,11 @@ fn regex_substring_value(
     if let Int4Value::Error(error) = subexpression {
         return TextValue::Error(error);
     }
-    if subject == TextValue::Unknown
-        || pattern == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
+        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
         || starting == Int4Value::Unknown
         || occurrence == Int4Value::Unknown
-        || flags == TextValue::Unknown
+        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
         || subexpression == Int4Value::Unknown
     {
         return TextValue::Unknown;

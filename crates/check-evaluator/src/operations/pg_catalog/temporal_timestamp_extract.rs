@@ -187,7 +187,7 @@ pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -
     if let TimestampValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    if units == TextValue::Unknown || input == TimestampValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == TimestampValue::Unknown {
         return NumericValue::Unknown;
     }
     if units == TextValue::Null || input == TimestampValue::Null {

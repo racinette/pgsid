@@ -415,6 +415,17 @@ describe('world CHECK INSERT parity', () => {
       .flatMap((result) => result.rows)
       .find((row) => 'xpathPowerOfTenBits' in row)!['xpathPowerOfTenBits'] as string[]
     expect(xpathPowerOfTenBits).toHaveLength(632)
+    const moneyCapture = await pg.exec(await readFile('tools/check-rust/money-context.sql', 'utf8'))
+    const moneyFractionDigits = moneyCapture.flatMap((result) => result.rows)[0]![
+      'moneyFractionDigits'
+    ] as number
+    expect(
+      Number.isInteger(moneyFractionDigits) &&
+        moneyFractionDigits >= 0 &&
+        moneyFractionDigits <= 10,
+    ).toBe(true)
+    const moneyLocale = moneyCapture.flatMap((result) => result.rows)[0]!['moneyLocale'] as 'C'
+    expect(moneyLocale).toBe('C')
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {
@@ -474,6 +485,8 @@ describe('world CHECK INSERT parity', () => {
         nativeByteOrder: 'little',
         trigonometry: 'fdlibm',
         extraFloatDigits: 1,
+        moneyFractionDigits,
+        moneyLocale,
         xpathRecursionLimit: 5000,
         xpathPowerOfTenBits,
       },
@@ -485,7 +498,9 @@ describe('world CHECK INSERT parity', () => {
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, xpathRecursionLimit: 5000, xpathPowerOfTenBits: ' +
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, moneyFractionDigits: ' +
+          moneyFractionDigits +
+          ', moneyLocale: C, xpathRecursionLimit: 5000, xpathPowerOfTenBits: ' +
           JSON.stringify(xpathPowerOfTenBits) +
           ' }\n    go:\n      schema: { outDir: schema }\n',
       ),

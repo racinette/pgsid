@@ -13,6 +13,17 @@ describe('config schema', () => {
         'schema: schema.sql\nsql:\n  codegen:\n    checks: { trigonometry: fdlibm }\n',
       ).sql.codegen?.checks,
     ).toEqual({ trigonometry: 'fdlibm' })
+    for (const checks of ['{ moneyLocale: C }', '{ moneyLocale: C, moneyFractionDigits: 2 }'])
+      expect(
+        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n').sql
+          .codegen?.checks?.moneyLocale,
+      ).toBe('C')
+    for (const moneyFractionDigits of [0, 1, 2, 10])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { moneyFractionDigits: ${moneyFractionDigits} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ moneyFractionDigits })
     for (const extraFloatDigits of [-15, -1, 0, 1, 3])
       expect(
         parseConfigString(
@@ -52,6 +63,13 @@ describe('config schema', () => {
       '{ nativeByteOrder: LE }',
       '{ trigonometry: native }',
       '{ trigonometry: glibc }',
+      '{ moneyLocale: en_US }',
+      '{ moneyLocale: C, moneyFractionDigits: 0 }',
+      '{ moneyLocale: C, moneyFractionDigits: 10 }',
+      '{ moneyFractionDigits: -1 }',
+      '{ moneyFractionDigits: 11 }',
+      '{ moneyFractionDigits: 1.5 }',
+      '{ moneyFractionDigits: "2" }',
       '{ extraFloatDigits: -16 }',
       '{ extraFloatDigits: 4 }',
       '{ extraFloatDigits: 1.5 }',

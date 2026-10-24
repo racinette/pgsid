@@ -49,6 +49,7 @@ pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPa
             let value = xpath_node_to_xml(tree,graph,input.nodes.values[index]);
             if let XmlValue::Error(error) = value { return xpath_xml_result_error(error); };
             let mut state: i32 = 0;
+            if let XmlValue::NonNull(_) = value { state = XPATH_RESULT_NOTATION_CONTEXT; };
             if let XmlValue::Unknown = value {
                 state = XPATH_RESULT_NOTATION_CONTEXT;
                 if tree.serialization_gap { state = 3; };
@@ -73,7 +74,8 @@ pub(crate) fn xpath_result_to_xml(input: XPathValue, tree: &XmlTree, graph: &XPa
     };
     let mut state = XPATH_RESULT_FLOAT_CONTEXT;
     if input.kind != XPATH_KIND_NUMBER || (known && extra >= -15 && extra <= 3) { state = 3; };
-    xpath_xml_result_push(result,XmlValue::Unknown,state)
+    let value = make_xml_knowledge(BoolValue::Value(false),BoolValue::Value(true));
+    xpath_xml_result_push(result,value,state)
 }
 
 #[derive(Clone)]
@@ -272,6 +274,7 @@ fn xpath_node_to_xml(tree: &XmlTree, graph: &XPathGraph, value: XPathReference) 
     let mut stack: Vec<XPathCopyWrite> = Vec::new();
     stack.push(XPathCopyWrite { node: value.node, closing: false, newline: false });
     let mut count: usize = 1; let mut output = String::new();
+    let mut complete = true;
     while count > 0 {
         count = count-1; let task = stack[count]; let node = tree.nodes[task.node];
         let name = xml_tree_text(tree,node.name);
@@ -335,11 +338,15 @@ fn xpath_node_to_xml(tree: &XmlTree, graph: &XPathGraph, value: XPathReference) 
                 output.push_str("?>");
             } else if node.kind == 7 { output.push('&'); output.push_str(name.as_str()); output.push(';'); }
             else if node.kind == 6 && value.node == 0 {
-                if tree.serialization_known == false { return XmlValue::Unknown; };
-                let doctype = xpath_copy_doctype(tree,node); output.push_str(doctype.as_str());
+                if tree.serialization_known == false { complete = false; }
+                else { let doctype = xpath_copy_doctype(tree,node); output.push_str(doctype.as_str()); };
             } else { return XmlValue::Error(make_sql_error(SQLSTATE_XML_NODE_COPY)); };
             if task.newline { output.push('\n'); };
         };
     }
+    if complete == false {
+        if tree.serialization_gap { return XmlValue::Unknown; };
+        return make_xml_non_null(BoolValue::Value(true));
+    };
     XmlValue::Value(output)
 }

@@ -237,7 +237,7 @@ fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: b
             if let TextValue::Error(error) = decoded {
                 return TextValue::Error(error);
             };
-            if let TextValue::Unknown = decoded {
+            if decoded == TextValue::Unknown || decoded == TextValue::NonNull {
                 return TextValue::Unknown;
             };
         };
@@ -307,7 +307,7 @@ pub fn json_read_field(input: JsonValue, key: TextValue, as_text: bool) -> TextV
     if let JsonValue::Unknown = input {
         return TextValue::Unknown;
     };
-    if let TextValue::Unknown = key {
+    if key == TextValue::Unknown || key == TextValue::NonNull {
         return TextValue::Unknown;
     };
     if let JsonValue::Null = input {

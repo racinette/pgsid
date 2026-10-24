@@ -241,7 +241,7 @@ fn range_profiled_bound_output(input: ArrayElement, profile: &RangeBoundContext,
         let cell = array_output_element_at(&plan, position);
         let text = range_profiled_bound_output(cell, profile, node.child);
         if let TextValue::Error(error) = text { return TextValue::Error(error); };
-        if let TextValue::Unknown = text { return TextValue::Unknown; };
+        if text == TextValue::Unknown || text == TextValue::NonNull { return TextValue::Unknown; };
         rendered = append_array_argument(rendered, array_element_from_text(text));
         position = array_text_next_index(position);
     }
@@ -268,7 +268,7 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
         if let TextValue::Error(error) = lower {
             return TextValue::Error(error);
         };
-        if let TextValue::Unknown = lower {
+        if lower == TextValue::Unknown || lower == TextValue::NonNull {
             return TextValue::Unknown;
         };
         let mut upper = range_output_bound(value.bounds[1].clone(), value.element_kind, cidr, alias_mode, utf8, value.enum_labels.as_str(), value.enum_count);
@@ -276,7 +276,7 @@ pub fn range_to_text(input: RangeValue) -> TextValue {
         if let TextValue::Error(error) = upper {
             return TextValue::Error(error);
         };
-        if let TextValue::Unknown = upper {
+        if upper == TextValue::Unknown || upper == TextValue::NonNull {
             return TextValue::Unknown;
         };
         return range_format_text(RangeValue::Value(value), lower, upper);

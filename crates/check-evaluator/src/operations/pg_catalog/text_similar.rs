@@ -13,7 +13,7 @@ fn similar_pattern_value(pattern: TextValue, escape: TextValue) -> TextValue {
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if pattern == TextValue::Unknown || escape == TextValue::Unknown {
+    if (pattern == TextValue::Unknown || pattern == TextValue::NonNull) || (escape == TextValue::Unknown || escape == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if pattern == TextValue::Null || escape == TextValue::Null {

@@ -23,9 +23,9 @@ pub fn sql__pg_catalog__substring__knrk(
     if let TextValue::Error(error) = escape {
         return TextValue::Error(error);
     }
-    if subject == TextValue::Unknown
-        || pattern == TextValue::Unknown
-        || escape == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
+        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
+        || (escape == TextValue::Unknown || escape == TextValue::NonNull)
     {
         return TextValue::Unknown;
     }

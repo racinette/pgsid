@@ -180,7 +180,7 @@ fn parse_json_array_path_document(input: &str, utf8: bool) -> JsonArrayPathDocum
             if let TextValue::Error(error) = decoded {
                 return json_array_path_empty(-2, error);
             };
-            if decoded == TextValue::Unknown {
+            if (decoded == TextValue::Unknown || decoded == TextValue::NonNull) {
                 return json_array_path_empty(-1, make_sql_error(0));
             };
         };

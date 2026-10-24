@@ -7,7 +7,7 @@ pub fn sql__pg_catalog__normalize__fhd2(input: TextValue, normal_form: TextValue
     if let TextValue::Error(error) = normal_form {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || normal_form == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
@@ -32,7 +32,7 @@ pub fn sql__pg_catalog__is_normalized__pxj9(input: TextValue, normal_form: TextV
     if let TextValue::Error(error) = normal_form {
         return BoolValue::Error(error);
     }
-    if input == TextValue::Unknown || normal_form == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (normal_form == TextValue::Unknown || normal_form == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if input == TextValue::Null || normal_form == TextValue::Null {
@@ -54,7 +54,7 @@ pub fn sql__pg_catalog__unicode_assigned__46hx(input: TextValue) -> BoolValue {
     if let TextValue::Error(error) = input {
         return BoolValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return BoolValue::Unknown;
     }
     if input == TextValue::Null {

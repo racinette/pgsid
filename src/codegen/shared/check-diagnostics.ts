@@ -16,6 +16,18 @@ function needsTrigonometry(value: unknown): boolean {
   )
 }
 
+function needsAclRoleCatalog(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  if (
+    'kind' in value &&
+    value.kind === 'aclitem' &&
+    'value' in value &&
+    typeof value.value === 'string'
+  )
+    return true
+  return Object.values(value).some(needsAclRoleCatalog)
+}
+
 export function checkUnknownMessage(
   expression: EvalBoolExpression,
   reason?: string,
@@ -24,8 +36,10 @@ export function checkUnknownMessage(
   if (expression.kind === 'uncertain')
     return 'This CHECK expression is not supported by the local evaluator.'
   if (reason) return `Local evaluation is incomplete: ${reason}`
-  const message =
+  let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
+  if (needsAclRoleCatalog(expression))
+    message += ' ACL text literals also require the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
     ? message +
         ' Circle-to-polygon coordinate generation also requires sql.codegen.checks.trigonometry: fdlibm.'

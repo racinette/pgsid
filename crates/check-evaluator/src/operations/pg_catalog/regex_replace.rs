@@ -67,12 +67,12 @@ fn regex_replace_value(
     if let TextValue::Error(error) = flags {
         return TextValue::Error(error);
     }
-    if subject == TextValue::Unknown
-        || pattern == TextValue::Unknown
-        || replacement == TextValue::Unknown
+    if (subject == TextValue::Unknown || subject == TextValue::NonNull)
+        || (pattern == TextValue::Unknown || pattern == TextValue::NonNull)
+        || (replacement == TextValue::Unknown || replacement == TextValue::NonNull)
         || starting == Int4Value::Unknown
         || occurrence == Int4Value::Unknown
-        || flags == TextValue::Unknown
+        || (flags == TextValue::Unknown || flags == TextValue::NonNull)
     {
         return TextValue::Unknown;
     }

@@ -44,8 +44,10 @@ export class CheckRustDiagnostics {
     )
       return '-1'
     const name = this.fresh('untracked_requirement')
-    if (kind === 'XmlValue')
-      lines.push(`let ${name} = check_xml_requirement(${this.owned(value)}, -1);`)
+    if (kind === 'XmlValue' || kind === 'TextValue')
+      lines.push(
+        `let ${name} = check_${kind === 'XmlValue' ? 'xml' : 'text'}_requirement(${this.owned(value)}, -1);`,
+      )
     else {
       const nullness = this.knownness(value, lines)
       lines.push(`let ${name} = check_requirement_filter(${nullness}, -1, false);`)
@@ -86,8 +88,10 @@ export class CheckRustDiagnostics {
     if (!this.enabled) return '0'
     const kind = this.rustType(value.type),
       name = this.fresh('filtered_requirement')
-    if (kind === 'XmlValue')
-      lines.push(`let ${name} = check_xml_requirement(${this.owned(value)}, ${reason});`)
+    if (kind === 'XmlValue' || kind === 'TextValue')
+      lines.push(
+        `let ${name} = check_${kind === 'XmlValue' ? 'xml' : 'text'}_requirement(${this.owned(value)}, ${reason});`,
+      )
     else {
       const nullness = this.knownness(value, lines)
       const partial = kind === 'ArrayValue'

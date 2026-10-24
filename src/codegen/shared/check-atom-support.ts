@@ -1,3 +1,5 @@
+import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
+import { isXmlOptionPredicate } from '../../sql-semantics/xml-callables.js'
 import { capturedEnumSupport, isOidAliasType } from '../../sql-semantics/expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
@@ -66,7 +68,8 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       (rust &&
         implementation.kind === 'function' &&
         (signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation ||
-          signature === builtinTypeIO('pg_catalog.xml')?.send) &&
+          signature === builtinTypeIO('pg_catalog.xml')?.send ||
+          isXmlOptionPredicate(implementation)) &&
         rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
@@ -85,6 +88,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         implementation.args.length === 1 &&
         implementation.args[0] === 'pg_catalog.anyelement' &&
         implementation.result === 'pg_catalog.jsonb' &&
+        rustNames.has(implementation.rustName)) ||
+      (rust &&
+        implementation.kind === 'function' &&
+        isMoneyNumericConversion(implementation) &&
         rustNames.has(implementation.rustName)) ||
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&

@@ -107,7 +107,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
-    if value == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) {
         return Int8Value::Unknown;
     }
     if value == TextValue::Null {

@@ -32,7 +32,7 @@ fn text_padding(input: TextValue, length: Int4Value, fill: TextValue, right: boo
     if let TextValue::Error(error) = fill {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || length == Int4Value::Unknown || fill == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown || (fill == TextValue::Unknown || fill == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || length == Int4Value::Null || fill == TextValue::Null {
@@ -122,7 +122,7 @@ pub fn sql__pg_catalog__repeat__f0fb(input: TextValue, length: Int4Value) -> Tex
     if let Int4Value::Error(error) = length {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || length == Int4Value::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || length == Int4Value::Unknown {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || length == Int4Value::Null {
@@ -173,7 +173,7 @@ pub fn sql__pg_catalog__translate__txpt(
     if let TextValue::Error(error) = to {
         return TextValue::Error(error);
     }
-    if input == TextValue::Unknown || from == TextValue::Unknown || to == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (from == TextValue::Unknown || from == TextValue::NonNull) || (to == TextValue::Unknown || to == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == TextValue::Null || from == TextValue::Null || to == TextValue::Null {

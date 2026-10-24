@@ -57,7 +57,7 @@ pub fn bit_from_text(input: TextValue) -> BitValue {
     if let TextValue::Error(error) = input {
         return BitValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return BitValue::Unknown;
     }
     if input == TextValue::Null {

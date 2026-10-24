@@ -206,7 +206,7 @@ fn clock_fields_numeric(units: TextValue, input: ClockFieldInput) -> NumericValu
     if let IntervalValue::Error(error) = interval_value {
         return NumericValue::Error(error);
     };
-    if units == TextValue::Unknown || input.value == IntervalValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull) || input.value == IntervalValue::Unknown {
         return NumericValue::Unknown;
     };
     if units == TextValue::Null || input.value == IntervalValue::Null {

@@ -90,7 +90,7 @@ pub fn sql__pg_catalog__to_ascii__culg(value: TextValue) -> TextValue {
     if let TextValue::Error(error) = value {
         return TextValue::Error(error);
     }
-    if value == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if value == TextValue::Null {
@@ -106,7 +106,7 @@ pub fn sql__pg_catalog__to_ascii__uqov(value: TextValue, encoding: Int4Value) ->
     if let Int4Value::Error(error) = encoding {
         return TextValue::Error(error);
     }
-    if value == TextValue::Unknown || encoding == Int4Value::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) || encoding == Int4Value::Unknown {
         return TextValue::Unknown;
     }
     if value == TextValue::Null || encoding == Int4Value::Null {

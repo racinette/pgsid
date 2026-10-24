@@ -1821,7 +1821,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             error = failure.state;
         };
         let mut text_unknown = false;
-        if let TextValue::Unknown = computed_text {
+        if computed_text == TextValue::Unknown || computed_text == TextValue::NonNull {
             text_unknown = true;
         };
         if let TextValue::Value(value) = computed_text {
@@ -2003,7 +2003,7 @@ fn jsonpath_execution_output(
                 if let TextValue::Error(failure) = rendered {
                     return JsonbValue::Error(failure);
                 };
-                if let TextValue::Unknown = rendered {
+                if rendered == TextValue::Unknown || rendered == TextValue::NonNull {
                     return JsonbValue::Unknown;
                 };
                 if let TextValue::Value(text) = rendered {

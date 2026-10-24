@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__pg_size_bytes__ggrt(input: TextValue) -> Int8Value {
     if let TextValue::Error(error) = input {
         return Int8Value::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return Int8Value::Unknown;
     }
     if input == TextValue::Null {

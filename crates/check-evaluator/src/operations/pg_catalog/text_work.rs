@@ -24,7 +24,7 @@ fn text_binary_compare(left: TextValue, right: TextValue, trim_spaces: bool) -> 
     if let TextValue::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == TextValue::Unknown || right == TextValue::Unknown {
+    if (left == TextValue::Unknown || left == TextValue::NonNull) || (right == TextValue::Unknown || right == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if left == TextValue::Null || right == TextValue::Null {
@@ -44,7 +44,7 @@ fn text_measure_value(value: TextValue, trim_spaces: bool, mode: i32) -> Int4Val
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
-    if value == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) {
         return Int4Value::Unknown;
     }
     if value == TextValue::Null {
@@ -100,7 +100,7 @@ fn text_trim_value(
     if let TextValue::Error(error) = set {
         return TextValue::Error(error);
     }
-    if value == TextValue::Unknown || set == TextValue::Unknown {
+    if (value == TextValue::Unknown || value == TextValue::NonNull) || (set == TextValue::Unknown || set == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if value == TextValue::Null || set == TextValue::Null {

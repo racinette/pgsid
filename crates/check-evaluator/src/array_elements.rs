@@ -54,9 +54,15 @@ pub enum ArrayElement {
     Composite(CompositePayload),
     Xml(String),
     XmlRenderedText(String),
+    XmlNonNull(XmlKnowledge),
+    TextNonNull,
+    Aclitem(AclitemPayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Aclitem(_) = input { return 46; };
+    if let ArrayElement::TextNonNull = input { return 8; };
+    if let ArrayElement::XmlNonNull(_) = input { return 45; };
     if let ArrayElement::Xml(_) = input { return 45; };
     if let ArrayElement::XmlRenderedText(_) = input { return 45; };
     if let ArrayElement::Composite(_) = input { return 44; };
@@ -416,6 +422,7 @@ pub fn array_element_to_date(input: ArrayElement) -> DateValue {
 }
 
 pub fn array_element_from_text(input: TextValue) -> ArrayElement {
+    if input == TextValue::NonNull { return ArrayElement::TextNonNull; };
     if let TextValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -429,6 +436,7 @@ pub fn array_element_from_text(input: TextValue) -> ArrayElement {
 }
 
 pub fn array_element_to_text(input: ArrayElement) -> TextValue {
+    if let ArrayElement::TextNonNull = input { return TextValue::NonNull; };
     if let ArrayElement::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -1357,6 +1365,11 @@ pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
 
 
 pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
+    if let XmlValue::NonNull(knowledge) = input {
+        let checked = make_xml_knowledge(knowledge.document,knowledge.content);
+        if let XmlValue::NonNull(actual) = checked { return ArrayElement::XmlNonNull(actual); };
+        return ArrayElement::Unknown;
+    };
     if let XmlValue::Error(error) = input { return ArrayElement::Error(error); };
     if let XmlValue::Null = input { return ArrayElement::Null; };
     if let XmlValue::Value(value) = input { return ArrayElement::Xml(value); };
@@ -1365,9 +1378,23 @@ pub fn array_element_from_xml(input: XmlValue) -> ArrayElement {
 }
 
 pub fn array_element_to_xml(input: ArrayElement) -> XmlValue {
+    if let ArrayElement::XmlNonNull(knowledge) = input { return make_xml_knowledge(knowledge.document,knowledge.content); };
     if let ArrayElement::Error(error) = input { return XmlValue::Error(error); };
     if let ArrayElement::Null = input { return XmlValue::Null; };
     if let ArrayElement::Xml(value) = input { return XmlValue::Value(value); };
     if let ArrayElement::XmlRenderedText(value) = input { return XmlValue::RenderedText(value); };
     XmlValue::Unknown
+}
+
+pub fn array_element_from_aclitem(input: AclitemValue) -> ArrayElement {
+    if let AclitemValue::Error(error) = input { return ArrayElement::Error(error); };
+    if input == AclitemValue::Null { return ArrayElement::Null; };
+    if let AclitemValue::Value(value) = input { return ArrayElement::Aclitem(value); };
+    ArrayElement::Unknown
+}
+pub fn array_element_to_aclitem(input: ArrayElement) -> AclitemValue {
+    if let ArrayElement::Error(error) = input { return AclitemValue::Error(error); };
+    if let ArrayElement::Null = input { return AclitemValue::Null; };
+    if let ArrayElement::Aclitem(value) = input { return AclitemValue::Value(value); };
+    AclitemValue::Unknown
 }

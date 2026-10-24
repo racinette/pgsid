@@ -5,7 +5,7 @@ pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue)
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
-    if units == TextValue::Unknown || input == IntervalValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == IntervalValue::Unknown {
         return IntervalValue::Unknown;
     };
     if units == TextValue::Null || input == IntervalValue::Null {

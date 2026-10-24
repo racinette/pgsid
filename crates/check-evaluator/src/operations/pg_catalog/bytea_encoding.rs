@@ -351,7 +351,7 @@ pub fn sql__pg_catalog__encode__bvkp(input: ByteaValue, format: TextValue) -> Te
     if let TextValue::Error(error) = format {
         return TextValue::Error(error);
     }
-    if input == ByteaValue::Unknown || format == TextValue::Unknown {
+    if input == ByteaValue::Unknown || (format == TextValue::Unknown || format == TextValue::NonNull) {
         return TextValue::Unknown;
     }
     if input == ByteaValue::Null || format == TextValue::Null {
@@ -398,7 +398,7 @@ pub fn sql__pg_catalog__decode__b6gt(input: TextValue, format: TextValue) -> Byt
     if let TextValue::Error(error) = format {
         return ByteaValue::Error(error);
     }
-    if input == TextValue::Unknown || format == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) || (format == TextValue::Unknown || format == TextValue::NonNull) {
         return ByteaValue::Unknown;
     }
     if input == TextValue::Null || format == TextValue::Null {

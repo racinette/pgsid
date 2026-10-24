@@ -79,7 +79,7 @@ pub fn uuid_from_text(input: TextValue) -> UuidValue {
     if let TextValue::Error(error) = input {
         return UuidValue::Error(error);
     }
-    if input == TextValue::Unknown {
+    if (input == TextValue::Unknown || input == TextValue::NonNull) {
         return UuidValue::Unknown;
     }
     if input == TextValue::Null {

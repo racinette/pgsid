@@ -1,3 +1,4 @@
+import { isMoneyNumericConversion } from './money-callables.js'
 import {
   rangeSubtypeCarrierIdentity,
   rangeSubtypeIsDomain,
@@ -418,6 +419,14 @@ export function catalogLsegType(
 ): boolean {
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.lseg'
 }
+export function catalogAclitemType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.aclitem'
+}
+
 export function catalogMoneyType(
   name: string,
   oid: number | undefined,
@@ -707,6 +716,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'line', type, value: literal.value }
   if (type === 'pg_catalog.lseg' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'lseg', type, value: literal.value }
+  if (type === 'pg_catalog.aclitem' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'aclitem', type, value: literal.value }
   if (type === 'pg_catalog.money' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'money', type, value: literal.value, units: literal.moneyUnits }
   if (type === 'pg_catalog.xid' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -4636,7 +4647,7 @@ export function bindCatalogCheck(
         }
       if (
         source &&
-        compositeProfile(source) &&
+        (compositeProfile(source) || anonymousRecordProfile(source)) &&
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
         operand.value
       ) {
@@ -4758,6 +4769,7 @@ export function bindCatalogCheck(
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||
           source === 'pg_catalog.jsonpath' ||
+          source === 'pg_catalog.money' ||
           isSnapshotType(source) ||
           isCatalogVectorType(source) ||
           isRangeType(source) ||
@@ -4798,7 +4810,8 @@ export function bindCatalogCheck(
             metadata.volatility !== 'i' &&
             !isOidAliasType(source) &&
             !isRangeType(source) &&
-            !isMultirangeType(source))
+            !isMultirangeType(source) &&
+            source !== 'pg_catalog.money')
         )
           return unknown
         operand = {
@@ -5418,7 +5431,9 @@ export function bindCatalogCheck(
           if (
             implementation.kind !== 'function' ||
             implementation.args.length !== 1 ||
-            (implementation.volatility !== 'i' && !isOidAliasType(result)) ||
+            (implementation.volatility !== 'i' &&
+              !isOidAliasType(result) &&
+              !isMoneyNumericConversion(implementation)) ||
             !result
           )
             return unknown
@@ -6658,7 +6673,10 @@ export function bindCatalogCheck(
                             : type === 'pg_catalog.oid'
                               ? { type, value: { kind: 'text-to-oid', type, operand: text } }
                               : type === 'pg_catalog.polygon'
-                                ? { type, value: { kind: 'text-to-polygon', type, operand: text } }
+                                ? {
+                                    type,
+                                    value: { kind: 'text-to-polygon', type, operand: text },
+                                  }
                                 : type === 'pg_catalog.path'
                                   ? { type, value: { kind: 'text-to-path', type, operand: text } }
                                   : type === 'pg_catalog.circle'
@@ -6679,7 +6697,11 @@ export function bindCatalogCheck(
                                         : type === 'pg_catalog.line'
                                           ? {
                                               type,
-                                              value: { kind: 'text-to-line', type, operand: text },
+                                              value: {
+                                                kind: 'text-to-line',
+                                                type,
+                                                operand: text,
+                                              },
                                             }
                                           : type === 'pg_catalog.point'
                                             ? {

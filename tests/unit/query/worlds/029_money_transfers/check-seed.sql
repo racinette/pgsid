@@ -106,3 +106,151 @@ INSERT INTO cash_scales (id,account_id,label,amount,factor_small,factor_integer,
 INSERT INTO cash_scales (id,account_id,label,amount,factor_small,factor_integer,factor_wide,factor_real,factor_double,recorded_small_product,recorded_integer_product,recorded_wide_product,recorded_real_product,recorded_double_product,recorded_small_quotient,recorded_integer_quotient,recorded_wide_quotient,recorded_real_quotient,recorded_double_quotient,skip_validation) VALUES (100,1,'cash_scale_double_zero','1.25',NULL,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: cash_scale_wrong_double
 INSERT INTO cash_scales (id,account_id,label,amount,factor_small,factor_integer,factor_wide,factor_real,factor_double,recorded_small_product,recorded_integer_product,recorded_wide_product,recorded_real_product,recorded_double_product,recorded_small_quotient,recorded_integer_quotient,recorded_wide_quotient,recorded_real_quotient,recorded_double_quotient,skip_validation) VALUES (100,1,'cash_scale_wrong_double','1.27',2,2,2,2,2,'2.54','2.54','2.54','2.54','0','0.63','0.63','0.63','0.64','0.64',false);
+
+-- name: NumericMoneyCast
+INSERT INTO cash_numeric_casts(numeric_amount,numeric_wire,bypass)
+VALUES (1.235,'\x000000000000007c',false);
+
+-- name: NegativeNumericMoneyCast
+INSERT INTO cash_numeric_casts(numeric_amount,numeric_wire,bypass)
+VALUES (-1.235,'\xffffffffffffff84',false);
+
+-- name: IncorrectNumericMoneyCast
+INSERT INTO cash_numeric_casts(numeric_amount,numeric_wire,bypass)
+VALUES (1.235,'\x000000000000007b',false);
+
+-- name: NumericMoneyCastOverflow
+INSERT INTO cash_numeric_casts(numeric_amount,bypass)
+VALUES (92233720368547758.075,false);
+
+-- name: NumericMoneyCastNaN
+INSERT INTO cash_numeric_casts(numeric_amount,bypass)
+VALUES ('NaN',false);
+
+-- name: WideMoneyCast
+INSERT INTO cash_numeric_casts(wide_amount,wide_wire,bypass)
+VALUES (100,'\x0000000000002710',false);
+
+-- name: WideMoneyCastOverflow
+INSERT INTO cash_numeric_casts(wide_amount,bypass)
+VALUES (92233720368547759,false);
+
+-- name: IntegerMoneyCast
+INSERT INTO cash_numeric_casts(integer_amount,integer_wire,bypass)
+VALUES (42,'\x0000000000001068',false);
+
+-- name: MoneyNumericCast
+INSERT INTO cash_numeric_casts(amount,expected_numeric,expected_scale,bypass)
+VALUES ('1.25',1.25,2,false);
+
+-- name: IncorrectMoneyNumericCast
+INSERT INTO cash_numeric_casts(amount,expected_numeric,expected_scale,bypass)
+VALUES ('1.25',1.24,2,false);
+
+-- name: ZeroMoneyNumericCast
+INSERT INTO cash_numeric_casts(amount,expected_numeric,expected_scale,bypass)
+VALUES ('0',0.00,2,false);
+
+-- name: NullMoneyCasts
+INSERT INTO cash_numeric_casts(bypass)
+VALUES (false);
+
+-- name: BypassedMoneyCasts
+INSERT INTO cash_numeric_casts(numeric_amount,wide_amount,amount,expected_numeric,expected_scale,bypass)
+VALUES ('NaN',92233720368547759,'1.25',0,0,true);
+
+-- name: RoundedCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('1.235','1.24','\x000000000000007c','$1.24',false);
+
+-- name: GroupedCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('-1,234.56','-1234.56','\xfffffffffffe1dc0','-$1,234.56',false);
+
+-- name: TrailingCashSign
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('1.25-','-1.25','\xffffffffffffff83','-$1.25',false);
+
+-- name: UnbalancedCashParenthesis
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('(1.25','-1.25','\xffffffffffffff83','-$1.25',false);
+
+-- name: MaximumCashDisplay
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('92,233,720,368,547,758.07','92233720368547758.07','\x7fffffffffffffff','$92,233,720,368,547,758.07',false);
+
+-- name: MinimumCashDisplay
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('-92,233,720,368,547,758.08','-92233720368547758.08','\x8000000000000000','-$92,233,720,368,547,758.08',false);
+
+-- name: MalformedCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('bad',NULL,NULL,NULL,false);
+
+-- name: OverflowingCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('92233720368547758.08',NULL,NULL,NULL,false);
+
+-- name: IncorrectCashTextWire
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('1.235','1.24','\x000000000000007d','$1.24',false);
+
+-- name: IncorrectCashDisplay
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('1.25','1.25','\x000000000000007d','$1.24',false);
+
+-- name: NullCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES (NULL,NULL,NULL,NULL,false);
+
+-- name: BypassedCashText
+INSERT INTO cash_text_values(source_text,amount,expected_wire,expected_text,bypass)
+VALUES ('bad','92233720368547758.07','\x0000000000000000','',true);
+
+-- name: FiniteCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[0,1.25)','[0,1.25)','{[0,1.25),[2000.01,3000.02]}','[$0.00,$1.25)','{[$0.00,$1.25),["$2,000.01","$3,000.02"]}',false);
+
+-- name: GroupedCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[-1234.56,2000.01]','[-1234.56,2000.01]','{[0,1.25),[2000.01,3000.02]}','["-$1,234.56","$2,000.01"]','{[$0.00,$1.25),["$2,000.01","$3,000.02"]}',false);
+
+-- name: MaximumCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[92233720368547758.07,)','[92233720368547758.07,)','{}','["$92,233,720,368,547,758.07",)','{}',false);
+
+-- name: MinimumCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('(,-92233720368547758.08]','(,-92233720368547758.08]','{[-92233720368547758.08,-1.25],[1.25,92233720368547758.07]}','(,"-$92,233,720,368,547,758.08"]','{["-$92,233,720,368,547,758.08",-$1.25],[$1.25,"$92,233,720,368,547,758.07"]}',false);
+
+-- name: EmptyCashBands
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('empty','empty','{}','empty','{}',false);
+
+-- name: UnboundedCashBands
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('(,)','(,)','{(,)}','(,)','{(,)}',false);
+
+-- name: NullCashBands
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: WrongCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[0,1.25)','[0,1.25)',NULL,'wrong',NULL,false);
+
+-- name: WrongCashBands
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES (NULL,NULL,'{[0,1.25),[2000.01,3000.02]}',NULL,'wrong',false);
+
+-- name: MalformedCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[bad,1.25)',NULL,NULL,NULL,NULL,false);
+
+-- name: OverflowingCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[92233720368547758.08,)',NULL,NULL,NULL,NULL,false);
+
+-- name: BypassedCashBand
+INSERT INTO cash_band_text(source_text,band,bands,expected_band,expected_bands,bypass)
+VALUES ('[bad,1.25)','[0,1.25)',NULL,'wrong','wrong',true);
