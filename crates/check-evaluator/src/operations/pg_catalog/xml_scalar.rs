@@ -159,7 +159,8 @@ pub fn xml_to_bytea_utf8(input: XmlValue) -> ByteaValue {
         let mut bytes = String::new();
         let mut index: usize = 0;
         while index < characters.len() {
-            bytes = bytea_utf8_character(bytes, characters[index]);
+            let encoded = bytea_utf8_character(String::new(), characters[index]);
+            bytes.push_str(encoded.as_str());
             index += 1;
         }
         return ByteaValue::Value(bytes);

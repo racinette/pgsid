@@ -74,7 +74,14 @@ pub(crate) fn xpath_graph_declaration(input: XmlTree, entry: XmlTreeDtdEntry) ->
         let value_text = xml_source_range(&source,span);
         tree = xml_tree_store(tree,value_text.as_str()); value = tree.written;
     };
-    xml_tree_leaf(tree,kind,name,value)
+    let mut content_present = value.end > value.start;
+    if entry.kind == 7 {
+        let text = xml_tree_text(&tree,entry.line);
+        let source = XmlSource { characters: text.as_str().chars().collect() };
+        let scanned = xml_name(&source,2);
+        content_present = source.characters.len() > scanned.next+2;
+    };
+    xml_tree_leaf_content(tree,kind,name,value,content_present)
 }
 
 fn xpath_graph_definitions(tree: &XmlTree) -> XPathDefinitions {

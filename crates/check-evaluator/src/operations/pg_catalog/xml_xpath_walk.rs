@@ -46,7 +46,13 @@ fn xpath_graph_preceding(graph: &XPathGraph, input: XPathCursor) -> XPathCursor 
 
 fn xpath_graph_axis_test(tree: &XmlTree, graph: &XPathGraph, context: XPathReference, axis: i32, test: &XPathNodeTest) -> XPathSequence {
     if axis != 11 && axis != 12 {
-        let found = xpath_local_axis_test(tree,context,axis,test);
+        let candidates = xpath_window_candidates(tree,graph,context,axis);
+        let mut found = xpath_nodes_empty(); let mut index: usize = 0;
+        while index < candidates.values.len() {
+            let value = candidates.values[index];
+            if xpath_node_matches(tree,test,value) { found = xpath_nodes_push(found,value); };
+            index += 1;
+        }
         return XPathSequence { values: found.values, cyclic: false, cycle: 0 };
     };
     let mut values: Vec<XPathReference> = Vec::new();

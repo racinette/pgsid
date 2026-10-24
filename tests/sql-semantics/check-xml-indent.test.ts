@@ -15,6 +15,7 @@ import {
 
 const literal = (s: string) => '$xml$' + s + '$xml$::xml'
 const normal = [
+  '<r><?empty?><?blank   ?></r>',
   null,
   '',
   ' ',
@@ -69,6 +70,9 @@ const normal = [
   '\ufeff<?xml version="1.0"?><r>é</r>',
 ]
 const doctypes = [
+  '<!DOCTYPE r [<!--only a comment-->]><r/>',
+  '<!DOCTYPE r [<!ENTITY e "x"><?empty?><?blank   ?>]><r/>',
+  '<!DOCTYPE r [<?empty?><?blank   ?>]><r/>',
   '<!DOCTYPE r SYSTEM "missing"><r/>',
   '<!DOCTYPE r PUBLIC "pub" "sys"><r>é</r>',
   '<!DOCTYPE r [<!ENTITY x "<a/> text"><!ATTLIST r a CDATA "hi">]><r>&x;</r>',

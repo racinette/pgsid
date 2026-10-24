@@ -45955,8 +45955,11 @@ func XmlTreeDtdAttributes(input xmlTree, source *xmlSource, stored *xmlSource, a
 				definedOwner := xmlSourceRange(stored, value.element)
 				definedName := xmlSourceRange(stored, value.name)
 				if definedOwner == owner && definedName == name {
-					text := xmlSourceRange(stored, value.value)
-					tree = XmlTreeStore(tree, text)
+					text := langruntime.NewTextBuffer(xmlSourceRange(stored, value.value))
+					if tree.flags.query {
+						text = langruntime.NewTextBuffer(xmlQueryAttributeSource(stored, value.rawValue, value.tokenized))
+					}
+					tree = XmlTreeStore(tree, string(text))
 					encoded := xmlTreeEscape(&tree, tree.written, true)
 					line = append(line, string(langruntime.CheckedChar('"'))...)
 					line = append(line, encoded...)
@@ -45997,7 +46000,7 @@ func XmlTreeDtdSubset(input xmlTree, source *xmlSource, stored *xmlSource, arena
 			text := xmlTreeNormalize(source, begin, langruntime.CheckedSubtract(parsed.next, 2))
 			line := langruntime.NewTextBuffer("<?")
 			line = append(line, nameText...)
-			if begin < langruntime.CheckedSubtract(parsed.next, 2) {
+			if parsed.next > langruntime.CheckedAdd(name.next, 2) {
 				line = append(line, string(langruntime.CheckedChar(' '))...)
 				line = append(line, text...)
 			}
@@ -46119,7 +46122,15 @@ func XmlTreeDoctype(input xmlTree, source *xmlSource, stored *xmlSource, arena *
 	if notations > 1 {
 		tree = XmlTreeUnsupported(tree)
 	}
-	if len(tree.declarations) > 0 {
+	declared := false
+	index = langruntime.CheckedIndex(0)
+	for index < len(tree.declarations) {
+		if tree.declarations[index].kind <= 5 {
+			declared = true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if declared {
 		output = append(output, " [\n"...)
 		pass := 0
 		for pass < 2 {
@@ -47080,7 +47091,7 @@ func xmlTreeEscape(tree *xmlTree, span xmlSpan, attribute bool) string {
 			output = append(output, "&#10;"...)
 		} else if character == '\t' && attribute {
 			output = append(output, "&#9;"...)
-		} else if code >= 128 && tree.flags.unicode == false {
+		} else if code >= 128 && tree.flags.unicode == false && tree.flags.query == false {
 			reference := xmlElementCharacterReference(code)
 			output = append(output, reference...)
 		} else {
@@ -47210,7 +47221,7 @@ func xmlTreeWriteNode(tree *xmlTree, node int) string {
 					name := xmlTreeText(tree, node.name)
 					output = append(output, "<?"...)
 					output = append(output, name...)
-					if node.value.end > node.value.start {
+					if node.contentPresent {
 						output = append(output, string(langruntime.CheckedChar(' '))...)
 						output = append(output, value...)
 					}
@@ -49460,7 +49471,8 @@ func XmlToByteaUtf8(input checkruntime.XmlValue) checkruntime.ByteaValue {
 		bytes := langruntime.NewTextBuffer("")
 		index := 0
 		for index < len(characters) {
-			bytes = langruntime.NewTextBuffer(byteaUtf8Character(string(bytes), characters[index]))
+			encoded := byteaUtf8Character("", characters[index])
+			bytes = append(bytes, encoded...)
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(bytes)}
@@ -49854,12 +49866,13 @@ func xmlTextPlain(source *xmlSource, start int, input xmlTextState, root bool) x
 type xmlTreeAttribute struct {
 	name        xmlSpan
 	value       xmlSpan
+	querySource xmlSpan
 	defaulted   bool
 	idCandidate bool
 }
 
 func copyxmlTreeAttribute(value xmlTreeAttribute) xmlTreeAttribute {
-	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), defaulted: value.defaulted, idCandidate: value.idCandidate}
+	return xmlTreeAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), querySource: copyxmlSpan(value.querySource), defaulted: value.defaulted, idCandidate: value.idCandidate}
 }
 
 type xmlTreeNode struct {
@@ -49877,10 +49890,11 @@ type xmlTreeNode struct {
 	textual        bool
 	textSeen       bool
 	blankPolicy    int
+	contentPresent bool
 }
 
 func copyxmlTreeNode(value xmlTreeNode) xmlTreeNode {
-	return xmlTreeNode{kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parent: langruntime.CheckedIndex(value.parent), next: langruntime.CheckedIndex(value.next), previous: langruntime.CheckedIndex(value.previous), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), attributeStart: langruntime.CheckedIndex(value.attributeStart), attributeEnd: langruntime.CheckedIndex(value.attributeEnd), preserve: value.preserve, textual: value.textual, textSeen: value.textSeen, blankPolicy: langruntime.CheckedI32(value.blankPolicy)}
+	return xmlTreeNode{kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parent: langruntime.CheckedIndex(value.parent), next: langruntime.CheckedIndex(value.next), previous: langruntime.CheckedIndex(value.previous), first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last), attributeStart: langruntime.CheckedIndex(value.attributeStart), attributeEnd: langruntime.CheckedIndex(value.attributeEnd), preserve: value.preserve, textual: value.textual, textSeen: value.textSeen, blankPolicy: langruntime.CheckedI32(value.blankPolicy), contentPresent: value.contentPresent}
 }
 
 type xmlTreeFlags struct {
@@ -49955,7 +49969,7 @@ func XmlTreeStore(input xmlTree, text string) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: characters, current: input.current, written: written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeLinks(input xmlTreeNode, next int, first int, last int, value xmlSpan, textual bool, textSeen bool) xmlTreeNode {
-	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, previous: input.previous, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy}
+	return xmlTreeNode{kind: input.kind, name: input.name, value: value, parent: input.parent, next: next, previous: input.previous, first: first, last: last, attributeStart: input.attributeStart, attributeEnd: input.attributeEnd, preserve: input.preserve, textual: textual, textSeen: textSeen, blankPolicy: input.blankPolicy, contentPresent: input.contentPresent}
 }
 func XmlTreeAppend(input xmlTree, node xmlTreeNode) xmlTree {
 	nodes := input.nodes
@@ -49981,21 +49995,24 @@ func XmlTreeCurrent(input xmlTree, current int) xmlTree {
 func XmlTreeSpace(input xmlTree, index int, preserve bool, textSeen bool, blankPolicy int) xmlTree {
 	nodes := input.nodes
 	node := nodes[index]
-	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, previous: node.previous, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy})
+	nodes[index] = copyxmlTreeNode(xmlTreeNode{kind: node.kind, name: node.name, value: node.value, parent: node.parent, next: node.next, previous: node.previous, first: node.first, last: node.last, attributeStart: node.attributeStart, attributeEnd: node.attributeEnd, preserve: preserve, textual: node.textual, textSeen: textSeen, blankPolicy: blankPolicy, contentPresent: node.contentPresent})
 	return xmlTree{nodes: nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
 func XmlTreeUnsupported(input xmlTree) xmlTree {
 	return xmlTree{nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: false}
 }
-func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, defaulted bool, idCandidate bool) xmlTree {
+func XmlTreeAddAttribute(input xmlTree, name xmlSpan, value xmlSpan, querySource xmlSpan, defaulted bool, idCandidate bool) xmlTree {
 	attributes := input.attributes
 	langruntime.CheckedAdd(len(attributes), 1)
-	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, defaulted: defaulted, idCandidate: idCandidate}))
+	attributes = append(attributes, copyxmlTreeAttribute(xmlTreeAttribute{name: name, value: value, querySource: querySource, defaulted: defaulted, idCandidate: idCandidate}))
 	return xmlTree{nodes: input.nodes, attributes: attributes, characters: input.characters, current: input.current, written: input.written, declarations: input.declarations, flags: input.flags, serializationKnown: input.serializationKnown}
 }
-func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
-	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}
+func XmlTreeLeafContent(input xmlTree, kind int, name xmlSpan, value xmlSpan, contentPresent bool) xmlTree {
+	node := xmlTreeNode{kind: kind, name: name, value: value, parent: input.current, next: 0, previous: input.nodes[input.current].last, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1), contentPresent: contentPresent}
 	return XmlTreeAppend(input, node)
+}
+func XmlTreeLeaf(input xmlTree, kind int, name xmlSpan, value xmlSpan) xmlTree {
+	return XmlTreeLeafContent(input, kind, name, value, value.end > value.start)
 }
 func XmlTreeAddText(input xmlTree, text string, forced bool, closing bool, end bool) xmlTree {
 	values := []rune(text)
@@ -50072,7 +50089,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			valueText := xmlTreeSourceText(source, begin, langruntime.CheckedSubtract(scanned.next, 2), preserveCarriage)
 			tree = XmlTreeStore(tree, valueText)
 			value := tree.written
-			tree = XmlTreeLeaf(tree, 5, nameSpan, value)
+			tree = XmlTreeLeafContent(tree, 5, nameSpan, value, scanned.next > langruntime.CheckedAdd(name.next, 2))
 			position = langruntime.CheckedIndex(scanned.next)
 		} else if xmlAt(source, position, "<![CDATA[") {
 			scanned := xmlCdata(source, position)
@@ -50116,8 +50133,14 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 				attributeName := tree.written
 				tree = XmlTreeStore(tree, string(value))
 				attributeValue := tree.written
+				querySource := xmlSpan{start: 0, end: 0}
+				if tree.flags.query && xmlQueryNamespaceAttributeText(attributeText) == false {
+					text := xmlQueryAttributeSource(source, quoted.value, tokenized)
+					tree = XmlTreeStore(tree, text)
+					querySource = copyxmlSpan(tree.written)
+				}
 				idCandidate := xmlQueryIdCandidate(source, quoted.value)
-				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, false, idCandidate)
+				tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, querySource, false, idCandidate)
 				position = langruntime.CheckedIndex(xmlSkipSpace(source, quoted.next))
 			}
 			explicitEnd := len(tree.attributes)
@@ -50148,7 +50171,8 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 						attributeName := tree.written
 						tree = XmlTreeStore(tree, string(valueText))
 						attributeValue := tree.written
-						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, true, false)
+						querySource := xmlSpan{start: 0, end: 0}
+						tree = XmlTreeAddAttribute(tree, attributeName, attributeValue, querySource, true, false)
 					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
@@ -50177,7 +50201,7 @@ func XmlTreeParseNodes(source *xmlSource, stored *xmlSource, arena *xmlEntityAre
 			}
 			blankPolicy := xmlTreeBlankPolicy(&tree, nameText)
 			span := xmlSpan{start: 0, end: 0}
-			node := xmlTreeNode{kind: 1, name: name, value: span, parent: tree.current, next: 0, previous: tree.nodes[tree.current].last, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy}
+			node := xmlTreeNode{kind: 1, name: name, value: span, parent: tree.current, next: 0, previous: tree.nodes[tree.current].last, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy, contentPresent: false}
 			child := len(tree.nodes)
 			tree = XmlTreeAppend(tree, node)
 			if tree.flags.query && xmlQueryDefaultNamesValid(&tree, child, arena, stored) == false {
@@ -50293,7 +50317,7 @@ func xmlTreeParse(input string, document bool, query bool) xmlTree {
 	empty := xmlSpan{start: 0, end: 0}
 	nodes := []xmlTreeNode{}
 	langruntime.CheckedAdd(len(nodes), 1)
-	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1)}))
+	nodes = append(nodes, copyxmlTreeNode(xmlTreeNode{kind: 0, name: empty, value: empty, parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.CheckedSignedNegate(1), contentPresent: false}))
 	attributes := []xmlTreeAttribute{}
 	flags := xmlTreeFlags{document: effectiveDocument, declaration: actualDeclaration && begin == 0, unicode: effectiveDocument && actualDeclaration && begin == 0, query: query, queryIdsValid: true, queryNamesValid: true, standalone: standalone, version: versionSpan, doctypeEnd: doctypeEnd}
 	declarations := []xmlTreeDtdEntry{}
@@ -52058,7 +52082,14 @@ func XpathGraphDeclaration(input xmlTree, entry xmlTreeDtdEntry) xmlTree {
 		tree = XmlTreeStore(tree, valueText)
 		value = copyxmlSpan(tree.written)
 	}
-	return XmlTreeLeaf(tree, kind, name, value)
+	contentPresent := value.end > value.start
+	if entry.kind == 7 {
+		text := xmlTreeText(&tree, entry.line)
+		source := xmlSource{characters: []rune(text)}
+		scanned := xmlName(&source, 2)
+		contentPresent = len(source.characters) > langruntime.CheckedAdd(scanned.next, 2)
+	}
+	return XmlTreeLeafContent(tree, kind, name, value, contentPresent)
 }
 func xpathGraphDefinitions(tree *xmlTree) xPathDefinitions {
 	entries := []xPathDefinition{}
@@ -54037,6 +54068,441 @@ func XpathParseStepLeaf(input xPathProgram) xPathProgram {
 	return program
 }
 
+const sqlstateXmlNodeCopy = 8540640
+
+type xPathCopyNamespace struct {
+	prefix string
+	uri    string
+	next   int
+}
+
+func copyxPathCopyNamespace(value xPathCopyNamespace) xPathCopyNamespace {
+	return xPathCopyNamespace{prefix: langruntime.CheckedString(value.prefix), uri: langruntime.CheckedString(value.uri), next: langruntime.CheckedIndex(value.next)}
+}
+
+type xPathCopyNamespaceScope struct {
+	first int
+	last  int
+}
+
+func copyxPathCopyNamespaceScope(value xPathCopyNamespaceScope) xPathCopyNamespaceScope {
+	return xPathCopyNamespaceScope{first: langruntime.CheckedIndex(value.first), last: langruntime.CheckedIndex(value.last)}
+}
+
+type xPathCopyNamespaces struct {
+	entries []xPathCopyNamespace
+	scopes  []xPathCopyNamespaceScope
+}
+
+func copyxPathCopyNamespaces(value xPathCopyNamespaces) xPathCopyNamespaces {
+	return xPathCopyNamespaces{entries: langruntime.CheckedStructs(value.entries, copyxPathCopyNamespace), scopes: langruntime.CheckedStructs(value.scopes, copyxPathCopyNamespaceScope)}
+}
+
+type xPathCopyWrite struct {
+	node    int
+	closing bool
+	newline bool
+}
+
+func copyxPathCopyWrite(value xPathCopyWrite) xPathCopyWrite {
+	return xPathCopyWrite{node: langruntime.CheckedIndex(value.node), closing: value.closing, newline: value.newline}
+}
+func xpathCopyPrefix(qualified string) string {
+	qualified = langruntime.CheckedString(qualified)
+	source := xmlSource{characters: []rune(qualified)}
+	end := 0
+	for end < len(source.characters) && source.characters[end] != ':' {
+		end = langruntime.CheckedAdd(end, 1)
+	}
+	if end == len(source.characters) {
+		return ""
+	}
+	return xmlSourceRange(&source, xmlSpan{start: 0, end: end})
+}
+func XpathCopyNamespaceAdd(input xPathCopyNamespaces, owner int, prefix string, uri string) xPathCopyNamespaces {
+	entries := input.entries
+	scopes := input.scopes
+	scope := scopes[owner]
+	next := langruntime.CheckedAdd(len(entries), 1)
+	if scope.last > 0 {
+		old := copyxPathCopyNamespace(entries[langruntime.CheckedSubtract(scope.last, 1)])
+		entries[langruntime.CheckedSubtract(scope.last, 1)] = copyxPathCopyNamespace(xPathCopyNamespace{prefix: old.prefix, uri: old.uri, next: next})
+	}
+	first := scope.first
+	if first == 0 {
+		first = langruntime.CheckedIndex(next)
+	}
+	scopes[owner] = copyxPathCopyNamespaceScope(xPathCopyNamespaceScope{first: first, last: next})
+	langruntime.CheckedAdd(len(entries), 1)
+	entries = append(entries, copyxPathCopyNamespace(xPathCopyNamespace{prefix: prefix, uri: uri, next: 0}))
+	return xPathCopyNamespaces{entries: entries, scopes: scopes}
+}
+func xpathCopyNamespaceFind(input *xPathCopyNamespaces, tree *xmlTree, node int, root int, prefix string) int {
+	node = langruntime.CheckedIndex(node)
+	root = langruntime.CheckedIndex(root)
+	prefix = langruntime.CheckedString(prefix)
+	cursor := node
+	scanning := true
+	for scanning {
+		index := input.scopes[cursor].first
+		for index > 0 {
+			entry := copyxPathCopyNamespace(input.entries[langruntime.CheckedSubtract(index, 1)])
+			if entry.prefix == prefix {
+				return langruntime.CheckedSubtract(index, 1)
+			}
+			index = langruntime.CheckedIndex(entry.next)
+		}
+		if cursor == root || cursor == 0 {
+			scanning = false
+		} else {
+			cursor = langruntime.CheckedIndex(tree.nodes[cursor].parent)
+		}
+	}
+	return len(input.entries)
+}
+func xpathCopyNext(tree *xmlTree, node int, root int) int {
+	node = langruntime.CheckedIndex(node)
+	root = langruntime.CheckedIndex(root)
+	item := tree.nodes[node]
+	if (item.kind == 0 || item.kind == 1) && item.first > 0 {
+		return item.first
+	}
+	cursor := node
+	for cursor != root {
+		if tree.nodes[cursor].next > 0 {
+			return tree.nodes[cursor].next
+		}
+		cursor = langruntime.CheckedIndex(tree.nodes[cursor].parent)
+	}
+	return 0
+}
+func XpathCopyRequireNamespace(input xPathCopyNamespaces, tree *xmlTree, owner int, root int, name xmlQueryName) xPathCopyNamespaces {
+	prefix := xpathCopyPrefix(name.qualified)
+	if name.namespace == "" || prefix == "xml" {
+		return input
+	}
+	found := xpathCopyNamespaceFind(&input, tree, owner, root, prefix)
+	if found < len(input.entries) {
+		return input
+	}
+	return XpathCopyNamespaceAdd(input, root, prefix, name.namespace)
+}
+func xpathCopyNamespaces(tree *xmlTree, root int) xPathCopyNamespaces {
+	root = langruntime.CheckedIndex(root)
+	entries := []xPathCopyNamespace{}
+	scopes := []xPathCopyNamespaceScope{}
+	index := 0
+	for index < len(tree.nodes) {
+		langruntime.CheckedAdd(len(scopes), 1)
+		scopes = append(scopes, copyxPathCopyNamespaceScope(xPathCopyNamespaceScope{first: 0, last: 0}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	result := xPathCopyNamespaces{entries: entries, scopes: scopes}
+	cursor := root
+	scanning := true
+	for scanning {
+		node := tree.nodes[cursor]
+		if node.kind == 1 {
+			index := node.attributeStart
+			for index < node.attributeEnd {
+				attribute := tree.attributes[index]
+				name := xmlTreeText(tree, attribute.name)
+				if xmlQueryNamespaceAttributeText(name) && name != "xmlns:xml" {
+					prefix := xpathNamespacePrefix(tree, langruntime.CheckedAdd(index, 1))
+					uri := xmlTreeText(tree, attribute.value)
+					result = XpathCopyNamespaceAdd(result, cursor, prefix, uri)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			name := xmlQueryNodeName(tree, cursor)
+			result = XpathCopyRequireNamespace(result, tree, cursor, root, name)
+			index = langruntime.CheckedIndex(node.attributeStart)
+			for index < node.attributeEnd {
+				attribute := tree.attributes[index]
+				if xmlQueryNamespaceAttribute(tree, attribute.name) == false {
+					name := xmlQueryExpandName(tree, cursor, attribute.name, true)
+					result = XpathCopyRequireNamespace(result, tree, cursor, root, name)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		cursor = langruntime.CheckedIndex(xpathCopyNext(tree, cursor, root))
+		if cursor == 0 {
+			scanning = false
+		}
+	}
+	return result
+}
+func xpathCopyEscapeCharacter(character rune, attribute bool) string {
+	character = langruntime.CheckedChar(character)
+	if character == '&' {
+		return "&amp;"
+	}
+	if character == '<' {
+		return "&lt;"
+	}
+	if character == '>' {
+		return "&gt;"
+	}
+	if character == '\r' {
+		return "&#13;"
+	}
+	if attribute && character == '"' {
+		return "&quot;"
+	}
+	if attribute && character == '\n' {
+		return "&#10;"
+	}
+	if attribute && character == '\t' {
+		return "&#9;"
+	}
+	output := langruntime.NewTextBuffer("")
+	output = append(output, string(langruntime.CheckedChar(character))...)
+	return string(output)
+}
+func xpathCopyEscape(input string, attribute bool) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(characters) {
+		escaped := xpathCopyEscapeCharacter(characters[index], attribute)
+		output = append(output, escaped...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func xpathCopyAttribute(tree *xmlTree, attribute xmlTreeAttribute) string {
+	attribute = copyxmlTreeAttribute(attribute)
+	text := xmlTreeText(tree, attribute.querySource)
+	source := xmlSource{characters: []rune(text)}
+	output := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(source.characters) {
+		if source.characters[index] == '&' {
+			reference := xmlReference(&source, index)
+			if xmlPredefinedReference(&source, index) {
+				character := xmlReferenceScalar(&source, index)
+				escaped := xpathCopyEscapeCharacter(character, true)
+				output = append(output, escaped...)
+			} else {
+				span := xmlSpan{start: index, end: reference.next}
+				literal := xmlSourceRange(&source, span)
+				output = append(output, literal...)
+			}
+			index = langruntime.CheckedIndex(reference.next)
+		} else {
+			escaped := xpathCopyEscapeCharacter(source.characters[index], true)
+			output = append(output, escaped...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	return string(output)
+}
+func xpathCopyDoctype(tree *xmlTree, node xmlTreeNode) string {
+	node = copyxmlTreeNode(node)
+	text := xmlTreeText(tree, node.value)
+	source := xmlSource{characters: []rune(text)}
+	position := 9
+	quote := ' '
+	for position < len(source.characters) && (quote != ' ' || (source.characters[position] != '[' && source.characters[position] != '>')) {
+		character := source.characters[position]
+		if quote != ' ' {
+			if character == quote {
+				quote = langruntime.CheckedChar(' ')
+			}
+		} else if character == '"' || character == '\'' {
+			quote = langruntime.CheckedChar(character)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	end := position
+	for end > 0 && xmlSpace(source.characters[langruntime.CheckedSubtract(end, 1)]) {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	output := langruntime.NewTextBuffer(xmlSourceRange(&source, xmlSpan{start: 0, end: end}))
+	entries := 0
+	index := 0
+	for index < len(tree.declarations) {
+		if tree.declarations[index].kind <= 5 {
+			entries = langruntime.CheckedAdd(entries, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if entries > 0 {
+		output = append(output, " [\n"...)
+		pass := 0
+		for pass < 2 {
+			index = langruntime.CheckedIndex(0)
+			for index < len(tree.declarations) {
+				entry := tree.declarations[index]
+				if (pass == 0 && entry.kind == 5) || (pass == 1 && entry.kind != 5 && entry.kind != 7) {
+					line := xmlTreeText(tree, entry.line)
+					output = append(output, line...)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			pass = langruntime.CheckedAdd(pass, 1)
+		}
+		output = append(output, string(langruntime.CheckedChar(']'))...)
+	}
+	output = append(output, string(langruntime.CheckedChar('>'))...)
+	return string(output)
+}
+func xpathNodeToXml(tree *xmlTree, graph *xPathGraph, value xPathReference) checkruntime.XmlValue {
+	value = copyxPathReference(value)
+	if value.kind != 0 || tree.nodes[value.node].kind == 2 {
+		text := xpathReferenceString(tree, graph, value)
+		escaped := XmlElementValueEscape(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}, true)
+		if escaped.Kind == checkruntime.TextValueValue {
+			output := langruntime.CheckedString(escaped.Value)
+			return checkruntime.XmlValue{Kind: checkruntime.XmlValueValue, Value: output}
+		}
+		return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+	}
+	namespaces := xpathCopyNamespaces(tree, value.node)
+	stack := []xPathCopyWrite{}
+	langruntime.CheckedAdd(len(stack), 1)
+	stack = append(stack, copyxPathCopyWrite(xPathCopyWrite{node: value.node, closing: false, newline: false}))
+	count := 1
+	output := langruntime.NewTextBuffer("")
+	for count > 0 {
+		count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
+		task := stack[count]
+		node := tree.nodes[task.node]
+		name := xmlTreeText(tree, node.name)
+		if task.closing {
+			output = append(output, "</"...)
+			output = append(output, name...)
+			output = append(output, string(langruntime.CheckedChar('>'))...)
+			if task.newline {
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
+			}
+		} else if node.kind == 0 {
+			version := xmlTreeText(tree, tree.flags.version)
+			output = append(output, "<?xml version=\""...)
+			output = append(output, version...)
+			output = append(output, "\" encoding=\"UTF-8\""...)
+			if tree.flags.standalone == 1 {
+				output = append(output, " standalone=\"yes\""...)
+			}
+			if tree.flags.standalone == 0 {
+				output = append(output, " standalone=\"no\""...)
+			}
+			output = append(output, "?>\n"...)
+			child := node.last
+			for child > 0 {
+				next := xPathCopyWrite{node: child, closing: false, newline: true}
+				if count < len(stack) {
+					stack[count] = copyxPathCopyWrite(next)
+				} else {
+					langruntime.CheckedAdd(len(stack), 1)
+					stack = append(stack, copyxPathCopyWrite(next))
+				}
+				count = langruntime.CheckedAdd(count, 1)
+				child = langruntime.CheckedIndex(tree.nodes[child].previous)
+			}
+		} else if node.kind == 1 {
+			output = append(output, string(langruntime.CheckedChar('<'))...)
+			output = append(output, name...)
+			index := namespaces.scopes[task.node].first
+			for index > 0 {
+				namespace := copyxPathCopyNamespace(namespaces.entries[langruntime.CheckedSubtract(index, 1)])
+				output = append(output, " xmlns"...)
+				if namespace.prefix != "" {
+					output = append(output, string(langruntime.CheckedChar(':'))...)
+					output = append(output, namespace.prefix...)
+				}
+				uri := xpathCopyEscape(namespace.uri, true)
+				output = append(output, "=\""...)
+				output = append(output, uri...)
+				output = append(output, string(langruntime.CheckedChar('"'))...)
+				index = langruntime.CheckedIndex(namespace.next)
+			}
+			index = langruntime.CheckedIndex(node.attributeStart)
+			for index < node.attributeEnd {
+				attribute := tree.attributes[index]
+				if xmlQueryNamespaceAttribute(tree, attribute.name) == false {
+					name := xmlTreeText(tree, attribute.name)
+					value := xpathCopyAttribute(tree, attribute)
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+					output = append(output, name...)
+					output = append(output, "=\""...)
+					output = append(output, value...)
+					output = append(output, string(langruntime.CheckedChar('"'))...)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if node.first == 0 {
+				output = append(output, "/>"...)
+				if task.newline {
+					output = append(output, string(langruntime.CheckedChar('\n'))...)
+				}
+			} else {
+				output = append(output, string(langruntime.CheckedChar('>'))...)
+				close := xPathCopyWrite{node: task.node, closing: true, newline: task.newline}
+				if count < len(stack) {
+					stack[count] = copyxPathCopyWrite(close)
+				} else {
+					langruntime.CheckedAdd(len(stack), 1)
+					stack = append(stack, copyxPathCopyWrite(close))
+				}
+				count = langruntime.CheckedAdd(count, 1)
+				child := node.last
+				for child > 0 {
+					next := xPathCopyWrite{node: child, closing: false, newline: false}
+					if count < len(stack) {
+						stack[count] = copyxPathCopyWrite(next)
+					} else {
+						langruntime.CheckedAdd(len(stack), 1)
+						stack = append(stack, copyxPathCopyWrite(next))
+					}
+					count = langruntime.CheckedAdd(count, 1)
+					child = langruntime.CheckedIndex(tree.nodes[child].previous)
+				}
+			}
+		} else {
+			text := xmlTreeText(tree, node.value)
+			if node.kind == 2 {
+				escaped := xpathCopyEscape(text, false)
+				output = append(output, escaped...)
+			} else if node.kind == 3 {
+				output = append(output, "<![CDATA["...)
+				output = append(output, text...)
+				output = append(output, "]]>"...)
+			} else if node.kind == 4 {
+				output = append(output, "<!--"...)
+				output = append(output, text...)
+				output = append(output, "-->"...)
+			} else if node.kind == 5 {
+				output = append(output, "<?"...)
+				output = append(output, name...)
+				if node.contentPresent {
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+					output = append(output, text...)
+				}
+				output = append(output, "?>"...)
+			} else if node.kind == 7 {
+				output = append(output, string(langruntime.CheckedChar('&'))...)
+				output = append(output, name...)
+				output = append(output, string(langruntime.CheckedChar(';'))...)
+			} else if node.kind == 6 && value.node == 0 {
+				if tree.serializationKnown == false {
+					return checkruntime.XmlValue{Kind: checkruntime.XmlValueUnknown}
+				}
+				doctype := xpathCopyDoctype(tree, node)
+				output = append(output, doctype...)
+			} else {
+				return checkruntime.XmlValue{Kind: checkruntime.XmlValueError, Error: checkruntime.MakeSqlError(sqlstateXmlNodeCopy)}
+			}
+			if task.newline {
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
+			}
+		}
+	}
+	return checkruntime.XmlValue{Kind: checkruntime.XmlValueValue, Value: string(output)}
+}
+
 type xPathRuntimeRoot struct {
 	value int
 	data  int
@@ -54834,7 +55300,16 @@ func xpathGraphAxisTest(tree *xmlTree, graph *xPathGraph, context xPathReference
 	context = copyxPathReference(context)
 	axis = langruntime.CheckedI32(axis)
 	if axis != 11 && axis != 12 {
-		found := xpathLocalAxisTest(tree, context, axis, test)
+		candidates := xpathWindowCandidates(tree, graph, context, axis)
+		found := xpathNodesEmpty()
+		index := 0
+		for index < len(candidates.values) {
+			value := candidates.values[index]
+			if xpathNodeMatches(tree, test, value) {
+				found = XpathNodesPush(found, value)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
 		return xPathSequence{values: found.values, cyclic: false, cycle: 0}
 	}
 	values := []xPathReference{}
