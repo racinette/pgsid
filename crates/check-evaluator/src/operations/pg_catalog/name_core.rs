@@ -79,3 +79,18 @@ pub fn sql__pg_catalog__varchar__er5y(input: TextValue) -> TextValue { input }
 pub fn sql__pg_catalog__namesend__y7mk(input: TextValue) -> ByteaValue {
     text_wire_without_context(input)
 }
+
+pub fn name_from_text_context(input: TextValue, limit: i32, utf8: bool) -> TextValue {
+    if let TextValue::Value(value) = input {
+        if utf8 == false {
+            let characters: Vec<char> = value.chars().collect();
+            let mut position: usize = 0;
+            while position < characters.len() {
+                if characters[position] as i32 >= 128 { return TextValue::Unknown; };
+                position += 1;
+            }
+        };
+        return name_from_text_with_limit(TextValue::Value(value),make_int4_value(limit));
+    };
+    input
+}

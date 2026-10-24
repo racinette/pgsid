@@ -570,6 +570,84 @@ export function rangeValueRequirements(item: BuiltinCallable) {
   ]
 }
 
+export function aclitemValueRequirements(item: BuiltinCallable) {
+  const identity = callableIdentity(item),
+    io = builtinTypeIO('pg_catalog.aclitem')
+  if (identity === io?.input || identity === io?.output) {
+    const requirements = [
+      {
+        kind: 'database',
+        setting: 'role_catalog',
+        requirement:
+          'ACL input resolves nonempty role names and an omitted grantor against the deployment. Output renders role names from that catalog, with numeric fallback for missing identities. Supplied ACL words do not perform authorization. Strict NULLs, incoming errors, input grammar errors reached before lookup and known non-NULL output remain available without role resolution.',
+        owner: 'tests/sql-semantics/check-aclitem-text.test.ts',
+      },
+    ]
+    if (identity === io?.input)
+      requirements.push(
+        {
+          kind: 'platform',
+          setting: 'maxIdentifierBytes',
+          requirement:
+            'Identifier length checks use the declared target maximum byte length. Earlier syntax failures without identifier contents remain definite without that build setting.',
+          owner: 'tests/sql-semantics/check-aclitem-text.test.ts',
+        },
+        {
+          kind: 'database',
+          setting: 'server_encoding',
+          requirement:
+            'Non-ASCII identifier byte counts require declared UTF8. ASCII parsing does not depend on an encoding assumption.',
+          owner: 'tests/sql-semantics/check-aclitem-text.test.ts',
+        },
+      )
+    return requirements
+  }
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'pg_get_acl' &&
+    item.args.join(',') === 'pg_catalog.oid,pg_catalog.oid,pg_catalog.int4' &&
+    item.result === 'pg_catalog._aclitem'
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'catalog',
+        requirement:
+          'ACL retrieval reads the target object catalog and current stored privileges. Supplied class/object/subobject identifiers do not provide that catalog state.',
+        owner: 'tests/sql-semantics/check-measurements.test.ts',
+      },
+    ]
+  return null
+}
+
+export function nameValueRequirements(item: BuiltinCallable) {
+  if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
+  const input =
+    callableIdentity(item) === builtinTypeIO('pg_catalog.name')?.input ||
+    (item.name === 'name' &&
+      item.result === 'pg_catalog.name' &&
+      item.args.length === 1 &&
+      ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(item.args[0]!))
+  if (!input) return null
+  return [
+    {
+      kind: 'platform',
+      setting: 'maxIdentifierBytes',
+      requirement:
+        'Nonempty name input clips at the explicitly declared target identifier byte limit. Empty text and strict NULLs do not require a limit. Public SQL-coerced name payloads already retain their stored contents.',
+      owner: 'tests/sql-semantics/check-name-context.test.ts',
+    },
+    {
+      kind: 'database',
+      setting: 'server_encoding',
+      requirement:
+        'Non-ASCII name truncation requires declared UTF8 and clips only at character boundaries. ASCII input can use its declared byte limit independently.',
+      owner: 'tests/sql-semantics/check-name-context.test.ts',
+    },
+  ]
+}
+
 export function moneyValueRequirements(item: BuiltinCallable) {
   const identity = callableIdentity(item)
   const io = builtinTypeIO('pg_catalog.money')
@@ -778,6 +856,12 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   )
     categories.push('session-setting:extra_float_digits')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
+  for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])
+    categories.push(
+      requirement.kind === 'database' && ['catalog', 'role_catalog'].includes(requirement.setting)
+        ? `database-state:${requirement.setting}`
+        : `${requirement.kind}-setting:${requirement.setting}`,
+    )
   if (moneyValueRequirements(item)?.some((r) => r.setting === 'moneyLocale'))
     categories.push('session-setting:moneyLocale')
   if (item.schema === 'pg_catalog' && item.volatility === 's' && types.includes('pg_catalog.money'))

@@ -213,6 +213,7 @@ pub fn prepare_composite_output(input: CompositeValue, type_name: &str, fields: 
 }
 
 pub fn composite_output_has_field(input: TextValue) -> bool {
+    if input == TextValue::NonNull { return true; };
     if let TextValue::Value(_) = input {
         return true;
     };
@@ -225,13 +226,25 @@ pub fn composite_output_matches(input: CompositeValue, type_name: &str, fields: 
 }
 
 pub fn append_composite_output(input: TextValue, field: TextValue, first: bool) -> TextValue {
+    if input == TextValue::NonNull {
+        if let TextValue::Error(error) = field { return TextValue::Error(error); };
+        if field == TextValue::Unknown { return TextValue::Unknown; };
+        if let TextValue::Value(text) = field {
+            let characters: Vec<char> = text.chars().collect();
+            let mut position: usize = 0;
+            while position < characters.len() {
+                if characters[position] == '\0' { return TextValue::Unknown; };
+                position += 1;
+            }
+        };
+        return TextValue::NonNull;
+    };
     if let TextValue::Value(source) = input {
         if let TextValue::Error(error) = field {
             return TextValue::Error(error);
         };
-        if field == TextValue::Unknown || field == TextValue::NonNull {
-            return TextValue::Unknown;
-        };
+        if field == TextValue::NonNull { return TextValue::NonNull; };
+        if field == TextValue::Unknown { return TextValue::Unknown; };
         let mut result = source;
         if first == false {
             result.push(',');

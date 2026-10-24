@@ -20,9 +20,14 @@ function needsAclRoleCatalog(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   if (
     'kind' in value &&
-    value.kind === 'aclitem' &&
-    'value' in value &&
-    typeof value.value === 'string'
+    (value.kind === 'text-to-aclitem' ||
+      (value.kind === 'aclitem' && 'value' in value && typeof value.value === 'string') ||
+      (value.kind === 'io-to-text' &&
+        'operand' in value &&
+        value.operand !== null &&
+        typeof value.operand === 'object' &&
+        'type' in value.operand &&
+        value.operand.type === 'pg_catalog.aclitem'))
   )
     return true
   return Object.values(value).some(needsAclRoleCatalog)
@@ -39,7 +44,7 @@ export function checkUnknownMessage(
   let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
   if (needsAclRoleCatalog(expression))
-    message += ' ACL text literals also require the deployment role catalog.'
+    message += ' ACL text input and rendered role names also require the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
     ? message +
         ' Circle-to-polygon coordinate generation also requires sql.codegen.checks.trigonometry: fdlibm.'

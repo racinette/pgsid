@@ -36,6 +36,12 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { nativeByteOrder: ${nativeByteOrder} }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ nativeByteOrder })
+    for (const maxIdentifierBytes of [0, 1, 63, 2147483647])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { maxIdentifierBytes: ${maxIdentifierBytes} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ maxIdentifierBytes })
     for (const arrayNulls of [true, false])
       expect(
         parseConfigString(
@@ -59,6 +65,10 @@ describe('config schema', () => {
       '{ unknown: C }',
       '{ arrayNulls: on }',
       '{ arrayNulls: unknown }',
+      '{ maxIdentifierBytes: -1 }',
+      '{ maxIdentifierBytes: 1.5 }',
+      '{ maxIdentifierBytes: 2147483648 }',
+      '{ maxIdentifierBytes: "63" }',
       '{ nativeByteOrder: native }',
       '{ nativeByteOrder: LE }',
       '{ trigonometry: native }',

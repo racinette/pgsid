@@ -89,8 +89,88 @@ import (
 )
 
 const aclitemInvalidParameter = 3452619
+const aclitemInvalidText = 3484946
+const aclitemNameTooLong = 6819626
 
-func AclitemFromText(input checkruntime.TextValue) checkruntime.AclitemValue {
+type aclitemIdentifier struct {
+	value string
+	next  int
+	state int
+}
+
+func copyaclitemIdentifier(value aclitemIdentifier) aclitemIdentifier {
+	return aclitemIdentifier{value: langruntime.CheckedString(value.value), next: langruntime.CheckedIndex(value.next), state: langruntime.CheckedI32(value.state)}
+}
+func aclitemReadIdentifier(input string, start int, limit int, utf8 bool) aclitemIdentifier {
+	input = langruntime.CheckedString(input)
+	start = langruntime.CheckedIndex(start)
+	limit = langruntime.CheckedI32(limit)
+	characters := []rune(input)
+	position := start
+	output := langruntime.NewTextBuffer("")
+	bytes := 0
+	quoted := false
+	for position < len(characters) && checkruntime.NumericSpace(characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	reading := true
+	for position < len(characters) && reading {
+		character := characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if quoted == false && character != '"' && character != '_' && code < 128 && (code < 48 || code > 57) && (code < 65 || code > 90) && (code < 97 || code > 122) {
+			reading = false
+		} else {
+			emit := true
+			if character == '"' {
+				if quoted == false {
+					quoted = true
+					emit = false
+				} else if langruntime.CheckedAdd(position, 1) < len(characters) && characters[langruntime.CheckedAdd(position, 1)] == '"' {
+					position = langruntime.CheckedAdd(position, 1)
+				} else {
+					quoted = false
+					emit = false
+				}
+			}
+			if emit {
+				character = langruntime.CheckedChar(characters[position])
+				point := int(langruntime.CheckedChar(character))
+				width := 1
+				if point >= 128 {
+					if utf8 == false {
+						return aclitemIdentifier{value: string(output), next: position, state: langruntime.CheckedSignedNegate(1)}
+					}
+					if point >= 65536 {
+						width = langruntime.CheckedI32(4)
+					} else if point >= 2048 {
+						width = langruntime.CheckedI32(3)
+					} else {
+						width = langruntime.CheckedI32(2)
+					}
+				}
+				if limit < 0 {
+					return aclitemIdentifier{value: string(output), next: position, state: langruntime.CheckedSignedNegate(1)}
+				}
+				if bytes > langruntime.CheckedSignedSubtract(limit, width) {
+					return aclitemIdentifier{value: string(output), next: position, state: langruntime.CheckedSignedNegate(2)}
+				}
+				bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, width))
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	for position < len(characters) && checkruntime.NumericSpace(characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return aclitemIdentifier{value: string(output), next: position, state: 1}
+}
+func aclitemModeCharacter(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == 'a' || character == 'r' || character == 'w' || character == 'd' || character == 'D' || character == 'x' || character == 't' || character == 'X' || character == 'U' || character == 'C' || character == 'T' || character == 'c' || character == 's' || character == 'A' || character == 'm' || character == '*'
+}
+func AclitemFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) checkruntime.AclitemValue {
+	limit = langruntime.CheckedI32(limit)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: error}
@@ -98,7 +178,80 @@ func AclitemFromText(input checkruntime.TextValue) checkruntime.AclitemValue {
 	if input.Kind == checkruntime.TextValueNull {
 		return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}
 	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		identifier := aclitemReadIdentifier(text, 0, limit, utf8)
+		if identifier.state == langruntime.CheckedSignedNegate(1) {
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+		}
+		if identifier.state == langruntime.CheckedSignedNegate(2) {
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
+		}
+		position := identifier.next
+		if position >= len(characters) || characters[position] != '=' {
+			if identifier.value != "group" && identifier.value != "user" {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+			}
+			identifier = copyaclitemIdentifier(aclitemReadIdentifier(text, position, limit, utf8))
+			if identifier.state == langruntime.CheckedSignedNegate(1) {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+			}
+			if identifier.state == langruntime.CheckedSignedNegate(2) {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
+			}
+			if identifier.value == "" {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+			}
+			position = langruntime.CheckedIndex(identifier.next)
+		}
+		if position >= len(characters) || characters[position] != '=' {
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		scanning := true
+		for position < len(characters) && scanning {
+			character := characters[position]
+			code := int(langruntime.CheckedChar(character))
+			if (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || character == '*' {
+				if aclitemModeCharacter(character) == false {
+					return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				if code >= 128 && utf8 == false {
+					return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+				}
+				scanning = false
+			}
+		}
+		if identifier.value != "" {
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+		}
+		if position < len(characters) && characters[position] == '/' {
+			grantor := aclitemReadIdentifier(text, langruntime.CheckedAdd(position, 1), limit, utf8)
+			if grantor.state == langruntime.CheckedSignedNegate(1) {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+			}
+			if grantor.state == langruntime.CheckedSignedNegate(2) {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemNameTooLong)}
+			}
+			if grantor.value == "" {
+				return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+			}
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+		}
+		for position < len(characters) && checkruntime.NumericSpace(characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position < len(characters) {
+			return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueError, Error: checkruntime.MakeSqlError(aclitemInvalidText)}
+		}
+	}
 	return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
+}
+func AclitemFromText(input checkruntime.TextValue) checkruntime.AclitemValue {
+	return AclitemFromTextContext(input, langruntime.CheckedSignedNegate(1), false)
 }
 func AclitemToText(input checkruntime.AclitemValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.AclitemValueError {
@@ -107,6 +260,9 @@ func AclitemToText(input checkruntime.AclitemValue) checkruntime.TextValue {
 	}
 	if input == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.AclitemValueValue {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -2232,6 +2388,25 @@ func FinishArrayOutput(input checkruntime.ArrayOutputPayload, rendered checkrunt
 		}
 		if len(values.Elements) == 0 {
 			return checkruntime.MakeTextValue("{}")
+		}
+		partial := false
+		pending := 0
+		for pending < len(values.Elements) {
+			text := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(values.Elements[pending]))
+			if text == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+				partial = true
+			}
+			if text == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			if text.Kind == checkruntime.TextValueError {
+				error := text.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			pending = langruntime.CheckedAdd(pending, 1)
+		}
+		if partial {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 		}
 		delimiter := ','
 		if boxDelimiter {
@@ -11069,6 +11244,9 @@ func PrepareCompositeOutput(input checkruntime.CompositeValue, typeName string, 
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func CompositeOutputHasField(input checkruntime.TextValue) bool {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return true
+	}
 	if input.Kind == checkruntime.TextValueValue {
 		return true
 	}
@@ -11082,13 +11260,37 @@ func CompositeOutputMatches(input checkruntime.CompositeValue, typeName string, 
 	return CompositeOutputHasField(prepared)
 }
 func AppendCompositeOutput(input checkruntime.TextValue, field checkruntime.TextValue, first bool) checkruntime.TextValue {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		if field.Kind == checkruntime.TextValueError {
+			error := field.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if field == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		if field.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(field.Value)
+			characters := []rune(text)
+			position := 0
+			for position < len(characters) {
+				if characters[position] == '\x00' {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
 	if input.Kind == checkruntime.TextValueValue {
 		source := langruntime.CheckedString(input.Value)
 		if field.Kind == checkruntime.TextValueError {
 			error := field.Error
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 		}
-		if field == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || field == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		if field == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		if field == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
 		result := langruntime.NewTextBuffer(source)
@@ -27484,6 +27686,24 @@ func VarcharEr5y(input checkruntime.TextValue) checkruntime.TextValue {
 }
 func NamesendY7mk(input checkruntime.TextValue) checkruntime.ByteaValue {
 	return textWireWithoutContext(input)
+}
+func NameFromTextContext(input checkruntime.TextValue, limit int, utf8 bool) checkruntime.TextValue {
+	limit = langruntime.CheckedI32(limit)
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if utf8 == false {
+			characters := []rune(value)
+			position := 0
+			for position < len(characters) {
+				if int(langruntime.CheckedChar(characters[position])) >= 128 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		return NameFromTextWithLimit(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}, checkruntime.MakeInt4Value(limit))
+	}
+	return input
 }
 func Btnamecmp9x5j(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.TextValueError {
