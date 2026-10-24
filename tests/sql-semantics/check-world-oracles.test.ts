@@ -317,3 +317,31 @@ it('keeps runtime casts as column expressions so strict NULL arguments and later
     await pg.close()
   }
 })
+
+it('preserves internal char array bounds in world schemas and parsed CHECK oracles', async () => {
+  const pg = await PGlite.create()
+  try {
+    for (const type of ['"char"[]', 'pg_catalog."char"[]', '"char"[2]', 'pg_catalog."char"[2][]']) {
+      const source = `SELECT ts_filter('a:1A b:2B'::tsvector,'{A}'::${type})::text filtered,pg_typeof('{A}'::${type})::text type`
+      const statement = (await parseSql(source)).stmts![0]!.stmt!
+      const rendered = deparseWorldSql(statement)
+      expect(rendered.match(/\[\d*\]/gu)).toEqual(source.match(/\[\d*\]/gu))
+      expect((await pg.query(rendered)).rows).toEqual((await pg.query(source)).rows)
+    }
+    const oracles = new WorldCheckOracles()
+    await oracles.load(
+      pg,
+      `CREATE TABLE document_weights(document tsvector,weights "char"[],expected tsvector,CONSTRAINT filtered CHECK(ts_filter(document,weights)=expected));INSERT INTO document_weights VALUES('a:1A b:2B','{A}','a:1A');`,
+      'public',
+    )
+    const expression = oracles.expression('public.document_weights.filtered', 'candidate')
+    expect(
+      (await pg.query(`SELECT ${expression} value FROM document_weights candidate`)).rows,
+    ).toEqual([{ value: true }])
+    await expect(
+      pg.exec("INSERT INTO document_weights VALUES('a:1A b:2B','{B}','a:1A')"),
+    ).rejects.toMatchObject({ code: '23514' })
+  } finally {
+    await pg.close()
+  }
+})

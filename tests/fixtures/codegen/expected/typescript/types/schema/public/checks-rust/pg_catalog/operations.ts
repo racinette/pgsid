@@ -46240,6 +46240,489 @@ export function tsvectorToText(input: checkruntime.TsvectorValue): checkruntime.
     }
     return { kind: "Unknown" };
 }
+const tsvectorNullElement = 3452548;
+const tsvectorEmptyLexeme = 3452559;
+function tsvectorWeightCode(code: number): number {
+    code = langruntime.checkedI32(code);
+    if (code === 65 || code === 97) {
+        return 3;
+    }
+    if (code === 66 || code === 98) {
+        return 2;
+    }
+    if (code === 67 || code === 99) {
+        return 1;
+    }
+    if (code === 68 || code === 100) {
+        return 0;
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function tsvectorRebuild(lexemes: checkruntime.TsvectorLexeme[]): checkruntime.TsvectorValue {
+    lexemes = langruntime.checkedStructs(lexemes, checkruntime.copyTsvectorLexeme);
+    const payload: checkruntime.TsvectorPayload = { lexemes: lexemes, nativeBytes: langruntime.checkedSignedNegate(1) };
+    const bytes: number = checkruntime.tsvectorCanonicalBytes(payload);
+    if (bytes < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tsvectorProgramLimit) };
+    }
+    return checkruntime.makeTsvectorValue({ lexemes: payload.lexemes, nativeBytes: bytes });
+}
+function tsvectorFindLexeme(input: checkruntime.TsvectorPayload, text: string): number {
+    text = langruntime.checkedString(text);
+    let low: number = 0;
+    let high: number = langruntime.checkedI32(langruntime.checkedIndex(input.lexemes.length));
+    while (low < high) {
+        const middle: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(low, high)), 2);
+        const order: number = checkruntime.tsvectorLexemeOrder(text, langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(langruntime.indexFromI32(middle, 0)), checkruntime.copyTsvectorLexeme).text);
+        if (order === 0) {
+            return middle;
+        }
+        if (order < 0) {
+            high = langruntime.checkedI32(middle);
+        }
+        else {
+            low = langruntime.checkedI32(langruntime.checkedSignedAdd(middle, 1));
+        }
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function tsvectorApplySelection(input: checkruntime.TsvectorPayload, selected: number[], weight: number, reweight: boolean): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorPayload(input);
+    selected = langruntime.checkedIndices(selected);
+    weight = langruntime.checkedI32(weight);
+    reweight = langruntime.checkedBool(reweight);
+    let lexemes: checkruntime.TsvectorLexeme[] = [];
+    let i: number = 0;
+    while (i < input.lexemes.length) {
+        const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme));
+        if (reweight && langruntime.indexNumber(selected, langruntime.checkedIndex(i)) === 1) {
+            let positions: checkruntime.TsvectorPosition[] = lexeme.positions;
+            let p: number = 0;
+            while (p < positions.length) {
+                const original: checkruntime.TsvectorPosition = langruntime.indexStruct(positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition);
+                positions[langruntime.checkedIndexIn(positions, p)] = { position: original.position, weight: weight };
+                p = langruntime.checkedAdd(p, 1);
+            }
+            langruntime.pushStruct(lexemes, { text: lexeme.text, positions: positions }, checkruntime.copyTsvectorLexeme);
+        }
+        else if (reweight || langruntime.indexNumber(selected, langruntime.checkedIndex(i)) === 0) {
+            langruntime.pushStruct(lexemes, lexeme, checkruntime.copyTsvectorLexeme);
+        }
+        i = langruntime.checkedAdd(i, 1);
+    }
+    if (reweight) {
+        return { kind: "Value", value: { lexemes: lexemes, nativeBytes: input.nativeBytes } };
+    }
+    return tsvectorRebuild(lexemes);
+}
+function tsvectorSelectArray(input: checkruntime.TsvectorValue, weight: checkruntime.InternalCharValue, selectors: checkruntime.ArrayValue, reweight: boolean): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorValue(input);
+    selectors = checkruntime.copyArrayValue(selectors);
+    reweight = langruntime.checkedBool(reweight);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (weight.kind === "Error") {
+        const error: checkruntime.SqlError = weight.value;
+        return { kind: "Error", value: error };
+    }
+    if (selectors.kind === "Error") {
+        const error: checkruntime.SqlError = selectors.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInternalCharValue(weight, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (selectors.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInternalCharValue(weight, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (selectors.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(input.value);
+        if (weight.kind === "Value") {
+            const code: number = langruntime.checkedI32(weight.value);
+            const selectedWeight: number = tsvectorWeightCode(code);
+            if (selectedWeight < 0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(tsvectorInvalidParameter) };
+            }
+            if (selectors.kind === "Value") {
+                const array: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(selectors.value);
+                if (!(array.elementKind === 8)) {
+                    return { kind: "Unknown" };
+                }
+                let selected: number[] = [];
+                let i: number = 0;
+                while (i < payload.lexemes.length) {
+                    langruntime.pushIndex(selected, 0);
+                    i = langruntime.checkedAdd(i, 1);
+                }
+                i = langruntime.checkedIndex(0);
+                while (i < array.elements.length) {
+                    const cell: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(i), checkruntime.copyArrayElement)));
+                    if (cell.kind === "Error") {
+                        const error: checkruntime.SqlError = cell.value;
+                        return { kind: "Error", value: error };
+                    }
+                    if (checkruntime.equalTextValue(cell, { kind: "Unknown" })) {
+                        return { kind: "Unknown" };
+                    }
+                    if (cell.kind === "Value") {
+                        const text: string = langruntime.checkedString(cell.value);
+                        const index: number = tsvectorFindLexeme(payload, text);
+                        if (index >= 0) {
+                            selected[langruntime.checkedIndexIn(selected, langruntime.indexFromI32(index, 0))] = langruntime.checkedIndex(1);
+                        }
+                    }
+                    i = langruntime.checkedAdd(i, 1);
+                }
+                return tsvectorApplySelection(payload, selected, selectedWeight, reweight);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function setweightOzd9(input: checkruntime.TsvectorValue, weight: checkruntime.InternalCharValue, selectors: checkruntime.ArrayValue): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorValue(input);
+    selectors = checkruntime.copyArrayValue(selectors);
+    return tsvectorSelectArray(input, weight, selectors, true);
+}
+export function tsDeleteYtqn(input: checkruntime.TsvectorValue, selectors: checkruntime.ArrayValue): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorValue(input);
+    selectors = checkruntime.copyArrayValue(selectors);
+    return tsvectorSelectArray(input, { kind: "Value", value: 68 }, selectors, false);
+}
+export function tsDeleteY2kd(input: checkruntime.TsvectorValue, selector: checkruntime.TextValue): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (selector.kind === "Error") {
+        const error: checkruntime.SqlError = selector.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(selector, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalTextValue(selector, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(input.value);
+        if (selector.kind === "Value") {
+            const text: string = langruntime.checkedString(selector.value);
+            const index: number = tsvectorFindLexeme(payload, text);
+            if (index < 0) {
+                return { kind: "Value", value: payload };
+            }
+            let selected: number[] = [];
+            let i: number = 0;
+            while (i < payload.lexemes.length) {
+                langruntime.pushIndex(selected, 0);
+                i = langruntime.checkedAdd(i, 1);
+            }
+            selected[langruntime.checkedIndexIn(selected, langruntime.indexFromI32(index, 0))] = langruntime.checkedIndex(1);
+            return tsvectorApplySelection(payload, selected, 0, false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsFilter82l1(input: checkruntime.TsvectorValue, weights: checkruntime.ArrayValue): checkruntime.TsvectorValue {
+    input = checkruntime.copyTsvectorValue(input);
+    weights = checkruntime.copyArrayValue(weights);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (weights.kind === "Error") {
+        const error: checkruntime.SqlError = weights.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (weights.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (weights.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(input.value);
+        if (weights.kind === "Value") {
+            const array: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(weights.value);
+            if (!(array.elementKind === 32)) {
+                return { kind: "Unknown" };
+            }
+            let mask: number[] = [];
+            langruntime.pushIndex(mask, 0);
+            langruntime.pushIndex(mask, 0);
+            langruntime.pushIndex(mask, 0);
+            langruntime.pushIndex(mask, 0);
+            let i: number = 0;
+            while (i < array.elements.length) {
+                const cell: checkruntime.InternalCharValue = checkruntime.arrayElementToInternalChar(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(i), checkruntime.copyArrayElement)));
+                if (cell.kind === "Error") {
+                    const error: checkruntime.SqlError = cell.value;
+                    return { kind: "Error", value: error };
+                }
+                if (checkruntime.equalInternalCharValue(cell, { kind: "Unknown" })) {
+                    return { kind: "Unknown" };
+                }
+                if (checkruntime.equalInternalCharValue(cell, { kind: "Null" })) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsvectorNullElement) };
+                }
+                if (cell.kind === "Value") {
+                    const code: number = langruntime.checkedI32(cell.value);
+                    const weight: number = tsvectorWeightCode(code);
+                    if (weight < 0) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(tsvectorInvalidParameter) };
+                    }
+                    mask[langruntime.checkedIndexIn(mask, langruntime.indexFromI32(weight, 0))] = langruntime.checkedIndex(1);
+                }
+                i = langruntime.checkedAdd(i, 1);
+            }
+            let lexemes: checkruntime.TsvectorLexeme[] = [];
+            i = langruntime.checkedIndex(0);
+            while (i < payload.lexemes.length) {
+                const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(payload.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme));
+                let positions: checkruntime.TsvectorPosition[] = [];
+                let p: number = 0;
+                while (p < lexeme.positions.length) {
+                    const value: checkruntime.TsvectorPosition = langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition);
+                    if (langruntime.indexNumber(mask, langruntime.checkedIndex(langruntime.indexFromI32(value.weight, 0))) === 1) {
+                        langruntime.pushStruct(positions, value, checkruntime.copyTsvectorPosition);
+                    }
+                    p = langruntime.checkedAdd(p, 1);
+                }
+                if (positions.length > 0) {
+                    langruntime.pushStruct(lexemes, { text: lexeme.text, positions: positions }, checkruntime.copyTsvectorLexeme);
+                }
+                i = langruntime.checkedAdd(i, 1);
+            }
+            return tsvectorRebuild(lexemes);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayToTsvectorY8ia(input: checkruntime.ArrayValue, utf8: boolean): checkruntime.TsvectorValue {
+    input = checkruntime.copyArrayValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const array: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (!(array.elementKind === 8)) {
+            return { kind: "Unknown" };
+        }
+        let lexemes: checkruntime.TsvectorLexeme[] = [];
+        let i: number = 0;
+        while (i < array.elements.length) {
+            const cell: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(i), checkruntime.copyArrayElement)));
+            if (cell.kind === "Error") {
+                const error: checkruntime.SqlError = cell.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalTextValue(cell, { kind: "Unknown" })) {
+                return { kind: "Unknown" };
+            }
+            if (checkruntime.equalTextValue(cell, { kind: "Null" })) {
+                return { kind: "Error", value: checkruntime.makeSqlError(tsvectorNullElement) };
+            }
+            if (cell.kind === "Value") {
+                const text: string = langruntime.checkedString(cell.value);
+                if (text === "") {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsvectorEmptyLexeme) };
+                }
+                const chars: string[] = Array.from(text);
+                let c: number = 0;
+                while (c < chars.length) {
+                    if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(c))).codePointAt(0)!) > 127) {
+                        return { kind: "Unknown" };
+                    }
+                    c = langruntime.checkedAdd(c, 1);
+                }
+                if (checkruntime.tsvectorLexemeBytes(text) > 2046) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsvectorProgramLimit) };
+                }
+                const positions: checkruntime.TsvectorPosition[] = [];
+                langruntime.pushStruct(lexemes, { text: text, positions: positions }, checkruntime.copyTsvectorLexeme);
+            }
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return tsvectorNormalize(lexemes);
+    }
+    return { kind: "Unknown" };
+}
+function tsvectorConcatPositions(left: checkruntime.TsvectorLexeme, right: checkruntime.TsvectorLexeme, offset: number): checkruntime.TsvectorLexeme {
+    left = checkruntime.copyTsvectorLexeme(left);
+    right = checkruntime.copyTsvectorLexeme(right);
+    offset = langruntime.checkedI32(offset);
+    let positions: checkruntime.TsvectorPosition[] = left.positions;
+    let i: number = 0;
+    while (i < right.positions.length && positions.length < 256) {
+        if (positions.length > 0 && langruntime.indexStruct(positions, langruntime.checkedIndex(langruntime.checkedSubtract(positions.length, 1)), checkruntime.copyTsvectorPosition).position === 16383) {
+            return { text: left.text, positions: positions };
+        }
+        const value: checkruntime.TsvectorPosition = langruntime.indexStruct(right.positions, langruntime.checkedIndex(i), checkruntime.copyTsvectorPosition);
+        let position: number = langruntime.checkedSignedAdd(value.position, offset);
+        if (position > 16383) {
+            position = langruntime.checkedI32(16383);
+        }
+        langruntime.pushStruct(positions, { position: position, weight: value.weight }, checkruntime.copyTsvectorPosition);
+        i = langruntime.checkedAdd(i, 1);
+    }
+    return { text: left.text, positions: positions };
+}
+export function tsvectorConcat0ejl(left: checkruntime.TsvectorValue, right: checkruntime.TsvectorValue): checkruntime.TsvectorValue {
+    left = checkruntime.copyTsvectorValue(left);
+    right = checkruntime.copyTsvectorValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(right.value);
+            let offset: number = 0;
+            let i: number = 0;
+            while (i < a.lexemes.length) {
+                let p: number = 0;
+                while (p < langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).positions.length) {
+                    if (langruntime.indexStruct(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition).position > offset) {
+                        offset = langruntime.checkedI32(langruntime.indexStruct(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition).position);
+                    }
+                    p = langruntime.checkedAdd(p, 1);
+                }
+                i = langruntime.checkedAdd(i, 1);
+            }
+            let lexemes: checkruntime.TsvectorLexeme[] = [];
+            i = langruntime.checkedIndex(0);
+            let j: number = 0;
+            while (i < a.lexemes.length || j < b.lexemes.length) {
+                let order: number = 0;
+                if (i === a.lexemes.length) {
+                    order = langruntime.checkedI32(1);
+                }
+                else if (j === b.lexemes.length) {
+                    order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                }
+                else {
+                    order = langruntime.checkedI32(checkruntime.tsvectorLexemeOrder(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme).text, langruntime.indexStruct(b.lexemes, langruntime.checkedIndex(j), checkruntime.copyTsvectorLexeme).text));
+                }
+                if (order < 0) {
+                    langruntime.pushStruct(lexemes, checkruntime.copyTsvectorLexeme(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme)), checkruntime.copyTsvectorLexeme);
+                    i = langruntime.checkedAdd(i, 1);
+                }
+                else if (order > 0) {
+                    const word: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(b.lexemes, langruntime.checkedIndex(j), checkruntime.copyTsvectorLexeme));
+                    const positions: checkruntime.TsvectorPosition[] = [];
+                    const empty: checkruntime.TsvectorLexeme = { text: langruntime.checkedString(word.text), positions: positions };
+                    langruntime.pushStruct(lexemes, tsvectorConcatPositions(empty, word, offset), checkruntime.copyTsvectorLexeme);
+                    j = langruntime.checkedAdd(j, 1);
+                }
+                else {
+                    langruntime.pushStruct(lexemes, tsvectorConcatPositions(checkruntime.copyTsvectorLexeme(langruntime.indexStruct(a.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme)), checkruntime.copyTsvectorLexeme(langruntime.indexStruct(b.lexemes, langruntime.checkedIndex(j), checkruntime.copyTsvectorLexeme)), offset), checkruntime.copyTsvectorLexeme);
+                    i = langruntime.checkedAdd(i, 1);
+                    j = langruntime.checkedAdd(j, 1);
+                }
+            }
+            return tsvectorRebuild(lexemes);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsvectorsend37x7(input: checkruntime.TsvectorValue, utf8: boolean): checkruntime.ByteaValue {
+    input = checkruntime.copyTsvectorValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(input.value);
+        const count: number = langruntime.checkedI32(langruntime.checkedIndex(payload.lexemes.length));
+        let output: string = "";
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 16777216), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 65536), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 256), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(count, 256)));
+        let i: number = 0;
+        while (i < payload.lexemes.length) {
+            const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(payload.lexemes, langruntime.checkedIndex(i), checkruntime.copyTsvectorLexeme));
+            const chars: string[] = Array.from(lexeme.text);
+            let c: number = 0;
+            while (c < chars.length) {
+                if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(c))).codePointAt(0)!) > 127) {
+                    return { kind: "Unknown" };
+                }
+                output = langruntime.checkedString(byteaUtf8Character(output, langruntime.indexChar(chars, langruntime.checkedIndex(c))));
+                c = langruntime.checkedAdd(c, 1);
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, 0));
+            const length: number = langruntime.checkedI32(langruntime.checkedIndex(lexeme.positions.length));
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedDivide(length, 256)));
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(length, 256)));
+            let p: number = 0;
+            while (p < lexeme.positions.length) {
+                const value: checkruntime.TsvectorPosition = langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition);
+                const word: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value.weight, 16384), value.position);
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedDivide(word, 256)));
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(word, 256)));
+                p = langruntime.checkedAdd(p, 1);
+            }
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 interface TsvectorSortSource {
     lexemes: checkruntime.TsvectorLexeme[];
     positions: checkruntime.TsvectorPosition[];

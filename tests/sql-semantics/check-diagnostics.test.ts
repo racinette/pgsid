@@ -10,6 +10,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
 
 const conditions = [
+  ['2200F', 'zero-length character string'],
   ['21000', 'cardinality violation'],
   ['22004', 'null value not allowed'],
   ['22003', 'numeric value out of range'],

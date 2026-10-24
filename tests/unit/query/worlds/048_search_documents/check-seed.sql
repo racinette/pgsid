@@ -71,3 +71,43 @@ INSERT INTO document_publication(source,expected_reference,require_nonempty,bypa
 INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('é:1',false,true,false);
 -- name: document_reference_normalized
 INSERT INTO document_publication(source,expected_reference,require_nonempty,bypass) VALUES('a:1A a:1B',true,true,false);
+-- name: document_edit_merged
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A b:2C','b:1B z:2','{a}','{A}','B','''a'':1A ''b'':2C,3B ''z'':4','''a'':1A','''a'':1B ''b'':2C','''b'':2C',false);
+-- name: document_edit_wrong_merge
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A b:2C','b:1B z:2','{a}','{A}','B','''a'':1A ''b'':1B,2C ''z'':2','''a'':1A','''a'':1B ''b'':2C','''b'':2C',false);
+-- name: document_edit_wrong_filter
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A b:2C','b:1B z:2','{a}','{A}','B','''a'':1A ''b'':2C,3B ''z'':4','''b'':2C','''a'':1B ''b'':2C','''b'':2C',false);
+-- name: document_edit_wrong_weight
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A b:2C','b:1B z:2','{a}','{A}','B','''a'':1A ''b'':2C,3B ''z'':4','''a'':1A','''a'':1A ''b'':2C','''b'':2C',false);
+-- name: document_edit_wrong_delete
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A b:2C','b:1B z:2','{a}','{A}','B','''a'':1A ''b'':2C,3B ''z'':4','''a'':1A','''a'':1B ''b'':2C','''a'':1A',false);
+-- name: document_edit_null
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES(NULL,'z:1','{a}','{A}','B',NULL,NULL,NULL,NULL,false);
+-- name: document_edit_empty
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('','','{}','{}','B','','','','',false);
+-- name: document_edit_bad_filter_weight
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A','','{}','{?}','B','''a'':1A',NULL,'''a'':1A','''a'':1A',false);
+-- name: document_edit_null_filter_weight
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:1A','','{}','{NULL}','B','''a'':1A',NULL,'''a'':1A','''a'':1A',false);
+-- name: document_edit_skipped_invalid
+INSERT INTO document_edits(source,continuation,selectors,weights,weight,expected_merged,expected_filtered,expected_reweighted,expected_deleted,bypass) VALUES('a:0','a:0','{','{?}','?',NULL,NULL,NULL,NULL,true);
+-- name: document_terms_deduplicated
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{b,a,a}','''a'' ''b''','000000026100000062000000',true,false);
+-- name: document_terms_wrong_document
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{b,a,a}','''b'' ''a''','000000026100000062000000',true,false);
+-- name: document_terms_wrong_wire
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{b,a,a}','''a'' ''b''','',true,false);
+-- name: document_terms_unicode
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{😀,é}','''é'' ''😀''',NULL,false,false);
+-- name: document_terms_empty
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{}','','00000000',true,false);
+-- name: document_terms_null
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES(NULL,NULL,NULL,true,false);
+-- name: document_terms_null_element
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{a,NULL}',NULL,NULL,true,false);
+-- name: document_terms_empty_element
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{""}',NULL,NULL,true,false);
+-- name: document_terms_bad_array
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{',NULL,NULL,true,false);
+-- name: document_terms_skipped_invalid
+INSERT INTO document_terms(terms,expected_document,expected_wire,verify_wire,bypass) VALUES('{',NULL,NULL,true,true);

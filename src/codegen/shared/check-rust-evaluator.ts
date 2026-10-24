@@ -2647,6 +2647,7 @@ export function emitCheckRustEvaluator(
       const xmlCast =
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
+      const tsvectorSend = call.signature === builtinTypeIO('pg_catalog.tsvector')?.send
       const xmlPredicate = isXmlOptionPredicate(implementation)
       const xmlConcat =
         implementation.schema === 'pg_catalog' &&
@@ -4893,6 +4894,13 @@ export function emitCheckRustEvaluator(
         )
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (tsvectorSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'array_to_tsvector' &&
+        implementation.args.join(',') === 'pg_catalog._text'
+      )
+        arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (isXmlXPathCallable(implementation))
         arguments_.push(
           String(executionContext.serverEncoding === 'UTF8'),

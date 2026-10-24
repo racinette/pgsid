@@ -726,6 +726,7 @@ const sqlErrorInvalidDatetimeFormat = 3452551;
 const sqlErrorDatetimeFieldOverflow = 3452552;
 const sqlErrorTimezoneDisplacement = 3452553;
 const sqlErrorInvalidUseOfEscape = 3452556;
+const sqlErrorZeroLengthCharacterString = 3452559;
 const sqlErrorInvalidXmlDocument = 3452566;
 const sqlErrorNotXmlDocument = 3452565;
 const sqlErrorInvalidXmlContent = 3452567;
@@ -759,6 +760,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorZeroLengthCharacterString) {
+        return { message: "zero-length character string" };
+    }
     if (error.state === sqlErrorInvalidXmlProcessingInstruction) {
         return { message: "invalid XML processing instruction" };
     }
@@ -3567,7 +3571,7 @@ export function makeTsvectorValue(input: TsvectorPayload): TsvectorValue {
         let previous: number = langruntime.checkedSignedNegate(1);
         while (position < langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions.length) {
             const value: TsvectorPosition = langruntime.indexStruct(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions, langruntime.checkedIndex(position), copyTsvectorPosition);
-            if (value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3) {
+            if (value.position < 0 || value.position < previous || value.position > 16383 || value.weight < 0 || value.weight > 3) {
                 return { kind: "Unknown" };
             }
             previous = langruntime.checkedI32(value.position);
