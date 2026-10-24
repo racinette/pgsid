@@ -302,6 +302,28 @@ export const goCodegenSchema = z
   .strict()
   .default({})
 
+const xpathPowerOfTenBitsSchema = z
+  .array(z.string().regex(/^[0-7][0-9a-fA-F]{15}$/u))
+  .length(632)
+  .superRefine((bits, context) => {
+    if (bits.length !== 632 || bits.some((word) => !/^[0-7][0-9a-fA-F]{15}$/u.test(word))) return
+    let previous = 0n
+    for (const [index, text] of bits.entries()) {
+      const word = BigInt('0x' + text)
+      if (word <= previous || word >= 0x7ff0000000000000n) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index],
+          message:
+            'XPath decimal powers must be strictly increasing positive finite binary64 words.',
+        })
+        return
+      }
+      previous = word
+    }
+  })
+  .transform((bits) => bits.map((word) => word.toLowerCase()))
+
 export const codegenSchema = z
   .object({
     checks: z
@@ -316,6 +338,7 @@ export const codegenSchema = z
         xmlBinary: z.enum(['base64', 'hex']).optional(),
         extraFloatDigits: z.number().int().min(-15).max(3).optional(),
         xpathRecursionLimit: z.number().int().min(1).max(2147483647).optional(),
+        xpathPowerOfTenBits: xpathPowerOfTenBitsSchema.optional(),
         clientEncoding: z.literal('UTF8').optional(),
       })
       .strict()

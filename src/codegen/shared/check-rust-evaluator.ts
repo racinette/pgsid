@@ -725,6 +725,7 @@ export type CheckExecutionContext = {
   xmlBinary?: 'base64' | 'hex'
   extraFloatDigits?: number
   xpathRecursionLimit?: number
+  xpathPowerOfTenBits?: readonly string[]
   clientEncoding?: 'UTF8'
 }
 
@@ -4651,6 +4652,7 @@ export function emitCheckRustEvaluator(
           String(executionContext.xpathRecursionLimit ?? 0),
           String(executionContext.extraFloatDigits ?? 0),
           String(executionContext.extraFloatDigits !== undefined),
+          rustStringLiteral(executionContext.xpathPowerOfTenBits?.join('') ?? ''),
         )
       const hashContext = nativeHashContext(implementation)
       if (hashContext) {

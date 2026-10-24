@@ -15,7 +15,30 @@ pub(crate) fn xpath_powers_push(input: XPathPowers, value: i64) -> XPathPowers {
     let mut bits = input.bits; bits.push(XPathPower { bits: value }); XPathPowers { bits }
 }
 
+fn xpath_power_context(input: &str) -> XPathPowers {
+    let characters: Vec<char> = input.chars().collect();
+    if characters.len() != 10112 { return xpath_powers_empty(); };
+    let mut result = xpath_powers_empty(); let mut index: usize = 0;
+    let mut previous = 0i64;
+    let mut offset: usize = 0;
+    while index < 632 {
+        let mut word = 0i64; let mut digit_index: usize = 0;
+        while digit_index < 16 {
+            let digit = hex_digit(characters[offset+digit_index]);
+            if digit < 0 || (digit_index == 0 && digit > 7) { return xpath_powers_empty(); };
+            word = word*16i64+(digit as i64); digit_index += 1;
+        }
+        if word <= previous || word >= 9218868437227405312i64 { return xpath_powers_empty(); };
+        result = xpath_powers_push(result,word); previous = word; index += 1; offset += 16;
+    }
+    result
+}
+
 fn xpath_power_ten(profile: &XPathPowers, exponent: i32) -> Float8Value {
+    if profile.bits.len() == 632 && exponent >= -323 && exponent <= 308 {
+        let position = usize::try_from(exponent+323).unwrap_or(0);
+        return make_float8_bits(profile.bits[position].bits);
+    };
     if exponent >= 0 && exponent <= 22 {
         let mut value = 1.0f64; let mut position: i32 = 0;
         while position < exponent { value = value*10.0f64; position = position+1; }
@@ -23,9 +46,7 @@ fn xpath_power_ten(profile: &XPathPowers, exponent: i32) -> Float8Value {
     };
     if exponent > 308 { return make_float8_value(1.0f64/0.0f64); };
     if exponent < -323 { return make_float8_value(0.0f64); };
-    if profile.bits.len() != 632 { return Float8Value::Unknown; };
-    let position = usize::try_from(exponent+323).unwrap_or(0);
-    make_float8_bits(profile.bits[position].bits)
+    Float8Value::Unknown
 }
 
 fn xpath_number_parts(input: &str) -> XPathNumberParts {

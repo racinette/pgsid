@@ -53557,8 +53557,43 @@ export function xpathPowersPush(input: XPathPowers, value: bigint): XPathPowers 
     langruntime.pushStruct(bits, { bits: value }, copyXPathPower);
     return { bits: bits };
 }
+function xpathPowerContext(input: string): XPathPowers {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    if (!(characters.length === 10112)) {
+        return xpathPowersEmpty();
+    }
+    let result: XPathPowers = xpathPowersEmpty();
+    let index: number = 0;
+    let previous: bigint = 0n;
+    let offset: number = 0;
+    while (index < 632) {
+        let word: bigint = 0n;
+        let digitIndex: number = 0;
+        while (digitIndex < 16) {
+            const digit: number = checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(offset, digitIndex))));
+            if (digit < 0 || (digitIndex === 0 && digit > 7)) {
+                return xpathPowersEmpty();
+            }
+            word = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(word, 16n), (BigInt(langruntime.checkedI32(digit)))));
+            digitIndex = langruntime.checkedAdd(digitIndex, 1);
+        }
+        if (word <= previous || word >= 9218868437227405312n) {
+            return xpathPowersEmpty();
+        }
+        result = xpathPowersPush(result, word);
+        previous = langruntime.checkedI64(word);
+        index = langruntime.checkedAdd(index, 1);
+        offset = langruntime.checkedAdd(offset, 16);
+    }
+    return result;
+}
 function xpathPowerTen(profile: XPathPowers, exponent: number): checkruntime.Float8Value {
     exponent = langruntime.checkedI32(exponent);
+    if (profile.bits.length === 632 && exponent >= langruntime.checkedSignedNegate(323) && exponent <= 308) {
+        const position: number = langruntime.indexFromI32(langruntime.checkedSignedAdd(exponent, 323), 0);
+        return checkruntime.makeFloat8Bits(langruntime.indexStruct(profile.bits, langruntime.checkedIndex(position), copyXPathPower).bits);
+    }
     if (exponent >= 0 && exponent <= 22) {
         let value: number = 1.0;
         let position: number = 0;
@@ -53574,11 +53609,7 @@ function xpathPowerTen(profile: XPathPowers, exponent: number): checkruntime.Flo
     if (exponent < langruntime.checkedSignedNegate(323)) {
         return checkruntime.makeFloat8Value(0.0);
     }
-    if (!(profile.bits.length === 632)) {
-        return { kind: "Unknown" };
-    }
-    const position: number = langruntime.indexFromI32(langruntime.checkedSignedAdd(exponent, 323), 0);
-    return checkruntime.makeFloat8Bits(langruntime.indexStruct(profile.bits, langruntime.checkedIndex(position), copyXPathPower).bits);
+    return { kind: "Unknown" };
 }
 function xpathNumberParts(input: string): XPathNumberParts {
     input = langruntime.checkedString(input);
@@ -55849,6 +55880,10 @@ export function xpathSqlArray(input: XPathXmlResult): checkruntime.ArrayValue {
     return { kind: "Value", value: payload };
 }
 export function xpathSqlExecute(expression: checkruntime.TextValue, input: checkruntime.XmlValue, mappings: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, precisionKnown: boolean, serialize: boolean): XPathSqlResult {
+    const powers: XPathPowers = xpathPowersEmpty();
+    return xpathSqlExecuteProfile(expression, input, mappings, utf8, limit, extra, precisionKnown, serialize, powers);
+}
+export function xpathSqlExecuteProfile(expression: checkruntime.TextValue, input: checkruntime.XmlValue, mappings: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, precisionKnown: boolean, serialize: boolean, powers: XPathPowers): XPathSqlResult {
     if (expression.kind === "Error") {
         const error: checkruntime.SqlError = expression.value;
         return xpathSqlError(error);
@@ -55968,7 +56003,6 @@ export function xpathSqlExecute(expression: checkruntime.TextValue, input: check
             index = langruntime.checkedAdd(index, 2);
         }
         const program: XPathProgram = xpathCompileWithLimit(path, limit);
-        const powers: XPathPowers = xpathPowersEmpty();
         const value: XPathValue = xpathEvaluate(program, tree, graph, namespaces, powers);
         if (value.state < 0) {
             return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXpath));
@@ -55987,48 +56021,57 @@ export function xpathSqlExecute(expression: checkruntime.TextValue, input: check
     }
     return xpathSqlUnknown(xpathSqlInput);
 }
-export function xpathAbvz(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.ArrayValue {
+export function xpathAbvz(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string): checkruntime.ArrayValue {
     namespaces = checkruntime.copyArrayValue(namespaces);
     utf8 = langruntime.checkedBool(utf8);
     limit = langruntime.checkedI32(limit);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
-    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true);
+    powerWords = langruntime.checkedString(powerWords);
+    const powers: XPathPowers = xpathPowerContext(powerWords);
+    const result: XPathSqlResult = xpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, true, powers);
     return result.output;
 }
-export function xpathNuen(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.ArrayValue {
+export function xpathNuen(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string): checkruntime.ArrayValue {
     utf8 = langruntime.checkedBool(utf8);
     limit = langruntime.checkedI32(limit);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
+    powerWords = langruntime.checkedString(powerWords);
     const namespaces: checkruntime.ArrayValue = xpathSqlEmptyNamespaces();
-    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true);
+    const powers: XPathPowers = xpathPowerContext(powerWords);
+    const result: XPathSqlResult = xpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, true, powers);
     return result.output;
 }
-export function xpathExists1hns(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+export function xpathExists1hns(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string): checkruntime.BoolValue {
     namespaces = checkruntime.copyArrayValue(namespaces);
     utf8 = langruntime.checkedBool(utf8);
     limit = langruntime.checkedI32(limit);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
-    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false);
+    powerWords = langruntime.checkedString(powerWords);
+    const powers: XPathPowers = xpathPowerContext(powerWords);
+    const result: XPathSqlResult = xpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, false, powers);
     return result.present;
 }
-export function xpathExistsS9ul(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+export function xpathExistsS9ul(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string): checkruntime.BoolValue {
     utf8 = langruntime.checkedBool(utf8);
     limit = langruntime.checkedI32(limit);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
+    powerWords = langruntime.checkedString(powerWords);
     const namespaces: checkruntime.ArrayValue = xpathSqlEmptyNamespaces();
-    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false);
+    const powers: XPathPowers = xpathPowerContext(powerWords);
+    const result: XPathSqlResult = xpathSqlExecuteProfile(expression, input, namespaces, utf8, limit, extra, known, false, powers);
     return result.present;
 }
-export function xmlexists3gat(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+export function xmlexists3gat(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string): checkruntime.BoolValue {
     utf8 = langruntime.checkedBool(utf8);
     limit = langruntime.checkedI32(limit);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
-    return xpathExistsS9ul(expression, input, utf8, limit, extra, known);
+    powerWords = langruntime.checkedString(powerWords);
+    return xpathExistsS9ul(expression, input, utf8, limit, extra, known, powerWords);
 }
 function xpathStringFind(input: string, needle: string): number {
     input = langruntime.checkedString(input);
