@@ -57,9 +57,11 @@ pub enum ArrayElement {
     XmlNonNull(XmlKnowledge),
     TextNonNull,
     Aclitem(AclitemPayload),
+    Tsvector(TsvectorPayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Tsvector(_) = input { return 47; };
     if let ArrayElement::Aclitem(_) = input { return 46; };
     if let ArrayElement::TextNonNull = input { return 8; };
     if let ArrayElement::XmlNonNull(_) = input { return 45; };
@@ -1397,4 +1399,17 @@ pub fn array_element_to_aclitem(input: ArrayElement) -> AclitemValue {
     if let ArrayElement::Null = input { return AclitemValue::Null; };
     if let ArrayElement::Aclitem(value) = input { return AclitemValue::Value(value); };
     AclitemValue::Unknown
+}
+
+pub fn array_element_from_tsvector(input: TsvectorValue) -> ArrayElement {
+    if let TsvectorValue::Error(error) = input { return ArrayElement::Error(error); };
+    if let TsvectorValue::Null = input { return ArrayElement::Null; };
+    if let TsvectorValue::Value(value) = input { return ArrayElement::Tsvector(value); };
+    ArrayElement::Unknown
+}
+pub fn array_element_to_tsvector(input: ArrayElement) -> TsvectorValue {
+    if let ArrayElement::Error(error) = input { return TsvectorValue::Error(error); };
+    if let ArrayElement::Null = input { return TsvectorValue::Null; };
+    if let ArrayElement::Tsvector(value) = input { return TsvectorValue::Value(value); };
+    TsvectorValue::Unknown
 }

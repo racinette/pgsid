@@ -1,3 +1,8 @@
+import {
+  tsvectorRustPayload,
+  tsvectorGoPayload,
+  type TsvectorInputPayload,
+} from './tsvector-input.js'
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import {
@@ -34,6 +39,7 @@ export type RangeJsonbPayload = {
 }
 
 export type RangeInputCell =
+  | { kind: 'Tsvector'; value: TsvectorInputPayload }
   | { kind: 'Composite'; value: CompositeInputPayload }
   | { kind: 'Range'; value: RangeInputPayload }
   | { kind: 'Multirange'; value: MultirangeInputPayload }
@@ -112,6 +118,7 @@ const cellRecords = {
 } as const
 
 export function rangeRustCell(cell: RangeInputCell): string {
+  if (cell.kind === 'Tsvector') return `ArrayElement::Tsvector(${tsvectorRustPayload(cell.value)})`
   if (cell.kind === 'Composite')
     return `array_element_from_composite(${compositeRustInput(cell.value)})`
   if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
@@ -149,6 +156,11 @@ export function rangeRustCell(cell: RangeInputCell): string {
 }
 
 export function rangeGoCell(cell: RangeInputCell): GoExpression {
+  if (cell.kind === 'Tsvector')
+    return go.composite(go.selector(go.ident('checkruntime'), 'ArrayElement'), [
+      go.keyValue('Kind', go.selector(go.ident('checkruntime'), 'ArrayElementTsvector')),
+      go.keyValue('Tsvector', tsvectorGoPayload(cell.value)),
+    ])
   if (cell.kind === 'Composite') return compositeGoCell(cell)
   const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
   if (cell.kind === 'Range')

@@ -1107,7 +1107,13 @@ func checkRustArrayTree(input checkruntime.ArrayValue,depth int,boundProfile che
 func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,boundProfile checkruntime.RangeBoundContext,tree ...string) bool {
   if input.Kind==checkruntime.ArrayElementAclitem {p:=input.Aclitem;if p.Grantee<0 || p.Grantee>4294967295 || p.Grantor<0 || p.Grantor>4294967295 || p.Privileges<0 || p.Privileges>4294967295 || p.GrantOptions<0 || p.GrantOptions>4294967295 {return false}}
 
-  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementAclitem { return false }
+  if input.Kind==checkruntime.ArrayElementTsvector {
+    if len(input.Tsvector.Lexemes)>2147483647 {return false}
+    for _,lexeme:=range input.Tsvector.Lexemes {
+      if !utf8.ValidString(lexeme.Text) || strings.IndexByte(lexeme.Text,0)>=0 || len(lexeme.Positions)>2147483647 {return false}
+    }
+  }
+  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementTsvector { return false }
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
   if input.Kind==checkruntime.ArrayElementArray {
     if depth<1 || family!=41 { return false }

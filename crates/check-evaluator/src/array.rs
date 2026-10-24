@@ -307,6 +307,7 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
 }
 
 fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Tsvector(value) = element { return array_element_from_tsvector(make_tsvector_value(value)); };
     if let ArrayElement::Aclitem(value) = element { return array_element_from_aclitem(make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options)); };
     if let ArrayElement::XmlNonNull(value) = element { return array_element_from_xml(make_xml_knowledge(value.document,value.content)); };
     if let ArrayElement::Xml(value) = element { return array_element_from_xml(make_xml_value(value.as_str())); };
@@ -336,7 +337,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         };
         if let ArrayElement::Unknown = checked {
             let family = array_element_family(elements[position].clone());
-            if (family >= 41 && family <= 44) || family == 46 {
+            if (family >= 41 && family <= 44) || family == 46 || family == 47 {
                 return ArrayValue::Unknown;
             };
         };
@@ -344,7 +345,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 46 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 47 {
         return ArrayValue::Unknown;
     };
     position = 0;

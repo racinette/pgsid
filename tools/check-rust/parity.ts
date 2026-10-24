@@ -1,4 +1,9 @@
 import {
+  tsvectorRustPayload,
+  tsvectorGoPayload,
+  type TsvectorInputPayload,
+} from './tsvector-input.js'
+import {
   compositeRustInput,
   compositeGoInput,
   compositeTypescriptInput,
@@ -62,10 +67,7 @@ export type Input =
         | { a: bigint; b: bigint; c: bigint }
         | { x1: bigint; y1: bigint; x2: bigint; y2: bigint }
         | { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
-        | {
-            lexemes: { text: string; positions: { position: number; weight: number }[] }[]
-            nativeBytes: number
-          }
+        | TsvectorInputPayload
         | { grantee: bigint; grantor: bigint; privileges: bigint; grantOptions: bigint }
         | { time: bigint; zone: number }
         | { time: bigint; months: number; days: number }
@@ -249,8 +251,7 @@ export async function runCheckParity(
     }
     if (typeof input.value === 'object') {
       const parts = input.value
-      if ('lexemes' in parts)
-        return `make_tsvector_value(TsvectorPayload {lexemes:vec![${parts.lexemes.map((l) => `TsvectorLexeme {text:${rustStringLiteral(l.text)}.to_owned(),positions:vec![${l.positions.map((p) => `TsvectorPosition {position:${p.position},weight:${p.weight}}`).join(',')}]}`).join(',')}],native_bytes:${parts.nativeBytes}})`
+      if ('lexemes' in parts) return `make_tsvector_value(${tsvectorRustPayload(parts)})`
       if ('grantee' in parts)
         return `make_aclitem_value(${parts.grantee}i64,${parts.grantor}i64,${parts.privileges}i64,${parts.grantOptions}i64)`
       if ('points' in parts) {
@@ -346,34 +347,7 @@ export async function runCheckParity(
     if (typeof input.value === 'object') {
       const parts = input.value
       if ('lexemes' in parts)
-        return go.call(runtime('MakeTsvectorValue'), [
-          go.composite(runtime('TsvectorPayload'), [
-            go.keyValue('NativeBytes', go.number(parts.nativeBytes)),
-            go.keyValue(
-              'Lexemes',
-              go.composite(
-                go.slice(runtime('TsvectorLexeme')),
-                parts.lexemes.map((l) =>
-                  go.composite(runtime('TsvectorLexeme'), [
-                    go.keyValue('Text', go.string(l.text)),
-                    go.keyValue(
-                      'Positions',
-                      go.composite(
-                        go.slice(runtime('TsvectorPosition')),
-                        l.positions.map((p) =>
-                          go.composite(runtime('TsvectorPosition'), [
-                            go.keyValue('Position', go.number(p.position)),
-                            go.keyValue('Weight', go.number(p.weight)),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ),
-          ]),
-        ])
+        return go.call(runtime('MakeTsvectorValue'), [tsvectorGoPayload(parts)])
       if ('grantee' in parts)
         return go.call(runtime('MakeAclitemValue'), [
           go.number(parts.grantee),

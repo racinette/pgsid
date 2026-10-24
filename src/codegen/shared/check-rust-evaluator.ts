@@ -149,6 +149,7 @@ const jsonbConversionHelpers = new Map<string, string>(
       [['pg_catalog.jsonpath'], 'jsonpath'],
       [['pg_catalog.xml'], 'xml'],
       [['pg_catalog.aclitem'], 'aclitem'],
+      [['pg_catalog.tsvector'], 'tsvector'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],
@@ -397,7 +398,7 @@ const arrayElementOutput = (
   else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
-  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46].includes(family))
+  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47].includes(family))
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
     conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
@@ -1545,6 +1546,8 @@ export function emitCheckRustEvaluator(
       scalar = stored
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 47) {
+      scalar = `${stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${event},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 46) {
       scalar = `aclitem_from_text_context(${event},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 45) {
@@ -3836,11 +3839,21 @@ export function emitCheckRustEvaluator(
                   scalarLines,
                 )
               })
-              const value = emitCall(
-                { kind: 'function', signature: selected, type: metadata.result, collation },
-                values,
-                scalarLines,
-              )
+              const normalizedTsvector =
+                !equality &&
+                selectedType === 'pg_catalog.tsvector' &&
+                selected === arrayElementComparison(selectedType)?.comparator
+              const value = normalizedTsvector
+                ? { name: fresh('record_comparison_value'), type: 'pg_catalog.int4' }
+                : emitCall(
+                    { kind: 'function', signature: selected, type: metadata.result, collation },
+                    values,
+                    scalarLines,
+                  )
+              if (normalizedTsvector)
+                scalarLines.push(
+                  `let ${value.name}=tsvector_order(${values.map(ownedOperand).join(', ')});`,
+                )
               scalarLines.push(
                 `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
               )
@@ -3982,6 +3995,14 @@ export function emitCheckRustEvaluator(
                 scalarLines,
               )
             })
+            if (
+              baseType === 'pg_catalog.tsvector' &&
+              selected === arrayElementComparison(baseType)?.comparator
+            ) {
+              const name = fresh('array_comparison_value')
+              scalarLines.push(`let ${name}=tsvector_order(${args.map(ownedOperand).join(', ')});`)
+              return { name, type: 'pg_catalog.int4' }
+            }
             return emitCall(
               {
                 kind: scalar.kind as 'operator' | 'function',

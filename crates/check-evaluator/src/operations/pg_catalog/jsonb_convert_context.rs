@@ -23,6 +23,10 @@ pub fn jsonb_input_from_bytea(input: ByteaValue) -> JsonbInput {
     JsonbInput::Unknown
 }
 
+pub fn jsonb_input_from_tsvector(input: TsvectorValue) -> JsonbInput {
+    jsonb_input_from_text(tsvector_to_text(input))
+}
+
 pub fn jsonb_input_from_aclitem(input: AclitemValue) -> JsonbInput {
     jsonb_input_from_text(aclitem_to_text(input))
 }

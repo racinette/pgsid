@@ -119,6 +119,10 @@ fn tsvector_compare(left: TsvectorValue, right: TsvectorValue, exact: bool) -> I
     Int4Value::Unknown
 }
 
+pub fn tsvector_order(left: TsvectorValue, right: TsvectorValue) -> Int4Value {
+    tsvector_compare(left,right,false)
+}
+
 pub fn sql__pg_catalog__tsvector_cmp__xinv(left: TsvectorValue, right: TsvectorValue) -> Int4Value {
     tsvector_compare(left,right,true)
 }
