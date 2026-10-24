@@ -50817,15 +50817,16 @@ function xpathEvaluate(program: XPathProgram, tree: XmlTree, graph: XPathGraph, 
         return xpathValueFault(7);
     }
     const context: XPathContext = copyXPathContext({ node: copyXPathReference(xpathReferenceNode(0)), position: langruntime.checkedSignedNegate(1), size: langruntime.checkedSignedNegate(1) });
-    const result: XPathValue = xpathEvalNode(program, program.root, context, 0, tree, graph, namespaces, powers);
-    return xpathValueSorted(result, tree);
+    const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
+    const task: XPathEvalTask = xpathEvalStart(xpathEvalExpression, program.runtime.root, context, 0, absent);
+    return xpathEvalRun(task, program, tree, graph, namespaces, powers);
 }
 export function xpathEvalNode(program: XPathProgram, root: number, context: XPathContext, mode: number, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
     const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
     return xpathEvalDemand(program, root, context, mode, absent, tree, graph, namespaces, powers);
 }
 export function xpathEvalDemand(program: XPathProgram, root: number, context: XPathContext, mode: number, bound: XPathReference, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
-    const task: XPathEvalTask = xpathEvalStart(xpathEvalExpression, root, context, mode, bound);
+    const task: XPathEvalTask = xpathEvalStart(xpathEvalExpression, langruntime.indexStruct(program.runtime.roots, langruntime.checkedIndex(root), copyXPathRuntimeRoot).value, context, mode, bound);
     return xpathEvalRun(task, program, tree, graph, namespaces, powers);
 }
 export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
@@ -50837,7 +50838,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
     while (stack.count > 0) {
         const task: XPathEvalTask = copyXPathEvalTask(langruntime.indexStruct(stack.values, langruntime.checkedIndex(langruntime.checkedSubtract(stack.count, 1)), copyXPathEvalTask));
         stack = xpathEvalStackPop(stack);
-        const header: XPathEvalHeader = copyXPathEvalHeader(task.header);
+        let header: XPathEvalHeader = copyXPathEvalHeader(task.header);
         let input: XPathValue = task.input;
         let output: XPathValue = task.output;
         let parameters: XPathArguments = task.parameters;
@@ -50845,7 +50846,25 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
         let value: XPathValue = result;
         result = copyXPathValue(xpathValueEmpty(0, 0));
         if (header.kind === xpathEvalExpression) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            let cost: number = 1;
+            if (header.mode === 1 && (node.kind === xpathNumber || node.kind === xpathString || node.kind === xpathGroup || node.kind === xpathPath)) {
+                cost = langruntime.checkedI32(0);
+            }
+            if (header.mode === 2 || header.mode === 3) {
+                const direct: boolean = node.kind === xpathNumber || node.kind === xpathString || node.kind === xpathRoot || node.kind === xpathContext || node.kind === xpathPath || node.kind === xpathGroup || (node.kind === xpathBinary && node.operation === 14) || (node.kind === xpathFilter && header.mode === 2);
+                if (direct === false) {
+                    cost = langruntime.checkedI32(2);
+                }
+            }
+            const fault: number = xpathEvalDepthFault(header.depth, cost, program.budget.limit);
+            if (fault < 0) {
+                return xpathValueFault(langruntime.checkedSignedSubtract(0, fault));
+            }
+            if (fault > 0) {
+                return xpathValueEmpty(0, fault);
+            }
+            header = copyXPathEvalHeader(xpathEvalDepth(header, langruntime.checkedSignedAdd(header.depth, cost)));
             if (node.kind === xpathNumber) {
                 const text: string = xpathParseText(program, node.name);
                 result = copyXPathValue(xpathNumberText(text, powers));
@@ -50854,14 +50873,17 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 result = xpathValueString(xpathParseText(program, node.name));
             }
             else if (node.kind === xpathVariable) {
-                let fault: number = 5;
+                let fault1: number = 5;
                 if (!(node.prefix.start === node.prefix.end)) {
                     const prefix: string = xpathParseText(program, node.prefix);
                     if (xpathNamespaceDefined(namespaces, prefix) === false) {
-                        fault = langruntime.checkedI32(19);
+                        fault1 = langruntime.checkedI32(19);
                     }
                 }
-                result = copyXPathValue(xpathValueFault(fault));
+                result = copyXPathValue(xpathValueFault(fault1));
+            }
+            else if (node.kind === xpathContext) {
+                result = copyXPathValue(xpathValueSingle(header.context.node));
             }
             else if (node.kind === xpathRoot) {
                 result = copyXPathValue(xpathValueSingle(xpathReferenceNode(0)));
@@ -50869,26 +50891,38 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
             else if (node.kind === xpathGroup) {
                 let current: number = header.root;
                 let groups: number = 0;
-                while (langruntime.indexStruct(program.nodes, langruntime.checkedIndex(current), copyXPathExpression).kind === xpathGroup) {
-                    current = langruntime.checkedIndex(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(current), copyXPathExpression).left);
+                while (langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(current), copyXPathExpression).kind === xpathGroup) {
+                    current = langruntime.checkedIndex(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(current), copyXPathExpression).left);
                     groups = langruntime.checkedAdd(groups, 1);
                 }
+                let extra: number = 0;
+                if (!(header.mode === 1)) {
+                    extra = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedI32(langruntime.checkedIndex(groups)), 1));
+                }
+                const fault1: number = xpathEvalDepthFault(header.depth, extra, program.budget.limit);
+                if (fault1 < 0) {
+                    return xpathValueFault(langruntime.checkedSignedSubtract(0, fault1));
+                }
+                if (fault1 > 0) {
+                    return xpathValueEmpty(0, fault1);
+                }
+                header = copyXPathEvalHeader(xpathEvalDepth(header, langruntime.checkedSignedAdd(header.depth, extra)));
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalGroup, 0, groups, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound), header.depth);
             }
             else if (node.kind === xpathStep || node.kind === xpathPredicate) {
-                stack = xpathEvalStackPush(stack, xpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)));
+                stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)), header.depth);
             }
             else if (node.kind === xpathPath) {
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalPath, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth);
             }
             else if (node.kind === xpathNegate) {
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalNegate, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth);
             }
             else if (node.kind === xpathBinary) {
                 let demand: number = 0;
@@ -50897,15 +50931,19 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalLeft, 0, 0, 0, 0, demand, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound), header.depth);
             }
             else if (node.kind === xpathFilter) {
-                const leftKind: number = langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.left), copyXPathExpression).kind;
+                const leftKind: number = langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(node.left), copyXPathExpression).kind;
                 const position: XPathPosition = copyXPathPosition(xpathConstantPosition(program, node.right, powers));
                 const first: boolean = !(header.mode === 2) && position.valid && position.value === 1 && (leftKind === xpathGroup || leftKind === xpathFilter);
-                const predicate: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
+                const sortedPredicate: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
+                let predicate: XPathExpression = copyXPathExpression(sortedPredicate);
+                if (sortedPredicate.kind === xpathGroup) {
+                    predicate = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(sortedPredicate.left), copyXPathExpression));
+                }
                 let last: boolean = false;
-                if (leftKind === xpathGroup && predicate.kind === xpathFunction && predicate.operation === 0 && predicate.prefix.start === predicate.prefix.end) {
+                if (leftKind === xpathGroup && sortedPredicate.kind === xpathGroup && predicate.kind === xpathFunction && predicate.operation === 0 && predicate.prefix.start === predicate.prefix.end) {
                     const name: string = xpathParseText(program, predicate.name);
                     last = langruntime.checkedBool(name === "last");
                 }
@@ -50921,17 +50959,31 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalFilter, 0, 0, 0, selection, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent), header.depth);
             }
             else if (node.kind === xpathFunction) {
                 if (node.left === 0) {
                     result = xpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers);
                 }
                 else {
-                    const link: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.left), copyXPathExpression));
-                    const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, node.left, 0, 0, 0, 0, 0, 0, header.positionRange));
+                    const fault1: number = xpathEvalDepthFault(header.depth, node.operation, program.budget.limit);
+                    if (fault1 < 0) {
+                        return xpathValueFault(langruntime.checkedSignedSubtract(0, fault1));
+                    }
+                    if (fault1 > 0) {
+                        return xpathValueEmpty(0, fault1);
+                    }
+                    let cursor: number = node.left;
+                    while (cursor > 0) {
+                        const argument: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(cursor), copyXPathExpression));
+                        langruntime.pushIndex(predicates, argument.right);
+                        cursor = langruntime.checkedIndex(argument.left);
+                    }
+                    const count: number = predicates.length;
+                    const first: number = langruntime.indexNumber(predicates, langruntime.checkedIndex(langruntime.checkedSubtract(count, 1)));
+                    const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, 0, langruntime.checkedSubtract(count, 1), 0, 0, 0, 0, 0, header.positionRange));
                     stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                    stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, link.left, header.context, 0, absent));
+                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, first, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, node.operation));
                 }
             }
             else {
@@ -50950,7 +51002,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
         }
         else if (header.kind === xpathEvalNegate) {
             const converted: XPathValue = xpathValueToNumber(value, tree, graph, powers);
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
             if (!(converted.state === 0) || node.operation === 0) {
                 result = copyXPathValue(converted);
             }
@@ -50959,11 +51011,11 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
             }
         }
         else if (header.kind === xpathEvalPath) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
-            stack = xpathEvalStackPush(stack, xpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            stack = xpathEvalStackChild(stack, xpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value), header.depth);
         }
         else if (header.kind === xpathEvalLeft) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
             const demand: number = header.maximum;
             if (node.operation === 14 && !(demand === 0)) {
                 value = xpathValueSorted(value, tree);
@@ -50976,7 +51028,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 else {
                     const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalBoolean, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                     stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                    stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent));
+                    stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent), header.depth);
                 }
             }
             else {
@@ -50990,36 +51042,31 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalRight, 0, 0, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, value, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound), header.depth);
             }
         }
         else if (header.kind === xpathEvalBoolean) {
             result = copyXPathValue(xpathValueToBoolean(value));
         }
         else if (header.kind === xpathEvalRight) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
             result = xpathEvalBinaryFinish(input, value, node.operation, tree, graph, powers);
         }
         else if (header.kind === xpathEvalArgument) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
-            const name: string = xpathParseText(program, node.name);
-            if (!(name === "count") || !(node.prefix.start === node.prefix.end)) {
-                value = xpathValueSorted(value, tree);
-            }
             parameters = xpathArgumentsAdd(parameters, value);
-            const link: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.index), copyXPathExpression));
-            if (link.right === 0) {
+            if (header.cursor === 0) {
                 result = xpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers);
             }
             else {
-                const following: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(link.right), copyXPathExpression));
-                const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, link.right, 0, 0, 0, 0, 0, 0, header.positionRange));
+                const cursor: number = langruntime.checkedSubtract(header.cursor, 1);
+                const following: number = langruntime.indexNumber(predicates, langruntime.checkedIndex(cursor));
+                const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalArgument, 0, cursor, 0, 0, 0, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, following.left, header.context, 0, absent));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, following, header.context, 0, absent), langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(header.depth, langruntime.checkedI32(langruntime.checkedIndex(cursor))), 1));
             }
         }
         else if (header.kind === xpathEvalFilter) {
-            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
+            const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.root), copyXPathExpression));
             if (!(value.kind === xpathKindNodes)) {
                 result = copyXPathValue(xpathValueFault(11));
             }
@@ -51043,13 +51090,13 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 if (header.mode === 2) {
                     maximum = langruntime.checkedI32(1);
                 }
-                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent));
+                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent), header.depth));
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, 1, maximum, 0, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, value, output, parameters, predicates));
             }
         }
         else if (header.kind === xpathEvalFilterStart) {
-            if (input.state < 0 || input.state === 2 || input.state === 3) {
+            if (input.state < 0 || input.state >= 2) {
                 result = copyXPathValue(input);
             }
             else if (!(input.kind === xpathKindNodes)) {
@@ -51075,7 +51122,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 const context: XPathContext = copyXPathContext({ node: copyXPathReference(langruntime.indexStruct(input.nodes.values, langruntime.checkedIndex(header.index), copyXPathReference)), position: langruntime.checkedSignedAdd(langruntime.checkedI32(langruntime.checkedIndex(header.index)), 1), size: langruntime.checkedI32(langruntime.checkedIndex(input.nodes.values.length)) });
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalFilterResult, header.index, 0, 0, header.minimum, header.maximum, header.matched, 0, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                stack = xpathEvalStackPush(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent));
+                stack = xpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent), header.depth);
             }
         }
         else if (header.kind === xpathEvalFilterResult) {
@@ -51099,7 +51146,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
             }
         }
         else if (header.kind === xpathEvalCollectStart) {
-            if (input.state < 0 || input.state === 2 || input.state === 3) {
+            if (input.state < 0 || input.state >= 2) {
                 result = copyXPathValue(input);
             }
             else if (!(input.kind === xpathKindNodes)) {
@@ -51107,11 +51154,11 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
             }
             else {
                 let index: number = header.root;
-                while (langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathPredicate) {
-                    langruntime.pushIndex(predicates, langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).right);
-                    index = langruntime.checkedIndex(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
+                while (langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathPredicate) {
+                    langruntime.pushIndex(predicates, langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression).right);
+                    index = langruntime.checkedIndex(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
                 }
-                const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression));
+                const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression));
                 const test: XPathNodeTest = xpathNodeTest(program, step, namespaces);
                 if (test.valid === false) {
                     result = copyXPathValue(xpathValueFault(19));
@@ -51135,7 +51182,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                 result = copyXPathValue(output);
             }
             else {
-                const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(header.step), copyXPathExpression));
+                const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(header.step), copyXPathExpression));
                 const test: XPathNodeTest = xpathNodeTest(program, step, namespaces);
                 let maximum: number = 0;
                 if (header.positionRange.valid && predicates.length === 1) {
@@ -51181,6 +51228,19 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                     result = xpathValueNodes(sequence);
                     cursor = langruntime.checkedIndex(predicates.length);
                 }
+                if (result.state === 0 && result.nodes.values.length > 0 && cursor > 0) {
+                    let recursive: number = langruntime.checkedSignedSubtract(langruntime.checkedI32(langruntime.checkedIndex(cursor)), 1);
+                    if (header.positionRange.valid && cursor > 1) {
+                        recursive = langruntime.checkedI32(langruntime.checkedSignedSubtract(recursive, 1));
+                    }
+                    const fault: number = xpathEvalDepthFault(header.depth, recursive, program.budget.limit);
+                    if (fault < 0) {
+                        return xpathValueFault(langruntime.checkedSignedSubtract(0, fault));
+                    }
+                    if (fault > 0) {
+                        return xpathValueEmpty(0, fault);
+                    }
+                }
                 if (result.state === 0) {
                     const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, visited, header.positionRange));
                     stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
@@ -51202,9 +51262,13 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
                     maximum = langruntime.checkedI32(header.positionRange.value);
                     cursor = langruntime.checkedIndex(0);
                 }
+                let recursive: number = langruntime.checkedI32(langruntime.checkedIndex(remaining));
+                if (header.positionRange.valid && predicates.length > 1) {
+                    recursive = langruntime.checkedI32(langruntime.checkedSignedSubtract(recursive, 1));
+                }
                 const next: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, header.visited, header.positionRange));
                 stack = xpathEvalStackPush(stack, xpathEvalTask(next, input, output, parameters, predicates));
-                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent));
+                const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent), langruntime.checkedSignedAdd(header.depth, recursive)));
                 const filter: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange));
                 const empty: XPathValue = xpathValueEmpty(0, 0);
                 const args: XPathArguments = xpathArgumentsEmpty();
@@ -51228,7 +51292,7 @@ export function xpathEvalRun(initial: XPathEvalTask, program: XPathProgram, tree
         else {
             result = copyXPathValue(xpathValueFault(10));
         }
-        if (result.state < 0 || result.state === 2 || result.state === 3) {
+        if (result.state < 0 || result.state >= 2) {
             return result;
         }
     }
@@ -51255,6 +51319,7 @@ interface XPathEvalHeader {
     context: XPathContext;
     mode: number;
     bound: XPathReference;
+    depth: number;
     index: number;
     cursor: number;
     step: number;
@@ -51265,7 +51330,7 @@ interface XPathEvalHeader {
     positionRange: XPathPosition;
 }
 function copyXPathEvalHeader(value: XPathEvalHeader): XPathEvalHeader {
-    return { kind: langruntime.checkedI32(value.kind), root: langruntime.checkedIndex(value.root), context: copyXPathContext(value.context), mode: langruntime.checkedI32(value.mode), bound: copyXPathReference(value.bound), index: langruntime.checkedIndex(value.index), cursor: langruntime.checkedIndex(value.cursor), step: langruntime.checkedIndex(value.step), minimum: langruntime.checkedI32(value.minimum), maximum: langruntime.checkedI32(value.maximum), matched: langruntime.checkedI32(value.matched), visited: langruntime.checkedI32(value.visited), positionRange: copyXPathPosition(value.positionRange) };
+    return { kind: langruntime.checkedI32(value.kind), root: langruntime.checkedIndex(value.root), context: copyXPathContext(value.context), mode: langruntime.checkedI32(value.mode), bound: copyXPathReference(value.bound), depth: langruntime.checkedI32(value.depth), index: langruntime.checkedIndex(value.index), cursor: langruntime.checkedIndex(value.cursor), step: langruntime.checkedIndex(value.step), minimum: langruntime.checkedI32(value.minimum), maximum: langruntime.checkedI32(value.maximum), matched: langruntime.checkedI32(value.matched), visited: langruntime.checkedI32(value.visited), positionRange: copyXPathPosition(value.positionRange) };
 }
 interface XPathEvalTask {
     header: XPathEvalHeader;
@@ -51291,7 +51356,7 @@ function xpathEvalHeader(kind: number, root: number, context: XPathContext, mode
     mode = langruntime.checkedI32(mode);
     bound = copyXPathReference(bound);
     const positionRange: XPathPosition = copyXPathPosition({ valid: false, value: 0 });
-    return { kind: kind, root: root, context: copyXPathContext(context), mode: mode, bound: copyXPathReference(bound), index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: copyXPathPosition(positionRange) };
+    return { kind: kind, root: root, context: copyXPathContext(context), mode: mode, bound: copyXPathReference(bound), depth: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: copyXPathPosition(positionRange) };
 }
 function xpathEvalState(input: XPathEvalHeader, kind: number, index: number, cursor: number, step: number, minimum: number, maximum: number, matched: number, visited: number, positionRange: XPathPosition): XPathEvalHeader {
     input = copyXPathEvalHeader(input);
@@ -51304,7 +51369,7 @@ function xpathEvalState(input: XPathEvalHeader, kind: number, index: number, cur
     matched = langruntime.checkedI32(matched);
     visited = langruntime.checkedI32(visited);
     positionRange = copyXPathPosition(positionRange);
-    return { kind: kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: copyXPathPosition(positionRange) };
+    return { kind: kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: input.depth, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: copyXPathPosition(positionRange) };
 }
 export function xpathEvalTask(header: XPathEvalHeader, input: XPathValue, output: XPathValue, parameters: XPathArguments, predicates: number[]): XPathEvalTask {
     return { header: copyXPathEvalHeader(header), input: input, output: output, parameters: parameters, predicates: predicates };
@@ -51348,7 +51413,7 @@ export function xpathEvalStackPop(input: XPathEvalStack): XPathEvalStack {
     return { values: values, count: count };
 }
 export function xpathEvalFunctionFinish(program: XPathProgram, root: number, parameters: XPathArguments, context: XPathContext, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
-    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(root), copyXPathExpression));
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(root), copyXPathExpression));
     const name: string = xpathParseText(program, node.name);
     if (!(node.prefix.start === node.prefix.end)) {
         const prefix: string = xpathParseText(program, node.prefix);
@@ -51391,6 +51456,31 @@ export function xpathEvalAppend(input: XPathValue, node: XPathReference): XPathV
     let values: XPathReference[] = input.nodes.values;
     langruntime.pushStruct(values, node, copyXPathReference);
     return xpathValueNodes({ values: values, cyclic: false, cycle: 0 });
+}
+function xpathEvalDepth(input: XPathEvalHeader, depth: number): XPathEvalHeader {
+    input = copyXPathEvalHeader(input);
+    depth = langruntime.checkedI32(depth);
+    return { kind: input.kind, root: input.root, context: copyXPathContext(input.context), mode: input.mode, bound: copyXPathReference(input.bound), depth: depth, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: copyXPathPosition(input.positionRange) };
+}
+function xpathEvalDepthFault(depth: number, count: number, declaredLimit: number): number {
+    depth = langruntime.checkedI32(depth);
+    count = langruntime.checkedI32(count);
+    declaredLimit = langruntime.checkedI32(declaredLimit);
+    let limit: number = declaredLimit;
+    if (limit <= 0) {
+        limit = langruntime.checkedI32(xpathMinRecursionLimit);
+    }
+    if (count > 0 && (depth > limit || count > langruntime.checkedSignedSubtract(limit, depth))) {
+        if (declaredLimit <= 0) {
+            return 4;
+        }
+        return langruntime.checkedSignedNegate(26);
+    }
+    return 0;
+}
+export function xpathEvalStackChild(input: XPathEvalStack, task: XPathEvalTask, depth: number): XPathEvalStack {
+    const header: XPathEvalHeader = copyXPathEvalHeader(xpathEvalDepth(task.header, depth));
+    return xpathEvalStackPush(input, xpathEvalTask(header, task.input, task.output, task.parameters, task.predicates));
 }
 interface XPathArguments {
     first: XPathValue;
@@ -51575,10 +51665,10 @@ function xpathFunctionSpec(name: string): XPathFunctionSpec {
 function xpathConstantPosition(program: XPathProgram, root: number, powers: XPathPowers): XPathPosition {
     root = langruntime.checkedIndex(root);
     let index: number = root;
-    while (langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathGroup) {
-        index = langruntime.checkedIndex(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
+    while (langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression).kind === xpathGroup) {
+        index = langruntime.checkedIndex(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression).left);
     }
-    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(index), copyXPathExpression));
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.runtime.nodes, langruntime.checkedIndex(index), copyXPathExpression));
     if (node.kind === xpathNumber) {
         const text: string = xpathParseText(program, node.name);
         const parsed: XPathValue = xpathNumberText(text, powers);
@@ -51612,7 +51702,7 @@ function xpathNamespaceDefined(namespaces: XPathNamespaces, prefix: string): boo
 export function xpathFilterValues(input: XPathValue, program: XPathProgram, predicate: number, minimum: number, maximum: number, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
     const absent: XPathReference = copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 });
     const context: XPathContext = copyXPathContext({ node: copyXPathReference(absent), position: langruntime.checkedSignedNegate(1), size: langruntime.checkedSignedNegate(1) });
-    const header: XPathEvalHeader = copyXPathEvalHeader(xpathEvalHeader(xpathEvalFilterStart, predicate, context, 0, absent));
+    const header: XPathEvalHeader = copyXPathEvalHeader(xpathEvalHeader(xpathEvalFilterStart, langruntime.indexStruct(program.runtime.roots, langruntime.checkedIndex(predicate), copyXPathRuntimeRoot).value, context, 0, absent));
     const state: XPathEvalHeader = copyXPathEvalHeader(xpathEvalState(header, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange));
     const output: XPathValue = xpathValueEmpty(0, 0);
     const parameters: XPathArguments = xpathArgumentsEmpty();
@@ -51622,7 +51712,7 @@ export function xpathFilterValues(input: XPathValue, program: XPathProgram, pred
 }
 export function xpathCollect(input: XPathValue, program: XPathProgram, root: number, mode: number, bound: XPathReference, tree: XmlTree, graph: XPathGraph, namespaces: XPathNamespaces, powers: XPathPowers): XPathValue {
     const context: XPathContext = copyXPathContext({ node: copyXPathReference({ kind: langruntime.checkedSignedNegate(1), node: 0, index: 0 }), position: langruntime.checkedSignedNegate(1), size: langruntime.checkedSignedNegate(1) });
-    const task: XPathEvalTask = xpathEvalInputTask(xpathEvalCollectStart, root, context, mode, bound, input);
+    const task: XPathEvalTask = xpathEvalInputTask(xpathEvalCollectStart, langruntime.indexStruct(program.runtime.roots, langruntime.checkedIndex(root), copyXPathRuntimeRoot).data, context, mode, bound, input);
     return xpathEvalRun(task, program, tree, graph, namespaces, powers);
 }
 export function xpathApplyFunction(input: XPathArguments, kind: number, context: XPathContext, tree: XmlTree, graph: XPathGraph, powers: XPathPowers): XPathValue {
@@ -52887,74 +52977,78 @@ function xpathNumberString(bits: bigint): string {
     output = output + text;
     return output;
 }
-interface XPathOptimizeStep {
+interface XPathRuntimeVisit {
     node: number;
-    next: number;
+    depth: number;
 }
-function copyXPathOptimizeStep(value: XPathOptimizeStep): XPathOptimizeStep {
-    return { node: langruntime.checkedIndex(value.node), next: langruntime.checkedIndex(value.next) };
+function copyXPathRuntimeVisit(value: XPathRuntimeVisit): XPathRuntimeVisit {
+    return { node: langruntime.checkedIndex(value.node), depth: langruntime.checkedI32(value.depth) };
 }
-export function xpathOptimize(input: XPathProgram, root: number): XPathProgram {
-    let program: XPathProgram = input;
-    let pending: XPathOptimizeStep[] = [];
-    langruntime.pushStruct(pending, { node: root, next: 0 }, copyXPathOptimizeStep);
+export function xpathRuntimeOptimize(input: XPathRuntimePlan, declaredLimit: number): XPathRuntimePlan {
+    let plan: XPathRuntimePlan = input;
+    let limit: number = declaredLimit;
+    if (limit <= 0) {
+        limit = langruntime.checkedI32(xpathMinRecursionLimit);
+    }
+    let pending: XPathRuntimeVisit[] = [];
+    langruntime.pushStruct(pending, { node: plan.root, depth: 0 }, copyXPathRuntimeVisit);
     let head: number = 1;
     while (head > 0) {
-        const frame: XPathOptimizeStep = copyXPathOptimizeStep(langruntime.indexStruct(pending, langruntime.checkedIndex(langruntime.checkedSubtract(head, 1)), copyXPathOptimizeStep));
-        head = langruntime.checkedIndex(frame.next);
-        const selectedRoot: number = frame.node;
-        const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(selectedRoot), copyXPathExpression));
-        if (node.kind === xpathPath && langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression).kind === xpathStep) {
-            const next: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
-            const previous: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(node.left), copyXPathExpression));
-            let previousStep: number = 0;
-            if (previous.kind === xpathPath) {
-                previousStep = langruntime.checkedIndex(previous.right);
-            }
-            if (previous.kind === xpathStep) {
-                previousStep = langruntime.checkedIndex(node.left);
-            }
-            const prior: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(previousStep), copyXPathExpression));
-            if (prior.kind === xpathStep && prior.operation === 6 && prior.right === 2) {
+        const frame: XPathRuntimeVisit = copyXPathRuntimeVisit(langruntime.indexStruct(pending, langruntime.checkedIndex(langruntime.checkedSubtract(head, 1)), copyXPathRuntimeVisit));
+        head = langruntime.checkedIndex(langruntime.checkedSubtract(head, 1));
+        const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(frame.node), copyXPathExpression));
+        if (node.kind === xpathPath && langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(node.right), copyXPathExpression).kind === xpathStep) {
+            const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(node.right), copyXPathExpression));
+            const prior: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(node.left), copyXPathExpression));
+            if (prior.kind === xpathPath && langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(prior.right), copyXPathExpression).kind === xpathStep) {
+                const previous: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(prior.right), copyXPathExpression));
                 let axis: number = 0;
-                if (next.operation === 1 || next.operation === 5) {
-                    axis = langruntime.checkedI32(5);
-                }
-                if (next.operation === 3 || next.operation === 6) {
-                    axis = langruntime.checkedI32(6);
-                }
-                if (!(axis === 0)) {
-                    let nodes: XPathExpression[] = program.nodes;
-                    nodes[langruntime.checkedIndexIn(nodes, node.right)] = copyXPathExpression({ kind: next.kind, operation: axis, left: next.left, right: next.right, prefix: copyXmlSpan(next.prefix), name: copyXmlSpan(next.name) });
-                    if (previous.kind === xpathPath) {
-                        nodes[langruntime.checkedIndexIn(nodes, selectedRoot)] = copyXPathExpression({ kind: node.kind, operation: node.operation, left: previous.left, right: node.right, prefix: copyXmlSpan(node.prefix), name: copyXmlSpan(node.name) });
+                if (previous.operation === 6 && previous.right === 2) {
+                    if (step.operation === 1 || step.operation === 5) {
+                        axis = langruntime.checkedI32(5);
                     }
-                    else {
-                        nodes[langruntime.checkedIndexIn(nodes, node.left)] = copyXPathExpression({ kind: prior.kind, operation: 3, left: prior.left, right: prior.right, prefix: copyXmlSpan(prior.prefix), name: copyXmlSpan(prior.name) });
+                    if (step.operation === 3 || step.operation === 6) {
+                        axis = langruntime.checkedI32(6);
                     }
-                    program = copyXPathProgram({ source: program.source, nodes: nodes, cursor: program.cursor, root: program.root, valid: program.valid, budget: copyXPathCompileBudget(program.budget) });
+                }
+                if (axis > 0) {
+                    plan = xpathRuntimePush(plan, xpathParseNode(xpathStep, axis, step.left, step.right, step.prefix, step.name));
+                    const data: number = plan.last;
+                    plan = xpathRuntimeReplace(plan, frame.node, xpathParseNode(node.kind, node.operation, prior.left, data, node.prefix, node.name));
                 }
             }
         }
-        const selected: XPathExpression = copyXPathExpression(langruntime.indexStruct(program.nodes, langruntime.checkedIndex(selectedRoot), copyXPathExpression));
-        if (selected.kind === xpathPath || selected.kind === xpathBinary || selected.kind === xpathPredicate || selected.kind === xpathFilter || selected.kind === xpathArgument) {
-            if (selected.right > 0) {
-                langruntime.pushStruct(pending, { node: selected.right, next: head }, copyXPathOptimizeStep);
-                head = langruntime.checkedIndex(pending.length);
+        const selected: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(frame.node), copyXPathExpression));
+        if (frame.depth < limit && !(selected.kind === xpathNumber) && !(selected.kind === xpathString) && !(selected.kind === xpathStep)) {
+            const nextDepth: number = langruntime.checkedSignedAdd(frame.depth, 1);
+            let right: number = selected.right;
+            if (selected.kind === xpathPath && langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(right), copyXPathExpression).kind === xpathStep) {
+                right = langruntime.checkedIndex(0);
             }
-            if (selected.left > 0) {
-                langruntime.pushStruct(pending, { node: selected.left, next: head }, copyXPathOptimizeStep);
-                head = langruntime.checkedIndex(pending.length);
+            if (right > 0) {
+                const visit: XPathRuntimeVisit = copyXPathRuntimeVisit({ node: right, depth: nextDepth });
+                if (head < pending.length) {
+                    pending[langruntime.checkedIndexIn(pending, head)] = copyXPathRuntimeVisit(visit);
+                }
+                else {
+                    langruntime.pushStruct(pending, visit, copyXPathRuntimeVisit);
+                }
+                head = langruntime.checkedAdd(head, 1);
             }
-        }
-        else if (selected.kind === xpathNegate || selected.kind === xpathGroup || selected.kind === xpathFunction) {
-            if (selected.left > 0) {
-                langruntime.pushStruct(pending, { node: selected.left, next: head }, copyXPathOptimizeStep);
-                head = langruntime.checkedIndex(pending.length);
+            const left: number = selected.left;
+            if (left > 0 && (!(selected.kind === xpathPredicate) || !(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(left), copyXPathExpression).kind === xpathStep))) {
+                const visit: XPathRuntimeVisit = copyXPathRuntimeVisit({ node: left, depth: nextDepth });
+                if (head < pending.length) {
+                    pending[langruntime.checkedIndexIn(pending, head)] = copyXPathRuntimeVisit(visit);
+                }
+                else {
+                    langruntime.pushStruct(pending, visit, copyXPathRuntimeVisit);
+                }
+                head = langruntime.checkedAdd(head, 1);
             }
         }
     }
-    return program;
+    return plan;
 }
 function xpathReferenceOrder(tree: XmlTree, left: XPathReference, right: XPathReference): number {
     left = copyXPathReference(left);
@@ -53144,7 +53238,7 @@ function xpathCompileWithLimit(input: string, limit: number): XPathProgram {
     let nodes: XPathExpression[] = [];
     langruntime.pushStruct(nodes, xpathParseNode(0, 0, 0, 0, empty, empty), copyXPathExpression);
     const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: 0, limit: limit, fault: 0 });
-    const program: XPathProgram = { source: source, nodes: nodes, cursor: 0, root: 0, valid: true, budget: copyXPathCompileBudget(budget) };
+    const program: XPathProgram = { source: source, nodes: nodes, cursor: 0, root: 0, valid: true, budget: copyXPathCompileBudget(budget), runtime: xpathRuntimeEmpty() };
     const parsed: XPathProgram = xpathParseExpression(program, 1);
     if (parsed.valid === false) {
         return parsed;
@@ -53153,8 +53247,7 @@ function xpathCompileWithLimit(input: string, limit: number): XPathProgram {
     if (!(end === parsed.source.length)) {
         return xpathParseFail(parsed);
     }
-    const root: number = parsed.root;
-    return xpathOptimize(parsed, root);
+    return xpathRuntimeCompile(parsed);
 }
 function xpathCompile(input: string): XPathProgram {
     input = langruntime.checkedString(input);
@@ -53470,6 +53563,7 @@ const xpathNegate = 10;
 const xpathFilter = 11;
 const xpathArgument = 12;
 const xpathGroup = 13;
+const xpathContext = 14;
 interface XPathExpression {
     kind: number;
     operation: number;
@@ -53496,9 +53590,10 @@ interface XPathProgram {
     root: number;
     valid: boolean;
     budget: XPathCompileBudget;
+    runtime: XPathRuntimePlan;
 }
 function copyXPathProgram(value: XPathProgram): XPathProgram {
-    return { source: langruntime.checkedChars(value.source), nodes: langruntime.checkedStructs(value.nodes, copyXPathExpression), cursor: langruntime.checkedIndex(value.cursor), root: langruntime.checkedIndex(value.root), valid: langruntime.checkedBool(value.valid), budget: copyXPathCompileBudget(value.budget) };
+    return { source: langruntime.checkedChars(value.source), nodes: langruntime.checkedStructs(value.nodes, copyXPathExpression), cursor: langruntime.checkedIndex(value.cursor), root: langruntime.checkedIndex(value.root), valid: langruntime.checkedBool(value.valid), budget: copyXPathCompileBudget(value.budget), runtime: copyXPathRuntimePlan(value.runtime) };
 }
 interface XPathNameScan {
     prefix: XmlSpan;
@@ -53523,19 +53618,19 @@ export function xpathParsePush(input: XPathProgram, node: XPathExpression): XPat
     let nodes: XPathExpression[] = input.nodes;
     const root: number = nodes.length;
     langruntime.pushStruct(nodes, node, copyXPathExpression);
-    return { source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid, budget: copyXPathCompileBudget(input.budget) };
+    return { source: input.source, nodes: nodes, cursor: input.cursor, root: root, valid: input.valid, budget: copyXPathCompileBudget(input.budget), runtime: input.runtime };
 }
 export function xpathParseCursor(input: XPathProgram, cursor: number): XPathProgram {
-    return { source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(input.budget) };
+    return { source: input.source, nodes: input.nodes, cursor: cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(input.budget), runtime: input.runtime };
 }
 export function xpathParseFail(input: XPathProgram): XPathProgram {
-    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: copyXPathCompileBudget(input.budget) };
+    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: copyXPathCompileBudget(input.budget), runtime: input.runtime };
 }
 export function xpathParseLink(input: XPathProgram, tail: number, next: number): XPathProgram {
     let nodes: XPathExpression[] = input.nodes;
     const old: XPathExpression = copyXPathExpression(langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), copyXPathExpression));
     nodes[langruntime.checkedIndexIn(nodes, tail)] = copyXPathExpression({ kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: copyXmlSpan(old.prefix), name: copyXmlSpan(old.name) });
-    return { source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(input.budget) };
+    return { source: input.source, nodes: nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(input.budget), runtime: input.runtime };
 }
 function xpathParseAt(program: XPathProgram, position: number, text: string): boolean {
     position = langruntime.checkedIndex(position);
@@ -53658,7 +53753,7 @@ function xpathParseAxis(name: string): number {
 }
 export function xpathParseBudget(input: XPathProgram, depth: number, fault: number): XPathProgram {
     const budget: XPathCompileBudget = copyXPathCompileBudget({ depth: depth, limit: input.budget.limit, fault: fault });
-    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault === 0, budget: copyXPathCompileBudget(budget) };
+    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault === 0, budget: copyXPathCompileBudget(budget), runtime: input.runtime };
 }
 export function xpathCompileEnter(input: XPathProgram): XPathProgram {
     const budget: XPathCompileBudget = copyXPathCompileBudget(input.budget);
@@ -53828,6 +53923,144 @@ export function xpathParseStepLeaf(input: XPathProgram): XPathProgram {
     const node: XPathExpression = copyXPathExpression(xpathParseNode(xpathStep, axis, 0, test, scanned.prefix, name));
     program = xpathParsePush(program, node);
     return program;
+}
+interface XPathRuntimeRoot {
+    value: number;
+    data: number;
+}
+function copyXPathRuntimeRoot(value: XPathRuntimeRoot): XPathRuntimeRoot {
+    return { value: langruntime.checkedIndex(value.value), data: langruntime.checkedIndex(value.data) };
+}
+interface XPathRuntimePlan {
+    nodes: XPathExpression[];
+    roots: XPathRuntimeRoot[];
+    root: number;
+    last: number;
+}
+function copyXPathRuntimePlan(value: XPathRuntimePlan): XPathRuntimePlan {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyXPathExpression), roots: langruntime.checkedStructs(value.roots, copyXPathRuntimeRoot), root: langruntime.checkedIndex(value.root), last: langruntime.checkedIndex(value.last) };
+}
+function xpathRuntimeEmpty(): XPathRuntimePlan {
+    const nodes: XPathExpression[] = [];
+    const roots: XPathRuntimeRoot[] = [];
+    return { nodes: nodes, roots: roots, root: 0, last: 0 };
+}
+export function xpathRuntimePush(input: XPathRuntimePlan, node: XPathExpression): XPathRuntimePlan {
+    let nodes: XPathExpression[] = input.nodes;
+    const last: number = nodes.length;
+    langruntime.pushStruct(nodes, node, copyXPathExpression);
+    return { nodes: nodes, roots: input.roots, root: input.root, last: last };
+}
+export function xpathRuntimeMap(input: XPathRuntimePlan, mapped: XPathRuntimeRoot): XPathRuntimePlan {
+    let roots: XPathRuntimeRoot[] = input.roots;
+    langruntime.pushStruct(roots, mapped, copyXPathRuntimeRoot);
+    return { nodes: input.nodes, roots: roots, root: input.root, last: input.last };
+}
+export function xpathRuntimeReplace(input: XPathRuntimePlan, index: number, node: XPathExpression): XPathRuntimePlan {
+    let nodes: XPathExpression[] = input.nodes;
+    nodes[langruntime.checkedIndexIn(nodes, index)] = copyXPathExpression(node);
+    return { nodes: nodes, roots: input.roots, root: input.root, last: input.last };
+}
+export function xpathRuntimeSort(input: XPathRuntimePlan, root: number): XPathRuntimePlan {
+    const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(root), copyXPathExpression));
+    if (node.kind === xpathNumber || node.kind === xpathString) {
+        return { nodes: input.nodes, roots: input.roots, root: input.root, last: root };
+    }
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    return xpathRuntimePush(input, xpathParseNode(xpathGroup, 0, root, 0, empty, empty));
+}
+export function xpathRuntimeCompile(input: XPathProgram): XPathProgram {
+    const empty: XmlSpan = copyXmlSpan({ start: 0, end: 0 });
+    let plan: XPathRuntimePlan = xpathRuntimePush(xpathRuntimeEmpty(), xpathParseNode(0, 0, 0, 0, empty, empty));
+    plan = xpathRuntimeMap(plan, { value: 0, data: 0 });
+    let index: number = 1;
+    while (index < input.nodes.length) {
+        const node: XPathExpression = copyXPathExpression(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyXPathExpression));
+        let data: number = 0;
+        let value: number = 0;
+        if (node.kind === xpathStep || node.kind === xpathPredicate) {
+            let left: number = node.left;
+            let right: number = node.right;
+            if (node.kind === xpathPredicate) {
+                left = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.left), copyXPathRuntimeRoot).data);
+                right = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.right), copyXPathRuntimeRoot).value);
+            }
+            plan = xpathRuntimePush(plan, xpathParseNode(node.kind, node.operation, left, right, node.prefix, node.name));
+            data = langruntime.checkedIndex(plan.last);
+            plan = xpathRuntimePush(plan, xpathParseNode(xpathContext, 0, 0, 0, empty, empty));
+            const context: number = plan.last;
+            if (node.kind === xpathStep && node.operation === 3 && node.name.start === node.name.end) {
+                value = langruntime.checkedIndex(context);
+            }
+            else {
+                plan = xpathRuntimePush(plan, xpathParseNode(xpathPath, 0, context, data, empty, empty));
+                value = langruntime.checkedIndex(plan.last);
+            }
+        }
+        else if (node.kind === xpathArgument) {
+            value = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.left), copyXPathRuntimeRoot).value);
+        }
+        else if (node.kind === xpathGroup) {
+            const child: number = langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.left), copyXPathRuntimeRoot).value;
+            plan = xpathRuntimeSort(plan, child);
+            value = langruntime.checkedIndex(plan.last);
+        }
+        else if (node.kind === xpathPath) {
+            const child: number = langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.left), copyXPathRuntimeRoot).value;
+            data = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.right), copyXPathRuntimeRoot).data);
+            const step: XPathExpression = copyXPathExpression(langruntime.indexStruct(plan.nodes, langruntime.checkedIndex(data), copyXPathExpression));
+            if (step.kind === xpathStep && step.operation === 3 && step.name.start === step.name.end) {
+                value = langruntime.checkedIndex(child);
+            }
+            else {
+                plan = xpathRuntimePush(plan, xpathParseNode(xpathPath, 0, child, data, empty, empty));
+                value = langruntime.checkedIndex(plan.last);
+            }
+        }
+        else if (node.kind === xpathFunction) {
+            const name: string = xpathParseText(input, node.name);
+            const sort: boolean = !(name === "count") || !(node.prefix.start === node.prefix.end);
+            let cursor: number = node.left;
+            let previous: number = 0;
+            while (cursor > 0) {
+                const argument: XPathExpression = copyXPathExpression(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(cursor), copyXPathExpression));
+                let child: number = langruntime.indexStruct(plan.roots, langruntime.checkedIndex(argument.left), copyXPathRuntimeRoot).value;
+                if (sort) {
+                    plan = xpathRuntimeSort(plan, child);
+                    child = langruntime.checkedIndex(plan.last);
+                }
+                plan = xpathRuntimePush(plan, xpathParseNode(xpathArgument, 0, previous, child, empty, empty));
+                previous = langruntime.checkedIndex(plan.last);
+                cursor = langruntime.checkedIndex(argument.right);
+            }
+            plan = xpathRuntimePush(plan, xpathParseNode(node.kind, node.operation, previous, 0, node.prefix, node.name));
+            value = langruntime.checkedIndex(plan.last);
+        }
+        else {
+            let left: number = 0;
+            let right: number = 0;
+            if (node.left > 0) {
+                left = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.left), copyXPathRuntimeRoot).value);
+            }
+            if (node.right > 0) {
+                right = langruntime.checkedIndex(langruntime.indexStruct(plan.roots, langruntime.checkedIndex(node.right), copyXPathRuntimeRoot).value);
+            }
+            if (node.kind === xpathFilter) {
+                plan = xpathRuntimeSort(plan, right);
+                right = langruntime.checkedIndex(plan.last);
+            }
+            plan = xpathRuntimePush(plan, xpathParseNode(node.kind, node.operation, left, right, node.prefix, node.name));
+            value = langruntime.checkedIndex(plan.last);
+        }
+        plan = xpathRuntimeMap(plan, { value: value, data: data });
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const unsortedRoot: number = langruntime.indexStruct(plan.roots, langruntime.checkedIndex(input.root), copyXPathRuntimeRoot).value;
+    plan = xpathRuntimeSort(plan, unsortedRoot);
+    const root: number = plan.last;
+    plan = copyXPathRuntimePlan({ nodes: plan.nodes, roots: plan.roots, root: root, last: root });
+    const runtime: XPathRuntimePlan = xpathRuntimeOptimize(plan, input.budget.limit);
+    return { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: copyXPathCompileBudget(input.budget), runtime: runtime };
 }
 interface XPathSortRun {
     start: number;

@@ -12,6 +12,7 @@ const XPATH_NEGATE: i32 = 10;
 const XPATH_FILTER: i32 = 11;
 const XPATH_ARGUMENT: i32 = 12;
 const XPATH_GROUP: i32 = 13;
+const XPATH_CONTEXT: i32 = 14;
 
 #[derive(Clone, Copy)]
 struct XPathExpression { kind: i32, operation: i32, left: usize, right: usize, prefix: XmlSpan, name: XmlSpan }
@@ -20,7 +21,7 @@ struct XPathExpression { kind: i32, operation: i32, left: usize, right: usize, p
 struct XPathCompileBudget { depth: i32, limit: i32, fault: i32 }
 
 #[derive(Clone)]
-struct XPathProgram { source: Vec<char>, nodes: Vec<XPathExpression>, cursor: usize, root: usize, valid: bool, budget: XPathCompileBudget }
+struct XPathProgram { source: Vec<char>, nodes: Vec<XPathExpression>, cursor: usize, root: usize, valid: bool, budget: XPathCompileBudget, runtime: XPathRuntimePlan }
 
 #[derive(Clone, Copy)]
 struct XPathNameScan { prefix: XmlSpan, local: XmlSpan, next: usize, valid: bool, wildcard: bool }
@@ -32,21 +33,21 @@ fn xpath_parse_node(kind: i32, operation: i32, left: usize, right: usize, prefix
 pub(crate) fn xpath_parse_push(input: XPathProgram, node: XPathExpression) -> XPathProgram {
     let mut nodes = input.nodes;
     let root = nodes.len(); nodes.push(node);
-    XPathProgram { source: input.source, nodes, cursor: input.cursor, root, valid: input.valid, budget: input.budget }
+    XPathProgram { source: input.source, nodes, cursor: input.cursor, root, valid: input.valid, budget: input.budget, runtime: input.runtime }
 }
 
 pub(crate) fn xpath_parse_cursor(input: XPathProgram, cursor: usize) -> XPathProgram {
-    XPathProgram { source: input.source, nodes: input.nodes, cursor, root: input.root, valid: input.valid, budget: input.budget }
+    XPathProgram { source: input.source, nodes: input.nodes, cursor, root: input.root, valid: input.valid, budget: input.budget, runtime: input.runtime }
 }
 
 pub(crate) fn xpath_parse_fail(input: XPathProgram) -> XPathProgram {
-    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: input.budget }
+    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: false, budget: input.budget, runtime: input.runtime }
 }
 
 pub(crate) fn xpath_parse_link(input: XPathProgram, tail: usize, next: usize) -> XPathProgram {
     let mut nodes = input.nodes; let old = nodes[tail];
     nodes[tail] = XPathExpression { kind: old.kind, operation: old.operation, left: old.left, right: next, prefix: old.prefix, name: old.name };
-    XPathProgram { source: input.source, nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: input.budget }
+    XPathProgram { source: input.source, nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: input.budget, runtime: input.runtime }
 }
 
 fn xpath_parse_at(program: &XPathProgram, position: usize, text: &str) -> bool {
@@ -126,7 +127,7 @@ fn xpath_parse_axis(name: &str) -> i32 {
 
 pub(crate) fn xpath_parse_budget(input: XPathProgram, depth: i32, fault: i32) -> XPathProgram {
     let budget = XPathCompileBudget { depth, limit: input.budget.limit, fault };
-    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget }
+    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget, runtime: input.runtime }
 }
 
 pub(crate) fn xpath_compile_enter(input: XPathProgram) -> XPathProgram {

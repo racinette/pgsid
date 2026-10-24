@@ -97,9 +97,10 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       if xml_well_formed(prepared.as_str(),true)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
       let document=xpath_document_parse(prepared.as_str()); let tree=document.tree; let graph=document.graph;
       if graph.ids.valid==false || xml_query_names_valid(&tree)==false {return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT));};
-      let program=xpath_compile_with_limit(text.as_str(),5000); let mut namespaces=xpath_namespaces_empty();
+      let mut maximum: i32=5000; if facts==2 {maximum=0;};
+      let program=xpath_compile_with_limit(text.as_str(),maximum); let mut namespaces=xpath_namespaces_empty();
       namespaces=xpath_namespaces_push(namespaces,"p","urn:p"); namespaces=xpath_namespaces_push(namespaces,"q","urn:q"); namespaces=xpath_namespaces_push(namespaces,"u","urn:u");
-      let mut powers=xpath_powers_empty(); if facts==1 {powers=xpath_eval_test_powers();};
+      let mut powers=xpath_powers_empty(); if facts>0 {powers=xpath_eval_test_powers();};
       let result=xpath_evaluate(&program,&tree,&graph,&namespaces,&powers);
       if result.state<0 {
        if fault>0 && result.state!=0-fault {return BoolValue::Value(false);};
@@ -621,6 +622,54 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
       add(input, '/r' + '[true()]'.repeat(count), 4)
       add(input, '/r' + '/self::node()'.repeat(count), 4)
     }
+    for (const count of [4994, 4995, 4996, 4997, 4998, 4999, 5000, 5001]) {
+      const sum = Array(count + 1)
+        .fill('1')
+        .join('+')
+      add(input, sum, 3)
+      add(input, 'true() or ' + sum, 1)
+      add(input, 'false() and ' + sum, 1)
+      add(input, '$x + (' + sum + ')', 3)
+      add(input, '(' + sum + ') + $x', 3)
+      add(input, '/r' + '/self::node()'.repeat(count), 4)
+      add(input, '/r' + '/.'.repeat(count), 4)
+      add(input, '/r' + '[true()]'.repeat(count), 4)
+      add(input, '/missing' + '[true()]'.repeat(count), 4)
+      add(input, '(/r)' + '[true()]'.repeat(count), 4)
+      add(input, 'true(' + Array(count).fill('1').join(',') + ')', 1)
+      add(
+        input,
+        'unknown($x,' +
+          Array(count - 1)
+            .fill('1')
+            .join(',') +
+          ')',
+        1,
+      )
+    }
+    for (const count of [4989, 4990, 4991, 4992, 4993, 4994, 4995, 4996]) {
+      const path = '/r' + '/self::node()'.repeat(count)
+      for (const selected of [
+        path,
+        '(' + path + ')',
+        '(' + path + ')[1]',
+        '(' + path + ')[last()]',
+      ]) {
+        add(input, '(' + selected + ')[1]', 4)
+        add(input, '(' + selected + ')[last()]', 4)
+        add(input, '/r[' + selected + ']', 4)
+      }
+    }
+    for (const count of [450, 600]) {
+      const sum = Array(count + 1)
+        .fill('1')
+        .join('+')
+      add(input, sum, 3, 2, count === 600)
+      add(input, 'true() or ' + sum, 1, 2)
+      add(input, 'false() and ' + sum, 1, 2)
+      add(input, '/missing' + '[true()]'.repeat(count), 4, 2)
+      add(input, '/r' + '[true()]'.repeat(count), 4, 2, count === 600)
+    }
     const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       reference: unknown[] = []
     let inserts = 0,
@@ -709,7 +758,7 @@ pub fn xpath_evaluation_probe(input: TextValue, expression: TextValue, expected:
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-runtime-stack-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-runtime-depth-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/eval-reference.json',
