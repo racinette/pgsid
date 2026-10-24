@@ -76,6 +76,7 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("LsegValue") => {
             Ok("LsegValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TsvectorValue") => { Ok("TsvectorValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("AclitemValue") => { Ok("AclitemValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
             Ok("MoneyValue")
@@ -471,6 +472,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "LineValue"
                     | "LsegValue"
                     | "MoneyValue"
+                    | "TsvectorValue"
                     | "AclitemValue"
                     | "XidValue"
                     | "CidValue"
@@ -1099,6 +1101,17 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_tsvector_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: TsvectorValue, right: TsvectorValue) -> CheckOutcome { let mut selected: TsvectorValue = tsvector_unknown(); selected = left.clone(); let value = compare(selected, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["TsvectorPayload", "i64", "TsvectorValue<i64>", "&TsvectorValue"] {
+            assert!(check_source(&source.replace("left: TsvectorValue", &format!("left: {ty}"))).is_err());
+        }
+        assert!(check_source(&source.replace("left: TsvectorValue", "mut left: TsvectorValue")).is_err());
+        assert!(check_source(&source.replace("compare(selected, right)", "compare(selected.native_bytes, right)")).is_err());
+    }
+
+    #[test]
     fn accepts_aclitem_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: AclitemValue, right: AclitemValue) -> CheckOutcome { let mut selected: AclitemValue = aclitem_unknown(); if choose(left) { selected = right; } let value = compare(selected, left); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -1153,6 +1166,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
             ("MoneyValue", "money_unknown"),
+            ("TsvectorValue", "tsvector_unknown"),
             ("AclitemValue", "aclitem_unknown"),
             ("XidValue", "xid_unknown"),
             ("CidValue", "cid_unknown"),

@@ -75,6 +75,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     lseg: 'pg_catalog.lseg',
     money: 'pg_catalog.money',
     aclitem: 'pg_catalog.aclitem',
+    tsvector: 'pg_catalog.tsvector',
     xid: 'pg_catalog.xid',
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
@@ -158,6 +159,7 @@ export type RefcursorType = 'pg_catalog.refcursor'
 export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
+export type TsvectorType = 'pg_catalog.tsvector'
 export type AclitemType = 'pg_catalog.aclitem'
 export type MoneyType = 'pg_catalog.money'
 export type XidType = 'pg_catalog.xid'
@@ -240,6 +242,7 @@ export type NonArrayScalarType =
   | LsegType
   | MoneyType
   | AclitemType
+  | TsvectorType
   | XidType
   | CidType
   | PgLsnType
@@ -592,6 +595,7 @@ export type SqlExpression =
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
+  | { kind: 'tsvector'; type: TsvectorType; value: string | null; stored?: boolean }
   | { kind: 'aclitem'; type: AclitemType; value: string | null }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }
@@ -1263,6 +1267,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'lseg') {
       if (node.value !== null) throw new Error('Lseg literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'tsvector') {
+      if (node.value !== null) throw new Error('Tsvector literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'aclitem') {

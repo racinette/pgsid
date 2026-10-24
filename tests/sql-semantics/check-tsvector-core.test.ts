@@ -363,7 +363,7 @@ it('retains tsvector ownership, validates logical payloads and separates compara
           }),
           inputs: [],
         },
-        ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((mode) => ({
+        ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((mode) => ({
           name: 'model_' + mode,
           entryName: checkRustEntryName({
             schema: 'public',
@@ -411,6 +411,24 @@ pub fn tsvector_test_ownership()->BoolValue {
  make_bool_value(tsvector_to_text(original)==make_text_value("'a':1A 'z':2C"))
 }
 pub fn tsvector_test_model(mode:i32)->BoolValue {
+ if mode==9 {
+  let mut text=String::new();text.push('\'');let mut i:usize=0;
+  while i<2047 {text.push('a');i+=1;}text.push('\'');
+  let input=make_text_value(text.as_str());
+  let source=tsvector_from_text_context(input.clone(),true);
+  let mut failed=false;
+  if let TsvectorValue::Error(error)=source {failed=error.state==8584704;};
+  if failed==false {return make_bool_value(false);};
+  let stored=tsvector_from_stored_text_context(input,true);
+  if sql__pg_catalog__length__grcw(stored.clone())!=make_int4_value(1) {return make_bool_value(false);};
+  let order=sql__pg_catalog__tsvector_cmp__xinv(stored.clone(),stored.clone());
+  if order!=Int4Value::Unknown {return make_bool_value(false);};
+  let output=tsvector_to_text(stored);
+  return make_bool_value(sql__pg_catalog__length__ehpe(output)==make_int4_value(2049));
+ };
+ tsvector_test_payload(mode)
+}
+fn tsvector_test_payload(mode:i32)->BoolValue {
  if mode==8 {
   let mut text=String::new();let mut i:usize=0;
   while i<2047 {text.push('a');i+=1;}

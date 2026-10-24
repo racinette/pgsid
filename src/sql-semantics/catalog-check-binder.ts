@@ -419,6 +419,14 @@ export function catalogLsegType(
 ): boolean {
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.lseg'
 }
+export function catalogTsvectorType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.tsvector'
+}
+
 export function catalogAclitemType(
   name: string,
   oid: number | undefined,
@@ -633,6 +641,7 @@ const callables = PG18_BUILTIN_GROUPS.flatMap(({ inventory }) =>
 type Literal = {
   kind: 'string' | 'integer' | 'null'
   value: string | null
+  tsvectorStored?: boolean
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
@@ -716,6 +725,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'line', type, value: literal.value }
   if (type === 'pg_catalog.lseg' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'lseg', type, value: literal.value }
+  if (type === 'pg_catalog.tsvector' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'tsvector', type, value: literal.value, stored: literal.tsvectorStored }
   if (type === 'pg_catalog.aclitem' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'aclitem', type, value: literal.value }
   if (type === 'pg_catalog.money' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -4770,6 +4781,7 @@ export function bindCatalogCheck(
           source === 'pg_catalog.jsonb' ||
           source === 'pg_catalog.jsonpath' ||
           source === 'pg_catalog.money' ||
+          source === 'pg_catalog.tsvector' ||
           source === 'pg_catalog.aclitem' ||
           isSnapshotType(source) ||
           isCatalogVectorType(source) ||
@@ -5153,6 +5165,19 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-lseg', type, operand: text } } : unknown
       }
       if (
+        type === 'pg_catalog.tsvector' &&
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+          operand.type ?? '',
+        ) &&
+        operand.value
+      ) {
+        const text =
+          operand.type === 'pg_catalog.bpchar'
+            ? operand.value
+            : materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-tsvector', type, operand: text } } : unknown
+      }
+      if (
         type === 'pg_catalog.aclitem' &&
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
           operand.type ?? '',
@@ -5521,6 +5546,7 @@ export function bindCatalogCheck(
             literal: {
               kind: 'string',
               value: string,
+              tsvectorStored: literalOrigin === 'stored',
               moneyUnits: moneyUnits.get(string),
               xmlOrigin: literalOrigin,
               ...(literalOrigin === 'stored' &&
@@ -6527,6 +6553,7 @@ export function bindCatalogCheck(
         name === 'line' ||
         name === 'lseg' ||
         name === 'money' ||
+        name === 'tsvector' ||
         name === 'aclitem' ||
         name === 'xid' ||
         name === 'cid' ||
@@ -6551,6 +6578,7 @@ export function bindCatalogCheck(
         | 'pg_catalog.line'
         | 'pg_catalog.lseg'
         | 'pg_catalog.money'
+        | 'pg_catalog.tsvector'
         | 'pg_catalog.aclitem'
         | 'pg_catalog.xid'
         | 'pg_catalog.cid'
@@ -6612,6 +6640,7 @@ export function bindCatalogCheck(
           'line',
           'lseg',
           'money',
+          'tsvector',
           'aclitem',
           'xid',
           'cid',
@@ -6641,6 +6670,7 @@ export function bindCatalogCheck(
           | 'pg_catalog.line'
           | 'pg_catalog.lseg'
           | 'pg_catalog.money'
+          | 'pg_catalog.tsvector'
           | 'pg_catalog.aclitem'
           | 'pg_catalog.xid'
           | 'pg_catalog.cid'
@@ -6661,7 +6691,10 @@ export function bindCatalogCheck(
         if (
           operand.type === 'pg_catalog.text' ||
           operand.type === 'pg_catalog."varchar"' ||
-          ((type === 'pg_catalog.bytea' || type === 'pg_catalog.aclitem' || isSnapshotType(type)) &&
+          ((type === 'pg_catalog.bytea' ||
+            type === 'pg_catalog.tsvector' ||
+            type === 'pg_catalog.aclitem' ||
+            isSnapshotType(type)) &&
             operand.type === 'pg_catalog.bpchar')
         ) {
           const text =
@@ -6677,89 +6710,98 @@ export function bindCatalogCheck(
               ? { type, value: { kind: 'text-to-bytea', type, operand: text } }
               : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
                 ? { type, value: { kind: 'text-to-bit', type, operand: text } }
-                : type === 'pg_catalog.aclitem'
-                  ? { type, value: { kind: 'text-to-aclitem', type, operand: text } }
-                  : type === 'pg_catalog.money'
-                    ? { type, value: { kind: 'text-to-money', type, operand: text } }
-                    : type === 'pg_catalog.xid'
-                      ? { type, value: { kind: 'text-to-xid', type, operand: text } }
-                      : type === 'pg_catalog.cid'
-                        ? { type, value: { kind: 'text-to-cid', type, operand: text } }
-                        : type === 'pg_catalog.pg_lsn'
-                          ? { type, value: { kind: 'text-to-pg_lsn', type, operand: text } }
-                          : type === 'pg_catalog.tid'
-                            ? { type, value: { kind: 'text-to-tid', type, operand: text } }
-                            : type === 'pg_catalog.xid8'
-                              ? { type, value: { kind: 'text-to-xid8', type, operand: text } }
-                              : type === 'pg_catalog.oid'
-                                ? { type, value: { kind: 'text-to-oid', type, operand: text } }
-                                : type === 'pg_catalog.polygon'
-                                  ? {
-                                      type,
-                                      value: { kind: 'text-to-polygon', type, operand: text },
-                                    }
-                                  : type === 'pg_catalog.path'
-                                    ? { type, value: { kind: 'text-to-path', type, operand: text } }
-                                    : type === 'pg_catalog.circle'
+                : type === 'pg_catalog.tsvector'
+                  ? { type, value: { kind: 'text-to-tsvector', type, operand: text } }
+                  : type === 'pg_catalog.aclitem'
+                    ? { type, value: { kind: 'text-to-aclitem', type, operand: text } }
+                    : type === 'pg_catalog.money'
+                      ? { type, value: { kind: 'text-to-money', type, operand: text } }
+                      : type === 'pg_catalog.xid'
+                        ? { type, value: { kind: 'text-to-xid', type, operand: text } }
+                        : type === 'pg_catalog.cid'
+                          ? { type, value: { kind: 'text-to-cid', type, operand: text } }
+                          : type === 'pg_catalog.pg_lsn'
+                            ? { type, value: { kind: 'text-to-pg_lsn', type, operand: text } }
+                            : type === 'pg_catalog.tid'
+                              ? { type, value: { kind: 'text-to-tid', type, operand: text } }
+                              : type === 'pg_catalog.xid8'
+                                ? { type, value: { kind: 'text-to-xid8', type, operand: text } }
+                                : type === 'pg_catalog.oid'
+                                  ? { type, value: { kind: 'text-to-oid', type, operand: text } }
+                                  : type === 'pg_catalog.polygon'
+                                    ? {
+                                        type,
+                                        value: { kind: 'text-to-polygon', type, operand: text },
+                                      }
+                                    : type === 'pg_catalog.path'
                                       ? {
                                           type,
-                                          value: { kind: 'text-to-circle', type, operand: text },
+                                          value: { kind: 'text-to-path', type, operand: text },
                                         }
-                                      : type === 'pg_catalog.box'
+                                      : type === 'pg_catalog.circle'
                                         ? {
                                             type,
-                                            value: { kind: 'text-to-box', type, operand: text },
+                                            value: { kind: 'text-to-circle', type, operand: text },
                                           }
-                                        : type === 'pg_catalog.lseg'
+                                        : type === 'pg_catalog.box'
                                           ? {
                                               type,
-                                              value: { kind: 'text-to-lseg', type, operand: text },
+                                              value: { kind: 'text-to-box', type, operand: text },
                                             }
-                                          : type === 'pg_catalog.line'
+                                          : type === 'pg_catalog.lseg'
                                             ? {
                                                 type,
                                                 value: {
-                                                  kind: 'text-to-line',
+                                                  kind: 'text-to-lseg',
                                                   type,
                                                   operand: text,
                                                 },
                                               }
-                                            : type === 'pg_catalog.point'
+                                            : type === 'pg_catalog.line'
                                               ? {
                                                   type,
                                                   value: {
-                                                    kind: 'text-to-point',
+                                                    kind: 'text-to-line',
                                                     type,
                                                     operand: text,
                                                   },
                                                 }
-                                              : type === 'pg_catalog.uuid'
+                                              : type === 'pg_catalog.point'
                                                 ? {
                                                     type,
                                                     value: {
-                                                      kind: 'text-to-uuid',
+                                                      kind: 'text-to-point',
                                                       type,
                                                       operand: text,
                                                     },
                                                   }
-                                                : type === 'pg_catalog.macaddr' ||
-                                                    type === 'pg_catalog.macaddr8'
+                                                : type === 'pg_catalog.uuid'
                                                   ? {
                                                       type,
                                                       value: {
-                                                        kind: 'text-to-mac',
+                                                        kind: 'text-to-uuid',
                                                         type,
                                                         operand: text,
                                                       },
                                                     }
-                                                  : {
-                                                      type,
-                                                      value: {
-                                                        kind: 'text-to-network',
+                                                  : type === 'pg_catalog.macaddr' ||
+                                                      type === 'pg_catalog.macaddr8'
+                                                    ? {
                                                         type,
-                                                        operand: text,
-                                                      },
-                                                    }
+                                                        value: {
+                                                          kind: 'text-to-mac',
+                                                          type,
+                                                          operand: text,
+                                                        },
+                                                      }
+                                                    : {
+                                                        type,
+                                                        value: {
+                                                          kind: 'text-to-network',
+                                                          type,
+                                                          operand: text,
+                                                        },
+                                                      }
             : unknown
         }
         const value = materialize(operand, type)
