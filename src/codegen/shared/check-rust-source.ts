@@ -175,6 +175,7 @@ export function prepareCheckRustGroup(
     | {
         kind: 'supported'
         entryName: string
+        diagnosticEntryName?: string
         inputs: ReturnType<typeof emitCheckRustEvaluator>['inputs']
       }
     | { kind: 'unsupported'; reason: string }
@@ -192,7 +193,14 @@ export function prepareCheckRustGroup(
   return {
     checks: prepared.map((item) =>
       item.kind === 'supported'
-        ? { kind: 'supported', entryName: item.evaluator.entryName, inputs: item.evaluator.inputs }
+        ? {
+            kind: 'supported',
+            entryName: item.evaluator.entryName,
+            inputs: item.evaluator.inputs,
+            ...(item.evaluator.diagnosticEntryName
+              ? { diagnosticEntryName: item.evaluator.diagnosticEntryName }
+              : {}),
+          }
         : item,
     ),
     evaluatorSource,

@@ -1,3 +1,4 @@
+import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
 import { isXmlXPathCallable } from '../../sql-semantics/xml-callables.js'
 import {
   compositeProfile,
@@ -737,6 +738,7 @@ export function emitCheckRustEvaluator(
 ): {
   source: string
   entryName: string
+  diagnosticEntryName?: string
   inputs: readonly Input[]
   callables: readonly string[]
   requiresRegex: boolean
@@ -892,6 +894,65 @@ export function emitCheckRustEvaluator(
     ].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
+  const containsXPath = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object') return false
+    const node = value as { kind?: string; call?: { signature?: string } }
+    if (
+      node.kind === 'call' &&
+      node.call?.signature &&
+      isXmlXPathCallable(builtinMetadata(node.call.signature))
+    )
+      return true
+    return Object.values(value).some(containsXPath)
+  }
+  const diagnostics = new CheckRustDiagnostics(
+    !preparationOnly && containsXPath(expression),
+    fresh,
+    rustType,
+    ownedOperand,
+  )
+  const diagnosticCall = (call: Extract<EvalExpression, { kind: 'call' }>['call']): boolean => {
+    if (!call.signature) return true
+    const item = builtinMetadata(call.signature),
+      implementation = item.kind === 'operator' ? builtinMetadata(item.implementation) : item
+    if (implementation.kind !== 'function') return false
+    if (
+      implementation.args.join(',') === 'pg_catalog.xml' &&
+      implementation.result === 'pg_catalog.text'
+    )
+      return true
+    if (
+      [
+        'cardinality',
+        'array_length',
+        'array_ndims',
+        'array_dims',
+        'array_lower',
+        'array_upper',
+      ].includes(implementation.name)
+    )
+      return true
+    if (
+      implementation.result === 'pg_catalog.bool' &&
+      implementation.strict &&
+      implementation.args.every((type) =>
+        ['pg_catalog.bool', 'pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(type),
+      )
+    )
+      return true
+    return (
+      implementation.result === 'pg_catalog.bool' &&
+      implementation.args.every((type) => type === 'pg_catalog.text') &&
+      ['texteq', 'textne', 'text_lt', 'text_le', 'text_gt', 'text_ge'].includes(
+        implementation.name,
+      ) &&
+      call.kind !== 'cast' &&
+      (call.collation === 'C' ||
+        (['texteq', 'textne'].includes(implementation.name) &&
+          call.collation === 'deterministic') ||
+        (call.collationDefault === true && executionContext.defaultCollation === 'C'))
+    )
+  }
   const scalarType = (operand: EvalExpression): string =>
     operand.kind === 'certain'
       ? operand.expression.type
@@ -901,6 +962,24 @@ export function emitCheckRustEvaluator(
           ? 'pg_catalog.int4'
           : operand.type
 
+  const appendValidityRequirement = (
+    scope: string,
+    state: string,
+    reason: string,
+    lines: string[],
+  ): void => {
+    if (!diagnostics.enabled || diagnostics.reference(scope) === '-1') return
+    const filtered = fresh('validity_requirement')
+    lines.push(
+      `let ${filtered} = check_requirement_for_outcome(${state}, ${reason});`,
+      `${diagnostics.reference(scope)} = check_requirement_merge(${diagnostics.reference(scope)}, ${filtered});`,
+    )
+  }
+  const validityRequirementLines = (scope: string, state: string, reason: string): string[] => {
+    const lines: string[] = []
+    appendValidityRequirement(scope, state, reason, lines)
+    return lines
+  }
   const appendArrayValidity = (
     value: { name: string; type: string },
     unknownValid: boolean,
@@ -914,6 +993,8 @@ export function emitCheckRustEvaluator(
       `let ${state} = array_value_validity(${nullness}, ${unknownValid});`,
       `${arrayValidityScope} = array_validity_finish(${arrayValidityScope}, ${state});`,
     )
+    const reason = diagnostics.reason(value, destination)
+    appendValidityRequirement(arrayValidityScope, state, reason, destination)
   }
   const unresolvedArrayChoice = (
     guard: string,
@@ -959,6 +1040,7 @@ export function emitCheckRustEvaluator(
       `let ${possible} = array_validity_possible(${potential});`,
       `${arrayValidityScope} = array_validity_finish(${arrayValidityScope}, ${possible});`,
     )
+    appendValidityRequirement(arrayValidityScope, possible, '-1', lines)
     destination.push(`if array_validity_unknown(${guard}) {`, ...indent(lines), '}')
   }
 
@@ -1560,7 +1642,10 @@ export function emitCheckRustEvaluator(
       bindings.push(
         `let ${name} = array_constructor_from_validity(${ownedOperand(result)}, ${validity});`,
       )
-      if (outer !== null) bindings.push(`${outer} = array_validity_finish(${outer}, ${validity});`)
+      if (outer !== null) {
+        bindings.push(`${outer} = array_validity_finish(${outer}, ${validity});`)
+        appendValidityRequirement(outer, validity, diagnostics.reference(validity), bindings)
+      }
       value = { name, type: result.type }
     } else value = emitScalarInner(node, bindings, used)
     appendArrayValidity(
@@ -1733,7 +1818,9 @@ export function emitCheckRustEvaluator(
               : node.operation === 'cast' && storedArrayInputScope
                 ? `${storedArrayXmlStorageScope ? 'xml_from_storage_text' : 'xml_from_rendered_text'}(${value})`
                 : `xml_from_text_context(${value},${option},${utf8})`
-      return { name: bind(helper), type: node.type }
+      const result = { name: bind(helper), type: node.type }
+      if (node.operation === 'text') diagnostics.flow(result, [operand], bindings)
+      return result
     }
     if (node.kind === 'captured-range-call') {
       const profile = rangeTypeProfile(node.type) ?? multirangeTypeProfile(node.type)
@@ -1967,6 +2054,9 @@ export function emitCheckRustEvaluator(
       const result = fresh('array_subscript_result')
       bindings.push(`let mut ${result}: ${rustType(node.type)} = ${first};`)
       const inner: string[] = []
+      const initialRequirement = diagnostics.reason(operand, bindings)
+      const requirement = diagnostics.declared(result, bindings, initialRequirement)
+      const diagnosticBounds: { name: string; type: string }[] = []
       const call = (expression: string): string => {
         const name = fresh('array_bound')
         inner.push(`let ${name} = ${expression};`)
@@ -1987,6 +2077,7 @@ export function emitCheckRustEvaluator(
             : { name: omitted, type: 'pg_catalog.int4' }
           if (value.type !== 'pg_catalog.int4')
             throw new UnsupportedCheckRustExpression('Array bound must be SQL-coerced to int4')
+          diagnosticBounds.push(value)
           builder = call(
             `append_array_subscript(${builder}, ${value.name}, ${lower}, ${bound !== null})`,
           )
@@ -1996,6 +2087,11 @@ export function emitCheckRustEvaluator(
       else {
         const element = call(`array_fetch_subscript(${ownedOperand(operand)}, ${builder})`)
         inner.push(`${result} = array_element_to_${prefix}(${element});`)
+      }
+      if (diagnostics.enabled) {
+        const source = diagnostics.merge([operand, ...diagnosticBounds], inner)
+        const filtered = diagnostics.filtered({ name: result, type: node.type }, source, inner)
+        inner.push(`${requirement} = ${filtered};`)
       }
       bindings.push(
         `if array_subscript_continues(${ownedOperand(operand)}) {`,
@@ -2023,12 +2119,14 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Array output requires its catalog I/O identity')
       const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
       const builder = renderArrayOutput(payload, node.elementType, node.enum, bindings)
-      return {
+      const result = {
         name: bind(
           `finish_array_output(${payload}, ${builder}, ${arrayElementDelimiter(node.elementType) === ';'})`,
         ),
         type: node.type,
       }
+      diagnostics.flow(result, [operand], bindings)
+      return result
     }
 
     if (node.kind === 'array-typmod') {
@@ -2298,6 +2396,12 @@ export function emitCheckRustEvaluator(
           const value = emitCallInner(call, operands, lines)
           appendArrayValidity(value, !rustScalarOwnCanFail(node, executionContext), lines)
           const name = fresh('strict_call')
+          if (diagnostics.enabled) {
+            if (diagnosticCall(call)) diagnostics.flow(value, operands, lines)
+            const target = diagnostics.declared(name, destination, '0')
+            const reason = diagnostics.reason(value, lines)
+            lines.push(`${target} = ${reason};`)
+          }
           destination.push(
             `let mut ${name}: ${rustType(value.type)} = ${rustValuePrefix(rustType(value.type))}_null();`,
             `if case_guard_takes(${guard}) == false {`,
@@ -2309,6 +2413,7 @@ export function emitCheckRustEvaluator(
         }
       }
       const value = emitCallInner(call, operands, destination, folded)
+      if (!folded && diagnosticCall(call)) diagnostics.flow(value, operands, destination)
       if (!folded)
         appendArrayValidity(
           value,
@@ -4668,7 +4773,23 @@ export function emitCheckRustEvaluator(
         if (hashContext === 'text')
           arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       }
-      destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
+      if (diagnostics.enabled && !folded && isXmlXPathCallable(implementation)) {
+        const args = [...arguments_]
+        if (operands.length === 2) {
+          const namespaces = fresh('xpath_namespaces')
+          destination.push(`let ${namespaces} = xpath_diagnostic_namespaces();`)
+          args.splice(2, 0, namespaces)
+        }
+        args.push(String(implementation.name === 'xpath'))
+        const plan = fresh('xpath_diagnostic'),
+          requirement = fresh('_xpath_requirement')
+        destination.push(
+          `let ${plan} = xpath_diagnostic_execute(${args.join(', ')});`,
+          `let ${requirement} = xpath_diagnostic_requirement(&${plan});`,
+          `let ${name} = ${implementation.name === 'xpath' ? 'xpath_diagnostic_array' : 'xpath_diagnostic_exists'}(${plan});`,
+        )
+        diagnostics.set(name, requirement)
+      } else destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }
     if (node.kind === 'array-io-coerce') {
@@ -5104,8 +5225,14 @@ export function emitCheckRustEvaluator(
         builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
-      if (operand.type === 'pg_catalog.xml')
-        return { name: bind(`xml_to_output_text(${ownedOperand(operand)})`), type: node.type }
+      if (operand.type === 'pg_catalog.xml') {
+        const result = {
+          name: bind(`xml_to_output_text(${ownedOperand(operand)})`),
+          type: node.type,
+        }
+        diagnostics.flow(result, [operand], bindings)
+        return result
+      }
       const range = rangeTypeProfile(operand.type)
       const multirange = multirangeTypeProfile(operand.type)
       if (
@@ -7026,7 +7153,13 @@ export function emitCheckRustEvaluator(
       })
       bindings.push(...outcome.lines)
       for (const input of outcome.inputs) used.add(input)
-      return { name: bind(`bool_from_check(${outcome.name})`), type: node.type }
+      const result = { name: bind(`bool_from_check(${outcome.name})`), type: node.type }
+      if (diagnostics.enabled)
+        diagnostics.set(
+          result.name,
+          diagnostics.filtered(result, diagnostics.reference(outcome.name), bindings),
+        )
+      return result
     }
     if (node.kind === 'distinct') {
       const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
@@ -7035,19 +7168,26 @@ export function emitCheckRustEvaluator(
         return bind(`${helper}(${ownedOperand(operand)})`)
       })
       const name = fresh('distinct_result')
+      const inputRequirement = diagnostics.merge(operands, bindings)
+      const requirement = diagnostics.declared(name, bindings, inputRequirement)
       bindings.push(`let mut ${name}: CheckOutcome = distinct_nulls_finish(${nulls.join(', ')});`)
       const lines: string[] = []
       const comparison = emitCall(node.comparison, operands, lines)
       const outcome = fresh('distinct_comparison')
+      const comparisonRequirement = diagnostics.reason(comparison, lines)
       bindings.push(
         `if distinct_needs_comparison(${nulls.join(', ')}) {`,
         ...indent(lines),
         `    let ${outcome} = check_from_bool(${comparison.name});`,
         `    ${name} = not_finish(${outcome});`,
+        ...(diagnostics.enabled ? [`    ${requirement} = ${comparisonRequirement};`] : []),
         '}',
       )
       const result = node.negated ? bind(`not_finish(${name})`) : name
-      return { name: bind(`bool_from_check(${result})`), type: node.type }
+      const value = { name: bind(`bool_from_check(${result})`), type: node.type }
+      if (diagnostics.enabled)
+        diagnostics.set(value.name, diagnostics.filtered(value, requirement, bindings))
+      return value
     }
     if (node.kind === 'nullif') {
       if (scalarType(node.operands[0]) !== node.type)
@@ -7181,8 +7321,10 @@ export function emitCheckRustEvaluator(
         ...indent(body),
         '}',
       )
-      if (outer && preparationDepth === 0)
+      if (outer && preparationDepth === 0) {
         bindings.push(`${outer} = array_validity_finish(${outer}, ${validity});`)
+        appendValidityRequirement(outer, validity, diagnostics.reference(validity), bindings)
+      }
       return { name: bind(`array_quantifier_finish(${result}, ${validity})`), type: node.type }
     }
     if (node.kind === 'membership') {
@@ -7236,8 +7378,10 @@ export function emitCheckRustEvaluator(
             `if array_validity_unknown(${name}) {`,
             `    let ${possible} = array_validity_possible(${validity});`,
             `    ${outer} = array_validity_finish(${outer}, ${possible});`,
+            ...indent(validityRequirementLines(outer, possible, diagnostics.reference(validity))),
             `} else {`,
             `    ${outer} = array_validity_finish(${outer}, ${validity});`,
+            ...indent(validityRequirementLines(outer, validity, diagnostics.reference(validity))),
             '};',
           )
         }
@@ -7400,6 +7544,8 @@ export function emitCheckRustEvaluator(
       bindings.push(...operands[0]!.lines)
       if (node.operands.length === 1) return first
       const name = fresh('coalesce_result')
+      const firstRequirement = diagnostics.reason(first, bindings)
+      const requirement = diagnostics.declared(name, bindings, firstRequirement)
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const [index, operand] of operands.slice(1).entries()) {
         const nullness = bind(
@@ -7427,9 +7573,11 @@ export function emitCheckRustEvaluator(
         )
         const guard = bind(`check_from_bool(${nullness})`)
         unresolvedArrayChoice(guard, node.operands.slice(index + 1), bindings, used)
+        const nextRequirement = diagnostics.reason(operand.value, operand.lines)
         bindings.push(
           `if case_guard_takes(${guard}) {`,
           ...indent(operand.lines),
+          ...(diagnostics.enabled ? [`    ${requirement} = ${nextRequirement};`] : []),
           `    ${name} = ${ownedOperand(operand.value)};`,
           '}',
         )
@@ -7445,6 +7593,7 @@ export function emitCheckRustEvaluator(
         ? emitScalar(node.scrutinee.expression, scrutineeLines, used)
         : null
       const name = fresh('case_result')
+      const requirement = diagnostics.declared(name, bindings)
       bindings.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
       const branchLines = (position: number): string[] => {
         const lines: string[] = []
@@ -7452,7 +7601,12 @@ export function emitCheckRustEvaluator(
           const otherwise = emitScalar(node.otherwise, lines, used)
           if (otherwise.type !== node.type)
             throw new UnsupportedCheckRustExpression('CASE result type mismatch')
-          return [...lines, `${name} = ${ownedOperand(otherwise)};`]
+          const reason = diagnostics.reason(otherwise, lines)
+          return [
+            ...lines,
+            `${name} = ${ownedOperand(otherwise)};`,
+            ...(diagnostics.enabled ? [`${requirement} = ${reason};`] : []),
+          ]
         }
         const branch = node.branches[position]!
         let condition = emitScalar(branch.when, lines, used)
@@ -7482,6 +7636,10 @@ export function emitCheckRustEvaluator(
           otherwise.lines,
         )
         const conditionGuard = prepared ?? guard
+        const conditionRequirement = prepared
+          ? 'check_requirement_code(-1)'
+          : diagnostics.reason(condition, lines)
+        const selectedRequirement = diagnostics.reason(selected, selectedLines)
         const validityLines: string[] = []
         unresolvedArrayChoice(
           conditionGuard,
@@ -7494,9 +7652,11 @@ export function emitCheckRustEvaluator(
           ...validityLines,
           `if case_guard_stops(${conditionGuard}) {`,
           `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${conditionGuard});`,
+          ...(diagnostics.enabled ? [`    ${requirement} = ${conditionRequirement};`] : []),
           `} else if case_guard_takes(${conditionGuard}) {`,
           ...indent(selectedLines),
           `    ${name} = ${ownedOperand(selected)};`,
+          ...(diagnostics.enabled ? [`    ${requirement} = ${selectedRequirement};`] : []),
           '} else {',
           ...indent(otherwise.value),
           '};',
@@ -7522,7 +7682,9 @@ export function emitCheckRustEvaluator(
     const outer: string | null = arrayValidityScope
     if (outer !== null && constantCheckExpression(node)) arrayValidityScope = null
     try {
-      return emitWithValidity(node)
+      const value = emitWithValidity(node)
+      diagnostics.outcome(value.name, diagnostics.reference(value.name), value.lines)
+      return value
     } finally {
       arrayValidityScope = outer
     }
@@ -7532,6 +7694,7 @@ export function emitCheckRustEvaluator(
       const operand = emit(node.operand)
       const tested = fresh('test_result')
       const name = node.negated ? fresh('negated_test_result') : tested
+      diagnostics.set(name, diagnostics.reference(operand.name))
       return {
         lines: [
           ...operand.lines,
@@ -7548,6 +7711,7 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression('Expected unary NOT')
         const operand = emit(node.operands[0]!)
         const name = fresh('not_result')
+        diagnostics.set(name, diagnostics.reference(operand.name))
         return {
           lines: [...operand.lines, `let ${name} = not_finish(${operand.name});`],
           name,
@@ -7606,14 +7770,36 @@ export function emitCheckRustEvaluator(
           `if array_validity_unknown(${leftName}) {`,
           `    let ${possible} = array_validity_possible(${rightValidity});`,
           `    ${outerValidity} = array_validity_finish(${outerValidity}, ${possible});`,
+          ...indent(
+            validityRequirementLines(outerValidity, possible, diagnostics.reference(rightValidity)),
+          ),
           `} else {`,
           `    ${outerValidity} = array_validity_finish(${outerValidity}, ${rightValidity});`,
+          ...indent(
+            validityRequirementLines(
+              outerValidity,
+              rightValidity,
+              diagnostics.reference(rightValidity),
+            ),
+          ),
           '};',
         )
       }
+      const diagnosticLines: string[] = []
+      const leftRequirement = diagnostics.enabled ? fresh('left_requirement') : '0'
+      if (diagnostics.enabled)
+        diagnosticLines.push(
+          `let ${leftRequirement} = check_requirement_for_outcome(${leftName}, ${leftName === left.name ? diagnostics.reference(left.name) : '-1'});`,
+        )
+      const requirement = diagnostics.declared(name, diagnosticLines, leftRequirement)
+      if (diagnostics.enabled)
+        rightLines.push(
+          `${requirement} = check_requirement_merge(${leftRequirement}, ${diagnostics.reference(right.name)});`,
+        )
       return {
         lines: [
           ...leftLines,
+          ...diagnosticLines,
           `let mut ${name}: CheckOutcome = ${leftName};`,
           `if ${stop}(${leftName}) == false {`,
           ...indent(rightLines),
@@ -7628,12 +7814,20 @@ export function emitCheckRustEvaluator(
       if (node.branches.length === 0)
         throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const name = fresh('case_result')
+      const initialLines: string[] = []
+      const requirement = diagnostics.declared(name, initialLines)
       const used = new Set<string>()
       const branchLines = (position: number): string[] => {
         if (position === node.branches.length) {
           const otherwise = emit(node.otherwise)
           for (const input of otherwise.inputs) used.add(input)
-          return [...otherwise.lines, `${name} = ${otherwise.name};`]
+          return [
+            ...otherwise.lines,
+            `${name} = ${otherwise.name};`,
+            ...(diagnostics.enabled
+              ? [`${requirement} = ${diagnostics.reference(otherwise.name)};`]
+              : []),
+          ]
         }
         const branch = node.branches[position]!
         const condition = emit(branch.when)
@@ -7662,16 +7856,28 @@ export function emitCheckRustEvaluator(
           ...validityLines,
           `if case_guard_stops(${guard}) {`,
           `    ${name} = ${guard};`,
+          ...(diagnostics.enabled
+            ? [
+                `    ${requirement} = ${prepared ? 'check_requirement_code(-1)' : diagnostics.reference(condition.name)};`,
+              ]
+            : []),
           `} else if case_guard_takes(${guard}) {`,
           ...indent(selected.lines),
           `    ${name} = ${selected.name};`,
+          ...(diagnostics.enabled
+            ? [`    ${requirement} = ${diagnostics.reference(selected.name)};`]
+            : []),
           '} else {',
           ...indent(otherwise.value),
           '};',
         ]
       }
       return {
-        lines: [`let mut ${name}: CheckOutcome = check_unknown();`, ...branchLines(0)],
+        lines: [
+          ...initialLines,
+          `let mut ${name}: CheckOutcome = check_unknown();`,
+          ...branchLines(0),
+        ],
         name,
         inputs: used,
       }
@@ -7683,6 +7889,7 @@ export function emitCheckRustEvaluator(
       if (result.type !== 'pg_catalog.bool')
         throw new UnsupportedCheckRustExpression('A Rust CHECK scalar must return bool')
       const name = fresh('scalar_result')
+      diagnostics.set(name, diagnostics.reason(result, bindings))
       return {
         lines: [...bindings, `let ${name} = check_from_bool(${result.name});`],
         name,
@@ -7696,6 +7903,7 @@ export function emitCheckRustEvaluator(
       if (result.type !== 'pg_catalog.bool')
         throw new UnsupportedCheckRustExpression('A Rust CHECK constant must be bool')
       const name = fresh('constant_result')
+      diagnostics.set(name, diagnostics.reason(result, bindings))
       return {
         lines: [...bindings, `let ${name} = check_from_bool(${result.name});`],
         name,
@@ -7751,21 +7959,31 @@ export function emitCheckRustEvaluator(
 
   const validityStart = fresh('expression_validity_start')
   const validity = fresh('expression_validity')
+  const validityDiagnosticLines: string[] = []
+  const validityRequirement = diagnostics.declared(validity, validityDiagnosticLines, '0')
   arrayValidityScope = validity
   const emitted = emit(expression)
   arrayValidityScope = null
   const validated = fresh('validated_expression')
+  const entryRequirement = diagnostics.enabled ? fresh('entry_requirement') : '0'
   const entry = {
     ...emitted,
     name: validated,
     lines: [
       `let ${validityStart} = make_bool_value(true);`,
       `let mut ${validity}: CheckOutcome = check_from_bool(${validityStart});`,
+      ...validityDiagnosticLines,
       ...emitted.lines,
       `let mut ${validated}: CheckOutcome = ${emitted.name};`,
       `if case_guard_stops(${validity}) {`,
       `    ${validated} = ${validity};`,
       '};',
+      ...(diagnostics.enabled
+        ? [
+            `${entryRequirement} = ${diagnostics.reference(emitted.name)};`,
+            `if case_guard_stops(${validity}) { ${entryRequirement} = check_requirement_merge(${validityRequirement}, ${entryRequirement}); };`,
+          ]
+        : []),
     ],
   }
   let lines = entry.lines
@@ -7826,11 +8044,32 @@ export function emitCheckRustEvaluator(
           ]),
     ]
   }
+  let source: string
+  const diagnosticEntryName = diagnostics.enabled
+    ? /_h[a-z0-9]{4}$/u.test(entryName)
+      ? entryName.replace(/(_h[a-z0-9]{4})$/u, '_diagnostic$1')
+      : entryName + '_diagnostic'
+    : undefined
+  if (diagnosticEntryName) {
+    const finished = fresh('final_requirement')
+    const detailLines = [
+      `let mut ${entryRequirement}:i32 = check_requirement_code(-1);`,
+      ...lines,
+      `let ${finished} = check_requirement_for_outcome(${resultName}, ${entryRequirement});`,
+    ]
+    source =
+      `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n    let result = ${diagnosticEntryName}(${ordered(
+        entry.inputs,
+      )
+        .map((item) => item.rustName)
+        .join(', ')});\n    check_evaluation_outcome(result)\n}\n` +
+      `pub fn ${diagnosticEntryName}(${parameters(entry.inputs)}) -> CheckEvaluationResult {\n${indent(detailLines).join('\n')}\n    make_check_evaluation_result(${resultName}, ${finished})\n}\n`
+  } else
+    source = `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n`
   return {
-    source:
-      `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n` +
-      domainHelpers.join('\n'),
+    source: source + domainHelpers.join('\n'),
     entryName,
+    ...(diagnosticEntryName ? { diagnosticEntryName } : {}),
     inputs: ordered(entry.inputs),
     callables: [...callables],
     requiresRegex,

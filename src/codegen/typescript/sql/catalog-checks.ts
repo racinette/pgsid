@@ -590,7 +590,21 @@ export function renderTypescriptSchemaCheckArtifacts(
               : []),
           ])
         })
+        const diagnosticEvaluation = prepared.diagnosticEntryName
+          ? factory.createCallExpression(
+              factory.createPropertyAccessExpression(
+                identifier('_checkRust'),
+                prepared.diagnosticEntryName.replace(/_([a-z0-9])/gu, (_, part: string) =>
+                  part.toUpperCase(),
+                ),
+              ),
+              undefined,
+              args,
+            )
+          : undefined
+        if (diagnosticEvaluation) rustInputAdapters.add('checkRustEvaluation')
         return {
+          ...(diagnosticEvaluation ? { diagnosticEvaluation } : {}),
           value: {
             expression: factory.createCallExpression(identifier('checkRustOutcome'), undefined, [
               factory.createCallExpression(
@@ -907,19 +921,33 @@ export function renderTypescriptSchemaCheckArtifacts(
               factory.createReturnStatement(
                 factory.createArrayLiteralExpression(
                   results.map((result, index) =>
-                    factory.createCallExpression(identifier('checkEvaluation'), undefined, [
-                      factory.createStringLiteral(checks[index]!.owner),
-                      factory.createStringLiteral(checks[index]!.plan.name),
-                      factory.createArrowFunction(
-                        undefined,
-                        undefined,
-                        [],
-                        undefined,
-                        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                        result.value.expression,
-                      ),
-                      factory.createStringLiteral(result.unknownMessage),
-                    ]),
+                    'diagnosticEvaluation' in result && result.diagnosticEvaluation
+                      ? factory.createCallExpression(identifier('checkRustEvaluation'), undefined, [
+                          factory.createStringLiteral(checks[index]!.owner),
+                          factory.createStringLiteral(checks[index]!.plan.name),
+                          factory.createArrowFunction(
+                            undefined,
+                            undefined,
+                            [],
+                            undefined,
+                            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                            result.diagnosticEvaluation,
+                          ),
+                          factory.createStringLiteral(result.unknownMessage),
+                        ])
+                      : factory.createCallExpression(identifier('checkEvaluation'), undefined, [
+                          factory.createStringLiteral(checks[index]!.owner),
+                          factory.createStringLiteral(checks[index]!.plan.name),
+                          factory.createArrowFunction(
+                            undefined,
+                            undefined,
+                            [],
+                            undefined,
+                            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                            result.value.expression,
+                          ),
+                          factory.createStringLiteral(result.unknownMessage),
+                        ]),
                   ),
                   true,
                 ),
@@ -1691,6 +1719,12 @@ function checkRustEnum(row: object, name: string, labels: readonly string[]): _c
   const order = labels.indexOf(input.value)
   if (order < 0) return _checkRust.enumUnknown()
   return _checkRust.makeEnumValue(order)
+}
+function checkRustEvaluation(owner:string,constraint:string,evaluate:()=>_checkRust.CheckEvaluationResult,fallback:string):CheckEvaluation {
+  let value:_checkRust.CheckEvaluationResult
+  try {value=evaluate()}catch(error){return checkEvaluation(owner,constraint,()=>{throw error},fallback)}
+  const description=_checkRust.checkRequirementMessage(value.reason)
+  return checkEvaluation(owner,constraint,()=>checkRustOutcome(value.outcome),description.kind==='Value'?description.value:fallback)
 }
 function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {
   switch (value.kind) {

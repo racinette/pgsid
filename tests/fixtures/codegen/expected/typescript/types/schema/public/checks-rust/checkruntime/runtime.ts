@@ -526,6 +526,116 @@ export function equalCheckOutcome(left: CheckOutcome, right: CheckOutcome): bool
         return equalSqlError(left.value, right.value);
     return true;
 }
+export interface CheckEvaluationResult {
+    outcome: CheckOutcome;
+    reason: number;
+}
+function copyCheckEvaluationResult(value: CheckEvaluationResult): CheckEvaluationResult {
+    return { outcome: value.outcome, reason: langruntime.checkedI32(value.reason) };
+}
+export function makeCheckEvaluationResult(outcome: CheckOutcome, reason: number): CheckEvaluationResult {
+    reason = langruntime.checkedI32(reason);
+    return { outcome: outcome, reason: reason };
+}
+export function checkEvaluationOutcome(input: CheckEvaluationResult): CheckOutcome {
+    input = copyCheckEvaluationResult(input);
+    return input.outcome;
+}
+export function checkEvaluationReason(input: CheckEvaluationResult): Int4Value {
+    input = copyCheckEvaluationResult(input);
+    return { kind: "Value", value: input.reason };
+}
+export function checkRequirementCode(input: number): number {
+    input = langruntime.checkedI32(input);
+    return input;
+}
+export function checkRequirementMerge(left: number, right: number): number {
+    left = langruntime.checkedI32(left);
+    right = langruntime.checkedI32(right);
+    if (left < 0 || right < 0 || left > 511 || right > 511) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    let a: number = left;
+    let b: number = right;
+    let weight: number = 1;
+    let output: number = 0;
+    while (a > 0 || b > 0) {
+        if (!(langruntime.checkedSignedRemainder(a, 2) === 0) || !(langruntime.checkedSignedRemainder(b, 2) === 0)) {
+            output = langruntime.checkedI32(langruntime.checkedSignedAdd(output, weight));
+        }
+        a = langruntime.checkedI32(langruntime.checkedSignedDivide(a, 2));
+        b = langruntime.checkedI32(langruntime.checkedSignedDivide(b, 2));
+        weight = langruntime.checkedI32(langruntime.checkedSignedMultiply(weight, 2));
+    }
+    return output;
+}
+export function checkRequirementFilter(nullness: BoolValue, reason: number, partial: boolean): number {
+    reason = langruntime.checkedI32(reason);
+    partial = langruntime.checkedBool(partial);
+    if (equalBoolValue(nullness, { kind: "Unknown" })) {
+        if (reason > 0) {
+            return reason;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (partial && equalBoolValue(nullness, { kind: "Value", value: false })) {
+        return reason;
+    }
+    return 0;
+}
+export function checkXmlRequirement(input: XmlValue, reason: number): number {
+    reason = langruntime.checkedI32(reason);
+    if (input.kind === "RenderedText") {
+        return langruntime.checkedSignedNegate(1);
+    }
+    const nullness: BoolValue = xmlIsNull(input);
+    return checkRequirementFilter(nullness, reason, false);
+}
+export function checkRequirementForOutcome(input: CheckOutcome, reason: number): number {
+    reason = langruntime.checkedI32(reason);
+    if (equalCheckOutcome(input, { kind: "Unknown" })) {
+        return reason;
+    }
+    return 0;
+}
+export function checkRequirementMessage(reason: number): TextValue {
+    reason = langruntime.checkedI32(reason);
+    if (reason <= 0 || reason > 511) {
+        return { kind: "Unknown" };
+    }
+    let output: string = "";
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 1)), 2) === 0)) {
+        output = output + "XPath decimal conversion needs sql.codegen.checks.xpathPowerOfTenBits captured from the target PostgreSQL. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 2)), 2) === 0)) {
+        output = output + "XPath evaluation reaches a cyclic XML traversal that cannot be completed locally. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 4)), 2) === 0)) {
+        output = output + "The reached XPath operation or XML serialization is not implemented by the local evaluator. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 8)), 2) === 0)) {
+        output = output + "XPath evaluation needs sql.codegen.checks.xpathRecursionLimit for the target PostgreSQL XML library. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 16)), 2) === 0)) {
+        output = output + "XPath numeric XML output needs sql.codegen.checks.extraFloatDigits matching the PostgreSQL session. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 32)), 2) === 0)) {
+        output = output + "XPath document serialization depends on unavailable native XML notation ordering. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 64)), 2) === 0)) {
+        output = output + "XPath evaluation needs sql.codegen.checks.serverEncoding: UTF8. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 128)), 2) === 0)) {
+        output = output + "XPath evaluation needs the original XML storage bytes for this rendered value. ";
+    }
+    if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(reason, 256)), 2) === 0)) {
+        output = output + "XPath evaluation needs complete namespace mapping values. ";
+    }
+    if (output === "") {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: output };
+}
 export interface SqlError {
     readonly state: number;
 }

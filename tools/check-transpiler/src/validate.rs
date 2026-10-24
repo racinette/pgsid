@@ -1078,6 +1078,8 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             let Item::Struct(structure) = item else { return false; };
             if structure.ident != name.as_str() { return false; }
             matches!(structure.vis, syn::Visibility::Inherited)
+                || matches!(&structure.vis, syn::Visibility::Restricted(restricted)
+                    if restricted.in_token.is_none() && restricted.path.is_ident("crate"))
                 || (exported_payloads.contains(name)
                     && structure.fields.iter().all(|field| matches!(field.vis, syn::Visibility::Public(_))))
         });

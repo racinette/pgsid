@@ -492,6 +492,117 @@ type CheckOutcome struct {
 	Kind  CheckOutcomeKind
 	Error SqlError
 }
+type CheckEvaluationResult struct {
+	Outcome CheckOutcome
+	Reason  int
+}
+
+func copyCheckEvaluationResult(value CheckEvaluationResult) CheckEvaluationResult {
+	return CheckEvaluationResult{Outcome: value.Outcome, Reason: langruntime.CheckedI32(value.Reason)}
+}
+func MakeCheckEvaluationResult(outcome CheckOutcome, reason int) CheckEvaluationResult {
+	reason = langruntime.CheckedI32(reason)
+	return CheckEvaluationResult{Outcome: outcome, Reason: reason}
+}
+func CheckEvaluationOutcome(input CheckEvaluationResult) CheckOutcome {
+	input = copyCheckEvaluationResult(input)
+	return input.Outcome
+}
+func CheckEvaluationReason(input CheckEvaluationResult) Int4Value {
+	input = copyCheckEvaluationResult(input)
+	return Int4Value{Kind: Int4ValueValue, Value: input.Reason}
+}
+func CheckRequirementCode(input int) int {
+	input = langruntime.CheckedI32(input)
+	return input
+}
+func CheckRequirementMerge(left int, right int) int {
+	left = langruntime.CheckedI32(left)
+	right = langruntime.CheckedI32(right)
+	if left < 0 || right < 0 || left > 511 || right > 511 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	a := left
+	b := right
+	weight := 1
+	output := 0
+	for a > 0 || b > 0 {
+		if langruntime.CheckedSignedRemainder(a, 2) != 0 || langruntime.CheckedSignedRemainder(b, 2) != 0 {
+			output = langruntime.CheckedI32(langruntime.CheckedSignedAdd(output, weight))
+		}
+		a = langruntime.CheckedI32(langruntime.CheckedSignedDivide(a, 2))
+		b = langruntime.CheckedI32(langruntime.CheckedSignedDivide(b, 2))
+		weight = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(weight, 2))
+	}
+	return output
+}
+func CheckRequirementFilter(nullness BoolValue, reason int, partial bool) int {
+	reason = langruntime.CheckedI32(reason)
+	if nullness == (BoolValue{Kind: BoolValueUnknown}) {
+		if reason > 0 {
+			return reason
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if partial && nullness == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		return reason
+	}
+	return 0
+}
+func CheckXmlRequirement(input XmlValue, reason int) int {
+	reason = langruntime.CheckedI32(reason)
+	if input.Kind == XmlValueRenderedText {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	nullness := XmlIsNull(input)
+	return CheckRequirementFilter(nullness, reason, false)
+}
+func CheckRequirementForOutcome(input CheckOutcome, reason int) int {
+	reason = langruntime.CheckedI32(reason)
+	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return reason
+	}
+	return 0
+}
+func CheckRequirementMessage(reason int) TextValue {
+	reason = langruntime.CheckedI32(reason)
+	if reason <= 0 || reason > 511 {
+		return TextValue{Kind: TextValueUnknown}
+	}
+	output := langruntime.NewTextBuffer("")
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 1)), 2) != 0 {
+		output = append(output, "XPath decimal conversion needs sql.codegen.checks.xpathPowerOfTenBits captured from the target PostgreSQL. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 2)), 2) != 0 {
+		output = append(output, "XPath evaluation reaches a cyclic XML traversal that cannot be completed locally. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 4)), 2) != 0 {
+		output = append(output, "The reached XPath operation or XML serialization is not implemented by the local evaluator. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 8)), 2) != 0 {
+		output = append(output, "XPath evaluation needs sql.codegen.checks.xpathRecursionLimit for the target PostgreSQL XML library. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 16)), 2) != 0 {
+		output = append(output, "XPath numeric XML output needs sql.codegen.checks.extraFloatDigits matching the PostgreSQL session. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 32)), 2) != 0 {
+		output = append(output, "XPath document serialization depends on unavailable native XML notation ordering. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 64)), 2) != 0 {
+		output = append(output, "XPath evaluation needs sql.codegen.checks.serverEncoding: UTF8. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 128)), 2) != 0 {
+		output = append(output, "XPath evaluation needs the original XML storage bytes for this rendered value. "...)
+	}
+	if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(reason, 256)), 2) != 0 {
+		output = append(output, "XPath evaluation needs complete namespace mapping values. "...)
+	}
+	if string(output) == "" {
+		return TextValue{Kind: TextValueUnknown}
+	}
+	return TextValue{Kind: TextValueValue, Value: string(output)}
+}
+
 type SqlError struct {
 	State int
 }

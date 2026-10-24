@@ -55315,21 +55315,71 @@ const xpathSqlEncoding = 10
 const xpathSqlStorage = 11
 const xpathSqlNamespaces = 12
 
-type xPathSqlResult struct {
+type XPathSqlResult struct {
 	state   int
 	present checkruntime.BoolValue
 	output  checkruntime.ArrayValue
 }
 
-func copyxPathSqlResult(value xPathSqlResult) xPathSqlResult {
-	return xPathSqlResult{state: langruntime.CheckedI32(value.state), present: value.present, output: checkruntime.CopyArrayValue(value.output)}
+func copyXPathSqlResult(value XPathSqlResult) XPathSqlResult {
+	return XPathSqlResult{state: langruntime.CheckedI32(value.state), present: value.present, output: checkruntime.CopyArrayValue(value.output)}
 }
-func xpathSqlUnknown(state int) xPathSqlResult {
+func XpathDiagnosticExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool, powerWords string, serialize bool) XPathSqlResult {
+	powers := xpathPowerContext(powerWords)
+	return XpathSqlExecuteProfile(expression, input, mappings, utf8, limit, extra, known, serialize, &powers)
+}
+func XpathDiagnosticNamespaces() checkruntime.ArrayValue {
+	return xpathSqlEmptyNamespaces()
+}
+func XpathDiagnosticArray(input XPathSqlResult) checkruntime.ArrayValue {
+	return input.output
+}
+func XpathDiagnosticExists(input XPathSqlResult) checkruntime.BoolValue {
+	return input.present
+}
+func XpathDiagnosticRequirement(input *XPathSqlResult) int {
+	return xpathRequirementState(input.state)
+}
+func xpathRequirementState(state int) int {
 	state = langruntime.CheckedI32(state)
-	return xPathSqlResult{state: state, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
+	if state == 1 {
+		return 1
+	}
+	if state == 2 {
+		return 2
+	}
+	if state == 3 {
+		return 4
+	}
+	if state == 4 {
+		return 8
+	}
+	if state == xpathResultFloatContext {
+		return 16
+	}
+	if state == xpathResultNotationContext {
+		return 32
+	}
+	if state == xpathSqlEncoding {
+		return 64
+	}
+	if state == xpathSqlStorage {
+		return 128
+	}
+	if state == xpathSqlNamespaces {
+		return 256
+	}
+	if state == xpathSqlInput {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return 0
 }
-func xpathSqlError(error checkruntime.SqlError) xPathSqlResult {
-	return xPathSqlResult{state: xpathResultSqlError, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}}
+func xpathSqlUnknown(state int) XPathSqlResult {
+	state = langruntime.CheckedI32(state)
+	return XPathSqlResult{state: state, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
+}
+func xpathSqlError(error checkruntime.SqlError) XPathSqlResult {
+	return XPathSqlResult{state: xpathResultSqlError, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}}
 }
 func xpathSqlEmptyNamespaces() checkruntime.ArrayValue {
 	dimensions := []checkruntime.ArrayDimension{}
@@ -55363,11 +55413,11 @@ func XpathSqlArray(input xPathXmlResult) checkruntime.ArrayValue {
 	payload := checkruntime.ArrayPayload{ElementType: "pg_catalog.xml", ElementKind: 45, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}}
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: payload}
 }
-func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool) xPathSqlResult {
+func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool) XPathSqlResult {
 	powers := xpathPowersEmpty()
 	return XpathSqlExecuteProfile(expression, input, mappings, utf8, limit, extra, precisionKnown, serialize, &powers)
 }
-func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool, powers *xPathPowers) xPathSqlResult {
+func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool, powers *xPathPowers) XPathSqlResult {
 	if expression.Kind == checkruntime.TextValueError {
 		error := expression.Error
 		return xpathSqlError(error)
@@ -55391,7 +55441,7 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 		isNull = true
 	}
 	if isNull {
-		return xPathSqlResult{state: xpathSqlNull, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}}
+		return XPathSqlResult{state: xpathSqlNull, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}}
 	}
 	path := langruntime.NewTextBuffer("")
 	source := langruntime.NewTextBuffer("")
@@ -55496,12 +55546,12 @@ func XpathSqlExecuteProfile(expression checkruntime.TextValue, input checkruntim
 		}
 		present := xpathResultExists(&value)
 		if serialize == false {
-			return xPathSqlResult{state: 0, present: present, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
+			return XPathSqlResult{state: 0, present: present, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
 		}
 		result := XpathResultToXml(value, &tree, &graph, extra, precisionKnown)
 		state := result.state
 		output := XpathSqlArray(result)
-		return xPathSqlResult{state: state, present: present, output: output}
+		return XPathSqlResult{state: state, present: present, output: output}
 	}
 	return xpathSqlUnknown(xpathSqlInput)
 }

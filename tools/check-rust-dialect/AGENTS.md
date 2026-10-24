@@ -24,6 +24,11 @@ update its tests when that boundary changes.
   standalone expression exports `evaluate_check`; catalog entries derive their
   names from schema, table/domain, constraint, and a short identity hash.
   Inherited domain entries also identify the declaring domain. Keep expression parts inside that function.
+- A CHECK that retains deferred-result provenance may delegate to a second entry
+  returning `CheckEvaluationResult`; evaluate once and expose its outcome through
+  a shared helper. Internal `i32` locals carry requirement masks through lazy
+  branches. Initialize and assign them through calls or bound values; integer
+  parameters, arithmetic, and direct payload field access remain rejected.
 - Parameters are immutable named values of `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `RangeValue`, `MultirangeValue`, `CompositeValue`, `SnapshotValue`, `JsonValue`, `JsonbValue`, `JsonpathValue`, `XmlValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`,
   `BitValue`, or `BoolValue`. Calls take bound identifiers, in-range signed `int2`/`int4`/`int8` literals,
   string literals, boolean literals, or a bound identifier cloned with `.clone()`

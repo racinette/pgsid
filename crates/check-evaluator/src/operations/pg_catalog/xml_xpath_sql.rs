@@ -8,7 +8,34 @@ const XPATH_SQL_STORAGE: i32 = 11;
 const XPATH_SQL_NAMESPACES: i32 = 12;
 
 #[derive(Clone)]
-struct XPathSqlResult { state: i32, present: BoolValue, output: ArrayValue }
+pub(crate) struct XPathSqlResult { state: i32, present: BoolValue, output: ArrayValue }
+
+pub(crate) fn xpath_diagnostic_execute(expression: TextValue, input: XmlValue, mappings: ArrayValue, utf8: bool, limit: i32, extra: i32, known: bool, power_words: &str, serialize: bool) -> XPathSqlResult {
+    let powers = xpath_power_context(power_words);
+    xpath_sql_execute_profile(expression,input,mappings,utf8,limit,extra,known,serialize,&powers)
+}
+
+pub fn xpath_diagnostic_namespaces() -> ArrayValue { xpath_sql_empty_namespaces() }
+
+pub(crate) fn xpath_diagnostic_array(input: XPathSqlResult) -> ArrayValue { input.output }
+
+pub(crate) fn xpath_diagnostic_exists(input: XPathSqlResult) -> BoolValue { input.present }
+
+pub(crate) fn xpath_diagnostic_requirement(input: &XPathSqlResult) -> i32 { xpath_requirement_state(input.state) }
+
+fn xpath_requirement_state(state: i32) -> i32 {
+    if state == 1 { return 1; };
+    if state == 2 { return 2; };
+    if state == 3 { return 4; };
+    if state == 4 { return 8; };
+    if state == XPATH_RESULT_FLOAT_CONTEXT { return 16; };
+    if state == XPATH_RESULT_NOTATION_CONTEXT { return 32; };
+    if state == XPATH_SQL_ENCODING { return 64; };
+    if state == XPATH_SQL_STORAGE { return 128; };
+    if state == XPATH_SQL_NAMESPACES { return 256; };
+    if state == XPATH_SQL_INPUT { return -1; };
+    0
+}
 
 fn xpath_sql_unknown(state: i32) -> XPathSqlResult {
     XPathSqlResult { state, present: BoolValue::Unknown, output: ArrayValue::Unknown }

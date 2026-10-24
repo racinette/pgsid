@@ -41,6 +41,15 @@ fn function_visibility(node: &syn::ItemFn) -> Result<&'static str> {
     visibility(&node.vis)
 }
 
+fn record_visibility(value: &Visibility) -> Result<&'static str> {
+    if let Visibility::Restricted(restricted) = value {
+        if restricted.in_token.is_none() && restricted.path.is_ident("crate") {
+            return Ok("crate");
+        }
+    }
+    visibility(value)
+}
+
 fn check_type(
     value: &Type,
     declarations: &BTreeSet<String>,
@@ -603,7 +612,7 @@ pub(crate) fn item(value: &Item) -> Result<Value> {
                 .collect::<Result<Vec<_>>>()?;
             Ok(json!({
                 "kind": "struct",
-                "visibility": visibility(&node.vis)?,
+                "visibility": record_visibility(&node.vis)?,
                 "name": node.ident.to_string(),
                 "derives": derive_names(&node.attrs)?,
                 "fields": fields,
@@ -694,12 +703,23 @@ mod tests {
         for source in [
             "pub(super) fn advance(value: i32) -> i32 { value }",
             "pub(self) fn advance(value: i32) -> i32 { value }",
-            "pub(crate) struct Cursor { value: i32 }",
+            "pub(super) struct Cursor { value: i32 }",
+            "pub(self) struct Cursor { value: i32 }",
             "pub(crate) fn evaluate_check(value: i32) -> i32 { value }",
             "pub(crate) fn sql__pg_catalog__probe(value: i32) -> i32 { value }",
         ] {
             assert!(parse(source).is_err(), "{source}");
         }
+    }
+
+    #[test]
+    fn crate_visible_owned_records_retain_internal_visibility() {
+        let source = "#[derive(Clone)] pub(crate) struct Cursor { characters: Vec<char> } pub(crate) fn make() -> Cursor { let characters: Vec<char> = Vec::new(); Cursor { characters } }";
+        let parsed: serde_json::Value = serde_json::from_str(&parse(source).unwrap()).unwrap();
+        assert_eq!(parsed["items"][0]["visibility"], "crate");
+        assert_eq!(parsed["items"][0]["fields"][0]["visibility"], "private");
+        assert!(parse(&source.replace("pub(crate) struct", "pub struct")).is_err());
+        assert!(parse("pub(crate) enum Cursor { Empty }").is_err());
     }
 
     #[test]

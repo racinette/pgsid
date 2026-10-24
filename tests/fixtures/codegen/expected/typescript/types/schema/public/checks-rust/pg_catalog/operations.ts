@@ -55834,13 +55834,63 @@ const xpathSqlInput = 9;
 const xpathSqlEncoding = 10;
 const xpathSqlStorage = 11;
 const xpathSqlNamespaces = 12;
-interface XPathSqlResult {
+export interface XPathSqlResult {
     state: number;
     present: checkruntime.BoolValue;
     output: checkruntime.ArrayValue;
 }
 function copyXPathSqlResult(value: XPathSqlResult): XPathSqlResult {
     return { state: langruntime.checkedI32(value.state), present: value.present, output: checkruntime.copyArrayValue(value.output) };
+}
+export function xpathDiagnosticExecute(expression: checkruntime.TextValue, input: checkruntime.XmlValue, mappings: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string, serialize: boolean): XPathSqlResult {
+    const powers: XPathPowers = xpathPowerContext(powerWords);
+    return xpathSqlExecuteProfile(expression, input, mappings, utf8, limit, extra, known, serialize, powers);
+}
+export function xpathDiagnosticNamespaces(): checkruntime.ArrayValue {
+    return xpathSqlEmptyNamespaces();
+}
+export function xpathDiagnosticArray(input: XPathSqlResult): checkruntime.ArrayValue {
+    return input.output;
+}
+export function xpathDiagnosticExists(input: XPathSqlResult): checkruntime.BoolValue {
+    return input.present;
+}
+export function xpathDiagnosticRequirement(input: XPathSqlResult): number {
+    return xpathRequirementState(input.state);
+}
+function xpathRequirementState(state: number): number {
+    state = langruntime.checkedI32(state);
+    if (state === 1) {
+        return 1;
+    }
+    if (state === 2) {
+        return 2;
+    }
+    if (state === 3) {
+        return 4;
+    }
+    if (state === 4) {
+        return 8;
+    }
+    if (state === xpathResultFloatContext) {
+        return 16;
+    }
+    if (state === xpathResultNotationContext) {
+        return 32;
+    }
+    if (state === xpathSqlEncoding) {
+        return 64;
+    }
+    if (state === xpathSqlStorage) {
+        return 128;
+    }
+    if (state === xpathSqlNamespaces) {
+        return 256;
+    }
+    if (state === xpathSqlInput) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return 0;
 }
 function xpathSqlUnknown(state: number): XPathSqlResult {
     state = langruntime.checkedI32(state);

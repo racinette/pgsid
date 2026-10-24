@@ -10,7 +10,7 @@ fn digits(value: &str) -> bool {
 }
 
 fn entry_name(name: &str) -> bool {
-    name == "evaluate_check"
+    name == "evaluate_check" || name == "evaluate_check_diagnostic"
         || name.strip_prefix("evaluate_check_").is_some_and(|suffix| {
             let Some((readable, hash)) = suffix.rsplit_once("_h") else {
                 return false;
@@ -365,7 +365,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("JsonRecordInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload") || path.path.is_ident("XmlConcatState")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("JsonRecordInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload") || path.path.is_ident("XmlConcatState") || path.path.is_ident("i32")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -441,9 +441,9 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
     if !entry_name(&name) || !matches!(&function.vis, Visibility::Public(_)) {
         return Err("only CHECK evaluator entries may be public".into());
     }
-    if !matches!(&function.sig.output, ReturnType::Type(_, ty) if type_name(ty).as_deref() == Ok("CheckOutcome"))
+    if !matches!(&function.sig.output, ReturnType::Type(_, ty) if (type_name(ty).as_deref() == Ok("CheckOutcome") || matches!(&**ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident("CheckEvaluationResult"))))
     {
-        return Err("function must return CheckOutcome".into());
+        return Err("function must return CheckOutcome or CheckEvaluationResult".into());
     }
     let mut bindings = BTreeMap::new();
     for input in &function.sig.inputs {
@@ -566,6 +566,20 @@ pub fn evaluate_check(amount: Int4Value, flag: BoolValue) -> CheckOutcome {
     result
 }
 "#;
+
+    #[test]
+    fn diagnostic_entries_keep_integer_reasons_internal() {
+        let source = "pub fn evaluate_check_diagnostic(input: XmlValue) -> CheckEvaluationResult { let plan = execute(input); let mut reason: i32 = requirement(&plan); let value = take(plan); let outcome = check_from_bool(value); if and_stops(outcome) { reason = check_requirement_code(0); }; make_check_evaluation_result(outcome, reason) }";
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: XmlValue", "input: i32"),
+            source.replace("input: XmlValue", "input: CheckEvaluationResult"),
+            source.replace("requirement(&plan)", "requirement(&mut plan)"),
+            source.replace("check_requirement_code(0)", "reason + 1"),
+            source.replace("let value = take(plan)", "let value = plan.output"),
+            source.replace("-> CheckEvaluationResult", "-> i32"),
+        ] { assert!(check_source(&invalid).is_err(), "{invalid}"); }
+    }
 
     #[test]
     fn accepts_bound_value_clones_only() {
@@ -1233,7 +1247,7 @@ pub fn evaluate_check(input: TimestamptzValue) -> CheckOutcome {
     #[test]
     fn rejects_unsupported_mutation_and_control_flow() {
         assert!(check_source(&VALID.replace("let mut result", "let result")).is_err());
-        assert!(check_source(&VALID.replace("result: CheckOutcome", "result: i32")).is_err());
+        assert!(check_source(&VALID.replace("result: CheckOutcome", "result: i64")).is_err());
         assert!(check_source(&VALID.replace(
             "result = or_finish(first, second);",
             "flag = or_finish(first, second);"
