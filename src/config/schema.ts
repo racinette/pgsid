@@ -314,6 +314,8 @@ export const codegenSchema = z
         arrayNulls: z.boolean().optional(),
         xmlOption: z.enum(['document', 'content']).optional(),
         xmlBinary: z.enum(['base64', 'hex']).optional(),
+        extraFloatDigits: z.number().int().min(-15).max(3).optional(),
+        xpathRecursionLimit: z.number().int().min(1).max(2147483647).optional(),
         clientEncoding: z.literal('UTF8').optional(),
       })
       .strict()

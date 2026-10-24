@@ -13,6 +13,12 @@ describe('config schema', () => {
         'schema: schema.sql\nsql:\n  codegen:\n    checks: { trigonometry: fdlibm }\n',
       ).sql.codegen?.checks,
     ).toEqual({ trigonometry: 'fdlibm' })
+    for (const extraFloatDigits of [-15, -1, 0, 1, 3])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { extraFloatDigits: ${extraFloatDigits}, xpathRecursionLimit: 5000 }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ extraFloatDigits, xpathRecursionLimit: 5000 })
     for (const nativeByteOrder of ['little', 'big'])
       expect(
         parseConfigString(
@@ -46,6 +52,12 @@ describe('config schema', () => {
       '{ nativeByteOrder: LE }',
       '{ trigonometry: native }',
       '{ trigonometry: glibc }',
+      '{ extraFloatDigits: -16 }',
+      '{ extraFloatDigits: 4 }',
+      '{ extraFloatDigits: 1.5 }',
+      '{ xpathRecursionLimit: 0 }',
+      '{ xpathRecursionLimit: -1 }',
+      '{ xpathRecursionLimit: 2147483648 }',
     ])
       expect(() =>
         parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n'),

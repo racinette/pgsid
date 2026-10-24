@@ -55274,6 +55274,236 @@ func XpathNodesSort(input xPathNodes, tree *xmlTree) xPathNodes {
 	}
 	return nodes
 }
+
+const sqlstateXmlNamespaceArray = 3452544
+const sqlstateXmlNamespaceNull = 3452548
+const sqlstateXmlNamespaceRegister = 56966976
+const xpathSqlNull = 8
+const xpathSqlInput = 9
+const xpathSqlEncoding = 10
+const xpathSqlStorage = 11
+const xpathSqlNamespaces = 12
+
+type xPathSqlResult struct {
+	state   int
+	present checkruntime.BoolValue
+	output  checkruntime.ArrayValue
+}
+
+func copyxPathSqlResult(value xPathSqlResult) xPathSqlResult {
+	return xPathSqlResult{state: langruntime.CheckedI32(value.state), present: value.present, output: checkruntime.CopyArrayValue(value.output)}
+}
+func xpathSqlUnknown(state int) xPathSqlResult {
+	state = langruntime.CheckedI32(state)
+	return xPathSqlResult{state: state, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
+}
+func xpathSqlError(error checkruntime.SqlError) xPathSqlResult {
+	return xPathSqlResult{state: xpathResultSqlError, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}}
+}
+func xpathSqlEmptyNamespaces() checkruntime.ArrayValue {
+	dimensions := []checkruntime.ArrayDimension{}
+	elements := []checkruntime.ArrayElement{}
+	payload := checkruntime.ArrayPayload{ElementType: "pg_catalog.text", ElementKind: 8, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: payload}
+}
+func XpathSqlArray(input xPathXmlResult) checkruntime.ArrayValue {
+	if input.state == xpathResultSqlError {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: input.error}
+	}
+	if input.state < 0 {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidXpath)}
+	}
+	if input.shaped == false {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	elements := []checkruntime.ArrayElement{}
+	index := 0
+	for index < len(input.values) {
+		cell := checkruntime.ArrayElementFromXml(input.values[index])
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(cell))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	if len(elements) > 0 {
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: int(int32(len(elements)))})
+	}
+	payload := checkruntime.ArrayPayload{ElementType: "pg_catalog.xml", ElementKind: 45, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: payload}
+}
+func XpathSqlExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, precisionKnown bool, serialize bool) xPathSqlResult {
+	if expression.Kind == checkruntime.TextValueError {
+		error := expression.Error
+		return xpathSqlError(error)
+	}
+	if input.Kind == checkruntime.XmlValueError {
+		error := input.Error
+		return xpathSqlError(error)
+	}
+	if mappings.Kind == checkruntime.ArrayValueError {
+		error := mappings.Error
+		return xpathSqlError(error)
+	}
+	isNull := false
+	if expression.Kind == checkruntime.TextValueNull {
+		isNull = true
+	}
+	if input.Kind == checkruntime.XmlValueNull {
+		isNull = true
+	}
+	if mappings.Kind == checkruntime.ArrayValueNull {
+		isNull = true
+	}
+	if isNull {
+		return xPathSqlResult{state: xpathSqlNull, present: checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}}
+	}
+	path := langruntime.NewTextBuffer("")
+	source := langruntime.NewTextBuffer("")
+	rendered := false
+	knownPath := false
+	knownInput := false
+	if expression.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(expression.Value)
+		path = langruntime.NewTextBuffer(value)
+		knownPath = true
+	}
+	stored := input
+	if stored.Kind == checkruntime.XmlValueValue {
+		value := langruntime.CheckedString(stored.Value)
+		source = langruntime.NewTextBuffer(value)
+		knownInput = true
+	}
+	if input.Kind == checkruntime.XmlValueRenderedText {
+		value := langruntime.CheckedString(input.RenderedText)
+		source = langruntime.NewTextBuffer(value)
+		knownInput = true
+		rendered = true
+	}
+	if knownPath == false || knownInput == false {
+		return xpathSqlUnknown(xpathSqlInput)
+	}
+	if mappings.Kind == checkruntime.ArrayValueValue {
+		mapping := checkruntime.CopyArrayPayload(mappings.Value)
+		if mapping.ElementType != "pg_catalog.text" || mapping.ElementKind != 8 {
+			return xpathSqlUnknown(xpathSqlInput)
+		}
+		if len(mapping.Dimensions) != 0 && (len(mapping.Dimensions) != 2 || mapping.Dimensions[1].Length != 2) {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateXmlNamespaceArray))
+		}
+		if langruntime.CheckedSignedRemainder((int(int32(len(mapping.Elements)))), 2) != 0 || (len(mapping.Dimensions) == 0 && len(mapping.Elements) != 0) {
+			return xpathSqlUnknown(xpathSqlInput)
+		}
+		if string(path) == "" {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXpath))
+		}
+		if utf8 == false {
+			return xpathSqlUnknown(xpathSqlEncoding)
+		}
+		if rendered {
+			characters := xmlSource{characters: []rune(string(source))}
+			declaration := xmlParseDeclaration(&characters, 0, false)
+			if declaration.valid == false {
+				return xpathSqlUnknown(xpathSqlStorage)
+			}
+		}
+		content := xmlQueryContent(string(source))
+		if xmlQueryWellFormed(content) == false {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXmlDocument))
+		}
+		document := xpathDocumentParse(content)
+		tree := document.tree
+		graph := document.graph
+		if graph.ids.valid == false || xmlQueryNamesValid(&tree) == false {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXmlDocument))
+		}
+		namespaces := xpathNamespacesEmpty()
+		index := 0
+		for index < len(mapping.Elements) {
+			prefix := checkruntime.CopyArrayElement(mapping.Elements[index])
+			uri := checkruntime.CopyArrayElement(mapping.Elements[langruntime.CheckedAdd(index, 1)])
+			if prefix.Kind == checkruntime.ArrayElementNull {
+				return xpathSqlError(checkruntime.MakeSqlError(sqlstateXmlNamespaceNull))
+			}
+			if uri.Kind == checkruntime.ArrayElementNull {
+				return xpathSqlError(checkruntime.MakeSqlError(sqlstateXmlNamespaceNull))
+			}
+			name := langruntime.NewTextBuffer("")
+			address := langruntime.NewTextBuffer("")
+			nameKnown := false
+			uriKnown := false
+			if prefix.Kind == checkruntime.ArrayElementText {
+				value := langruntime.CheckedString(prefix.Text)
+				name = langruntime.NewTextBuffer(value)
+				nameKnown = true
+			}
+			if uri.Kind == checkruntime.ArrayElementText {
+				value := langruntime.CheckedString(uri.Text)
+				address = langruntime.NewTextBuffer(value)
+				uriKnown = true
+			}
+			if nameKnown == false || uriKnown == false {
+				return xpathSqlUnknown(xpathSqlNamespaces)
+			}
+			if string(name) == "" {
+				return xpathSqlError(checkruntime.MakeSqlError(sqlstateXmlNamespaceRegister))
+			}
+			namespaces = XpathNamespacesPush(namespaces, string(name), string(address))
+			index = langruntime.CheckedAdd(index, 2)
+		}
+		program := xpathCompileWithLimit(string(path), limit)
+		powers := xpathPowersEmpty()
+		value := xpathEvaluate(&program, &tree, &graph, &namespaces, &powers)
+		if value.state < 0 {
+			return xpathSqlError(checkruntime.MakeSqlError(sqlstateInvalidXpath))
+		}
+		if value.state != 0 {
+			return xpathSqlUnknown(value.state)
+		}
+		present := xpathResultExists(&value)
+		if serialize == false {
+			return xPathSqlResult{state: 0, present: present, output: checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}}
+		}
+		result := XpathResultToXml(value, &tree, &graph, extra, precisionKnown)
+		state := result.state
+		output := XpathSqlArray(result)
+		return xPathSqlResult{state: state, present: present, output: output}
+	}
+	return xpathSqlUnknown(xpathSqlInput)
+}
+func XpathAbvz(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool) checkruntime.ArrayValue {
+	namespaces = checkruntime.CopyArrayValue(namespaces)
+	limit = langruntime.CheckedI32(limit)
+	extra = langruntime.CheckedI32(extra)
+	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true)
+	return result.output
+}
+func XpathNuen(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.ArrayValue {
+	limit = langruntime.CheckedI32(limit)
+	extra = langruntime.CheckedI32(extra)
+	namespaces := xpathSqlEmptyNamespaces()
+	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true)
+	return result.output
+}
+func XpathExists1hns(expression checkruntime.TextValue, input checkruntime.XmlValue, namespaces checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+	namespaces = checkruntime.CopyArrayValue(namespaces)
+	limit = langruntime.CheckedI32(limit)
+	extra = langruntime.CheckedI32(extra)
+	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false)
+	return result.present
+}
+func XpathExistsS9ul(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+	limit = langruntime.CheckedI32(limit)
+	extra = langruntime.CheckedI32(extra)
+	namespaces := xpathSqlEmptyNamespaces()
+	result := XpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false)
+	return result.present
+}
+func Xmlexists3gat(expression checkruntime.TextValue, input checkruntime.XmlValue, utf8 bool, limit int, extra int, known bool) checkruntime.BoolValue {
+	limit = langruntime.CheckedI32(limit)
+	extra = langruntime.CheckedI32(extra)
+	return XpathExistsS9ul(expression, input, utf8, limit, extra, known)
+}
 func xpathStringFind(input string, needle string) int {
 	input = langruntime.CheckedString(input)
 	needle = langruntime.CheckedString(needle)

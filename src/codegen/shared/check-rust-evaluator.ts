@@ -1,3 +1,4 @@
+import { isXmlXPathCallable } from '../../sql-semantics/xml-callables.js'
 import {
   compositeProfile,
   compositeContainerProfile,
@@ -722,6 +723,8 @@ export type CheckExecutionContext = {
   arrayNulls?: boolean
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
+  extraFloatDigits?: number
+  xpathRecursionLimit?: number
   clientEncoding?: 'UTF8'
 }
 
@@ -4642,6 +4645,13 @@ export function emitCheckRustEvaluator(
           String(executionContext.serverEncoding === 'UTF8'),
         )
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (isXmlXPathCallable(implementation))
+        arguments_.push(
+          String(executionContext.serverEncoding === 'UTF8'),
+          String(executionContext.xpathRecursionLimit ?? 0),
+          String(executionContext.extraFloatDigits ?? 0),
+          String(executionContext.extraFloatDigits !== undefined),
+        )
       const hashContext = nativeHashContext(implementation)
       if (hashContext) {
         arguments_.push(

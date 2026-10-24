@@ -55795,6 +55795,241 @@ export function xpathNodesSort(input: XPathNodes, tree: XmlTree): XPathNodes {
     }
     return nodes;
 }
+const sqlstateXmlNamespaceArray = 3452544;
+const sqlstateXmlNamespaceNull = 3452548;
+const sqlstateXmlNamespaceRegister = 56966976;
+const xpathSqlNull = 8;
+const xpathSqlInput = 9;
+const xpathSqlEncoding = 10;
+const xpathSqlStorage = 11;
+const xpathSqlNamespaces = 12;
+interface XPathSqlResult {
+    state: number;
+    present: checkruntime.BoolValue;
+    output: checkruntime.ArrayValue;
+}
+function copyXPathSqlResult(value: XPathSqlResult): XPathSqlResult {
+    return { state: langruntime.checkedI32(value.state), present: value.present, output: checkruntime.copyArrayValue(value.output) };
+}
+function xpathSqlUnknown(state: number): XPathSqlResult {
+    state = langruntime.checkedI32(state);
+    return { state: state, present: { kind: "Unknown" }, output: { kind: "Unknown" } };
+}
+function xpathSqlError(error: checkruntime.SqlError): XPathSqlResult {
+    return { state: xpathResultSqlError, present: { kind: "Error", value: error }, output: { kind: "Error", value: error } };
+}
+function xpathSqlEmptyNamespaces(): checkruntime.ArrayValue {
+    const dimensions: checkruntime.ArrayDimension[] = [];
+    const elements: checkruntime.ArrayElement[] = [];
+    const payload: checkruntime.ArrayPayload = { elementType: "pg_catalog.text", elementKind: 8, dimensions: dimensions, elements: elements, nullBitmap: { kind: "Value", value: false } };
+    return { kind: "Value", value: payload };
+}
+export function xpathSqlArray(input: XPathXmlResult): checkruntime.ArrayValue {
+    if (input.state === xpathResultSqlError) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidXpath) };
+    }
+    if (input.shaped === false) {
+        return { kind: "Unknown" };
+    }
+    let elements: checkruntime.ArrayElement[] = [];
+    let index: number = 0;
+    while (index < input.values.length) {
+        const cell: checkruntime.ArrayElement = checkruntime.arrayElementFromXml(langruntime.indexStruct(input.values, langruntime.checkedIndex(index), checkruntime.copyXmlValue));
+        langruntime.pushStruct(elements, cell, checkruntime.copyArrayElement);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    if (elements.length > 0) {
+        langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(elements.length)) }, checkruntime.copyArrayDimension);
+    }
+    const payload: checkruntime.ArrayPayload = { elementType: "pg_catalog.xml", elementKind: 45, dimensions: dimensions, elements: elements, nullBitmap: { kind: "Value", value: false } };
+    return { kind: "Value", value: payload };
+}
+export function xpathSqlExecute(expression: checkruntime.TextValue, input: checkruntime.XmlValue, mappings: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, precisionKnown: boolean, serialize: boolean): XPathSqlResult {
+    if (expression.kind === "Error") {
+        const error: checkruntime.SqlError = expression.value;
+        return xpathSqlError(error);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return xpathSqlError(error);
+    }
+    if (mappings.kind === "Error") {
+        const error: checkruntime.SqlError = mappings.value;
+        return xpathSqlError(error);
+    }
+    let isNull: boolean = false;
+    if (expression.kind === "Null") {
+        isNull = langruntime.checkedBool(true);
+    }
+    if (input.kind === "Null") {
+        isNull = langruntime.checkedBool(true);
+    }
+    if (mappings.kind === "Null") {
+        isNull = langruntime.checkedBool(true);
+    }
+    if (isNull) {
+        return { state: xpathSqlNull, present: { kind: "Null" }, output: { kind: "Null" } };
+    }
+    let path: string = "";
+    let source: string = "";
+    let rendered: boolean = false;
+    let knownPath: boolean = false;
+    let knownInput: boolean = false;
+    if (expression.kind === "Value") {
+        const value: string = langruntime.checkedString(expression.value);
+        path = langruntime.checkedString(value);
+        knownPath = langruntime.checkedBool(true);
+    }
+    const stored: checkruntime.XmlValue = input;
+    if (stored.kind === "Value") {
+        const value: string = langruntime.checkedString(stored.value);
+        source = langruntime.checkedString(value);
+        knownInput = langruntime.checkedBool(true);
+    }
+    if (input.kind === "RenderedText") {
+        const value: string = langruntime.checkedString(input.value);
+        source = langruntime.checkedString(value);
+        knownInput = langruntime.checkedBool(true);
+        rendered = langruntime.checkedBool(true);
+    }
+    if (knownPath === false || knownInput === false) {
+        return xpathSqlUnknown(xpathSqlInput);
+    }
+    if (mappings.kind === "Value") {
+        const mapping: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(mappings.value);
+        if (!(mapping.elementType === "pg_catalog.text") || !(mapping.elementKind === 8)) {
+            return xpathSqlUnknown(xpathSqlInput);
+        }
+        if (!(mapping.dimensions.length === 0) && (!(mapping.dimensions.length === 2) || !(langruntime.indexStruct(mapping.dimensions, langruntime.checkedIndex(1), checkruntime.copyArrayDimension).length === 2))) {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateXmlNamespaceArray));
+        }
+        if (!(langruntime.checkedSignedRemainder((langruntime.checkedI32(langruntime.checkedIndex(mapping.elements.length))), 2) === 0) || (mapping.dimensions.length === 0 && !(mapping.elements.length === 0))) {
+            return xpathSqlUnknown(xpathSqlInput);
+        }
+        if (path === "") {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXpath));
+        }
+        if (utf8 === false) {
+            return xpathSqlUnknown(xpathSqlEncoding);
+        }
+        if (rendered) {
+            const characters: XmlSource = { characters: Array.from(source) };
+            const declaration: XmlDeclaration = copyXmlDeclaration(xmlParseDeclaration(characters, 0, false));
+            if (declaration.valid === false) {
+                return xpathSqlUnknown(xpathSqlStorage);
+            }
+        }
+        const content: string = xmlQueryContent(source);
+        if (xmlQueryWellFormed(content) === false) {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXmlDocument));
+        }
+        const document: XPathDocument = xpathDocumentParse(content);
+        const tree: XmlTree = document.tree;
+        const graph: XPathGraph = document.graph;
+        if (graph.ids.valid === false || xmlQueryNamesValid(tree) === false) {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXmlDocument));
+        }
+        let namespaces: XPathNamespaces = xpathNamespacesEmpty();
+        let index: number = 0;
+        while (index < mapping.elements.length) {
+            const prefix: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(mapping.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+            const uri: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(mapping.elements, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), checkruntime.copyArrayElement));
+            if (prefix.kind === "Null") {
+                return xpathSqlError(checkruntime.makeSqlError(sqlstateXmlNamespaceNull));
+            }
+            if (uri.kind === "Null") {
+                return xpathSqlError(checkruntime.makeSqlError(sqlstateXmlNamespaceNull));
+            }
+            let name: string = "";
+            let address: string = "";
+            let nameKnown: boolean = false;
+            let uriKnown: boolean = false;
+            if (prefix.kind === "Text") {
+                const value: string = langruntime.checkedString(prefix.value);
+                name = langruntime.checkedString(value);
+                nameKnown = langruntime.checkedBool(true);
+            }
+            if (uri.kind === "Text") {
+                const value: string = langruntime.checkedString(uri.value);
+                address = langruntime.checkedString(value);
+                uriKnown = langruntime.checkedBool(true);
+            }
+            if (nameKnown === false || uriKnown === false) {
+                return xpathSqlUnknown(xpathSqlNamespaces);
+            }
+            if (name === "") {
+                return xpathSqlError(checkruntime.makeSqlError(sqlstateXmlNamespaceRegister));
+            }
+            namespaces = xpathNamespacesPush(namespaces, name, address);
+            index = langruntime.checkedAdd(index, 2);
+        }
+        const program: XPathProgram = xpathCompileWithLimit(path, limit);
+        const powers: XPathPowers = xpathPowersEmpty();
+        const value: XPathValue = xpathEvaluate(program, tree, graph, namespaces, powers);
+        if (value.state < 0) {
+            return xpathSqlError(checkruntime.makeSqlError(sqlstateInvalidXpath));
+        }
+        if (!(value.state === 0)) {
+            return xpathSqlUnknown(value.state);
+        }
+        const present: checkruntime.BoolValue = xpathResultExists(value);
+        if (serialize === false) {
+            return { state: 0, present: present, output: { kind: "Unknown" } };
+        }
+        const result: XPathXmlResult = xpathResultToXml(value, tree, graph, extra, precisionKnown);
+        const state: number = result.state;
+        const output: checkruntime.ArrayValue = xpathSqlArray(result);
+        return { state: state, present: present, output: output };
+    }
+    return xpathSqlUnknown(xpathSqlInput);
+}
+export function xpathAbvz(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.ArrayValue {
+    namespaces = checkruntime.copyArrayValue(namespaces);
+    utf8 = langruntime.checkedBool(utf8);
+    limit = langruntime.checkedI32(limit);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true);
+    return result.output;
+}
+export function xpathNuen(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.ArrayValue {
+    utf8 = langruntime.checkedBool(utf8);
+    limit = langruntime.checkedI32(limit);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const namespaces: checkruntime.ArrayValue = xpathSqlEmptyNamespaces();
+    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, true);
+    return result.output;
+}
+export function xpathExists1hns(expression: checkruntime.TextValue, input: checkruntime.XmlValue, namespaces: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+    namespaces = checkruntime.copyArrayValue(namespaces);
+    utf8 = langruntime.checkedBool(utf8);
+    limit = langruntime.checkedI32(limit);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false);
+    return result.present;
+}
+export function xpathExistsS9ul(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+    utf8 = langruntime.checkedBool(utf8);
+    limit = langruntime.checkedI32(limit);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const namespaces: checkruntime.ArrayValue = xpathSqlEmptyNamespaces();
+    const result: XPathSqlResult = xpathSqlExecute(expression, input, namespaces, utf8, limit, extra, known, false);
+    return result.present;
+}
+export function xmlexists3gat(expression: checkruntime.TextValue, input: checkruntime.XmlValue, utf8: boolean, limit: number, extra: number, known: boolean): checkruntime.BoolValue {
+    utf8 = langruntime.checkedBool(utf8);
+    limit = langruntime.checkedI32(limit);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    return xpathExistsS9ul(expression, input, utf8, limit, extra, known);
+}
 function xpathStringFind(input: string, needle: string): number {
     input = langruntime.checkedString(input);
     needle = langruntime.checkedString(needle);
