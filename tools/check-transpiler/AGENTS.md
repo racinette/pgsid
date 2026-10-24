@@ -20,8 +20,11 @@ change to the regex transpiler unless the regex engine itself changes.
   ownership transfers and explicit clones. Private helpers borrow declared records
   without copying their storage; Rust forbids mutation or moving fields through
   those shared references. Crate-visible functions transfer already checked owned
-  values without boundary copies; their shared borrows retain storage. Public
-  parameters retain boundary validation, and explicit clones always copy. XML scans
+  values without boundary copies; their shared borrows retain storage.
+  Internal owned records may use crate visibility with private fields so helpers
+  in another source module can borrow metadata and then consume their payload.
+  They retain internal transfer semantics and do not become public row wrappers.
+  Public parameters retain boundary validation, and explicit clones always copy. XML scans
   need these borrows to inspect a name-sized buffer without copying it per character.
   Run `check-borrowed-state.test.ts` for bounded scanning and ownership after a borrow.
 - Source groups and generated files must have explicit ownership. PostgreSQL

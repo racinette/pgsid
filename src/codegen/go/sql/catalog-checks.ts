@@ -704,7 +704,21 @@ export function renderGoSchemaCheckArtifacts(
               : []),
           ])
         })
+        const diagnosticEvaluation = prepared.diagnosticEntryName
+          ? go.call(
+              go.selector(
+                go.ident('checkrust'),
+                prepared.diagnosticEntryName.replace(
+                  /(^|_)([a-z0-9])/gu,
+                  (_, _separator, part: string) => part.toUpperCase(),
+                ),
+              ),
+              arguments_,
+            )
+          : undefined
+        if (diagnosticEvaluation) rustInputAdapters.add('checkRustEvaluation')
         return {
+          ...(diagnosticEvaluation ? { diagnosticEvaluation } : {}),
           value: {
             expression: go.call(go.ident('checkRustOutcome'), [
               go.call(
@@ -902,12 +916,19 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
                 go.composite(
                   go.slice(resultType),
                   results.map((result, index) =>
-                    go.call(go.ident('checkEvaluation'), [
-                      go.string(checks[index]!.owner),
-                      go.string(checks[index]!.plan.name),
-                      result.value.expression,
-                      go.string(result.unknownMessage),
-                    ]),
+                    'diagnosticEvaluation' in result && result.diagnosticEvaluation
+                      ? go.call(go.ident('checkRustEvaluation'), [
+                          go.string(checks[index]!.owner),
+                          go.string(checks[index]!.plan.name),
+                          result.diagnosticEvaluation,
+                          go.string(result.unknownMessage),
+                        ])
+                      : go.call(go.ident('checkEvaluation'), [
+                          go.string(checks[index]!.owner),
+                          go.string(checks[index]!.plan.name),
+                          result.value.expression,
+                          go.string(result.unknownMessage),
+                        ]),
                   ),
                 ),
               ),
@@ -1770,6 +1791,11 @@ func checkRustState(value string) (checkruntime.SqlError, bool) {
   state, error := strconv.ParseUint(value, 36, 32)
   if error != nil { return checkruntime.SqlError{}, false }
   return checkruntime.MakeSqlError(int(state)), true
+}
+func checkRustEvaluation(owner,constraint string,value checkruntime.CheckEvaluationResult,fallback string) CheckEvaluation {
+ description:=checkruntime.CheckRequirementMessage(value.Reason)
+ if description.Kind==checkruntime.TextValueValue {fallback=description.Value}
+ return checkEvaluation(owner,constraint,checkRustOutcome(value.Outcome),fallback)
 }
 func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
   switch value.Kind {

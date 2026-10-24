@@ -9,12 +9,16 @@ import ts from 'typescript'
 import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
 
 const source = `
-struct XmlBuffer { characters: Vec<char> }
-fn xml_read_character(input: &XmlBuffer, position: usize) -> char {
+#[derive(Clone)]
+pub(crate) struct XmlBuffer { characters: Vec<char> }
+pub(crate) fn xml_make_buffer(input: &str) -> XmlBuffer {
+    XmlBuffer { characters: input.chars().collect() }
+}
+pub(crate) fn xml_read_character(input: &XmlBuffer, position: usize) -> char {
     input.characters[position]
 }
 pub fn evaluate_check_borrowed_scan(input: &str) -> i32 {
-    let buffer = XmlBuffer { characters: input.chars().collect() };
+    let buffer = xml_make_buffer(input);
     let mut position: usize = 0;
     let mut count: i32 = 0;
     while position < buffer.characters.len() {
@@ -31,6 +35,11 @@ pub fn evaluate_check_borrow_then_move(input: &str) -> bool {
     characters[0] = 'b';
     let replacement = XmlBuffer { characters: characters };
     original == 'a' && xml_read_character(&replacement, 0) == 'b'
+}
+pub fn evaluate_check_discarded_borrow(input: &str) -> bool {
+    let buffer = xml_make_buffer(input);
+    let _reason = xml_read_character(&buffer, 1);
+    true
 }
 `
 
@@ -51,6 +60,21 @@ describe('CHECK private borrowed state', () => {
     ).toBe(50000)
     expect(runInContext('exports.evaluateCheckBorrowedScan("a😊éa")', context)).toBe(2)
     expect(runInContext('exports.evaluateCheckBorrowThenMove("a😊é")', context)).toBe(true)
+    expect(runInContext('exports.evaluateCheckDiscardedBorrow("a😊")', context)).toBe(true)
+    expect(() => runInContext('exports.evaluateCheckDiscardedBorrow("a")', context)).toThrow()
+    expect(
+      runInContext(
+        `(() => {
+      const buffer = exports.xmlMakeBuffer('a😊é');
+      buffer.characters = new Proxy(buffer.characters, {get(target, key) {
+        if (key === Symbol.iterator || key === 'slice' || key === 'map') throw new Error('borrow copied storage');
+        return Reflect.get(target, key);
+      }});
+      return exports.xmlReadCharacter(buffer, 1);
+    })()`,
+        context,
+      ),
+    ).toBe('😊')
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-borrowed-state-'))
     const run = promisify(execFile)
     try {
@@ -64,6 +88,8 @@ func TestBorrowedBuffer(t *testing.T) {
  if EvaluateCheckBorrowedScan(strings.Repeat("a", 50000)) != 50000 { t.Fatal("large buffer") }
  if EvaluateCheckBorrowedScan("a😊éa") != 2 { t.Fatal("Unicode buffer") }
  if !EvaluateCheckBorrowThenMove("a😊é") { t.Fatal("ownership after borrowing") }
+ if !EvaluateCheckDiscardedBorrow("a😊") { t.Fatal("discarded diagnostic") }
+ func(){defer func(){if recover()==nil {t.Fatal("discarded borrow was skipped")}}(); EvaluateCheckDiscardedBorrow("a")}()
 }`,
       )
       await writeFile(
@@ -74,6 +100,8 @@ func TestBorrowedBuffer(t *testing.T) {
  assert_eq!(evaluate_check_borrowed_scan(&"a".repeat(50000)), 50000);
  assert_eq!(evaluate_check_borrowed_scan("a😊éa"), 2);
  assert!(evaluate_check_borrow_then_move("a😊é"));
+ assert!(evaluate_check_discarded_borrow("a😊"));
+ assert!(std::panic::catch_unwind(|| evaluate_check_discarded_borrow("a")).is_err());
 }`,
       )
       await run('rustc', ['--test', join(directory, 'buffer.rs'), '-o', join(directory, 'buffer')])

@@ -414,6 +414,59 @@ pub enum CheckOutcome {
     Error(SqlError),
 }
 
+#[derive(Clone, Copy)]
+pub struct CheckEvaluationResult { pub outcome: CheckOutcome, pub reason: i32 }
+
+pub fn make_check_evaluation_result(outcome: CheckOutcome, reason: i32) -> CheckEvaluationResult { CheckEvaluationResult {outcome,reason} }
+pub fn check_evaluation_outcome(input: CheckEvaluationResult) -> CheckOutcome { input.outcome }
+pub fn check_evaluation_reason(input: CheckEvaluationResult) -> Int4Value { Int4Value::Value(input.reason) }
+pub fn check_requirement_code(input: i32) -> i32 { input }
+
+pub fn check_requirement_merge(left: i32, right: i32) -> i32 {
+    if left < 0 || right < 0 || left > 511 || right > 511 { return -1; };
+    let mut a = left; let mut b = right; let mut weight: i32 = 1; let mut output: i32 = 0;
+    while a > 0 || b > 0 {
+        if a%2 != 0 || b%2 != 0 { output = output+weight; };
+        a = a/2; b = b/2; weight = weight*2;
+    }
+    output
+}
+
+pub fn check_requirement_filter(nullness: BoolValue, reason: i32, partial: bool) -> i32 {
+    if nullness == BoolValue::Unknown {
+        if reason > 0 { return reason; }; return -1;
+    };
+    if partial && nullness == BoolValue::Value(false) { return reason; };
+    0
+}
+
+pub fn check_xml_requirement(input: XmlValue, reason: i32) -> i32 {
+    if let XmlValue::RenderedText(_) = input { return -1; };
+    let nullness = xml_is_null(input);
+    check_requirement_filter(nullness,reason,false)
+}
+
+pub fn check_requirement_for_outcome(input: CheckOutcome, reason: i32) -> i32 {
+    if input == CheckOutcome::Unknown { return reason; };
+    0
+}
+
+pub fn check_requirement_message(reason: i32) -> TextValue {
+    if reason <= 0 || reason > 511 { return TextValue::Unknown; };
+    let mut output = String::new();
+    if (reason/1)%2 != 0 { output.push_str("XPath decimal conversion needs sql.codegen.checks.xpathPowerOfTenBits captured from the target PostgreSQL. "); };
+    if (reason/2)%2 != 0 { output.push_str("XPath evaluation reaches a cyclic XML traversal that cannot be completed locally. "); };
+    if (reason/4)%2 != 0 { output.push_str("The reached XPath operation or XML serialization is not implemented by the local evaluator. "); };
+    if (reason/8)%2 != 0 { output.push_str("XPath evaluation needs sql.codegen.checks.xpathRecursionLimit for the target PostgreSQL XML library. "); };
+    if (reason/16)%2 != 0 { output.push_str("XPath numeric XML output needs sql.codegen.checks.extraFloatDigits matching the PostgreSQL session. "); };
+    if (reason/32)%2 != 0 { output.push_str("XPath document serialization depends on unavailable native XML notation ordering. "); };
+    if (reason/64)%2 != 0 { output.push_str("XPath evaluation needs sql.codegen.checks.serverEncoding: UTF8. "); };
+    if (reason/128)%2 != 0 { output.push_str("XPath evaluation needs the original XML storage bytes for this rendered value. "); };
+    if (reason/256)%2 != 0 { output.push_str("XPath evaluation needs complete namespace mapping values. "); };
+    if output.as_str() == "" { return TextValue::Unknown; };
+    TextValue::Value(output)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SqlError {
     pub state: u32,

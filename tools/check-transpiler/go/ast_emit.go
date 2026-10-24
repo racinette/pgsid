@@ -442,6 +442,9 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				value = goTextBuffer(value)
 			}
 			result = append(result, goAssign(goIdent(generated), value, token.DEFINE))
+			if strings.HasPrefix(statement.Binding.Name, "_") {
+				result = append(result, goAssign(goIdent("_"), goIdent(generated), token.ASSIGN))
+			}
 			continue
 		}
 		if statement.Kind != "expression" || statement.Value == nil {
