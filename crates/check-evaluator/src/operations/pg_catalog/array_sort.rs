@@ -478,6 +478,29 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
         return array_element_to_circle(left) == array_element_to_circle(right);
     };
     if kind == 46 { return array_element_to_aclitem(left) == array_element_to_aclitem(right); };
+    if kind == 47 {
+        let first_vector = array_element_to_tsvector(left);
+        let second_vector = array_element_to_tsvector(right);
+        if let TsvectorValue::Value(first) = first_vector {
+            if let TsvectorValue::Value(second) = second_vector {
+                if first.native_bytes != second.native_bytes || first.lexemes.len() != second.lexemes.len() { return false; };
+                let mut lexeme: usize = 0;
+                while lexeme < first.lexemes.len() {
+                    if first.lexemes[lexeme].text != second.lexemes[lexeme].text || first.lexemes[lexeme].positions.len() != second.lexemes[lexeme].positions.len() { return false; };
+                    let mut position: usize = 0;
+                    while position < first.lexemes[lexeme].positions.len() {
+                        let a = first.lexemes[lexeme].positions[position];
+                        let b = second.lexemes[lexeme].positions[position];
+                        if a.position != b.position || a.weight != b.weight { return false; };
+                        position += 1;
+                    }
+                    lexeme += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
     if kind == 31 {
         return array_element_to_money(left) == array_element_to_money(right);
     };

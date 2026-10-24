@@ -3001,6 +3001,37 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     if (kind === 46) {
         return checkruntime.equalAclitemValue(checkruntime.arrayElementToAclitem(left), checkruntime.arrayElementToAclitem(right));
     }
+    if (kind === 47) {
+        const firstVector: checkruntime.TsvectorValue = checkruntime.arrayElementToTsvector(left);
+        const secondVector: checkruntime.TsvectorValue = checkruntime.arrayElementToTsvector(right);
+        if (firstVector.kind === "Value") {
+            const first: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(firstVector.value);
+            if (secondVector.kind === "Value") {
+                const second: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(secondVector.value);
+                if (!(first.nativeBytes === second.nativeBytes) || !(first.lexemes.length === second.lexemes.length)) {
+                    return false;
+                }
+                let lexeme: number = 0;
+                while (lexeme < first.lexemes.length) {
+                    if (!(langruntime.indexStruct(first.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).text === langruntime.indexStruct(second.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).text) || !(langruntime.indexStruct(first.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).positions.length === langruntime.indexStruct(second.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).positions.length)) {
+                        return false;
+                    }
+                    let position: number = 0;
+                    while (position < langruntime.indexStruct(first.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).positions.length) {
+                        const a: checkruntime.TsvectorPosition = langruntime.indexStruct(langruntime.indexStruct(first.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).positions, langruntime.checkedIndex(position), checkruntime.copyTsvectorPosition);
+                        const b: checkruntime.TsvectorPosition = langruntime.indexStruct(langruntime.indexStruct(second.lexemes, langruntime.checkedIndex(lexeme), checkruntime.copyTsvectorLexeme).positions, langruntime.checkedIndex(position), checkruntime.copyTsvectorPosition);
+                        if (!(a.position === b.position) || !(a.weight === b.weight)) {
+                            return false;
+                        }
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    lexeme = langruntime.checkedAdd(lexeme, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     if (kind === 31) {
         return checkruntime.equalMoneyValue(checkruntime.arrayElementToMoney(left), checkruntime.arrayElementToMoney(right));
     }
@@ -17303,6 +17334,10 @@ export function jsonbInputFromBytea(input: checkruntime.ByteaValue): checkruntim
         return { kind: "Null" };
     }
     return { kind: "Unknown" };
+}
+export function jsonbInputFromTsvector(input: checkruntime.TsvectorValue): checkruntime.JsonbInput {
+    input = checkruntime.copyTsvectorValue(input);
+    return checkruntime.jsonbInputFromText(tsvectorToText(input));
 }
 export function jsonbInputFromAclitem(input: checkruntime.AclitemValue): checkruntime.JsonbInput {
     return checkruntime.jsonbInputFromText(aclitemToText(input));
@@ -46623,6 +46658,11 @@ function tsvectorCompare(left: checkruntime.TsvectorValue, right: checkruntime.T
         }
     }
     return { kind: "Unknown" };
+}
+export function tsvectorOrder(left: checkruntime.TsvectorValue, right: checkruntime.TsvectorValue): checkruntime.Int4Value {
+    left = checkruntime.copyTsvectorValue(left);
+    right = checkruntime.copyTsvectorValue(right);
+    return tsvectorCompare(left, right, false);
 }
 export function tsvectorCmpXinv(left: checkruntime.TsvectorValue, right: checkruntime.TsvectorValue): checkruntime.Int4Value {
     left = checkruntime.copyTsvectorValue(left);

@@ -357,7 +357,7 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
     let mut index: usize = 0;
     while index < profile.nodes.len() {
         let node = profile.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 46 {
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 47 {
             return false;
         };
         if node.kind >= 41 && node.kind <= 43 {

@@ -3003,6 +3003,37 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	if kind == 46 {
 		return checkruntime.ArrayElementToAclitem(left) == checkruntime.ArrayElementToAclitem(right)
 	}
+	if kind == 47 {
+		firstVector := checkruntime.ArrayElementToTsvector(left)
+		secondVector := checkruntime.ArrayElementToTsvector(right)
+		if firstVector.Kind == checkruntime.TsvectorValueValue {
+			first := checkruntime.CopyTsvectorPayload(firstVector.Value)
+			if secondVector.Kind == checkruntime.TsvectorValueValue {
+				second := checkruntime.CopyTsvectorPayload(secondVector.Value)
+				if first.NativeBytes != second.NativeBytes || len(first.Lexemes) != len(second.Lexemes) {
+					return false
+				}
+				lexeme := 0
+				for lexeme < len(first.Lexemes) {
+					if first.Lexemes[lexeme].Text != second.Lexemes[lexeme].Text || len(first.Lexemes[lexeme].Positions) != len(second.Lexemes[lexeme].Positions) {
+						return false
+					}
+					position := 0
+					for position < len(first.Lexemes[lexeme].Positions) {
+						a := first.Lexemes[lexeme].Positions[position]
+						b := second.Lexemes[lexeme].Positions[position]
+						if a.Position != b.Position || a.Weight != b.Weight {
+							return false
+						}
+						position = langruntime.CheckedAdd(position, 1)
+					}
+					lexeme = langruntime.CheckedAdd(lexeme, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if kind == 31 {
 		return checkruntime.ArrayElementToMoney(left) == checkruntime.ArrayElementToMoney(right)
 	}
@@ -17206,6 +17237,10 @@ func JsonbInputFromBytea(input checkruntime.ByteaValue) checkruntime.JsonbInput 
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromTsvector(input checkruntime.TsvectorValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyTsvectorValue(input)
+	return checkruntime.JsonbInputFromText(TsvectorToText(input))
 }
 func JsonbInputFromAclitem(input checkruntime.AclitemValue) checkruntime.JsonbInput {
 	return checkruntime.JsonbInputFromText(AclitemToText(input))
@@ -46352,6 +46387,11 @@ func tsvectorCompare(left checkruntime.TsvectorValue, right checkruntime.Tsvecto
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TsvectorOrder(left checkruntime.TsvectorValue, right checkruntime.TsvectorValue) checkruntime.Int4Value {
+	left = checkruntime.CopyTsvectorValue(left)
+	right = checkruntime.CopyTsvectorValue(right)
+	return tsvectorCompare(left, right, false)
 }
 func TsvectorCmpXinv(left checkruntime.TsvectorValue, right checkruntime.TsvectorValue) checkruntime.Int4Value {
 	left = checkruntime.CopyTsvectorValue(left)

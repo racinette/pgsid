@@ -7610,6 +7610,9 @@ export type ArrayElement = {
 } | {
     readonly kind: "Aclitem";
     readonly value: AclitemPayload;
+} | {
+    readonly kind: "Tsvector";
+    readonly value: TsvectorPayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7670,10 +7673,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "XmlNonNull": return { kind: "XmlNonNull", value: value.value };
         case "TextNonNull": return { kind: "TextNonNull" };
         case "Aclitem": return { kind: "Aclitem", value: value.value };
+        case "Tsvector": return { kind: "Tsvector", value: copyTsvectorPayload(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Tsvector") {
+        return 47;
+    }
     if (input.kind === "Aclitem") {
         return 46;
     }
@@ -9212,6 +9219,36 @@ export function arrayElementToAclitem(input: ArrayElement): AclitemValue {
     }
     return { kind: "Unknown" };
 }
+export function arrayElementFromTsvector(input: TsvectorValue): ArrayElement {
+    input = copyTsvectorValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: TsvectorPayload = copyTsvectorPayload(input.value);
+        return { kind: "Tsvector", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTsvector(input: ArrayElement): TsvectorValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Tsvector") {
+        const value: TsvectorPayload = copyTsvectorPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
 export interface CompositePayload {
     readonly typeName: string;
     readonly fields: ArrayElement[];
@@ -9524,7 +9561,7 @@ function compositeTypeContextValid(context: CompositeTypeContext): boolean {
     let index: number = 0;
     while (index < context.nodes.length) {
         const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 46) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 47) {
             return false;
         }
         if (node.kind === 41 && (node.elementType === "" || node.child >= context.nodes.length)) {
@@ -9625,6 +9662,10 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
     return rangePrepareProfiledBound(input, profile);
 }
 export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement {
+    if (checked.kind === "Tsvector") {
+        const payload: TsvectorPayload = copyTsvectorPayload(checked.value);
+        return arrayElementFromTsvector(makeTsvectorValue(payload));
+    }
     if (checked.kind === "Enum") {
         const payload: EnumPayload = checked.value;
         return arrayElementFromEnum(makeEnumValue(payload.ordinal));
@@ -10123,7 +10164,7 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
     let index: number = 0;
     while (index < profile.nodes.length) {
         const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 46) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 47) {
             return false;
         }
         if (node.kind >= 41 && node.kind <= 43) {
@@ -11505,6 +11546,10 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
 }
 function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     element = copyArrayElement(element);
+    if (element.kind === "Tsvector") {
+        const value: TsvectorPayload = copyTsvectorPayload(element.value);
+        return arrayElementFromTsvector(makeTsvectorValue(value));
+    }
     if (element.kind === "Aclitem") {
         const value: AclitemPayload = element.value;
         return arrayElementFromAclitem(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions));
@@ -11551,7 +11596,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         if (checked.kind === "Unknown") {
             const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
-            if ((family >= 41 && family <= 44) || family === 46) {
+            if ((family >= 41 && family <= 44) || family === 46 || family === 47) {
                 return { kind: "Unknown" };
             }
         }
@@ -11559,7 +11604,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 46) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 47) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
