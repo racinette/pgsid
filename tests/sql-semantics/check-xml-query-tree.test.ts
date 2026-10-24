@@ -54,7 +54,7 @@ pub fn xml_query_tree_probe(input: TextValue, expected: TextValue, mode: i32) ->
  if let TextValue::Null = input { return BoolValue::Null; };
  if let TextValue::Value(raw) = input {
   let input = xml_query_content(raw.as_str());
-  if xml_well_formed(input.as_str(),true) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
+  if xml_query_well_formed(input.as_str()) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
   let tree = xml_tree_parse(input.as_str(),true,true);
   if xml_query_names_valid(&tree) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
   let mut count: i32 = 0; let mut output = String::new(); let mut first = true;
@@ -130,6 +130,21 @@ pub fn xml_query_tree_probe(input: TextValue, expected: TextValue, mode: i32) ->
       '<!DOCTYPE r [<!ENTITY e "">]><r>a&e;b</r>',
       '<!DOCTYPE r [<!ATTLIST r xmlns CDATA "urn:r" xmlns:p CDATA "urn:p" p:x CDATA "default">]><r/>',
       '<!DOCTYPE r [<!ATTLIST r a NMTOKENS " x  y ">]><r a=" x  y "/>',
+      '<!DOCTYPE r [<!ATTLIST r p:a CDATA "x">]><r/>',
+      '<!DOCTYPE r [<!ATTLIST r p:a CDATA "x">]><r xmlns:p="urn:p" xmlns:q="urn:p" q:a="y"/>',
+      '<!DOCTYPE r [<!ATTLIST r p:a CDATA "x" q:a CDATA "y">]><r xmlns:p="urn:p" xmlns:q="urn:p"/>',
+      '<!DOCTYPE r [<!ATTLIST r p:a CDATA "x">]><r xmlns:p="urn:p" p:a="override"/>',
+      '<!DOCTYPE r [<!ATTLIST r p:a CDATA "x">]><r xmlns:p="urn:p"/>',
+      ...['a:b:c', 'p:1a', ':a', 'a:', ':', ':a:'].map(
+        (name) =>
+          `<!DOCTYPE r [<!ATTLIST r ${name} CDATA "x">]><r xmlns:a="urn:a" xmlns:p="urn:p"/>`,
+      ),
+      ...['', 'wrong', 'http://www.w3.org/XML/1998/namespace', 'http://www.w3.org/2000/xmlns/'].map(
+        (uri) => `<!DOCTYPE p:r [<!ATTLIST p:r xmlns:p CDATA "${uri}">]><p:r/>`,
+      ),
+
+      '<!DOCTYPE r [<!ATTLIST c p:a CDATA "x">]><r xmlns:p="urn:p"><c xmlns:p="urn:q"/></r>',
+
       '<!DOCTYPE r [<!ELEMENT r (a)><!ELEMENT a EMPTY>]><r> <a/> </r>',
       '<!DOCTYPE r [<!NOTATION a SYSTEM "a"><!NOTATION b SYSTEM "b">]><r/>',
       '<p:r/>',
@@ -279,7 +294,7 @@ pub fn xml_query_tree_probe(input: TextValue, expected: TextValue, mode: i32) ->
           expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
         },
       )
-    const packet = 'artifacts/goal-checks/xml-xpath-tree-active'
+    const packet = 'artifacts/goal-checks/xml-query-policy-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/tree-reference.json',

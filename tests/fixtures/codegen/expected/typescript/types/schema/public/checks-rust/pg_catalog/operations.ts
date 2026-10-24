@@ -47097,6 +47097,11 @@ function xmlEntityLookup(arena: XmlEntityArena, name: string, parameter: boolean
     parameter = langruntime.checkedBool(parameter);
     const text: string = arena.arena;
     const source: XmlSource = { characters: Array.from(text) };
+    return xmlEntityLookupSource(arena, source, name, parameter);
+}
+function xmlEntityLookupSource(arena: XmlEntityArena, source: XmlSource, name: string, parameter: boolean): number {
+    name = langruntime.checkedString(name);
+    parameter = langruntime.checkedBool(parameter);
     let index: number = 0;
     while (index < arena.entities.length) {
         const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
@@ -47767,9 +47772,11 @@ interface XmlParsedEntity {
     index: number;
     nodes: XmlNodeList;
     cost: bigint;
+    baseDepth: number;
+    entityDepth: number;
 }
 function copyXmlParsedEntity(value: XmlParsedEntity): XmlParsedEntity {
-    return { index: langruntime.checkedIndex(value.index), nodes: copyXmlNodeList(value.nodes), cost: langruntime.checkedI64(value.cost) };
+    return { index: langruntime.checkedIndex(value.index), nodes: copyXmlNodeList(value.nodes), cost: langruntime.checkedI64(value.cost), baseDepth: langruntime.checkedIndex(value.baseDepth), entityDepth: langruntime.checkedIndex(value.entityDepth) };
 }
 interface XmlEntityCache {
     entries: XmlParsedEntity[];
@@ -48212,13 +48219,14 @@ function xmlPredefinedReference(source: XmlSource, start: number): boolean {
     start = langruntime.checkedIndex(start);
     return xmlAt(source, start, "&#") || xmlAt(source, start, "&amp;") || xmlAt(source, start, "&lt;") || xmlAt(source, start, "&gt;") || xmlAt(source, start, "&quot;") || xmlAt(source, start, "&apos;");
 }
-function xmlParseAttribute(source: XmlSource, start: number, arena: XmlEntityArena, entityDepth: number, priorCost: bigint, inputStart: number, normalize: boolean, owned: boolean): XmlAttributeScan {
+function xmlParseAttributePolicy(source: XmlSource, start: number, arena: XmlEntityArena, entityDepth: number, priorCost: bigint, inputStart: number, normalize: boolean, owned: boolean, preserve: boolean): XmlAttributeScan {
     start = langruntime.checkedIndex(start);
     entityDepth = langruntime.checkedIndex(entityDepth);
     priorCost = langruntime.checkedI64(priorCost);
     inputStart = langruntime.checkedIndex(inputStart);
     normalize = langruntime.checkedBool(normalize);
     owned = langruntime.checkedBool(owned);
+    preserve = langruntime.checkedBool(preserve);
     let position: number = start;
     let cost: bigint = priorCost;
     if (position >= source.characters.length || (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "'") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\""))) {
@@ -48254,17 +48262,18 @@ function xmlParseAttribute(source: XmlSource, start: number, arena: XmlEntityAre
     let valid: boolean = position < source.characters.length;
     const bound: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(xmlConsumed(source, langruntime.checkedAdd(start, 1), position), cost), priorCost);
     if (valid && bound > 9999996n) {
-        const buffer: XmlValueBuffer = copyXmlValueBuffer(xmlWalkValue(source, { start: langruntime.checkedAdd(start, 1), end: position }, xmlNewValue(owned), arena, normalize, 0, false));
+        const buffer: XmlValueBuffer = copyXmlValueBuffer(xmlWalkValuePolicy(source, { start: langruntime.checkedAdd(start, 1), end: position }, xmlNewValue(owned), arena, normalize, 0, false, preserve));
         valid = langruntime.checkedBool(buffer.valid);
     }
     return { next: langruntime.checkedAdd(position, 1), valid: valid, cost: cost };
 }
-function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: XmlEntityArena, baseDepth: number, entityDepth: number, inputCache: XmlEntityCache): XmlMarkupResult {
+function xmlMarkupPolicy(source: XmlSource, start: number, document: boolean, arena: XmlEntityArena, baseDepth: number, entityDepth: number, inputCache: XmlEntityCache, query: boolean): XmlMarkupResult {
     start = langruntime.checkedIndex(start);
     document = langruntime.checkedBool(document);
     baseDepth = langruntime.checkedIndex(baseDepth);
     entityDepth = langruntime.checkedIndex(entityDepth);
     inputCache = copyXmlEntityCache(inputCache);
+    query = langruntime.checkedBool(query);
     if (entityDepth >= 20 || baseDepth >= 256) {
         return xmlMarkupInvalid();
     }
@@ -48280,6 +48289,9 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
     let namespaceCount: number = 0;
     let text: XmlTextState = copyXmlTextState(xmlNewText());
     let cache: XmlEntityCache = inputCache;
+    const storedSource: XmlSource = { characters: Array.from(arena.arena) };
+    let consumedPosition: number = 0;
+    let consumedBytes: bigint = 0n;
     while (position < source.characters.length) {
         const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
         if (xmlCharacter(character) === false) {
@@ -48386,7 +48398,10 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                         }
                         const quoted: number = xmlSkipSpace(source, langruntime.checkedAdd(equals, 1));
                         const tokenized: boolean = xmlAttributeTokenized(source, arena, opening, attributeName);
-                        const value: XmlAttributeScan = copyXmlAttributeScan(xmlParseAttribute(source, quoted, arena, entityDepth, cost, 0, tokenized, false));
+                        const attributeText: string = xmlSourceRange(source, attributeName);
+                        const attributeSource: XmlSource = { characters: Array.from(attributeText) };
+                        const namespace: boolean = attributeText === "xmlns" || xmlAt(attributeSource, 0, "xmlns:");
+                        const value: XmlAttributeScan = copyXmlAttributeScan(xmlParseAttributePolicy(source, quoted, arena, entityDepth, cost, 0, tokenized, false, query && namespace === false));
                         cost = langruntime.checkedI64(value.cost);
                         if (value.valid === false) {
                             return xmlMarkupInvalid();
@@ -48525,14 +48540,23 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
             }
             if (xmlPredefinedReference(source, position) === false) {
                 const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
-                const index: number = xmlEntityLookup(arena, name, false);
+                const index: number = xmlEntityLookupSource(arena, storedSource, name, false);
+                let parentDepth: number = langruntime.checkedAdd(baseDepth, depth);
+                if (document === false) {
+                    parentDepth = langruntime.checkedAdd(parentDepth, 1);
+                }
                 let entry: number = 0;
-                while (entry < cache.entries.length && !(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).index === index)) {
+                while (entry < cache.entries.length && (!(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).index === index) || (langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).nodes.count === 0 && (!(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).baseDepth === parentDepth) || !(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).entityDepth === entityDepth))))) {
                     entry = langruntime.checkedAdd(entry, 1);
                 }
                 if (entry < cache.entries.length) {
                     const cached: XmlParsedEntity = copyXmlParsedEntity(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity));
-                    text = copyXmlTextState(xmlTextEntity(text, cached.nodes, depth === 0));
+                    if (query) {
+                        text = copyXmlTextState(xmlTextEvent(text, 0, 0n, depth === 0));
+                    }
+                    else {
+                        text = copyXmlTextState(xmlTextEntity(text, cached.nodes, depth === 0));
+                    }
                     cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, cached.cost));
                 }
                 else {
@@ -48542,24 +48566,27 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                     }
                     const content: string = expanded.text;
                     const fragment: XmlSource = { characters: Array.from(content) };
-                    let parentDepth: number = langruntime.checkedAdd(baseDepth, depth);
-                    if (document === false) {
-                        parentDepth = langruntime.checkedAdd(parentDepth, 1);
-                    }
-                    const nested: XmlMarkupResult = xmlMarkup(fragment, 0, false, arena, parentDepth, langruntime.checkedAdd(entityDepth, 1), cache);
+                    const nested: XmlMarkupResult = xmlMarkupPolicy(fragment, 0, false, arena, parentDepth, langruntime.checkedAdd(entityDepth, 1), cache, query);
                     if (nested.valid === false) {
                         return xmlMarkupInvalid();
                     }
-                    text = copyXmlTextState(xmlTextEntity(text, nested.nodes, depth === 0));
+                    if (query) {
+                        text = copyXmlTextState(xmlTextEvent(text, 0, 0n, depth === 0));
+                    }
+                    else {
+                        text = copyXmlTextState(xmlTextEntity(text, nested.nodes, depth === 0));
+                    }
                     const expansionCost: bigint = langruntime.checkedI64Add(nested.cost, expanded.cost);
                     cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, expansionCost));
                     let entries: XmlParsedEntity[] = nested.cache;
-                    if (nested.nodes.count > 0 && index < arena.entities.length) {
-                        langruntime.pushStruct(entries, { index: index, nodes: copyXmlNodeList(nested.nodes), cost: expansionCost }, copyXmlParsedEntity);
+                    if (index < arena.entities.length) {
+                        langruntime.pushStruct(entries, { index: index, nodes: copyXmlNodeList(nested.nodes), cost: expansionCost, baseDepth: parentDepth, entityDepth: entityDepth }, copyXmlParsedEntity);
                     }
                     cache = copyXmlEntityCache({ entries: entries });
                 }
-                if (xmlAmplified(source, reference.next, cost)) {
+                consumedBytes = langruntime.checkedI64(langruntime.checkedI64Add(consumedBytes, xmlConsumed(source, consumedPosition, reference.next)));
+                consumedPosition = langruntime.checkedIndex(reference.next);
+                if (cost > 1000000n && langruntime.checkedI64Divide(cost, 5n) > consumedBytes) {
                     return xmlMarkupInvalid();
                 }
             }
@@ -48580,6 +48607,9 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
             else {
                 const scanned: XmlTextScan = copyXmlTextScan(xmlTextPlain(source, position, text, depth === 0));
                 text = copyXmlTextState(scanned.state);
+                if (query && entityDepth === 0 && text.bytes > 10000000n) {
+                    return xmlMarkupInvalid();
+                }
                 position = langruntime.checkedIndex(scanned.next);
             }
         }
@@ -48588,6 +48618,23 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
         }
     }
     return { valid: depth === 0 && (document === false || roots === 1), cost: cost, nodes: copyXmlNodeList(text.nodes), cache: cache.entries };
+}
+function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: XmlEntityArena, baseDepth: number, entityDepth: number, inputCache: XmlEntityCache): XmlMarkupResult {
+    start = langruntime.checkedIndex(start);
+    document = langruntime.checkedBool(document);
+    baseDepth = langruntime.checkedIndex(baseDepth);
+    entityDepth = langruntime.checkedIndex(entityDepth);
+    inputCache = copyXmlEntityCache(inputCache);
+    return xmlMarkupPolicy(source, start, document, arena, baseDepth, entityDepth, inputCache, false);
+}
+function xmlParseAttribute(source: XmlSource, start: number, arena: XmlEntityArena, entityDepth: number, priorCost: bigint, inputStart: number, normalize: boolean, owned: boolean): XmlAttributeScan {
+    start = langruntime.checkedIndex(start);
+    entityDepth = langruntime.checkedIndex(entityDepth);
+    priorCost = langruntime.checkedI64(priorCost);
+    inputStart = langruntime.checkedIndex(inputStart);
+    normalize = langruntime.checkedBool(normalize);
+    owned = langruntime.checkedBool(owned);
+    return xmlParseAttributePolicy(source, start, arena, entityDepth, priorCost, inputStart, normalize, owned, false);
 }
 function xmlQueryNamespaceAttributeText(name: string): boolean {
     name = langruntime.checkedString(name);
@@ -48770,6 +48817,319 @@ function xmlTreeSourceText(source: XmlSource, start: number, end: number, preser
     }
     return xmlTreeNormalize(source, start, end);
 }
+const xmlQueryBufferLimit = 10000000n;
+interface XmlQueryStream {
+    cursor: bigint;
+    base: bigint;
+    end: bigint;
+    total: bigint;
+    valid: boolean;
+    slow: boolean;
+}
+function copyXmlQueryStream(value: XmlQueryStream): XmlQueryStream {
+    return { cursor: langruntime.checkedI64(value.cursor), base: langruntime.checkedI64(value.base), end: langruntime.checkedI64(value.end), total: langruntime.checkedI64(value.total), valid: langruntime.checkedBool(value.valid), slow: langruntime.checkedBool(value.slow) };
+}
+function xmlQueryStreamGrow(input: XmlQueryStream, threshold: bigint): XmlQueryStream {
+    input = copyXmlQueryStream(input);
+    threshold = langruntime.checkedI64(threshold);
+    if (langruntime.checkedI64Subtract(input.end, input.cursor) >= threshold) {
+        return input;
+    }
+    const valid: boolean = input.valid && langruntime.checkedI64Subtract(input.cursor, input.base) <= xmlQueryBufferLimit;
+    let end: bigint = langruntime.checkedI64Add(input.end, 4000n);
+    if (end > input.total) {
+        end = langruntime.checkedI64(input.total);
+    }
+    return { cursor: input.cursor, base: input.base, end: end, total: input.total, valid: valid, slow: input.slow };
+}
+function xmlQueryStreamShrink(input: XmlQueryStream): XmlQueryStream {
+    input = copyXmlQueryStream(input);
+    let base: bigint = input.base;
+    if (langruntime.checkedI64Subtract(input.cursor, base) > 80n) {
+        base = langruntime.checkedI64(langruntime.checkedI64Subtract(input.cursor, 80n));
+    }
+    return { cursor: input.cursor, base: base, end: input.end, total: input.total, valid: input.valid, slow: input.slow };
+}
+function xmlQueryStreamRange(input: XmlQueryStream, source: XmlSource, start: number, end: number, threshold: bigint, mode: number): XmlQueryStream {
+    input = copyXmlQueryStream(input);
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    threshold = langruntime.checkedI64(threshold);
+    mode = langruntime.checkedI32(mode);
+    let state: XmlQueryStream = copyXmlQueryStream(input);
+    let position: number = start;
+    let cursor: bigint = input.cursor;
+    let readEnd: bigint = input.end;
+    let base: bigint = input.base;
+    let slow: boolean = false;
+    let chunk: bigint = 0n;
+    while (position < end && state.valid) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        const width: bigint = BigInt(langruntime.checkedI32(xmlCharacterOctets(character)));
+        if (mode === 1 || mode === 2) {
+            const crlf: boolean = character === "\r" && langruntime.checkedAdd(position, 1) < end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n";
+            const complex: boolean = langruntime.checkedChar(character).codePointAt(0)! >= 128 || (character === "\r" && crlf === false);
+            if (slow === false && (complex || cursor === readEnd || (mode === 2 && character === "-"))) {
+                if (langruntime.checkedI64Subtract(cursor, base) > 80n) {
+                    base = langruntime.checkedI64(langruntime.checkedI64Subtract(cursor, 80n));
+                }
+            }
+            if (complex) {
+                slow = langruntime.checkedBool(true);
+            }
+        }
+        let needed: bigint = threshold;
+        if (slow && (mode === 1 || mode === 2)) {
+            needed = langruntime.checkedI64(250n);
+        }
+        if (width > needed) {
+            needed = langruntime.checkedI64(width);
+        }
+        if (langruntime.checkedI64Subtract(readEnd, cursor) < needed) {
+            if (langruntime.checkedI64Subtract(cursor, base) > xmlQueryBufferLimit) {
+                return { cursor: cursor, base: base, end: readEnd, total: input.total, valid: false, slow: slow };
+            }
+            readEnd = langruntime.checkedI64(langruntime.checkedI64Add(readEnd, 4000n));
+            if (readEnd > input.total) {
+                readEnd = langruntime.checkedI64(input.total);
+            }
+        }
+        cursor = langruntime.checkedI64(langruntime.checkedI64Add(cursor, width));
+        chunk = langruntime.checkedI64(langruntime.checkedI64Add(chunk, width));
+        if (mode === 1 && slow && chunk >= 300n) {
+            if (langruntime.checkedI64Subtract(cursor, base) > 80n) {
+                base = langruntime.checkedI64(langruntime.checkedI64Subtract(cursor, 80n));
+            }
+            chunk = langruntime.checkedI64(0n);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    state = copyXmlQueryStream({ cursor: cursor, base: base, end: readEnd, total: input.total, valid: state.valid, slow: slow });
+    return state;
+}
+function xmlQueryStreamBlank(input: XmlQueryStream, source: XmlSource, start: number): XmlQueryStream {
+    input = copyXmlQueryStream(input);
+    start = langruntime.checkedIndex(start);
+    const end: number = xmlSkipSpace(source, start);
+    let state: XmlQueryStream = copyXmlQueryStream(xmlQueryStreamRange(input, source, start, end, 1n, 0));
+    if (langruntime.checkedSubtract(end, start) > 4) {
+        state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    }
+    return state;
+}
+function xmlQueryStreamTag(input: XmlQueryStream, source: XmlSource, start: number, end: number, closing: boolean): XmlQueryStream {
+    input = copyXmlQueryStream(input);
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    closing = langruntime.checkedBool(closing);
+    let state: XmlQueryStream = copyXmlQueryStream(xmlQueryStreamGrow(input, 250n));
+    let position: number = langruntime.checkedAdd(start, 1);
+    if (closing) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    state = copyXmlQueryStream(xmlQueryStreamRange(state, source, start, position, 1n, 0));
+    state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    const name: XmlScan = copyXmlScan(xmlName(source, position));
+    state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, name.next, 1n, 0));
+    position = langruntime.checkedIndex(name.next);
+    state = copyXmlQueryStream(xmlQueryStreamBlank(state, source, position));
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (closing) {
+        return xmlQueryStreamRange(state, source, position, end, 1n, 0);
+    }
+    state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    while (position < end && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "/") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">") && state.valid) {
+        state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+        const attribute: XmlScan = copyXmlScan(xmlName(source, position));
+        state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, attribute.next, 1n, 0));
+        position = langruntime.checkedIndex(attribute.next);
+        state = copyXmlQueryStream(xmlQueryStreamBlank(state, source, position));
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, langruntime.checkedAdd(position, 1), 1n, 0));
+        position = langruntime.checkedAdd(position, 1);
+        state = copyXmlQueryStream(xmlQueryStreamBlank(state, source, position));
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        const quote: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+        state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, langruntime.checkedAdd(position, 1), 1n, 0));
+        position = langruntime.checkedAdd(position, 1);
+        const beginning: number = position;
+        while (position < end && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === quote)) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        state = copyXmlQueryStream(xmlQueryStreamRange(state, source, beginning, langruntime.checkedAdd(position, 1), 10n, 0));
+        position = langruntime.checkedAdd(position, 1);
+        state = copyXmlQueryStream(xmlQueryStreamBlank(state, source, position));
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    }
+    return xmlQueryStreamRange(state, source, position, end, 1n, 0);
+}
+function xmlQueryStreamValid(source: XmlSource): boolean {
+    let total: bigint = 0n;
+    let index: number = 0;
+    while (index < source.characters.length) {
+        total = langruntime.checkedI64(langruntime.checkedI64Add(total, BigInt(langruntime.checkedI32(xmlCharacterOctets(langruntime.indexChar(source.characters, langruntime.checkedIndex(index)))))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (total <= xmlQueryBufferLimit) {
+        return true;
+    }
+    let state: XmlQueryStream = copyXmlQueryStream({ cursor: 0n, base: 0n, end: 0n, total: total, valid: true, slow: false });
+    state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    let position: number = 0;
+    let depth: number = 0;
+    let subset: boolean = false;
+    let pending: boolean = false;
+    while (position < source.characters.length && state.valid) {
+        if (subset && pending) {
+            state = copyXmlQueryStream(xmlQueryStreamBlank(state, source, position));
+            position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+            state = copyXmlQueryStream(xmlQueryStreamShrink(state));
+            pending = langruntime.checkedBool(false);
+        }
+        state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+        let end: number = position;
+        const priorDepth: number = depth;
+        if (xmlAt(source, position, "<!--")) {
+            const parsed: XmlScan = copyXmlScan(xmlComment(source, position));
+            end = langruntime.checkedIndex(parsed.next);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, langruntime.checkedAdd(position, 4), 1n, 0));
+            state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, langruntime.checkedAdd(position, 4), langruntime.checkedSubtract(end, 3), 1n, 2));
+            if (state.slow === false) {
+                state = copyXmlQueryStream(xmlQueryStreamShrink(state));
+                state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+            }
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, langruntime.checkedSubtract(end, 3), end, 1n, 0));
+            if (subset) {
+                pending = langruntime.checkedBool(true);
+            }
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const parsed: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            end = langruntime.checkedIndex(parsed.next);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 250n, 0));
+            if (subset) {
+                pending = langruntime.checkedBool(true);
+            }
+        }
+        else if (xmlAt(source, position, "<![CDATA[")) {
+            const parsed: XmlScan = copyXmlScan(xmlCdata(source, position));
+            end = langruntime.checkedIndex(parsed.next);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 250n, 0));
+        }
+        else if (xmlAt(source, position, "<!DOCTYPE")) {
+            let quote: string = " ";
+            end = langruntime.checkedIndex(langruntime.checkedAdd(position, 9));
+            while (end < source.characters.length && (!(quote === " ") || (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "[") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === ">")))) {
+                const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(end));
+                if (!(quote === " ")) {
+                    if (character === quote) {
+                        quote = langruntime.checkedChar(" ");
+                    }
+                }
+                else if (character === "'" || character === "\"") {
+                    quote = langruntime.checkedChar(character);
+                }
+                end = langruntime.checkedAdd(end, 1);
+            }
+            subset = langruntime.checkedBool(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "[");
+            end = langruntime.checkedAdd(end, 1);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 0));
+        }
+        else if (subset && xmlAt(source, position, "]")) {
+            subset = langruntime.checkedBool(false);
+            end = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+            end = langruntime.checkedIndex(langruntime.checkedAdd(xmlSkipSpace(source, end), 1));
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 0));
+        }
+        else if (subset && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "%") {
+            end = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+            while (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === ";")) {
+                end = langruntime.checkedAdd(end, 1);
+            }
+            end = langruntime.checkedAdd(end, 1);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 0));
+            pending = langruntime.checkedBool(true);
+        }
+        else if (subset && xmlAt(source, position, "<!")) {
+            let cursor: number = langruntime.checkedAdd(position, 2);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, cursor, 1n, 0));
+            while (cursor < source.characters.length && state.valid && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(cursor)) === ">")) {
+                const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(cursor));
+                if (character === "'" || character === "\"") {
+                    state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+                    let closing: number = langruntime.checkedAdd(cursor, 1);
+                    while (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(closing)) === character)) {
+                        closing = langruntime.checkedAdd(closing, 1);
+                    }
+                    state = copyXmlQueryStream(xmlQueryStreamRange(state, source, cursor, langruntime.checkedAdd(closing, 1), 10n, 0));
+                    cursor = langruntime.checkedIndex(langruntime.checkedAdd(closing, 1));
+                }
+                else {
+                    state = copyXmlQueryStream(xmlQueryStreamRange(state, source, cursor, langruntime.checkedAdd(cursor, 1), 1n, 0));
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+            }
+            end = langruntime.checkedIndex(langruntime.checkedAdd(cursor, 1));
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, cursor, end, 1n, 0));
+            state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+            pending = langruntime.checkedBool(true);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "<") {
+            let quote: string = " ";
+            end = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+            while (end < source.characters.length && (!(quote === " ") || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === ">"))) {
+                const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(end));
+                if (!(quote === " ")) {
+                    if (character === quote) {
+                        quote = langruntime.checkedChar(" ");
+                    }
+                }
+                else if (character === "'" || character === "\"") {
+                    quote = langruntime.checkedChar(character);
+                }
+                end = langruntime.checkedAdd(end, 1);
+            }
+            end = langruntime.checkedAdd(end, 1);
+            const closing: boolean = xmlAt(source, position, "</");
+            state = copyXmlQueryStream(xmlQueryStreamTag(state, source, position, end, closing));
+            if (closing) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            }
+            else if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2))) === "/")) {
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "&") {
+            const parsed: XmlScan = copyXmlScan(xmlReference(source, position));
+            end = langruntime.checkedIndex(parsed.next);
+            state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 0));
+        }
+        else {
+            end = langruntime.checkedIndex(position);
+            if (depth === 0) {
+                while (end < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "<") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "]")) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 0));
+            }
+            else {
+                while (end < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "<") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)) === "&")) {
+                    end = langruntime.checkedAdd(end, 1);
+                }
+                state = copyXmlQueryStream(xmlQueryStreamRange(state, source, position, end, 1n, 1));
+            }
+        }
+        if (priorDepth > 0 && depth > 0 && subset === false) {
+            state = copyXmlQueryStream(xmlQueryStreamShrink(state));
+        }
+        position = langruntime.checkedIndex(end);
+    }
+    state = copyXmlQueryStream(xmlQueryStreamGrow(state, 250n));
+    return state.valid;
+}
 interface XmlQueryName {
     qualified: string;
     local: string;
@@ -48779,19 +49139,19 @@ interface XmlQueryName {
 function copyXmlQueryName(value: XmlQueryName): XmlQueryName {
     return { qualified: langruntime.checkedString(value.qualified), local: langruntime.checkedString(value.local), namespace: langruntime.checkedString(value.namespace), resolved: langruntime.checkedBool(value.resolved) };
 }
-function xmlQueryQnameValid(tree: XmlTree, name: XmlSpan): boolean {
+function xmlQueryQnameSource(source: XmlSource, name: XmlSpan): boolean {
     name = copyXmlSpan(name);
-    if (name.start >= name.end || langruntime.indexChar(tree.characters, langruntime.checkedIndex(name.start)) === ":") {
+    if (name.start >= name.end || langruntime.indexChar(source.characters, langruntime.checkedIndex(name.start)) === ":") {
         return false;
     }
     let colon: boolean = false;
     let position: number = name.start;
     while (position < name.end) {
-        if (langruntime.indexChar(tree.characters, langruntime.checkedIndex(position)) === ":") {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
             if (colon || langruntime.checkedAdd(position, 1) >= name.end) {
                 return false;
             }
-            const next: string = langruntime.indexChar(tree.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)));
+            const next: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)));
             if (next === ":" || xmlNameStart(next) === false) {
                 return false;
             }
@@ -48800,6 +49160,12 @@ function xmlQueryQnameValid(tree: XmlTree, name: XmlSpan): boolean {
         position = langruntime.checkedAdd(position, 1);
     }
     return true;
+}
+function xmlQueryQnameValid(tree: XmlTree, name: XmlSpan): boolean {
+    name = copyXmlSpan(name);
+    const text: string = xmlTreeText(tree, name);
+    const source: XmlSource = { characters: Array.from(text) };
+    return xmlQueryQnameSource(source, { start: 0, end: source.characters.length });
 }
 function xmlQueryContent(input: string): string {
     input = langruntime.checkedString(input);
@@ -48866,26 +49232,28 @@ function xmlQueryNamespaceAttribute(tree: XmlTree, name: XmlSpan): boolean {
     const source: XmlSource = { characters: Array.from(text) };
     return xmlAt(source, 0, "xmlns:");
 }
-function xmlQueryExpandName(tree: XmlTree, owner: number, name: XmlSpan, attribute: boolean): XmlQueryName {
+function xmlQueryExpandText(tree: XmlTree, owner: number, text: string, attribute: boolean): XmlQueryName {
     owner = langruntime.checkedIndex(owner);
-    name = copyXmlSpan(name);
+    text = langruntime.checkedString(text);
     attribute = langruntime.checkedBool(attribute);
-    const qualified: string = xmlTreeText(tree, name);
+    const qualified: string = text;
+    const source: XmlSource = { characters: Array.from(text) };
+    const name: XmlSpan = copyXmlSpan({ start: 0, end: source.characters.length });
     let position: number = name.start;
     let localStart: number = name.start;
     let prefixEnd: number = name.start;
     while (position < name.end) {
-        if (langruntime.indexChar(tree.characters, langruntime.checkedIndex(position)) === ":") {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
             prefixEnd = langruntime.checkedIndex(position);
             localStart = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
         }
         position = langruntime.checkedAdd(position, 1);
     }
     const prefixSpan: XmlSpan = copyXmlSpan({ start: name.start, end: prefixEnd });
-    const prefix: string = xmlTreeText(tree, prefixSpan);
+    const prefix: string = xmlSourceRange(source, prefixSpan);
     const localSpan: XmlSpan = copyXmlSpan({ start: localStart, end: name.end });
-    const local: string = xmlTreeText(tree, localSpan);
-    const valid: boolean = xmlQueryQnameValid(tree, name);
+    const local: string = xmlSourceRange(source, localSpan);
+    const valid: boolean = xmlQueryQnameSource(source, name);
     if (prefix === "xml") {
         return { qualified: qualified, local: local, namespace: "http://www.w3.org/XML/1998/namespace", resolved: valid };
     }
@@ -48918,6 +49286,13 @@ function xmlQueryExpandName(tree: XmlTree, owner: number, name: XmlSpan, attribu
     }
     return { qualified: qualified, local: local, namespace: "", resolved: valid && localStart === name.start };
 }
+function xmlQueryExpandName(tree: XmlTree, owner: number, name: XmlSpan, attribute: boolean): XmlQueryName {
+    owner = langruntime.checkedIndex(owner);
+    name = copyXmlSpan(name);
+    attribute = langruntime.checkedBool(attribute);
+    const text: string = xmlTreeText(tree, name);
+    return xmlQueryExpandText(tree, owner, text, attribute);
+}
 function xmlQueryNodeName(tree: XmlTree, index: number): XmlQueryName {
     index = langruntime.checkedIndex(index);
     const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(index), copyXmlTreeNode));
@@ -48931,6 +49306,9 @@ function xmlQueryNodeName(tree: XmlTree, index: number): XmlQueryName {
     return { qualified: "", local: "", namespace: "", resolved: true };
 }
 function xmlQueryNamesValid(tree: XmlTree): boolean {
+    if (tree.flags.queryNamesValid === false) {
+        return false;
+    }
     let cursor: number = 1;
     while (cursor < tree.nodes.length) {
         const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(cursor), copyXmlTreeNode));
@@ -48988,6 +49366,80 @@ function xmlQueryNamesValid(tree: XmlTree): boolean {
         cursor = langruntime.checkedAdd(cursor, 1);
     }
     return true;
+}
+function xmlQueryDefaultNamesValid(tree: XmlTree, owner: number, arena: XmlEntityArena, source: XmlSource): boolean {
+    owner = langruntime.checkedIndex(owner);
+    if (arena.defaults.length === 0) {
+        return true;
+    }
+    const node: XmlTreeNode = copyXmlTreeNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(owner), copyXmlTreeNode));
+    const elementName: string = xmlTreeText(tree, node.name);
+    let names: XmlQueryName[] = [];
+    let explicit: number = node.attributeStart;
+    while (explicit < node.attributeEnd) {
+        const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(explicit), copyXmlTreeAttribute));
+        if (xmlQueryNamespaceAttribute(tree, attribute.name) === false) {
+            langruntime.pushStruct(names, xmlQueryExpandName(tree, owner, attribute.name, true), copyXmlQueryName);
+        }
+        explicit = langruntime.checkedAdd(explicit, 1);
+    }
+    let index: number = 0;
+    while (index < arena.defaults.length) {
+        const item: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(index), copyXmlDefaultIndex));
+        const element: string = xmlSourceRange(source, item.element);
+        if (item.hasDefault && element === elementName) {
+            const spelling: string = xmlSourceRange(source, item.name);
+            let present: boolean = false;
+            explicit = langruntime.checkedIndex(node.attributeStart);
+            while (explicit < node.attributeEnd) {
+                const attribute: XmlTreeAttribute = copyXmlTreeAttribute(langruntime.indexStruct(tree.attributes, langruntime.checkedIndex(explicit), copyXmlTreeAttribute));
+                if (xmlTreeText(tree, attribute.name) === spelling) {
+                    present = langruntime.checkedBool(true);
+                }
+                explicit = langruntime.checkedAdd(explicit, 1);
+            }
+            if (present === false && xmlQueryNamespaceAttributeText(spelling) === false) {
+                const name: XmlQueryName = xmlQueryDefaultName(tree, owner, spelling);
+                if (name.resolved === false) {
+                    return false;
+                }
+                let prior: number = 0;
+                while (prior < names.length) {
+                    const other: XmlQueryName = copyXmlQueryName(langruntime.indexStruct(names, langruntime.checkedIndex(prior), copyXmlQueryName));
+                    if (other.local === name.local && other.namespace === name.namespace) {
+                        return false;
+                    }
+                    prior = langruntime.checkedAdd(prior, 1);
+                }
+                langruntime.pushStruct(names, name, copyXmlQueryName);
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+export function xmlQueryInvalidNames(input: XmlTree): XmlTree {
+    const old: XmlTreeFlags = copyXmlTreeFlags(input.flags);
+    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: old.document, declaration: old.declaration, unicode: old.unicode, query: old.query, queryIdsValid: old.queryIdsValid, queryNamesValid: false, standalone: old.standalone, version: copyXmlSpan(old.version), doctypeEnd: old.doctypeEnd });
+    return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(flags), serializationKnown: input.serializationKnown };
+}
+function xmlQueryDefaultName(tree: XmlTree, owner: number, text: string): XmlQueryName {
+    owner = langruntime.checkedIndex(owner);
+    text = langruntime.checkedString(text);
+    const source: XmlSource = { characters: Array.from(text) };
+    let colon: number = 0;
+    while (colon < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(colon)) === ":")) {
+        colon = langruntime.checkedAdd(colon, 1);
+    }
+    const qualified: string = text;
+    if (colon === 0 || langruntime.checkedAdd(colon, 1) >= source.characters.length) {
+        return { local: langruntime.checkedString(qualified), qualified: qualified, namespace: "", resolved: true };
+    }
+    let probe: string = xmlSourceRange(source, { start: 0, end: colon });
+    probe = probe + ":x";
+    const named: XmlQueryName = xmlQueryExpandText(tree, owner, probe, true);
+    const local: string = xmlSourceRange(source, { start: langruntime.checkedAdd(colon, 1), end: source.characters.length });
+    return { qualified: qualified, local: local, namespace: named.namespace, resolved: named.resolved };
 }
 function xmlQueryUriAlpha(character: string): boolean {
     character = langruntime.checkedChar(character);
@@ -49833,12 +50285,13 @@ interface XmlTreeFlags {
     unicode: boolean;
     query: boolean;
     queryIdsValid: boolean;
+    queryNamesValid: boolean;
     standalone: number;
     version: XmlSpan;
     doctypeEnd: number;
 }
 function copyXmlTreeFlags(value: XmlTreeFlags): XmlTreeFlags {
-    return { document: langruntime.checkedBool(value.document), declaration: langruntime.checkedBool(value.declaration), unicode: langruntime.checkedBool(value.unicode), query: langruntime.checkedBool(value.query), queryIdsValid: langruntime.checkedBool(value.queryIdsValid), standalone: langruntime.checkedI32(value.standalone), version: copyXmlSpan(value.version), doctypeEnd: langruntime.checkedIndex(value.doctypeEnd) };
+    return { document: langruntime.checkedBool(value.document), declaration: langruntime.checkedBool(value.declaration), unicode: langruntime.checkedBool(value.unicode), query: langruntime.checkedBool(value.query), queryIdsValid: langruntime.checkedBool(value.queryIdsValid), queryNamesValid: langruntime.checkedBool(value.queryNamesValid), standalone: langruntime.checkedI32(value.standalone), version: copyXmlSpan(value.version), doctypeEnd: langruntime.checkedIndex(value.doctypeEnd) };
 }
 interface XmlTree {
     declarations: XmlTreeDtdEntry[];
@@ -50123,6 +50576,9 @@ export function xmlTreeParseNodes(source: XmlSource, stored: XmlSource, arena: X
             const node: XmlTreeNode = copyXmlTreeNode({ kind: 1, name: copyXmlSpan(name), value: copyXmlSpan(span), parent: tree.current, next: 0, previous: langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(tree.current), copyXmlTreeNode).last, first: 0, last: 0, attributeStart: attributeStart, attributeEnd: attributeEnd, preserve: preserve, textual: false, textSeen: false, blankPolicy: blankPolicy });
             const child: number = tree.nodes.length;
             tree = xmlTreeAppend(tree, node);
+            if (tree.flags.query && xmlQueryDefaultNamesValid(tree, child, arena, stored) === false) {
+                tree = xmlQueryInvalidNames(tree);
+            }
             if (empty === false) {
                 tree = xmlTreeCurrent(tree, child);
             }
@@ -50242,15 +50698,16 @@ function xmlTreeParse(input: string, document: boolean, query: boolean): XmlTree
     let nodes: XmlTreeNode[] = [];
     langruntime.pushStruct(nodes, { kind: 0, name: copyXmlSpan(empty), value: copyXmlSpan(empty), parent: 0, next: 0, previous: 0, first: 0, last: 0, attributeStart: 0, attributeEnd: 0, preserve: false, textual: false, textSeen: false, blankPolicy: langruntime.checkedSignedNegate(1) }, copyXmlTreeNode);
     const attributes: XmlTreeAttribute[] = [];
-    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, query: query, queryIdsValid: true, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
+    const flags: XmlTreeFlags = copyXmlTreeFlags({ document: effectiveDocument, declaration: actualDeclaration && begin === 0, unicode: effectiveDocument && actualDeclaration && begin === 0, query: query, queryIdsValid: true, queryNamesValid: true, standalone: standalone, version: copyXmlSpan(versionSpan), doctypeEnd: doctypeEnd });
     const declarations: XmlTreeDtdEntry[] = [];
     const tree: XmlTree = { declarations: declarations, nodes: nodes, attributes: attributes, characters: characters, current: 0, written: copyXmlSpan(empty), flags: copyXmlTreeFlags(flags), serializationKnown: true };
     const storedSource: XmlSource = { characters: Array.from(arena.arena) };
     return xmlTreeParseNodes(source, storedSource, arena, declaration.next, tree, false, false);
 }
-function xmlWellFormed(input: string, document: boolean): boolean {
+function xmlWellFormedPolicy(input: string, document: boolean, query: boolean): boolean {
     input = langruntime.checkedString(input);
     document = langruntime.checkedBool(document);
+    query = langruntime.checkedBool(query);
     const source: XmlSource = { characters: Array.from(input) };
     let beginning: number = 0;
     if (document && source.characters.length > 0 && langruntime.indexChar(source.characters, langruntime.checkedIndex(0)) === "\uFEFF") {
@@ -50300,8 +50757,21 @@ function xmlWellFormed(input: string, document: boolean): boolean {
         arena = copyXmlEntityArena(doctype.state);
         start = langruntime.checkedIndex(doctype.next);
     }
-    const markup: XmlMarkupResult = xmlMarkup(source, start, mode, arena, 0, 0, xmlNewEntityCache());
+    const markup: XmlMarkupResult = xmlMarkupPolicy(source, start, mode, arena, 0, 0, xmlNewEntityCache(), query);
     return markup.valid;
+}
+function xmlWellFormed(input: string, document: boolean): boolean {
+    input = langruntime.checkedString(input);
+    document = langruntime.checkedBool(document);
+    return xmlWellFormedPolicy(input, document, false);
+}
+function xmlQueryWellFormed(input: string): boolean {
+    input = langruntime.checkedString(input);
+    if (xmlWellFormedPolicy(input, true, true) === false) {
+        return false;
+    }
+    const source: XmlSource = { characters: Array.from(input) };
+    return xmlQueryStreamValid(source);
 }
 interface XmlValueBuffer {
     bytes: bigint;
@@ -50362,12 +50832,13 @@ function xmlValueCharacter(input: XmlValueBuffer, character: string, direct: boo
     }
     return { bytes: bytes, pending: pending, allocated: allocated, inSpace: scalar === " ", valid: valid };
 }
-function xmlWalkValue(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, arena: XmlEntityArena, normalize: boolean, depth: number, entity: boolean): XmlValueBuffer {
+function xmlWalkValuePolicy(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, arena: XmlEntityArena, normalize: boolean, depth: number, entity: boolean, preserve: boolean): XmlValueBuffer {
     value = copyXmlSpan(value);
     input = copyXmlValueBuffer(input);
     normalize = langruntime.checkedBool(normalize);
     depth = langruntime.checkedIndex(depth);
     entity = langruntime.checkedBool(entity);
+    preserve = langruntime.checkedBool(preserve);
     let state: XmlValueBuffer = copyXmlValueBuffer(input);
     let position: number = value.start;
     while (position < value.end && state.valid) {
@@ -50379,7 +50850,16 @@ function xmlWalkValue(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, 
             const reference: XmlScan = copyXmlScan(xmlReference(source, position));
             if (xmlPredefinedReference(source, position)) {
                 const scalar: string = xmlReferenceScalar(source, position);
-                state = copyXmlValueBuffer(xmlValueCharacter(state, scalar, true, xmlAt(source, position, "&#"), normalize));
+                if (preserve && scalar === "&") {
+                    state = copyXmlValueBuffer(xmlValueReference(state, 5n));
+                }
+                else {
+                    state = copyXmlValueBuffer(xmlValueCharacter(state, scalar, true, xmlAt(source, position, "&#"), normalize));
+                }
+            }
+            else if (preserve) {
+                const bytes: bigint = xmlNormalizedOctets(source, position, reference.next);
+                state = copyXmlValueBuffer(xmlValueReference(state, bytes));
             }
             else {
                 const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
@@ -50388,7 +50868,7 @@ function xmlWalkValue(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, 
                     const definition: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
                     if (definition.external === false) {
                         const stored: XmlSource = { characters: Array.from(arena.arena) };
-                        state = copyXmlValueBuffer(xmlWalkValue(stored, definition.value, state, arena, normalize, langruntime.checkedAdd(depth, 1), true));
+                        state = copyXmlValueBuffer(xmlWalkValuePolicy(stored, definition.value, state, arena, normalize, langruntime.checkedAdd(depth, 1), true, preserve));
                     }
                 }
             }
@@ -50425,6 +50905,21 @@ function xmlAttributeTokenized(source: XmlSource, arena: XmlEntityArena, element
         position = langruntime.checkedAdd(position, 1);
     }
     return false;
+}
+function xmlValueReference(input: XmlValueBuffer, width: bigint): XmlValueBuffer {
+    input = copyXmlValueBuffer(input);
+    width = langruntime.checkedI64(width);
+    const state: XmlValueBuffer = copyXmlValueBuffer(xmlFlushValue(input));
+    const bytes: bigint = langruntime.checkedI64Add(state.bytes, width);
+    return { bytes: bytes, pending: 0n, allocated: true, inSpace: false, valid: state.valid && bytes <= 10000000n };
+}
+function xmlWalkValue(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, arena: XmlEntityArena, normalize: boolean, depth: number, entity: boolean): XmlValueBuffer {
+    value = copyXmlSpan(value);
+    input = copyXmlValueBuffer(input);
+    normalize = langruntime.checkedBool(normalize);
+    depth = langruntime.checkedIndex(depth);
+    entity = langruntime.checkedBool(entity);
+    return xmlWalkValuePolicy(source, value, input, arena, normalize, depth, entity, false);
 }
 function xpathNamespaceShadowed(tree: XmlTree, owner: number, declaration: number, prefix: string): boolean {
     owner = langruntime.checkedIndex(owner);
@@ -52229,7 +52724,7 @@ function xpathIdNameValid(input: string): boolean {
 }
 export function xmlTreeIdsInvalid(input: XmlTree): XmlTree {
     const flags: XmlTreeFlags = copyXmlTreeFlags(input.flags);
-    const next: XmlTreeFlags = copyXmlTreeFlags({ document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, standalone: flags.standalone, version: copyXmlSpan(flags.version), doctypeEnd: flags.doctypeEnd });
+    const next: XmlTreeFlags = copyXmlTreeFlags({ document: flags.document, declaration: flags.declaration, unicode: flags.unicode, query: flags.query, queryIdsValid: false, queryNamesValid: flags.queryNamesValid, standalone: flags.standalone, version: copyXmlSpan(flags.version), doctypeEnd: flags.doctypeEnd });
     return { declarations: input.declarations, nodes: input.nodes, attributes: input.attributes, characters: input.characters, current: input.current, written: copyXmlSpan(input.written), flags: copyXmlTreeFlags(next), serializationKnown: input.serializationKnown };
 }
 export function xpathIdDeclaration(input: XmlTree, owner: string, name: string, id: boolean): XmlTree {

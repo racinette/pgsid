@@ -69,7 +69,7 @@ pub fn xpath_graph_probe(input: TextValue, expected: TextValue, owner: Int4Value
      if let TextValue::Value(expression) = step {
       if let TextValue::Value(after_expression) = after {
        let input = xml_query_content(raw.as_str());
-       if xml_well_formed(input.as_str(),true) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
+       if xml_query_well_formed(input.as_str()) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
        let document = xpath_document_parse(input.as_str()); let tree = document.tree; let graph = document.graph;
        if xml_query_names_valid(&tree) == false { return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_XML_DOCUMENT)); };
        let mut namespaces = xpath_namespaces_empty(); namespaces = xpath_namespaces_push(namespaces,"p","urn:p"); namespaces = xpath_namespaces_push(namespaces,"q","urn:q");
