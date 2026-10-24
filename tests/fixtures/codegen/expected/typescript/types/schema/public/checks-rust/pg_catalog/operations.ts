@@ -17249,6 +17249,9 @@ export function jsonbInputFromBytea(input: checkruntime.ByteaValue): checkruntim
     }
     return { kind: "Unknown" };
 }
+export function jsonbInputFromAclitem(input: checkruntime.AclitemValue): checkruntime.JsonbInput {
+    return checkruntime.jsonbInputFromText(aclitemToText(input));
+}
 export function jsonbInputFromMoneyContext(input: checkruntime.MoneyValue, cLocale: boolean): checkruntime.JsonbInput {
     cLocale = langruntime.checkedBool(cLocale);
     return checkruntime.jsonbInputFromText(moneyToTextContext(input, cLocale));

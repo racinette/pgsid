@@ -79,3 +79,25 @@ CREATE TABLE supplied_acl_rendering (
  CONSTRAINT acl_render_presence CHECK(CASE WHEN bypass THEN true ELSE (makeaclitem(grantee,grantor,privileges,false)::text IS NULL)=expected_absent END),
  CONSTRAINT acl_render_containers CHECK(CASE WHEN bypass THEN true ELSE ((ARRAY[makeaclitem(grantee,grantor,privileges,false)]::text IS NOT NULL) AND (ROW(makeaclitem(grantee,grantor,privileges,false),1)::text IS NOT NULL))=expected_rendered END)
 );
+
+CREATE TABLE acl_json_exports (
+ grantee oid,
+ grantor oid,
+ privileges text,
+ pretty boolean,
+ expected_entry jsonb,
+ bypass boolean,
+ CONSTRAINT acl_json_scalar CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(makeaclitem(grantee,grantor,privileges,false)) IS NOT DISTINCT FROM expected_entry END),
+ CONSTRAINT acl_json_array CHECK(CASE WHEN bypass THEN true ELSE array_to_json(ARRAY[makeaclitem(grantee,grantor,privileges,false)],pretty)::jsonb IS NOT DISTINCT FROM (CASE WHEN pretty IS NULL THEN NULL::jsonb ELSE jsonb_build_array(expected_entry) END) END),
+ CONSTRAINT acl_json_record CHECK(CASE WHEN bypass THEN true ELSE row_to_json(ROW(makeaclitem(grantee,grantor,privileges,false)),pretty)::jsonb IS NOT DISTINCT FROM (CASE WHEN pretty IS NULL THEN NULL::jsonb ELSE jsonb_build_object('f1',expected_entry) END) END),
+ CONSTRAINT acl_json_object CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object('entry',makeaclitem(grantee,grantor,privileges,false))=jsonb_build_object('entry',expected_entry) END)
+);
+
+CREATE TABLE acl_json_builder_requests (
+ source_text text,
+ divisor integer,
+ odd_arguments boolean,
+ expected_absent boolean,
+ bypass boolean,
+ CONSTRAINT acl_json_builder_result CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN odd_arguments THEN jsonb_build_object(source_text::aclitem) IS NULL ELSE jsonb_build_array(source_text::aclitem,1/divisor) IS NULL END)=expected_absent END)
+);

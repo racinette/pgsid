@@ -150,3 +150,39 @@ INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,ex
 INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'INVALID',false,true,false);
 -- name: acl_render_skipped_bad_privileges
 INSERT INTO supplied_acl_rendering(grantee,grantor,privileges,expected_absent,expected_rendered,bypass) VALUES(1,2,'INVALID',false,true,true);
+-- name: acl_json_null_entry
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'SELECT',false,NULL,false);
+-- name: acl_json_pretty_null_entry
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'SELECT',true,NULL,false);
+-- name: acl_json_null_pretty_null_entry
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'SELECT',NULL,NULL,false);
+-- name: acl_json_wrong_entry
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'SELECT',false,'"wrong"',false);
+-- name: acl_json_wrong_entry_null_pretty
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'SELECT',NULL,'"wrong"',false);
+-- name: acl_json_catalog_text
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(0,4294967295,'SELECT',false,'"=r/4294967295"',false);
+-- name: acl_json_null_pretty
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(0,4294967295,'SELECT',NULL,'"=r/4294967295"',false);
+-- name: acl_json_bad_privileges
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(0,1,'INVALID',false,NULL,false);
+-- name: acl_json_null_skips_bad_privileges
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(NULL,1,'INVALID',false,NULL,false);
+-- name: acl_json_skipped_export
+INSERT INTO acl_json_exports(grantee,grantor,privileges,pretty,expected_entry,bypass) VALUES(0,1,'INVALID',false,'"wrong"',true);
+-- name: acl_json_request_null_entry
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES(NULL,1,false,false,false);
+-- name: acl_json_request_wrong_presence
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES(NULL,1,false,true,false);
+-- name: acl_json_request_syntax_before_arithmetic
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES('',0,false,false,false);
+-- name: acl_json_request_missing_grantor
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES('=r/',0,false,false,false);
+-- name: acl_json_request_division_error
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES(NULL,0,false,false,false);
+-- name: acl_json_request_odd_arity
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES(NULL,1,true,false,false);
+-- name: acl_json_request_syntax_before_arity
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES(';',1,true,false,false);
+-- name: acl_json_request_skipped_errors
+INSERT INTO acl_json_builder_requests(source_text,divisor,odd_arguments,expected_absent,bypass) VALUES('unavailable_role=r/unavailable_role',0,true,false,true);

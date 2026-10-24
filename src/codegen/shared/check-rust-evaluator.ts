@@ -148,6 +148,7 @@ const jsonbConversionHelpers = new Map<string, string>(
       [['pg_catalog.jsonb'], 'jsonb'],
       [['pg_catalog.jsonpath'], 'jsonpath'],
       [['pg_catalog.xml'], 'xml'],
+      [['pg_catalog.aclitem'], 'aclitem'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],

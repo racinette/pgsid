@@ -1,3 +1,10 @@
+import {
+  arrayElementBaseType,
+  arrayLikeElementType,
+  isArrayLikeType,
+} from '../../sql-semantics/expressions.js'
+import { anonymousRecordProfile } from '../../sql-semantics/anonymous-records.js'
+import { compositeProfile, compositeFieldType } from '../../sql-semantics/composite-profiles.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { CheckExecutionContext } from './check-rust-evaluator.js'
 import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
@@ -16,8 +23,61 @@ function needsTrigonometry(value: unknown): boolean {
   )
 }
 
+const jsonConversions = new Set(
+  builtinCallables()
+    .filter(
+      (item) =>
+        item.kind === 'function' &&
+        item.schema === 'pg_catalog' &&
+        [
+          'to_json',
+          'to_jsonb',
+          'array_to_json',
+          'row_to_json',
+          'json_build_array',
+          'jsonb_build_array',
+          'json_build_object',
+          'jsonb_build_object',
+        ].includes(item.name),
+    )
+    .map(callableIdentity),
+)
+function jsonRendersAcl(type: string, seen = new Set<string>()): boolean {
+  type = arrayElementBaseType(type)
+  if (type === 'pg_catalog.aclitem') return true
+  if (seen.has(type)) return false
+  seen.add(type)
+  if (isArrayLikeType(type)) return jsonRendersAcl(arrayLikeElementType(type)!, seen)
+  const anonymous = anonymousRecordProfile(type)
+  if (anonymous)
+    return anonymous.some((layout) =>
+      layout.fields.some((field) => jsonRendersAcl(field.type, seen)),
+    )
+  const profile = compositeProfile(type),
+    root = profile?.graph.definitions.find((definition) => definition.identity === profile.identity)
+  return !!(
+    profile &&
+    root?.fields.some((field) => {
+      const type = compositeFieldType(profile, field.type)
+      return type !== null && jsonRendersAcl(type, seen)
+    })
+  )
+}
+
 function needsAclRoleCatalog(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
+  const node = value as {
+    kind?: string
+    call?: { signature?: string | null }
+    operands?: { type?: string }[]
+  }
+  if (
+    node.kind === 'call' &&
+    node.call?.signature &&
+    jsonConversions.has(node.call.signature) &&
+    node.operands?.some((operand) => operand.type !== undefined && jsonRendersAcl(operand.type))
+  )
+    return true
   if (
     'kind' in value &&
     (value.kind === 'text-to-aclitem' ||
@@ -44,7 +104,7 @@ export function checkUnknownMessage(
   let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
   if (needsAclRoleCatalog(expression))
-    message += ' ACL text input and rendered role names also require the deployment role catalog.'
+    message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
     ? message +
         ' Circle-to-polygon coordinate generation also requires sql.codegen.checks.trigonometry: fdlibm.'
