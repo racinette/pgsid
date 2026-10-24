@@ -3297,6 +3297,202 @@ func JsonpathFromCoercedValue(input JsonpathValue) JsonpathValue {
 	return input
 }
 
+type TsvectorPosition struct {
+	Position int
+	Weight   int
+}
+
+func CopyTsvectorPosition(value TsvectorPosition) TsvectorPosition {
+	return TsvectorPosition{Position: langruntime.CheckedI32(value.Position), Weight: langruntime.CheckedI32(value.Weight)}
+}
+
+type TsvectorLexeme struct {
+	Text      string
+	Positions []TsvectorPosition
+}
+
+func CopyTsvectorLexeme(value TsvectorLexeme) TsvectorLexeme {
+	return TsvectorLexeme{Text: langruntime.CheckedString(value.Text), Positions: langruntime.CheckedStructs(value.Positions, CopyTsvectorPosition)}
+}
+
+type TsvectorPayload struct {
+	Lexemes     []TsvectorLexeme
+	NativeBytes int
+}
+
+func CopyTsvectorPayload(value TsvectorPayload) TsvectorPayload {
+	return TsvectorPayload{Lexemes: langruntime.CheckedStructs(value.Lexemes, CopyTsvectorLexeme), NativeBytes: langruntime.CheckedI32(value.NativeBytes)}
+}
+
+type TsvectorValueKind uint8
+
+const (
+	TsvectorValueUnknown TsvectorValueKind = iota
+	TsvectorValueNull
+	TsvectorValueValue
+	TsvectorValueError
+)
+
+type TsvectorValue struct {
+	Kind  TsvectorValueKind
+	Value TsvectorPayload
+	Error SqlError
+}
+
+func CopyTsvectorValue(value TsvectorValue) TsvectorValue {
+	switch value.Kind {
+	case TsvectorValueUnknown:
+		return TsvectorValue{Kind: TsvectorValueUnknown}
+	case TsvectorValueNull:
+		return TsvectorValue{Kind: TsvectorValueNull}
+	case TsvectorValueValue:
+		return TsvectorValue{Kind: TsvectorValueValue, Value: CopyTsvectorPayload(value.Value)}
+	case TsvectorValueError:
+		return TsvectorValue{Kind: TsvectorValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func TsvectorUnknown() TsvectorValue {
+	return TsvectorValue{Kind: TsvectorValueUnknown}
+}
+func TsvectorNull() TsvectorValue {
+	return TsvectorValue{Kind: TsvectorValueNull}
+}
+func TsvectorLexemeBytes(input string) int {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	bytes := 0
+	index := 0
+	for index < len(chars) {
+		point := int(langruntime.CheckedChar(chars[index]))
+		width := 1
+		if point == 0 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if point >= 65536 {
+			width = langruntime.CheckedI32(4)
+		} else if point >= 2048 {
+			width = langruntime.CheckedI32(3)
+		} else if point >= 128 {
+			width = langruntime.CheckedI32(2)
+		}
+		if bytes > langruntime.CheckedSignedSubtract(2147483647, width) {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, width))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return bytes
+}
+func TsvectorLexemeOrder(left string, right string) int {
+	left = langruntime.CheckedString(left)
+	right = langruntime.CheckedString(right)
+	a := []rune(left)
+	b := []rune(right)
+	index := 0
+	for index < len(a) && index < len(b) {
+		if (int(langruntime.CheckedChar(a[index]))) < (int(langruntime.CheckedChar(b[index]))) {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if (int(langruntime.CheckedChar(a[index]))) > (int(langruntime.CheckedChar(b[index]))) {
+			return 1
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if len(a) < len(b) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
+}
+func TsvectorCanonicalBytes(input *TsvectorPayload) int {
+	input = langruntime.CheckedBorrowed(input, CopyTsvectorPayload)
+	if len(input.Lexemes) > 1048575 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	bytes := 0
+	index := 0
+	for index < len(input.Lexemes) {
+		width := TsvectorLexemeBytes(input.Lexemes[index].Text)
+		if width < 0 || width > 2047 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, width))
+		count := len(input.Lexemes[index].Positions)
+		if count > 256 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if count > 0 {
+			if langruntime.CheckedSignedRemainder(bytes, 2) != 0 {
+				bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 1))
+			}
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(bytes, 2), langruntime.CheckedSignedMultiply((int(int32(count))), 2)))
+		}
+		if bytes > 1048575 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(8, langruntime.CheckedSignedMultiply((int(int32(len(input.Lexemes)))), 4)), bytes)
+}
+func MakeTsvectorValue(input TsvectorPayload) TsvectorValue {
+	input = CopyTsvectorPayload(input)
+	if input.NativeBytes > 1073741823 {
+		return TsvectorValue{Kind: TsvectorValueUnknown}
+	}
+	if TsvectorCanonicalBytes(&input) < 0 {
+		return TsvectorValue{Kind: TsvectorValueUnknown}
+	}
+	if input.NativeBytes != langruntime.CheckedSignedNegate(1) && input.NativeBytes < langruntime.CheckedSignedAdd(8, langruntime.CheckedSignedMultiply((int(int32(len(input.Lexemes)))), 4)) {
+		return TsvectorValue{Kind: TsvectorValueUnknown}
+	}
+	index := 0
+	for index < len(input.Lexemes) {
+		text := input.Lexemes[index].Text
+		if text == "" {
+			return TsvectorValue{Kind: TsvectorValueUnknown}
+		}
+		if index > 0 && TsvectorLexemeOrder(input.Lexemes[langruntime.CheckedSubtract(index, 1)].Text, text) >= 0 {
+			return TsvectorValue{Kind: TsvectorValueUnknown}
+		}
+		position := 0
+		previous := 0
+		for position < len(input.Lexemes[index].Positions) {
+			value := input.Lexemes[index].Positions[position]
+			if value.Position <= previous || value.Position > 16383 || value.Weight < 0 || value.Weight > 3 {
+				return TsvectorValue{Kind: TsvectorValueUnknown}
+			}
+			previous = langruntime.CheckedI32(value.Position)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return TsvectorValue{Kind: TsvectorValueValue, Value: input}
+}
+func TsvectorIsNull(input TsvectorValue) BoolValue {
+	input = CopyTsvectorValue(input)
+	if input.Kind == TsvectorValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == TsvectorValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == TsvectorValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func TsvectorFromCaseGuard(input CheckOutcome) TsvectorValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return TsvectorValue{Kind: TsvectorValueError, Error: error}
+	}
+	return TsvectorValue{Kind: TsvectorValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

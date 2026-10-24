@@ -3416,6 +3416,188 @@ export function jsonpathFromCoercedValue(input: JsonpathValue): JsonpathValue {
     }
     return input;
 }
+export interface TsvectorPosition {
+    readonly position: number;
+    readonly weight: number;
+}
+export function copyTsvectorPosition(value: TsvectorPosition): TsvectorPosition {
+    return { position: langruntime.checkedI32(value.position), weight: langruntime.checkedI32(value.weight) };
+}
+export interface TsvectorLexeme {
+    readonly text: string;
+    readonly positions: TsvectorPosition[];
+}
+export function copyTsvectorLexeme(value: TsvectorLexeme): TsvectorLexeme {
+    return { text: langruntime.checkedString(value.text), positions: langruntime.checkedStructs(value.positions, copyTsvectorPosition) };
+}
+export interface TsvectorPayload {
+    readonly lexemes: TsvectorLexeme[];
+    readonly nativeBytes: number;
+}
+export function copyTsvectorPayload(value: TsvectorPayload): TsvectorPayload {
+    return { lexemes: langruntime.checkedStructs(value.lexemes, copyTsvectorLexeme), nativeBytes: langruntime.checkedI32(value.nativeBytes) };
+}
+export type TsvectorValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: TsvectorPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyTsvectorValue(value: TsvectorValue): TsvectorValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyTsvectorPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function tsvectorUnknown(): TsvectorValue {
+    return { kind: "Unknown" };
+}
+export function tsvectorNull(): TsvectorValue {
+    return { kind: "Null" };
+}
+export function tsvectorLexemeBytes(input: string): number {
+    input = langruntime.checkedString(input);
+    const chars: string[] = Array.from(input);
+    let bytes: number = 0;
+    let index: number = 0;
+    while (index < chars.length) {
+        const point: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        let width: number = 1;
+        if (point === 0) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (point >= 65536) {
+            width = langruntime.checkedI32(4);
+        }
+        else if (point >= 2048) {
+            width = langruntime.checkedI32(3);
+        }
+        else if (point >= 128) {
+            width = langruntime.checkedI32(2);
+        }
+        if (bytes > langruntime.checkedSignedSubtract(2147483647, width)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, width));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return bytes;
+}
+export function tsvectorLexemeOrder(left: string, right: string): number {
+    left = langruntime.checkedString(left);
+    right = langruntime.checkedString(right);
+    const a: string[] = Array.from(left);
+    const b: string[] = Array.from(right);
+    let index: number = 0;
+    while (index < a.length && index < b.length) {
+        if ((langruntime.checkedChar(langruntime.indexChar(a, langruntime.checkedIndex(index))).codePointAt(0)!) < (langruntime.checkedChar(langruntime.indexChar(b, langruntime.checkedIndex(index))).codePointAt(0)!)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if ((langruntime.checkedChar(langruntime.indexChar(a, langruntime.checkedIndex(index))).codePointAt(0)!) > (langruntime.checkedChar(langruntime.indexChar(b, langruntime.checkedIndex(index))).codePointAt(0)!)) {
+            return 1;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (a.length < b.length) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (a.length > b.length) {
+        return 1;
+    }
+    return 0;
+}
+export function tsvectorCanonicalBytes(input: TsvectorPayload): number {
+    input = copyTsvectorPayload(input);
+    if (input.lexemes.length > 1048575) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    let bytes: number = 0;
+    let index: number = 0;
+    while (index < input.lexemes.length) {
+        const width: number = tsvectorLexemeBytes(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).text);
+        if (width < 0 || width > 2047) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, width));
+        const count: number = langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions.length;
+        if (count > 256) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (count > 0) {
+            if (!(langruntime.checkedSignedRemainder(bytes, 2) === 0)) {
+                bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 1));
+            }
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(bytes, 2), langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(count))), 2)));
+        }
+        if (bytes > 1048575) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(8, langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(input.lexemes.length))), 4)), bytes);
+}
+export function makeTsvectorValue(input: TsvectorPayload): TsvectorValue {
+    input = copyTsvectorPayload(input);
+    if (input.nativeBytes > 1073741823) {
+        return { kind: "Unknown" };
+    }
+    if (tsvectorCanonicalBytes(input) < 0) {
+        return { kind: "Unknown" };
+    }
+    if (!(input.nativeBytes === langruntime.checkedSignedNegate(1)) && input.nativeBytes < langruntime.checkedSignedAdd(8, langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(input.lexemes.length))), 4))) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (index < input.lexemes.length) {
+        const text: string = langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).text;
+        if (text === "") {
+            return { kind: "Unknown" };
+        }
+        if (index > 0 && tsvectorLexemeOrder(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)), copyTsvectorLexeme).text, text) >= 0) {
+            return { kind: "Unknown" };
+        }
+        let position: number = 0;
+        let previous: number = 0;
+        while (position < langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions.length) {
+            const value: TsvectorPosition = langruntime.indexStruct(langruntime.indexStruct(input.lexemes, langruntime.checkedIndex(index), copyTsvectorLexeme).positions, langruntime.checkedIndex(position), copyTsvectorPosition);
+            if (value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3) {
+                return { kind: "Unknown" };
+            }
+            previous = langruntime.checkedI32(value.position);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: input };
+}
+export function tsvectorIsNull(input: TsvectorValue): BoolValue {
+    input = copyTsvectorValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+export function tsvectorFromCaseGuard(input: CheckOutcome): TsvectorValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
