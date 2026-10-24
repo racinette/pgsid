@@ -343,3 +343,43 @@ VALUES ('plain','number(''1e23'')','{}','wrong',9,false,true,true);
 -- name: WrongSubnormalCardinality
 INSERT INTO manifest_queries(manifest,expression,namespaces,expected_first,expected_count,expected_exists,use_standard,bypass)
 VALUES ('<manifest/>','number(''1e-323'')','{}','1e-323',2,true,true,false);
+
+-- name: BypassRuntimeDocumentQuery
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES ('plain','wrong',true);
+
+-- name: PreparedNumericQueryResult
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES (NULL,'0.3333333333333333',false);
+
+-- name: WrongPreparedNumericQueryResult
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES (NULL,'wrong',false);
+
+-- name: ReachedRuntimeDocumentQuery
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES ('<manifest/>','0.3333333333333333',false);
+
+-- name: BypassedNullDocumentQuery
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES (NULL,NULL,true);
+
+-- name: NullPreparedNumericExpectation
+INSERT INTO manifest_fixed_query_results(manifest,expected_text,bypass)
+VALUES (NULL,NULL,false);
+
+-- name: ConstantQueryBeforeBypass
+INSERT INTO manifest_fixed_query_rules(bypass)
+VALUES (true);
+
+-- name: ConstantQueryBeforeRuntimeGuard
+INSERT INTO manifest_fixed_query_rules(bypass)
+VALUES (false);
+
+-- name: PrepareDocumentRuleFirst
+INSERT INTO manifest_query_rule_order(prefer_document)
+VALUES (true);
+
+-- name: PrepareDocumentRuleBeforeSelectedMapping
+INSERT INTO manifest_query_rule_order(prefer_document)
+VALUES (false);

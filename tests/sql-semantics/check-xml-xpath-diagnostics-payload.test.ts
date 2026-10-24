@@ -21,7 +21,11 @@ it('exposes precise reached XPath requirements through the stable public Go and 
       CONSTRAINT matches CHECK(CASE WHEN bypass THEN true ELSE (xpath(path,v))[1]::text=expected END),
       CONSTRAINT shape CHECK(CASE WHEN bypass THEN true ELSE cardinality(xpath(path,v))=1 END),
       CONSTRAINT shape_flag CHECK(CASE WHEN bypass THEN true ELSE cardinality(xpath(path,v))=1 AND flag END),
-      CONSTRAINT present CHECK(CASE WHEN bypass THEN true ELSE xpath_exists(path,v) END));`)
+      CONSTRAINT present CHECK(CASE WHEN bypass THEN true ELSE xpath_exists(path,v) END));
+      CREATE TABLE xpath_prepared_payloads(source xml,gate bool,
+      CONSTRAINT prepared_path CHECK(CASE WHEN gate THEN true ELSE xpath_exists('[','<r/>'::xml) END),
+      CONSTRAINT runtime_path CHECK(CASE WHEN gate THEN true ELSE xpath_exists('[',source) END));`)
+
     const catalog = await snapshotCatalog(pg),
       options = {
         defaultCollation: 'C' as const,
@@ -49,8 +53,8 @@ it('exposes precise reached XPath requirements through the stable public Go and 
     const goCalls = go.artifacts.flatMap((artifact) => [
       ...artifact.content.matchAll(/\bcheckrust\.(EvaluateCheck\w+)\s*\(/gu),
     ])
-    expect(tsCalls).toHaveLength(4)
-    expect(goCalls).toHaveLength(4)
+    expect(tsCalls).toHaveLength(6)
+    expect(goCalls).toHaveLength(6)
     for (const match of [...tsCalls, ...goCalls])
       expect(match[1]).toMatch(/DiagnosticH[a-z0-9]{4}$/u)
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
@@ -160,6 +164,32 @@ it('exposes precise reached XPath requirements through the stable public Go and 
       }
       reference.push({ name: sample.name, results })
     }
+    const preparedCases = [
+      { name: 'missing', row: {}, runtime: { certain: false } },
+      { name: 'bypass', row: { gate: true }, runtime: { certain: true, value: true } },
+      {
+        name: 'reached',
+        row: { gate: false, source: { kind: 'Value', value: '<r/>' } },
+        runtime: { certain: true, error: '10608' },
+      },
+      {
+        name: 'document',
+        row: { gate: false, source: { kind: 'Value', value: 'plain' } },
+        runtime: { certain: true, error: '2200M' },
+      },
+      { name: 'null', row: { gate: null, source: null }, runtime: { certain: true, value: null } },
+    ]
+    for (const sample of preparedCases) {
+      const results = generated.evaluatePublicXpathPreparedPayloadsChecks(sample.row) as Result[]
+      expect(results.find((c) => c.constraint === 'prepared_path')!.result, sample.name).toEqual({
+        certain: true,
+        error: '10608',
+      })
+      expect(results.find((c) => c.constraint === 'runtime_path')!.result, sample.name).toEqual(
+        sample.runtime,
+      )
+      reference.push({ name: 'prepared_' + sample.name, results })
+    }
     for (const file of ['go.mod', 'go.sum'])
       await writeFile(
         join(root, file),
@@ -187,6 +217,29 @@ func TestXPathReasons(t *testing.T){
   }
   for _,check:=range EvaluatePublicXpathReasonPayloadsChecks(input){text,unknown:=wanted[check.Constraint]
    if unknown {if check.Result.Certain||check.Message==""{t.Fatal(sample,check)};if text!=""&&!strings.Contains(check.Message,text){t.Fatal(sample,check)};if text==""&&(strings.Contains(check.Message,"extraFloatDigits")||strings.Contains(check.Message,"xpathPowerOfTenBits")||strings.Contains(check.Message,"original XML storage")){t.Fatal("spurious reason",sample,check)}}else if !check.Result.Certain||!check.Result.Value.Value||check.Message!=""{t.Fatal(sample,check)}
+  }
+ }
+}
+func TestPreparedXPath(t *testing.T){
+ gate:=false
+ for _,sample:=range []string{"missing","bypass","reached","document","null"}{
+  input:=PublicXpathPreparedPayloadsCheckInput{}
+  switch sample {
+  case "bypass":gate=true;input.Gate=KnownCheckValue(&gate)
+  case "reached":gate=false;input.Gate=KnownCheckValue(&gate);input.Source=KnownCheckValue(runtime.MakeXmlValue("<r/>"))
+  case "document":gate=false;input.Gate=KnownCheckValue(&gate);input.Source=KnownCheckValue(runtime.MakeXmlValue("plain"))
+  case "null":input.Gate=KnownCheckValue[*bool](nil);input.Source=KnownCheckValue(runtime.XmlNull())
+  }
+  for _,check:=range EvaluatePublicXpathPreparedPayloadsChecks(input){r:=check.Result
+   if check.Constraint=="prepared_path" {if !r.Certain||r.Value.Error!="10608"{t.Fatal(sample,check)}}else{
+    switch sample{
+    case "missing":if r.Certain {t.Fatal(sample,check)}
+    case "bypass":if !r.Certain||!r.Value.Valid||!r.Value.Value||r.Value.Error!=""{t.Fatal(sample,check)}
+    case "reached":if !r.Certain||r.Value.Error!="10608"{t.Fatal(sample,check)}
+    case "document":if !r.Certain||r.Value.Error!="2200M"{t.Fatal(sample,check)}
+    case "null":if !r.Certain||r.Value.Valid||r.Value.Error!=""{t.Fatal(sample,check)}
+    }
+   }
   }
  }
 }`,
