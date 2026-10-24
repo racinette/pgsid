@@ -1,3 +1,4 @@
+const XPATH_COMPILE_STEP_LIMIT: i32 = 1000000;
 const XPATH_MIN_RECURSION_LIMIT: i32 = 500;
 const XPATH_NUMBER: i32 = 1;
 const XPATH_STRING: i32 = 2;
@@ -18,7 +19,7 @@ const XPATH_CONTEXT: i32 = 14;
 struct XPathExpression { kind: i32, operation: i32, left: usize, right: usize, prefix: XmlSpan, name: XmlSpan }
 
 #[derive(Clone, Copy)]
-struct XPathCompileBudget { depth: i32, limit: i32, fault: i32 }
+struct XPathCompileBudget { depth: i32, limit: i32, fault: i32, steps: i32, last: i32 }
 
 #[derive(Clone)]
 struct XPathProgram { source: Vec<char>, nodes: Vec<XPathExpression>, cursor: usize, root: usize, valid: bool, budget: XPathCompileBudget, runtime: XPathRuntimePlan }
@@ -126,7 +127,7 @@ fn xpath_parse_axis(name: &str) -> i32 {
 
 
 pub(crate) fn xpath_parse_budget(input: XPathProgram, depth: i32, fault: i32) -> XPathProgram {
-    let budget = XPathCompileBudget { depth, limit: input.budget.limit, fault };
+    let budget = XPathCompileBudget { depth, limit: input.budget.limit, fault, steps: input.budget.steps, last: input.budget.last };
     XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget, runtime: input.runtime }
 }
 
@@ -143,4 +144,16 @@ pub(crate) fn xpath_compile_enter(input: XPathProgram) -> XPathProgram {
 pub(crate) fn xpath_compile_leave(input: XPathProgram) -> XPathProgram {
     let budget = input.budget;
     xpath_parse_budget(input,budget.depth-10,budget.fault)
+}
+
+pub(crate) fn xpath_compile_emit(input: XPathProgram, kind: i32) -> XPathProgram {
+    let prior = input.budget;
+    if prior.steps >= XPATH_COMPILE_STEP_LIMIT { return xpath_parse_budget(input,prior.depth,-15); };
+    let budget = XPathCompileBudget { depth: prior.depth, limit: prior.limit, fault: prior.fault, steps: prior.steps+1, last: kind };
+    XPathProgram { source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget, runtime: input.runtime }
+}
+
+pub(crate) fn xpath_compile_sort(input: XPathProgram, sort: i32) -> XPathProgram {
+    if sort > 0 && input.budget.last != XPATH_NUMBER && input.budget.last != XPATH_STRING { return xpath_compile_emit(input,XPATH_GROUP); };
+    input
 }

@@ -32,19 +32,25 @@ fn xpath_parse_operator_width(operation: i32) -> usize {
     1
 }
 
-fn xpath_compile_with_limit(input: &str, limit: i32) -> XPathProgram {
+fn xpath_parse_frontend(input: &str, limit: i32) -> XPathProgram {
     let source: Vec<char> = input.chars().collect();
     let empty = XmlSpan { start: 0, end: 0 };
     let mut nodes: Vec<XPathExpression> = Vec::new();
     nodes.push(xpath_parse_node(0,0,0,0,empty,empty));
-    let budget = XPathCompileBudget { depth: 0, limit, fault: 0 };
+    let budget = XPathCompileBudget { depth: 0, limit, fault: 0, steps: 0, last: 0 };
     let program = XPathProgram { source, nodes, cursor: 0, root: 0, valid: true, budget, runtime: xpath_runtime_empty() };
     let parsed = xpath_parse_expression(program,1);
     if parsed.valid == false { return parsed; };
     let end = xpath_parse_space(&parsed,parsed.cursor);
     if end != parsed.source.len() { return xpath_parse_fail(parsed); };
-    xpath_runtime_compile(parsed)
+    parsed
 }
 
+
+fn xpath_compile_with_limit(input: &str, limit: i32) -> XPathProgram {
+    let parsed = xpath_parse_frontend(input,limit);
+    if parsed.valid == false { return parsed; };
+    xpath_runtime_compile(parsed)
+}
 
 fn xpath_compile(input: &str) -> XPathProgram { xpath_compile_with_limit(input,0) }

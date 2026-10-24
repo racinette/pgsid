@@ -36,22 +36,22 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 header = xpath_eval_depth(header,header.depth+extra);
                 let next = xpath_eval_state(header,XPATH_EVAL_GROUP,0,groups,0,0,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,current,header.context,header.mode,header.bound),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,current,header.context,header.mode,header.bound),header.depth,header.cells);
             } else if node.kind == XPATH_STEP || node.kind == XPATH_PREDICATE {
-                stack = xpath_eval_stack_child(stack,xpath_eval_input_task(XPATH_EVAL_COLLECT_START,header.root,header.context,header.mode,header.bound,xpath_value_single(header.context.node)),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_input_task(XPATH_EVAL_COLLECT_START,header.root,header.context,header.mode,header.bound,xpath_value_single(header.context.node)),header.depth,header.cells);
             } else if node.kind == XPATH_PATH {
                 let next = xpath_eval_state(header,XPATH_EVAL_PATH,0,0,0,0,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,0,absent),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,0,absent),header.depth,header.cells);
             } else if node.kind == XPATH_NEGATE {
                 let next = xpath_eval_state(header,XPATH_EVAL_NEGATE,0,0,0,0,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,0,absent),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,0,absent),header.depth,header.cells);
             } else if node.kind == XPATH_BINARY {
                 let mut demand: i32 = 0; if node.operation == 14 && (header.mode == 2 || header.mode == 3) { demand = header.mode; };
                 let next = xpath_eval_state(header,XPATH_EVAL_LEFT,0,0,0,0,demand,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,demand,header.bound),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,demand,header.bound),header.depth,header.cells);
             } else if node.kind == XPATH_FILTER {
                 let left_kind = program.runtime.nodes[node.left].kind; let position = xpath_constant_position(program,node.right,powers);
                 let first = header.mode != 2 && position.valid && position.value == 1 && (left_kind == XPATH_GROUP || left_kind == XPATH_FILTER);
@@ -63,7 +63,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 if first { demand = 2; selection = 1; }; if last { demand = 3; selection = 2; };
                 let next = xpath_eval_state(header,XPATH_EVAL_FILTER,0,0,0,selection,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,demand,absent),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.left,header.context,demand,absent),header.depth,header.cells);
             } else if node.kind == XPATH_FUNCTION {
                 if node.left == 0 { result = xpath_eval_function_finish(program,header.root,parameters,header.context,tree,graph,namespaces,powers); }
                 else {
@@ -74,9 +74,11 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                     let count = predicates.len(); let first = predicates[count-1];
                     let next = xpath_eval_state(header,XPATH_EVAL_ARGUMENT,0,count-1,0,0,0,0,0,header.position_range);
                     stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                    stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,first,header.context,0,absent),header.depth+node.operation);
+                    stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,first,header.context,0,absent),header.depth+node.operation,header.cells);
                 };
             } else { result = xpath_value_fault(10); };
+            let literal = node.kind == XPATH_NUMBER || node.kind == XPATH_STRING;
+            if (literal && header.mode != 1) || node.kind == XPATH_ROOT || node.kind == XPATH_CONTEXT || node.kind == XPATH_FUNCTION { result = xpath_eval_push_value(result,header.cells); };
         } else if header.kind == XPATH_EVAL_GROUP {
             let mut groups = header.cursor;
             while groups > 0 { if header.mode != 1 { value = xpath_value_sorted(value,tree); }; groups = groups-1; }
@@ -87,7 +89,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
             else { result = xpath_value_number(-f64::from_bits(converted.number as u64)); };
         } else if header.kind == XPATH_EVAL_PATH {
             let node = program.runtime.nodes[header.root];
-            stack = xpath_eval_stack_child(stack,xpath_eval_input_task(XPATH_EVAL_COLLECT_START,node.right,header.context,header.mode,header.bound,value),header.depth);
+            stack = xpath_eval_stack_child(stack,xpath_eval_input_task(XPATH_EVAL_COLLECT_START,node.right,header.context,header.mode,header.bound,value),header.depth,header.cells);
         } else if header.kind == XPATH_EVAL_LEFT {
             let node = program.runtime.nodes[header.root]; let demand = header.maximum;
             if node.operation == 14 && demand != 0 { value = xpath_value_sorted(value,tree); };
@@ -97,7 +99,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 else {
                     let next = xpath_eval_state(header,XPATH_EVAL_BOOLEAN,0,0,0,0,0,0,0,header.position_range);
                     stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                    stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.right,header.context,0,absent),header.depth);
+                    stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.right,header.context,0,absent),header.depth,header.cells);
                 };
             } else {
                 let mut next_bound = header.bound;
@@ -106,19 +108,22 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 };
                 let next = xpath_eval_state(header,XPATH_EVAL_RIGHT,0,0,0,0,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,value,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.right,header.context,demand,next_bound),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,node.right,header.context,demand,next_bound),header.depth,header.cells+1);
             };
         } else if header.kind == XPATH_EVAL_BOOLEAN { result = xpath_value_to_boolean(&value); }
         else if header.kind == XPATH_EVAL_RIGHT {
             let node = program.runtime.nodes[header.root]; result = xpath_eval_binary_finish(input,value,node.operation,tree,graph,powers);
         } else if header.kind == XPATH_EVAL_ARGUMENT {
-            parameters = xpath_arguments_add(parameters,value);
-            if header.cursor == 0 { result = xpath_eval_function_finish(program,header.root,parameters,header.context,tree,graph,namespaces,powers); }
+            parameters = xpath_arguments_add(parameters,value); let completed = parameters.count;
+            if header.cursor == 0 {
+                result = xpath_eval_function_finish(program,header.root,parameters,header.context,tree,graph,namespaces,powers);
+                result = xpath_eval_push_value(result,header.cells);
+            }
             else {
                 let cursor = header.cursor-1; let following = predicates[cursor];
                 let next = xpath_eval_state(header,XPATH_EVAL_ARGUMENT,0,cursor,0,0,0,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,following,header.context,0,absent),header.depth+cursor as i32+1);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,following,header.context,0,absent),header.depth+cursor as i32+1,header.cells+completed);
             };
         } else if header.kind == XPATH_EVAL_FILTER {
             let node = program.runtime.nodes[header.root];
@@ -129,7 +134,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 else { let mut index: usize = 0; if header.minimum == 2 { index = value.nodes.values.len()-1; }; result = xpath_value_single(value.nodes.values[index]); };
             } else {
                 let mut maximum = value.nodes.values.len() as i32; if header.mode == 2 { maximum = 1; };
-                let state = xpath_eval_depth(xpath_eval_header(XPATH_EVAL_FILTER_START,node.right,header.context,0,absent),header.depth);
+                let state = xpath_eval_cells(xpath_eval_depth(xpath_eval_header(XPATH_EVAL_FILTER_START,node.right,header.context,0,absent),header.depth),header.cells);
                 let next = xpath_eval_state(state,XPATH_EVAL_FILTER_START,0,0,0,1,maximum,0,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,value,output,parameters,predicates));
             };
@@ -149,7 +154,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 let context = XPathContext { node: input.nodes.values[header.index], position: header.index as i32+1, size: input.nodes.values.len() as i32 };
                 let next = xpath_eval_state(header,XPATH_EVAL_FILTER_RESULT,header.index,0,0,header.minimum,header.maximum,header.matched,0,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,header.root,context,1,absent),header.depth);
+                stack = xpath_eval_stack_child(stack,xpath_eval_start(XPATH_EVAL_EXPRESSION,header.root,context,1,absent),header.depth,header.cells);
             };
         } else if header.kind == XPATH_EVAL_FILTER_RESULT {
             if value.state != 0 { result = xpath_value_empty(XPATH_KIND_NODES,value.state); }
@@ -221,7 +226,7 @@ pub(crate) fn xpath_eval_run(initial: XPathEvalTask, program: &XPathProgram, tre
                 let mut recursive = remaining as i32; if header.position_range.valid && predicates.len() > 1 { recursive = recursive-1; };
                 let next = xpath_eval_state(header,XPATH_EVAL_COLLECT_PREDICATE,header.index,cursor,header.step,0,0,0,header.visited,header.position_range);
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(next,input,output,parameters,predicates));
-                let state = xpath_eval_depth(xpath_eval_header(XPATH_EVAL_FILTER_START,predicate,header.context,0,absent),header.depth+recursive);
+                let state = xpath_eval_cells(xpath_eval_depth(xpath_eval_header(XPATH_EVAL_FILTER_START,predicate,header.context,0,absent),header.depth+recursive),header.cells);
                 let filter = xpath_eval_state(state,XPATH_EVAL_FILTER_START,0,0,0,minimum,maximum,0,0,header.position_range);
                 let empty = xpath_value_empty(0,0); let args = xpath_arguments_empty(); let pending: Vec<usize> = Vec::new();
                 stack = xpath_eval_stack_push(stack,xpath_eval_task(filter,value,empty,args,pending));

@@ -50506,17 +50506,17 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				header = copyxPathEvalHeader(xpathEvalDepth(header, langruntime.CheckedSignedAdd(header.depth, extra)))
 				next := xpathEvalState(header, xpathEvalGroup, 0, groups, 0, 0, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, current, header.context, header.mode, header.bound), header.depth, header.cells)
 			} else if node.kind == xpathStep || node.kind == xpathPredicate {
-				stack = XpathEvalStackChild(stack, XpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)), header.depth)
+				stack = XpathEvalStackChild(stack, XpathEvalInputTask(xpathEvalCollectStart, header.root, header.context, header.mode, header.bound, xpathValueSingle(header.context.node)), header.depth, header.cells)
 			} else if node.kind == xpathPath {
 				next := xpathEvalState(header, xpathEvalPath, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth, header.cells)
 			} else if node.kind == xpathNegate {
 				next := xpathEvalState(header, xpathEvalNegate, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, 0, absent), header.depth, header.cells)
 			} else if node.kind == xpathBinary {
 				demand := 0
 				if node.operation == 14 && (header.mode == 2 || header.mode == 3) {
@@ -50524,7 +50524,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				}
 				next := xpathEvalState(header, xpathEvalLeft, 0, 0, 0, 0, demand, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, header.bound), header.depth, header.cells)
 			} else if node.kind == xpathFilter {
 				leftKind := program.runtime.nodes[node.left].kind
 				position := xpathConstantPosition(program, node.right, powers)
@@ -50551,7 +50551,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				}
 				next := xpathEvalState(header, xpathEvalFilter, 0, 0, 0, selection, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.left, header.context, demand, absent), header.depth, header.cells)
 			} else if node.kind == xpathFunction {
 				if node.left == 0 {
 					result = XpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers)
@@ -50574,10 +50574,14 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 					first := predicates[langruntime.CheckedSubtract(count, 1)]
 					next := xpathEvalState(header, xpathEvalArgument, 0, langruntime.CheckedSubtract(count, 1), 0, 0, 0, 0, 0, header.positionRange)
 					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-					stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, first, header.context, 0, absent), langruntime.CheckedSignedAdd(header.depth, node.operation))
+					stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, first, header.context, 0, absent), langruntime.CheckedSignedAdd(header.depth, node.operation), header.cells)
 				}
 			} else {
 				result = copyxPathValue(xpathValueFault(10))
+			}
+			literal := node.kind == xpathNumber || node.kind == xpathString
+			if (literal && header.mode != 1) || node.kind == xpathRoot || node.kind == xpathContext || node.kind == xpathFunction {
+				result = XpathEvalPushValue(result, header.cells)
 			}
 		} else if header.kind == xpathEvalGroup {
 			groups := header.cursor
@@ -50598,7 +50602,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 			}
 		} else if header.kind == xpathEvalPath {
 			node := program.runtime.nodes[header.root]
-			stack = XpathEvalStackChild(stack, XpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value), header.depth)
+			stack = XpathEvalStackChild(stack, XpathEvalInputTask(xpathEvalCollectStart, node.right, header.context, header.mode, header.bound, value), header.depth, header.cells)
 		} else if header.kind == xpathEvalLeft {
 			node := program.runtime.nodes[header.root]
 			demand := header.maximum
@@ -50612,7 +50616,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				} else {
 					next := xpathEvalState(header, xpathEvalBoolean, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
 					stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-					stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent), header.depth)
+					stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, 0, absent), header.depth, header.cells)
 				}
 			} else {
 				nextBound := header.bound
@@ -50625,7 +50629,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				}
 				next := xpathEvalState(header, xpathEvalRight, 0, 0, 0, 0, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, value, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, node.right, header.context, demand, nextBound), header.depth, langruntime.CheckedSignedAdd(header.cells, 1))
 			}
 		} else if header.kind == xpathEvalBoolean {
 			result = copyxPathValue(xpathValueToBoolean(&value))
@@ -50634,14 +50638,16 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 			result = XpathEvalBinaryFinish(input, value, node.operation, tree, graph, powers)
 		} else if header.kind == xpathEvalArgument {
 			parameters = XpathArgumentsAdd(parameters, value)
+			completed := parameters.count
 			if header.cursor == 0 {
 				result = XpathEvalFunctionFinish(program, header.root, parameters, header.context, tree, graph, namespaces, powers)
+				result = XpathEvalPushValue(result, header.cells)
 			} else {
 				cursor := langruntime.CheckedSubtract(header.cursor, 1)
 				following := predicates[cursor]
 				next := xpathEvalState(header, xpathEvalArgument, 0, cursor, 0, 0, 0, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, following, header.context, 0, absent), langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(header.depth, int(int32(cursor))), 1))
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, following, header.context, 0, absent), langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(header.depth, int(int32(cursor))), 1), langruntime.CheckedSignedAdd(header.cells, completed))
 			}
 		} else if header.kind == xpathEvalFilter {
 			node := program.runtime.nodes[header.root]
@@ -50664,7 +50670,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				if header.mode == 2 {
 					maximum = langruntime.CheckedI32(1)
 				}
-				state := xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent), header.depth)
+				state := xpathEvalCells(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, node.right, header.context, 0, absent), header.depth), header.cells)
 				next := xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, 1, maximum, 0, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, value, output, parameters, predicates))
 			}
@@ -50689,7 +50695,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				context := xPathContext{node: input.nodes.values[header.index], position: langruntime.CheckedSignedAdd(int(int32(header.index)), 1), size: int(int32(len(input.nodes.values)))}
 				next := xpathEvalState(header, xpathEvalFilterResult, header.index, 0, 0, header.minimum, header.maximum, header.matched, 0, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent), header.depth)
+				stack = XpathEvalStackChild(stack, xpathEvalStart(xpathEvalExpression, header.root, context, 1, absent), header.depth, header.cells)
 			}
 		} else if header.kind == xpathEvalFilterResult {
 			if value.state != 0 {
@@ -50818,7 +50824,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 				}
 				next := xpathEvalState(header, xpathEvalCollectPredicate, header.index, cursor, header.step, 0, 0, 0, header.visited, header.positionRange)
 				stack = XpathEvalStackPush(stack, XpathEvalTask(next, input, output, parameters, predicates))
-				state := xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent), langruntime.CheckedSignedAdd(header.depth, recursive))
+				state := xpathEvalCells(xpathEvalDepth(xpathEvalHeader(xpathEvalFilterStart, predicate, header.context, 0, absent), langruntime.CheckedSignedAdd(header.depth, recursive)), header.cells)
 				filter := xpathEvalState(state, xpathEvalFilterStart, 0, 0, 0, minimum, maximum, 0, 0, header.positionRange)
 				empty := xpathValueEmpty(0, 0)
 				args := xpathArgumentsEmpty()
@@ -50846,6 +50852,7 @@ func XpathEvalRun(initial xPathEvalTask, program *xPathProgram, tree *xmlTree, g
 	return result
 }
 
+const xpathValueStackLimit = 1000000
 const xpathEvalExpression = 1
 const xpathEvalGroup = 2
 const xpathEvalNegate = 3
@@ -50869,6 +50876,7 @@ type xPathEvalHeader struct {
 	mode          int
 	bound         xPathReference
 	depth         int
+	cells         int
 	index         int
 	cursor        int
 	step          int
@@ -50880,7 +50888,7 @@ type xPathEvalHeader struct {
 }
 
 func copyxPathEvalHeader(value xPathEvalHeader) xPathEvalHeader {
-	return xPathEvalHeader{kind: langruntime.CheckedI32(value.kind), root: langruntime.CheckedIndex(value.root), context: copyxPathContext(value.context), mode: langruntime.CheckedI32(value.mode), bound: copyxPathReference(value.bound), depth: langruntime.CheckedI32(value.depth), index: langruntime.CheckedIndex(value.index), cursor: langruntime.CheckedIndex(value.cursor), step: langruntime.CheckedIndex(value.step), minimum: langruntime.CheckedI32(value.minimum), maximum: langruntime.CheckedI32(value.maximum), matched: langruntime.CheckedI32(value.matched), visited: langruntime.CheckedI32(value.visited), positionRange: copyxPathPosition(value.positionRange)}
+	return xPathEvalHeader{kind: langruntime.CheckedI32(value.kind), root: langruntime.CheckedIndex(value.root), context: copyxPathContext(value.context), mode: langruntime.CheckedI32(value.mode), bound: copyxPathReference(value.bound), depth: langruntime.CheckedI32(value.depth), cells: langruntime.CheckedI32(value.cells), index: langruntime.CheckedIndex(value.index), cursor: langruntime.CheckedIndex(value.cursor), step: langruntime.CheckedIndex(value.step), minimum: langruntime.CheckedI32(value.minimum), maximum: langruntime.CheckedI32(value.maximum), matched: langruntime.CheckedI32(value.matched), visited: langruntime.CheckedI32(value.visited), positionRange: copyxPathPosition(value.positionRange)}
 }
 
 type xPathEvalTask struct {
@@ -50910,7 +50918,7 @@ func xpathEvalHeader(kind int, root int, context xPathContext, mode int, bound x
 	mode = langruntime.CheckedI32(mode)
 	bound = copyxPathReference(bound)
 	positionRange := xPathPosition{valid: false, value: 0}
-	return xPathEvalHeader{kind: kind, root: root, context: context, mode: mode, bound: bound, depth: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: positionRange}
+	return xPathEvalHeader{kind: kind, root: root, context: context, mode: mode, bound: bound, depth: 0, cells: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, positionRange: positionRange}
 }
 func xpathEvalState(input xPathEvalHeader, kind int, index int, cursor int, step int, minimum int, maximum int, matched int, visited int, positionRange xPathPosition) xPathEvalHeader {
 	input = copyxPathEvalHeader(input)
@@ -50923,7 +50931,7 @@ func xpathEvalState(input xPathEvalHeader, kind int, index int, cursor int, step
 	matched = langruntime.CheckedI32(matched)
 	visited = langruntime.CheckedI32(visited)
 	positionRange = copyxPathPosition(positionRange)
-	return xPathEvalHeader{kind: kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: positionRange}
+	return xPathEvalHeader{kind: kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, cells: input.cells, index: index, cursor: cursor, step: step, minimum: minimum, maximum: maximum, matched: matched, visited: visited, positionRange: positionRange}
 }
 func XpathEvalTask(header xPathEvalHeader, input xPathValue, output xPathValue, parameters xPathArguments, predicates []int) xPathEvalTask {
 	return xPathEvalTask{header: header, input: input, output: output, parameters: parameters, predicates: predicates}
@@ -51015,7 +51023,7 @@ func XpathEvalAppend(input xPathValue, node xPathReference) xPathValue {
 func xpathEvalDepth(input xPathEvalHeader, depth int) xPathEvalHeader {
 	input = copyxPathEvalHeader(input)
 	depth = langruntime.CheckedI32(depth)
-	return xPathEvalHeader{kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: depth, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: input.positionRange}
+	return xPathEvalHeader{kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: depth, cells: input.cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: input.positionRange}
 }
 func xpathEvalDepthFault(depth int, count int, declaredLimit int) int {
 	depth = langruntime.CheckedI32(depth)
@@ -51033,9 +51041,20 @@ func xpathEvalDepthFault(depth int, count int, declaredLimit int) int {
 	}
 	return 0
 }
-func XpathEvalStackChild(input xPathEvalStack, task xPathEvalTask, depth int) xPathEvalStack {
-	header := xpathEvalDepth(task.header, depth)
+func XpathEvalStackChild(input xPathEvalStack, task xPathEvalTask, depth int, cells int) xPathEvalStack {
+	header := xpathEvalCells(xpathEvalDepth(task.header, depth), cells)
 	return XpathEvalStackPush(input, XpathEvalTask(header, task.input, task.output, task.parameters, task.predicates))
+}
+func xpathEvalCells(input xPathEvalHeader, cells int) xPathEvalHeader {
+	input = copyxPathEvalHeader(input)
+	cells = langruntime.CheckedI32(cells)
+	return xPathEvalHeader{kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, cells: cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, positionRange: input.positionRange}
+}
+func XpathEvalPushValue(input xPathValue, cells int) xPathValue {
+	if input.state >= 0 && input.state <= 1 && input.kind > 0 && cells >= xpathValueStackLimit {
+		return xpathValueFault(15)
+	}
+	return input
 }
 
 type xPathArguments struct {
@@ -52782,7 +52801,7 @@ func xpathParseOperatorWidth(operation int) int {
 	}
 	return 1
 }
-func xpathCompileWithLimit(input string, limit int) xPathProgram {
+func xpathParseFrontend(input string, limit int) xPathProgram {
 	input = langruntime.CheckedString(input)
 	limit = langruntime.CheckedI32(limit)
 	source := []rune(input)
@@ -52790,7 +52809,7 @@ func xpathCompileWithLimit(input string, limit int) xPathProgram {
 	nodes := []xPathExpression{}
 	langruntime.CheckedAdd(len(nodes), 1)
 	nodes = append(nodes, copyxPathExpression(xpathParseNode(0, 0, 0, 0, empty, empty)))
-	budget := xPathCompileBudget{depth: 0, limit: limit, fault: 0}
+	budget := xPathCompileBudget{depth: 0, limit: limit, fault: 0, steps: 0, last: 0}
 	program := xPathProgram{source: source, nodes: nodes, cursor: 0, root: 0, valid: true, budget: budget, runtime: xpathRuntimeEmpty()}
 	parsed := XpathParseExpression(program, 1)
 	if parsed.valid == false {
@@ -52799,6 +52818,15 @@ func xpathCompileWithLimit(input string, limit int) xPathProgram {
 	end := xpathParseSpace(&parsed, parsed.cursor)
 	if end != len(parsed.source) {
 		return XpathParseFail(parsed)
+	}
+	return parsed
+}
+func xpathCompileWithLimit(input string, limit int) xPathProgram {
+	input = langruntime.CheckedString(input)
+	limit = langruntime.CheckedI32(limit)
+	parsed := xpathParseFrontend(input, limit)
+	if parsed.valid == false {
+		return parsed
 	}
 	return XpathRuntimeCompile(parsed)
 }
@@ -52819,6 +52847,7 @@ const xpathParsePredicates = 9
 const xpathParsePredicate = 10
 const xpathParseStep = 11
 const xpathParseArgument = 12
+const xpathParseCollect = 13
 
 type xPathParseTask struct {
 	kind      int
@@ -52878,7 +52907,7 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 	program := input
 	values := []xPathParseTask{}
 	stack := xPathParseStack{values: values, count: 0}
-	stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, minimum, 0, 0))
+	stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, minimum, 1, 0))
 	empty := xmlSpan{start: 0, end: 0}
 	for stack.count > 0 && program.valid {
 		task := stack.values[langruntime.CheckedSubtract(stack.count, 1)]
@@ -52886,12 +52915,15 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 		if task.kind == xpathParseEnter {
 			if task.minimum == 1 {
 				program = XpathCompileEnter(program)
-				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLeave, 0, 0, 0))
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLeave, 0, task.operation, 0))
 			}
 			stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0))
 			stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePrefix, task.minimum, 0, 0))
 		} else if task.kind == xpathParseLeave {
+			program = XpathCompileSort(program, task.operation)
 			program = XpathCompileLeave(program)
+		} else if task.kind == xpathParseCollect {
+			program = XpathCompileEmit(program, xpathPath)
 		} else if task.kind == xpathParseLoop {
 			position := xpathParseSpace(&program, program.cursor)
 			if xpathParseAt(&program, position, "/") {
@@ -52902,6 +52934,7 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 				}
 				program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
 				if width == 2 {
+					program = XpathCompileEmit(program, xpathPath)
 					program = XpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty))
 					right := program.root
 					program = XpathParsePush(program, xpathParseNode(xpathPath, 0, left, right, empty, empty))
@@ -52915,6 +52948,9 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 				if operation != 0 && precedence >= task.minimum {
 					left := program.root
 					width := xpathParseOperatorWidth(operation)
+					if operation == 14 {
+						program = XpathCompileEmit(program, xpathContext)
+					}
 					program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
 					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseBinary, task.minimum, operation, left))
 					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, langruntime.CheckedSignedAdd(precedence, 1), 0, 0))
@@ -52926,6 +52962,9 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 				kind = langruntime.CheckedI32(xpathPath)
 			}
 			right := program.root
+			if kind == xpathBinary {
+				program = XpathCompileEmit(program, xpathBinary)
+			}
 			program = XpathParsePush(program, xpathParseNode(kind, task.operation, task.left, right, empty, empty))
 			if task.minimum > 0 {
 				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseLoop, task.minimum, 0, 0))
@@ -52953,9 +52992,15 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 					}
 				} else if xmlQueryUriDigit(character) || (character == '.' && langruntime.CheckedAdd(position, 1) < len(program.source) && xmlQueryUriDigit(program.source[langruntime.CheckedAdd(position, 1)])) {
 					program = XpathParseNumber(program)
+					if program.valid {
+						program = XpathCompileEmit(program, xpathNumber)
+					}
 					stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
 				} else if character == '\'' || character == '"' {
 					program = XpathParseLiteral(program)
+					if program.valid {
+						program = XpathCompileEmit(program, xpathString)
+					}
 					stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
 				} else if character == '$' {
 					name := xpathParseQname(&program, langruntime.CheckedAdd(position, 1), false, false)
@@ -52963,21 +53008,24 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 						program = XpathParseFail(program)
 					} else {
 						program = XpathParseCursor(program, name.next)
+						program = XpathCompileEmit(program, xpathVariable)
 						program = XpathParsePush(program, xpathParseNode(xpathVariable, 0, 0, 0, name.prefix, name.local))
 						stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
 					}
 				} else if character == '(' {
 					program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
 					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseGroup, 0, 0, 0))
-					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 1, 0))
 				} else if character == '/' {
 					width := 1
 					if xpathParseAt(&program, position, "//") {
 						width = langruntime.CheckedIndex(2)
 					}
 					program = XpathParseCursor(program, langruntime.CheckedAdd(position, width))
+					program = XpathCompileEmit(program, xpathRoot)
 					program = XpathParsePush(program, xpathParseNode(xpathRoot, 0, 0, 0, empty, empty))
 					if width == 2 {
+						program = XpathCompileEmit(program, xpathPath)
 						left := program.root
 						program = XpathParsePush(program, xpathParseNode(xpathStep, 6, 0, 2, empty, empty))
 						right := program.root
@@ -52999,24 +53047,37 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 								callable = true
 								argument := xpathParseSpace(&program, langruntime.CheckedAdd(after, 1))
 								program = XpathParseCursor(program, argument)
-								if xpathParseAt(&program, argument, ")") {
-									program = XpathParseCursor(program, langruntime.CheckedAdd(argument, 1))
+								if xpathParseAt(&program, argument, ")") || argument == len(program.source) {
+									if argument < len(program.source) {
+										program = XpathParseCursor(program, langruntime.CheckedAdd(argument, 1))
+									}
+									program = XpathCompileEmit(program, xpathFunction)
 									program = XpathParsePush(program, xpathParseNode(xpathFunction, 0, 0, 0, name.prefix, name.local))
 									stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
 								} else {
 									stack = XpathParseStackPush(stack, xpathParseArgumentTask(name.prefix, name.local, 0, 0, 0))
-									stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+									sort := 1
+									if text == "count" && name.prefix.start == name.prefix.end {
+										sort = langruntime.CheckedI32(0)
+									}
+									stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0))
 								}
 							}
 						}
 					}
 					if callable == false {
-						stack = XpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0))
+						if xpathParseStepStart(&program, position) {
+							program = XpathCompileEmit(program, xpathContext)
+							stack = XpathParseStackPush(stack, xpathParseTask(xpathParseStep, 0, 0, 0))
+						} else {
+							program = XpathParseFail(program)
+						}
 					}
 				}
 			}
 		} else if task.kind == xpathParseUnary {
 			root := program.root
+			program = XpathCompileEmit(program, xpathNegate)
 			program = XpathParsePush(program, xpathParseNode(xpathNegate, task.operation, root, 0, empty, empty))
 		} else if task.kind == xpathParseGroup {
 			close := xpathParseSpace(&program, program.cursor)
@@ -53034,7 +53095,11 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 				left := program.root
 				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
 				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicate, 0, task.operation, left))
-				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+				sort := 0
+				if task.operation == xpathFilter {
+					sort = langruntime.CheckedI32(1)
+				}
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0))
 			}
 		} else if task.kind == xpathParsePredicate {
 			right := program.root
@@ -53042,6 +53107,7 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 			if xpathParseAt(&program, close, "]") == false {
 				program = XpathParseFail(program)
 			} else {
+				program = XpathCompileEmit(program, task.operation)
 				program = XpathParseCursor(program, langruntime.CheckedAdd(close, 1))
 				program = XpathParsePush(program, xpathParseNode(task.operation, 0, task.left, right, empty, empty))
 				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, task.operation, 0))
@@ -53050,11 +53116,15 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 			position := xpathParseSpace(&program, program.cursor)
 			abbreviated := xpathParseAt(&program, position, ".")
 			program = XpathParseStepLeaf(program)
-			if abbreviated == false {
+			if program.valid && abbreviated == false {
+				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseCollect, 0, 0, 0))
 				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathPredicate, 0))
+			} else if program.valid && program.nodes[program.root].operation == 4 {
+				program = XpathCompileEmit(program, xpathPath)
 			}
 		} else if task.kind == xpathParseArgument {
 			argument := program.root
+			program = XpathCompileEmit(program, xpathArgument)
 			program = XpathParsePush(program, xpathParseNode(xpathArgument, 0, argument, 0, empty, empty))
 			next := program.root
 			first := task.first
@@ -53067,9 +53137,23 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 			position := xpathParseSpace(&program, program.cursor)
 			if xpathParseAt(&program, position, ",") {
 				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
-				stack = XpathParseStackPush(stack, xpathParseArgumentTask(task.prefix, task.name, first, next, count))
-				stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, 0, 0))
+				argumentStart := xpathParseSpace(&program, program.cursor)
+				program = XpathParseCursor(program, argumentStart)
+				if argumentStart == len(program.source) {
+					program = XpathCompileEmit(program, xpathFunction)
+					program = XpathParsePush(program, xpathParseNode(xpathFunction, count, first, 0, task.prefix, task.name))
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
+				} else {
+					stack = XpathParseStackPush(stack, xpathParseArgumentTask(task.prefix, task.name, first, next, count))
+					name := xpathParseText(&program, task.name)
+					sort := 1
+					if name == "count" && task.prefix.start == task.prefix.end {
+						sort = langruntime.CheckedI32(0)
+					}
+					stack = XpathParseStackPush(stack, xpathParseTask(xpathParseEnter, 1, sort, 0))
+				}
 			} else if xpathParseAt(&program, position, ")") {
+				program = XpathCompileEmit(program, xpathFunction)
 				program = XpathParseCursor(program, langruntime.CheckedAdd(position, 1))
 				program = XpathParsePush(program, xpathParseNode(xpathFunction, count, first, 0, task.prefix, task.name))
 				stack = XpathParseStackPush(stack, xpathParseTask(xpathParsePredicates, 0, xpathFilter, 0))
@@ -53078,10 +53162,18 @@ func XpathParseExpression(input xPathProgram, minimum int) xPathProgram {
 			}
 		}
 	}
+	for stack.count > 0 && program.budget.fault <= 0 && program.budget.fault != langruntime.CheckedSignedNegate(15) {
+		pending := stack.values[langruntime.CheckedSubtract(stack.count, 1)]
+		stack = XpathParseStackPop(stack)
+		if pending.kind == xpathParseCollect || (pending.kind == xpathParseBinary && pending.operation == 14) {
+			program = XpathCompileEmit(program, xpathPath)
+		}
+	}
 	fault := program.budget.fault
 	return XpathParseBudget(program, initialDepth, fault)
 }
 
+const xpathCompileStepLimit = 1000000
 const xpathMinRecursionLimit = 500
 const xpathNumber = 1
 const xpathString = 2
@@ -53115,10 +53207,12 @@ type xPathCompileBudget struct {
 	depth int
 	limit int
 	fault int
+	steps int
+	last  int
 }
 
 func copyxPathCompileBudget(value xPathCompileBudget) xPathCompileBudget {
-	return xPathCompileBudget{depth: langruntime.CheckedI32(value.depth), limit: langruntime.CheckedI32(value.limit), fault: langruntime.CheckedI32(value.fault)}
+	return xPathCompileBudget{depth: langruntime.CheckedI32(value.depth), limit: langruntime.CheckedI32(value.limit), fault: langruntime.CheckedI32(value.fault), steps: langruntime.CheckedI32(value.steps), last: langruntime.CheckedI32(value.last)}
 }
 
 type xPathProgram struct {
@@ -53292,7 +53386,7 @@ func xpathParseAxis(name string) int {
 	return 0
 }
 func XpathParseBudget(input xPathProgram, depth int, fault int) xPathProgram {
-	budget := xPathCompileBudget{depth: depth, limit: input.budget.limit, fault: fault}
+	budget := xPathCompileBudget{depth: depth, limit: input.budget.limit, fault: fault, steps: input.budget.steps, last: input.budget.last}
 	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid && fault == 0, budget: budget, runtime: input.runtime}
 }
 func XpathCompileEnter(input xPathProgram) xPathProgram {
@@ -53313,6 +53407,20 @@ func XpathCompileEnter(input xPathProgram) xPathProgram {
 func XpathCompileLeave(input xPathProgram) xPathProgram {
 	budget := input.budget
 	return XpathParseBudget(input, langruntime.CheckedSignedSubtract(budget.depth, 10), budget.fault)
+}
+func XpathCompileEmit(input xPathProgram, kind int) xPathProgram {
+	prior := input.budget
+	if prior.steps >= xpathCompileStepLimit {
+		return XpathParseBudget(input, prior.depth, langruntime.CheckedSignedNegate(15))
+	}
+	budget := xPathCompileBudget{depth: prior.depth, limit: prior.limit, fault: prior.fault, steps: langruntime.CheckedSignedAdd(prior.steps, 1), last: kind}
+	return xPathProgram{source: input.source, nodes: input.nodes, cursor: input.cursor, root: input.root, valid: input.valid, budget: budget, runtime: input.runtime}
+}
+func XpathCompileSort(input xPathProgram, sort int) xPathProgram {
+	if sort > 0 && input.budget.last != xpathNumber && input.budget.last != xpathString {
+		return XpathCompileEmit(input, xpathGroup)
+	}
+	return input
 }
 func xpathParseNodeType(name string) int {
 	name = langruntime.CheckedString(name)

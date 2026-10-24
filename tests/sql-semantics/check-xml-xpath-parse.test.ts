@@ -40,7 +40,7 @@ pub fn xpath_parser_probe(input: TextValue, expected: BoolValue, limit: Int4Valu
  if let TextValue::Value(value) = input {
   if let Int4Value::Value(maximum) = limit {
    if let Int4Value::Value(fault) = reason {
-    let program = xpath_compile_with_limit(value.as_str(),maximum);
+    let program = xpath_parse_frontend(value.as_str(),maximum);
     if program.budget.fault > 0 { return BoolValue::Unknown; };
     if let BoolValue::Value(wanted) = expected { return BoolValue::Value(program.valid == wanted && program.budget.fault == fault); };
    };
@@ -64,6 +64,12 @@ pub fn xpath_parser_probe(input: TextValue, expected: BoolValue, limit: Int4Valu
     const expressions = new Set([
       '',
       ' ',
+      'unknown(',
+      'true(',
+      'concat(1,',
+      'concat(1, ',
+      'unknown(1',
+      'concat(1,)',
       '/',
       '//',
       '/r',
@@ -330,7 +336,7 @@ pub fn xpath_parser_probe(input: TextValue, expected: BoolValue, limit: Int4Valu
         expected: { kind: 'Error', value: { state: parseInt('22023', 36) } },
       },
     )
-    const packet = 'artifacts/goal-checks/xml-xpath-compile-limits-active'
+    const packet = 'artifacts/goal-checks/xml-xpath-compile-steps-active'
     await mkdir(packet, { recursive: true })
     await writeFile(
       packet + '/parse-reference.json',

@@ -1,3 +1,4 @@
+const XPATH_VALUE_STACK_LIMIT: i32 = 1000000;
 const XPATH_EVAL_EXPRESSION: i32 = 1;
 const XPATH_EVAL_GROUP: i32 = 2;
 const XPATH_EVAL_NEGATE: i32 = 3;
@@ -16,7 +17,7 @@ const XPATH_EVAL_COLLECT_PREDICATE: i32 = 15;
 
 #[derive(Clone, Copy)]
 struct XPathEvalHeader {
-    kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference, depth: i32,
+    kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference, depth: i32, cells: i32,
     index: usize, cursor: usize, step: usize, minimum: i32, maximum: i32, matched: i32, visited: i32, position_range: XPathPosition,
 }
 
@@ -28,11 +29,11 @@ struct XPathEvalStack { values: Vec<XPathEvalTask>, count: usize }
 
 fn xpath_eval_header(kind: i32, root: usize, context: XPathContext, mode: i32, bound: XPathReference) -> XPathEvalHeader {
     let position_range = XPathPosition { valid: false, value: 0 };
-    XPathEvalHeader { kind, root, context, mode, bound, depth: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, position_range }
+    XPathEvalHeader { kind, root, context, mode, bound, depth: 0, cells: 0, index: 0, cursor: 0, step: 0, minimum: 0, maximum: 0, matched: 0, visited: 0, position_range }
 }
 
 fn xpath_eval_state(input: XPathEvalHeader, kind: i32, index: usize, cursor: usize, step: usize, minimum: i32, maximum: i32, matched: i32, visited: i32, position_range: XPathPosition) -> XPathEvalHeader {
-    XPathEvalHeader { kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, index, cursor, step, minimum, maximum, matched, visited, position_range }
+    XPathEvalHeader { kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, cells: input.cells, index, cursor, step, minimum, maximum, matched, visited, position_range }
 }
 
 pub(crate) fn xpath_eval_task(header: XPathEvalHeader, input: XPathValue, output: XPathValue, parameters: XPathArguments, predicates: Vec<usize>) -> XPathEvalTask {
@@ -96,7 +97,7 @@ pub(crate) fn xpath_eval_append(input: XPathValue, node: XPathReference) -> XPat
 }
 
 fn xpath_eval_depth(input: XPathEvalHeader, depth: i32) -> XPathEvalHeader {
-    XPathEvalHeader { kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, position_range: input.position_range }
+    XPathEvalHeader { kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth, cells: input.cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, position_range: input.position_range }
 }
 
 fn xpath_eval_depth_fault(depth: i32, count: i32, declared_limit: i32) -> i32 {
@@ -107,7 +108,16 @@ fn xpath_eval_depth_fault(depth: i32, count: i32, declared_limit: i32) -> i32 {
     0
 }
 
-pub(crate) fn xpath_eval_stack_child(input: XPathEvalStack, task: XPathEvalTask, depth: i32) -> XPathEvalStack {
-    let header = xpath_eval_depth(task.header,depth);
+pub(crate) fn xpath_eval_stack_child(input: XPathEvalStack, task: XPathEvalTask, depth: i32, cells: i32) -> XPathEvalStack {
+    let header = xpath_eval_cells(xpath_eval_depth(task.header,depth),cells);
     xpath_eval_stack_push(input,xpath_eval_task(header,task.input,task.output,task.parameters,task.predicates))
+}
+
+fn xpath_eval_cells(input: XPathEvalHeader, cells: i32) -> XPathEvalHeader {
+    XPathEvalHeader { kind: input.kind, root: input.root, context: input.context, mode: input.mode, bound: input.bound, depth: input.depth, cells, index: input.index, cursor: input.cursor, step: input.step, minimum: input.minimum, maximum: input.maximum, matched: input.matched, visited: input.visited, position_range: input.position_range }
+}
+
+pub(crate) fn xpath_eval_push_value(input: XPathValue, cells: i32) -> XPathValue {
+    if input.state >= 0 && input.state <= 1 && input.kind > 0 && cells >= XPATH_VALUE_STACK_LIMIT { return xpath_value_fault(15); };
+    input
 }
