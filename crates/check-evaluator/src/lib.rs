@@ -206,6 +206,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/tsvector_sort.rs");
     include!("operations/pg_catalog/tsvector_input.rs");
     include!("operations/pg_catalog/tsvector_value.rs");
+    include!("operations/pg_catalog/tsvector_operations.rs");
     include!("operations/pg_catalog/internal_char.rs");
     include!("operations/pg_catalog/name_core.rs");
     include!("operations/pg_catalog/oid_core.rs");

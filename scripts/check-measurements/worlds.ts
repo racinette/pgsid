@@ -54,6 +54,26 @@ export async function worldSourceDigest(): Promise<string> {
 }
 
 class WorldDeparser extends Deparser {
+  override TypeName(
+    node: Parameters<Deparser['TypeName']>[0],
+    context: Parameters<Deparser['TypeName']>[1],
+  ): string {
+    const names = node.names?.map((name) => ('String' in name ? name.String.sval : undefined))
+    const internalChar = names?.join('.') === 'char' || names?.join('.') === 'pg_catalog.char'
+    if (!internalChar || !node.arrayBounds?.length) return super.TypeName(node, context)
+    const element = super.TypeName({ ...node, arrayBounds: [] }, context)
+    return (
+      element +
+      node.arrayBounds
+        .map((bound) =>
+          'Integer' in bound && bound.Integer.ival !== undefined && bound.Integer.ival >= 0
+            ? `[${bound.Integer.ival}]`
+            : '[]',
+        )
+        .join('')
+    )
+  }
+
   override XmlSerialize(
     node: Parameters<Deparser['XmlSerialize']>[0],
     context: Parameters<Deparser['XmlSerialize']>[1],

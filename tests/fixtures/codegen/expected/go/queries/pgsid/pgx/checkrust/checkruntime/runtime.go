@@ -690,6 +690,7 @@ const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
 const sqlErrorTimezoneDisplacement = 3452553
 const sqlErrorInvalidUseOfEscape = 3452556
+const sqlErrorZeroLengthCharacterString = 3452559
 const sqlErrorInvalidXmlDocument = 3452566
 const sqlErrorNotXmlDocument = 3452565
 const sqlErrorInvalidXmlContent = 3452567
@@ -724,6 +725,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorZeroLengthCharacterString {
+		return SqlErrorDescription{Message: "zero-length character string"}
+	}
 	if error.State == sqlErrorInvalidXmlProcessingInstruction {
 		return SqlErrorDescription{Message: "invalid XML processing instruction"}
 	}
@@ -3461,7 +3465,7 @@ func MakeTsvectorValue(input TsvectorPayload) TsvectorValue {
 		previous := langruntime.CheckedSignedNegate(1)
 		for position < len(input.Lexemes[index].Positions) {
 			value := input.Lexemes[index].Positions[position]
-			if value.Position <= previous || value.Position > 16383 || value.Weight < 0 || value.Weight > 3 {
+			if value.Position < 0 || value.Position < previous || value.Position > 16383 || value.Weight < 0 || value.Weight > 3 {
 				return TsvectorValue{Kind: TsvectorValueUnknown}
 			}
 			previous = langruntime.CheckedI32(value.Position)

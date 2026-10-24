@@ -41,3 +41,30 @@ CREATE TABLE document_publication (
  CONSTRAINT document_reference CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector='a:1A'::tsvector)=expected_reference END),
  CONSTRAINT document_publishable CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN require_nonempty THEN source::searchable_document IS NOT NULL ELSE COALESCE(source::tsvector,'a:1A'::tsvector)<>''::tsvector END END)
 );
+
+CREATE TABLE document_edits (
+ source text,
+ continuation text,
+ selectors text,
+ weights text,
+ weight "char",
+ expected_merged text,
+ expected_filtered text,
+ expected_reweighted text,
+ expected_deleted text,
+ bypass boolean,
+ CONSTRAINT document_merged CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector||continuation::tsvector)::text=expected_merged END),
+ CONSTRAINT document_filtered CHECK(CASE WHEN bypass THEN true ELSE ts_filter(source::tsvector,weights::"char"[])::text=expected_filtered END),
+ CONSTRAINT document_reweighted CHECK(CASE WHEN bypass THEN true ELSE setweight(source::tsvector,weight,selectors::text[])::text=expected_reweighted END),
+ CONSTRAINT document_deleted CHECK(CASE WHEN bypass THEN true ELSE ts_delete(source::tsvector,selectors::text[])::text=expected_deleted END)
+);
+
+CREATE TABLE document_terms (
+ terms text,
+ expected_document text,
+ expected_wire text,
+ verify_wire boolean,
+ bypass boolean,
+ CONSTRAINT document_constructed CHECK(CASE WHEN bypass THEN true ELSE array_to_tsvector(terms::text[])::text=expected_document END),
+ CONSTRAINT document_wire CHECK(CASE WHEN bypass OR verify_wire IS NOT TRUE THEN true ELSE encode(tsvectorsend(array_to_tsvector(terms::text[])),'hex')=expected_wire END)
+);

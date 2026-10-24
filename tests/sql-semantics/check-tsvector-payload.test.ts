@@ -24,9 +24,9 @@ import {
 it('validates SQL-coerced tsvector payloads, domains and optional stored size through native, Rust and public Go and TypeScript validators', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-tsvector-payload-')),
-    packet = 'artifacts/goal-checks/tsvector-literals-active',
+    packet = 'artifacts/goal-checks/tsvector-operations-active',
     run = promisify(execFile)
-  const context = { serverEncoding: 'UTF8', defaultCollation: 'C' } as const
+  const context = { serverEncoding: 'UTF8', clientEncoding: 'UTF8', defaultCollation: 'C' } as const
   const definitions: Record<string, string> = {
     same: 'item=reference',
     less: 'item<reference',
@@ -40,6 +40,13 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
     domain_value: '(item::nested_vector)=reference',
     stripped: 'strip(item)=strip(reference)',
     weighted: "setweight(item,'B')::text=setweight(reference,'B')::text",
+    concatenated: '(item||reference)::text IS NOT DISTINCT FROM (reference||item)::text',
+    selective:
+      "setweight(item,'B',ARRAY['a',NULL])::text=setweight(reference,'B',ARRAY['a',NULL])::text",
+    deleted: "ts_delete(item,ARRAY['a'])::text=ts_delete(reference,ARRAY['a'])::text",
+    scalar_deleted: "ts_delete(item,'a')::text=ts_delete(reference,'a')::text",
+    filtered: `ts_filter(item,ARRAY['A','C']::"char"[])::text=ts_filter(reference,ARRAY['A','C']::"char"[])::text`,
+    wire: 'tsvectorsend(item)=tsvectorsend(reference)',
     rendered: 'item::text=reference::text',
     lexemes: 'cardinality(tsvector_to_array(item))<=2',
     lazy: 'CASE WHEN bypass THEN true ELSE item=reference END',
@@ -104,8 +111,11 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
         ]),
       })
     }
+    await pg.exec(
+      "INSERT INTO vector_binary_inputs SELECT '__concat_zero',value||value FROM vector_binary_inputs WHERE key='__binary_zero'",
+    )
     const vectorSql = (parameter: string) =>
-      `CASE WHEN ${parameter}::text IN ('__binary_duplicate','__binary_zero','__binary_wide') THEN (SELECT value FROM vector_binary_inputs WHERE key=${parameter}::text) ELSE ${parameter}::tsvector END`
+      `CASE WHEN ${parameter}::text IN ('__binary_duplicate','__binary_zero','__binary_wide','__concat_zero') THEN (SELECT value FROM vector_binary_inputs WHERE key=${parameter}::text) ELSE ${parameter}::tsvector END`
     const columns = 'item nested_vector,reference tsvector,choose_first bool,bypass bool'
     await pg.exec(
       `CREATE TABLE vector_rows(${columns},${Object.entries(definitions)
@@ -185,6 +195,7 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
       '😀:2 é:1',
       "'it''s':1A",
       ...binary.map((v) => v.key),
+      '__concat_zero',
     ]
     for (let i = 0; i < samples.length; i++)
       for (let variant = 0; variant < 4; variant++) {
@@ -406,7 +417,7 @@ it('validates SQL-coerced tsvector payloads, domains and optional stored size th
         [],
         catalog,
         parseConfigString(
-          'schema: schema.sql\nsql:\n  codegen:\n    go: {}\n    checks:\n      serverEncoding: UTF8\n      defaultCollation: C\n',
+          'schema: schema.sql\nsql:\n  codegen:\n    go: {}\n    checks:\n      serverEncoding: UTF8\n      clientEncoding: UTF8\n      defaultCollation: C\n',
         ),
         undefined,
         'tsvector-public',

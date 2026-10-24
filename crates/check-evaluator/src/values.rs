@@ -527,6 +527,7 @@ const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
 const SQL_ERROR_INVALID_USE_OF_ESCAPE: u32 = 3452556;
+const SQL_ERROR_ZERO_LENGTH_CHARACTER_STRING: u32 = 3452559;
 const SQL_ERROR_INVALID_XML_DOCUMENT: u32 = 3452566;
 const SQL_ERROR_NOT_XML_DOCUMENT: u32 = 3452565;
 const SQL_ERROR_INVALID_XML_CONTENT: u32 = 3452567;
@@ -561,6 +562,9 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_ZERO_LENGTH_CHARACTER_STRING {
+        return SqlErrorDescription { message: "zero-length character string" };
+    }
     if error.state == SQL_ERROR_INVALID_XML_PROCESSING_INSTRUCTION { return SqlErrorDescription { message: "invalid XML processing instruction" }; }
     if error.state == SQL_ERROR_NOT_XML_DOCUMENT { return SqlErrorDescription { message: "not an XML document" }; }
     if error.state == SQL_ERROR_INVALID_XML_DOCUMENT {
@@ -2894,7 +2898,7 @@ pub fn make_tsvector_value(input: TsvectorPayload) -> TsvectorValue {
         let mut previous: i32 = -1;
         while position < input.lexemes[index].positions.len() {
             let value = input.lexemes[index].positions[position];
-            if value.position <= previous || value.position > 16383 || value.weight < 0 || value.weight > 3 {
+            if value.position < 0 || value.position < previous || value.position > 16383 || value.weight < 0 || value.weight > 3 {
                 return TsvectorValue::Unknown;
             };
             previous = value.position;

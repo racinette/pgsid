@@ -421,6 +421,14 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.strict === (implementation.args.length === 2) &&
         implementation.volatility === 's'))
   return (
+    (metadata.kind === 'function' &&
+      metadata.schema === 'pg_catalog' &&
+      metadata.name === 'ts_delete' &&
+      metadata.args.join(',') === 'pg_catalog.tsvector,pg_catalog.text' &&
+      metadata.result === 'pg_catalog.tsvector' &&
+      metadata.strict &&
+      metadata.volatility === 'i' &&
+      !metadata.returnsSet) ||
     isIdentifierParseCallable(signature) ||
     isBuiltinRangeConstructor(implementation) ||
     (implementation.kind === 'function' &&
