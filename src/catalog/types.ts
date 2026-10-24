@@ -116,6 +116,15 @@ export interface StoredTsvectorConstantContext {
   containers?: { site: string; storage: TsvectorConstantStorage[] | null }[]
 }
 
+export interface StoredArrayConstantContext {
+  definition: string
+  complete: boolean
+  constants: {
+    site: string
+    storage: import('./array-constant-storage.js').ArrayConstantStorage[] | null
+  }[]
+}
+
 export interface StoredXmlConstantContext {
   definition: string
   complete: boolean
@@ -157,6 +166,7 @@ export interface StoredArrayConstructorContext {
 }
 
 export interface ConstraintInfo {
+  arrayConstants?: StoredArrayConstantContext
   tsvectorConstants?: StoredTsvectorConstantContext
   xmlConstants?: StoredXmlConstantContext
   coercionContext?: StoredDomainCoercionContext
@@ -510,6 +520,7 @@ export interface BuiltinOperatorSignature {
 export type ArgMode = 'in' | 'out' | 'inout' | 'variadic' | 'table'
 
 export interface FunctionArgInfo {
+  arrayConstants?: StoredArrayConstantContext
   name: string
   typeOid: number
   /** Canonical type name from `format_type(oid, null)` (loses typmod). */
@@ -637,6 +648,7 @@ export interface DomainInfo {
    * order across a replay.
    */
   checks: {
+    arrayConstants?: StoredArrayConstantContext
     name: string
     definition: string
     tsvectorConstants?: StoredTsvectorConstantContext
@@ -812,6 +824,7 @@ export interface RangeTypeMetadata {
 }
 
 export interface RangeCallInfo {
+  defaultArrayConstants?: readonly (StoredArrayConstantContext | null)[]
   schema: string
   name: string
   kind: 'function' | 'aggregate' | 'window' | 'procedure'

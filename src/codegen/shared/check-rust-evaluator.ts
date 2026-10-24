@@ -1808,6 +1808,7 @@ export function emitCheckRustEvaluator(
       )
     }
   }
+  const arrayStorageInProgress = new Set<EvalExpression>()
   const emitScalarInner = (
     node: EvalExpression,
     bindings: string[],
@@ -1817,6 +1818,46 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    if (
+      (node.kind === 'array-text-literal' || node.kind === 'text-to-composite') &&
+      (node.origin === 'stored' || node.arrayStorage !== undefined) &&
+      !arrayStorageInProgress.has(node)
+    ) {
+      arrayStorageInProgress.add(node)
+      let value: { name: string; type: string }
+      try {
+        value = emitScalarInner(node, bindings, used)
+      } finally {
+        arrayStorageInProgress.delete(node)
+      }
+      const prefix = rustValuePrefix(rustType(value.type)),
+        cell = bind(`array_element_from_${prefix}(${ownedOperand(value)})`)
+      let restored: string
+      if (
+        node.arrayStorage !== undefined &&
+        node.arrayStorage.every(
+          (entry) =>
+            entry &&
+            /^(?:\/(?:0|[1-9]\d*))*$/u.test(entry.path) &&
+            Number.isInteger(entry.dimensions) &&
+            entry.dimensions >= 0 &&
+            entry.dimensions <= 6 &&
+            Number.isInteger(entry.elements) &&
+            entry.elements >= 0 &&
+            entry.elements <= 2147483647 &&
+            typeof entry.nullBitmap === 'boolean',
+        )
+      ) {
+        let plan = bind('make_array_storage_plan()')
+        for (const entry of node.arrayStorage) {
+          plan = bind(
+            `append_array_storage(${plan},${rustStringLiteral(entry.path)},${entry.dimensions},${entry.elements},${entry.nullBitmap})`,
+          )
+        }
+        restored = bind(`apply_array_storage(${cell},&${plan})`)
+      } else restored = bind(`forget_array_storage(${cell})`)
+      return { name: bind(`array_element_to_${prefix}(${restored})`), type: value.type }
     }
     if (
       (node.kind === 'array-text-literal' || node.kind === 'text-to-composite') &&

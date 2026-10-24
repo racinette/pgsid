@@ -14283,6 +14283,152 @@ function clearTsvectorStorage(input: ArrayElement): ArrayElement {
     }
     return input;
 }
+interface ArrayStorageEntry {
+    path: string;
+    dimensions: number;
+    elements: number;
+    nullBitmap: boolean;
+}
+function copyArrayStorageEntry(value: ArrayStorageEntry): ArrayStorageEntry {
+    return { path: langruntime.checkedString(value.path), dimensions: langruntime.checkedI32(value.dimensions), elements: langruntime.checkedI32(value.elements), nullBitmap: langruntime.checkedBool(value.nullBitmap) };
+}
+export interface ArrayStoragePlan {
+    entries: ArrayStorageEntry[];
+    valid: boolean;
+}
+function copyArrayStoragePlan(value: ArrayStoragePlan): ArrayStoragePlan {
+    return { entries: langruntime.checkedStructs(value.entries, copyArrayStorageEntry), valid: langruntime.checkedBool(value.valid) };
+}
+export function makeArrayStoragePlan(): ArrayStoragePlan {
+    const entries: ArrayStorageEntry[] = [];
+    return { entries: entries, valid: true };
+}
+export function appendArrayStorage(input: ArrayStoragePlan, path: string, dimensions: number, elements: number, bitmap: boolean): ArrayStoragePlan {
+    input = copyArrayStoragePlan(input);
+    path = langruntime.checkedString(path);
+    dimensions = langruntime.checkedI32(dimensions);
+    elements = langruntime.checkedI32(elements);
+    bitmap = langruntime.checkedBool(bitmap);
+    let entries: ArrayStorageEntry[] = input.entries;
+    const valid: boolean = input.valid && dimensions >= 0 && dimensions <= 6 && elements >= 0;
+    langruntime.pushStruct(entries, { path: path, dimensions: dimensions, elements: elements, nullBitmap: bitmap }, copyArrayStorageEntry);
+    return { entries: entries, valid: valid };
+}
+function arrayStorageChildPath(path: string, index: number): string {
+    path = langruntime.checkedString(path);
+    index = langruntime.checkedIndex(index);
+    let child: string = path;
+    child = child + langruntime.checkedChar("/");
+    const number: number = langruntime.checkedI32(langruntime.checkedIndex(index));
+    const wide: bigint = BigInt(langruntime.checkedI32(number));
+    const text: string = textSignedNumber(wide);
+    child = child + text;
+    return child;
+}
+function arrayStorageMissingBitmap(input: ArrayPayload): BoolValue {
+    const elements: BoolValue = arrayElementsBitmap(input);
+    if (equalBoolValue(elements, { kind: "Value", value: true })) {
+        return elements;
+    }
+    return { kind: "Unknown" };
+}
+export function forgetArrayStorage(input: ArrayElement): ArrayElement {
+    input = copyArrayElement(input);
+    if (input.kind === "Array") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        const bitmap: BoolValue = arrayStorageMissingBitmap(value);
+        let elements: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.elements.length) {
+            langruntime.pushStruct(elements, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Array", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements, nullBitmap: bitmap } };
+    }
+    if (input.kind === "Composite") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        let fields: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.fields.length) {
+            langruntime.pushStruct(fields, forgetArrayStorage(copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
+    }
+    return input;
+}
+interface ArrayStorageResult {
+    value: ArrayElement;
+    matched: number;
+    valid: boolean;
+}
+function copyArrayStorageResult(value: ArrayStorageResult): ArrayStorageResult {
+    return { value: copyArrayElement(value.value), matched: langruntime.checkedIndex(value.matched), valid: langruntime.checkedBool(value.valid) };
+}
+function applyArrayStorageAt(input: ArrayElement, plan: ArrayStoragePlan, path: string): ArrayStorageResult {
+    input = copyArrayElement(input);
+    path = langruntime.checkedString(path);
+    if (input.kind === "Array") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let matched: number = 0;
+        let bitmap: BoolValue = arrayStorageMissingBitmap(value);
+        let valid: boolean = true;
+        let i: number = 0;
+        while (i < plan.entries.length) {
+            const entry: ArrayStorageEntry = copyArrayStorageEntry(langruntime.indexStruct(plan.entries, langruntime.checkedIndex(i), copyArrayStorageEntry));
+            if (entry.path === path) {
+                matched = langruntime.checkedAdd(matched, 1);
+                if (!(langruntime.indexFromI32(entry.dimensions, 2147483647) === value.dimensions.length) || !(langruntime.indexFromI32(entry.elements, 2147483647) === value.elements.length) || (entry.nullBitmap === false && equalBoolValue(bitmap, { kind: "Value", value: true }))) {
+                    valid = langruntime.checkedBool(false);
+                }
+                bitmap = { kind: "Value", value: entry.nullBitmap };
+            }
+            i = langruntime.checkedAdd(i, 1);
+        }
+        if (!(matched === 1)) {
+            valid = langruntime.checkedBool(false);
+        }
+        let elements: ArrayElement[] = [];
+        i = langruntime.checkedIndex(0);
+        while (i < value.elements.length) {
+            const childPath: string = arrayStorageChildPath(path, i);
+            const child: ArrayStorageResult = applyArrayStorageAt(copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(i), copyArrayElement)), plan, childPath);
+            matched = langruntime.checkedAdd(matched, child.matched);
+            valid = langruntime.checkedBool(valid && child.valid);
+            langruntime.pushStruct(elements, child.value, copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        const restored: ArrayElement = { kind: "Array", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements, nullBitmap: bitmap } };
+        return { value: restored, matched: matched, valid: valid };
+    }
+    if (input.kind === "Composite") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        let fields: ArrayElement[] = [];
+        let matched: number = 0;
+        let valid: boolean = true;
+        let i: number = 0;
+        while (i < value.fields.length) {
+            const childPath: string = arrayStorageChildPath(path, i);
+            const child: ArrayStorageResult = applyArrayStorageAt(copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(i), copyArrayElement)), plan, childPath);
+            matched = langruntime.checkedAdd(matched, child.matched);
+            valid = langruntime.checkedBool(valid && child.valid);
+            langruntime.pushStruct(fields, child.value, copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        const restored: ArrayElement = { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
+        return { value: restored, matched: matched, valid: valid };
+    }
+    return { value: input, matched: 0, valid: true };
+}
+export function applyArrayStorage(input: ArrayElement, plan: ArrayStoragePlan): ArrayElement {
+    input = copyArrayElement(input);
+    plan = copyArrayStoragePlan(plan);
+    const result: ArrayStorageResult = applyArrayStorageAt(input, plan, "");
+    if (plan.valid && result.valid && result.matched === plan.entries.length) {
+        return result.value;
+    }
+    return forgetArrayStorage(result.value);
+}
 export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, strict: boolean): ArrayComparisonPayload {
     input = copyArrayValue(input);
     strict = langruntime.checkedBool(strict);

@@ -7,6 +7,7 @@ import type {
   EntityId,
   FunctionInfo,
   StoredTsvectorConstantContext,
+  StoredArrayConstantContext,
   RangeTypeInfo,
   SchemaDiff,
   SchemaDiffEntry,
@@ -161,6 +162,7 @@ function functionState(f: FunctionInfo): {
   name: string
   argTypes: string
   argDefaults: (string | null)[]
+  argArrayConstants?: (StoredArrayConstantContext | null)[]
   argTsvectorConstants?: (StoredTsvectorConstantContext | null)[]
   returnType: string
   language: string
@@ -178,6 +180,9 @@ function functionState(f: FunctionInfo): {
     // — `pg_get_function_identity_arguments` and `pg_get_function_result`.
     argTypes: f.argTypes,
     argDefaults: f.args.map((a) => a.defaultExpr),
+    ...(f.args.some((a) => a.arrayConstants !== undefined)
+      ? { argArrayConstants: f.args.map((a) => a.arrayConstants ?? null) }
+      : {}),
     ...(f.args.some((a) => a.tsvectorConstants !== undefined)
       ? { argTsvectorConstants: f.args.map((a) => a.tsvectorConstants ?? null) }
       : {}),

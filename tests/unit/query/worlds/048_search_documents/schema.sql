@@ -90,3 +90,14 @@ CREATE TABLE document_default_windows (
  CONSTRAINT document_default_head CHECK(CASE WHEN bypass THEN true ELSE (lower(document_default_window())=source::tsvector) IS NOT DISTINCT FROM expected_default END),
  CONSTRAINT document_supplied_head CHECK(CASE WHEN bypass THEN true ELSE (lower(document_default_window(source::tsvector))=source::tsvector) IS NOT DISTINCT FROM expected_supplied END)
 );
+
+CREATE TYPE document_score_state AS(totals float8[],reference tsvector);
+CREATE TABLE document_score_updates (
+ observation integer,
+ minimum_updates integer,
+ source text,
+ expected_reference boolean,
+ bypass boolean,
+ CONSTRAINT document_score_count CHECK(CASE WHEN bypass THEN true ELSE (float8_accum(($state$("{1,2,3}",a)$state$::document_score_state).totals,observation::float8))[1]>minimum_updates::float8 END),
+ CONSTRAINT document_score_reference CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector=($state$("{1,2,3}",a)$state$::document_score_state).reference) IS NOT DISTINCT FROM expected_reference END)
+);
