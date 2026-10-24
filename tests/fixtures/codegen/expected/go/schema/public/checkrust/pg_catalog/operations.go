@@ -25763,12 +25763,12 @@ func multirangeDirectionalAdjacent(left checkruntime.RangeValue, right checkrunt
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
-func multirangePayloadCompare(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) checkruntime.Int4Value {
+func multirangePayloadCompare(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload, exact bool) checkruntime.Int4Value {
 	index := 0
 	for index < len(left.Ranges) && index < len(right.Ranges) {
 		a := checkruntime.CopyRangeValue(left.Ranges[index])
 		b := checkruntime.CopyRangeValue(right.Ranges[index])
-		compared := RangeCmp8jgl(a, b)
+		compared := rangeCompareMode(a, b, exact)
 		if compared != checkruntime.MakeInt4Value(0) {
 			return compared
 		}
@@ -25782,7 +25782,7 @@ func multirangePayloadCompare(left *checkruntime.MultirangePayload, right *check
 	}
 	return checkruntime.MakeInt4Value(0)
 }
-func multirangeCompare(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
+func multirangeCompareMode(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue, exact bool) checkruntime.Int4Value {
 	left = checkruntime.CopyMultirangeValue(left)
 	right = checkruntime.CopyMultirangeValue(right)
 	if left.Kind == checkruntime.MultirangeValueError {
@@ -25804,11 +25804,21 @@ func multirangeCompare(left checkruntime.MultirangeValue, right checkruntime.Mul
 		if right.Kind == checkruntime.MultirangeValueValue {
 			b := checkruntime.CopyMultirangePayload(right.Value)
 			if multirangeSameFamily(&a, &b) {
-				return multirangePayloadCompare(&a, &b)
+				return multirangePayloadCompare(&a, &b, exact)
 			}
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func multirangeCompare(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeCompareMode(left, right, false)
+}
+func MultirangeOrder(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeCompareMode(left, right, false)
 }
 func multirangeEqual(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyMultirangeValue(left)
@@ -25841,7 +25851,7 @@ func multirangeEqual(left checkruntime.MultirangeValue, right checkruntime.Multi
 			for index < len(a.Ranges) {
 				x := checkruntime.CopyRangeValue(a.Ranges[index])
 				y := checkruntime.CopyRangeValue(b.Ranges[index])
-				compared := RangeCmp8jgl(x, y)
+				compared := RangeOrder(x, y)
 				if compared != checkruntime.MakeInt4Value(0) {
 					return rangeOrderBoolean(compared, 3)
 				}
@@ -26278,7 +26288,7 @@ func MultirangeBeforeRange5v34(left checkruntime.MultirangeValue, right checkrun
 func MultirangeCmpMafd(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
 	left = checkruntime.CopyMultirangeValue(left)
 	right = checkruntime.CopyMultirangeValue(right)
-	return multirangeCompare(left, right)
+	return multirangeCompareMode(left, right, true)
 }
 func MultirangeContainedByMultirange9c9u(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyMultirangeValue(left)
@@ -26419,7 +26429,7 @@ func multirangeConstructOrder(input *checkruntime.MultirangePayload, left int, r
 	right = langruntime.CheckedIndex(right)
 	a := checkruntime.CopyRangeValue(input.Ranges[left])
 	b := checkruntime.CopyRangeValue(input.Ranges[right])
-	return RangeCmp8jgl(a, b)
+	return RangeOrder(a, b)
 }
 func multirangeOrderKnown(input checkruntime.Int4Value) bool {
 	if input.Kind == checkruntime.Int4ValueValue {
@@ -35443,7 +35453,7 @@ func RangeSendB1w5(input checkruntime.RangeValue, lower checkruntime.ByteaValue,
 func rangeSameFamily(left *checkruntime.RangePayload, right *checkruntime.RangePayload) bool {
 	return left.TypeName == right.TypeName && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind && checkruntime.RangeSupportEqual(left.Support, right.Support)
 }
-func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right *checkruntime.RangePayload, rightUpper bool) checkruntime.Int4Value {
+func rangeEndpointCompareMode(left *checkruntime.RangePayload, leftUpper bool, right *checkruntime.RangePayload, rightUpper bool, exact bool) checkruntime.Int4Value {
 	li := 0
 	ri := 0
 	leftInc := left.LowerInclusive
@@ -35486,7 +35496,7 @@ func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right
 	}
 	leftProfile := checkruntime.CopyRangeBoundContext(left.BoundProfile)
 	rightProfile := checkruntime.CopyRangeBoundContext(right.BoundProfile)
-	comparison := rangeTypedCompare(a, b, left.Support.Comparison, &leftProfile, &rightProfile)
+	comparison := rangeTypedCompareMode(a, b, left.Support.Comparison, &leftProfile, &rightProfile, exact)
 	if comparison.Kind == checkruntime.Int4ValueValue {
 		order := langruntime.CheckedI32(comparison.Value)
 		if order != 0 {
@@ -35510,7 +35520,33 @@ func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right
 	}
 	return comparison
 }
-func rangePayloadCompare(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.Int4Value {
+func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right *checkruntime.RangePayload, rightUpper bool) checkruntime.Int4Value {
+	return rangeEndpointCompareMode(left, leftUpper, right, rightUpper, false)
+}
+func rangeTypedCompareMode(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, kind int, leftProfile *checkruntime.RangeBoundContext, rightProfile *checkruntime.RangeBoundContext, exact bool) checkruntime.Int4Value {
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	kind = langruntime.CheckedI32(kind)
+	portable := rangeTypedCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), kind, leftProfile, rightProfile)
+	if exact {
+		if portable.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(portable.Value)
+			if order != 0 {
+				if kind == 47 {
+					return TsvectorCmpXinv(checkruntime.ArrayElementToTsvector(lower), checkruntime.ArrayElementToTsvector(upper))
+				}
+				if kind == 42 {
+					return RangeCmp8jgl(checkruntime.ArrayElementToRange(lower), checkruntime.ArrayElementToRange(upper))
+				}
+				if kind == 43 {
+					return MultirangeCmpMafd(checkruntime.ArrayElementToMultirange(lower), checkruntime.ArrayElementToMultirange(upper))
+				}
+			}
+		}
+	}
+	return portable
+}
+func rangePayloadCompareMode(left *checkruntime.RangePayload, right *checkruntime.RangePayload, exact bool) checkruntime.Int4Value {
 	if left.Empty && right.Empty {
 		return checkruntime.MakeInt4Value(0)
 	}
@@ -35520,16 +35556,16 @@ func rangePayloadCompare(left *checkruntime.RangePayload, right *checkruntime.Ra
 	if right.Empty {
 		return checkruntime.MakeInt4Value(1)
 	}
-	lower := rangeEndpointCompare(left, false, right, false)
+	lower := rangeEndpointCompareMode(left, false, right, false, exact)
 	if lower.Kind == checkruntime.Int4ValueValue {
 		order := langruntime.CheckedI32(lower.Value)
 		if order == 0 {
-			return rangeEndpointCompare(left, true, right, true)
+			return rangeEndpointCompareMode(left, true, right, true, exact)
 		}
 	}
 	return lower
 }
-func RangeCmp8jgl(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.Int4Value {
+func rangeCompareMode(left checkruntime.RangeValue, right checkruntime.RangeValue, exact bool) checkruntime.Int4Value {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
 	if left.Kind == checkruntime.RangeValueError {
@@ -35551,11 +35587,21 @@ func RangeCmp8jgl(left checkruntime.RangeValue, right checkruntime.RangeValue) c
 		if right.Kind == checkruntime.RangeValueValue {
 			b := checkruntime.CopyRangePayload(right.Value)
 			if rangeSameFamily(&a, &b) {
-				return rangePayloadCompare(&a, &b)
+				return rangePayloadCompareMode(&a, &b, exact)
 			}
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func RangeOrder(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeCompareMode(left, right, false)
+}
+func RangeCmp8jgl(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeCompareMode(left, right, true)
 }
 func rangeOrderBoolean(input checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
 	strategy = langruntime.CheckedI32(strategy)
@@ -35853,37 +35899,37 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 func RangeLtT1sv(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 1)
 }
 func RangeLeUr15(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 2)
 }
 func RangeEqLoxq(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 3)
 }
 func RangeGeI2f0(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 4)
 }
 func RangeGt943z(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 5)
 }
 func RangeNeMzkw(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
 	left = checkruntime.CopyRangeValue(left)
 	right = checkruntime.CopyRangeValue(right)
-	comparison := RangeCmp8jgl(left, right)
+	comparison := RangeOrder(left, right)
 	return rangeOrderBoolean(comparison, 6)
 }
 func RangeBeforeZ0g8(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
@@ -35996,9 +36042,9 @@ func rangeProfiledCompare(lower checkruntime.ArrayElement, upper checkruntime.Ar
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 		}
 		if node.Kind == 42 {
-			return RangeCmp8jgl(checkruntime.ArrayElementToRange(lower), checkruntime.ArrayElementToRange(upper))
+			return RangeOrder(checkruntime.ArrayElementToRange(lower), checkruntime.ArrayElementToRange(upper))
 		}
-		return MultirangeCmpMafd(checkruntime.ArrayElementToMultirange(lower), checkruntime.ArrayElementToMultirange(upper))
+		return MultirangeOrder(checkruntime.ArrayElementToMultirange(lower), checkruntime.ArrayElementToMultirange(upper))
 	}
 	if node.Kind != 41 {
 		if node.Kind == 6 && (node.EnumLabels != peer.EnumLabels || node.EnumCount != peer.EnumCount) {

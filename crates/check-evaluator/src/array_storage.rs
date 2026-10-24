@@ -136,6 +136,26 @@ fn clear_tsvector_storage(input: ArrayElement) -> ArrayElement {
         }
         return ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
     };
+    if let ArrayElement::Range(value) = input {
+        let mut bounds: Vec<ArrayElement> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.bounds.len() {
+            bounds.push(clear_tsvector_storage(value.bounds[i].clone()));
+            i += 1;
+        }
+        return ArrayElement::Range(range_payload_with_bounds(value,bounds));
+    };
+    if let ArrayElement::Multirange(value) = input {
+        let mut ranges: Vec<RangeValue> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.ranges.len() {
+            let member = array_element_from_range(value.ranges[i].clone());
+            let restored = clear_tsvector_storage(member);
+            ranges.push(array_element_to_range(restored));
+            i += 1;
+        }
+        return ArrayElement::Multirange(multirange_payload_with_ranges(value,ranges));
+    };
     input
 }
 
@@ -202,6 +222,26 @@ pub fn forget_array_storage(input: ArrayElement) -> ArrayElement {
         }
         return ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
     };
+    if let ArrayElement::Range(value) = input {
+        let mut bounds: Vec<ArrayElement> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.bounds.len() {
+            bounds.push(forget_array_storage(value.bounds[i].clone()));
+            i += 1;
+        }
+        return ArrayElement::Range(range_payload_with_bounds(value,bounds));
+    };
+    if let ArrayElement::Multirange(value) = input {
+        let mut ranges: Vec<RangeValue> = Vec::new();
+        let mut i: usize = 0;
+        while i < value.ranges.len() {
+            let member = array_element_from_range(value.ranges[i].clone());
+            let restored = forget_array_storage(member);
+            ranges.push(array_element_to_range(restored));
+            i += 1;
+        }
+        return ArrayElement::Multirange(multirange_payload_with_ranges(value,ranges));
+    };
     input
 }
 
@@ -260,6 +300,39 @@ fn apply_array_storage_at(input: ArrayElement, plan: &ArrayStoragePlan, path: &s
             i += 1;
         }
         let restored = ArrayElement::Composite(CompositePayload {type_name:value.type_name,fields:fields});
+        return ArrayStorageResult {value:restored,matched:matched,valid:valid};
+    };
+    if let ArrayElement::Range(value) = input {
+        let mut bounds: Vec<ArrayElement> = Vec::new();
+        let mut matched: usize = 0;
+        let mut valid = true;
+        let mut i: usize = 0;
+        while i < value.bounds.len() {
+            let child_path = array_storage_child_path(path,i);
+            let child = apply_array_storage_at(value.bounds[i].clone(),plan,child_path.as_str());
+            matched += child.matched;
+            valid = valid && child.valid;
+            bounds.push(child.value);
+            i += 1;
+        }
+        let restored = ArrayElement::Range(range_payload_with_bounds(value,bounds));
+        return ArrayStorageResult {value:restored,matched:matched,valid:valid};
+    };
+    if let ArrayElement::Multirange(value) = input {
+        let mut ranges: Vec<RangeValue> = Vec::new();
+        let mut matched: usize = 0;
+        let mut valid = true;
+        let mut i: usize = 0;
+        while i < value.ranges.len() {
+            let child_path = array_storage_child_path(path,i);
+            let member = array_element_from_range(value.ranges[i].clone());
+            let child = apply_array_storage_at(member,plan,child_path.as_str());
+            matched += child.matched;
+            valid = valid && child.valid;
+            ranges.push(array_element_to_range(child.value));
+            i += 1;
+        }
+        let restored = ArrayElement::Multirange(multirange_payload_with_ranges(value,ranges));
         return ArrayStorageResult {value:restored,matched:matched,valid:valid};
     };
     ArrayStorageResult {value:input,matched:0,valid:true}

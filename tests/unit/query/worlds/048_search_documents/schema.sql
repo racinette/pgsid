@@ -101,3 +101,14 @@ CREATE TABLE document_score_updates (
  CONSTRAINT document_score_count CHECK(CASE WHEN bypass THEN true ELSE (float8_accum(($state$("{1,2,3}",a)$state$::document_score_state).totals,observation::float8))[1]>minimum_updates::float8 END),
  CONSTRAINT document_score_reference CHECK(CASE WHEN bypass THEN true ELSE (source::tsvector=($state$("{1,2,3}",a)$state$::document_score_state).reference) IS NOT DISTINCT FROM expected_reference END)
 );
+
+CREATE TYPE document_score_window AS RANGE(subtype=float8[],multirange_type_name=document_score_windows);
+CREATE TABLE document_archived_scores (
+ source text,
+ expected_reference boolean,
+ observation integer,
+ minimum_updates integer,
+ bypass boolean,
+ CONSTRAINT document_archived_reference CHECK(CASE WHEN bypass THEN true ELSE (lower('[a,zzzzzzzzzz)'::document_window)=source::tsvector) IS NOT DISTINCT FROM expected_reference END),
+ CONSTRAINT document_archived_count CHECK(CASE WHEN bypass THEN true ELSE (float8_accum(lower('{["{1,2,3}","{2,2,3}"),["{3,2,3}","{4,2,3}")}'::document_score_windows),observation::float8))[1]>minimum_updates::float8 END)
+);

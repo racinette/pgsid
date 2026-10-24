@@ -10038,6 +10038,11 @@ func RangeUnknown() RangeValue {
 func RangeNull() RangeValue {
 	return RangeValue{Kind: RangeValueNull}
 }
+func RangePayloadWithBounds(input RangePayload, bounds []ArrayElement) RangePayload {
+	input = CopyRangePayload(input)
+	bounds = langruntime.CheckedStructs(bounds, CopyArrayElement)
+	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, EnumLabels: input.EnumLabels, EnumCount: input.EnumCount, BoundProfile: input.BoundProfile, Support: input.Support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: bounds}
+}
 func rangePayloadWithSupport(input RangePayload, support RangeSupport) RangePayload {
 	input = CopyRangePayload(input)
 	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, EnumLabels: input.EnumLabels, EnumCount: input.EnumCount, BoundProfile: input.BoundProfile, Support: support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
@@ -10822,6 +10827,11 @@ type MultirangePayload struct {
 
 func CopyMultirangePayload(value MultirangePayload) MultirangePayload {
 	return MultirangePayload{TypeName: langruntime.CheckedString(value.TypeName), RangeType: langruntime.CheckedString(value.RangeType), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Support: value.Support, Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue)}
+}
+func MultirangePayloadWithRanges(input MultirangePayload, ranges []RangeValue) MultirangePayload {
+	input = CopyMultirangePayload(input)
+	ranges = langruntime.CheckedStructs(ranges, CopyRangeValue)
+	return MultirangePayload{TypeName: input.TypeName, RangeType: input.RangeType, ElementType: input.ElementType, ElementKind: input.ElementKind, Support: input.Support, Ranges: ranges}
 }
 
 type MultirangeValueKind uint8
@@ -14359,6 +14369,30 @@ func clearTsvectorStorage(input ArrayElement) ArrayElement {
 		}
 		return ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
 	}
+	if input.Kind == ArrayElementRange {
+		value := CopyRangePayload(input.Range)
+		bounds := []ArrayElement{}
+		i := 0
+		for i < len(value.Bounds) {
+			langruntime.CheckedAdd(len(bounds), 1)
+			bounds = append(bounds, CopyArrayElement(clearTsvectorStorage(CopyArrayElement(value.Bounds[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementRange, Range: RangePayloadWithBounds(value, bounds)}
+	}
+	if input.Kind == ArrayElementMultirange {
+		value := CopyMultirangePayload(input.Multirange)
+		ranges := []RangeValue{}
+		i := 0
+		for i < len(value.Ranges) {
+			member := ArrayElementFromRange(CopyRangeValue(value.Ranges[i]))
+			restored := clearTsvectorStorage(member)
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, CopyRangeValue(ArrayElementToRange(restored)))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementMultirange, Multirange: MultirangePayloadWithRanges(value, ranges)}
+	}
 	return input
 }
 
@@ -14439,6 +14473,30 @@ func ForgetArrayStorage(input ArrayElement) ArrayElement {
 		}
 		return ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
 	}
+	if input.Kind == ArrayElementRange {
+		value := CopyRangePayload(input.Range)
+		bounds := []ArrayElement{}
+		i := 0
+		for i < len(value.Bounds) {
+			langruntime.CheckedAdd(len(bounds), 1)
+			bounds = append(bounds, CopyArrayElement(ForgetArrayStorage(CopyArrayElement(value.Bounds[i]))))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementRange, Range: RangePayloadWithBounds(value, bounds)}
+	}
+	if input.Kind == ArrayElementMultirange {
+		value := CopyMultirangePayload(input.Multirange)
+		ranges := []RangeValue{}
+		i := 0
+		for i < len(value.Ranges) {
+			member := ArrayElementFromRange(CopyRangeValue(value.Ranges[i]))
+			restored := ForgetArrayStorage(member)
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, CopyRangeValue(ArrayElementToRange(restored)))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		return ArrayElement{Kind: ArrayElementMultirange, Multirange: MultirangePayloadWithRanges(value, ranges)}
+	}
 	return input
 }
 
@@ -14504,6 +14562,43 @@ func applyArrayStorageAt(input ArrayElement, plan *ArrayStoragePlan, path string
 			i = langruntime.CheckedAdd(i, 1)
 		}
 		restored := ArrayElement{Kind: ArrayElementComposite, Composite: CompositePayload{TypeName: value.TypeName, Fields: fields}}
+		return arrayStorageResult{value: restored, matched: matched, valid: valid}
+	}
+	if input.Kind == ArrayElementRange {
+		value := CopyRangePayload(input.Range)
+		bounds := []ArrayElement{}
+		matched := 0
+		valid := true
+		i := 0
+		for i < len(value.Bounds) {
+			childPath := arrayStorageChildPath(path, i)
+			child := applyArrayStorageAt(CopyArrayElement(value.Bounds[i]), plan, childPath)
+			matched = langruntime.CheckedAdd(matched, child.matched)
+			valid = valid && child.valid
+			langruntime.CheckedAdd(len(bounds), 1)
+			bounds = append(bounds, CopyArrayElement(child.value))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		restored := ArrayElement{Kind: ArrayElementRange, Range: RangePayloadWithBounds(value, bounds)}
+		return arrayStorageResult{value: restored, matched: matched, valid: valid}
+	}
+	if input.Kind == ArrayElementMultirange {
+		value := CopyMultirangePayload(input.Multirange)
+		ranges := []RangeValue{}
+		matched := 0
+		valid := true
+		i := 0
+		for i < len(value.Ranges) {
+			childPath := arrayStorageChildPath(path, i)
+			member := ArrayElementFromRange(CopyRangeValue(value.Ranges[i]))
+			child := applyArrayStorageAt(member, plan, childPath)
+			matched = langruntime.CheckedAdd(matched, child.matched)
+			valid = valid && child.valid
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, CopyRangeValue(ArrayElementToRange(child.value)))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+		restored := ArrayElement{Kind: ArrayElementMultirange, Multirange: MultirangePayloadWithRanges(value, ranges)}
 		return arrayStorageResult{value: restored, matched: matched, valid: valid}
 	}
 	return arrayStorageResult{value: input, matched: 0, valid: true}

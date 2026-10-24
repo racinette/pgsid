@@ -8,6 +8,11 @@ pub struct MultirangePayload {
     pub ranges: Vec<RangeValue>,
 }
 
+pub fn multirange_payload_with_ranges(input: MultirangePayload, ranges: Vec<RangeValue>) -> MultirangePayload {
+    MultirangePayload {type_name:input.type_name,range_type:input.range_type,element_type:input.element_type,
+        element_kind:input.element_kind,support:input.support,ranges:ranges}
+}
+
 #[derive(Clone)]
 pub enum MultirangeValue {
     Unknown,

@@ -1,3 +1,4 @@
+import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import {
   builtinCast,
   builtinTypeResolution,
@@ -610,8 +611,20 @@ export type SqlExpression =
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'snapshot'; type: SnapshotType; value: string | null }
-  | { kind: 'multirange'; type: MultirangeType; value: string | null }
-  | { kind: 'range'; type: RangeType; value: string | null }
+  | {
+      kind: 'multirange'
+      type: MultirangeType
+      value: string | null
+      arrayStorage?: readonly ArrayConstantStorage[]
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
+    }
+  | {
+      kind: 'range'
+      type: RangeType
+      value: string | null
+      arrayStorage?: readonly ArrayConstantStorage[]
+      tsvectorStorage?: readonly TsvectorConstantStorage[]
+    }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
   | { kind: 'path'; type: PathType; value: string | null }
