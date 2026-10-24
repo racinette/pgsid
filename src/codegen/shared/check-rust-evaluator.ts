@@ -1426,6 +1426,19 @@ export function emitCheckRustEvaluator(
   let comparisonProfileScope: CompositeProfile | null = null
   let comparisonCollationInvalid = false
   let storedArrayMoneyLiterals: readonly { text: string; units: string }[] | undefined
+  let storedTsvectorStorageScope: { plan: string; index: string } | null = null
+  const applyTsvectorStorage = (input: string, lines: string[]): string => {
+    if (storedTsvectorStorageScope === null) return input
+    const result = fresh('tsvector_storage_value'),
+      nullness = fresh('tsvector_storage_nullness')
+    const { plan, index } = storedTsvectorStorageScope
+    lines.push(
+      `let ${result}=apply_tsvector_storage(${input},&${plan},${index});`,
+      `let ${nullness}=tsvector_is_null(${result}.clone());`,
+      `${index}=advance_tsvector_storage(${nullness},${index});`,
+    )
+    return result
+  }
   let declaredArrayInputScope = false
   const renderArrayInputElement = (
     elementType: string,
@@ -1568,10 +1581,9 @@ export function emitCheckRustEvaluator(
     if (family === 12)
       scalar = `jsonb_from_text_context(${event}, ${executionContext.serverEncoding === 'UTF8'})`
     const value = fresh('array_input_scalar')
-    destination.push(
-      `let ${value} = ${scalar};`,
-      `let ${element} = array_element_from_${prefix}(${value});`,
-    )
+    destination.push(`let ${value} = ${scalar};`)
+    const applied = family === 47 && stored ? applyTsvectorStorage(value, destination) : value
+    destination.push(`let ${element} = array_element_from_${prefix}(${applied});`)
     return element
   }
 
@@ -1805,6 +1817,39 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    if (
+      (node.kind === 'array-text-literal' || node.kind === 'text-to-composite') &&
+      node.tsvectorStorage !== undefined
+    ) {
+      const { tsvectorStorage, ...plain } = node
+      let plan = bind('make_tsvector_storage_plan()')
+      const initial = bind('make_int4_value(0)'),
+        index = fresh('tsvector_storage_index')
+      bindings.push(`let mut ${index}:Int4Value=${initial};`)
+      for (const entry of tsvectorStorage) {
+        if (
+          !Number.isInteger(entry.nativeBytes) ||
+          !Number.isInteger(entry.lexemeCount) ||
+          entry.nativeBytes < 8 ||
+          entry.nativeBytes > 1073741823 ||
+          entry.lexemeCount < 0 ||
+          entry.lexemeCount > 1048575
+        )
+          throw new UnsupportedCheckRustExpression('Invalid tsvector container storage metadata')
+        plan = bind(`append_tsvector_storage(${plan},${entry.nativeBytes},${entry.lexemeCount})`)
+      }
+      const previous = storedTsvectorStorageScope
+      storedTsvectorStorageScope = { plan, index }
+      try {
+        const decoded = emitScalarInner(plain, bindings, used),
+          prefix = rustValuePrefix(rustType(decoded.type))
+        const cell = bind(`array_element_from_${prefix}(${ownedOperand(decoded)})`)
+        const finished = bind(`finish_tsvector_storage(${cell},&${plan},${index})`)
+        return { name: bind(`array_element_to_${prefix}(${finished})`), type: decoded.type }
+      } finally {
+        storedTsvectorStorageScope = previous
+      }
     }
     if (node.kind === 'xml-constructor') {
       const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
@@ -5588,10 +5633,11 @@ export function emitCheckRustEvaluator(
       const io = builtinTypeIO(node.type)?.input
       if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')
         throw new UnsupportedCheckRustExpression('Tsvector input requires its catalog I/O identity')
+      const value = bind(
+        `${storedArrayInputScope ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${ownedOperand(operand)},${executionContext.serverEncoding === 'UTF8'})`,
+      )
       return {
-        name: bind(
-          `tsvector_from_text_context(${ownedOperand(operand)},${executionContext.serverEncoding === 'UTF8'})`,
-        ),
+        name: storedArrayInputScope ? applyTsvectorStorage(value, bindings) : value,
         type: node.type,
       }
     }

@@ -113,6 +113,7 @@ export interface StoredTsvectorConstantContext {
   definition: string
   complete: boolean
   constants: { site: string; storage: TsvectorConstantStorage | null }[]
+  containers?: { site: string; storage: TsvectorConstantStorage[] | null }[]
 }
 
 export interface StoredXmlConstantContext {

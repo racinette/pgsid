@@ -14161,6 +14161,120 @@ export function arrayNullBitmap(input: ArrayValue): BoolValue {
     }
     return { kind: "Unknown" };
 }
+export interface TsvectorStorageEntry {
+    nativeBytes: number;
+    lexemeCount: number;
+}
+function copyTsvectorStorageEntry(value: TsvectorStorageEntry): TsvectorStorageEntry {
+    return { nativeBytes: langruntime.checkedI32(value.nativeBytes), lexemeCount: langruntime.checkedI32(value.lexemeCount) };
+}
+export interface TsvectorStoragePlan {
+    entries: TsvectorStorageEntry[];
+    valid: boolean;
+}
+function copyTsvectorStoragePlan(value: TsvectorStoragePlan): TsvectorStoragePlan {
+    return { entries: langruntime.checkedStructs(value.entries, copyTsvectorStorageEntry), valid: langruntime.checkedBool(value.valid) };
+}
+export function makeTsvectorStoragePlan(): TsvectorStoragePlan {
+    const entries: TsvectorStorageEntry[] = [];
+    return { entries: entries, valid: true };
+}
+export function appendTsvectorStorage(input: TsvectorStoragePlan, bytes: number, count: number): TsvectorStoragePlan {
+    input = copyTsvectorStoragePlan(input);
+    bytes = langruntime.checkedI32(bytes);
+    count = langruntime.checkedI32(count);
+    let entries: TsvectorStorageEntry[] = input.entries;
+    const valid: boolean = input.valid && count >= 0 && count <= 1048575 && bytes >= langruntime.checkedSignedAdd(8, langruntime.checkedSignedMultiply(count, 4)) && bytes <= 1073741823;
+    langruntime.pushStruct(entries, { nativeBytes: bytes, lexemeCount: count }, copyTsvectorStorageEntry);
+    return { entries: entries, valid: valid };
+}
+export function applyTsvectorStorage(input: TsvectorValue, plan: TsvectorStoragePlan, index: Int4Value): TsvectorValue {
+    input = copyTsvectorValue(input);
+    plan = copyTsvectorStoragePlan(plan);
+    if (input.kind === "Null") {
+        return input;
+    }
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: TsvectorPayload = copyTsvectorPayload(input.value);
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            const position: number = langruntime.indexFromI32(offset, plan.entries.length);
+            if (plan.valid && offset >= 0 && position < plan.entries.length) {
+                const entry: TsvectorStorageEntry = copyTsvectorStorageEntry(langruntime.indexStruct(plan.entries, langruntime.checkedIndex(position), copyTsvectorStorageEntry));
+                if (value.lexemes.length === langruntime.indexFromI32(entry.lexemeCount, 0)) {
+                    return makeTsvectorValue({ lexemes: value.lexemes, nativeBytes: entry.nativeBytes });
+                }
+            }
+        }
+        return { kind: "Value", value: { lexemes: value.lexemes, nativeBytes: langruntime.checkedSignedNegate(1) } };
+    }
+    return input;
+}
+export function advanceTsvectorStorage(nullness: BoolValue, index: Int4Value): Int4Value {
+    if (nullness.kind === "Error") {
+        const error: SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBoolValue(nullness, { kind: "Value", value: true })) {
+        return index;
+    }
+    if (equalBoolValue(nullness, { kind: "Value", value: false })) {
+        if (index.kind === "Value") {
+            const value: number = langruntime.checkedI32(index.value);
+            if (value < 2147483647) {
+                return makeInt4Value(langruntime.checkedSignedAdd(value, 1));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function finishTsvectorStorage(input: ArrayElement, plan: TsvectorStoragePlan, index: Int4Value): ArrayElement {
+    input = copyArrayElement(input);
+    plan = copyTsvectorStoragePlan(plan);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Value") {
+        const count: number = langruntime.checkedI32(index.value);
+        if (plan.valid && count >= 0 && langruntime.indexFromI32(count, 0) === plan.entries.length) {
+            return input;
+        }
+    }
+    return clearTsvectorStorage(input);
+}
+function clearTsvectorStorage(input: ArrayElement): ArrayElement {
+    input = copyArrayElement(input);
+    if (input.kind === "Tsvector") {
+        const value: TsvectorPayload = copyTsvectorPayload(input.value);
+        return { kind: "Tsvector", value: { lexemes: value.lexemes, nativeBytes: langruntime.checkedSignedNegate(1) } };
+    }
+    if (input.kind === "Array") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let elements: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.elements.length) {
+            langruntime.pushStruct(elements, clearTsvectorStorage(copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Array", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, nullBitmap: value.nullBitmap, elements: elements } };
+    }
+    if (input.kind === "Composite") {
+        const value: CompositePayload = copyCompositePayload(input.value);
+        let fields: ArrayElement[] = [];
+        let i: number = 0;
+        while (i < value.fields.length) {
+            langruntime.pushStruct(fields, clearTsvectorStorage(copyArrayElement(langruntime.indexStruct(value.fields, langruntime.checkedIndex(i), copyArrayElement))), copyArrayElement);
+            i = langruntime.checkedAdd(i, 1);
+        }
+        return { kind: "Composite", value: { typeName: value.typeName, fields: fields } };
+    }
+    return input;
+}
 export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, strict: boolean): ArrayComparisonPayload {
     input = copyArrayValue(input);
     strict = langruntime.checkedBool(strict);
