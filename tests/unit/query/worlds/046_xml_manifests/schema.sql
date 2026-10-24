@@ -99,3 +99,25 @@ CREATE TABLE manifest_queries (
   CONSTRAINT query_exists CHECK (CASE WHEN bypass THEN true ELSE xpath_exists(expression,manifest,namespaces) IS NOT DISTINCT FROM expected_exists END),
   CONSTRAINT query_standard CHECK (CASE WHEN bypass OR NOT use_standard THEN true ELSE XMLEXISTS(expression PASSING BY REF manifest BY REF) IS NOT DISTINCT FROM expected_exists END)
 );
+
+CREATE TABLE manifest_fixed_query_results (
+  manifest xml,
+  expected_text text,
+  bypass boolean NOT NULL,
+  CONSTRAINT fixed_query_matches CHECK (CASE WHEN bypass THEN true ELSE (xpath('1 div 3','<manifest/>'::xml))[1]::text IS NOT DISTINCT FROM expected_text END),
+  CONSTRAINT eliminated_query_branch CHECK (CASE WHEN true THEN true ELSE xpath_exists('[','<manifest/>'::xml) END),
+  CONSTRAINT computed_query_branch CHECK (CASE WHEN (xpath('true()','<manifest/>'::xml))[1]::text='true' THEN true ELSE xpath_exists('[','<manifest/>'::xml) END),
+  CONSTRAINT computed_query_fallback CHECK (COALESCE((xpath('true()','<manifest/>'::xml))[1]::text,(xpath('[','<manifest/>'::xml))[1]::text)='true'),
+  CONSTRAINT row_document_query CHECK (CASE WHEN bypass THEN true ELSE xpath_exists('[',manifest) END)
+);
+
+CREATE TABLE manifest_fixed_query_rules (
+  bypass boolean NOT NULL,
+  CONSTRAINT fixed_rule_valid CHECK (CASE WHEN bypass THEN true ELSE xpath_exists('[','<manifest/>'::xml) END),
+  CONSTRAINT unfolded_query_branch CHECK (CASE WHEN XMLSERIALIZE(CONTENT (xpath('true()','<manifest/>'::xml))[1] AS text)='true' THEN true ELSE xpath_exists('[','<manifest/>'::xml) END)
+);
+
+CREATE TABLE manifest_query_rule_order (
+  prefer_document boolean,
+  CONSTRAINT document_before_mapping CHECK (CASE WHEN prefer_document THEN xpath_exists('false()','plain'::xml) ELSE xpath_exists('false()','<manifest/>'::xml,ARRAY['bad']) END)
+);

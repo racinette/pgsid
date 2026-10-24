@@ -794,10 +794,16 @@ export function emitCheckRustEvaluator(
   const preparedGuard = (lines: readonly string[], name: string): string => {
     const guard = fresh('prepared_guard')
     declareConstant(guard, 'CheckOutcome', 'check_unknown()')
+    const requirement = diagnostics.declared(guard, constantDeclarations)
     preparationLines.push(
       ...lines,
       `${guard} = ${name};`,
-      `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+      ...(diagnostics.enabled
+        ? [
+            `${requirement} = check_requirement_for_outcome(${guard}, ${diagnostics.reference(name)});`,
+          ]
+        : []),
+      ...preparationFinishLines(guard, diagnostics.reference(guard)),
     )
     return guard
   }
@@ -905,11 +911,18 @@ export function emitCheckRustEvaluator(
       return true
     return Object.values(value).some(containsXPath)
   }
+  const hasXPath = containsXPath(expression)
   const diagnostics = new CheckRustDiagnostics(
-    !preparationOnly && containsXPath(expression),
+    !preparationOnly && hasXPath,
     fresh,
     rustType,
     ownedOperand,
+  )
+  const preparationDiagnosticDeclarations: string[] = []
+  const preparationRequirement = diagnostics.declared(
+    preparationState,
+    preparationDiagnosticDeclarations,
+    '0',
   )
   const diagnosticCall = (call: Extract<EvalExpression, { kind: 'call' }>['call']): boolean => {
     if (!call.signature) return true
@@ -979,6 +992,25 @@ export function emitCheckRustEvaluator(
     const lines: string[] = []
     appendValidityRequirement(scope, state, reason, lines)
     return lines
+  }
+  const preparationFinishLines = (state: string, reason = '-1'): string[] => {
+    const lines = [`${preparationState} = constant_finish(${preparationState}, ${state});`]
+    appendValidityRequirement(preparationState, state, reason, lines)
+    return hasXPath
+      ? [`if case_guard_stops(${preparationState}) == false {`, ...indent(lines), '};']
+      : lines
+  }
+  const carryPreparedRequirement = (
+    name: string,
+    value: { name: string; type: string },
+    lines: string[],
+  ): void => {
+    if (!diagnostics.enabled) return
+    const requirement = diagnostics.declared(name, constantDeclarations)
+    const reason = diagnostics.reason(value, lines)
+    lines.push(
+      `${requirement} = ${reason === '-1' || reason === '0' ? `check_requirement_code(${reason})` : reason};`,
+    )
   }
   const appendArrayValidity = (
     value: { name: string; type: string },
@@ -1576,6 +1608,7 @@ export function emitCheckRustEvaluator(
         node.kind === 'array-quantifier' ||
         (implementation !== null &&
           (isArrayComparison(implementation) ||
+            isXmlXPathCallable(implementation) ||
             isRecordComparison(implementation) ||
             isArrayExtremum(implementation) ||
             isArrayBucket(implementation) ||
@@ -1597,6 +1630,7 @@ export function emitCheckRustEvaluator(
       const name = fresh('prepared_operand')
       declareConstant(name, kind, `${prefix}_unknown()`)
       preparationLines.push(`${name} = ${ownedOperand(value)};`)
+      carryPreparedRequirement(name, value, preparationLines)
       return { name, type: value.type }
     }
     let value: { name: string; type: string }
@@ -1662,8 +1696,9 @@ export function emitCheckRustEvaluator(
       bindings.push(
         `let ${nullness} = ${prefix}_is_null(${ownedOperand(value)});`,
         `let ${state} = array_value_validity(${nullness}, ${node.kind !== 'certain' && valueLiteralDepth === 0 && !rustScalarOwnCanFail(node, executionContext)});`,
-        `${preparationState} = constant_finish(${preparationState}, ${state});`,
       )
+      const requirement = diagnostics.reason(value, bindings)
+      bindings.push(...preparationFinishLines(state, requirement))
     }
     return value
   }
@@ -1719,7 +1754,7 @@ export function emitCheckRustEvaluator(
       preparationLines.push(
         `let ${nullness} = ${prefix}(${argument});`,
         `let ${status} = array_value_validity(${nullness}, true);`,
-        `${preparationState} = constant_finish(${preparationState}, ${status});`,
+        ...preparationFinishLines(status),
       )
     }
   }
@@ -1990,7 +2025,7 @@ export function emitCheckRustEvaluator(
         else
           targetPreparation.push(
             `${domainPreparationState} = array_validity_finish(${domainPreparationState}, ${prepared});`,
-            `${preparationState} = constant_finish(${preparationState}, ${prepared});`,
+            ...preparationFinishLines(prepared),
           )
         const args = checker.inputs.map((input) => {
           if (input.name !== 'value' || (!input.nullness && input.type !== node.type))
@@ -2312,6 +2347,7 @@ export function emitCheckRustEvaluator(
       const initial = fresh('constant_start')
       preparationLines.push(`let ${initial} = make_bool_value(true);`)
       preparationLines.push(`let mut ${guard}: CheckOutcome = check_from_bool(${initial});`)
+      diagnostics.declared(guard, preparationLines, '0')
       const prepareExpression = (step: ConstantPreparation): void => {
         let value: { name: string; type: string }
         preparationDepth++
@@ -2334,6 +2370,8 @@ export function emitCheckRustEvaluator(
           preparationLines.push(`let ${state} = check_from_bool(${value.name});`)
         }
         preparationLines.push(`${guard} = constant_finish(${guard}, ${state});`)
+        const requirement = diagnostics.reason(value, preparationLines)
+        appendValidityRequirement(guard, state, requirement, preparationLines)
         if (step.kind === 'guard') {
           const selected = capturePreparation(() => step.selected.forEach(prepareExpression))
           const otherwise = capturePreparation(() => step.otherwise.forEach(prepareExpression))
@@ -2362,7 +2400,7 @@ export function emitCheckRustEvaluator(
         `if case_guard_stops(${guard}) {`,
         `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
         '};',
-        `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+        ...preparationFinishLines(guard, diagnostics.reference(guard)),
       )
       return { name, type }
     }
@@ -5176,10 +5214,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'uncertain') {
       if (node.preparation === 'constant') {
         const status = fresh('unavailable_constant')
-        preparationLines.push(
-          `let ${status} = check_unknown();`,
-          `${preparationState} = constant_finish(${preparationState}, ${status});`,
-        )
+        preparationLines.push(`let ${status} = check_unknown();`, ...preparationFinishLines(status))
       }
       prepareOpaque()
       const kind = rustType(node.type)
@@ -7075,6 +7110,7 @@ export function emitCheckRustEvaluator(
           const name = fresh('constant_argument')
           declareConstant(name, kind, `${prefix}_unknown()`)
           preparationLines.push(`${name} = ${ownedOperand(value)};`)
+          carryPreparedRequirement(name, value, preparationLines)
           if (strict) {
             const nullness = fresh('constant_argument_nullness')
             const state = fresh('constant_argument_state')
@@ -7090,11 +7126,18 @@ export function emitCheckRustEvaluator(
         const kind = rustType(value.type)
         const prefix = rustValuePrefix(kind)
         const name = fresh('prepared_call')
+        const requirement = diagnostics.declared(name, bindings, '0')
+        const selectedRequirement = diagnostics.reason(value, lines)
         bindings.push(
           `let mut ${name}: ${kind} = ${prefix}_null();`,
           `if case_guard_takes(${guard}) == false {`,
           ...indent(lines),
           `    ${name} = ${ownedOperand(value)};`,
+          ...(diagnostics.enabled
+            ? [
+                `    ${requirement} = ${selectedRequirement === '-1' || selectedRequirement === '0' ? `check_requirement_code(${selectedRequirement})` : selectedRequirement};`,
+              ]
+            : []),
           '};',
         )
         return { name, type: value.type }
@@ -7530,11 +7573,14 @@ export function emitCheckRustEvaluator(
           `${name} = ${ownedOperand(operand.value)};`,
           `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name, type: node.type })});`,
           `let ${guard} = check_from_bool(${nullness});`,
-          `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+        ]
+        carryPreparedRequirement(name, operand.value, lines)
+        lines.push(
+          ...preparationFinishLines(guard, diagnostics.reference(name)),
           `if case_guard_takes(${guard}) {`,
           ...indent(rest),
           '};',
-        ]
+        )
         operand.value = { name, type: node.type }
         operand.lines = []
         return lines
@@ -8017,23 +8063,33 @@ export function emitCheckRustEvaluator(
         observed.push(
           `let ${nullness} = ${binding.type === 'CheckOutcome' ? 'bool_from_check' : rustValuePrefix(binding.type) + '_is_null'}(${argument});`,
           `let ${status} = array_value_validity(${nullness}, true);`,
-          `${preparationState} = constant_finish(${preparationState}, ${status});`,
+          ...preparationFinishLines(status),
         )
       }
+    const domainPreparationLines = domainPreparationState
+      ? [
+          `${preparationState} = array_validity_finish(${domainPreparationState}, ${preparationState});`,
+          ...validityRequirementLines(preparationState, domainPreparationState, '-1'),
+        ]
+      : []
     lines = [
       ...constantDeclarations,
+      ...preparationDiagnosticDeclarations,
       `let ${start} = make_bool_value(true);`,
       `let mut ${preparationState}: CheckOutcome = check_from_bool(${start});`,
       ...(domainPreparationState ? [`${domainPreparationState} = ${preparationState};`] : []),
       ...literalLines,
       ...constantLines,
       ...observed,
-      ...(domainPreparationState
+      ...(hasXPath && domainPreparationLines.length
         ? [
-            `${preparationState} = array_validity_finish(${domainPreparationState}, ${preparationState});`,
+            `if case_guard_stops(${preparationState}) == false {`,
+            ...indent(domainPreparationLines),
+            '};',
           ]
-        : []),
+        : domainPreparationLines),
       `let mut ${resultName}: CheckOutcome = ${preparationState};`,
+      ...(diagnostics.enabled ? [`${entryRequirement} = ${preparationRequirement};`] : []),
       ...(preparationOnly
         ? []
         : [
