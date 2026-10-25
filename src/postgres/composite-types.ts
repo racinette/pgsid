@@ -21,7 +21,17 @@ export async function readCatalogCompositeTypes(
 ): Promise<CompositeTypeGraph> {
   const rows = (
     await pg.query<CompositeTypeDefinition & { root: boolean; comparisonCollation: string | null }>(
-      `WITH RECURSIVE roots(type) AS (
+      `WITH RECURSIVE expression_trees(tree) AS (
+      SELECT c.conbin::text FROM pg_catalog.pg_constraint c JOIN pg_catalog.pg_namespace n ON n.oid=c.connamespace
+        WHERE c.contype='c' AND (($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema') OR n.nspname=ANY($1::text[]))
+      UNION ALL
+      SELECT p.proargdefaults::text FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+        WHERE p.proargdefaults IS NOT NULL AND (($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema') OR n.nspname=ANY($1::text[]))
+    ),expression_types(type) AS (
+      SELECT DISTINCT t.oid FROM expression_trees
+        CROSS JOIN LATERAL pg_catalog.regexp_matches(tree,':[[:alnum:]_]*type(?:id)?[[:space:]]+([0-9]+)','gi') matches(parts)
+        JOIN pg_catalog.pg_type t ON t.oid=(matches.parts)[1]::oid WHERE t.typtype<>'p'
+    ),roots(type) AS (
       SELECT t.oid FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
       WHERE t.typtype='c' AND (
         ($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema')
@@ -39,6 +49,7 @@ export async function readCatalogCompositeTypes(
       WHERE child.type IS NOT NULL AND child.type<>0
     ),needed(type) AS (
       SELECT type FROM roots UNION
+      SELECT type FROM expression_types UNION
       SELECT t.oid FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace
         WHERE t.typtype IN('e','d') AND (($1::text[] IS NULL AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND n.nspname<>'information_schema') OR n.nspname=ANY($1::text[])) UNION
       SELECT d.type FROM domain_bases d JOIN pg_catalog.pg_type t ON t.oid=d.base WHERE t.typtype='c' UNION

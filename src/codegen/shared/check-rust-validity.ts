@@ -1,4 +1,5 @@
 import { arrayElementComparison } from './check-array-types.js'
+import { isRecordComparison, recordComparisonLayouts } from './check-record-comparison.js'
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import {
@@ -127,7 +128,7 @@ const orderedElement = (type: string): boolean => {
       ?.btreeClass != null
   )
 }
-type ValidityContext = { serverEncoding?: 'UTF8' }
+type ValidityContext = { serverEncoding?: 'UTF8'; defaultCollation?: 'C' }
 export function rustCallCanFail(
   call: SqlCallableExpression,
   types: readonly string[],
@@ -138,6 +139,58 @@ export function rustCallCanFail(
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
   const boundary = hash.kind === 'operator' ? builtinMetadata(hash.implementation) : hash
+  if (isRecordComparison(boundary)) {
+    const left = recordComparisonLayouts(types[0] ?? ''),
+      right = recordComparisonLayouts(types[1] ?? '')
+    if (!left?.length || !right?.length) return true
+    const equality = ['record_eq', 'record_ne'].includes(boundary.name)
+    return left.some((a) =>
+      right.some(
+        (b) =>
+          a.fields.length !== b.fields.length ||
+          a.fields.some((field, index) => {
+            const other = b.fields[index]!,
+              first = field.support,
+              second = other.support,
+              selected = equality ? first?.equalityImplementation : first?.comparator,
+              counterpart = equality ? second?.equalityImplementation : second?.comparator
+            if (
+              field.identity !== other.identity ||
+              !selected ||
+              selected !== counterpart ||
+              !(equality
+                ? first?.equalityAvailable && second?.equalityAvailable
+                : first?.comparisonAvailable && second?.comparisonAvailable) ||
+              !scalarComparisons.has(selected)
+            )
+              return true
+            const scalar = builtinMetadata(selected),
+              text = scalar.args.some((type) =>
+                [
+                  'pg_catalog.text',
+                  'pg_catalog."varchar"',
+                  'pg_catalog.bpchar',
+                  'pg_catalog.name',
+                ].includes(type),
+              ),
+              collation =
+                field.collation === 'default'
+                  ? (context.defaultCollation ?? 'deterministic')
+                  : field.collation,
+              otherCollation =
+                other.collation === 'default'
+                  ? (context.defaultCollation ?? 'deterministic')
+                  : other.collation
+            return (
+              text &&
+              (field.collationIdentity !== other.collationIdentity ||
+                !supportsTextCallableCollation(selected, collation) ||
+                !supportsTextCallableCollation(selected, otherCollation))
+            )
+          }),
+      ),
+    )
+  }
   if (
     boundary.kind === 'function' &&
     boundary.schema === 'pg_catalog' &&

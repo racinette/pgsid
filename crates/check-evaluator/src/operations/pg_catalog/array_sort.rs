@@ -352,6 +352,26 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
     if let ArrayElement::ByteaUnspecified(_) = left {
         return false;
     };
+    if kind == 44 {
+        let first_record = array_element_to_composite(left);
+        let second_record = array_element_to_composite(right);
+        if let CompositeValue::Value(first) = first_record {
+            if let CompositeValue::Value(second) = second_record {
+                if first.type_name != second.type_name || first.fields.len() != second.fields.len() {
+                    return false;
+                };
+                let mut index: usize = 0;
+                while index < first.fields.len() {
+                    if array_sort_same_element(first.fields[index].clone(), second.fields[index].clone()) == false {
+                        return false;
+                    };
+                    index += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
     if kind == 42 {
         let first_range = array_element_to_range(left);
         let second_range = array_element_to_range(right);

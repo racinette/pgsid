@@ -137,3 +137,17 @@ export function recordComparisonLayouts(type: string): RecordComparisonLayout[] 
     },
   ]
 }
+
+export const isRecordComparison = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args.length === 2 &&
+  item.args.every((type) => type === 'pg_catalog.record') &&
+  (item.name === 'btrecordcmp'
+    ? item.result === 'pg_catalog.int4'
+    : ['record_eq', 'record_ne', 'record_lt', 'record_le', 'record_gt', 'record_ge'].includes(
+        item.name,
+      ) && item.result === 'pg_catalog.bool')

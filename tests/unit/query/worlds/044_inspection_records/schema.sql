@@ -353,5 +353,12 @@ CREATE TABLE inspection_anonymous_comparisons (
  CONSTRAINT anonymous_order CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.btrecordcmp(ROW(n,label COLLATE "C"),ROW(m,other_label COLLATE "C")) IS NOT DISTINCT FROM expected_order END),
  CONSTRAINT anonymous_selected CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(CASE WHEN pick_number THEN ROW(n) ELSE ROW(label) END,CASE WHEN pick_number THEN ROW(m) ELSE ROW(other_label) END) IS NOT DISTINCT FROM expected_selected END),
  CONSTRAINT anonymous_array CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[ROW(n,label COLLATE "C")]=ARRAY[ROW(m,other_label COLLATE "C")]) IS NOT DISTINCT FROM expected_equal END),
- CONSTRAINT anonymous_arithmetic CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(ROW(n,1/divisor),ROW(m,1)) IS NOT DISTINCT FROM expected_arithmetic END)
+ CONSTRAINT anonymous_arithmetic CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(ROW(n,1/divisor),ROW(m,1)) IS NOT DISTINCT FROM expected_arithmetic END),
+ CONSTRAINT anonymous_any CHECK(CASE WHEN bypass THEN true ELSE ROW(n,label COLLATE "C")=ANY(ARRAY[ROW(m,other_label COLLATE "C"),ROW(n,label COLLATE "C")]) END),
+ CONSTRAINT anonymous_all CHECK(CASE WHEN bypass THEN true ELSE (ROW(n,label COLLATE "C")=ALL(ARRAY[ROW(m,other_label COLLATE "C")])) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT anonymous_position CHECK(CASE WHEN bypass THEN true ELSE array_position(ARRAY[ROW(m,other_label COLLATE "C"),ROW(n,label COLLATE "C")],ROW(n,label COLLATE "C"))=CASE WHEN expected_equal THEN 1 ELSE 2 END END),
+ CONSTRAINT anonymous_sort_shape CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_sort(ARRAY[ROW(n,label COLLATE "C"),ROW(m,other_label COLLATE "C")]))=2 END),
+ CONSTRAINT anonymous_sort_values CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(array_sort(ARRAY[ROW(n,label COLLATE "C"),ROW(n,label COLLATE "C")]))=jsonb_build_array(jsonb_build_object('f1',n,'f2',label),jsonb_build_object('f1',n,'f2',label)) END),
+ CONSTRAINT anonymous_bucket CHECK(CASE WHEN bypass THEN true ELSE width_bucket(ROW(n),ARRAY[ROW(m)])=CASE WHEN n IS NULL THEN 1 WHEN m IS NULL THEN 0 WHEN n<m THEN 0 ELSE 1 END END),
+ CONSTRAINT anonymous_empty CHECK(CASE WHEN bypass THEN true ELSE NOT(ROW(n)=ANY(ARRAY[]::record[])) END)
 );

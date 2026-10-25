@@ -2902,6 +2902,28 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	if left.Kind == checkruntime.ArrayElementByteaUnspecified {
 		return false
 	}
+	if kind == 44 {
+		firstRecord := checkruntime.ArrayElementToComposite(left)
+		secondRecord := checkruntime.ArrayElementToComposite(right)
+		if firstRecord.Kind == checkruntime.CompositeValueValue {
+			first := checkruntime.CopyCompositePayload(firstRecord.Value)
+			if secondRecord.Kind == checkruntime.CompositeValueValue {
+				second := checkruntime.CopyCompositePayload(secondRecord.Value)
+				if first.TypeName != second.TypeName || len(first.Fields) != len(second.Fields) {
+					return false
+				}
+				index := 0
+				for index < len(first.Fields) {
+					if arraySortSameElement(checkruntime.CopyArrayElement(first.Fields[index]), checkruntime.CopyArrayElement(second.Fields[index])) == false {
+						return false
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if kind == 42 {
 		firstRange := checkruntime.ArrayElementToRange(left)
 		secondRange := checkruntime.ArrayElementToRange(right)
