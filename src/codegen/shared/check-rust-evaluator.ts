@@ -691,6 +691,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog.money') return 'MoneyValue'
   if (type === 'pg_catalog.tsvector') return 'TsvectorValue'
+  if (type === 'pg_catalog.tsquery') return 'TsqueryValue'
   if (type === 'pg_catalog.aclitem') return 'AclitemValue'
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
@@ -904,6 +905,7 @@ export function emitCheckRustEvaluator(
       'XmlValue',
       'ArrayValue',
       'TsvectorValue',
+      'TsqueryValue',
       'SnapshotValue',
       'RangeValue',
       'MultirangeValue',
@@ -1804,6 +1806,7 @@ export function emitCheckRustEvaluator(
           'XmlValue',
           'ArrayValue',
           'TsvectorValue',
+          'TsqueryValue',
           'SnapshotValue',
           'RangeValue',
           'MultirangeValue',
@@ -2100,12 +2103,14 @@ export function emitCheckRustEvaluator(
       const multirange = isMultirangeType(node.type)
       const xml = node.type === 'pg_catalog.xml'
       const tsvector = node.type === 'pg_catalog.tsvector'
+      const tsquery = node.type === 'pg_catalog.tsquery'
       if (
         !array &&
         !range &&
         !multirange &&
         !xml &&
         !tsvector &&
+        !tsquery &&
         arrayElementFamily(node.type) === null
       )
         throw new UnsupportedCheckRustExpression(
@@ -2119,7 +2124,7 @@ export function emitCheckRustEvaluator(
       const prefix = rustValuePrefix(rustType(node.type))
       const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
       const element =
-        array || range || multirange || xml || tsvector
+        array || range || multirange || xml || tsvector || tsquery
           ? null
           : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
       const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
@@ -2201,6 +2206,11 @@ export function emitCheckRustEvaluator(
       if (tsvector)
         return {
           name: bind(`finish_tsvector_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
+      if (tsquery)
+        return {
+          name: bind(`finish_tsquery_domain_conversion(${ownedOperand(operand)}, ${status})`),
           type: node.type,
         }
       if (xml)
@@ -2758,6 +2768,7 @@ export function emitCheckRustEvaluator(
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
       const tsvectorSend = call.signature === builtinTypeIO('pg_catalog.tsvector')?.send
+      const tsquerySend = call.signature === builtinTypeIO('pg_catalog.tsquery')?.send
       const xmlPredicate = isXmlOptionPredicate(implementation)
       const xmlConcat =
         implementation.schema === 'pg_catalog' &&
@@ -5003,7 +5014,8 @@ export function emitCheckRustEvaluator(
         )
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
-      if (tsvectorSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (tsvectorSend || tsquerySend)
+        arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (
         implementation.schema === 'pg_catalog' &&
         implementation.name === 'array_to_tsvector' &&
@@ -5489,6 +5501,8 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
       if (operand.type === 'pg_catalog.tsvector')
         return { name: bind(`tsvector_to_text(${ownedOperand(operand)})`), type: node.type }
+      if (operand.type === 'pg_catalog.tsquery')
+        return { name: bind(`tsquery_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.aclitem')
         return { name: bind(`aclitem_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.money')
@@ -5691,6 +5705,18 @@ export function emitCheckRustEvaluator(
         return { name: bind(`json_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
+    }
+    if (node.kind === 'text-to-tsquery') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')
+        throw new UnsupportedCheckRustExpression('Tsquery input requires its catalog I/O identity')
+      return {
+        name: bind(
+          `tsquery_from_text_context(${ownedOperand(operand)},${executionContext.serverEncoding === 'UTF8'})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'text-to-tsvector') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -6570,6 +6596,20 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`lseg_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'tsquery') {
+        if (value.value === null) return { name: bind('tsquery_null()'), type: value.type }
+        if (value.stored)
+          throw new UnsupportedCheckRustExpression(
+            'Stored tsquery constants require captured query trees',
+          )
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return {
+          name: bind(
+            `tsquery_from_text_context(${text},${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
+      }
       if (value.kind === 'tsvector') {
         if (value.value === null) return { name: bind('tsvector_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -7327,6 +7367,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.lseg',
           'pg_catalog.money',
           'pg_catalog.tsvector',
+          'pg_catalog.tsquery',
           'pg_catalog.aclitem',
           'pg_catalog.xid',
           'pg_catalog.cid',
@@ -7917,6 +7958,7 @@ export function emitCheckRustEvaluator(
               'XmlValue',
               'ArrayValue',
               'TsvectorValue',
+              'TsqueryValue',
               'SnapshotValue',
               'RangeValue',
               'MultirangeValue',
@@ -8364,6 +8406,7 @@ export function emitCheckRustEvaluator(
           'XmlValue',
           'ArrayValue',
           'TsvectorValue',
+          'TsqueryValue',
           'SnapshotValue',
           'RangeValue',
           'MultirangeValue',

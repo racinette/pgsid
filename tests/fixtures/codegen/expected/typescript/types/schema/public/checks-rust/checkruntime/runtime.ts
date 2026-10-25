@@ -11452,6 +11452,17 @@ export function finishTsvectorDomainConversion(input: TsvectorValue, result: Che
     }
     return input;
 }
+export function finishTsqueryDomainConversion(input: TsqueryValue, result: CheckOutcome): TsqueryValue {
+    input = copyTsqueryValue(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface ArrayDimension {
     readonly lower: number;
     readonly length: number;

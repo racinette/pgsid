@@ -318,6 +318,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-lseg' ||
     expression.kind === 'text-to-money' ||
     expression.kind === 'text-to-tsvector' ||
+    expression.kind === 'text-to-tsquery' ||
     expression.kind === 'text-to-aclitem' ||
     expression.kind === 'text-to-xid' ||
     expression.kind === 'text-to-cid' ||

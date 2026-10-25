@@ -78,6 +78,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     money: 'pg_catalog.money',
     aclitem: 'pg_catalog.aclitem',
     tsvector: 'pg_catalog.tsvector',
+    tsquery: 'pg_catalog.tsquery',
     xid: 'pg_catalog.xid',
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
@@ -162,6 +163,7 @@ export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
 export type TsvectorType = 'pg_catalog.tsvector'
+export type TsqueryType = 'pg_catalog.tsquery'
 export type AclitemType = 'pg_catalog.aclitem'
 export type MoneyType = 'pg_catalog.money'
 export type XidType = 'pg_catalog.xid'
@@ -245,6 +247,7 @@ export type NonArrayScalarType =
   | MoneyType
   | AclitemType
   | TsvectorType
+  | TsqueryType
   | XidType
   | CidType
   | PgLsnType
@@ -604,6 +607,7 @@ export type SqlExpression =
       stored?: boolean
       storage?: TsvectorConstantStorage
     }
+  | { kind: 'tsquery'; type: TsqueryType; value: string | null; stored?: boolean }
   | { kind: 'aclitem'; type: AclitemType; value: string | null }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }
@@ -1291,6 +1295,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'tsvector') {
       if (node.value !== null) throw new Error('Tsvector literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'tsquery') {
+      if (node.value !== null) throw new Error('Tsquery literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'aclitem') {

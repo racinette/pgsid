@@ -1,3 +1,4 @@
+import { tsqueryRustPayload, tsqueryGoPayload, type TsqueryInputPayload } from './tsquery-input.js'
 import {
   tsvectorRustPayload,
   tsvectorGoPayload,
@@ -69,6 +70,7 @@ export type Input =
         | { x1: bigint; y1: bigint; x2: bigint; y2: bigint }
         | { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
         | TsvectorInputPayload
+        | TsqueryInputPayload
         | { grantee: bigint; grantor: bigint; privileges: bigint; grantOptions: bigint }
         | { time: bigint; zone: number }
         | { time: bigint; months: number; days: number }
@@ -122,108 +124,113 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.tsvector'
-      ? 'tsvector'
-      : type === 'pg_catalog.aclitem'
-        ? 'aclitem'
-        : isMultirangeType(type)
-          ? 'multirange'
-          : isRangeType(type)
-            ? 'range'
-            : type.startsWith('composite:')
-              ? 'composite'
-              : isArrayLikeType(type)
-                ? 'array'
-                : type === 'pg_catalog.xml'
-                  ? 'xml'
-                  : type === 'pg_catalog.jsonpath'
-                    ? 'jsonpath'
-                    : type === 'pg_catalog.jsonb'
-                      ? 'jsonb'
-                      : type === 'pg_catalog."json"'
-                        ? 'json'
-                        : type === 'pg_catalog."char"'
-                          ? 'internal_char'
-                          : type === 'pg_catalog.xid'
-                            ? 'xid'
-                            : type === 'pg_catalog.cid'
-                              ? 'cid'
-                              : type === 'pg_catalog.pg_lsn'
-                                ? 'pg_lsn'
-                                : type === 'pg_catalog.tid'
-                                  ? 'tid'
-                                  : type === 'pg_catalog.xid8'
-                                    ? 'xid8'
-                                    : isOidType(type)
-                                      ? 'oid'
-                                      : type === 'pg_catalog.money'
-                                        ? 'money'
-                                        : type === 'pg_catalog.polygon'
-                                          ? 'polygon'
-                                          : type === 'pg_catalog.path'
-                                            ? 'path'
-                                            : type === 'pg_catalog.circle'
-                                              ? 'circle'
-                                              : type === 'pg_catalog.box'
-                                                ? 'box'
-                                                : type === 'pg_catalog.lseg'
-                                                  ? 'lseg'
-                                                  : type === 'pg_catalog.line'
-                                                    ? 'line'
-                                                    : type === 'pg_catalog.point'
-                                                      ? 'point'
-                                                      : type === 'pg_catalog."time"'
-                                                        ? 'time'
-                                                        : type === 'pg_catalog.timetz'
-                                                          ? 'timetz'
-                                                          : type === 'pg_catalog."interval"'
-                                                            ? 'interval'
-                                                            : type === 'pg_catalog.float4' ||
-                                                                type === 'pg_catalog.float8'
-                                                              ? type.slice('pg_catalog.'.length)
-                                                              : type === 'pg_catalog."bit"' ||
-                                                                  type === 'pg_catalog.varbit'
-                                                                ? 'bit'
-                                                                : type === 'pg_catalog.uuid'
-                                                                  ? 'uuid'
-                                                                  : type === 'pg_catalog.inet' ||
-                                                                      type === 'pg_catalog.cidr'
-                                                                    ? 'network'
-                                                                    : type === 'pg_catalog.macaddr'
-                                                                      ? 'macaddr'
+    type === 'pg_catalog.tsquery'
+      ? 'tsquery'
+      : type === 'pg_catalog.tsvector'
+        ? 'tsvector'
+        : type === 'pg_catalog.aclitem'
+          ? 'aclitem'
+          : isMultirangeType(type)
+            ? 'multirange'
+            : isRangeType(type)
+              ? 'range'
+              : type.startsWith('composite:')
+                ? 'composite'
+                : isArrayLikeType(type)
+                  ? 'array'
+                  : type === 'pg_catalog.xml'
+                    ? 'xml'
+                    : type === 'pg_catalog.jsonpath'
+                      ? 'jsonpath'
+                      : type === 'pg_catalog.jsonb'
+                        ? 'jsonb'
+                        : type === 'pg_catalog."json"'
+                          ? 'json'
+                          : type === 'pg_catalog."char"'
+                            ? 'internal_char'
+                            : type === 'pg_catalog.xid'
+                              ? 'xid'
+                              : type === 'pg_catalog.cid'
+                                ? 'cid'
+                                : type === 'pg_catalog.pg_lsn'
+                                  ? 'pg_lsn'
+                                  : type === 'pg_catalog.tid'
+                                    ? 'tid'
+                                    : type === 'pg_catalog.xid8'
+                                      ? 'xid8'
+                                      : isOidType(type)
+                                        ? 'oid'
+                                        : type === 'pg_catalog.money'
+                                          ? 'money'
+                                          : type === 'pg_catalog.polygon'
+                                            ? 'polygon'
+                                            : type === 'pg_catalog.path'
+                                              ? 'path'
+                                              : type === 'pg_catalog.circle'
+                                                ? 'circle'
+                                                : type === 'pg_catalog.box'
+                                                  ? 'box'
+                                                  : type === 'pg_catalog.lseg'
+                                                    ? 'lseg'
+                                                    : type === 'pg_catalog.line'
+                                                      ? 'line'
+                                                      : type === 'pg_catalog.point'
+                                                        ? 'point'
+                                                        : type === 'pg_catalog."time"'
+                                                          ? 'time'
+                                                          : type === 'pg_catalog.timetz'
+                                                            ? 'timetz'
+                                                            : type === 'pg_catalog."interval"'
+                                                              ? 'interval'
+                                                              : type === 'pg_catalog.float4' ||
+                                                                  type === 'pg_catalog.float8'
+                                                                ? type.slice('pg_catalog.'.length)
+                                                                : type === 'pg_catalog."bit"' ||
+                                                                    type === 'pg_catalog.varbit'
+                                                                  ? 'bit'
+                                                                  : type === 'pg_catalog.uuid'
+                                                                    ? 'uuid'
+                                                                    : type === 'pg_catalog.inet' ||
+                                                                        type === 'pg_catalog.cidr'
+                                                                      ? 'network'
                                                                       : type ===
-                                                                          'pg_catalog.macaddr8'
-                                                                        ? 'macaddr8'
+                                                                          'pg_catalog.macaddr'
+                                                                        ? 'macaddr'
                                                                         : type ===
-                                                                            'pg_catalog.bytea'
-                                                                          ? 'bytea'
-                                                                          : type.startsWith('enum:')
-                                                                            ? 'enum'
-                                                                            : type ===
-                                                                                'pg_catalog.int2'
-                                                                              ? 'int2'
+                                                                            'pg_catalog.macaddr8'
+                                                                          ? 'macaddr8'
+                                                                          : type ===
+                                                                              'pg_catalog.bytea'
+                                                                            ? 'bytea'
+                                                                            : type.startsWith(
+                                                                                  'enum:',
+                                                                                )
+                                                                              ? 'enum'
                                                                               : type ===
-                                                                                  'pg_catalog.int4'
-                                                                                ? 'int4'
+                                                                                  'pg_catalog.int2'
+                                                                                ? 'int2'
                                                                                 : type ===
-                                                                                    'pg_catalog.int8'
-                                                                                  ? 'int8'
+                                                                                    'pg_catalog.int4'
+                                                                                  ? 'int4'
                                                                                   : type ===
-                                                                                      'pg_catalog."numeric"'
-                                                                                    ? 'numeric'
+                                                                                      'pg_catalog.int8'
+                                                                                    ? 'int8'
                                                                                     : type ===
-                                                                                        'pg_catalog."timestamp"'
-                                                                                      ? 'timestamp'
+                                                                                        'pg_catalog."numeric"'
+                                                                                      ? 'numeric'
                                                                                       : type ===
-                                                                                          'pg_catalog.timestamptz'
-                                                                                        ? 'timestamptz'
+                                                                                          'pg_catalog."timestamp"'
+                                                                                        ? 'timestamp'
                                                                                         : type ===
-                                                                                            'pg_catalog.date'
-                                                                                          ? 'date'
+                                                                                            'pg_catalog.timestamptz'
+                                                                                          ? 'timestamptz'
                                                                                           : type ===
-                                                                                              'pg_catalog.bool'
-                                                                                            ? 'bool'
-                                                                                            : 'text'
+                                                                                              'pg_catalog.date'
+                                                                                            ? 'date'
+                                                                                            : type ===
+                                                                                                'pg_catalog.bool'
+                                                                                              ? 'bool'
+                                                                                              : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -253,6 +260,7 @@ export async function runCheckParity(
     if (typeof input.value === 'object') {
       const parts = input.value
       if ('lexemes' in parts) return `make_tsvector_value(${tsvectorRustPayload(parts)})`
+      if ('nodes' in parts) return `make_tsquery_value(${tsqueryRustPayload(parts)})`
       if ('grantee' in parts)
         return `make_aclitem_value(${parts.grantee}i64,${parts.grantor}i64,${parts.privileges}i64,${parts.grantOptions}i64)`
       if ('points' in parts) {
@@ -349,6 +357,7 @@ export async function runCheckParity(
       const parts = input.value
       if ('lexemes' in parts)
         return go.call(runtime('MakeTsvectorValue'), [tsvectorGoPayload(parts)])
+      if ('nodes' in parts) return go.call(runtime('MakeTsqueryValue'), [tsqueryGoPayload(parts)])
       if ('grantee' in parts)
         return go.call(runtime('MakeAclitemValue'), [
           go.number(parts.grantee),
@@ -706,6 +715,13 @@ export async function runCheckParity(
           'lexemes' in value.value
         )
           return generated.makeTsvectorValue(value.value)
+        if (
+          input.type === 'pg_catalog.tsquery' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'nodes' in value.value
+        )
+          return generated.makeTsqueryValue(value.value)
         if (input.type === 'pg_catalog.money' && value.kind === 'Value')
           return generated.makeMoneyValue(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.float4' && value.kind === 'Value')

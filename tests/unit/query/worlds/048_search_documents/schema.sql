@@ -122,3 +122,16 @@ CREATE TABLE document_window_hashes (
  bypass bool,
  CONSTRAINT document_window_hash_support CHECK(CASE WHEN bypass THEN true WHEN extended THEN hash_multirange_extended(members_source::document_record_windows,seed) IS NULL ELSE hash_range(range_source::document_record_window) IS NULL END)
 );
+
+CREATE DOMAIN compact_search_query AS tsquery CHECK(numnode(VALUE)<=5);
+CREATE TABLE search_query_imports (
+ source text,
+ fallback_source text,
+ expected_rendered text,
+ node_budget integer,
+ choose_source boolean,
+ bypass boolean,
+ CONSTRAINT query_normalized CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN choose_source THEN source::compact_search_query ELSE fallback_source::compact_search_query END)::text=expected_rendered END),
+ CONSTRAINT query_node_budget CHECK(CASE WHEN bypass THEN true ELSE numnode(COALESCE(source::tsquery,fallback_source::tsquery))<=node_budget END),
+ CONSTRAINT query_presence CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery IS NULL) OR node_budget IS NOT NULL END)
+);
