@@ -944,3 +944,28 @@ INSERT INTO historical_coercion_child(score,divisor) VALUES(-1,1);
 INSERT INTO historical_mismatch_parent(current_score) VALUES(-1);
 -- name: HistoricalMismatchChildRejectedRow
 INSERT INTO historical_mismatch_child(score,divisor) VALUES(-1,1);
+
+-- name: HistoricalOrderingEarlierLess
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,2,0,'a',true,true,true,false);
+-- name: HistoricalOrderingEarlierGreater
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(2,1,0,'z',false,false,false,false);
+-- name: HistoricalOrderingLaterGreater
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(2,2,1,'m',false,false,false,false);
+-- name: HistoricalOrderingEqual
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(0,0,1,'m',false,false,false,false);
+-- name: HistoricalOrderingNullLeft
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(NULL,0,0,'z',NULL,false,false,false);
+-- name: HistoricalOrderingNullRight
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,NULL,0,'z',NULL,false,false,false);
+-- name: HistoricalOrderingReachedDivision
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,1,0,'m',true,true,true,false);
+-- name: HistoricalOrderingWrongOrder
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,2,1,'a',false,true,true,false);
+-- name: HistoricalOrderingWrongText
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,2,1,'a',true,false,true,false);
+-- name: HistoricalOrderingWrongPresence
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,2,1,'a',true,true,false,false);
+-- name: HistoricalOrderingBypassedDivision
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,1,0,'m',false,false,false,true);
+-- name: HistoricalOrderingNullExpectation
+INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(NULL,0,0,'m',NULL,NULL,NULL,false);

@@ -3571,6 +3571,41 @@ export function bindCatalogCheck(
         typeName = fields(cast?.['TypeCast'])?.['typeName']
       return typeName ? bind({ TypeCast: { arg: storedCast['arg'], typeName } }) : unknown
     }
+    const storedRowCompare = fields(wrapper['PgsidStoredRowCompare'])
+    if (storedRowCompare) {
+      const strategy = storedRowCompare['strategy'],
+        raw = storedRowCompare['pairs']
+      if (![1, 2, 4, 5].includes(strategy as number) || !Array.isArray(raw) || raw.length < 2)
+        return unknown
+      const pairs: Extract<EvalExpression, { kind: 'row-compare' }>['pairs'][number][] = []
+      for (const item of raw) {
+        const pair = fields(item),
+          compared = bind(pair?.['expression']),
+          value = compared.value
+        if (
+          typeof pair?.['operator'] !== 'string' ||
+          typeof pair['family'] !== 'string' ||
+          compared.type !== 'pg_catalog.int4' ||
+          value?.kind !== 'call' ||
+          value.call.kind !== 'function' ||
+          value.operands.length !== 2
+        )
+          return unknown
+        pairs.push({
+          comparison: value.call,
+          operands: value.operands as [EvalExpression, EvalExpression],
+        })
+      }
+      return {
+        type: 'pg_catalog.bool',
+        value: {
+          kind: 'row-compare',
+          type: 'pg_catalog.bool',
+          strategy: strategy as 1 | 2 | 4 | 5,
+          pairs,
+        },
+      }
+    }
     const storedScalarArray = fields(wrapper['PgsidStoredScalarArray'])
     if (storedScalarArray) {
       const selected = callables.find((c) => c.signature === storedScalarArray['signature']),
@@ -7015,7 +7050,13 @@ export function bindCatalogCheck(
     ) {
       const left = fields(fields(operator['lexpr'])?.['RowExpr'])?.['args']
       const right = fields(fields(operator['rexpr'])?.['RowExpr'])?.['args']
-      if (left !== undefined || right !== undefined) {
+      if (
+        left !== undefined ||
+        right !== undefined ||
+        (operator['kind'] === 'AEXPR_OP' &&
+          fields(fields(operator['lexpr'])?.['RowExpr']) &&
+          fields(fields(operator['rexpr'])?.['RowExpr']))
+      ) {
         if (
           !Array.isArray(left) ||
           !Array.isArray(right) ||

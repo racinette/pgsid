@@ -1,6 +1,7 @@
 import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
-import { tree, scalar, type Tree, type Value } from './expression-tree.js'
+import { tree, scalar, oidList, type Tree, type Value } from './expression-tree.js'
+import { storedOrderingKey, type StoredRowOrdering } from './stored-row-orderings.js'
 import { storedTextConstant } from './text-constant-storage.js'
 import { storedReferenceBytes } from './constant-storage-bytes.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
@@ -38,6 +39,7 @@ export interface StoredRowExpressionInput {
   types: ReadonlyMap<number, string>
   functions: ReadonlyMap<number, StoredRowFunction>
   operators?: ReadonlyMap<number, StoredRowOperator>
+  orderings?: ReadonlyMap<string, StoredRowOrdering>
   activeDefaults?: ReadonlySet<number>
   arguments?: ReadonlyMap<Value, unknown>
   columns: ReadonlyMap<number, { name: string; type: number }>
@@ -488,6 +490,46 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           { A_Indirection: { arg, indirection: [{ String: { sval: field.name } }] } },
           'resultcollid',
         )
+      : undefined
+  }
+  if (node.kind === 'ROWCOMPAREEXPR') {
+    const operators = oidList(node, 'opnos'),
+      families = oidList(node, 'opfamilies'),
+      collations = oidList(node, 'inputcollids'),
+      left = list('largs').map(convert),
+      right = list('rargs').map(convert),
+      strategy = Number(scalar(node, 'cmptype'))
+    if (
+      !operators ||
+      operators.length < 2 ||
+      operators.length !== families?.length ||
+      operators.length !== collations?.length ||
+      operators.length !== left.length ||
+      left.length !== right.length ||
+      [...left, ...right].some((arg) => arg === undefined) ||
+      ![1, 2, 4, 5].includes(strategy)
+    )
+      return undefined
+    const pairs = operators.map((operator, i) => {
+      const ordering = input.orderings?.get(storedOrderingKey(operator, families[i]!, strategy)),
+        collation = collations[i] === 0 ? null : input.collations?.get(collations[i]!)
+      return ordering && ordering.strategy === strategy && collation !== undefined
+        ? {
+            operator: ordering.operator,
+            family: ordering.family,
+            expression: {
+              PgsidStoredCall: {
+                signature: ordering.comparator,
+                args: [left[i], right[i]],
+                inputCollation: collation,
+                resultCollation: null,
+              },
+            },
+          }
+        : undefined
+    })
+    return pairs.every((pair) => pair !== undefined)
+      ? { PgsidStoredRowCompare: { strategy, pairs } }
       : undefined
   }
   if (node.kind === 'SCALARARRAYOPEXPR') {

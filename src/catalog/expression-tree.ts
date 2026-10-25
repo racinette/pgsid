@@ -74,3 +74,12 @@ export const scalar = (node: Tree, name: string): string | null => {
   const values = node.fields[name]
   return values?.length === 1 && typeof values[0] === 'string' ? values[0] : null
 }
+
+export function oidList(node: Tree, name: string): number[] | undefined {
+  const list = node.fields[name]?.[0]
+  if (!Array.isArray(list) || list[0] !== 'o') return undefined
+  const ids = list.slice(1)
+  return ids.every((id) => typeof id === 'string' && /^\d+$/u.test(id) && Number(id) <= 4294967295)
+    ? ids.map((id) => Number(id))
+    : undefined
+}

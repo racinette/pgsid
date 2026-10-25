@@ -2,6 +2,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, type BuiltinCatalog } from '../postgres/builtins/catalog.js'
 import { parseTree, type Value } from './expression-tree.js'
 import type { StoredRowFunction, StoredRowOperator } from './stored-row-expressions.js'
+import { readStoredRowOrderings, type StoredRowOrdering } from './stored-row-orderings.js'
 
 export async function readStoredRowFunctions(
   pg: PGlite,
@@ -11,12 +12,18 @@ export async function readStoredRowFunctions(
 ): Promise<{
   functions: ReadonlyMap<number, StoredRowFunction>
   operators: ReadonlyMap<number, StoredRowOperator>
+  orderings: ReadonlyMap<string, StoredRowOrdering>
   sources: string[]
 }> {
   const pending = new Set<number>(),
     seen = new Set<number>(),
     functions = new Map<number, StoredRowFunction>(),
     defaults: string[] = [],
+    orderingSources = [...sources],
+    orderingFunctions = new Map<
+      string,
+      Omit<StoredRowOrdering, 'comparator'> & { functionId: number }
+    >(),
     collect = (source: string) => {
       for (const match of source.matchAll(/:(?:funcid|opfuncid)\s+(\d+)/gu)) {
         const id = Number(match[1])
@@ -24,7 +31,15 @@ export async function readStoredRowFunctions(
       }
     }
   sources.forEach(collect)
-  while (pending.size) {
+  while (pending.size || orderingSources.length) {
+    if (orderingSources.length) {
+      const found = await readStoredRowOrderings(pg, orderingSources.splice(0), types)
+      for (const [key, value] of found) {
+        orderingFunctions.set(key, value)
+        if (!seen.has(value.functionId)) pending.add(value.functionId)
+      }
+    }
+    if (!pending.size) continue
     const ids = [...pending]
     pending.clear()
     ids.forEach((id) => seen.add(id))
@@ -60,6 +75,7 @@ export async function readStoredRowFunctions(
       let expressions: readonly Value[] | undefined = row.default_count === 0 ? [] : undefined
       if (row.defaults) {
         defaults.push(row.defaults)
+        orderingSources.push(row.defaults)
         collect(row.defaults)
         try {
           const parsed = parseTree(row.defaults)
@@ -126,5 +142,11 @@ export async function readStoredRowFunctions(
         })
     }
   }
-  return { functions, operators, sources: defaults }
+  const orderings = new Map<string, StoredRowOrdering>()
+  for (const [key, { functionId, ...ordering }] of orderingFunctions) {
+    const comparator = functions.get(functionId)
+    if (comparator?.result === 'pg_catalog.int4' && comparator.args.length === 2)
+      orderings.set(key, { ...ordering, comparator: comparator.signature })
+  }
+  return { functions, operators, orderings, sources: defaults }
 }

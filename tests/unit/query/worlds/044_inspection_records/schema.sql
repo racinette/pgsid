@@ -821,3 +821,22 @@ ALTER TABLE historical_mismatch_parent RENAME COLUMN score TO current_score;
 ALTER TABLE historical_mismatch_parent ADD CONSTRAINT historical_mismatch_score CHECK(current_score>=0);
 ALTER TABLE historical_mismatch_child ADD CONSTRAINT historical_mismatch_score CHECK(score>=0);
 ALTER TYPE historical_coercion_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_ordering_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_ordering_history (
+ score integer,
+ peer integer,
+ divisor integer NOT NULL,
+ label text COLLATE "C" NOT NULL,
+ expected_order boolean,
+ expected_text boolean,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT numeric_row_order CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,score/divisor)<ROW(peer,0)) IS NOT DISTINCT FROM expected_order END),
+ CONSTRAINT text_row_order CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(label,score/divisor)<ROW('m',0)) IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT stored_row_order CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN ROW(score,score/divisor)<ROW(peer,0) THEN 1 ELSE NULL::integer END)::historical_ordering_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_ordering_result DROP ATTRIBUTE obsolete_result;
