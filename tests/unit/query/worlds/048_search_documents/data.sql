@@ -11,3 +11,4 @@ INSERT INTO document_archived_scores(source,expected_reference,observation,minim
 INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b','z','''a'' & ''b''',3,true,false);
 INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a & (b & c)',true,true,false);
 INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a:A','a:*B',0,true,true,false);
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <2> ''b''',3,'!( ''a'' | ''b'' )',false);

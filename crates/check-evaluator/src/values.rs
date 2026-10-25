@@ -2954,13 +2954,11 @@ pub fn tsquery_canonical_bytes(input: &TsqueryPayload) -> i32 {
     if input.nodes.len() > 89478484 { return -1; };
     let count = input.nodes.len() as i32;
     let mut bytes: i64 = 8i64 + (count as i64) * 12i64;
-    let mut pool: i32 = 0;
     let mut index: usize = 0;
     while index < input.nodes.len() {
         if input.nodes[index].kind == 0 {
             let width = tsvector_lexeme_bytes(input.nodes[index].text.as_str());
-            if width < 0 || width > 2047 || pool > 1048575 { return -1; };
-            pool = pool + width + 1;
+            if width < 0 || width > 2047 { return -1; };
             bytes = bytes + (width as i64) + 1i64;
         };
         index += 1;
@@ -2970,7 +2968,7 @@ pub fn tsquery_canonical_bytes(input: &TsqueryPayload) -> i32 {
 }
 
 pub fn make_tsquery_value(input: TsqueryPayload) -> TsqueryValue {
-    if tsquery_canonical_bytes(&input) < 0 { return TsqueryValue::Unknown; };
+    if input.nodes.len() > 89478484 { return TsqueryValue::Unknown; };
     if input.native_bytes < -1 || input.native_bytes > 1073741823 { return TsqueryValue::Unknown; };
     let count = input.nodes.len() as i32;
     if input.native_bytes != -1 && (input.native_bytes as i64) < 8i64 + (count as i64) * 12i64 { return TsqueryValue::Unknown; };
@@ -2986,6 +2984,8 @@ pub fn make_tsquery_value(input: TsqueryPayload) -> TsqueryValue {
         let node = input.nodes[index].clone();
         if node.kind < 0 || node.kind > 4 { return TsqueryValue::Unknown; };
         if node.kind == 0 {
+            let width = tsvector_lexeme_bytes(node.text.as_str());
+            if width < 0 || width > 2047 { return TsqueryValue::Unknown; };
             if node.weight < 0 || node.weight > 15 || node.distance != 0 || node.left != 0 || node.right != 0 { return TsqueryValue::Unknown; };
         } else {
             if node.text != "" || node.weight != 0 || node.prefix { return TsqueryValue::Unknown; };

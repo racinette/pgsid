@@ -3562,15 +3562,13 @@ func TsqueryCanonicalBytes(input *TsqueryPayload) int {
 	}
 	count := int(int32(len(input.Nodes)))
 	bytes := langruntime.CheckedI64Add(int64(8), langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(count))), int64(12)))
-	pool := 0
 	index := 0
 	for index < len(input.Nodes) {
 		if input.Nodes[index].Kind == 0 {
 			width := TsvectorLexemeBytes(input.Nodes[index].Text)
-			if width < 0 || width > 2047 || pool > 1048575 {
+			if width < 0 || width > 2047 {
 				return langruntime.CheckedSignedNegate(1)
 			}
-			pool = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pool, width), 1))
 			bytes = langruntime.CheckedI64Add(langruntime.CheckedI64Add(bytes, (int64(langruntime.CheckedI32(width)))), int64(1))
 		}
 		index = langruntime.CheckedAdd(index, 1)
@@ -3582,7 +3580,7 @@ func TsqueryCanonicalBytes(input *TsqueryPayload) int {
 }
 func MakeTsqueryValue(input TsqueryPayload) TsqueryValue {
 	input = CopyTsqueryPayload(input)
-	if TsqueryCanonicalBytes(&input) < 0 {
+	if len(input.Nodes) > 89478484 {
 		return TsqueryValue{Kind: TsqueryValueUnknown}
 	}
 	if input.NativeBytes < langruntime.CheckedSignedNegate(1) || input.NativeBytes > 1073741823 {
@@ -3610,6 +3608,10 @@ func MakeTsqueryValue(input TsqueryPayload) TsqueryValue {
 			return TsqueryValue{Kind: TsqueryValueUnknown}
 		}
 		if node.Kind == 0 {
+			width := TsvectorLexemeBytes(node.Text)
+			if width < 0 || width > 2047 {
+				return TsqueryValue{Kind: TsqueryValueUnknown}
+			}
 			if node.Weight < 0 || node.Weight > 15 || node.Distance != 0 || node.Left != 0 || node.Right != 0 {
 				return TsqueryValue{Kind: TsqueryValueUnknown}
 			}

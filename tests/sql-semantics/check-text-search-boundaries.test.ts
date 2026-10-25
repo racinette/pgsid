@@ -23,7 +23,7 @@ it('classifies text-search configuration, dictionaries, parsers, query execution
       stateful = functions.filter(
         (fn) => textSearchValueRequirements(fn)![0]!.setting === 'text_search_configuration',
       )
-    expect(functions).toHaveLength(50)
+    expect(functions).toHaveLength(52)
     const configId = (await pg.query<{ id: number }>("SELECT 'live_config'::regconfig::oid id"))
       .rows[0]!.id
     const observe = async (configuration: 'simple' | 'english') => {
@@ -40,9 +40,11 @@ it('classifies text-search configuration, dictionaries, parsers, query execution
                 ? index === 0
                   ? "'rats'::text"
                   : "'HighlightAll=true'::text"
-                : fn.name === 'to_tsquery'
-                  ? "'rats & running'::text"
-                  : "'rats running'::text",
+                : fn.name === 'ts_match_tt' && index === 1
+                  ? "'rat'::text"
+                  : fn.name === 'to_tsquery'
+                    ? "'rats & running'::text"
+                    : "'rats running'::text",
             )
           else if (fn.name === 'json_to_tsvector' || fn.name === 'jsonb_to_tsvector')
             args.push(index === 0 ? `'["rats","running"]'::${type}` : `'["string"]'::jsonb`)

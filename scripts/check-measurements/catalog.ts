@@ -334,6 +334,8 @@ export function textSearchValueRequirements(item: BuiltinCallable) {
       'websearch_to_tsquery',
       'ts_headline',
       'ts_debug',
+      'ts_match_tt',
+      'ts_match_tq',
       'get_current_ts_config',
     ].includes(item.name)
   )
