@@ -25,6 +25,15 @@ import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
   | {
+      kind: 'range-constant'
+      type: RangeType
+      empty: boolean
+      lowerInclusive: boolean
+      upperInclusive: boolean
+      operands: readonly EvalExpression[]
+    }
+  | { kind: 'multirange-constant'; type: MultirangeType; operands: readonly EvalExpression[] }
+  | {
       kind: 'xml-constructor'
       type: 'pg_catalog.xml'
       operation: 'concat' | 'root' | 'pi' | 'element' | 'forest'
@@ -685,6 +694,8 @@ export function emitEvalExpression<Ast>(
       node.kind === 'minmax' ||
       node.kind === 'row-compare' ||
       node.kind === 'captured-range-call' ||
+      node.kind === 'range-constant' ||
+      node.kind === 'multirange-constant' ||
       node.kind === 'interval-literal' ||
       node.kind === 'clock-to-text' ||
       node.kind === 'text-to-interval' ||

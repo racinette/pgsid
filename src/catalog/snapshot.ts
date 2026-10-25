@@ -900,19 +900,23 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rowArrayElements = new Map(
     typeRows.filter((type) => type.element).map((type) => [type.oid, type.element!]),
   )
-  const isStoredArray = (oid: number, seen = new Set<number>()): boolean => {
+  const isStoredContainer = (oid: number, seen = new Set<number>()): boolean => {
     if (rowArrayElements.has(oid)) return true
     if (seen.has(oid)) return false
     seen.add(oid)
     const type = typesByOid.get(oid)
-    return type?.kind === 'd' && isStoredArray(type.base, seen)
+    return (
+      !!type &&
+      (['c', 'r', 'm'].includes(type.kind) ||
+        (type.kind === 'd' && isStoredContainer(type.base, seen)))
+    )
   }
-  const hasArrayConstants = rowTrees.some((source) =>
+  const hasContainerConstants = rowTrees.some((source) =>
     [...source.matchAll(/\{CONST\s+:consttype\s+(\d+)/gu)].some((match) =>
-      isStoredArray(Number(match[1])),
+      isStoredContainer(Number(match[1])),
     ),
   )
-  const alignmentGap = hasArrayConstants
+  const alignmentGap = hasContainerConstants
     ? (
         await pg.query<{ gap: number }>(
           'SELECT pg_catalog.pg_column_size(ROW(0::pg_catalog.int4,0::pg_catalog.float8))-pg_catalog.pg_column_size(ROW(0::pg_catalog.int4)) AS gap',

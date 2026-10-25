@@ -678,3 +678,26 @@ CREATE TABLE inspection_selection_history (
       CASE divisor WHEN 0 THEN 3 ELSE 1/divisor END ELSE NULL::integer END)::historical_selection_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_selection_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_container_record AS (score integer, obsolete_reading inspection_reading);
+CREATE TYPE historical_container_array AS (score integer, obsolete_spans numrange[]);
+CREATE TYPE historical_container_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_container_history (
+  score integer,
+  divisor integer NOT NULL,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT container_history_record CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,'(2,ab,"[1,4)")'::inspection_reading)::historical_container_record IS NOT NULL)=expected_present END),
+  CONSTRAINT container_history_array CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,'{"[1.2300,2.4500]",NULL,empty}'::numrange[])::historical_container_array IS NOT NULL)=expected_present END),
+  CONSTRAINT container_history_range CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN lower_inc('[1.2300,2.4500]'::numrange) AND upper_inc('[1.2300,2.4500]'::numrange)
+      THEN 1/divisor ELSE NULL::integer END)::historical_container_result IS NOT NULL)=expected_present END),
+  CONSTRAINT container_history_multirange CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN to_jsonb('{[1,3),[5,9)}'::int4multirange)::text COLLATE "C"='"{[1,3),[5,9)}"' COLLATE "C"
+      THEN 1/divisor ELSE NULL::integer END)::historical_container_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_container_record DROP ATTRIBUTE obsolete_reading;
+ALTER TYPE historical_container_array DROP ATTRIBUTE obsolete_spans;
+ALTER TYPE historical_container_result DROP ATTRIBUTE obsolete_result;

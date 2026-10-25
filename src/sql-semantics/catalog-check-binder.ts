@@ -2958,6 +2958,101 @@ export function bindCatalogCheck(
     const wrapper = fields(node)
     if (!wrapper) return unknown
     if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unknown
+    const storedRecord = fields(wrapper['PgsidStoredRecordConstant'])
+    if (storedRecord) {
+      const type =
+          typeof storedRecord['type'] === 'string'
+            ? catalogCompositeType(storedRecord['type'], compositeGraph, rangeTypes)
+            : null,
+        profile = type ? compositeProfile(type) : null,
+        definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
+        args = storedRecord['args']
+      if (!type || !profile || !definition) return unknown
+      if (args === null) return { type, value: { kind: 'composite-null', type } }
+      if (!Array.isArray(args) || args.length !== definition.fields.length) return unknown
+      const operands = args.map((arg, index) => {
+        const fieldType = compositeFieldType(profile, definition.fields[index]!.type)
+        return fieldType
+          ? materialize(
+              bind(arg),
+              fieldType,
+              fieldType.startsWith('enum:')
+                ? enums.find((e) => enumType(e) === fieldType)
+                : undefined,
+            )
+          : null
+      })
+      return operands.every((operand): operand is EvalExpression => operand !== null)
+        ? {
+            type,
+            value: {
+              kind: 'composite-constructor',
+              type,
+              operands,
+              projectable: operands.map(() => true),
+            },
+          }
+        : unknown
+    }
+    const storedRange = fields(wrapper['PgsidStoredRangeConstant']),
+      storedMultirange = fields(wrapper['PgsidStoredMultirangeConstant'])
+    if (storedRange || storedMultirange) {
+      const stored = (storedRange ?? storedMultirange)!,
+        name = stored['type'],
+        type =
+          typeof name === 'string'
+            ? storedRange
+              ? catalogRangeType(name, undefined, domains, rangeTypes)
+              : catalogMultirangeType(name, undefined, domains, rangeTypes)
+            : null,
+        profile = type ? (rangeTypeProfile(type) ?? multirangeTypeProfile(type)) : null,
+        args = stored['args']
+      if (!type || !profile) return unknown
+      if (args === null)
+        return {
+          type,
+          value: {
+            kind: 'certain',
+            expression: storedRange
+              ? { kind: 'range', type: profile.rangeType, value: null }
+              : { kind: 'multirange', type: profile.multirangeType, value: null },
+          },
+        }
+      if (!Array.isArray(args)) return unknown
+      if (storedMultirange) {
+        const operands = args.map((arg) => materialize(bind(arg), profile.rangeType))
+        return operands.every((operand): operand is EvalExpression => operand !== null)
+          ? { type, value: { kind: 'multirange-constant', type: profile.multirangeType, operands } }
+          : unknown
+      }
+      const empty = stored['empty'],
+        lowerInclusive = stored['lowerInclusive'],
+        upperInclusive = stored['upperInclusive']
+      if (
+        typeof empty !== 'boolean' ||
+        typeof lowerInclusive !== 'boolean' ||
+        typeof upperInclusive !== 'boolean' ||
+        args.length !== (empty ? 0 : 2) ||
+        (empty && (lowerInclusive || upperInclusive))
+      )
+        return unknown
+      const operands = args.map((arg) =>
+        materialize(bind(arg), profile.elementType, profile.subtypeEnum),
+      )
+      return operands.every((operand): operand is EvalExpression => operand !== null)
+        ? {
+            type,
+            value: {
+              kind: 'range-constant',
+              type: profile.rangeType,
+              empty,
+              lowerInclusive,
+              upperInclusive,
+              operands,
+            },
+          }
+        : unknown
+    }
     const argument = fields(wrapper['PgsidStoredArgument'])
     if (argument) {
       const index = argument['index']

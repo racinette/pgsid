@@ -24,6 +24,7 @@ import {
   commonAnonymousRecordType,
 } from '../../sql-semantics/anonymous-records.js'
 import type { ArrayElementType, ScalarType } from '../../sql-semantics/expressions.js'
+import { arrayType } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
   multirangeTypeProfile,
@@ -2082,6 +2083,62 @@ export function emitCheckRustEvaluator(
       const result = { name: bind(helper), type: node.type }
       if (node.operation === 'text') diagnostics.flow(result, [operand], bindings)
       return result
+    }
+    if (node.kind === 'range-constant' || node.kind === 'multirange-constant') {
+      const profile = rangeTypeProfile(node.type) ?? multirangeTypeProfile(node.type)
+      if (!profile)
+        throw new UnsupportedCheckRustExpression('Stored range requires a captured type profile')
+      const support = rangeProfileSupport(profile, executionContext),
+        compiled = bind(`make_range_support(${support.comparison},${support.canonical})`)
+      if (node.kind === 'multirange-constant') {
+        if (node.operands.some((arg) => scalarType(arg) !== profile.rangeType))
+          throw new UnsupportedCheckRustExpression(
+            'Stored multirange members require the captured range identity',
+          )
+        const array = emitScalar(
+          {
+            kind: 'array-constructor',
+            type: arrayType(profile.rangeType),
+            elementType: profile.rangeType,
+            multidimensional: false,
+            operands: node.operands,
+          },
+          bindings,
+          used,
+        )
+        return {
+          type: node.type,
+          name: bind(
+            `multirange_from_coerced_array(${ownedOperand(array)},${rustStringLiteral(profile.multirange)},${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${compiled})`,
+          ),
+        }
+      }
+      if (
+        node.operands.length !== (node.empty ? 0 : 2) ||
+        node.operands.some((arg) => scalarType(arg) !== profile.elementType)
+      )
+        throw new UnsupportedCheckRustExpression('Stored range bounds require the captured subtype')
+      const operands = node.operands.map((arg) => emitScalar(arg, bindings, used)),
+        cells = operands.map((arg) =>
+          bind(`array_element_from_${rustValuePrefix(rustType(arg.type))}(${ownedOperand(arg)})`),
+        )
+      if (node.empty) {
+        const value = bind('int4_null()'),
+          cell = bind(`array_element_from_int4(${value})`)
+        cells.push(`${cell}.clone()`, cell)
+      }
+      const helper =
+        rangeContainerKind(profile.elementType) !== null
+          ? 'range_from_typed_bounds'
+          : profile.subtypeEnum
+            ? 'range_from_defined_bounds'
+            : 'range_from_profiled_bounds'
+      return {
+        type: node.type,
+        name: bind(
+          `${helper}(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${node.empty},${node.lowerInclusive},${node.upperInclusive},${cells[0]},${cells[1]},${compiled}${rangeContainerKind(profile.elementType) !== null ? ',"",-1' : ''}${rangeDefinitionArguments(profile, executionContext, bind)})`,
+        ),
+      }
     }
     if (node.kind === 'captured-range-call') {
       const profile = rangeTypeProfile(node.type) ?? multirangeTypeProfile(node.type)

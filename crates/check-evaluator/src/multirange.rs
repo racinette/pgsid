@@ -144,6 +144,35 @@ pub fn multirange_from_profiled_ranges(
     })
 }
 
+pub fn multirange_from_coerced_array(
+    input: ArrayValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+) -> MultirangeValue {
+    let coerced = array_from_coerced_value(input, range_type, 42);
+    if let ArrayValue::Error(error) = coerced {
+        return MultirangeValue::Error(error);
+    };
+    if let ArrayValue::Value(payload) = coerced {
+        if payload.element_type.as_str() != range_type || payload.element_kind != 42
+            || payload.dimensions.len() > 1
+        {
+            return MultirangeValue::Unknown;
+        };
+        let mut ranges: Vec<RangeValue> = Vec::new();
+        let mut index: usize = 0;
+        while index < payload.elements.len() {
+            ranges.push(array_element_to_range(payload.elements[index].clone()));
+            index += 1;
+        };
+        return multirange_from_profiled_ranges(type_name, range_type, element_type, element_kind, ranges, support);
+    };
+    MultirangeValue::Unknown
+}
+
 pub fn multirange_from_coerced_profile(
     input: MultirangeValue,
     type_name: &str,

@@ -3,7 +3,7 @@ import type { RowCoercionIdentity } from './coercion-context.js'
 export type ContainerStorageFacet<Leaf> =
   | Leaf
   | { kind: 'record'; fields: (ContainerStorageFacet<Leaf> | null)[] }
-  | { kind: 'range'; bounds: (ContainerStorageFacet<Leaf> | null)[] }
+  | { kind: 'range'; flags: number; bounds: (ContainerStorageFacet<Leaf> | null)[] }
   | { kind: 'multirange'; ranges: ContainerStorageFacet<Leaf>[] }
   | {
       kind: 'array'
@@ -200,7 +200,11 @@ export function containerConstant<Leaf>(
             limit: number,
           ): { value: ContainerStorageFacet<Leaf>; end: number } | undefined => {
             if (flags & 224) return undefined
-            if (flags & 1) return { value: { kind: 'range', bounds: [] }, end: start }
+            if (flags & 1)
+              return flags === 1
+                ? { value: { kind: 'range', flags, bounds: [] }, end: start }
+                : undefined
+            if ((flags & 8 && flags & 2) || (flags & 16 && flags & 4)) return undefined
             const values: (ContainerStorageFacet<Leaf> | null)[] = []
             let position = start
             for (const infinite of [8, 16]) {
@@ -217,7 +221,7 @@ export function containerConstant<Leaf>(
               values.push(facet)
               position += value.length
             }
-            return { value: { kind: 'range', bounds: values }, end: position }
+            return { value: { kind: 'range', flags, bounds: values }, end: position }
           }
           if (type.kind === 'r') {
             const value = bounds(data[data.length - 1]!, 8, data.length - 1)
@@ -225,6 +229,8 @@ export function containerConstant<Leaf>(
           }
           const count = word(data, 8),
             flags = 12 + Math.max(count - 1, 0) * 4
+          if (count === 0)
+            return data.length === 12 ? { kind: 'multirange', ranges: [] } : undefined
           if (count > 2147483647 || flags + count > data.length) return undefined
           const begin = align(flags + count, subtype.alignment),
             values: ContainerStorageFacet<Leaf>[] = []
