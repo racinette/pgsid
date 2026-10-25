@@ -544,3 +544,30 @@ CREATE TABLE inspection_address_history (
       THEN 1/denominator ELSE NULL::integer END)::historical_address_reading IS NOT NULL) = expected_flags_present END)
 );
 ALTER TYPE historical_address_reading DROP ATTRIBUTE obsolete_ratio;
+
+CREATE TYPE historical_flag_reading AS (score integer, flags bit(5));
+CREATE TYPE historical_amount_reading AS (score integer, amount numeric(4,2));
+CREATE TYPE historical_capture_reading AS (score integer, captured timestamp(2));
+CREATE TYPE historical_flag_batch AS (score integer, flags bit(5)[]);
+CREATE TABLE inspection_modifier_history (
+  score integer,
+  flags_text text,
+  amount_text text,
+  captured_text text,
+  expected_flags bytea NOT NULL,
+  expected_amount bytea NOT NULL,
+  expected_capture bytea NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT modifier_history_flags CHECK (CASE WHEN bypass THEN true ELSE
+    bit_send((ROW(score,flags_text::varbit)::historical_flag_reading).flags)=expected_flags END),
+  CONSTRAINT modifier_history_amount CHECK (CASE WHEN bypass THEN true ELSE
+    numeric_send((ROW(score,amount_text::numeric)::historical_amount_reading).amount)=expected_amount END),
+  CONSTRAINT modifier_history_capture CHECK (CASE WHEN bypass THEN true ELSE
+    timestamp_send((ROW(score,captured_text::timestamp)::historical_capture_reading).captured)=expected_capture END),
+  CONSTRAINT modifier_history_batch CHECK (CASE WHEN bypass THEN true ELSE
+    bit_send(((ROW(score,ARRAY[flags_text::varbit])::historical_flag_batch).flags)[1])=expected_flags END)
+);
+ALTER TYPE historical_flag_reading ALTER ATTRIBUTE flags TYPE bit(6);
+ALTER TYPE historical_amount_reading ALTER ATTRIBUTE amount TYPE numeric(6,3);
+ALTER TYPE historical_capture_reading ALTER ATTRIBUTE captured TYPE timestamp(4);
+ALTER TYPE historical_flag_batch ALTER ATTRIBUTE flags TYPE bit(6)[];

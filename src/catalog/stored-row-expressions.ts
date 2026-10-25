@@ -5,6 +5,7 @@ import { storedTextConstant } from './text-constant-storage.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
+import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import {
   storedAddressBitConstant,
   type NetworkStorageFamilies,
@@ -91,6 +92,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (type === 'pg_catalog.jsonpath') {
+      const text = storedJsonpathConstant(node, input.byteOrder, input.utf8 === true)
+      return typeof text === 'string' ? { PgsidStoredJsonpath: text } : undefined
     } else if (type === 'pg_catalog.bytea' || type === 'pg_catalog.uuid') {
       const storage = storedBinaryConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredBinary: storage } : undefined

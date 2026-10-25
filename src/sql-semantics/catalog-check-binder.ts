@@ -137,6 +137,7 @@ export type RowFieldBinding =
   | { kind: 'cast'; typeName: unknown }
   | { kind: 'expression'; expression: EvalBoolExpression; inputs: readonly string[] }
   | { kind: 'scalar'; expression: unknown }
+  | { kind: 'coercion'; typeNames: readonly unknown[] }
 
 export function catalogEnumDefinition(
   name: string,
@@ -2884,6 +2885,7 @@ export function bindCatalogCheck(
       )
     )
   }
+  const activeCoercions = new Set<unknown>()
   const bind = (
     node: unknown,
     expectedType?: ScalarType,
@@ -2891,6 +2893,22 @@ export function bindCatalogCheck(
     rowSite = node,
   ): Bound => {
     const selected = rowFieldBindings?.get(node)
+    if (selected?.kind === 'coercion' && !activeCoercions.has(node)) {
+      activeCoercions.add(node)
+      try {
+        return bind(
+          selected.typeNames.reduceRight<unknown>(
+            (arg, typeName) => ({ TypeCast: { arg, typeName } }),
+            node,
+          ),
+          expectedType,
+          implicitDomainInput,
+          rowSite,
+        )
+      } finally {
+        activeCoercions.delete(node)
+      }
+    }
     if (selected?.kind === 'scalar')
       return bind(selected.expression, expectedType, implicitDomainInput, rowSite)
     if (selected?.kind === 'expression') {
@@ -2920,6 +2938,18 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedJsonpath = wrapper['PgsidStoredJsonpath']
+    if (storedJsonpath !== undefined) {
+      if (typeof storedJsonpath !== 'string') return unknown
+      const expression = {
+        kind: 'jsonpath' as const,
+        type: 'pg_catalog.jsonpath' as const,
+        value: storedJsonpath,
+        origin: 'source' as const,
+      }
+      importedExpressions.add(expression)
+      return { type: expression.type, value: { kind: 'certain', expression } }
+    }
     const storedAddressBit = wrapper['PgsidStoredAddressBit']
     if (storedAddressBit !== undefined) {
       if (!validAddressBitConstantStorage(storedAddressBit)) return unknown
@@ -5055,7 +5085,10 @@ export function bindCatalogCheck(
         }
       }
       if (
-        (type === 'pg_catalog."time"' || type === 'pg_catalog.timetz') &&
+        (type === 'pg_catalog."time"' ||
+          type === 'pg_catalog.timetz' ||
+          type === 'pg_catalog."timestamp"' ||
+          type === 'pg_catalog.timestamptz') &&
         Array.isArray(modifiers) &&
         modifiers.length
       ) {
@@ -5093,14 +5126,6 @@ export function bindCatalogCheck(
           },
         }
       }
-      if (
-        (type === 'pg_catalog."interval"' ||
-          type === 'pg_catalog.timestamptz' ||
-          type === 'pg_catalog."timestamp"') &&
-        Array.isArray(castType?.['typmods']) &&
-        castType['typmods'].length
-      )
-        return unknown
       if (isCatalogVectorType(type) && fields(fields(cast['arg'])?.['A_ArrayExpr'])) {
         const element = arrayLikeElementType(type)!
         const constructed = bindArray(cast['arg'], {

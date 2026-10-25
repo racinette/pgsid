@@ -345,3 +345,51 @@ it('preserves internal char array bounds in world schemas and parsed CHECK oracl
     await pg.close()
   }
 })
+
+it('rebuilds dependent oracle bodies when native row field modifiers rebuild CHECKs', async () => {
+  const pg = await PGlite.create(),
+    oracles = new WorldCheckOracles()
+  try {
+    await oracles.load(
+      pg,
+      `CREATE TYPE reading AS(n int4,flags bit(5));
+      CREATE DOMAIN positive AS int4 CHECK(VALUE>0);
+      CREATE TYPE span AS RANGE(subtype=positive);
+      CREATE TABLE original(n int4,CONSTRAINT saved CHECK(n=lower('[1,3]'::span)));
+      CREATE TABLE history(n int4,label text,expected bit(6),bypass bool,
+        CONSTRAINT valid CHECK(CASE WHEN bypass THEN true ELSE (ROW(n,label::varbit)::reading).flags=expected END));
+      ALTER DOMAIN positive ADD CONSTRAINT tighter CHECK(VALUE>2) NOT VALID;
+      ALTER TYPE reading ALTER ATTRIBUTE flags TYPE bit(6);`,
+      'public',
+    )
+    const expression = oracles.expression('public.history.valid', 'candidate')
+    for (const [label, expected, bypass, outcome] of [
+      ['1010111', '101010', false, true],
+      ['1010111', '101011', false, false],
+      [null, '101010', false, null],
+      ['bad', '101010', true, true],
+    ] as const) {
+      expect(
+        (
+          await pg.query<{ result: boolean | null }>(
+            `SELECT ${expression} result FROM(SELECT 1::int4 n,$1::text label,$2::bit(6) expected,$3::bool bypass) candidate`,
+            [label, expected, bypass],
+          )
+        ).rows[0]!.result,
+      ).toBe(outcome)
+      const insert = pg.query('INSERT INTO history VALUES(1,$1,$2,$3)', [label, expected, bypass])
+      if (outcome === false) await expect(insert).rejects.toMatchObject({ code: '23514' })
+      else await insert
+    }
+    const original = oracles.expression('public.original.saved', 'candidate')
+    expect(
+      (
+        await pg.query<{ result: boolean }>(
+          `SELECT ${original} result FROM(SELECT 1::int4 n) candidate`,
+        )
+      ).rows[0]!.result,
+    ).toBe(true)
+  } finally {
+    await pg.close()
+  }
+})

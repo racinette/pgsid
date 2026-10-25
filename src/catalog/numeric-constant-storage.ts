@@ -24,8 +24,11 @@ export function storedNumericConstant(
     )
   )
     return undefined
-  const bytes = Buffer.from(raw.map((v) => Number(v) & 255)),
-    little = byteOrder === 'little'
+  return numericStorageText(Buffer.from(raw.map((v) => Number(v) & 255)), byteOrder)
+}
+
+export function numericStorageText(bytes: Buffer, byteOrder: 'little' | 'big'): string | undefined {
+  const little = byteOrder === 'little'
   let start = 0
   if (
     bytes.length >= 4 &&

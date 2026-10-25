@@ -694,3 +694,22 @@ INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,fla
 INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',true,false,false);
 -- name: HistoricalAddressBypassed
 INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,0,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'',false,false,true);
+
+-- name: HistoricalModifiersRoundedValues
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','2001-02-03 12:34:56.123456','\x00000006a8','\x000200000000000300010960','\x00001f650e8a90c0',false);
+-- name: HistoricalModifiersNullInputs
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(NULL,NULL,NULL,NULL,'\x00','\x00','\x00',false);
+-- name: HistoricalModifiersWrongFlags
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','2001-02-03 12:34:56.123456','\x00000006ac','\x000200000000000300010960','\x00001f650e8a90c0',false);
+-- name: HistoricalModifiersWrongAmount
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','2001-02-03 12:34:56.123456','\x00000006a8','\x00','\x00001f650e8a90c0',false);
+-- name: HistoricalModifiersWrongCapture
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','2001-02-03 12:34:56.123456','\x00000006a8','\x000200000000000300010960','\x00',false);
+-- name: HistoricalModifiersOldPrecisionOverflow
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','9999','2001-02-03 12:34:56.123456','\x00000006a8','\x00','\x00001f650e8a90c0',false);
+-- name: HistoricalModifiersInvalidBits
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'bad','1.235','2001-02-03 12:34:56.123456','\x00','\x000200000000000300010960','\x00001f650e8a90c0',false);
+-- name: HistoricalModifiersInvalidCapture
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','1900-02-29 00:00:00Z','\x00000006a8','\x000200000000000300010960','\x00',false);
+-- name: HistoricalModifiersBypassedErrors
+INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'bad','9999','1900-02-29 00:00:00Z','\x00','\x00','\x00',true);
