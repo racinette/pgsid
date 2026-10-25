@@ -409,3 +409,17 @@ CREATE TABLE inspection_historical_rows (
     ROW(score, score / denominator)::historical_reading::text = expected_text END)
 );
 ALTER TYPE historical_reading DROP ATTRIBUTE obsolete_ratio;
+
+CREATE TYPE historical_caption AS (score integer, obsolete_caption text);
+CREATE TABLE inspection_historical_captions (
+  score integer,
+  label text COLLATE "C",
+  expected_present boolean,
+  expected_document jsonb,
+  bypass boolean NOT NULL,
+  CONSTRAINT caption_present CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score, CASE WHEN lower(label COLLATE "C") = 'red' THEN NULL::text ELSE label END)::historical_caption IS NOT NULL) = expected_present END),
+  CONSTRAINT caption_document CHECK (CASE WHEN bypass THEN true ELSE
+    to_jsonb(ROW(score, label::int4)::historical_caption) = expected_document END)
+);
+ALTER TYPE historical_caption DROP ATTRIBUTE obsolete_caption;

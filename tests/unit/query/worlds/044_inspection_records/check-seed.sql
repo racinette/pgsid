@@ -545,3 +545,16 @@ INSERT INTO inspection_historical_rows(score,denominator,expected_present,expect
 INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,1,true,'()',false);
 -- name: HistoricalRowBypassed
 INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,0,false,'wrong',true);
+
+-- name: HistoricalCaptionPresent
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'blue',true,'{"score":1}',false);
+-- name: HistoricalCaptionRemoved
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'RED',false,'{"score":1}',false);
+-- name: HistoricalCaptionNull
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(NULL,NULL,false,'{"score":null}',false);
+-- name: HistoricalCaptionWrongPresence
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'RED',true,'{"score":1}',false);
+-- name: HistoricalCaptionWrongDocument
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'blue',true,'{}',false);
+-- name: HistoricalCaptionBypassed
+INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'bad',false,'{}',true);

@@ -881,6 +881,30 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         })
       : [],
   )
+  const rowCollationIds = [
+    ...new Set(
+      rowTrees.flatMap((source) =>
+        [
+          ...source.matchAll(
+            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid)\s+(\d+)/gu,
+          ),
+        ]
+          .map((m) => Number(m[1]))
+          .filter((id) => id !== 0),
+      ),
+    ),
+  ]
+  const rowCollations = new Map(
+    rowCollationIds.length
+      ? (
+          await pg.query<{ oid: number; schema: string; name: string; deterministic: boolean }>(
+            `SELECT c.oid,n.nspname AS schema,c.collname AS name,c.collisdeterministic AS deterministic
+     FROM pg_collation c JOIN pg_namespace n ON n.oid=c.collnamespace WHERE c.oid=ANY($1::oid[])`,
+            [rowCollationIds],
+          )
+        ).rows.map(({ oid, ...identity }) => [oid, identity] as const)
+      : [],
+  )
   const rowExpressions = (relation?: number): StoredRowExpressionInput => ({
     types: typeIdentities,
     functions: rowFunctions,
@@ -890,6 +914,8 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         .map((c) => [c.attnum, { name: c.name, type: c.type_oid }]),
     ),
     byteOrder: 'little',
+    utf8,
+    collations: rowCollations,
   })
   const isXml = (oid: number, seen = new Set<number>()): boolean => {
     if (seen.has(oid)) return false
