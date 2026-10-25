@@ -66,7 +66,7 @@ it('captures current transitive defaults and named argument slots independently 
   expect(contexts[0]).toEqual(contexts[1])
 }, 30_000)
 
-it('keeps supplied expressions in the ordinary binder and ignores unavailable unused defaults', async () => {
+it('preserves supplied XML expressions and ignores unavailable unused defaults', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(`CREATE TABLE complex(n int4,d int4,CHECK(jsonb_path_exists(path=>'$',target=>to_jsonb(XMLELEMENT(NAME item,GREATEST(n,d),n)))));
@@ -84,7 +84,7 @@ it('keeps supplied expressions in the ordinary binder and ignores unavailable un
       complex = restored.tables.find((t) => t.name === 'complex')!,
       k = complex.constraints[0]!
     expect(k.rowCoercionContext?.complete).toBe(true)
-    expect(JSON.stringify(k.rowCoercionContext)).toContain('PgsidStoredArgument')
+    expect(JSON.stringify(k.rowCoercionContext)).toContain('XmlExpr')
     for (const origin of ['source', 'stored'] as const) {
       const p = lowerTableCheck(
         complex,
@@ -153,6 +153,15 @@ it('fills only omitted formal slots and rejects malformed, missing or recursive 
     '2',
     '9',
   ])
+  const supplied = literal(1)
+  expect(
+    storedRowExpression(call([supplied]), {
+      ...input,
+      arguments: new Map([[supplied, { PgsidStoredArgument: { index: 0 } }]]),
+    }),
+  ).toMatchObject({
+    PgsidStoredCall: { args: [{ PgsidStoredArgument: { index: 0 } }, {}, {}] },
+  })
   for (const args of [
     [named(2)],
     [literal(1), named(1), named(1)],

@@ -865,3 +865,28 @@ CREATE TABLE inspection_variadic_history (
      ARRAY[score/divisor,divisor] END))::historical_variadic_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_variadic_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_xml_expression_result AS(score integer,obsolete_result xml);
+CREATE TABLE inspection_xml_expression_history (
+ score integer,
+ divisor integer NOT NULL,
+ label text COLLATE "C",
+ missing boolean NOT NULL,
+ expected_xml text COLLATE "C",
+ expected_parse text COLLATE "C",
+ expected_document boolean,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT xml_expression_constructed CHECK(CASE WHEN bypass THEN true ELSE
+   XMLSERIALIZE(CONTENT XMLELEMENT(NAME "😊",XMLATTRIBUTES(label AS "_x1F60A_"),score/divisor) AS text)
+     COLLATE "C" IS NOT DISTINCT FROM expected_xml END),
+ CONSTRAINT xml_expression_serialized CHECK(CASE WHEN bypass THEN true ELSE
+   (CASE WHEN missing THEN NULL::text ELSE
+     XMLSERIALIZE(DOCUMENT XMLPARSE(CONTENT label) AS text INDENT) END) COLLATE "C"=expected_parse END),
+ CONSTRAINT xml_expression_document CHECK(CASE WHEN bypass THEN true ELSE
+   (XMLPARSE(CONTENT label) IS DOCUMENT) IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT xml_expression_history CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,XMLCONCAT(XMLPARSE(CONTENT label),XMLFOREST(score/divisor AS "a b")))::historical_xml_expression_result
+     IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_xml_expression_result DROP ATTRIBUTE obsolete_result;
