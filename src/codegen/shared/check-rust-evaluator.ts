@@ -7065,6 +7065,8 @@ export function emitCheckRustEvaluator(
         arrayValidityScope = null
         let selected: { name: string; type: string } | undefined
         try {
+          for (const index of node.operand.physical?.discarded ?? [])
+            prepareCompositeOperand(node.operand.physical!.operands[index]!)
           for (const [index, operand] of node.operand.operands.entries()) {
             if (index === node.index) selected = emitPreparedOperand(operand, bindings, used)
             else prepareCompositeOperand(operand)
@@ -7388,6 +7390,8 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'composite-null') return { name: bind('composite_null()'), type: node.type }
     if (node.kind === 'composite-constructor') {
+      for (const index of node.physical?.discarded ?? [])
+        prepareCompositeOperand(node.physical!.operands[index]!)
       const profile = compositeProfile(node.type)
       const anonymous = anonymousRecordProfile(node.type)
       const identity =
@@ -7440,13 +7444,17 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Composite constructor NULL tests require physical attribute counts',
           )
-        for (const operand of node.operand.operands) prepareCompositeOperand(operand)
+        for (const operand of node.operand.physical?.operands ?? node.operand.operands)
+          prepareCompositeOperand(operand)
         const operands: EvalExpression[] = []
-        for (let position = 1; position <= definition.attributeCount; position++) {
-          const index = definition.fields.findIndex((field) => field.position === position)
-          const operand =
-            index < 0
-              ? {
+        const rowOperands = node.operand.operands
+        const physical =
+          node.operand.physical?.operands ??
+          Array.from({ length: definition.attributeCount }, (_, index) => {
+            const field = definition.fields.findIndex((field) => field.position === index + 1)
+            return field >= 0
+              ? rowOperands[field]!
+              : {
                   kind: 'certain' as const,
                   expression: {
                     kind: 'integer' as const,
@@ -7454,7 +7462,8 @@ export function emitCheckRustEvaluator(
                     value: null,
                   },
                 }
-              : node.operand.operands[index]!
+          })
+        for (const operand of physical) {
           operands.push({
             kind: 'null-test',
             type: 'pg_catalog.bool',

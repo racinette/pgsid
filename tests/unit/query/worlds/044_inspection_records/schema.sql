@@ -395,3 +395,17 @@ CREATE TABLE inspection_generic_arrays (
   CONSTRAINT generic_array_equal CHECK(CASE WHEN bypass THEN true ELSE record_eq((ARRAY[ROW(score,label)::draft_reading]::record[])[1],ROW(score::smallint,label::varchar(3) COLLATE "C")) END),
   CONSTRAINT generic_array_extended CHECK(CASE WHEN bypass THEN true WHEN extended_requested THEN hash_array_extended(ARRAY[ROW(score,label)::draft_reading]::record[],0)=0 ELSE true END)
 );
+
+CREATE TYPE historical_reading AS (score integer, obsolete_ratio integer);
+CREATE TABLE inspection_historical_rows (
+  score integer,
+  denominator integer,
+  expected_present boolean,
+  expected_text text,
+  bypass boolean NOT NULL,
+  CONSTRAINT historical_present CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score, score / denominator)::historical_reading IS NOT NULL) = expected_present END),
+  CONSTRAINT historical_text CHECK (CASE WHEN bypass THEN true ELSE
+    ROW(score, score / denominator)::historical_reading::text = expected_text END)
+);
+ALTER TYPE historical_reading DROP ATTRIBUTE obsolete_ratio;

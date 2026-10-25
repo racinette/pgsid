@@ -284,7 +284,7 @@ it('reports a native row conversion change when a replacement CHECK prints the s
   }
 }, 60_000)
 
-it('defers stored row constructors whose dropped expressions disappeared from SQL but still affect native row NULL tests', async () => {
+it('recovers stored row constructors whose dropped expressions disappeared from SQL but still affect native row NULL tests', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(
@@ -294,6 +294,96 @@ it('defers stored row constructors whose dropped expressions disappeared from SQ
       t = c.tables.find((t) => t.name === 'changing')!,
       constraint = t.constraints[0]!
     expect(constraint.definition).not.toContain('/')
+    expect(constraint.rowCoercionContext?.complete).toBe(true)
+    expect(
+      uncertain(
+        lowerTableCheck(
+          t,
+          constraint,
+          c.enums,
+          c.domains,
+          'stored',
+          c.rangeTypes,
+          c.compositeTypeGraph,
+        )!.expression,
+      ),
+    ).toBe(false)
+    const context = constraint.rowCoercionContext!,
+      constructor = context.constructors![0]!
+    for (const malformed of [
+      { ...constructor, live: [0, 0] },
+      { ...constructor, members: 0 },
+      { ...constructor, omitted: [] },
+      {
+        ...constructor,
+        omitted: [{ position: 0, expression: constructor.omitted[0]!.expression }],
+      },
+    ])
+      expect(
+        uncertain(
+          lowerTableCheck(
+            t,
+            { ...constraint, rowCoercionContext: { ...context, constructors: [malformed] } },
+            c.enums,
+            c.domains,
+            'stored',
+            c.rangeTypes,
+            c.compositeTypeGraph,
+          )!.expression,
+        ),
+      ).toBe(true)
+    await expect(pg.exec('INSERT INTO changing VALUES(0)')).rejects.toMatchObject({ code: '22012' })
+    await pg.exec('INSERT INTO changing VALUES(1)')
+  } finally {
+    await pg.close()
+  }
+}, 60_000)
+
+it('keeps omitted expression identities stable across catalog OID shifts and detects identical printed CHECK changes', async () => {
+  const contexts: unknown[] = [],
+    ids: number[] = []
+  for (const shifted of [false, true]) {
+    const pg = await PGlite.create()
+    try {
+      if (shifted)
+        await pg.exec("CREATE TYPE padding AS ENUM('x');CREATE TABLE padding_row(n int4)")
+      await pg.exec(`CREATE TYPE pair AS(a int4,b int4);
+        CREATE TABLE changing(n int4,CONSTRAINT valid CHECK(ROW(n,1/n)::pair IS NOT NULL));
+        ALTER TYPE pair DROP ATTRIBUTE b;`)
+      const before = await snapshotCatalog(pg),
+        old = before.tables.find((t) => t.name === 'changing')!.constraints[0]!
+      contexts.push(old.rowCoercionContext)
+      ids.push((await pg.query<{ oid: number }>("SELECT 'pair'::regtype::oid AS oid")).rows[0]!.oid)
+      expect(old.rowCoercionContext?.complete).toBe(true)
+      await pg.exec(
+        'ALTER TABLE changing DROP CONSTRAINT valid;ALTER TABLE changing ADD CONSTRAINT valid CHECK(ROW(n)::pair IS NOT NULL)',
+      )
+      const after = await snapshotCatalog(pg),
+        fresh = after.tables.find((t) => t.name === 'changing')!.constraints[0]!
+      expect(old.definition).toBe(fresh.definition)
+      expect(old.rowCoercionContext).not.toEqual(fresh.rowCoercionContext)
+      expect(diffCatalogs(before, after).modified.map((m) => m.entityId)).toContain(
+        'public.changing',
+      )
+    } finally {
+      await pg.close()
+    }
+  }
+  expect(ids[0]).not.toBe(ids[1])
+  expect(contexts[0]).toEqual(contexts[1])
+})
+
+it('retains an explicit gap for omitted custom calls and expression forms without portable capture', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE TYPE pair AS(a int4,b int4);
+      CREATE FUNCTION hidden(n int4) RETURNS int4 LANGUAGE SQL IMMUTABLE AS 'SELECT n/0';
+      CREATE TABLE changing(n int4,CHECK(ROW(n,hidden(n))::pair IS NOT NULL));
+      ALTER TYPE pair DROP ATTRIBUTE b;`)
+    const c = await snapshotCatalog(pg),
+      t = c.tables.find((t) => t.name === 'changing')!,
+      constraint = t.constraints[0]!
+    expect(constraint.definition).not.toContain('hidden')
     expect(constraint.rowCoercionContext?.complete).toBe(false)
     expect(
       uncertain(
@@ -308,9 +398,57 @@ it('defers stored row constructors whose dropped expressions disappeared from SQ
         )!.expression,
       ),
     ).toBe(true)
-    await expect(pg.exec('INSERT INTO changing VALUES(0)')).rejects.toMatchObject({ code: '22012' })
-    await pg.exec('INSERT INTO changing VALUES(1)')
+    await expect(pg.exec('INSERT INTO changing VALUES(1)')).rejects.toMatchObject({ code: '22012' })
   } finally {
     await pg.close()
   }
-}, 60_000)
+})
+
+it('requires native constructor evidence when type evolution appends deparsed NULL fields', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE TYPE pair AS(a int4);
+      CREATE TABLE historical(n int4,CHECK(ROW(n)::pair IS NOT NULL));
+      ALTER TYPE pair ADD ATTRIBUTE b int4;
+      CREATE TABLE current(n int4,CHECK(ROW(n,NULL)::pair IS NOT NULL));`)
+    const c = await snapshotCatalog(pg),
+      old = c.tables.find((t) => t.name === 'historical')!,
+      fresh = c.tables.find((t) => t.name === 'current')!
+    expect(old.constraints[0]!.definition).toContain('ROW(n, NULL)')
+    expect(old.constraints[0]!.rowCoercionContext?.constructors?.[0]?.members).toBe(1)
+    expect(fresh.constraints[0]!.rowCoercionContext?.constructors?.[0]?.members).toBe(2)
+    for (const t of [old, fresh]) {
+      const constraint = t.constraints[0]!
+      expect(
+        uncertain(
+          lowerTableCheck(
+            t,
+            constraint,
+            c.enums,
+            c.domains,
+            'stored',
+            c.rangeTypes,
+            c.compositeTypeGraph,
+          )!.expression,
+        ),
+      ).toBe(false)
+      expect(
+        uncertain(
+          lowerTableCheck(
+            t,
+            { ...constraint, rowCoercionContext: undefined },
+            c.enums,
+            c.domains,
+            'stored',
+            c.rangeTypes,
+            c.compositeTypeGraph,
+          )!.expression,
+        ),
+      ).toBe(true)
+    }
+    await pg.exec('INSERT INTO historical VALUES(1)')
+    await expect(pg.exec('INSERT INTO current VALUES(1)')).rejects.toMatchObject({ code: '23514' })
+  } finally {
+    await pg.close()
+  }
+})

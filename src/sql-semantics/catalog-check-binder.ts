@@ -41,7 +41,12 @@ import {
 import type { CompositeTypeGraph } from '../catalog/types.js'
 import { alignStoredXmlConstants, restoreStoredXmlNames } from './xml-constant-sites.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
-import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
+import {
+  alignStoredRowCoercions,
+  alignStoredRowConstructors,
+  type RowCoercionSites,
+  type RowConstructorBindings,
+} from './row-coercion-sites.js'
 import {
   alignStoredArrayConstructors,
   type ArrayConstructorBindings,
@@ -2130,11 +2135,15 @@ export function bindCatalogCheck(
   rowCoercionSites?: RowCoercionSites,
   arrayConstructorBindings?: ArrayConstructorBindings,
   xmlConstantBindings?: ReadonlyMap<unknown, string | null>,
+  rowConstructorBindings?: RowConstructorBindings,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   if (rowCoercionContext && !rowCoercionContext.complete)
     return { expression: { kind: 'uncertain' }, inputs: [] }
   rowCoercionSites ??= rowCoercionContext
     ? alignStoredRowCoercions(root, rowCoercionContext, compositeGraph)
+    : undefined
+  rowConstructorBindings ??= rowCoercionContext
+    ? alignStoredRowConstructors(root, rowCoercionContext)
     : undefined
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -2853,6 +2862,37 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedCall = fields(wrapper['PgsidStoredCall'])
+    if (storedCall) {
+      const selected = callables.find((c) => c.signature === storedCall['signature']),
+        nodes = storedCall['args']
+      if (
+        !selected ||
+        selected.item.kind !== 'function' ||
+        !Array.isArray(nodes) ||
+        selected.item.returnsSet ||
+        selected.item.variadic !== null ||
+        selected.item.args.length !== nodes.length
+      )
+        return unknown
+      const args = nodes.map((arg) => bind(arg)),
+        type = catalogScalarType(selected.item.result)
+      if (
+        !type ||
+        args.some(
+          (arg, index) => !arg.value || arg.type !== catalogScalarType(selected.item.args[index]!),
+        )
+      )
+        return unknown
+      return {
+        type,
+        value: {
+          kind: 'call',
+          call: { kind: 'function', signature: selected.signature, type },
+          operands: args.map((arg) => arg.value!),
+        },
+      }
+    }
     const xml = fields(wrapper['XmlExpr']),
       serialized = fields(wrapper['XmlSerialize'])
     if (xml || serialized) {
@@ -4461,7 +4501,38 @@ export function bindCatalogCheck(
         const row = fields(fields(cast['arg'])?.['RowExpr'])
         if (row) {
           const raw = row['args'] ?? []
-          const args = Array.isArray(raw) ? expandRowArguments(raw) : null
+          const expanded = Array.isArray(raw) ? expandRowArguments(raw) : null
+          const captured = rowConstructorBindings?.get(row)
+          if (
+            (!captured && literalOrigin === 'stored') ||
+            (captured && captured.type !== profile.identity)
+          )
+            return unknown
+          if (
+            captured &&
+            (!Number.isInteger(captured.members) ||
+              captured.members < 0 ||
+              captured.members > 2147483647 ||
+              JSON.stringify(captured.live) !==
+                JSON.stringify(definition.fields.map((field) => field.position - 1)) ||
+              captured.omitted.length !==
+                captured.members -
+                  captured.live.filter((position) => position < captured.members).length ||
+              new Set(captured.omitted.map((field) => field.position)).size !==
+                captured.omitted.length ||
+              captured.omitted.some(
+                (field) =>
+                  !Number.isInteger(field.position) ||
+                  field.position < 0 ||
+                  field.position >= captured.members ||
+                  captured.live.includes(field.position),
+              ))
+          )
+            return unknown
+          const args =
+            captured?.source && expanded?.length === captured.members
+              ? captured.live.map((position) => expanded[position] ?? { A_Const: { isnull: true } })
+              : expanded
           if (!args || args.length !== definition.fields.length) return unknown
           const operands: EvalExpression[] = []
           const projectable: (boolean | null)[] = []
@@ -4512,9 +4583,35 @@ export function bindCatalogCheck(
                   : null,
             )
           }
+          const physicalOperands: EvalExpression[] = []
+          if (captured) {
+            for (let position = 0; position < captured.members; position++) {
+              const live = captured.live.indexOf(position)
+              if (live >= 0) physicalOperands.push(operands[live]!)
+              else {
+                const hidden = captured.omitted.find((f) => f.position === position),
+                  bound = hidden ? bind(hidden.expression) : unknown
+                if (!bound.value) return unknown
+                physicalOperands.push(bound.value)
+              }
+            }
+          }
           return {
             type: composite,
-            value: { kind: 'composite-constructor', type: composite, operands, projectable },
+            value: {
+              kind: 'composite-constructor',
+              type: composite,
+              operands,
+              projectable,
+              ...(captured
+                ? {
+                    physical: {
+                      operands: physicalOperands,
+                      discarded: captured.omitted.map((field) => field.position),
+                    },
+                  }
+                : {}),
+            },
           }
         }
         const operand = castOperand()

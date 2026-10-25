@@ -478,7 +478,6 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'composite-coerce':
     case 'input-null-test':
     case 'certain':
-    case 'null-test':
     case 'case':
     case 'coalesce':
     case 'boolean-logic':
@@ -491,6 +490,17 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'refcursor-text-coercion':
     case 'array-subscript':
       return false
+    case 'null-test': {
+      const row = node.operand
+      return (
+        !node.datum &&
+        row.kind === 'composite-constructor' &&
+        (row.physical?.discarded.some((index) =>
+          rustExpressionCanFail(row.physical!.operands[index], context),
+        ) ??
+          false)
+      )
+    }
     case 'io-to-text':
       return ['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(typeOf(node.operand))
     case 'call': {
