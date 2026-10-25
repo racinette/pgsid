@@ -60,6 +60,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'jsonb' ||
       expression.kind === 'jsonpath' ||
       expression.kind === 'temporal' ||
+      expression.kind === 'temporal-storage' ||
       expression.kind === 'enum'
     )
       return

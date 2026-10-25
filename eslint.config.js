@@ -44,6 +44,7 @@ export default tseslint.config(
       'src/**/*.ts',
       'tests/**/*.ts',
       'scripts/capture-check-unicode-profile.ts',
+      'scripts/report-sql-semantics-coverage.ts',
       'scripts/check-measurements/**/*.ts',
     ],
     extends: [tseslint.configs.base],

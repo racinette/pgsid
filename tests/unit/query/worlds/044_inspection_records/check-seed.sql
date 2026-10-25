@@ -617,3 +617,28 @@ INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_pre
 INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,'\x7ff8000000000000'::bytea,true,false,false);
 -- name: HistoricalFloatBypassed
 INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,0,'\x7ff8000000000000'::bytea,false,false,true);
+
+-- name: HistoricalTemporalBytes
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,true,true,false);
+-- name: HistoricalTemporalDifferentInstant
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,true,false);
+-- name: HistoricalTemporalDifferentDuration
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00001f5b645a48c0'::bytea,'\x00'::bytea,true,false,false);
+-- name: HistoricalTemporalNullBytes
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,NULL,NULL,false,false,false);
+-- name: HistoricalTemporalNullScore
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(NULL,1,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,false,false);
+-- name: HistoricalTemporalNullRatio
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,NULL,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,false,false);
+-- name: HistoricalTemporalInstantError
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,0,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,true,true,false);
+-- name: HistoricalTemporalDurationError
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,0,'\x00'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,true,false);
+-- name: HistoricalTemporalSkippedErrors
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,0,'\x00'::bytea,'\x00'::bytea,false,false,false);
+-- name: HistoricalTemporalWrongInstant
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,true,false);
+-- name: HistoricalTemporalWrongDuration
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,true,false,false);
+-- name: HistoricalTemporalBypassed
+INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,0,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,false,true);

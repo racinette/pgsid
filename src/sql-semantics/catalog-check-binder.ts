@@ -79,6 +79,7 @@ import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
+import { validTemporalConstantStorage } from '../catalog/temporal-constant-storage.js'
 import {
   combineCollations,
   defaultCollation,
@@ -2917,6 +2918,14 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedTemporal = wrapper['PgsidStoredTemporal']
+    if (storedTemporal !== undefined) {
+      if (!validTemporalConstantStorage(storedTemporal)) return unknown
+      return {
+        type: storedTemporal.type,
+        value: { kind: 'certain', expression: { ...storedTemporal, kind: 'temporal-storage' } },
+      }
+    }
     const storedFloat = fields(wrapper['PgsidStoredFloat'])
     if (storedFloat) {
       const type = storedFloat['type'],

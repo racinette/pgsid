@@ -478,3 +478,25 @@ CREATE TABLE inspection_float_history (
     (ROW(score,CASE WHEN get_byte(float8send('-0'::float8),0)=128 THEN 1/denominator ELSE NULL::integer END)::historical_float_reading IS NOT NULL) = expected_zero_present END)
 );
 ALTER TYPE historical_float_reading DROP ATTRIBUTE obsolete_ratio;
+
+CREATE TYPE historical_temporal_reading AS (score integer, obsolete_ratio integer);
+CREATE TABLE inspection_temporal_history (
+  score integer,
+  denominator integer,
+  expected_instant bytea,
+  expected_duration bytea,
+  expected_instant_present boolean NOT NULL,
+  expected_duration_present boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT temporal_history_instant CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN timestamptz_send(TIMESTAMPTZ '2001-02-03 04:05:06.123456+03:02')=expected_instant
+      AND get_byte(date_send(DATE '2000-01-02'),3)=1
+      AND get_byte(timestamp_send(TIMESTAMP '2000-01-01 00:00:00.000001'),7)=1
+      THEN 1/denominator ELSE NULL::integer END)::historical_temporal_reading IS NOT NULL) = expected_instant_present END),
+  CONSTRAINT temporal_history_duration CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN interval_send(INTERVAL '-1 month 2 days -03:04:05.000006')=expected_duration
+      AND get_byte(time_send(TIME '00:00:00.000001'),7)=1
+      AND get_byte(timetz_send(TIMETZ '00:00:00+00:00:01'),11)=255
+      THEN 1/denominator ELSE NULL::integer END)::historical_temporal_reading IS NOT NULL) = expected_duration_present END)
+);
+ALTER TYPE historical_temporal_reading DROP ATTRIBUTE obsolete_ratio;

@@ -1,4 +1,5 @@
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
+import type { TemporalConstantStorage } from '../catalog/temporal-constant-storage.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import {
   builtinCast,
@@ -655,6 +656,7 @@ export type SqlExpression =
       storage?: string
     }
   | { kind: 'temporal'; type: TemporalType; value: string | null }
+  | ({ kind: 'temporal-storage' } & TemporalConstantStorage)
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
       kind: 'array'
@@ -1403,6 +1405,8 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'network' || node.kind === 'mac')
       return { type: node.type, expression: backend.text(node.value) }
+    if (node.kind === 'temporal-storage')
+      throw new Error('Captured temporal literals require the Rust CHECK evaluator')
     if (node.kind === 'temporal') {
       if (
         node.value !== null &&
