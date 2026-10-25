@@ -642,3 +642,28 @@ INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expec
 INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,1,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,true,false,false);
 -- name: HistoricalTemporalBypassed
 INSERT INTO inspection_temporal_history(score,denominator,expected_instant,expected_duration,expected_instant_present,expected_duration_present,bypass) VALUES(1,0,'\x00001f5b645a48c0'::bytea,'\xfffffffd6daaacba00000002ffffffff'::bytea,false,false,true);
+
+-- name: HistoricalBinaryValues
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,true,true,false);
+-- name: HistoricalBinaryDifferentPayload
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x00'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,true,false);
+-- name: HistoricalBinaryDifferentIdentity
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x000180ff'::bytea,'00000000-0000-0000-0000-000000000000'::uuid,true,false,false);
+-- name: HistoricalBinaryNullValues
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,NULL,NULL,false,false,false);
+-- name: HistoricalBinaryNullScore
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(NULL,1,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,false,false);
+-- name: HistoricalBinaryNullRatio
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,NULL,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,false,false);
+-- name: HistoricalBinaryPayloadError
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,0,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,true,true,false);
+-- name: HistoricalBinaryIdentityError
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,0,'\x00'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,true,false);
+-- name: HistoricalBinarySkippedErrors
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,0,'\x00'::bytea,'00000000-0000-0000-0000-000000000000'::uuid,false,false,false);
+-- name: HistoricalBinaryWrongPayload
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,true,false);
+-- name: HistoricalBinaryWrongIdentity
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,true,false,false);
+-- name: HistoricalBinaryBypassed
+INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,0,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,false,true);

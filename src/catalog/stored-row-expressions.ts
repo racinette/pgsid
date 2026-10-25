@@ -4,6 +4,7 @@ import { tree, scalar, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
+import { storedBinaryConstant } from './binary-constant-storage.js'
 
 export interface StoredExpressionCollation {
   schema: string
@@ -85,6 +86,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (type === 'pg_catalog.bytea' || type === 'pg_catalog.uuid') {
+      const storage = storedBinaryConstant(node, type, input.byteOrder)
+      return storage ? { PgsidStoredBinary: storage } : undefined
     } else if (type === 'pg_catalog."numeric"' || type === 'pg_catalog.numeric') {
       const numeric = storedNumericConstant(node, input.byteOrder)
       if (numeric === undefined || numeric === null) return undefined

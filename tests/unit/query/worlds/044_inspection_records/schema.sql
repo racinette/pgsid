@@ -500,3 +500,23 @@ CREATE TABLE inspection_temporal_history (
       THEN 1/denominator ELSE NULL::integer END)::historical_temporal_reading IS NOT NULL) = expected_duration_present END)
 );
 ALTER TYPE historical_temporal_reading DROP ATTRIBUTE obsolete_ratio;
+
+CREATE TYPE historical_binary_reading AS (score integer, obsolete_ratio integer);
+CREATE TABLE inspection_binary_history (
+  score integer,
+  denominator integer,
+  payload bytea,
+  identity_uuid uuid,
+  expected_payload_present boolean NOT NULL,
+  expected_identity_present boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT binary_history_payload CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN payload='\x000180ff'::bytea
+      AND get_byte('\x000180ff'::bytea,3)=255 AND octet_length('\x000180ff'::bytea)=4
+      THEN 1/denominator ELSE NULL::integer END)::historical_binary_reading IS NOT NULL) = expected_payload_present END),
+  CONSTRAINT binary_history_identity CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN identity_uuid='01234567-89ab-cdef-8012-3456789abcde'::uuid
+      AND uuid_send('01234567-89ab-cdef-8012-3456789abcde'::uuid)='\x0123456789abcdef80123456789abcde'::bytea
+      THEN 1/denominator ELSE NULL::integer END)::historical_binary_reading IS NOT NULL) = expected_identity_present END)
+);
+ALTER TYPE historical_binary_reading DROP ATTRIBUTE obsolete_ratio;
