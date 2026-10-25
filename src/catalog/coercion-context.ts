@@ -155,7 +155,7 @@ function captureExpressionCoercions(
           values = Array.isArray(args) ? args : []
         if (
           callable &&
-          rowExpressions?.types.get(Number(scalar(node, 'funcresulttype'))) === callable.result &&
+          rowExpressions?.types.has(Number(scalar(node, 'funcresulttype'))) &&
           (values.length < callable.args.length ||
             values.some((v) => tree(v)?.kind === 'NAMEDARGEXPR'))
         ) {

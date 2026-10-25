@@ -61,6 +61,7 @@ function expressionType(node: Tree): string | null {
     PARAM: 'paramtype',
     FUNCEXPR: 'funcresulttype',
     OPEXPR: 'opresulttype',
+    DISTINCTEXPR: 'opresulttype',
     NULLIFEXPR: 'opresulttype',
     CASEEXPR: 'casetype',
     COALESCEEXPR: 'coalescetype',
@@ -360,8 +361,41 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     const result = typedExpression(arg, type)
     return scalar(node, 'constcollid') === null ? result : collated(result, 'constcollid')
   }
-  if (node.kind === 'FUNCEXPR' || node.kind === 'OPEXPR') {
-    const id = Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcid' : 'opfuncid')),
+  if (node.kind === 'FIELDSELECT') {
+    const original = tree(node.fields['arg']?.[0]),
+      originalType = original ? expressionType(original) : null,
+      position = Number(scalar(node, 'fieldnum')),
+      seen = new Set<number>()
+    let type = originalType ? input.storageTypes?.get(Number(originalType)) : undefined
+    while (type?.kind === 'd' && !seen.has(type.oid)) {
+      seen.add(type.oid)
+      type = input.storageTypes?.get(type.base)
+    }
+    const field =
+        type?.kind === 'c' && Number.isInteger(position) && position > 0
+          ? type.attributes[position - 1]
+          : undefined,
+      arg = convert(original ?? undefined)
+    return arg !== undefined &&
+      field &&
+      !field.dropped &&
+      typeof field.name === 'string' &&
+      field.type === Number(scalar(node, 'resulttype'))
+      ? collated(
+          { A_Indirection: { arg, indirection: [{ String: { sval: field.name } }] } },
+          'resultcollid',
+        )
+      : undefined
+  }
+  if (['FUNCEXPR', 'OPEXPR', 'DISTINCTEXPR', 'NULLIFEXPR'].includes(node.kind)) {
+    const special = node.kind === 'DISTINCTEXPR' || node.kind === 'NULLIFEXPR',
+      resultOid = Number(expressionType(node)),
+      result = input.types.get(resultOid),
+      resultElement = input.arrayElements?.get(resultOid),
+      elementName = resultElement === undefined ? undefined : input.types.get(resultElement),
+      outputType =
+        resultElement === undefined ? result : elementName ? elementName + '[]' : undefined,
+      id = Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcid' : 'opfuncid')),
       callable = input.functions.get(id)
     if (!callable) return undefined
     const provided = list('args'),
@@ -408,9 +442,20 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       collation('inputcollid') === undefined ||
       collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid') === undefined ||
       scalar(node, node.kind === 'FUNCEXPR' ? 'funcretset' : 'opretset') !== 'false' ||
-      input.types.get(
-        Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcresulttype' : 'opresulttype')),
-      ) !== callable.result
+      !result ||
+      !outputType ||
+      (special
+        ? callable.result !== 'pg_catalog.bool' || args.length !== 2
+        : result !== callable.result &&
+          ![
+            'pg_catalog.anyenum',
+            'pg_catalog.anyarray',
+            'pg_catalog.anyelement',
+            'pg_catalog.anyrange',
+            'pg_catalog.anymultirange',
+            'pg_catalog.anycompatible',
+            'pg_catalog.anycompatiblearray',
+          ].includes(callable.result))
     )
       return undefined
     const conversion =
@@ -428,14 +473,29 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         },
         node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid',
       )
-    return {
+    const call = {
       PgsidStoredCall: {
         signature: callable.signature,
         args,
         inputCollation: collation('inputcollid'),
-        resultCollation: collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid'),
+        resultCollation: special
+          ? null
+          : collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid'),
+        ...(!special && result !== callable.result ? { result: outputType } : {}),
       },
     }
+    return special
+      ? collated(
+          {
+            PgsidStoredComparison: {
+              kind: node.kind === 'DISTINCTEXPR' ? 'distinct' : 'nullif',
+              expression: call,
+              result: outputType,
+            },
+          },
+          'opcollid',
+        )
+      : call
   }
   if (node.kind === 'COLLATEEXPR')
     return collated(convert(node.fields['arg']?.[0]), 'collOid', true)

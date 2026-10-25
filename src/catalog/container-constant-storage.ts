@@ -24,7 +24,7 @@ export interface ConstantStorageType {
   length: number
   alignment: string
   delimiter: string
-  attributes: { type: number; length: number; alignment: string; dropped: boolean }[]
+  attributes: { name?: string; type: number; length: number; alignment: string; dropped: boolean }[]
 }
 
 export function storageRowIdentities(

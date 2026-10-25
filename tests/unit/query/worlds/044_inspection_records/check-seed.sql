@@ -850,3 +850,18 @@ INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) 
 INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,0,true,false);
 -- name: HistoricalXmlMoneyBypassedDivision
 INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);
+
+-- name: HistoricalOperationsMatchedValues
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,1,true,false);
+-- name: HistoricalOperationsNullScore
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(NULL,0,false,false);
+-- name: HistoricalOperationsWrongPresence
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,1,false,false);
+-- name: HistoricalOperationsNullPresence
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,1,NULL,false);
+-- name: HistoricalOperationsReachedDivision
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,0,true,false);
+-- name: HistoricalOperationsSkippedDivision
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(2,0,true,false);
+-- name: HistoricalOperationsBypassedDivision
+INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);
