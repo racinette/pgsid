@@ -35757,6 +35757,9 @@ function rangeTypedCompareMode(lower: checkruntime.ArrayElement, upper: checkrun
         if (portable.kind === "Value") {
             const order: number = langruntime.checkedI32(portable.value);
             if (!(order === 0)) {
+                if (kind === 48 || kind === 148) {
+                    return tsqueryCompare(checkruntime.arrayElementToTsquery(lower), checkruntime.arrayElementToTsquery(upper), kind === 148, true);
+                }
                 if (kind === 47) {
                     return tsvectorCmpXinv(checkruntime.arrayElementToTsvector(lower), checkruntime.arrayElementToTsvector(upper));
                 }
@@ -36480,6 +36483,9 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
         const right: checkruntime.TidValue = checkruntime.arrayElementToTid(upper);
         return bttidcmpAk5t(left, right);
     }
+    if (kind === 48 || kind === 148) {
+        return tsqueryOrder(checkruntime.arrayElementToTsquery(lower), checkruntime.arrayElementToTsquery(upper), kind === 148);
+    }
     if (kind === 47) {
         return tsvectorOrder(checkruntime.arrayElementToTsvector(lower), checkruntime.arrayElementToTsvector(upper));
     }
@@ -37053,6 +37059,9 @@ function rangeInputBound(input: checkruntime.TextValue, kind: number, cidr: bool
     if (kind === 39) {
         return checkruntime.arrayElementFromTid(tidFromText(input));
     }
+    if (kind === 48) {
+        return checkruntime.arrayElementFromTsquery(tsqueryFromTextContext(input, utf8));
+    }
     if (kind === 47) {
         return checkruntime.arrayElementFromTsvector(tsvectorFromTextContext(input, utf8));
     }
@@ -37402,7 +37411,7 @@ export function rangeFromTextDefined(input: checkruntime.TextValue, typeName: st
     const cidr: boolean = checkruntime.rangeSupportIsCidr(support) || elementType === "pg_catalog.cidr";
     const name: boolean = support.comparison === 200 || support.comparison === 208 || elementType === "pg_catalog.name";
     const aliasMode: number = checkruntime.rangeOidAliasMode(support, elementType);
-    const utf8: boolean = checkruntime.rangeSupportJsonbUtf8(support);
+    const utf8: boolean = checkruntime.rangeSupportJsonbUtf8(support) || support.comparison === 148;
     const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind, cidr, name, aliasMode, utf8, enumLabels, enumCount);
     if (lower.kind === "Error") {
         const error: checkruntime.SqlError = lower.value;

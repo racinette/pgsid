@@ -35586,6 +35586,9 @@ func rangeTypedCompareMode(lower checkruntime.ArrayElement, upper checkruntime.A
 		if portable.Kind == checkruntime.Int4ValueValue {
 			order := langruntime.CheckedI32(portable.Value)
 			if order != 0 {
+				if kind == 48 || kind == 148 {
+					return tsqueryCompare(checkruntime.ArrayElementToTsquery(lower), checkruntime.ArrayElementToTsquery(upper), kind == 148, true)
+				}
 				if kind == 47 {
 					return TsvectorCmpXinv(checkruntime.ArrayElementToTsvector(lower), checkruntime.ArrayElementToTsvector(upper))
 				}
@@ -36306,6 +36309,9 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 		right := checkruntime.ArrayElementToTid(upper)
 		return BttidcmpAk5t(left, right)
 	}
+	if kind == 48 || kind == 148 {
+		return TsqueryOrder(checkruntime.ArrayElementToTsquery(lower), checkruntime.ArrayElementToTsquery(upper), kind == 148)
+	}
 	if kind == 47 {
 		return TsvectorOrder(checkruntime.ArrayElementToTsvector(lower), checkruntime.ArrayElementToTsvector(upper))
 	}
@@ -36878,6 +36884,9 @@ func rangeInputBound(input checkruntime.TextValue, kind int, cidr bool, name boo
 	if kind == 39 {
 		return checkruntime.ArrayElementFromTid(TidFromText(input))
 	}
+	if kind == 48 {
+		return checkruntime.ArrayElementFromTsquery(TsqueryFromTextContext(input, utf8))
+	}
 	if kind == 47 {
 		return checkruntime.ArrayElementFromTsvector(TsvectorFromTextContext(input, utf8))
 	}
@@ -37218,7 +37227,7 @@ func RangeFromTextDefined(input checkruntime.TextValue, typeName string, element
 	cidr := checkruntime.RangeSupportIsCidr(support) || elementType == "pg_catalog.cidr"
 	name := support.Comparison == 200 || support.Comparison == 208 || elementType == "pg_catalog.name"
 	aliasMode := checkruntime.RangeOidAliasMode(support, elementType)
-	utf8 := checkruntime.RangeSupportJsonbUtf8(support)
+	utf8 := checkruntime.RangeSupportJsonbUtf8(support) || support.Comparison == 148
 	lower := rangeInputBound(lowerText, kind, cidr, name, aliasMode, utf8, enumLabels, enumCount)
 	if lower.Kind == checkruntime.ArrayElementError {
 		error := lower.Error

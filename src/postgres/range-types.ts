@@ -1,3 +1,4 @@
+import { tsqueryContainerTypes } from '../catalog/tsquery-container-constants.js'
 import { tsqueryConstantTypes } from '../catalog/tsquery-constant-storage.js'
 import { arrayStorageContainerTypes } from '../catalog/array-constant-storage.js'
 import { catalogIdentifierSql as identifier } from './catalog-identities.js'
@@ -185,7 +186,8 @@ async function readRangeCallables(
   const { scalars, containers } = tsvectorConstantTypes(types),
     rowIdentities = storageRowIdentities(types),
     arrayStorage = { types, roots: arrayStorageContainerTypes(types) }
-  const queries = tsqueryConstantTypes(types)
+  const queries = tsqueryConstantTypes(types),
+    queryContainers = tsqueryContainerTypes(types, queries)
   for (const { range, defaultsTree, serverUtf8, ...callable } of rows) {
     const queryContexts = captureTsqueryDefaultContexts(
       defaultsTree,
@@ -193,6 +195,7 @@ async function readRangeCallables(
       queries,
       rowIdentities,
       serverUtf8,
+      { types, roots: queryContainers },
     )
     if (queryContexts.some((context) => context !== null))
       callable.defaultTsqueryConstants = queryContexts

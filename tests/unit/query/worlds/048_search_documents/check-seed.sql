@@ -455,3 +455,21 @@ INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass
 INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a &',NULL,NULL,false);
 -- name: archived_query_skipped
 INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a &',NULL,NULL,true);
+-- name: query_window_term
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('[a,zzzzzzzzzz)','{[a,zzzzzzzzzz)}','a',true,false,false);
+-- name: query_window_different_nodes
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('[a,zzzzzzzzzz)','{[a,zzzzzzzzzz)}','a & (b & c)',false,true,false);
+-- name: query_window_preserved_tree
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('["a & (b & c)",)','{["a & (b & c)",)}','a & (b & c)',true,true,false);
+-- name: query_window_different_tree
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('(,)','{(,)}','(a & b) & c',true,false,false);
+-- name: query_window_null_term
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('empty','{}',NULL,NULL,NULL,false);
+-- name: query_window_null_source
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES(NULL,NULL,'a',NULL,false,false);
+-- name: query_window_wrong_default
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('(,)','{(,)}','a & (b & c)',true,false,false);
+-- name: query_window_bad_term
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('(,)','{(,)}','a &',NULL,NULL,false);
+-- name: query_window_skipped
+INSERT INTO query_window_templates(source,members,term,expected_member,expected_default,bypass) VALUES('bad','bad','a &',NULL,NULL,true);

@@ -89,6 +89,7 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
     let comparison = input.comparison == 0
         || (kind == 41 && input.comparison == RANGE_COMPARISON_OID_VECTOR)
         || (kind == 12 && input.comparison == 120)
+        || (kind == 48 && input.comparison == 148)
         || (kind == 13 && range_support_is_cidr(input))
         || (kind == 33 && range_oid_alias_mode(input, "") > 0)
         || (kind == 8 && (input.comparison == 108 || input.comparison == 200 || input.comparison == 208))
@@ -125,7 +126,8 @@ pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
                 || kind == 42
                 || kind == 43
                 || kind == 44
-                || kind == 47));
+                || kind == 47
+                || kind == 48));
     let canonical = input.canonical == 0
         || input.canonical == 1
         || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
