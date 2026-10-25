@@ -1298,9 +1298,10 @@ describe('CHECK measurement boundaries', () => {
       'pg_catalog.int4:array',
       'named_field',
       'default_arguments',
+      'boolean_test',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
-    for (const name of ['pg_catalog.point:scalar', 'boolean_test'])
+    for (const name of ['pg_catalog.point:scalar'])
       expect(inventory.get(name)?.classification, name).toBe('implementation-gap')
     expect(inventory.get('current_date')?.classification).toBe('requires-session')
     expect(inventory.get('custom_call')?.classification).toBe('requires-database-callback')

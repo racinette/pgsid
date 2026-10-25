@@ -865,3 +865,16 @@ INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) 
 INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(2,0,true,false);
 -- name: HistoricalOperationsBypassedDivision
 INSERT INTO inspection_operation_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);
+
+-- name: HistoricalPredicatesMatchedValues
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,1,'x',true,false);
+-- name: HistoricalPredicatesNullScore
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(NULL,1,'x',false,false);
+-- name: HistoricalPredicatesWrongPresence
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,1,'x',false,false);
+-- name: HistoricalPredicatesNullPresence
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,1,'x',NULL,false);
+-- name: HistoricalPredicatesReachedDivision
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,0,'x',true,false);
+-- name: HistoricalPredicatesBypassedDivision
+INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,0,'x',false,true);

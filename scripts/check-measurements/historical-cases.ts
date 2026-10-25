@@ -98,6 +98,7 @@ export const historicalExpressionCases: readonly {
   { name: 'boolean_test', type: 'bool', value: '(n>0) IS TRUE' },
   { name: 'scalar_null_test', type: 'bool', value: 'n IS NULL' },
   { name: 'row_null_test', type: 'bool', value: 'ROW(n,d) IS NULL' },
+  { name: 'datum_null_test', type: 'bool', value: 'ROW(n,d) IS DISTINCT FROM NULL' },
   { name: 'array_constructor', type: 'int4[]', value: 'ARRAY[n,d]' },
   { name: 'array_coercion', type: 'int8[]', value: 'ARRAY[n,d]::int8[]' },
   { name: 'array_element', type: 'int4', value: '(ARRAY[n,d])[1]' },
