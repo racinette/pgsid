@@ -11421,6 +11421,17 @@ func FinishTsvectorDomainConversion(input TsvectorValue, result CheckOutcome) Ts
 	}
 	return input
 }
+func FinishTsqueryDomainConversion(input TsqueryValue, result CheckOutcome) TsqueryValue {
+	input = CopyTsqueryValue(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return TsqueryValue{Kind: TsqueryValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	return input
+}
 
 type ArrayDimension struct {
 	Lower  int

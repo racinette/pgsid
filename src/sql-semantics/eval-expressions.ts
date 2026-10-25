@@ -296,6 +296,7 @@ export type EvalExpression =
       moneyLiterals?: readonly { text: string; units: string }[]
     }
   | { kind: 'text-to-tsvector'; type: 'pg_catalog.tsvector'; operand: EvalExpression }
+  | { kind: 'text-to-tsquery'; type: 'pg_catalog.tsquery'; operand: EvalExpression }
   | { kind: 'text-to-aclitem'; type: 'pg_catalog.aclitem'; operand: EvalExpression }
   | { kind: 'text-to-xid'; type: 'pg_catalog.xid'; operand: EvalExpression }
   | { kind: 'text-to-cid'; type: 'pg_catalog.cid'; operand: EvalExpression }
@@ -585,6 +586,7 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'lseg' ||
           node.expression.kind === 'money' ||
           node.expression.kind === 'tsvector' ||
+          node.expression.kind === 'tsquery' ||
           node.expression.kind === 'aclitem' ||
           node.expression.kind === 'xid' ||
           node.expression.kind === 'cid' ||
@@ -691,6 +693,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-lseg' ||
       node.kind === 'text-to-money' ||
       node.kind === 'text-to-tsvector' ||
+      node.kind === 'text-to-tsquery' ||
       node.kind === 'text-to-aclitem' ||
       node.kind === 'text-to-xid' ||
       node.kind === 'text-to-cid' ||

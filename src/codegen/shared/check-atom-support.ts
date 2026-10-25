@@ -171,6 +171,7 @@ export function portableCheckAtoms(
       value.kind === 'text-to-lseg' ||
       value.kind === 'text-to-money' ||
       value.kind === 'text-to-tsvector' ||
+      value.kind === 'text-to-tsquery' ||
       value.kind === 'text-to-aclitem' ||
       value.kind === 'text-to-xid' ||
       value.kind === 'text-to-cid' ||

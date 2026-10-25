@@ -95,3 +95,9 @@ pub fn finish_tsvector_domain_conversion(input: TsvectorValue, result: CheckOutc
     if result == CheckOutcome::Unknown { return TsvectorValue::Unknown; };
     input
 }
+
+pub fn finish_tsquery_domain_conversion(input: TsqueryValue, result: CheckOutcome) -> TsqueryValue {
+    if let CheckOutcome::Error(error) = result { return TsqueryValue::Error(error); };
+    if result == CheckOutcome::Unknown { return TsqueryValue::Unknown; };
+    input
+}

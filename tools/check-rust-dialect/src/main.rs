@@ -77,6 +77,7 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
             Ok("LsegValue")
         }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TsvectorValue") => { Ok("TsvectorValue") }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TsqueryValue") => { Ok("TsqueryValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("AclitemValue") => { Ok("AclitemValue") }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
             Ok("MoneyValue")
@@ -473,6 +474,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "LsegValue"
                     | "MoneyValue"
                     | "TsvectorValue"
+                    | "TsqueryValue"
                     | "AclitemValue"
                     | "XidValue"
                     | "CidValue"
@@ -1112,6 +1114,17 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_tsquery_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: TsqueryValue, right: TsqueryValue) -> CheckOutcome { let mut selected: TsqueryValue = tsquery_unknown(); selected = left.clone(); let value = compare(selected, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["TsqueryPayload", "i64", "TsqueryValue<i64>", "&TsqueryValue"] {
+            assert!(check_source(&source.replace("left: TsqueryValue", &format!("left: {ty}"))).is_err());
+        }
+        assert!(check_source(&source.replace("left: TsqueryValue", "mut left: TsqueryValue")).is_err());
+        assert!(check_source(&source.replace("compare(selected, right)", "compare(selected.native_bytes, right)")).is_err());
+    }
+
+    #[test]
     fn accepts_aclitem_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: AclitemValue, right: AclitemValue) -> CheckOutcome { let mut selected: AclitemValue = aclitem_unknown(); if choose(left) { selected = right; } let value = compare(selected, left); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -1167,6 +1180,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("LsegValue", "lseg_unknown"),
             ("MoneyValue", "money_unknown"),
             ("TsvectorValue", "tsvector_unknown"),
+            ("TsqueryValue", "tsquery_unknown"),
             ("AclitemValue", "aclitem_unknown"),
             ("XidValue", "xid_unknown"),
             ("CidValue", "cid_unknown"),

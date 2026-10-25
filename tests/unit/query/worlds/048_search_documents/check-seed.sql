@@ -193,3 +193,27 @@ INSERT INTO document_window_hashes(range_source,members_source,seed,extended,byp
 INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'{}',NULL,true,false);
 -- name: document_skipped_record_members_hash
 INSERT INTO document_window_hashes(range_source,members_source,seed,extended,bypass) VALUES(NULL,'invalid',0,true,true);
+-- name: query_simple_terms
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b','z','''a'' & ''b''',3,true,false);
+-- name: query_grouped_terms
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & (b & c)','z','''a'' & ''b'' & ''c''',5,true,false);
+-- name: query_phrase_and_weights
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a:*AB <2> b:D','z','''a'':*AB <2> ''b'':D',3,true,false);
+-- name: query_unicode_terms
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('é | 😀','z','''é'' | ''😀''',3,true,false);
+-- name: query_fallback
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES(NULL,'a | b','''a'' | ''b''',3,false,false);
+-- name: query_empty
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('','z','',0,true,false);
+-- name: query_wrong_rendering
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b','z','''a'' | ''b''',3,true,false);
+-- name: query_over_budget
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b','z','''a'' & ''b''',2,true,false);
+-- name: query_missing_budget
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a','z','''a''',NULL,true,false);
+-- name: query_domain_limit
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b & c & d','z',NULL,7,true,false);
+-- name: query_malformed
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a &','z',NULL,3,true,false);
+-- name: query_skipped
+INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a &','z',NULL,NULL,true,true);

@@ -111,6 +111,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'network' ||
       expression.kind === 'xml' ||
       expression.kind === 'tsvector' ||
+      expression.kind === 'tsquery' ||
       expression.kind === 'mac' ||
       expression.kind === 'multirange'
     )
