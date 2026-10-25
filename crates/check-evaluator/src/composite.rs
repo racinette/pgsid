@@ -198,7 +198,7 @@ fn composite_type_context_valid(context: &CompositeTypeContext) -> bool {
     let mut index: usize = 0;
     while index < context.nodes.len() {
         let node = context.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 47 {return false;};
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 48 {return false;};
         if node.kind == 41 && (node.element_type.as_str() == "" || node.child >= context.nodes.len()) {return false;};
         if node.kind > 0 && node.kind < 41 || node.kind == 42 || node.kind == 43 || node.kind >= 45 {
             let profile = node.bound_profile;
@@ -263,6 +263,9 @@ fn composite_prepare_cell(input: ArrayElement, context: &CompositeTypeContext, i
 }
 
 pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Tsquery(payload) = checked {
+        return array_element_from_tsquery(make_tsquery_value(payload));
+    };
     if let ArrayElement::Tsvector(payload) = checked {
         return array_element_from_tsvector(make_tsvector_value(payload));
     };

@@ -151,6 +151,7 @@ const jsonbConversionHelpers = new Map<string, string>(
       [['pg_catalog.xml'], 'xml'],
       [['pg_catalog.aclitem'], 'aclitem'],
       [['pg_catalog.tsvector'], 'tsvector'],
+      [['pg_catalog.tsquery'], 'tsquery'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],
@@ -399,7 +400,7 @@ const arrayElementOutput = (
   else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
-  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47].includes(family))
+  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
     conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
@@ -1446,6 +1447,8 @@ export function emitCheckRustEvaluator(
     type: string,
     signature: string | null | undefined,
   ): string | null => {
+    if (type === 'pg_catalog.tsquery' && signature === arrayElementComparison(type)?.comparator)
+      return 'tsquery_order'
     if (type === 'pg_catalog.tsvector' && signature === arrayElementComparison(type)?.comparator)
       return 'tsvector_order'
     if (
@@ -1580,6 +1583,12 @@ export function emitCheckRustEvaluator(
       scalar = stored
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 48) {
+      if (stored)
+        throw new UnsupportedCheckRustExpression(
+          'Stored tsquery container input requires captured query trees',
+        )
+      scalar = `tsquery_from_text_context(${event},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 47) {
       scalar = `${stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${event},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 46) {
@@ -3994,7 +4003,7 @@ export function emitCheckRustEvaluator(
                   )
               if (normalizedComparison)
                 scalarLines.push(
-                  `let ${value.name}=${normalizedComparison}(${values.map(ownedOperand).join(', ')});`,
+                  `let ${value.name}=${normalizedComparison}(${[...values.map(ownedOperand), ...(normalizedComparison === 'tsquery_order' ? [String(executionContext.serverEncoding === 'UTF8')] : [])].join(', ')});`,
                 )
               scalarLines.push(
                 `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
@@ -4141,7 +4150,7 @@ export function emitCheckRustEvaluator(
             if (normalizedComparison) {
               const name = fresh('array_comparison_value')
               scalarLines.push(
-                `let ${name}=${normalizedComparison}(${args.map(ownedOperand).join(', ')});`,
+                `let ${name}=${normalizedComparison}(${[...args.map(ownedOperand), ...(normalizedComparison === 'tsquery_order' ? [String(executionContext.serverEncoding === 'UTF8')] : [])].join(', ')});`,
               )
               return { name, type: 'pg_catalog.int4' }
             }
@@ -5730,6 +5739,10 @@ export function emitCheckRustEvaluator(
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'text-to-tsquery') {
+      if (storedArrayInputScope)
+        throw new UnsupportedCheckRustExpression(
+          'Stored tsquery container input requires captured query trees',
+        )
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
       if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')

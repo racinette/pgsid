@@ -58,9 +58,11 @@ pub enum ArrayElement {
     TextNonNull,
     Aclitem(AclitemPayload),
     Tsvector(TsvectorPayload),
+    Tsquery(TsqueryPayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Tsquery(_) = input { return 48; };
     if let ArrayElement::Tsvector(_) = input { return 47; };
     if let ArrayElement::Aclitem(_) = input { return 46; };
     if let ArrayElement::TextNonNull = input { return 8; };
@@ -1412,4 +1414,17 @@ pub fn array_element_to_tsvector(input: ArrayElement) -> TsvectorValue {
     if let ArrayElement::Null = input { return TsvectorValue::Null; };
     if let ArrayElement::Tsvector(value) = input { return TsvectorValue::Value(value); };
     TsvectorValue::Unknown
+}
+
+pub fn array_element_from_tsquery(input: TsqueryValue) -> ArrayElement {
+    if let TsqueryValue::Error(error) = input { return ArrayElement::Error(error); };
+    if let TsqueryValue::Null = input { return ArrayElement::Null; };
+    if let TsqueryValue::Value(value) = input { return ArrayElement::Tsquery(value); };
+    ArrayElement::Unknown
+}
+pub fn array_element_to_tsquery(input: ArrayElement) -> TsqueryValue {
+    if let ArrayElement::Error(error) = input { return TsqueryValue::Error(error); };
+    if let ArrayElement::Null = input { return TsqueryValue::Null; };
+    if let ArrayElement::Tsquery(value) = input { return TsqueryValue::Value(value); };
+    TsqueryValue::Unknown
 }

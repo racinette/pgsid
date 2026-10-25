@@ -413,3 +413,29 @@ INSERT INTO search_result_scores(document,query,weights,normalization,minimum_sc
 INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1A,4B,10C b:2B,5C,9D','a & b','{0.1,0.2,0.4,1}',4,0.001,false);
 -- name: score_cover_stripped_rejected
 INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a','a','{0.1,0.2,0.4,1}',0,0.01,false);
+-- name: query_set_term
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a','a',true,true,'''a''|-|''a''',false);
+-- name: query_set_modifiers
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a:A','a',true,true,'''a'':A|-|''a''',false);
+-- name: query_set_different
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('z','a',true,false,'''z''|-|''a''',false);
+-- name: query_set_absent
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('missing','missing',false,true,'''missing''|-|''missing''',false);
+-- name: query_set_compound
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a & b','a & b',false,true,'''a'' & ''b''|-|''a'' & ''b''',false);
+-- name: query_set_grouping
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a & (b & c)','(a & b) & c',false,false,'''a'' & ''b'' & ''c''|-|''a'' & ''b'' & ''c''',false);
+-- name: query_set_null
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES(NULL,'a',false,NULL,'-|-|''a''',false);
+-- name: query_set_all_null
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES(NULL,NULL,false,NULL,'-|-|-',false);
+-- name: query_set_wrong_member
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a','a',false,true,'''a''|-|''a''',false);
+-- name: query_set_wrong_record
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a','a',true,false,'''a''|-|''a''',false);
+-- name: query_set_wrong_text
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a','a',true,true,'wrong',false);
+-- name: query_set_bad_input
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a &','a',NULL,NULL,NULL,false);
+-- name: query_set_skipped
+INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a &','b |',NULL,NULL,NULL,true);

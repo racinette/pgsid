@@ -3027,6 +3027,30 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     if (kind === 46) {
         return checkruntime.equalAclitemValue(checkruntime.arrayElementToAclitem(left), checkruntime.arrayElementToAclitem(right));
     }
+    if (kind === 48) {
+        const a: checkruntime.TsqueryValue = checkruntime.arrayElementToTsquery(left);
+        const b: checkruntime.TsqueryValue = checkruntime.arrayElementToTsquery(right);
+        if (a.kind === "Value") {
+            const first: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(a.value);
+            if (b.kind === "Value") {
+                const second: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(b.value);
+                if (!(first.nativeBytes === second.nativeBytes) || !(first.root === second.root) || !(first.nodes.length === second.nodes.length)) {
+                    return false;
+                }
+                let index: number = 0;
+                while (index < first.nodes.length) {
+                    const x: checkruntime.TsqueryNode = langruntime.indexStruct(first.nodes, langruntime.checkedIndex(index), checkruntime.copyTsqueryNode);
+                    const y: checkruntime.TsqueryNode = langruntime.indexStruct(second.nodes, langruntime.checkedIndex(index), checkruntime.copyTsqueryNode);
+                    if (!(x.kind === y.kind) || !(x.text === y.text) || !(x.weight === y.weight) || !(x.prefix === y.prefix) || !(x.distance === y.distance) || !(x.left === y.left) || !(x.right === y.right)) {
+                        return false;
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     if (kind === 47) {
         const firstVector: checkruntime.TsvectorValue = checkruntime.arrayElementToTsvector(left);
         const secondVector: checkruntime.TsvectorValue = checkruntime.arrayElementToTsvector(right);
@@ -17336,6 +17360,10 @@ export function jsonbInputFromJsonContext(input: checkruntime.JsonValue, utf8: b
 export function jsonbInputFromXml(input: checkruntime.XmlValue): checkruntime.JsonbInput {
     const text: checkruntime.TextValue = xmlToOutputText(input);
     return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromTsquery(input: checkruntime.TsqueryValue): checkruntime.JsonbInput {
+    input = checkruntime.copyTsqueryValue(input);
+    return checkruntime.jsonbInputFromText(tsqueryToText(input));
 }
 interface JsonbGeometryCoordinate {
     bits: bigint;
@@ -37632,6 +37660,9 @@ function rangeOutputBound(input: checkruntime.ArrayElement, kind: number, cidr: 
     }
     if (kind === 39) {
         return tidToText(checkruntime.arrayElementToTid(input));
+    }
+    if (kind === 48) {
+        return tsqueryToText(checkruntime.arrayElementToTsquery(input));
     }
     if (kind === 47) {
         return tsvectorToText(checkruntime.arrayElementToTsvector(input));

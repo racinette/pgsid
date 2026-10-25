@@ -365,7 +365,7 @@ pub fn range_bound_profile_valid(profile: &RangeBoundContext) -> bool {
     let mut index: usize = 0;
     while index < profile.nodes.len() {
         let node = profile.nodes[index].clone();
-        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 47 {
+        if node.type_name.as_str() == "" || node.kind < 0 || node.kind > 48 {
             return false;
         };
         if node.kind >= 41 && node.kind <= 43 {
@@ -751,6 +751,11 @@ fn range_bound_word_valid(value: i32) -> bool {
 }
 
 fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
+    if let ArrayElement::Tsquery(value) = input {
+        let checked = make_tsquery_value(value);
+        if let TsqueryValue::Value(_) = checked { return true; };
+        return false;
+    };
     if let ArrayElement::Tsvector(value) = input {
         let checked = make_tsvector_value(value);
         if let TsvectorValue::Value(_) = checked { return true; };
