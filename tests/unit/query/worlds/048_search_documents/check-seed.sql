@@ -339,3 +339,39 @@ INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VAL
 INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES(NULL,'a &','x',NULL,false);
 -- name: query_rewrite_skipped
 INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a &','a &','x &',NULL,true);
+-- name: query_match_term
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1','a',true,false);
+-- name: query_match_absent
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1','b',false,false);
+-- name: query_match_weight
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1D ab:2B','a:*B',true,false);
+-- name: query_match_stripped_weight
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a','a:A',true,false);
+-- name: query_match_phrase
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1 b:2','a <-> b',true,false);
+-- name: query_match_reversed_phrase
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:2 b:1','a <-> b',false,false);
+-- name: query_match_missing_positions
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a b:2','a <-> b',false,false);
+-- name: query_match_negated_missing_positions
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a b:2','!(a <-> b)',true,false);
+-- name: query_match_prefix_positions
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1A ab:2B b:3','a:* <-> b',true,false);
+-- name: query_match_prefix_weights
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1A ab:2B b:3','a:*A <-> b',false,false);
+-- name: query_match_unicode
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('é:1 日本:2 😀:3','é <-> 日本 <-> 😀',true,false);
+-- name: query_match_empty
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1','',false,false);
+-- name: query_match_null
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES(NULL,'a',NULL,false);
+-- name: query_match_wrong_value
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:1','a',false,false);
+-- name: query_match_bad_query_after_null
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES(NULL,'a &',NULL,false);
+-- name: query_match_skipped
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:','a &',NULL,true);
+-- name: query_match_negated_beyond_document
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:16383','a <-> !missing',true,false);
+-- name: query_match_wrapped_position
+INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:16383','(a <-> !missing) <0> a',false,false);

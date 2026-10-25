@@ -32,6 +32,32 @@ INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
 ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+*/
+
+/*
+PostgreSQL Database Management System
+(also known as Postgres, formerly known as Postgres95)
+
+Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+
+Portions Copyright (c) 1994, The Regents of the University of California
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose, without fee, and without a written agreement
+is hereby granted, provided that the above copyright notice and this
+paragraph and the following two paragraphs appear in all copies.
+
+IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 
 Copyright (c) 2021-2025, PostgreSQL Global Development Group
@@ -46788,6 +46814,435 @@ export function tsqueryFromTextContext(input: checkruntime.TextValue, utf8: bool
         return checkruntime.makeTsqueryValue({ nodes: payload.nodes, root: root, nativeBytes: bytes });
     }
     return { kind: "Unknown" };
+}
+interface TsqueryMatchData {
+    state: number;
+    width: bigint;
+    negate: boolean;
+    positions: number[];
+}
+function copyTsqueryMatchData(value: TsqueryMatchData): TsqueryMatchData {
+    return { state: langruntime.checkedI32(value.state), width: langruntime.checkedI64(value.width), negate: langruntime.checkedBool(value.negate), positions: langruntime.checkedIndices(value.positions) };
+}
+interface TsqueryMatchFrame {
+    node: number;
+    phrase: boolean;
+    positions: boolean;
+    step: number;
+    left: TsqueryMatchData;
+}
+function copyTsqueryMatchFrame(value: TsqueryMatchFrame): TsqueryMatchFrame {
+    return { node: langruntime.checkedIndex(value.node), phrase: langruntime.checkedBool(value.phrase), positions: langruntime.checkedBool(value.positions), step: langruntime.checkedI32(value.step), left: copyTsqueryMatchData(value.left) };
+}
+function tsqueryMatchState(state: number): TsqueryMatchData {
+    state = langruntime.checkedI32(state);
+    const positions: number[] = [];
+    return { state: state, width: 0n, negate: false, positions: positions };
+}
+function tsqueryMatchLexeme(lexeme: checkruntime.TsvectorLexeme, weight: number, positions: boolean): TsqueryMatchData {
+    weight = langruntime.checkedI32(weight);
+    positions = langruntime.checkedBool(positions);
+    if (lexeme.positions.length === 0) {
+        if (positions) {
+            return tsqueryMatchState(2);
+        }
+        return tsqueryMatchState(1);
+    }
+    let output: number[] = [];
+    let index: number = 0;
+    while (index < lexeme.positions.length) {
+        const value: checkruntime.TsvectorPosition = langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(index), checkruntime.copyTsvectorPosition);
+        let bit: number = 1;
+        if (value.weight === 1) {
+            bit = langruntime.checkedI32(2);
+        }
+        if (value.weight === 2) {
+            bit = langruntime.checkedI32(4);
+        }
+        if (value.weight === 3) {
+            bit = langruntime.checkedI32(8);
+        }
+        if (weight === 0 || !(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(weight, bit), 2) === 0)) {
+            if (positions === false) {
+                return tsqueryMatchState(1);
+            }
+            langruntime.pushIndex(output, langruntime.indexFromI32(value.position, 0));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let state: number = 0;
+    if (output.length > 0) {
+        state = langruntime.checkedI32(1);
+    }
+    return { state: state, width: 0n, negate: false, positions: output };
+}
+function tsqueryMatchOperand(document: checkruntime.TsvectorPayload, operand: checkruntime.TsqueryNode, positions: boolean): TsqueryMatchData {
+    positions = langruntime.checkedBool(positions);
+    let low: number = 0;
+    let high: number = document.lexemes.length;
+    let middle: number = high;
+    let result: TsqueryMatchData = tsqueryMatchState(0);
+    let searching: boolean = true;
+    while (low < high && searching) {
+        middle = langruntime.checkedIndex(langruntime.checkedAdd(low, langruntime.indexFromI32(langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(high, low))))), 2), 0)));
+        const order: number = checkruntime.tsvectorLexemeOrder(operand.text, langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(middle), checkruntime.copyTsvectorLexeme).text);
+        if (order === 0) {
+            const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(middle), checkruntime.copyTsvectorLexeme));
+            result = copyTsqueryMatchData(tsqueryMatchLexeme(lexeme, operand.weight, positions));
+            searching = langruntime.checkedBool(false);
+        }
+        else if (order > 0) {
+            low = langruntime.checkedIndex(langruntime.checkedAdd(middle, 1));
+        }
+        else {
+            high = langruntime.checkedIndex(middle);
+        }
+    }
+    if (operand.prefix && (!(result.state === 1) || positions)) {
+        if (low >= high) {
+            middle = langruntime.checkedIndex(high);
+        }
+        result = copyTsqueryMatchData(tsqueryMatchState(0));
+        let present: number[] = [];
+        let scanning: boolean = true;
+        while (middle < document.lexemes.length && scanning) {
+            const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(middle), checkruntime.copyTsvectorLexeme));
+            if (textHasPrefix(lexeme.text, operand.text) === false) {
+                scanning = langruntime.checkedBool(false);
+            }
+            else {
+                const found: TsqueryMatchData = tsqueryMatchLexeme(lexeme, operand.weight, positions);
+                if (positions) {
+                    if (found.state === 2) {
+                        return found;
+                    }
+                    let index: number = 0;
+                    while (index < found.positions.length) {
+                        const position: number = langruntime.indexNumber(found.positions, langruntime.checkedIndex(index));
+                        while (present.length <= position) {
+                            langruntime.pushIndex(present, 0);
+                        }
+                        present[langruntime.checkedIndexIn(present, position)] = langruntime.checkedIndex(1);
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+                else if (found.state === 1) {
+                    return found;
+                }
+                middle = langruntime.checkedAdd(middle, 1);
+            }
+        }
+        let output: number[] = [];
+        let index: number = 0;
+        while (index < present.length) {
+            if (langruntime.indexNumber(present, langruntime.checkedIndex(index)) === 1) {
+                langruntime.pushIndex(output, index);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let state: number = 0;
+        if (output.length > 0) {
+            state = langruntime.checkedI32(1);
+        }
+        result = copyTsqueryMatchData({ state: state, width: 0n, negate: false, positions: output });
+    }
+    return result;
+}
+function tsqueryMatchWrap(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    return BigInt(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(value))))));
+}
+function tsqueryMatchMerge(left: TsqueryMatchData, right: TsqueryMatchData, emit: number, leftOffset: bigint, rightOffset: bigint, width: bigint, negate: boolean, positions: boolean): TsqueryMatchData {
+    emit = langruntime.checkedI32(emit);
+    leftOffset = langruntime.checkedI64(leftOffset);
+    rightOffset = langruntime.checkedI64(rightOffset);
+    width = langruntime.checkedI64(width);
+    negate = langruntime.checkedBool(negate);
+    positions = langruntime.checkedBool(positions);
+    const lshift: bigint = tsqueryMatchWrap(leftOffset);
+    const rshift: bigint = tsqueryMatchWrap(rightOffset);
+    const span: bigint = tsqueryMatchWrap(width);
+    let output: number[] = [];
+    let l: number = 0;
+    let r: number = 0;
+    let scanning: boolean = true;
+    while ((l < left.positions.length || r < right.positions.length) && scanning) {
+        let a: bigint = 2147483647n;
+        let b: bigint = 2147483647n;
+        if (l < left.positions.length) {
+            a = langruntime.checkedI64(tsqueryMatchWrap(langruntime.checkedI64Add((BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(left.positions, langruntime.checkedIndex(l)))))))), lshift)));
+        }
+        else if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(emit, 2), 2) === 0) {
+            scanning = langruntime.checkedBool(false);
+        }
+        if (r < right.positions.length) {
+            b = langruntime.checkedI64(tsqueryMatchWrap(langruntime.checkedI64Add((BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(right.positions, langruntime.checkedIndex(r)))))))), rshift)));
+        }
+        else if (langruntime.checkedSignedRemainder(emit, 2) === 0) {
+            scanning = langruntime.checkedBool(false);
+        }
+        if (scanning) {
+            let position: bigint = 0n;
+            if (a < b) {
+                if (!(langruntime.checkedSignedRemainder(emit, 2) === 0)) {
+                    position = langruntime.checkedI64(a);
+                }
+                l = langruntime.checkedAdd(l, 1);
+            }
+            else if (a === b) {
+                if (!(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(emit, 4), 2) === 0)) {
+                    position = langruntime.checkedI64(b);
+                }
+                l = langruntime.checkedAdd(l, 1);
+                r = langruntime.checkedAdd(r, 1);
+            }
+            else {
+                if (!(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(emit, 2), 2) === 0)) {
+                    position = langruntime.checkedI64(b);
+                }
+                r = langruntime.checkedAdd(r, 1);
+            }
+            if (position > 0n) {
+                if (positions === false) {
+                    return tsqueryMatchState(1);
+                }
+                const masked: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(position, 16384n)))));
+                langruntime.pushIndex(output, langruntime.indexFromI32(masked, 0));
+            }
+        }
+    }
+    let state: number = 0;
+    if (output.length > 0 || negate) {
+        state = langruntime.checkedI32(1);
+    }
+    return { state: state, width: span, negate: negate, positions: output };
+}
+function tsqueryMatchPhrase(left: TsqueryMatchData, right: TsqueryMatchData, kind: number, distance: number, positions: boolean): TsqueryMatchData {
+    left = copyTsqueryMatchData(left);
+    right = copyTsqueryMatchData(right);
+    kind = langruntime.checkedI32(kind);
+    distance = langruntime.checkedI32(distance);
+    positions = langruntime.checkedBool(positions);
+    if (!(kind === 3) && (left.state === 0 || right.state === 0)) {
+        return tsqueryMatchState(0);
+    }
+    if (kind === 3 && left.state === 0 && right.state === 0) {
+        return tsqueryMatchState(0);
+    }
+    if (left.state === 2 || right.state === 2) {
+        return tsqueryMatchState(2);
+    }
+    let lwidth: bigint = left.width;
+    let rwidth: bigint = right.width;
+    if (left.state === 0) {
+        lwidth = langruntime.checkedI64(0n);
+    }
+    if (right.state === 0) {
+        rwidth = langruntime.checkedI64(0n);
+    }
+    let width: bigint = lwidth;
+    if (rwidth > width) {
+        width = langruntime.checkedI64(rwidth);
+    }
+    let loffset: bigint = langruntime.checkedI64Subtract(width, lwidth);
+    let roffset: bigint = langruntime.checkedI64Subtract(width, rwidth);
+    if (kind === 4) {
+        loffset = langruntime.checkedI64(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(distance))), rwidth));
+        roffset = langruntime.checkedI64(0n);
+        width = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(distance))), lwidth), rwidth));
+    }
+    if (positions === false) {
+        width = langruntime.checkedI64(0n);
+    }
+    let emit: number = 4;
+    let negate: boolean = false;
+    if (kind === 3) {
+        if (left.negate && right.negate) {
+            negate = langruntime.checkedBool(true);
+        }
+        else if (left.negate) {
+            emit = langruntime.checkedI32(1);
+            negate = langruntime.checkedBool(true);
+        }
+        else if (right.negate) {
+            emit = langruntime.checkedI32(2);
+            negate = langruntime.checkedBool(true);
+        }
+        else {
+            emit = langruntime.checkedI32(7);
+        }
+    }
+    else if (left.negate && right.negate) {
+        emit = langruntime.checkedI32(7);
+        negate = langruntime.checkedBool(true);
+    }
+    else if (left.negate) {
+        emit = langruntime.checkedI32(2);
+    }
+    else if (right.negate) {
+        emit = langruntime.checkedI32(1);
+    }
+    const result: TsqueryMatchData = tsqueryMatchMerge(left, right, emit, loffset, roffset, width, negate, positions);
+    if (negate) {
+        return { state: 1, width: result.width, negate: true, positions: result.positions };
+    }
+    return result;
+}
+function tsqueryMatchEvaluate(document: checkruntime.TsvectorPayload, query: checkruntime.TsqueryPayload): checkruntime.BoolValue {
+    if (query.nodes.length === 0) {
+        return checkruntime.makeBoolValue(false);
+    }
+    let frames: TsqueryMatchFrame[] = [];
+    langruntime.pushStruct(frames, { node: query.root, phrase: false, positions: false, step: 0, left: tsqueryMatchState(0) }, copyTsqueryMatchFrame);
+    let depth: number = 1;
+    let result: TsqueryMatchData = tsqueryMatchState(0);
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const frame: TsqueryMatchFrame = copyTsqueryMatchFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(depth), copyTsqueryMatchFrame));
+        const node: checkruntime.TsqueryNode = langruntime.indexStruct(query.nodes, langruntime.checkedIndex(frame.node), checkruntime.copyTsqueryNode);
+        const phrase: boolean = frame.phrase || node.kind === 4;
+        if (frame.step === 0) {
+            if (node.kind === 0) {
+                result = copyTsqueryMatchData(tsqueryMatchOperand(document, node, frame.phrase));
+            }
+            else {
+                const parent: TsqueryMatchFrame = { node: frame.node, phrase: frame.phrase, positions: frame.positions, step: 1, left: tsqueryMatchState(0) };
+                if (depth < frames.length) {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryMatchFrame(parent);
+                }
+                else {
+                    langruntime.pushStruct(frames, parent, copyTsqueryMatchFrame);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                const child: TsqueryMatchFrame = { node: node.left, phrase: phrase, positions: phrase, step: 0, left: tsqueryMatchState(0) };
+                if (depth < frames.length) {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryMatchFrame(child);
+                }
+                else {
+                    langruntime.pushStruct(frames, child, copyTsqueryMatchFrame);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+        else if (frame.step === 1) {
+            if (node.kind === 1) {
+                let state: number = result.state;
+                let negate: boolean = result.negate;
+                if (phrase) {
+                    if (state === 0) {
+                        state = langruntime.checkedI32(1);
+                        negate = langruntime.checkedBool(true);
+                    }
+                    else if (state === 1) {
+                        if (result.positions.length > 0) {
+                            negate = langruntime.checkedBool(negate === false);
+                        }
+                        else {
+                            state = langruntime.checkedI32(0);
+                            negate = langruntime.checkedBool(false);
+                        }
+                    }
+                }
+                else if (state === 0) {
+                    state = langruntime.checkedI32(1);
+                }
+                else if (state === 1) {
+                    state = langruntime.checkedI32(0);
+                }
+                result = copyTsqueryMatchData({ state: state, width: result.width, negate: negate, positions: result.positions });
+            }
+            else {
+                let skip: boolean = !(node.kind === 3) && result.state === 0;
+                if (phrase === false && node.kind === 3 && result.state === 1) {
+                    skip = langruntime.checkedBool(true);
+                }
+                if (skip) {
+                    result = copyTsqueryMatchData(tsqueryMatchState(result.state));
+                }
+                else {
+                    const parent: TsqueryMatchFrame = { node: frame.node, phrase: frame.phrase, positions: frame.positions, step: 2, left: result };
+                    result = copyTsqueryMatchData(tsqueryMatchState(0));
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryMatchFrame(parent);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, parent, copyTsqueryMatchFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                    const child: TsqueryMatchFrame = { node: node.right, phrase: phrase, positions: phrase, step: 0, left: tsqueryMatchState(0) };
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryMatchFrame(child);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, child, copyTsqueryMatchFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+        else if (phrase) {
+            result = copyTsqueryMatchData(tsqueryMatchPhrase(frame.left, result, node.kind, node.distance, frame.positions));
+            if (frame.phrase === false && result.state === 2) {
+                result = copyTsqueryMatchData(tsqueryMatchState(0));
+            }
+        }
+        else {
+            let state: number = frame.left.state;
+            if (node.kind === 2 && result.state === 0) {
+                state = langruntime.checkedI32(0);
+            }
+            if (node.kind === 3 && result.state === 1) {
+                state = langruntime.checkedI32(1);
+            }
+            result = copyTsqueryMatchData(tsqueryMatchState(state));
+        }
+    }
+    return checkruntime.makeBoolValue(result.state === 1);
+}
+export function tsMatchVq53kf(document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue): checkruntime.BoolValue {
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    if (document.kind === "Error") {
+        const error: checkruntime.SqlError = document.value;
+        return { kind: "Error", value: error };
+    }
+    if (query.kind === "Error") {
+        const error: checkruntime.SqlError = query.value;
+        return { kind: "Error", value: error };
+    }
+    if (document.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (query.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (document.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (query.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (document.kind === "Value") {
+        const value: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(document.value);
+        if (query.kind === "Value") {
+            const pattern: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(query.value);
+            return tsqueryMatchEvaluate(value, pattern);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsMatchQvIb1m(query: checkruntime.TsqueryValue, document: checkruntime.TsvectorValue): checkruntime.BoolValue {
+    query = checkruntime.copyTsqueryValue(query);
+    document = checkruntime.copyTsvectorValue(document);
+    if (query.kind === "Error") {
+        const error: checkruntime.SqlError = query.value;
+        return { kind: "Error", value: error };
+    }
+    if (document.kind === "Error") {
+        const error: checkruntime.SqlError = document.value;
+        return { kind: "Error", value: error };
+    }
+    return tsMatchVq53kf(document, query);
 }
 interface TsqueryRenderFrame {
     node: number;

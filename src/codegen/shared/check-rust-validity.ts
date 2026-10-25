@@ -145,6 +145,23 @@ export function rustCallCanFail(
     boundary.volatility === 'i' &&
     !boundary.returnsSet &&
     types.length === boundary.args.length &&
+    ((boundary.name === 'strip' &&
+      boundary.args.join(',') === 'pg_catalog.tsvector' &&
+      boundary.result === 'pg_catalog.tsvector') ||
+      (boundary.result === 'pg_catalog.bool' &&
+        ((boundary.name === 'ts_match_vq' &&
+          boundary.args.join(',') === 'pg_catalog.tsvector,pg_catalog.tsquery') ||
+          (boundary.name === 'ts_match_qv' &&
+            boundary.args.join(',') === 'pg_catalog.tsquery,pg_catalog.tsvector'))))
+  )
+    return false
+  if (
+    boundary.kind === 'function' &&
+    boundary.schema === 'pg_catalog' &&
+    boundary.strict &&
+    boundary.volatility === 'i' &&
+    !boundary.returnsSet &&
+    types.length === boundary.args.length &&
     ((boundary.result === 'pg_catalog.bool' &&
       boundary.args.join(',') === 'pg_catalog.polygon,pg_catalog.polygon' &&
       [
@@ -425,6 +442,24 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
       return ['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(typeOf(node.operand))
     case 'call': {
       if (safePathTranslation(node) || safeFloatEncoding(node)) return false
+      if (node.call.signature !== null && node.operands.length === 2) {
+        const callable = builtinMetadata(node.call.signature)
+        const weight = node.operands[1]
+        if (
+          callable.kind === 'function' &&
+          callable.schema === 'pg_catalog' &&
+          callable.name === 'setweight' &&
+          callable.strict &&
+          callable.volatility === 'i' &&
+          !callable.returnsSet &&
+          callable.args.join(',') === 'pg_catalog.tsvector,pg_catalog."char"' &&
+          callable.result === 'pg_catalog.tsvector' &&
+          weight?.kind === 'certain' &&
+          weight.expression.kind === 'internal-char' &&
+          ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'].includes(weight.expression.value ?? '')
+        )
+          return false
+      }
       if (node.call.signature !== null && node.operands.length === 3) {
         const callable = builtinMetadata(node.call.signature)
         const explicit = node.operands[2]
