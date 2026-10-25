@@ -46529,108 +46529,162 @@ func TsqueryToText(input checkruntime.TsqueryValue) checkruntime.TextValue {
 	}
 	if input.Kind == checkruntime.TsqueryValueValue {
 		value := checkruntime.CopyTsqueryPayload(input.Value)
-		output := langruntime.NewTextBuffer("")
-		if len(value.Nodes) == 0 {
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
-		}
-		frames := []tsqueryRenderFrame{}
-		langruntime.CheckedAdd(len(frames), 1)
-		frames = append(frames, copytsqueryRenderFrame(tsqueryRenderFrame{node: value.Root, priority: 0, rightPhrase: false, step: 0}))
-		depth := 1
-		for depth > 0 {
-			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
-			frame := frames[depth]
-			node := value.Nodes[frame.node]
-			if frame.step == 2 {
-				output = append(output, " )"...)
-			} else if frame.step == 1 {
-				if node.Kind == 2 {
-					output = append(output, " & "...)
-				} else if node.Kind == 3 {
-					output = append(output, " | "...)
-				} else if node.Distance == 1 {
-					output = append(output, " <-> "...)
-				} else {
-					output = append(output, " <"...)
-					distance := checkruntime.TextSignedNumber(int64(langruntime.CheckedI32(node.Distance)))
-					output = append(output, distance...)
-					output = append(output, "> "...)
-				}
-			} else if node.Kind == 0 {
-				output = append(output, string(langruntime.CheckedChar('\''))...)
-				chars := []rune(node.Text)
-				index := 0
-				for index < len(chars) {
-					ch := chars[index]
-					if ch == '\'' || ch == '\\' {
-						output = append(output, string(langruntime.CheckedChar(ch))...)
-					}
-					output = append(output, string(langruntime.CheckedChar(ch))...)
-					index = langruntime.CheckedAdd(index, 1)
-				}
-				output = append(output, string(langruntime.CheckedChar('\''))...)
-				if node.Prefix || node.Weight != 0 {
-					output = append(output, string(langruntime.CheckedChar(':'))...)
-					if node.Prefix {
-						output = append(output, string(langruntime.CheckedChar('*'))...)
-					}
-					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 8), 2)) != 0 {
-						output = append(output, string(langruntime.CheckedChar('A'))...)
-					}
-					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 4), 2)) != 0 {
-						output = append(output, string(langruntime.CheckedChar('B'))...)
-					}
-					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 2), 2)) != 0 {
-						output = append(output, string(langruntime.CheckedChar('C'))...)
-					}
-					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 1), 2)) != 0 {
-						output = append(output, string(langruntime.CheckedChar('D'))...)
-					}
-				}
+		return tsqueryRender(&value, value.Root)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func tsqueryRender(value *checkruntime.TsqueryPayload, root int) checkruntime.TextValue {
+	root = langruntime.CheckedIndex(root)
+	output := langruntime.NewTextBuffer("")
+	if len(value.Nodes) == 0 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	frames := []tsqueryRenderFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copytsqueryRenderFrame(tsqueryRenderFrame{node: root, priority: 0, rightPhrase: false, step: 0}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		frame := frames[depth]
+		node := value.Nodes[frame.node]
+		if frame.step == 2 {
+			output = append(output, " )"...)
+		} else if frame.step == 1 {
+			if node.Kind == 2 {
+				output = append(output, " & "...)
+			} else if node.Kind == 3 {
+				output = append(output, " | "...)
+			} else if node.Distance == 1 {
+				output = append(output, " <-> "...)
 			} else {
-				priority := tsqueryPriority(node.Kind)
-				if priority < frame.priority || (node.Kind == 4 && frame.rightPhrase) {
-					output = append(output, "( "...)
-					closing := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 2}
-					if depth < len(frames) {
-						frames[depth] = copytsqueryRenderFrame(closing)
-					} else {
-						langruntime.CheckedAdd(len(frames), 1)
-						frames = append(frames, copytsqueryRenderFrame(closing))
-					}
-					depth = langruntime.CheckedAdd(depth, 1)
+				output = append(output, " <"...)
+				distance := checkruntime.TextSignedNumber(int64(langruntime.CheckedI32(node.Distance)))
+				output = append(output, distance...)
+				output = append(output, "> "...)
+			}
+		} else if node.Kind == 0 {
+			output = append(output, string(langruntime.CheckedChar('\''))...)
+			chars := []rune(node.Text)
+			index := 0
+			for index < len(chars) {
+				ch := chars[index]
+				if ch == '\'' || ch == '\\' {
+					output = append(output, string(langruntime.CheckedChar(ch))...)
 				}
-				if node.Kind == 1 {
-					output = append(output, string(langruntime.CheckedChar('!'))...)
-				} else {
-					right := tsqueryRenderFrame{node: node.Right, priority: priority, rightPhrase: node.Kind == 4, step: 0}
-					if depth < len(frames) {
-						frames[depth] = copytsqueryRenderFrame(right)
-					} else {
-						langruntime.CheckedAdd(len(frames), 1)
-						frames = append(frames, copytsqueryRenderFrame(right))
-					}
-					depth = langruntime.CheckedAdd(depth, 1)
-					separator := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 1}
-					if depth < len(frames) {
-						frames[depth] = copytsqueryRenderFrame(separator)
-					} else {
-						langruntime.CheckedAdd(len(frames), 1)
-						frames = append(frames, copytsqueryRenderFrame(separator))
-					}
-					depth = langruntime.CheckedAdd(depth, 1)
+				output = append(output, string(langruntime.CheckedChar(ch))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			output = append(output, string(langruntime.CheckedChar('\''))...)
+			if node.Prefix || node.Weight != 0 {
+				output = append(output, string(langruntime.CheckedChar(':'))...)
+				if node.Prefix {
+					output = append(output, string(langruntime.CheckedChar('*'))...)
 				}
-				left := tsqueryRenderFrame{node: node.Left, priority: priority, rightPhrase: false, step: 0}
+				if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 8), 2)) != 0 {
+					output = append(output, string(langruntime.CheckedChar('A'))...)
+				}
+				if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 4), 2)) != 0 {
+					output = append(output, string(langruntime.CheckedChar('B'))...)
+				}
+				if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 2), 2)) != 0 {
+					output = append(output, string(langruntime.CheckedChar('C'))...)
+				}
+				if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 1), 2)) != 0 {
+					output = append(output, string(langruntime.CheckedChar('D'))...)
+				}
+			}
+		} else {
+			priority := tsqueryPriority(node.Kind)
+			if priority < frame.priority || (node.Kind == 4 && frame.rightPhrase) {
+				output = append(output, "( "...)
+				closing := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 2}
 				if depth < len(frames) {
-					frames[depth] = copytsqueryRenderFrame(left)
+					frames[depth] = copytsqueryRenderFrame(closing)
 				} else {
 					langruntime.CheckedAdd(len(frames), 1)
-					frames = append(frames, copytsqueryRenderFrame(left))
+					frames = append(frames, copytsqueryRenderFrame(closing))
 				}
 				depth = langruntime.CheckedAdd(depth, 1)
 			}
+			if node.Kind == 1 {
+				output = append(output, string(langruntime.CheckedChar('!'))...)
+			} else {
+				right := tsqueryRenderFrame{node: node.Right, priority: priority, rightPhrase: node.Kind == 4, step: 0}
+				if depth < len(frames) {
+					frames[depth] = copytsqueryRenderFrame(right)
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copytsqueryRenderFrame(right))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				separator := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 1}
+				if depth < len(frames) {
+					frames[depth] = copytsqueryRenderFrame(separator)
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copytsqueryRenderFrame(separator))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+			left := tsqueryRenderFrame{node: node.Left, priority: priority, rightPhrase: false, step: 0}
+			if depth < len(frames) {
+				frames[depth] = copytsqueryRenderFrame(left)
+			} else {
+				langruntime.CheckedAdd(len(frames), 1)
+				frames = append(frames, copytsqueryRenderFrame(left))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func Querytree8aj6(input checkruntime.TsqueryValue) checkruntime.TextValue {
+	input = checkruntime.CopyTsqueryValue(input)
+	if input.Kind == checkruntime.TsqueryValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TsqueryValueValue {
+		value := checkruntime.CopyTsqueryPayload(input.Value)
+		if len(value.Nodes) == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: ""}
+		}
+		unrestricted := len(value.Nodes)
+		originalRoot := value.Root
+		nodes := value.Nodes
+		roots := []int{}
+		index := 0
+		for index < len(nodes) {
+			node := nodes[index]
+			root := index
+			if node.Kind == 1 {
+				root = langruntime.CheckedIndex(unrestricted)
+			} else if node.Kind > 1 {
+				left := roots[node.Left]
+				right := roots[node.Right]
+				if node.Kind == 3 && (left == unrestricted || right == unrestricted) {
+					root = langruntime.CheckedIndex(unrestricted)
+				} else if left == unrestricted {
+					root = langruntime.CheckedIndex(right)
+				} else if right == unrestricted {
+					root = langruntime.CheckedIndex(left)
+				} else {
+					nodes[index] = checkruntime.TsqueryNode{Kind: node.Kind, Text: node.Text, Weight: node.Weight, Prefix: node.Prefix, Distance: node.Distance, Left: left, Right: right}
+				}
+			}
+			langruntime.CheckedAdd(len(roots), 1)
+			roots = append(roots, langruntime.CheckedIndex(root))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		root := roots[originalRoot]
+		if root == unrestricted {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "T"}
+		}
+		rendered := checkruntime.TsqueryPayload{Nodes: nodes, Root: root, NativeBytes: langruntime.CheckedSignedNegate(1)}
+		return tsqueryRender(&rendered, root)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
