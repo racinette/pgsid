@@ -1,3 +1,4 @@
+import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import {
   builtinCast,
@@ -607,7 +608,13 @@ export type SqlExpression =
       stored?: boolean
       storage?: TsvectorConstantStorage
     }
-  | { kind: 'tsquery'; type: TsqueryType; value: string | null; stored?: boolean }
+  | {
+      kind: 'tsquery'
+      type: TsqueryType
+      value: string | null
+      stored?: boolean
+      storage?: TsqueryConstantStorage
+    }
   | { kind: 'aclitem'; type: AclitemType; value: string | null }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }

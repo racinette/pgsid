@@ -1,3 +1,4 @@
+import { tsqueryConstantTypes } from './tsquery-constant-storage.js'
 import { arrayStorageContainerTypes } from './array-constant-storage.js'
 import { storageRowIdentities } from './container-constant-storage.js'
 import { tsvectorConstantTypes } from './tsvector-container-constants.js'
@@ -13,6 +14,8 @@ import {
   captureArrayConstantContext,
   captureArrayDefaultContexts,
   captureTsvectorConstantContext,
+  captureTsqueryConstantContext,
+  captureTsqueryDefaultContexts,
   captureTsvectorDefaultContexts,
   captureXmlConstantContext,
   type DomainCoercionIdentity,
@@ -43,6 +46,7 @@ import type {
   TableInfo,
   ViewInfo,
   StoredTsvectorConstantContext,
+  StoredTsqueryConstantContext,
   StoredArrayConstantContext,
   Volatility,
   WriteRewriteInfo,
@@ -473,6 +477,7 @@ function resolveFunctionArgs(
   typeNames: Map<number, string>,
   tsvectorConstants: readonly (StoredTsvectorConstantContext | null)[],
   arrayConstants: readonly (StoredArrayConstantContext | null)[],
+  tsqueryConstants: readonly (StoredTsqueryConstantContext | null)[],
 ): FunctionArgInfo[] {
   const allTypes = row.proallargtypes
   let typeOids: number[]
@@ -507,6 +512,7 @@ function resolveFunctionArgs(
       defaultExpr: row.argdefaults?.[i] ?? null,
       ...(arrayConstants[i] ? { arrayConstants: arrayConstants[i]! } : {}),
       ...(tsvectorConstants[i] ? { tsvectorConstants: tsvectorConstants[i]! } : {}),
+      ...(tsqueryConstants[i] ? { tsqueryConstants: tsqueryConstants[i]! } : {}),
     })
   }
   return args
@@ -832,6 +838,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     const type = typesByOid.get(oid)
     return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
   }
+  const tsqueryTypes = tsqueryConstantTypes(typesByOid)
   const { scalars: tsvectorTypes, containers: tsvectorContainers } =
     tsvectorConstantTypes(typesByOid)
   const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
@@ -861,6 +868,13 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       con.definition,
       rowIdentities,
       arrayStorage,
+    )
+    const tsqueryConstants = captureTsqueryConstantContext(
+      con.coercion_tree,
+      con.definition,
+      tsqueryTypes,
+      rowIdentities,
+      utf8,
     )
     const tsvectorConstants = captureTsvectorConstantContext(
       con.coercion_tree,
@@ -896,6 +910,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     const ci: ConstraintInfo = {
       ...(arrayConstants ? { arrayConstants } : {}),
       ...(tsvectorConstants ? { tsvectorConstants } : {}),
+      ...(tsqueryConstants ? { tsqueryConstants } : {}),
       ...(xmlConstants ? { xmlConstants } : {}),
       ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
       name: con.name,
@@ -1113,6 +1128,13 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           rowIdentities,
           arrayStorage,
         ),
+        captureTsqueryDefaultContexts(
+          f.defaults_tree,
+          f.argdefaults ?? [],
+          tsqueryTypes,
+          rowIdentities,
+          utf8,
+        ),
       ),
       // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
       // rows, so there is no result to render — while `FunctionInfo.returnType`
@@ -1188,6 +1210,13 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           rowIdentities,
           arrayStorage,
         )
+        const tsqueryConstants = captureTsqueryConstantContext(
+          check.coercion_tree,
+          check.definition,
+          tsqueryTypes,
+          rowIdentities,
+          utf8,
+        )
         const tsvectorConstants = captureTsvectorConstantContext(
           check.coercion_tree,
           check.definition,
@@ -1224,6 +1253,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           definition: check.definition,
           ...(arrayConstants ? { arrayConstants } : {}),
           ...(tsvectorConstants ? { tsvectorConstants } : {}),
+          ...(tsqueryConstants ? { tsqueryConstants } : {}),
           ...(xmlConstants ? { xmlConstants } : {}),
           ...(arrayConstructorContext ? { arrayConstructorContext } : {}),
           ...(coercionContext ? { coercionContext } : {}),

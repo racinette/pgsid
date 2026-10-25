@@ -1,3 +1,4 @@
+import type { TsqueryConstantStorage } from './tsquery-constant-storage.js'
 import type { TsvectorConstantStorage } from './tsvector-constant-storage.js'
 import type { XmlStorageFacet } from './xml-container-constants.js'
 // ---------------------------------------------------------------------------
@@ -109,6 +110,12 @@ export interface MoneyLiteralInfo {
   units: string
 }
 
+export interface StoredTsqueryConstantContext {
+  definition: string
+  complete: boolean
+  constants: { site: string; storage: TsqueryConstantStorage | null }[]
+}
+
 export interface StoredTsvectorConstantContext {
   definition: string
   complete: boolean
@@ -167,6 +174,7 @@ export interface StoredArrayConstructorContext {
 
 export interface ConstraintInfo {
   arrayConstants?: StoredArrayConstantContext
+  tsqueryConstants?: StoredTsqueryConstantContext
   tsvectorConstants?: StoredTsvectorConstantContext
   xmlConstants?: StoredXmlConstantContext
   coercionContext?: StoredDomainCoercionContext
@@ -538,6 +546,7 @@ export interface FunctionArgInfo {
    * like any other expression rather than assumed non-null.
    */
   defaultExpr: string | null
+  tsqueryConstants?: StoredTsqueryConstantContext
   tsvectorConstants?: StoredTsvectorConstantContext
 }
 
@@ -651,6 +660,7 @@ export interface DomainInfo {
     arrayConstants?: StoredArrayConstantContext
     name: string
     definition: string
+    tsqueryConstants?: StoredTsqueryConstantContext
     tsvectorConstants?: StoredTsvectorConstantContext
     xmlConstants?: StoredXmlConstantContext
     moneyLiterals?: MoneyLiteralInfo[]
@@ -837,6 +847,7 @@ export interface RangeCallInfo {
   variadic: string | null
   numArgDefaults: number
   defaultExprs?: readonly (string | null)[]
+  defaultTsqueryConstants?: readonly (StoredTsqueryConstantContext | null)[]
   defaultTsvectorConstants?: readonly (StoredTsvectorConstantContext | null)[]
   implementation: string | null
 }

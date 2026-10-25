@@ -217,3 +217,19 @@ INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_b
 INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a &','z',NULL,3,true,false);
 -- name: query_skipped
 INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a &','z',NULL,NULL,true,true);
+-- name: query_right_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a & (b & c)',true,true,false);
+-- name: query_left_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('(a & b) & c',true,false,false);
+-- name: query_different_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a & (b & c)',false,false,false);
+-- name: query_wrong_template_expectation
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a & (b & c)',true,false,false);
+-- name: query_null_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES(NULL,NULL,true,false);
+-- name: query_missing_template_selection
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('(a & b) & c',true,NULL,false);
+-- name: query_malformed_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a &',NULL,true,false);
+-- name: query_skipped_template
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a &',NULL,NULL,true);

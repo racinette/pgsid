@@ -1,3 +1,4 @@
+import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { moneyTextCLocale, moneyContextFractionDigits } from './check-money-context.js'
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
@@ -6598,6 +6599,17 @@ export function emitCheckRustEvaluator(
       }
       if (value.kind === 'tsquery') {
         if (value.value === null) return { name: bind('tsquery_null()'), type: value.type }
+        if (value.stored && value.storage) {
+          const storage = value.storage
+          if (!validTsqueryConstantStorage(storage))
+            throw new UnsupportedCheckRustExpression('Invalid stored tsquery tree metadata')
+          let payload = bind(`make_tsquery_payload(${storage.nativeBytes})`)
+          for (const node of storage.nodes)
+            payload = bind(
+              `tsquery_append_node(${payload},${node.kind},${rustStringLiteral(node.text)},${node.weight},${node.prefix},${node.distance},${node.left},${node.right})`,
+            )
+          return { name: bind(`make_tsquery_value(${payload})`), type: value.type }
+        }
         if (value.stored)
           throw new UnsupportedCheckRustExpression(
             'Stored tsquery constants require captured query trees',

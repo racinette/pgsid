@@ -3670,6 +3670,25 @@ func TsqueryFromCaseGuard(input CheckOutcome) TsqueryValue {
 	}
 	return TsqueryValue{Kind: TsqueryValueUnknown}
 }
+func MakeTsqueryPayload(nativeBytes int) TsqueryPayload {
+	nativeBytes = langruntime.CheckedI32(nativeBytes)
+	nodes := []TsqueryNode{}
+	return TsqueryPayload{Nodes: nodes, Root: 0, NativeBytes: nativeBytes}
+}
+func TsqueryAppendNode(input TsqueryPayload, kind int, text string, weight int, prefix bool, distance int, left int, right int) TsqueryPayload {
+	input = CopyTsqueryPayload(input)
+	kind = langruntime.CheckedI32(kind)
+	text = langruntime.CheckedString(text)
+	weight = langruntime.CheckedI32(weight)
+	distance = langruntime.CheckedI32(distance)
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	nodes := input.Nodes
+	root := len(nodes)
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, TsqueryNode{Kind: kind, Text: text, Weight: weight, Prefix: prefix, Distance: distance, Left: left, Right: right})
+	return TsqueryPayload{Nodes: nodes, Root: root, NativeBytes: input.NativeBytes}
+}
 
 type NumericLayout struct {
 	Valid   bool

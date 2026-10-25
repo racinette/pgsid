@@ -1,3 +1,5 @@
+import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
+import { restoreStoredTsqueryConstants } from './tsquery-constant-sites.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
@@ -655,6 +657,7 @@ type Literal = {
   value: string | null
   tsvectorStored?: boolean
   tsqueryStored?: boolean
+  tsqueryStorage?: TsqueryConstantStorage
   tsvectorStorage?: TsvectorConstantStorage
   arrayConstantStorage?: readonly ArrayConstantStorage[]
   tsvectorContainerStorage?: readonly TsvectorConstantStorage[]
@@ -766,7 +769,13 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
       storage: literal.tsvectorStorage,
     }
   if (type === 'pg_catalog.tsquery' && (literal.kind === 'string' || literal.kind === 'null'))
-    return { kind: 'tsquery', type, value: literal.value, stored: literal.tsqueryStored }
+    return {
+      kind: 'tsquery',
+      type,
+      value: literal.value,
+      stored: literal.tsqueryStored,
+      storage: literal.tsqueryStorage,
+    }
   if (type === 'pg_catalog.aclitem' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'aclitem', type, value: literal.value }
   if (type === 'pg_catalog.money' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -4208,6 +4217,11 @@ export function bindCatalogCheck(
                     check.definition,
                     check.tsvectorConstants,
                   )
+                  restoreStoredTsqueryConstants(
+                    constraint['raw_expr'],
+                    check.definition,
+                    check.tsqueryConstants,
+                  )
                   restoreStoredXmlNames(
                     constraint['raw_expr'],
                     check.definition,
@@ -5643,6 +5657,9 @@ export function bindCatalogCheck(
                 : {}),
               tsvectorStored: literalOrigin === 'stored',
               tsqueryStored: literalOrigin === 'stored',
+              ...(literalOrigin === 'stored' && wrapper['__pgsid_tsquery_storage']
+                ? { tsqueryStorage: wrapper['__pgsid_tsquery_storage'] as TsqueryConstantStorage }
+                : {}),
               ...(literalOrigin === 'stored' && wrapper['__pgsid_tsvector_storage']
                 ? {
                     tsvectorStorage: wrapper['__pgsid_tsvector_storage'] as TsvectorConstantStorage,
@@ -6528,6 +6545,11 @@ export function bindCatalogCheck(
           node,
           expression,
           callable.defaultTsvectorConstants?.[position] ?? undefined,
+        )
+        restoreStoredTsqueryConstants(
+          node,
+          expression,
+          callable.defaultTsqueryConstants?.[position] ?? undefined,
         )
         const converted = bindCatalogCheck(
           [],

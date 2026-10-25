@@ -1,3 +1,4 @@
+import { tsqueryConstantTypes } from '../catalog/tsquery-constant-storage.js'
 import { arrayStorageContainerTypes } from '../catalog/array-constant-storage.js'
 import { catalogIdentifierSql as identifier } from './catalog-identities.js'
 import { readCatalogCompositeTypes } from './composite-types.js'
@@ -5,6 +6,7 @@ import { compositeTypeDependencies } from '../catalog/composite-dependencies.js'
 import { readConstantStorageTypes } from './constant-storage-types.js'
 import {
   captureTsvectorDefaultContexts,
+  captureTsqueryDefaultContexts,
   captureArrayDefaultContexts,
 } from '../catalog/coercion-context.js'
 import {
@@ -119,7 +121,11 @@ async function readRangeCallables(
   const savedPath = (
     await pg.query<{ value: string }>("SELECT current_setting('search_path') AS value")
   ).rows[0]!.value
-  type CallableRow = RangeCallInfo & { range: string; defaultsTree: string | null }
+  type CallableRow = RangeCallInfo & {
+    range: string
+    defaultsTree: string | null
+    serverUtf8: boolean
+  }
   let rows: CallableRow[]
   try {
     if (savedPath !== '') await pg.query("SELECT set_config('search_path','',false)")
@@ -142,7 +148,7 @@ async function readRangeCallables(
            'range_constructor2','range_constructor3',
            'multirange_constructor0','multirange_constructor1','multirange_constructor2')
        )
-       SELECT (${typeIdentity} candidates.root) AS range,
+       SELECT (${typeIdentity} candidates.root) AS range,current_setting('server_encoding')='UTF8' AS "serverUtf8",
          n.nspname AS schema,p.proname AS name,
          CASE p.prokind WHEN 'f' THEN 'function' WHEN 'a' THEN 'aggregate'
            WHEN 'w' THEN 'window' ELSE 'procedure' END AS kind,
@@ -179,7 +185,17 @@ async function readRangeCallables(
   const { scalars, containers } = tsvectorConstantTypes(types),
     rowIdentities = storageRowIdentities(types),
     arrayStorage = { types, roots: arrayStorageContainerTypes(types) }
-  for (const { range, defaultsTree, ...callable } of rows) {
+  const queries = tsqueryConstantTypes(types)
+  for (const { range, defaultsTree, serverUtf8, ...callable } of rows) {
+    const queryContexts = captureTsqueryDefaultContexts(
+      defaultsTree,
+      callable.defaultExprs ?? [],
+      queries,
+      rowIdentities,
+      serverUtf8,
+    )
+    if (queryContexts.some((context) => context !== null))
+      callable.defaultTsqueryConstants = queryContexts
     const contexts = captureTsvectorDefaultContexts(
       defaultsTree,
       callable.defaultExprs ?? [],
