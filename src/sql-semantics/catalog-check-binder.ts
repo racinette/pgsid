@@ -3004,6 +3004,64 @@ export function bindCatalogCheck(
     const wrapper = fields(node)
     if (!wrapper) return unknown
     if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unknown
+    const storedConstructor = fields(wrapper['PgsidStoredRow'])
+    if (storedConstructor) {
+      const type =
+          typeof storedConstructor['type'] === 'string'
+            ? catalogCompositeType(storedConstructor['type'], compositeGraph, rangeTypes)
+            : null,
+        profile = type ? compositeProfile(type) : null,
+        definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
+        args = storedConstructor['args'],
+        live = storedConstructor['live']
+      if (
+        !type ||
+        !profile ||
+        !definition ||
+        !Array.isArray(args) ||
+        !Array.isArray(live) ||
+        typeof definition.attributeCount !== 'number' ||
+        !Number.isInteger(definition.attributeCount) ||
+        definition.attributeCount < 0 ||
+        definition.attributeCount > 2147483647 ||
+        args.length > definition.attributeCount ||
+        JSON.stringify(live) !== JSON.stringify(definition.fields.map((f) => f.position - 1))
+      )
+        return unknown
+      const bound = args.map((arg) => bind(arg)),
+        physical = bound.map((arg) => materialize(arg, boundType(arg) ?? 'pg_catalog.text')),
+        operands = definition.fields.map((field, index) => {
+          const position = live[index] as number,
+            fieldType = compositeFieldType(profile, field.type)
+          if (!fieldType) return null
+          const enumDefinition = fieldType.startsWith('enum:')
+            ? enums.find((e) => enumType(e) === fieldType)
+            : undefined
+          if (position >= args.length)
+            return materialize(
+              { type: null, value: null, literal: { kind: 'null', value: null } },
+              fieldType,
+              enumDefinition,
+            )
+          const operand = materialize(bound[position]!, fieldType, enumDefinition)
+          return operand === physical[position] ? operand : null
+        })
+      if (physical.some((arg) => arg === null) || operands.some((arg) => arg === null))
+        return unknown
+      return {
+        type,
+        value: {
+          kind: 'composite-constructor',
+          type,
+          operands: operands as EvalExpression[],
+          projectable: operands.map(() => true),
+          physical: {
+            operands: physical as EvalExpression[],
+            discarded: args.flatMap((_, index) => (live.includes(index) ? [] : [index])),
+          },
+        },
+      }
+    }
     const storedRecord = fields(wrapper['PgsidStoredRecordConstant'])
     if (storedRecord) {
       const type =
@@ -7341,6 +7399,7 @@ export function bindCatalogCheck(
           kind: 'null-test',
           type: 'pg_catalog.bool',
           negated: nullTest['nulltesttype'] === 'IS_NOT_NULL',
+          ...(nullTest['__pgsid_datum'] === true ? { datum: true as const } : {}),
           operand: value,
         },
       }

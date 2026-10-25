@@ -2,6 +2,7 @@ import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
 import { tree, scalar, type Tree, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
+import { storedReferenceBytes } from './constant-storage-bytes.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
@@ -50,10 +51,16 @@ type Fields = Record<string, unknown>
 const fields = (value: unknown): Fields | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Fields) : undefined
 
-function expressionType(node: Tree): string | null {
+function expressionType(node: Tree, input: StoredRowExpressionInput): string | null {
+  if (
+    ['BOOLEXPR', 'BOOLEANTEST', 'NULLTEST', 'SCALARARRAYOPEXPR', 'ROWCOMPAREEXPR'].includes(
+      node.kind,
+    )
+  )
+    return [...input.types].find(([, name]) => name === 'pg_catalog.bool')?.[0].toString() ?? null
   if (node.kind === 'COLLATEEXPR') {
     const arg = tree(node.fields['arg']?.[0])
-    return arg ? expressionType(arg) : null
+    return arg ? expressionType(arg, input) : null
   }
   const keys: Record<string, string> = {
     VAR: 'vartype',
@@ -121,6 +128,38 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'COERCETODOMAINVALUE')
     return { ColumnRef: { fields: [{ String: { sval: 'value' } }] } }
+  if (node.kind === 'ROWEXPR') {
+    const raw = list('args'),
+      args = raw.map(convert),
+      oid = Number(scalar(node, 'row_typeid')),
+      name = input.types.get(oid),
+      definition = input.storageTypes?.get(oid)
+    if (args.some((arg) => arg === undefined)) return undefined
+    if (name === 'pg_catalog.record')
+      return JSON.stringify(list('colnames')) ===
+        JSON.stringify(args.map((_, i) => '"f' + (i + 1) + '"'))
+        ? { RowExpr: { args, row_format: 'COERCE_EXPLICIT_CALL' } }
+        : undefined
+    if (
+      !name ||
+      definition?.kind !== 'c' ||
+      definition.identity !== name ||
+      raw.length > definition.attributes.length
+    )
+      return undefined
+    const live = definition.attributes.flatMap((field, position) =>
+      field.dropped ? [] : [position],
+    )
+    if (
+      live.some((position) => {
+        if (position >= raw.length) return false
+        const arg = tree(raw[position])
+        return !arg || Number(expressionType(arg, input)) !== definition.attributes[position]!.type
+      })
+    )
+      return undefined
+    return { PgsidStoredRow: { type: name, args, live } }
+  }
   if (node.kind === 'SUBSCRIPTINGREF') {
     const arg = convert(node.fields['refexpr']?.[0]),
       upper = list('refupperindexpr'),
@@ -180,7 +219,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'ARRAYCOERCEEXPR') {
     const original = tree(node.fields['arg']?.[0]),
-      sourceArray = original && expressionType(original),
+      sourceArray = original && expressionType(original, input),
       sourceElement = sourceArray ? input.arrayElements?.get(Number(sourceArray)) : undefined,
       targetElement = input.arrayElements?.get(Number(scalar(node, 'resulttype'))),
       source = sourceElement === undefined ? undefined : input.types.get(sourceElement),
@@ -203,6 +242,18 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     const oid = Number(scalar(node, 'consttype')),
       type = input.types.get(oid)
     if (!type) return undefined
+    if (type === 'pg_catalog.unknown') {
+      if (scalar(node, 'constisnull') === 'true') return { A_Const: { isnull: true } }
+      const bytes = storedReferenceBytes(node, -2)
+      if (!bytes?.length || bytes[bytes.length - 1] !== 0) return undefined
+      const body = bytes.subarray(0, bytes.length - 1),
+        text = body.toString('utf8')
+      return body.includes(0) ||
+        (!input.utf8 && body.some((byte) => byte > 127)) ||
+        !Buffer.from(text, 'utf8').equals(body)
+        ? undefined
+        : { A_Const: { sval: { sval: text } } }
+    }
     if (input.storageTypes) {
       const expression = storedContainerConstant(
         node,
@@ -363,9 +414,29 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'FIELDSELECT') {
     const original = tree(node.fields['arg']?.[0]),
-      originalType = original ? expressionType(original) : null,
+      originalType = original ? expressionType(original, input) : null,
       position = Number(scalar(node, 'fieldnum')),
       seen = new Set<number>()
+    if (
+      original?.kind === 'ROWEXPR' &&
+      originalType &&
+      input.types.get(Number(originalType)) === 'pg_catalog.record'
+    ) {
+      const args = original.fields['args']?.[0],
+        field =
+          Array.isArray(args) && Number.isInteger(position) && position > 0
+            ? tree(args[position - 1])
+            : null,
+        arg = convert(original)
+      return arg !== undefined &&
+        field &&
+        expressionType(field, input) === scalar(node, 'resulttype')
+        ? collated(
+            { A_Indirection: { arg, indirection: [{ String: { sval: 'f' + position } }] } },
+            'resultcollid',
+          )
+        : undefined
+    }
     let type = originalType ? input.storageTypes?.get(Number(originalType)) : undefined
     while (type?.kind === 'd' && !seen.has(type.oid)) {
       seen.add(type.oid)
@@ -389,7 +460,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (['FUNCEXPR', 'OPEXPR', 'DISTINCTEXPR', 'NULLIFEXPR'].includes(node.kind)) {
     const special = node.kind === 'DISTINCTEXPR' || node.kind === 'NULLIFEXPR',
-      resultOid = Number(expressionType(node)),
+      resultOid = Number(expressionType(node, input)),
       result = input.types.get(resultOid),
       resultElement = input.arrayElements?.get(resultOid),
       elementName = resultElement === undefined ? undefined : input.types.get(resultElement),
@@ -550,17 +621,39 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         )
       : undefined
   }
-  if (node.kind === 'NULLTEST' && scalar(node, 'argisrow') === 'false') {
+  if (node.kind === 'BOOLEANTEST') {
     const arg = convert(node.fields['arg']?.[0]),
-      kind = scalar(node, 'nulltesttype')
-    return arg !== undefined && (kind === '0' || kind === '1')
-      ? { NullTest: { arg, nulltesttype: kind === '0' ? 'IS_NULL' : 'IS_NOT_NULL' } }
+      forms: Record<string, string> = {
+        '0': 'IS_TRUE',
+        '1': 'IS_NOT_TRUE',
+        '2': 'IS_FALSE',
+        '3': 'IS_NOT_FALSE',
+        '4': 'IS_UNKNOWN',
+        '5': 'IS_NOT_UNKNOWN',
+      },
+      form = forms[scalar(node, 'booltesttype') ?? '']
+    return arg !== undefined && form ? { BooleanTest: { arg, booltesttype: form } } : undefined
+  }
+  if (node.kind === 'NULLTEST') {
+    const arg = convert(node.fields['arg']?.[0]),
+      kind = scalar(node, 'nulltesttype'),
+      row = scalar(node, 'argisrow')
+    return arg !== undefined &&
+      (kind === '0' || kind === '1') &&
+      (row === 'true' || row === 'false')
+      ? {
+          NullTest: {
+            arg,
+            nulltesttype: kind === '0' ? 'IS_NULL' : 'IS_NOT_NULL',
+            __pgsid_datum: row === 'false',
+          },
+        }
       : undefined
   }
   if (node.kind === 'CASEEXPR') {
     const operand = tree(node.fields['arg']?.[0]),
       arg = operand ? convert(operand) : undefined,
-      operandType = operand ? expressionType(operand) : null,
+      operandType = operand ? expressionType(operand, input) : null,
       otherwise = convert(node.fields['defresult']?.[0]),
       args = list('args').map((value) => {
         const when = tree(value),

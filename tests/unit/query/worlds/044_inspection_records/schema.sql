@@ -743,3 +743,25 @@ CREATE TABLE inspection_operation_history (
 );
 ALTER TYPE historical_operation_field RENAME ATTRIBUTE reading TO current_reading;
 ALTER TYPE historical_operation_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_predicate_value AS (reading integer, obsolete integer);
+CREATE TYPE historical_predicate_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_predicate_history (
+ score integer,
+ divisor integer NOT NULL,
+ label text NOT NULL,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT boolean_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN (score/divisor>0) IS NOT FALSE THEN 1/divisor ELSE NULL::integer END)::historical_predicate_result IS NOT NULL)=expected_present END),
+ CONSTRAINT anonymous_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN ROW(score/divisor,label) IS NOT NULL THEN 1/divisor ELSE NULL::integer END)::historical_predicate_result IS NOT NULL)=expected_present END),
+ CONSTRAINT named_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,(ROW(score,1/divisor)::historical_predicate_value).reading)::historical_predicate_result IS NOT NULL)=expected_present END),
+ CONSTRAINT datum_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN ROW(score/divisor,NULL) IS DISTINCT FROM NULL THEN 1 ELSE NULL::integer END)::historical_predicate_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_predicate_value DROP ATTRIBUTE obsolete;
+ALTER TYPE historical_predicate_value RENAME ATTRIBUTE reading TO current_reading;
+ALTER TYPE historical_predicate_value ADD ATTRIBUTE added integer;
+ALTER TYPE historical_predicate_result DROP ATTRIBUTE obsolete_result;
