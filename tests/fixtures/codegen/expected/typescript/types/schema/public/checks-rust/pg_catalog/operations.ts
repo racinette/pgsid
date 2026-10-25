@@ -45983,6 +45983,777 @@ export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: ch
     }
     return { kind: "Unknown" };
 }
+function tsRankDistance(distance: number): number {
+    distance = langruntime.checkedI32(distance);
+    if (distance > 100) {
+        return tsRankSingle(1.0e-30);
+    }
+    return checkruntime.float4Number(langruntime.indexStatic(tsRankDistanceBits, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(distance, 1), 0))));
+}
+function tsRankOr(weights: TsRankWeightSet, document: checkruntime.TsvectorPayload, query: checkruntime.TsqueryPayload, operands: TsRankOperandList): number {
+    let result: number = 0.0;
+    let index: number = 0;
+    while (index < operands.items.length) {
+        const operand: checkruntime.TsqueryNode = langruntime.indexStruct(query.nodes, langruntime.checkedIndex(langruntime.indexNumber(operands.items, langruntime.checkedIndex(index))), checkruntime.copyTsqueryNode);
+        const entries: TsRankWordRange = copyTsRankWordRange(tsRankFind(document, operand));
+        let entry: number = 0;
+        while (entry < entries.count) {
+            const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(langruntime.checkedAdd(entries.start, entry)), checkruntime.copyTsvectorLexeme));
+            let count: number = lexeme.positions.length;
+            if (count === 0) {
+                count = langruntime.checkedIndex(1);
+            }
+            let partial: number = 0.0;
+            let maximum: number = -1.0;
+            let selected: number = 0;
+            let position: number = 0;
+            while (position < count) {
+                let weight: number = 0;
+                if (lexeme.positions.length > 0) {
+                    weight = langruntime.checkedI32(langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(position), checkruntime.copyTsvectorPosition).weight);
+                }
+                const value: number = tsRankWeight(weights, weight);
+                const order: number = langruntime.checkedSignedAdd(langruntime.checkedI32(langruntime.checkedIndex(position)), 1);
+                partial = langruntime.checkedF64(tsRankSingle(langruntime.f64Add(partial, tsRankSingle(langruntime.f64Divide(value, (Number(langruntime.checkedI32((langruntime.checkedSignedMultiply(order, order))))))))));
+                if (value > maximum) {
+                    maximum = langruntime.checkedF64(value);
+                    selected = langruntime.checkedIndex(position);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const order: number = langruntime.checkedSignedAdd(langruntime.checkedI32(langruntime.checkedIndex(selected)), 1);
+            const numerator: number = tsRankSingle(langruntime.f64Subtract(tsRankSingle(langruntime.f64Add(maximum, partial)), tsRankSingle(langruntime.f64Divide(maximum, (Number(langruntime.checkedI32((langruntime.checkedSignedMultiply(order, order)))))))));
+            result = langruntime.checkedF64(tsRankSingle(langruntime.f64Add(result, langruntime.f64Divide(numerator, 1.64493406685))));
+            entry = langruntime.checkedAdd(entry, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (operands.items.length > 0) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, tsRankSingle(Number(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(operands.items.length)))))))));
+    }
+    return result;
+}
+function tsRankAnd(weights: TsRankWeightSet, document: checkruntime.TsvectorPayload, query: checkruntime.TsqueryPayload, operands: TsRankOperandList): number {
+    if (operands.items.length < 2) {
+        return tsRankOr(weights, document, query, operands);
+    }
+    let previous: TsRankPrevious[] = [];
+    let index: number = 0;
+    while (index < operands.items.length) {
+        langruntime.pushStruct(previous, { entry: langruntime.checkedSignedNegate(1) }, copyTsRankPrevious);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let result: number = -1.0;
+    index = langruntime.checkedIndex(0);
+    while (index < operands.items.length) {
+        const operand: checkruntime.TsqueryNode = langruntime.indexStruct(query.nodes, langruntime.checkedIndex(langruntime.indexNumber(operands.items, langruntime.checkedIndex(index))), checkruntime.copyTsqueryNode);
+        const entries: TsRankWordRange = copyTsRankWordRange(tsRankFind(document, operand));
+        let entry: number = 0;
+        while (entry < entries.count) {
+            const current: number = langruntime.checkedAdd(entries.start, entry);
+            previous[langruntime.checkedIndexIn(previous, index)] = copyTsRankPrevious({ entry: langruntime.checkedI32(langruntime.checkedIndex(current)) });
+            const lexeme: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(current), checkruntime.copyTsvectorLexeme));
+            let count: number = lexeme.positions.length;
+            if (count === 0) {
+                count = langruntime.checkedIndex(1);
+            }
+            let earlier: number = 0;
+            while (earlier < index) {
+                if (langruntime.indexStruct(previous, langruntime.checkedIndex(earlier), copyTsRankPrevious).entry >= 0) {
+                    const old: checkruntime.TsvectorLexeme = checkruntime.copyTsvectorLexeme(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.indexStruct(previous, langruntime.checkedIndex(earlier), copyTsRankPrevious).entry, 0)), checkruntime.copyTsvectorLexeme));
+                    let oldCount: number = old.positions.length;
+                    if (oldCount === 0) {
+                        oldCount = langruntime.checkedIndex(1);
+                    }
+                    let p: number = 0;
+                    while (p < count) {
+                        let a: number = 16383;
+                        let aw: number = 0;
+                        if (lexeme.positions.length > 0) {
+                            a = langruntime.checkedI32(langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition).position);
+                            aw = langruntime.checkedI32(langruntime.indexStruct(lexeme.positions, langruntime.checkedIndex(p), checkruntime.copyTsvectorPosition).weight);
+                        }
+                        let q: number = 0;
+                        while (q < oldCount) {
+                            let b: number = 16383;
+                            let bw: number = 0;
+                            if (old.positions.length > 0) {
+                                b = langruntime.checkedI32(langruntime.indexStruct(old.positions, langruntime.checkedIndex(q), checkruntime.copyTsvectorPosition).position);
+                                bw = langruntime.checkedI32(langruntime.indexStruct(old.positions, langruntime.checkedIndex(q), checkruntime.copyTsvectorPosition).weight);
+                            }
+                            let distance: number = langruntime.checkedSignedSubtract(a, b);
+                            if (distance < 0) {
+                                distance = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, distance));
+                            }
+                            if (!(distance === 0) || lexeme.positions.length === 0 || old.positions.length === 0) {
+                                if (distance === 0) {
+                                    distance = langruntime.checkedI32(16384);
+                                }
+                                const pair: number = tsRankSingle(langruntime.f64Multiply(tsRankWeight(weights, aw), tsRankWeight(weights, bw)));
+                                const product: number = tsRankSingle(langruntime.f64Multiply(pair, tsRankDistance(distance)));
+                                const value: number = tsRankSingle(langruntime.f64Sqrt(product));
+                                if (result < 0.0) {
+                                    result = langruntime.checkedF64(value);
+                                }
+                                else {
+                                    result = langruntime.checkedF64(tsRankSingle(langruntime.f64Subtract(1.0, langruntime.f64Multiply((langruntime.f64Subtract(1.0, result)), (langruntime.f64Subtract(1.0, value))))));
+                                }
+                            }
+                            q = langruntime.checkedAdd(q, 1);
+                        }
+                        p = langruntime.checkedAdd(p, 1);
+                    }
+                }
+                earlier = langruntime.checkedAdd(earlier, 1);
+            }
+            entry = langruntime.checkedAdd(entry, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return result;
+}
+function tsRankCalculate(weights: TsRankWeightSet, document: checkruntime.TsvectorPayload, query: checkruntime.TsqueryPayload, method: number): number {
+    method = langruntime.checkedI32(method);
+    if (document.lexemes.length === 0 || query.nodes.length === 0) {
+        return 0.0;
+    }
+    const operands: TsRankOperandList = tsRankItems(query);
+    const root: checkruntime.TsqueryNode = langruntime.indexStruct(query.nodes, langruntime.checkedIndex(query.root), checkruntime.copyTsqueryNode);
+    let result: number = 0.0;
+    if (root.kind === 2 || root.kind === 4) {
+        result = langruntime.checkedF64(tsRankAnd(weights, document, query, operands));
+    }
+    else {
+        result = langruntime.checkedF64(tsRankOr(weights, document, query, operands));
+    }
+    if (result < 0.0) {
+        result = langruntime.checkedF64(tsRankSingle(1.0e-20));
+    }
+    const length: number = tsRankLength(document);
+    if (tsRankFlag(method, 1)) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, (langruntime.f64Divide(langruntime.f64Ln((Number(langruntime.checkedI32((langruntime.checkedSignedAdd(length, 1)))))), langruntime.f64Ln(2.0))))));
+    }
+    if (tsRankFlag(method, 2) && length > 0) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, tsRankSingle(Number(langruntime.checkedI32(length))))));
+    }
+    const unique: number = langruntime.checkedI32(langruntime.checkedIndex(document.lexemes.length));
+    if (tsRankFlag(method, 8)) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, tsRankSingle(Number(langruntime.checkedI32(unique))))));
+    }
+    if (tsRankFlag(method, 16)) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, (langruntime.f64Divide(langruntime.f64Ln((Number(langruntime.checkedI32((langruntime.checkedSignedAdd(unique, 1)))))), langruntime.f64Ln(2.0))))));
+    }
+    if (tsRankFlag(method, 32)) {
+        result = langruntime.checkedF64(tsRankSingle(langruntime.f64Divide(result, tsRankSingle(langruntime.f64Add(result, 1.0)))));
+    }
+    return result;
+}
+function tsRankRun(weights: checkruntime.ArrayValue, document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue, method: checkruntime.Int4Value, defaults: boolean): checkruntime.Float4Value {
+    weights = checkruntime.copyArrayValue(weights);
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    defaults = langruntime.checkedBool(defaults);
+    if (weights.kind === "Error") {
+        const error: checkruntime.SqlError = weights.value;
+        return { kind: "Error", value: error };
+    }
+    if (document.kind === "Error") {
+        const error: checkruntime.SqlError = document.value;
+        return { kind: "Error", value: error };
+    }
+    if (query.kind === "Error") {
+        const error: checkruntime.SqlError = query.value;
+        return { kind: "Error", value: error };
+    }
+    if (method.kind === "Error") {
+        const error: checkruntime.SqlError = method.value;
+        return { kind: "Error", value: error };
+    }
+    if (defaults === false) {
+        if (weights.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+    }
+    if (document.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (query.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(method, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (defaults === false) {
+        if (weights.kind === "Null") {
+            return { kind: "Null" };
+        }
+    }
+    if (document.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (query.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(method, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let selected: TsRankWeightSet = copyTsRankWeightSet(tsRankDefaults());
+    if (defaults === false) {
+        const parsed: TsRankWeights = copyTsRankWeights(tsRankReadWeights(weights));
+        if (parsed.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        if (parsed.kind === "Error") {
+            const error: checkruntime.SqlError = parsed.value;
+            return { kind: "Error", value: error };
+        }
+        if (parsed.kind === "Value") {
+            const value: TsRankWeightSet = copyTsRankWeightSet(parsed.value);
+            selected = copyTsRankWeightSet(value);
+        }
+    }
+    if (document.kind === "Value") {
+        const value: checkruntime.TsvectorPayload = checkruntime.copyTsvectorPayload(document.value);
+        if (query.kind === "Value") {
+            const pattern: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(query.value);
+            if (method.kind === "Value") {
+                const normalization: number = langruntime.checkedI32(method.value);
+                const result: number = tsRankCalculate(selected, value, pattern, normalization);
+                if (!(result === result)) {
+                    return { kind: "UnspecifiedNan" };
+                }
+                return checkruntime.makeFloat4Bits(langruntime.f32ToI32Bits(result));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsRankHfbf(weights: checkruntime.ArrayValue, document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue): checkruntime.Float4Value {
+    weights = checkruntime.copyArrayValue(weights);
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    return tsRankRun(weights, document, query, checkruntime.makeInt4Value(0), false);
+}
+export function tsRankWvbm(weights: checkruntime.ArrayValue, document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue, method: checkruntime.Int4Value): checkruntime.Float4Value {
+    weights = checkruntime.copyArrayValue(weights);
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    return tsRankRun(weights, document, query, method, false);
+}
+export function tsRankFite(document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue): checkruntime.Float4Value {
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    return tsRankRun({ kind: "Null" }, document, query, checkruntime.makeInt4Value(0), true);
+}
+export function tsRankD2j5(document: checkruntime.TsvectorValue, query: checkruntime.TsqueryValue, method: checkruntime.Int4Value): checkruntime.Float4Value {
+    document = checkruntime.copyTsvectorValue(document);
+    query = checkruntime.copyTsqueryValue(query);
+    return tsRankRun({ kind: "Null" }, document, query, method, true);
+}
+const tsRankDistanceBits: ReadonlyArray<number> = [1065053655, 1064853957, 1064478574, 1063794993, 1062619232, 1060782469, 1058304202, 1054130172, 1049171398, 1042413691, 1035223700, 1027697705, 1019956935, 1012093949, 1004167255, 996210734, 988243216, 980274995, 972311703, 964356469, 956356202, 948194690, 940039026, 931889482, 923746285, 915609638, 907479732, 899356759, 891240908, 883132374, 875031354, 866938051, 858852671, 850775428, 842706540, 834646231, 826594732, 818552280, 810519116, 802495490, 794481658, 786477883, 778484434, 770501589, 762529633, 754568857, 746602837, 738439780, 730282775, 722131985, 713987577, 705849721, 697718595, 689594378, 681477255, 673367418, 665265061, 657170385, 649083597, 641004908, 632934536, 624872703, 616819639, 608775579, 600740764, 592715444, 584699872, 576694310, 568699027, 560714298, 552740407, 544777645, 536826310, 528684507, 520526426, 512374532, 504228990, 496089971, 487957649, 479832204, 471713821, 463602689, 455499003, 447402963, 439314773, 431234646, 423162795, 415099445, 407044823, 398999163, 390962706, 382935699, 374918395, 366911055, 358913945, 350927341, 342951525, 334986786, 327033420, 318929419];
+const tsRankWeightShape = 3452630;
+const tsRankWeightNull = 3452548;
+const tsRankWeightRange = 3452619;
+interface TsRankWeightSet {
+    d: number;
+    c: number;
+    b: number;
+    a: number;
+}
+function copyTsRankWeightSet(value: TsRankWeightSet): TsRankWeightSet {
+    return { d: langruntime.checkedI32(value.d), c: langruntime.checkedI32(value.c), b: langruntime.checkedI32(value.b), a: langruntime.checkedI32(value.a) };
+}
+type TsRankWeights = {
+    kind: "Unknown";
+} | {
+    kind: "Error";
+    value: checkruntime.SqlError;
+} | {
+    kind: "Value";
+    value: TsRankWeightSet;
+};
+function copyTsRankWeights(value: TsRankWeights): TsRankWeights {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyTsRankWeightSet(value.value) };
+    }
+}
+interface TsRankWordRange {
+    start: number;
+    count: number;
+}
+function copyTsRankWordRange(value: TsRankWordRange): TsRankWordRange {
+    return { start: langruntime.checkedIndex(value.start), count: langruntime.checkedIndex(value.count) };
+}
+interface TsRankOperandList {
+    items: number[];
+}
+function copyTsRankOperandList(value: TsRankOperandList): TsRankOperandList {
+    return { items: langruntime.checkedIndices(value.items) };
+}
+interface TsRankPrevious {
+    entry: number;
+}
+function copyTsRankPrevious(value: TsRankPrevious): TsRankPrevious {
+    return { entry: langruntime.checkedI32(value.entry) };
+}
+function tsRankDefaults(): TsRankWeightSet {
+    return { d: 1036831949, c: 1045220557, b: 1053609165, a: 1065353216 };
+}
+function tsRankSingle(value: number): number {
+    value = langruntime.checkedF64(value);
+    return checkruntime.float4Number(langruntime.f32ToI32Bits(value));
+}
+function tsRankWeight(weights: TsRankWeightSet, weight: number): number {
+    weight = langruntime.checkedI32(weight);
+    if (weight === 1) {
+        return checkruntime.float4Number(weights.c);
+    }
+    if (weight === 2) {
+        return checkruntime.float4Number(weights.b);
+    }
+    if (weight === 3) {
+        return checkruntime.float4Number(weights.a);
+    }
+    return checkruntime.float4Number(weights.d);
+}
+function tsRankFlag(method: number, bit: number): boolean {
+    method = langruntime.checkedI32(method);
+    bit = langruntime.checkedI32(bit);
+    let mask: bigint = BigInt(langruntime.checkedI32(method));
+    if (mask < 0n) {
+        mask = langruntime.checkedI64(langruntime.checkedI64Add(mask, 4294967296n));
+    }
+    return !(langruntime.checkedI64Remainder(langruntime.checkedI64Divide(mask, (BigInt(langruntime.checkedI32(bit)))), 2n) === 0n);
+}
+function tsRankReadWeights(input: checkruntime.ArrayValue): TsRankWeights {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (!(value.elementKind === 19) || !(value.elementType === "pg_catalog.float4")) {
+            return { kind: "Unknown" };
+        }
+        if (!(value.dimensions.length === 1) || value.elements.length < 4) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tsRankWeightShape) };
+        }
+        let uncertain: boolean = false;
+        let index: number = 0;
+        while (index < value.elements.length) {
+            const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+            if (element.kind === "Null") {
+                return { kind: "Error", value: checkruntime.makeSqlError(tsRankWeightNull) };
+            }
+            if (element.kind === "Unknown") {
+                if (!(checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false }))) {
+                    uncertain = langruntime.checkedBool(true);
+                }
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (uncertain) {
+            return { kind: "Unknown" };
+        }
+        const defaults: TsRankWeightSet = copyTsRankWeightSet(tsRankDefaults());
+        let weights: TsRankWeightSet = copyTsRankWeightSet(defaults);
+        index = langruntime.checkedIndex(0);
+        while (index < 4) {
+            const input1: checkruntime.Float4Value = checkruntime.arrayElementToFloat4(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+            if (input1.kind === "Error") {
+                const error: checkruntime.SqlError = input1.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalFloat4Value(input1, { kind: "Unknown" })) {
+                uncertain = langruntime.checkedBool(true);
+            }
+            let bits: number = defaults.d;
+            if (index === 1) {
+                bits = langruntime.checkedI32(defaults.c);
+            }
+            if (index === 2) {
+                bits = langruntime.checkedI32(defaults.b);
+            }
+            if (index === 3) {
+                bits = langruntime.checkedI32(defaults.a);
+            }
+            if (input1.kind === "Value") {
+                const source: number = langruntime.checkedI32(input1.value);
+                const number: number = checkruntime.float4Number(source);
+                if (number > 1.0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsRankWeightRange) };
+                }
+                if (number >= 0.0) {
+                    bits = langruntime.checkedI32(source);
+                }
+            }
+            if (index === 0) {
+                weights = copyTsRankWeightSet({ d: bits, c: weights.c, b: weights.b, a: weights.a });
+            }
+            if (index === 1) {
+                weights = copyTsRankWeightSet({ d: weights.d, c: bits, b: weights.b, a: weights.a });
+            }
+            if (index === 2) {
+                weights = copyTsRankWeightSet({ d: weights.d, c: weights.c, b: bits, a: weights.a });
+            }
+            if (index === 3) {
+                weights = copyTsRankWeightSet({ d: weights.d, c: weights.c, b: weights.b, a: bits });
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (uncertain) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: copyTsRankWeightSet(weights) };
+    }
+    return { kind: "Unknown" };
+}
+function tsRankFind(document: checkruntime.TsvectorPayload, operand: checkruntime.TsqueryNode): TsRankWordRange {
+    let low: number = 0;
+    let high: number = document.lexemes.length;
+    let middle: number = high;
+    let found: boolean = false;
+    while (low < high && found === false) {
+        middle = langruntime.checkedIndex(langruntime.checkedAdd(low, langruntime.indexFromI32(langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(high, low))))), 2), 0)));
+        const order: number = checkruntime.tsvectorLexemeOrder(operand.text, langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(middle), checkruntime.copyTsvectorLexeme).text);
+        if (order === 0) {
+            high = langruntime.checkedIndex(middle);
+            found = langruntime.checkedBool(true);
+        }
+        else if (order > 0) {
+            low = langruntime.checkedIndex(langruntime.checkedAdd(middle, 1));
+        }
+        else {
+            high = langruntime.checkedIndex(middle);
+        }
+    }
+    let count: number = 0;
+    if (found) {
+        count = langruntime.checkedIndex(1);
+    }
+    if (operand.prefix) {
+        if (low >= high) {
+            middle = langruntime.checkedIndex(high);
+        }
+        count = langruntime.checkedIndex(0);
+        let scanning: boolean = true;
+        while (middle < document.lexemes.length && scanning) {
+            if (textHasPrefix(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(middle), checkruntime.copyTsvectorLexeme).text, operand.text)) {
+                count = langruntime.checkedAdd(count, 1);
+                middle = langruntime.checkedAdd(middle, 1);
+            }
+            else {
+                scanning = langruntime.checkedBool(false);
+            }
+        }
+    }
+    return { start: high, count: count };
+}
+function tsRankLength(document: checkruntime.TsvectorPayload): number {
+    let length: number = 0;
+    let index: number = 0;
+    while (index < document.lexemes.length) {
+        let count: number = langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexStruct(document.lexemes, langruntime.checkedIndex(index), checkruntime.copyTsvectorLexeme).positions.length));
+        if (count === 0) {
+            count = langruntime.checkedI32(1);
+        }
+        length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, count));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return length;
+}
+function tsRankOperandCompare(input: checkruntime.TsqueryPayload, a: number, b: number): checkruntime.Int4Value {
+    a = langruntime.checkedIndex(a);
+    b = langruntime.checkedIndex(b);
+    return checkruntime.makeInt4Value(checkruntime.tsvectorLexemeOrder(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(a), checkruntime.copyTsqueryNode).text, langruntime.indexStruct(input.nodes, langruntime.checkedIndex(b), checkruntime.copyTsqueryNode).text));
+}
+function tsRankOrderKnown(input: checkruntime.Int4Value): boolean {
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+function tsRankOrderNumber(input: checkruntime.Int4Value): number {
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return value;
+    }
+    return 0;
+}
+function tsRankMedian(input: checkruntime.TsqueryPayload, a: number, b: number, c: number): checkruntime.Int4Value {
+    a = langruntime.checkedIndex(a);
+    b = langruntime.checkedIndex(b);
+    c = langruntime.checkedIndex(c);
+    const ab: checkruntime.Int4Value = tsRankOperandCompare(input, a, b);
+    if (tsRankOrderKnown(ab) === false) {
+        return ab;
+    }
+    const bc: checkruntime.Int4Value = tsRankOperandCompare(input, b, c);
+    if (tsRankOrderKnown(bc) === false) {
+        return bc;
+    }
+    if (tsRankOrderNumber(ab) < 0 && tsRankOrderNumber(bc) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    if (tsRankOrderNumber(ab) >= 0 && tsRankOrderNumber(bc) > 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    const ac: checkruntime.Int4Value = tsRankOperandCompare(input, a, c);
+    if (tsRankOrderKnown(ac) === false) {
+        return ac;
+    }
+    if (tsRankOrderNumber(ac) < 0) {
+        if (tsRankOrderNumber(ab) < 0) {
+            return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+        }
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    if (tsRankOrderNumber(ab) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+}
+function tsRankSort(input: checkruntime.TsqueryPayload, children: number[]): TsRankOperandList {
+    children = langruntime.checkedIndices(children);
+    let order: number[] = children;
+    let starts: number[] = [];
+    let lengths: number[] = [];
+    langruntime.pushIndex(starts, 0);
+    langruntime.pushIndex(lengths, order.length);
+    let tasks: number = 1;
+    while (tasks > 0) {
+        tasks = langruntime.checkedIndex(langruntime.checkedSubtract(tasks, 1));
+        const start: number = langruntime.indexNumber(starts, langruntime.checkedIndex(tasks));
+        const count: number = langruntime.indexNumber(lengths, langruntime.checkedIndex(tasks));
+        const end: number = langruntime.checkedAdd(start, count);
+        let partition: boolean = count >= 7;
+        if (count < 7) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            while (next < end) {
+                let position: number = next;
+                let shifting: boolean = true;
+                while (position > start && shifting) {
+                    const compared: checkruntime.Int4Value = tsRankOperandCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(position)));
+                    if (tsRankOrderKnown(compared) === false) {
+                        return { items: order };
+                    }
+                    if (tsRankOrderNumber(compared) > 0) {
+                        const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(position));
+                        order[langruntime.checkedIndexIn(order, position)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))));
+                        order[langruntime.checkedIndexIn(order, langruntime.checkedSubtract(position, 1))] = langruntime.checkedIndex(saved);
+                        position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+                    }
+                    else {
+                        shifting = langruntime.checkedBool(false);
+                    }
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+        }
+        if (partition) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            let presorted: boolean = true;
+            while (next < end && presorted) {
+                const compared: checkruntime.Int4Value = tsRankOperandCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(next, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(next)));
+                if (tsRankOrderKnown(compared) === false) {
+                    return { items: order };
+                }
+                if (tsRankOrderNumber(compared) > 0) {
+                    presorted = langruntime.checkedBool(false);
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+            partition = langruntime.checkedBool(presorted === false);
+        }
+        if (partition) {
+            const half: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 2);
+            const middle: number = langruntime.checkedAdd(start, langruntime.indexFromI32(half, 0));
+            let pivot: number = langruntime.indexNumber(order, langruntime.checkedIndex(middle));
+            if (count > 7) {
+                let low: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+                let mid: number = pivot;
+                let high: number = langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)));
+                if (count > 40) {
+                    const eighth: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 8);
+                    const distance: number = langruntime.indexFromI32(eighth, 0);
+                    const loChoice: checkruntime.Int4Value = tsRankMedian(input, low, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(start, distance))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(langruntime.checkedAdd(start, distance), distance))));
+                    if (tsRankOrderKnown(loChoice) === false) {
+                        return { items: order };
+                    }
+                    low = langruntime.checkedIndex(langruntime.indexFromI32(tsRankOrderNumber(loChoice), 0));
+                    const midChoice: checkruntime.Int4Value = tsRankMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(middle, distance))), mid, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(middle, distance))));
+                    if (tsRankOrderKnown(midChoice) === false) {
+                        return { items: order };
+                    }
+                    mid = langruntime.checkedIndex(langruntime.indexFromI32(tsRankOrderNumber(midChoice), 0));
+                    const hiChoice: checkruntime.Int4Value = tsRankMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), (langruntime.checkedAdd(distance, distance))))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), distance))), high);
+                    if (tsRankOrderKnown(hiChoice) === false) {
+                        return { items: order };
+                    }
+                    high = langruntime.checkedIndex(langruntime.indexFromI32(tsRankOrderNumber(hiChoice), 0));
+                }
+                const choice: checkruntime.Int4Value = tsRankMedian(input, low, mid, high);
+                if (tsRankOrderKnown(choice) === false) {
+                    return { items: order };
+                }
+                pivot = langruntime.checkedIndex(langruntime.indexFromI32(tsRankOrderNumber(choice), 0));
+            }
+            let pivotPosition: number = start;
+            while (!(langruntime.indexNumber(order, langruntime.checkedIndex(pivotPosition)) === pivot)) {
+                pivotPosition = langruntime.checkedAdd(pivotPosition, 1);
+            }
+            const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+            order[langruntime.checkedIndexIn(order, start)] = langruntime.checkedIndex(pivot);
+            order[langruntime.checkedIndexIn(order, pivotPosition)] = langruntime.checkedIndex(saved);
+            let equalLow: number = langruntime.checkedAdd(start, 1);
+            let scanLow: number = equalLow;
+            let scanHigh: number = langruntime.checkedSubtract(end, 1);
+            let equalHigh: number = scanHigh;
+            let searching: boolean = true;
+            while (searching) {
+                let advance: boolean = true;
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = tsRankOperandCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)), pivot);
+                    if (tsRankOrderKnown(compared) === false) {
+                        return { items: order };
+                    }
+                    const comparison: number = tsRankOrderNumber(compared);
+                    if (comparison <= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalLow));
+                            order[langruntime.checkedIndexIn(order, equalLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)));
+                            order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(saved1);
+                            equalLow = langruntime.checkedAdd(equalLow, 1);
+                        }
+                        scanLow = langruntime.checkedAdd(scanLow, 1);
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                advance = langruntime.checkedBool(true);
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = tsRankOperandCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)), pivot);
+                    if (tsRankOrderKnown(compared) === false) {
+                        return { items: order };
+                    }
+                    const comparison: number = tsRankOrderNumber(compared);
+                    if (comparison >= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalHigh));
+                            order[langruntime.checkedIndexIn(order, equalHigh)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                            order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                            equalHigh = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, 1));
+                        }
+                        scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                if (scanLow > scanHigh) {
+                    searching = langruntime.checkedBool(false);
+                }
+                else {
+                    const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(scanLow));
+                    order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                    order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                    scanLow = langruntime.checkedAdd(scanLow, 1);
+                    scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                }
+            }
+            let swapCount: number = langruntime.checkedSubtract(equalLow, start);
+            if (swapCount > langruntime.checkedSubtract(scanLow, equalLow)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(scanLow, equalLow));
+            }
+            let swapped: number = 0;
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(start, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(scanLow, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, scanHigh));
+            if (swapCount > langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1));
+            }
+            swapped = langruntime.checkedIndex(0);
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(scanLow, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(end, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            const leftCount: number = langruntime.checkedSubtract(scanLow, equalLow);
+            const rightCount: number = langruntime.checkedSubtract(equalHigh, scanHigh);
+            let largeStart: number = start;
+            let largeCount: number = leftCount;
+            let smallStart: number = langruntime.checkedSubtract(end, rightCount);
+            let smallCount: number = rightCount;
+            if (leftCount <= rightCount) {
+                largeStart = langruntime.checkedIndex(smallStart);
+                largeCount = langruntime.checkedIndex(rightCount);
+                smallStart = langruntime.checkedIndex(start);
+                smallCount = langruntime.checkedIndex(leftCount);
+            }
+            if (largeCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(largeStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(largeCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, largeStart);
+                    langruntime.pushIndex(lengths, largeCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+            if (smallCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(smallStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(smallCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, smallStart);
+                    langruntime.pushIndex(lengths, smallCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+        }
+    }
+    return { items: order };
+}
+function tsRankItems(query: checkruntime.TsqueryPayload): TsRankOperandList {
+    let order: number[] = [];
+    let index: number = query.nodes.length;
+    while (index > 0) {
+        index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+        if (langruntime.indexStruct(query.nodes, langruntime.checkedIndex(index), checkruntime.copyTsqueryNode).kind === 0) {
+            langruntime.pushIndex(order, index);
+        }
+    }
+    const sorted: TsRankOperandList = tsRankSort(query, order);
+    let items: number[] = [];
+    index = langruntime.checkedIndex(0);
+    while (index < sorted.items.length) {
+        const current: number = langruntime.indexNumber(sorted.items, langruntime.checkedIndex(index));
+        let keep: boolean = items.length === 0;
+        if (items.length > 0) {
+            keep = langruntime.checkedBool(!(langruntime.indexStruct(query.nodes, langruntime.checkedIndex(langruntime.indexNumber(items, langruntime.checkedIndex(langruntime.checkedSubtract(items.length, 1)))), checkruntime.copyTsqueryNode).text === langruntime.indexStruct(query.nodes, langruntime.checkedIndex(current), checkruntime.copyTsqueryNode).text));
+        }
+        if (keep) {
+            langruntime.pushIndex(items, current);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { items: items };
+}
 interface TsqueryCompareFrame {
     left: number;
     right: number;

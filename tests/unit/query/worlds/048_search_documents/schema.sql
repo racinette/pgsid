@@ -195,3 +195,16 @@ CREATE TABLE search_query_matches (
  CONSTRAINT match_document_query CHECK(CASE WHEN bypass THEN true ELSE (document::tsvector @@ query::tsquery) IS NOT DISTINCT FROM expected END),
  CONSTRAINT match_query_document CHECK(CASE WHEN bypass THEN true ELSE (query::tsquery @@ document::tsvector) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE search_result_scores (
+ document text,
+ query text,
+ weights text,
+ normalization integer,
+ minimum_score real,
+ bypass boolean,
+ CONSTRAINT score_default CHECK(CASE WHEN bypass THEN true ELSE ts_rank(document::tsvector,query::tsquery)>=minimum_score END),
+ CONSTRAINT score_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank(document::tsvector,query::tsquery,normalization)>=minimum_score END),
+ CONSTRAINT score_weighted CHECK(CASE WHEN bypass THEN true ELSE ts_rank(weights::real[],document::tsvector,query::tsquery)>=minimum_score END),
+ CONSTRAINT score_weighted_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank(weights::real[],document::tsvector,query::tsquery,normalization)>=minimum_score END)
+);

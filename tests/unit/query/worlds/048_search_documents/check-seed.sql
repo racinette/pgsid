@@ -375,3 +375,35 @@ INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:','a 
 INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:16383','a <-> !missing',true,false);
 -- name: query_match_wrapped_position
 INSERT INTO search_query_matches(document,query,expected,bypass) VALUES('a:16383','(a <-> !missing) <0> a',false,false);
+-- name: score_term
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{0.1,0.2,0.4,1}',0,0.05,false);
+-- name: score_high_threshold
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{0.1,0.2,0.4,1}',0,1,false);
+-- name: score_proximity
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1A b:2B','a & b','{0.1,0.2,0.4,1}',0,0,false);
+-- name: score_normalized
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1A b:2B','a & b','{0.1,0.2,0.4,1}',63,0,false);
+-- name: score_custom_weights
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{1,1,1,1}',0,0.05,false);
+-- name: score_stripped
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a b','a & b','{0.1,0.2,0.4,1}',32,0,false);
+-- name: score_empty
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('','a','{0.1,0.2,0.4,1}',0,0,false);
+-- name: score_empty_rejected
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('','a','{0.1,0.2,0.4,1}',0,0.1,false);
+-- name: score_null_document
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES(NULL,'a','{}',0,0,false);
+-- name: score_null_query
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1',NULL,'{}',0,0,false);
+-- name: score_null_weights
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a',NULL,0,0,false);
+-- name: score_null_threshold
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{0.1,0.2,0.4,1}',0,NULL,false);
+-- name: score_bad_shape
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{}',0,0,false);
+-- name: score_bad_weight
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{2,1,1,1}',0,0,false);
+-- name: score_null_weight
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{NULL,1,1,1}',0,0,false);
+-- name: score_skipped
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:','a &','broken',0,1,true);

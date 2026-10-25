@@ -214,6 +214,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/tsquery_rewrite_tree.rs");
     include!("operations/pg_catalog/tsquery_rewrite.rs");
     include!("operations/pg_catalog/tsquery_match.rs");
+    include!("operations/pg_catalog/ts_rank_distance.rs");
+    include!("operations/pg_catalog/ts_rank_support.rs");
+    include!("operations/pg_catalog/ts_rank.rs");
     include!("operations/pg_catalog/internal_char.rs");
     include!("operations/pg_catalog/name_core.rs");
     include!("operations/pg_catalog/oid_core.rs");
