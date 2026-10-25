@@ -32,6 +32,32 @@ INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
 ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+*/
+
+/*
+PostgreSQL Database Management System
+(also known as Postgres, formerly known as Postgres95)
+
+Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+
+Portions Copyright (c) 1994, The Regents of the University of California
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose, without fee, and without a written agreement
+is hereby granted, provided that the above copyright notice and this
+paragraph and the following two paragraphs appear in all copies.
+
+IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 
 Copyright (c) 2021-2025, PostgreSQL Global Development Group
@@ -46491,6 +46517,411 @@ func TsqueryFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntim
 		return checkruntime.MakeTsqueryValue(checkruntime.TsqueryPayload{Nodes: payload.Nodes, Root: root, NativeBytes: bytes})
 	}
 	return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+}
+
+type tsqueryMatchData struct {
+	state     int
+	width     int64
+	negate    bool
+	positions []int
+}
+
+func copytsqueryMatchData(value tsqueryMatchData) tsqueryMatchData {
+	return tsqueryMatchData{state: langruntime.CheckedI32(value.state), width: value.width, negate: value.negate, positions: langruntime.CheckedIndices(value.positions)}
+}
+
+type tsqueryMatchFrame struct {
+	node      int
+	phrase    bool
+	positions bool
+	step      int
+	left      tsqueryMatchData
+}
+
+func copytsqueryMatchFrame(value tsqueryMatchFrame) tsqueryMatchFrame {
+	return tsqueryMatchFrame{node: langruntime.CheckedIndex(value.node), phrase: value.phrase, positions: value.positions, step: langruntime.CheckedI32(value.step), left: copytsqueryMatchData(value.left)}
+}
+func tsqueryMatchState(state int) tsqueryMatchData {
+	state = langruntime.CheckedI32(state)
+	positions := []int{}
+	return tsqueryMatchData{state: state, width: int64(0), negate: false, positions: positions}
+}
+func tsqueryMatchLexeme(lexeme *checkruntime.TsvectorLexeme, weight int, positions bool) tsqueryMatchData {
+	weight = langruntime.CheckedI32(weight)
+	if len(lexeme.Positions) == 0 {
+		if positions {
+			return tsqueryMatchState(2)
+		}
+		return tsqueryMatchState(1)
+	}
+	output := []int{}
+	index := 0
+	for index < len(lexeme.Positions) {
+		value := lexeme.Positions[index]
+		bit := 1
+		if value.Weight == 1 {
+			bit = langruntime.CheckedI32(2)
+		}
+		if value.Weight == 2 {
+			bit = langruntime.CheckedI32(4)
+		}
+		if value.Weight == 3 {
+			bit = langruntime.CheckedI32(8)
+		}
+		if weight == 0 || langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(weight, bit), 2) != 0 {
+			if positions == false {
+				return tsqueryMatchState(1)
+			}
+			langruntime.CheckedAdd(len(output), 1)
+			output = append(output, langruntime.CheckedIndex(langruntime.IndexFromI32(value.Position, 0)))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	state := 0
+	if len(output) > 0 {
+		state = langruntime.CheckedI32(1)
+	}
+	return tsqueryMatchData{state: state, width: int64(0), negate: false, positions: output}
+}
+func tsqueryMatchOperand(document *checkruntime.TsvectorPayload, operand *checkruntime.TsqueryNode, positions bool) tsqueryMatchData {
+	low := 0
+	high := len(document.Lexemes)
+	middle := high
+	result := tsqueryMatchState(0)
+	searching := true
+	for low < high && searching {
+		middle = langruntime.CheckedIndex(langruntime.CheckedAdd(low, langruntime.IndexFromI32(langruntime.CheckedSignedDivide((int(int32((langruntime.CheckedSubtract(high, low))))), 2), 0)))
+		order := checkruntime.TsvectorLexemeOrder(operand.Text, document.Lexemes[middle].Text)
+		if order == 0 {
+			lexeme := checkruntime.CopyTsvectorLexeme(document.Lexemes[middle])
+			result = copytsqueryMatchData(tsqueryMatchLexeme(&lexeme, operand.Weight, positions))
+			searching = false
+		} else if order > 0 {
+			low = langruntime.CheckedIndex(langruntime.CheckedAdd(middle, 1))
+		} else {
+			high = langruntime.CheckedIndex(middle)
+		}
+	}
+	if operand.Prefix && (result.state != 1 || positions) {
+		if low >= high {
+			middle = langruntime.CheckedIndex(high)
+		}
+		result = copytsqueryMatchData(tsqueryMatchState(0))
+		present := []int{}
+		scanning := true
+		for middle < len(document.Lexemes) && scanning {
+			lexeme := checkruntime.CopyTsvectorLexeme(document.Lexemes[middle])
+			if textHasPrefix(lexeme.Text, operand.Text) == false {
+				scanning = false
+			} else {
+				found := tsqueryMatchLexeme(&lexeme, operand.Weight, positions)
+				if positions {
+					if found.state == 2 {
+						return found
+					}
+					index := 0
+					for index < len(found.positions) {
+						position := found.positions[index]
+						for len(present) <= position {
+							langruntime.CheckedAdd(len(present), 1)
+							present = append(present, langruntime.CheckedIndex(0))
+						}
+						present[position] = langruntime.CheckedIndex(1)
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				} else if found.state == 1 {
+					return found
+				}
+				middle = langruntime.CheckedAdd(middle, 1)
+			}
+		}
+		output := []int{}
+		index := 0
+		for index < len(present) {
+			if present[index] == 1 {
+				langruntime.CheckedAdd(len(output), 1)
+				output = append(output, langruntime.CheckedIndex(index))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		state := 0
+		if len(output) > 0 {
+			state = langruntime.CheckedI32(1)
+		}
+		result = copytsqueryMatchData(tsqueryMatchData{state: state, width: int64(0), negate: false, positions: output})
+	}
+	return result
+}
+func tsqueryMatchWrap(value int64) int64 {
+	return int64(langruntime.CheckedI32((int(int32(value)))))
+}
+func tsqueryMatchMerge(left *tsqueryMatchData, right *tsqueryMatchData, emit int, leftOffset int64, rightOffset int64, width int64, negate bool, positions bool) tsqueryMatchData {
+	emit = langruntime.CheckedI32(emit)
+	lshift := tsqueryMatchWrap(leftOffset)
+	rshift := tsqueryMatchWrap(rightOffset)
+	span := tsqueryMatchWrap(width)
+	output := []int{}
+	l := 0
+	r := 0
+	scanning := true
+	for (l < len(left.positions) || r < len(right.positions)) && scanning {
+		a := int64(2147483647)
+		b := int64(2147483647)
+		if l < len(left.positions) {
+			a = tsqueryMatchWrap(langruntime.CheckedI64Add((int64(langruntime.CheckedI32((int(int32(left.positions[l])))))), lshift))
+		} else if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(emit, 2), 2) == 0 {
+			scanning = false
+		}
+		if r < len(right.positions) {
+			b = tsqueryMatchWrap(langruntime.CheckedI64Add((int64(langruntime.CheckedI32((int(int32(right.positions[r])))))), rshift))
+		} else if langruntime.CheckedSignedRemainder(emit, 2) == 0 {
+			scanning = false
+		}
+		if scanning {
+			position := int64(0)
+			if a < b {
+				if langruntime.CheckedSignedRemainder(emit, 2) != 0 {
+					position = a
+				}
+				l = langruntime.CheckedAdd(l, 1)
+			} else if a == b {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(emit, 4), 2) != 0 {
+					position = b
+				}
+				l = langruntime.CheckedAdd(l, 1)
+				r = langruntime.CheckedAdd(r, 1)
+			} else {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(emit, 2), 2) != 0 {
+					position = b
+				}
+				r = langruntime.CheckedAdd(r, 1)
+			}
+			if position > int64(0) {
+				if positions == false {
+					return tsqueryMatchState(1)
+				}
+				masked := int(int32((langruntime.CheckedI64Remainder(position, int64(16384)))))
+				langruntime.CheckedAdd(len(output), 1)
+				output = append(output, langruntime.CheckedIndex(langruntime.IndexFromI32(masked, 0)))
+			}
+		}
+	}
+	state := 0
+	if len(output) > 0 || negate {
+		state = langruntime.CheckedI32(1)
+	}
+	return tsqueryMatchData{state: state, width: span, negate: negate, positions: output}
+}
+func tsqueryMatchPhrase(left tsqueryMatchData, right tsqueryMatchData, kind int, distance int, positions bool) tsqueryMatchData {
+	left = copytsqueryMatchData(left)
+	right = copytsqueryMatchData(right)
+	kind = langruntime.CheckedI32(kind)
+	distance = langruntime.CheckedI32(distance)
+	if kind != 3 && (left.state == 0 || right.state == 0) {
+		return tsqueryMatchState(0)
+	}
+	if kind == 3 && left.state == 0 && right.state == 0 {
+		return tsqueryMatchState(0)
+	}
+	if left.state == 2 || right.state == 2 {
+		return tsqueryMatchState(2)
+	}
+	lwidth := left.width
+	rwidth := right.width
+	if left.state == 0 {
+		lwidth = int64(0)
+	}
+	if right.state == 0 {
+		rwidth = int64(0)
+	}
+	width := lwidth
+	if rwidth > width {
+		width = rwidth
+	}
+	loffset := langruntime.CheckedI64Subtract(width, lwidth)
+	roffset := langruntime.CheckedI64Subtract(width, rwidth)
+	if kind == 4 {
+		loffset = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(distance))), rwidth)
+		roffset = int64(0)
+		width = langruntime.CheckedI64Add(langruntime.CheckedI64Add((int64(langruntime.CheckedI32(distance))), lwidth), rwidth)
+	}
+	if positions == false {
+		width = int64(0)
+	}
+	emit := 4
+	negate := false
+	if kind == 3 {
+		if left.negate && right.negate {
+			negate = true
+		} else if left.negate {
+			emit = langruntime.CheckedI32(1)
+			negate = true
+		} else if right.negate {
+			emit = langruntime.CheckedI32(2)
+			negate = true
+		} else {
+			emit = langruntime.CheckedI32(7)
+		}
+	} else if left.negate && right.negate {
+		emit = langruntime.CheckedI32(7)
+		negate = true
+	} else if left.negate {
+		emit = langruntime.CheckedI32(2)
+	} else if right.negate {
+		emit = langruntime.CheckedI32(1)
+	}
+	result := tsqueryMatchMerge(&left, &right, emit, loffset, roffset, width, negate, positions)
+	if negate {
+		return tsqueryMatchData{state: 1, width: result.width, negate: true, positions: result.positions}
+	}
+	return result
+}
+func tsqueryMatchEvaluate(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload) checkruntime.BoolValue {
+	if len(query.Nodes) == 0 {
+		return checkruntime.MakeBoolValue(false)
+	}
+	frames := []tsqueryMatchFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copytsqueryMatchFrame(tsqueryMatchFrame{node: query.Root, phrase: false, positions: false, step: 0, left: tsqueryMatchState(0)}))
+	depth := 1
+	result := tsqueryMatchState(0)
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		frame := copytsqueryMatchFrame(frames[depth])
+		node := query.Nodes[frame.node]
+		phrase := frame.phrase || node.Kind == 4
+		if frame.step == 0 {
+			if node.Kind == 0 {
+				result = copytsqueryMatchData(tsqueryMatchOperand(document, &node, frame.phrase))
+			} else {
+				parent := tsqueryMatchFrame{node: frame.node, phrase: frame.phrase, positions: frame.positions, step: 1, left: tsqueryMatchState(0)}
+				if depth < len(frames) {
+					frames[depth] = copytsqueryMatchFrame(parent)
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copytsqueryMatchFrame(parent))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				child := tsqueryMatchFrame{node: node.Left, phrase: phrase, positions: phrase, step: 0, left: tsqueryMatchState(0)}
+				if depth < len(frames) {
+					frames[depth] = copytsqueryMatchFrame(child)
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copytsqueryMatchFrame(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		} else if frame.step == 1 {
+			if node.Kind == 1 {
+				state := result.state
+				negate := result.negate
+				if phrase {
+					if state == 0 {
+						state = langruntime.CheckedI32(1)
+						negate = true
+					} else if state == 1 {
+						if len(result.positions) > 0 {
+							negate = negate == false
+						} else {
+							state = langruntime.CheckedI32(0)
+							negate = false
+						}
+					}
+				} else if state == 0 {
+					state = langruntime.CheckedI32(1)
+				} else if state == 1 {
+					state = langruntime.CheckedI32(0)
+				}
+				result = copytsqueryMatchData(tsqueryMatchData{state: state, width: result.width, negate: negate, positions: result.positions})
+			} else {
+				skip := node.Kind != 3 && result.state == 0
+				if phrase == false && node.Kind == 3 && result.state == 1 {
+					skip = true
+				}
+				if skip {
+					result = copytsqueryMatchData(tsqueryMatchState(result.state))
+				} else {
+					parent := tsqueryMatchFrame{node: frame.node, phrase: frame.phrase, positions: frame.positions, step: 2, left: result}
+					result = copytsqueryMatchData(tsqueryMatchState(0))
+					if depth < len(frames) {
+						frames[depth] = copytsqueryMatchFrame(parent)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copytsqueryMatchFrame(parent))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+					child := tsqueryMatchFrame{node: node.Right, phrase: phrase, positions: phrase, step: 0, left: tsqueryMatchState(0)}
+					if depth < len(frames) {
+						frames[depth] = copytsqueryMatchFrame(child)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copytsqueryMatchFrame(child))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		} else if phrase {
+			result = copytsqueryMatchData(tsqueryMatchPhrase(frame.left, result, node.Kind, node.Distance, frame.positions))
+			if frame.phrase == false && result.state == 2 {
+				result = copytsqueryMatchData(tsqueryMatchState(0))
+			}
+		} else {
+			state := frame.left.state
+			if node.Kind == 2 && result.state == 0 {
+				state = langruntime.CheckedI32(0)
+			}
+			if node.Kind == 3 && result.state == 1 {
+				state = langruntime.CheckedI32(1)
+			}
+			result = copytsqueryMatchData(tsqueryMatchState(state))
+		}
+	}
+	return checkruntime.MakeBoolValue(result.state == 1)
+}
+func TsMatchVq53kf(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.BoolValue {
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	if document.Kind == checkruntime.TsvectorValueError {
+		error := document.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if query.Kind == checkruntime.TsqueryValueError {
+		error := query.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if document.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if query.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if document.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if query.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if document.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(document.Value)
+		if query.Kind == checkruntime.TsqueryValueValue {
+			pattern := checkruntime.CopyTsqueryPayload(query.Value)
+			return tsqueryMatchEvaluate(&value, &pattern)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TsMatchQvIb1m(query checkruntime.TsqueryValue, document checkruntime.TsvectorValue) checkruntime.BoolValue {
+	query = checkruntime.CopyTsqueryValue(query)
+	document = checkruntime.CopyTsvectorValue(document)
+	if query.Kind == checkruntime.TsqueryValueError {
+		error := query.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if document.Kind == checkruntime.TsvectorValueError {
+		error := document.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return TsMatchVq53kf(document, query)
 }
 
 type tsqueryRenderFrame struct {

@@ -186,3 +186,12 @@ CREATE TABLE search_query_rewrites (
  bypass boolean,
  CONSTRAINT query_subtree_rewritten CHECK(CASE WHEN bypass THEN true ELSE ts_rewrite(source::tsquery,target::tsquery,replacement::tsquery)::text IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE search_query_matches (
+ document text,
+ query text,
+ expected boolean,
+ bypass boolean,
+ CONSTRAINT match_document_query CHECK(CASE WHEN bypass THEN true ELSE (document::tsvector @@ query::tsquery) IS NOT DISTINCT FROM expected END),
+ CONSTRAINT match_query_document CHECK(CASE WHEN bypass THEN true ELSE (query::tsquery @@ document::tsvector) IS NOT DISTINCT FROM expected END)
+);
