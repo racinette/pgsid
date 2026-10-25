@@ -8,6 +8,7 @@ import {
   emitEvalExpression,
   type EvalExpression,
   type EvalExpressionBackend,
+  type EmittedEvalExpression,
 } from './eval-expressions.js'
 
 function legacyRegexOperand(value: EvalExpression): SqlExpression | null {
@@ -113,6 +114,7 @@ export function emitEvalBoolExpression<Ast>(
   scalarBackend: ExpressionBackend<Ast>,
   backend: EvalBoolBackend<Ast>,
 ): { value: TypedSqlExpression<Ast, 'eval-bool'>; helpers: readonly string[] } {
+  const lexicalInputs = new Map<string, EmittedEvalExpression<Ast>>()
   const helpers = new Set<string>()
   const include = (names: readonly string[]): void => {
     for (const name of names) helpers.add(name)
@@ -153,7 +155,13 @@ export function emitEvalBoolExpression<Ast>(
           })
         }
       }
-      const result = emitEvalExpression(node.expression, scalarBackend, backend.scalar, emit)
+      const result = emitEvalExpression(
+        node.expression,
+        scalarBackend,
+        backend.scalar,
+        emit,
+        lexicalInputs,
+      )
       if (result.value.type !== 'pg_catalog.bool')
         throw new Error('A scalar CHECK atom must be boolean')
       include(result.helpers)

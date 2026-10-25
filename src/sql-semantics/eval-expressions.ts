@@ -376,7 +376,7 @@ export type EvalExpression =
   | {
       kind: 'case'
       type: ScalarType
-      scrutinee?: { expression: EvalExpression }
+      scrutinee?: { expression: EvalExpression; binding?: string }
       branches: readonly {
         when: EvalExpression
         then: EvalExpression
@@ -463,6 +463,7 @@ export function emitEvalExpression<Ast>(
   scalarBackend: ExpressionBackend<Ast>,
   backend: EvalExpressionBackend<Ast>,
   emitBoolean?: (expression: EvalBoolExpression) => Ast,
+  lexicalInputs = new Map<string, EmittedEvalExpression<Ast>>(),
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   let nextBinding = 0
   const helpers = new Set<string>()
@@ -582,6 +583,11 @@ export function emitEvalExpression<Ast>(
       return { type: 'pg_catalog.bool', expression: result.expression, effect: 'partial' }
     }
     if (node.kind === 'input') {
+      const lexical = lexicalInputs.get(node.name)
+      if (lexical) {
+        if (lexical.type !== node.type) throw new Error('CASE operand binding type mismatch')
+        return lexical
+      }
       if (!backend.input) throw new Error(`No partial SQL input binding for ${node.name}`)
       const result = backend.input(node.type, node.name, node.enum)
       include(result.helpers)
@@ -782,7 +788,7 @@ export function emitEvalExpression<Ast>(
         if (node.branches.length === 0) throw new Error('Invalid partial CASE expression')
         const branches = node.branches.map((branch) => ({
           when:
-            scrutinee && node.scrutinee
+            scrutinee && node.scrutinee && !node.scrutinee.binding
               ? emitCall(branch.equality!, [scrutinee, emit(branch.when)])
               : emit(branch.when),
           then: emit(branch.then),
@@ -813,7 +819,23 @@ export function emitEvalExpression<Ast>(
         return { type: node.type, expression: result.expression, effect: 'partial' }
       }
       if (!node.scrutinee) return emitCase()
-      const result = backend.bind(node.type, emit(node.scrutinee.expression), emitCase)
+      const result = backend.bind(
+        node.type,
+        emit(node.scrutinee.expression),
+        (scrutinee) => {
+          const binding = node.scrutinee!.binding
+          if (!binding) return emitCase(scrutinee)
+          const outer = lexicalInputs.get(binding)
+          lexicalInputs.set(binding, scrutinee)
+          try {
+            return emitCase(scrutinee)
+          } finally {
+            if (outer) lexicalInputs.set(binding, outer)
+            else lexicalInputs.delete(binding)
+          }
+        },
+        node.scrutinee.binding,
+      )
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }

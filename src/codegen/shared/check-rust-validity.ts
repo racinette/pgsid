@@ -1,4 +1,5 @@
 import { arrayElementComparison } from './check-array-types.js'
+import { caseWhenExpression } from './check-rust-constants.js'
 import { isRecordComparison, recordComparisonLayouts } from './check-record-comparison.js'
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
@@ -609,6 +610,17 @@ const booleanConstant = (node: unknown): boolean | null | undefined => {
   return expression?.kind === 'boolean' ? (expression.value as boolean | null) : undefined
 }
 const reachableChildren = (value: Record<string, unknown>): unknown[] => {
+  if (value.kind === 'case' && record(value.scrutinee)?.binding) {
+    const expression = value as Extract<EvalExpression, { kind: 'case' }>
+    return [
+      expression.scrutinee!.expression,
+      ...expression.branches.flatMap((branch) => [
+        caseWhenExpression(expression, branch.when),
+        branch.then,
+      ]),
+      expression.otherwise,
+    ]
+  }
   if (
     (value.kind === 'case' || value.kind === 'eval-case') &&
     !value.scrutinee &&

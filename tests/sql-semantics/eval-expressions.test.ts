@@ -11,6 +11,9 @@ import { goEvalBackend } from '../../src/codegen/go/sql/eval.js'
 import { scalarSpecs } from '../fixtures/sql-semantics/operations/scalar-specs.js'
 import { numericSpecs } from '../fixtures/sql-semantics/operations/numeric-specs.js'
 import { integerOperationCases } from '../fixtures/sql-semantics/operations/integer-operations.js'
+import { emitEvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
+import { typescriptEvalBoolBackend } from '../../src/codegen/typescript/sql/check.js'
+import { goEvalBoolBackend } from '../../src/codegen/go/sql/check.js'
 
 const callables = new Map<string, Extract<SqlExpression, { kind: 'operator' | 'function' }>>()
 const casts = new Map<string, Extract<SqlExpression, { kind: 'cast' }>>()
@@ -27,6 +30,94 @@ for (const fixture of [...scalarSpecs, ...numericSpecs, ...integerOperationCases
 }
 
 describe('typed partial SQL expression emission', () => {
+  it('shares lexical CASE operands through nested scalar and Boolean emission without external inputs', () => {
+    const integer = (value: string): EvalExpression => ({
+        kind: 'certain',
+        expression: { kind: 'integer', type: 'pg_catalog.int4', value },
+      }),
+      equal = (binding: string, value: string): EvalExpression => ({
+        kind: 'call',
+        call: {
+          kind: 'operator',
+          signature: 'operator:["pg_catalog","="](pg_catalog.int4,pg_catalog.int4)',
+          type: 'pg_catalog.bool',
+        },
+        operands: [{ kind: 'input', type: 'pg_catalog.int4', name: binding }, integer(value)],
+      }),
+      certain = (value: boolean): EvalExpression => ({
+        kind: 'certain',
+        expression: { kind: 'boolean', type: 'pg_catalog.bool', value },
+      }),
+      nested: EvalExpression = {
+        kind: 'case',
+        type: 'pg_catalog.bool',
+        scrutinee: { expression: integer('2'), binding: 'innerCase' },
+        branches: [
+          {
+            when: {
+              kind: 'check',
+              type: 'pg_catalog.bool',
+              expression: {
+                kind: 'eval-boolean-logic',
+                operation: 'and',
+                operands: [
+                  { kind: 'eval-scalar', expression: equal('outerCase', '1') },
+                  { kind: 'eval-scalar', expression: equal('innerCase', '2') },
+                ],
+              },
+            },
+            then: certain(true),
+          },
+        ],
+        otherwise: certain(false),
+      },
+      expression: EvalExpression = {
+        kind: 'case',
+        type: 'pg_catalog.bool',
+        scrutinee: { expression: integer('1'), binding: 'outerCase' },
+        branches: [{ when: equal('outerCase', '1'), then: nested }],
+        otherwise: certain(false),
+      }
+    const inputs: string[] = [],
+      typescript = {
+        ...typescriptEvalBoolBackend,
+        scalar: {
+          ...typescriptEvalBackend,
+          input: (
+            type: Parameters<NonNullable<typeof typescriptEvalBackend.input>>[0],
+            name: string,
+          ) => {
+            inputs.push(name)
+            return typescriptEvalBackend.uncertain(type)
+          },
+        },
+      },
+      go = {
+        ...goEvalBoolBackend,
+        scalar: {
+          ...goEvalBackend,
+          input: (type: Parameters<NonNullable<typeof goEvalBackend.input>>[0], name: string) => {
+            inputs.push(name)
+            return goEvalBackend.uncertain(type)
+          },
+        },
+      }
+    expect(() =>
+      emitEvalBoolExpression({ kind: 'eval-scalar', expression }, typescriptSqlBackend, typescript),
+    ).not.toThrow()
+    expect(() =>
+      emitEvalBoolExpression({ kind: 'eval-scalar', expression }, goSqlBackend, go),
+    ).not.toThrow()
+    expect(inputs).toEqual([])
+    expect(() =>
+      emitEvalBoolExpression(
+        { kind: 'eval-scalar', expression: equal('outerCase', '1') },
+        typescriptSqlBackend,
+        typescript,
+      ),
+    ).not.toThrow()
+    expect(inputs).toEqual(['outerCase'])
+  })
   it('lifts every fixture-backed callable with operands in both targets', () => {
     expect(callables.size).toBe(892)
     for (const [signature, expression] of callables) {

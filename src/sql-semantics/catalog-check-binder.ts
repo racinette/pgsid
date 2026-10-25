@@ -2888,6 +2888,8 @@ export function bindCatalogCheck(
   }
   const activeCoercions = new Set<unknown>()
   let storedArguments: ((index: number) => Bound) | undefined
+  let storedCaseTest: Bound | undefined
+  let nextCaseBinding = 0
   const bind = (
     node: unknown,
     expectedType?: ScalarType,
@@ -2955,6 +2957,7 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    if (fields(wrapper['PgsidStoredCaseTest'])) return storedCaseTest ?? unknown
     const argument = fields(wrapper['PgsidStoredArgument'])
     if (argument) {
       const index = argument['index']
@@ -3766,9 +3769,13 @@ export function bindCatalogCheck(
           : coerceBound(arg, type, nodes[index], definition),
       )
       if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
-      const collation = type.startsWith('array:')
-        ? arrayCollations(args.map((arg) => arg.collation))
-        : combineCollations(args.map((arg) => arg.collation))
+      const capturedCollation = storedCollation(minmax['__pgsid_inputCollation'])
+      if (capturedCollation === undefined) return unknown
+      const collation = Object.hasOwn(minmax, '__pgsid_inputCollation')
+        ? (capturedCollation ?? undefined)
+        : type.startsWith('array:')
+          ? arrayCollations(args.map((arg) => arg.collation))
+          : combineCollations(args.map((arg) => arg.collation))
       const allNull = operands.every(
         (operand) =>
           operand.kind === 'certain' &&
@@ -3967,7 +3974,33 @@ export function bindCatalogCheck(
       let equalities: Extract<EvalExpression, { kind: 'case' }>['branches'][number]['equality'][] =
         []
       let conditions: EvalExpression[]
-      if (scrutinee) {
+      if (scrutinee && caseExpression['__pgsid_stored'] === true) {
+        if (!scrutinee.type || !scrutinee.value) return unknown
+        let binding: string
+        do binding = `__pgsid_case_operand_${nextCaseBinding++}`
+        while (columns.some((column) => column.name === binding))
+        const outer = storedCaseTest
+        simple = { expression: scrutinee.value, binding }
+        storedCaseTest = {
+          ...scrutinee,
+          literal: undefined,
+          value: {
+            kind: 'input',
+            type: scrutinee.type,
+            name: binding,
+            ...(scrutinee.enum ? { enum: scrutinee.enum } : {}),
+          },
+        }
+        try {
+          conditions = branches.map((branch) => ({
+            kind: 'check',
+            type: 'pg_catalog.bool',
+            expression: lower(branch!['expr']),
+          }))
+        } finally {
+          storedCaseTest = outer
+        }
+      } else if (scrutinee) {
         const matches = branches.map((branch) => bind(branch!['expr'], scrutinee.type ?? undefined))
         const compareType =
           scrutinee.type ??
@@ -4009,7 +4042,7 @@ export function bindCatalogCheck(
           type,
           ...(simple ? { scrutinee: simple } : {}),
           branches: results.map((_, index) => ({
-            ...(simple ? { equality: equalities[index]! } : {}),
+            ...(simple && !simple.binding ? { equality: equalities[index]! } : {}),
             when: conditions[index]!,
             then:
               type === 'pg_catalog.bool'

@@ -662,3 +662,19 @@ CREATE TABLE inspection_default_history (
     (jsonb_set('{}'::jsonb,ARRAY['max'],to_jsonb(GREATEST(score,divisor)))->>'max')::integer IS NOT DISTINCT FROM expected_max END)
 );
 ALTER TYPE historical_default_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_selection_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_selection_history (
+  score integer,
+  divisor integer NOT NULL,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT greatest_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,GREATEST(CASE score WHEN 1 THEN 1/divisor ELSE NULL::integer END,divisor))::historical_selection_result IS NOT NULL)=expected_present END),
+  CONSTRAINT least_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,LEAST(CASE score WHEN 1 THEN 1/divisor ELSE NULL::integer END,divisor))::historical_selection_result IS NOT NULL)=expected_present END),
+  CONSTRAINT case_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE score WHEN 1::bigint THEN 1/divisor WHEN 2 THEN
+      CASE divisor WHEN 0 THEN 3 ELSE 1/divisor END ELSE NULL::integer END)::historical_selection_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_selection_result DROP ATTRIBUTE obsolete_result;

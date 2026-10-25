@@ -37,6 +37,8 @@ const expressions: Record<string, string> = Object.fromEntries(
   ),
 )
 const compositions: Record<string, string> = {
+  anonymous_row: 'GREATEST(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
+  anonymous_least: 'LEAST(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
   mixed: 'GREATEST(small, amount, large) = large',
   decimal_coercion: 'LEAST(amount, decimal_left) = decimal_left',
   text_coercion: 'octet_length(GREATEST(varchar_left,text_right)) = octet_length(varchar_left)',
@@ -203,7 +205,10 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
         if (metadata.kind !== 'operator') throw new Error('Expected ordering operator')
         expect(builtinMetadata(metadata.implementation).name, sql).toBe(ordering[0]!.implementation)
       }
-    for (const sql of ['GREATEST(amount,floating_amount) IS NULL']) {
+    for (const sql of [
+      'GREATEST(amount,floating_amount) IS NULL',
+      'GREATEST(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
+    ]) {
       const expression = lower(sql)
       expect(hasUncertain(expression), sql).toBe(false)
       const group = prepareCheckRustGroup([
@@ -224,7 +229,6 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
       'GREATEST(locale_text,locale_text) IS NULL',
       'LEAST(insensitive_text,insensitive_text) IS NULL',
       'GREATEST(text_left COLLATE "C", text_right COLLATE minmax_locale) IS NULL',
-      'GREATEST(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
     ]) {
       const expression = lower(sql)
       const group = prepareCheckRustGroup([
@@ -414,6 +418,7 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
       [1, 0, false, true],
       [1, 0, true, false],
       [null, 0, false, null],
+      [null, null, true, false],
       [-2147483648, -1, false, false],
       [0, 1, null, null],
     ] as const) {
