@@ -177,3 +177,12 @@ CREATE TABLE search_query_index_terms (
  bypass boolean,
  CONSTRAINT query_index_terms CHECK(CASE WHEN bypass THEN true ELSE querytree(source::tsquery) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE search_query_rewrites (
+ source text,
+ target text,
+ replacement text,
+ expected text,
+ bypass boolean,
+ CONSTRAINT query_subtree_rewritten CHECK(CASE WHEN bypass THEN true ELSE ts_rewrite(source::tsquery,target::tsquery,replacement::tsquery)::text IS NOT DISTINCT FROM expected END)
+);

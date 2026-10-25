@@ -2783,6 +2783,13 @@ export function emitCheckRustEvaluator(
           'tsquery_ge',
         ].includes(implementation.name) &&
         implementation.args.join(',') === 'pg_catalog.tsquery,pg_catalog.tsquery'
+      const tsqueryRewrite =
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'ts_rewrite' &&
+        implementation.args.join(',') ===
+          'pg_catalog.tsquery,pg_catalog.tsquery,pg_catalog.tsquery' &&
+        implementation.result === 'pg_catalog.tsquery'
       const xmlPredicate = isXmlOptionPredicate(implementation)
       const xmlConcat =
         implementation.schema === 'pg_catalog' &&
@@ -5028,7 +5035,8 @@ export function emitCheckRustEvaluator(
         )
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
-      if (tsqueryComparison) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (tsqueryComparison || tsqueryRewrite)
+        arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (tsvectorSend || tsquerySend)
         arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (

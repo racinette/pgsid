@@ -311,3 +311,31 @@ INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a | !b','''
 INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a &',NULL,false);
 -- name: query_index_skipped
 INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a &',NULL,true);
+-- name: query_rewrite_single
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a','a','x','''x''',false);
+-- name: query_rewrite_no_reentry
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a','a','a & b','''a'' & ''b''',false);
+-- name: query_rewrite_normalized_miss
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a & b & c & d','zz','x','''c'' & ''b'' & ''a'' & ''d''',false);
+-- name: query_rewrite_subset
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a & b & c & d','b & d','x | y','''c'' & ''a'' & ( ''y'' | ''x'' )',false);
+-- name: query_rewrite_not_deleted
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a & !b','b','','''a''',false);
+-- name: query_rewrite_all_deleted
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a | a','a','','',false);
+-- name: query_rewrite_empty_target
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a & (b & c)','','x','''a'' & ''b'' & ''c''',false);
+-- name: query_rewrite_null_source
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES(NULL,'a','x',NULL,false);
+-- name: query_rewrite_null_replacement
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a','a',NULL,NULL,false);
+-- name: query_rewrite_flags
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a:A','a:*D','x:B','''x'':B',false);
+-- name: query_rewrite_wrong_value
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a','a','x','''a''',false);
+-- name: query_rewrite_bad_source
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a &','a','x',NULL,false);
+-- name: query_rewrite_null_before_error
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES(NULL,'a &','x',NULL,false);
+-- name: query_rewrite_skipped
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a &','a &','x &',NULL,true);
