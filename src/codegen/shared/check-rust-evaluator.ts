@@ -7154,6 +7154,11 @@ export function emitCheckRustEvaluator(
       const profile = compositeProfile(node.type)
       if (!profile) throw new UnsupportedCheckRustExpression('Missing ancestor record profile')
       const operand = emitScalar(node.operand, bindings, used)
+      if (node.mapping === null)
+        return {
+          name: bind(`invalid_composite_row_coercion(${ownedOperand(operand)})`),
+          type: node.type,
+        }
       let value = bind(
         `prepare_composite_row_coercion(${ownedOperand(operand)},${rustStringLiteral(profile.identity)})`,
       )

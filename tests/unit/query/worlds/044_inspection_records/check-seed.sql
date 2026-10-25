@@ -897,3 +897,50 @@ INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,ex
 INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,0,'1',false,true,false);
 -- name: HistoricalQuantifiersBypassedDivision
 INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(0,0,'1',false,false,true);
+
+-- name: HistoricalCoercionsMatchedValues
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(3,1,true,false);
+-- name: HistoricalCoercionsNullScore
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(NULL,1,false,false);
+-- name: HistoricalCoercionsWrongPresence
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(3,1,false,false);
+-- name: HistoricalCoercionsNullPresence
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(3,1,NULL,false);
+-- name: HistoricalCoercionsTighterDomain
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(1,1,true,false);
+-- name: HistoricalCoercionsReachedDivision
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(3,0,true,false);
+-- name: HistoricalCoercionsBypassedDivision
+INSERT INTO inspection_coercion_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);
+
+-- name: HistoricalMismatchNullDatum
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,0,true,false,false);
+-- name: HistoricalMismatchWrongPresence
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,0,true,true,false);
+-- name: HistoricalMismatchNullPresence
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,0,true,NULL,false);
+-- name: HistoricalMismatchReachedDescriptor
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,1,false,true,false);
+-- name: HistoricalMismatchDivisionBeforeDescriptor
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,0,false,true,false);
+-- name: HistoricalMismatchNullField
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(NULL,0,false,false,false);
+-- name: HistoricalMismatchBypassedDescriptor
+INSERT INTO inspection_mismatch_history(score,divisor,missing,expected_present,bypass) VALUES(1,0,false,true,true);
+
+-- name: HistoricalCoercionParentRow
+INSERT INTO historical_coercion_parent(score) VALUES(3);
+-- name: HistoricalCoercionChildRow
+INSERT INTO historical_coercion_child(score,divisor) VALUES(3,1);
+-- name: HistoricalMismatchParentRow
+INSERT INTO historical_mismatch_parent(current_score) VALUES(3);
+-- name: HistoricalMismatchChildRow
+INSERT INTO historical_mismatch_child(score,divisor) VALUES(3,1);
+-- name: HistoricalCoercionParentRejectedRow
+INSERT INTO historical_coercion_parent(score) VALUES(-1);
+-- name: HistoricalCoercionChildRejectedRow
+INSERT INTO historical_coercion_child(score,divisor) VALUES(-1,1);
+-- name: HistoricalMismatchParentRejectedRow
+INSERT INTO historical_mismatch_parent(current_score) VALUES(-1);
+-- name: HistoricalMismatchChildRejectedRow
+INSERT INTO historical_mismatch_child(score,divisor) VALUES(-1,1);

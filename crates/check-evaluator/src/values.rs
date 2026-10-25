@@ -521,6 +521,7 @@ pub struct SqlErrorDescription<'a> {
 const SQL_ERROR_NUMERIC_OUT_OF_RANGE: u32 = 3452547;
 const SQL_ERROR_NOT_NULL_VIOLATION: u32 = 3505682;
 const SQL_ERROR_CHECK_VIOLATION: u32 = 3505720;
+const SQL_ERROR_DATATYPE_MISMATCH: u32 = 6822148;
 const SQL_ERROR_CARDINALITY_VIOLATION: u32 = 3405888;
 const SQL_ERROR_NULL_VALUE_NOT_ALLOWED: u32 = 3452548;
 const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
@@ -562,6 +563,7 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_DATATYPE_MISMATCH { return SqlErrorDescription { message: "could not convert row type" }; }
     if error.state == SQL_ERROR_ZERO_LENGTH_CHARACTER_STRING {
         return SqlErrorDescription { message: "zero-length character string" };
     }

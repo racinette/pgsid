@@ -69,6 +69,12 @@ pub fn prepare_composite_row_coercion(input: CompositeValue, type_name: &str) ->
     checked
 }
 
+pub fn invalid_composite_row_coercion(input: CompositeValue) -> CompositeValue {
+    let checked = composite_from_coerced_value(input);
+    if let CompositeValue::Value(_) = checked { return CompositeValue::Error(make_sql_error(SQL_ERROR_DATATYPE_MISMATCH)); };
+    checked
+}
+
 pub fn composite_field_count(input: CompositeValue) -> Int4Value {
     let checked = composite_from_coerced_value(input);
     if let CompositeValue::Error(error) = checked { return Int4Value::Error(error); };

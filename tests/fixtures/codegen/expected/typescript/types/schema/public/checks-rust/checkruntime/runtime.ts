@@ -720,6 +720,7 @@ function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDesc
 const sqlErrorNumericOutOfRange = 3452547;
 const sqlErrorNotNullViolation = 3505682;
 const sqlErrorCheckViolation = 3505720;
+const sqlErrorDatatypeMismatch = 6822148;
 const sqlErrorCardinalityViolation = 3405888;
 const sqlErrorNullValueNotAllowed = 3452548;
 const sqlErrorInvalidDatetimeFormat = 3452551;
@@ -760,6 +761,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorDatatypeMismatch) {
+        return { message: "could not convert row type" };
+    }
     if (error.state === sqlErrorZeroLengthCharacterString) {
         return { message: "zero-length character string" };
     }
@@ -9582,6 +9586,14 @@ export function prepareCompositeRowCoercion(input: CompositeValue, typeName: str
     const checked: CompositeValue = compositeFromCoercedValue(input);
     if (checked.kind === "Value") {
         return makeCompositeFields(typeName);
+    }
+    return checked;
+}
+export function invalidCompositeRowCoercion(input: CompositeValue): CompositeValue {
+    input = copyCompositeValue(input);
+    const checked: CompositeValue = compositeFromCoercedValue(input);
+    if (checked.kind === "Value") {
+        return { kind: "Error", value: makeSqlError(sqlErrorDatatypeMismatch) };
     }
     return checked;
 }

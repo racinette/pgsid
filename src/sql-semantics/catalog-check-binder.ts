@@ -3318,13 +3318,18 @@ export function bindCatalogCheck(
           operand.type === sourceArray
             ? operand.value
             : coerceArray(operand.value, operand.type as CatalogVectorType, sourceArray, 'i'),
+        sourceDomain = domainElementDefinition(sourceElement),
+        domain = sourceDomain
+          ? domains.find((d) => d.schema === sourceDomain.schema && d.name === sourceDomain.name)
+          : undefined,
         converted = bindCatalogCheck(
           [
             {
               name: '__pgsid_domain_element',
               typeName: source,
+              ...(domain ? { typeOid: domain.oid } : {}),
               collationIsDefault: true,
-              isRowType: false,
+              isRowType: !!compositeProfile(arrayElementBaseType(sourceElement)),
             },
           ],
           { NullTest: { nulltesttype: 'IS_NOT_NULL', arg: storedArrayCoercion['conversion'] } },
@@ -3487,6 +3492,56 @@ export function bindCatalogCheck(
         collation: { ...collation, ...(annotation['explicit'] === true ? { explicit: true } : {}) },
       }
     }
+    const storedCoercion = fields(wrapper['PgsidStoredCoercion'])
+    if (storedCoercion) {
+      const source = storedType(storedCoercion['source']),
+        target = storedType(storedCoercion['type']),
+        operand = bind(storedCoercion['arg'])
+      if (
+        !source?.type ||
+        !target?.type ||
+        !operand.value ||
+        operand.type !== source.type ||
+        operand.nominalDomain !== source.nominalDomain
+      )
+        return unknown
+      if (storedCoercion['kind'] === 'relabel')
+        return source.type === target.type
+          ? {
+              ...operand,
+              ...target,
+              nominalDomain: target.nominalDomain,
+              enumDomain: target.enumDomain,
+            }
+          : unknown
+      if (storedCoercion['kind'] === 'domain') {
+        if (!target.nominalDomain || source.type !== target.type) return unknown
+        const names = catalogTypeNames(storedCoercion['type'] as string)
+        return names
+          ? bind({
+              TypeCast: {
+                arg: storedCoercion['arg'],
+                typeName: { names: names.map((sval) => ({ String: { sval } })) },
+                __pgsid_native_domain: true,
+              },
+            })
+          : unknown
+      }
+      if (storedCoercion['kind'] === 'row') {
+        if (!compositeProfile(source.type) || !compositeProfile(target.type)) return unknown
+        const mapping = compositeStructuralMapping(source.type, target.type, true)
+        return {
+          type: target.type,
+          value: {
+            kind: 'composite-coerce',
+            type: target.type,
+            operand: operand.value,
+            mapping,
+          },
+        }
+      }
+      return unknown
+    }
     const storedCast = fields(wrapper['PgsidStoredCast'])
     if (storedCast) {
       const operand = bind(storedCast['arg']),
@@ -3593,7 +3648,20 @@ export function bindCatalogCheck(
         selected.item.args.length !== nodes.length
       )
         return unknown
-      const args = nodes.map((arg) => bind(arg)),
+      const args = nodes.map((node, index) => {
+          const arg = bind(node),
+            target = catalogScalarType(selected.item.args[index]!)
+          if (
+            !target ||
+            !arg.type ||
+            !arg.value ||
+            arg.type === target ||
+            builtinCast(arg.type, target)?.method !== 'b'
+          )
+            return arg
+          const value = implicitOperand(arg, target)
+          return value ? { ...arg, type: target, value } : arg
+        }),
         carrier = storedType(storedCall['result'] ?? selected.item.result),
         type = carrier?.type,
         collation = storedCollation(storedCall['inputCollation']),
@@ -5116,8 +5184,9 @@ export function bindCatalogCheck(
           (Array.isArray(castType?.['typmods']) && castType['typmods'].length)
         )
           return unknown
-        const operand = castOperand()
-        if (operand.nominalDomain === identity) return operand
+        const operand = castOperand(),
+          native = cast['__pgsid_native_domain'] === true
+        if (!native && operand.nominalDomain === identity) return operand
         const chain: DomainInfo[] = []
         let layer: DomainInfo | undefined = target
         const visited = new Set<number>()
@@ -5155,6 +5224,7 @@ export function bindCatalogCheck(
           }
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
           if (
+            !native &&
             literalOrigin === 'stored' &&
             castInput === undefined &&
             modifierNeedsContext(scalarType) &&
@@ -5170,31 +5240,36 @@ export function bindCatalogCheck(
             literalOrigin === 'source' &&
             !!fields(fields(cast['arg'])?.['A_ArrayExpr']) &&
             memberModifiers.length > 0
-          const base = pushModifiers
-            ? bindArray(cast['arg'], {
-                type: scalarType.slice(6) as ArrayElementType,
-                name: elementTypeName(scalarType.slice(6) as ArrayElementType),
-                modifiers: memberModifiers,
-              })
-            : bind(
-                {
-                  TypeCast: {
-                    ...cast,
-                    typeName: scalarType.startsWith('array:')
-                      ? {
-                          ...elementTypeName(scalarType.slice(6) as ArrayElementType),
-                          arrayBounds: [{ Integer: { ival: -1 } }],
-                        }
-                      : elementTypeName(scalarType as ArrayElementType),
+          const base = native
+            ? operand.type === scalarType
+              ? operand
+              : unknown
+            : pushModifiers
+              ? bindArray(cast['arg'], {
+                  type: scalarType.slice(6) as ArrayElementType,
+                  name: elementTypeName(scalarType.slice(6) as ArrayElementType),
+                  modifiers: memberModifiers,
+                })
+              : bind(
+                  {
+                    TypeCast: {
+                      ...cast,
+                      typeName: scalarType.startsWith('array:')
+                        ? {
+                            ...elementTypeName(scalarType.slice(6) as ArrayElementType),
+                            arrayBounds: [{ Integer: { ival: -1 } }],
+                          }
+                        : elementTypeName(scalarType as ArrayElementType),
+                    },
                   },
-                },
-                undefined,
-                undefined,
-                rowSite,
-              )
+                  undefined,
+                  undefined,
+                  rowSite,
+                )
           if (!base.value || base.type !== scalarType) return unknown
           let value: EvalExpression = base.value
           for (const item of [...chain].reverse()) {
+            if (native) continue
             const modifier = item.baseTypeMod!
             if (modifier === -1) continue
             if (scalarType.startsWith('array:')) {

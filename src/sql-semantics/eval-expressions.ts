@@ -71,7 +71,7 @@ export type EvalExpression =
       kind: 'composite-coerce'
       type: ScalarType
       operand: EvalExpression
-      mapping: readonly number[]
+      mapping: readonly number[] | null
     }
   | { kind: 'composite-null'; type: ScalarType }
   | {
