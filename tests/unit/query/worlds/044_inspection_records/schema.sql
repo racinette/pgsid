@@ -724,3 +724,22 @@ CREATE TABLE inspection_xml_money_history (
 ALTER TYPE historical_xml_reading DROP ATTRIBUTE obsolete_document;
 ALTER TYPE historical_money_reading DROP ATTRIBUTE obsolete_amount;
 ALTER TYPE historical_leaf_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_operation_field AS (reading integer);
+CREATE TYPE historical_operation_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_operation_history (
+  score integer,
+  divisor integer NOT NULL,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT nullif_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,NULLIF(score,CASE WHEN score=1 THEN 1/divisor ELSE NULL::integer END))::historical_operation_result IS NOT NULL)=expected_present END),
+  CONSTRAINT distinct_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN score IS NOT DISTINCT FROM 1 THEN 1/divisor ELSE NULL::integer END)::historical_operation_result IS NOT NULL)=expected_present END),
+  CONSTRAINT field_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN ('(1)'::historical_operation_field).reading=score THEN 1/divisor ELSE NULL::integer END)::historical_operation_result IS NOT NULL)=expected_present END),
+  CONSTRAINT polymorphic_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN lower('[1,3)'::int4range)=score THEN 1/divisor ELSE NULL::integer END)::historical_operation_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_operation_field RENAME ATTRIBUTE reading TO current_reading;
+ALTER TYPE historical_operation_result DROP ATTRIBUTE obsolete_result;

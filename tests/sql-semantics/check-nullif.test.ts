@@ -214,11 +214,39 @@ describe('NULLIF CHECK evaluation', () => {
             schema: 'public',
             kind: 'table',
             owner: table.name,
-            constraint: 'unavailable',
+            constraint: 'record_nullif',
           },
         },
       ])
-      expect(hasUncertain(expression) || group.checks[0]?.kind !== 'supported', sql).toBe(true)
+      expect(hasUncertain(expression), sql).toBe(false)
+      expect(group.checks[0]?.kind, sql).toBe('supported')
+      const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+      for (const [amount, divisor] of [
+        [1, 1],
+        [1, 2],
+        [null, null],
+        [null, 1],
+        [1, null],
+      ] as const) {
+        const result = (
+          await pg.query<{ value: boolean }>(
+            `SELECT (${sql}) value FROM (SELECT $1::integer amount,$2::integer divisor) candidate`,
+            [amount, divisor],
+          )
+        ).rows[0]!.value
+        fixtures.push({
+          name: 'record_nullif',
+          row: { amount: input(amount), divisor: input(divisor) },
+          expected: { kind: result ? 'True' : 'False' },
+        })
+      }
+      await runCheckParity(
+        await mkdtemp(join(directory, 'record-')),
+        'nullifrecord',
+        group,
+        ['record_nullif'],
+        fixtures,
+      )
     }
     const unsupported = lower('NULLIF(amount,floating_amount) IS NULL')
     if (

@@ -1244,11 +1244,16 @@ const candidate = (
     target: ScalarType,
     definition?: EnumInfo,
   ) => EvalExpression | null = implicitOperand,
+  selectedSignature?: string,
 ): ResolvedCallable | null => {
+  const choices = selectedSignature
+    ? callables.filter((c) => c.signature === selectedSignature)
+    : callables
   if (
+    !selectedSignature &&
     args.length === 2 &&
     args.some((arg) => compositeProfile(boundType(arg) ?? '')) &&
-    callables.some(
+    choices.some(
       ({ item }) =>
         item.kind === kind &&
         item.schema === 'pg_catalog' &&
@@ -1260,7 +1265,7 @@ const candidate = (
     return comparisonCandidate(args, name, true, kind, false)
   const hasOmittedDefaults =
     kind === 'function' &&
-    callables.some(
+    choices.some(
       ({ item }) =>
         item.kind === 'function' &&
         item.schema === 'pg_catalog' &&
@@ -1268,7 +1273,7 @@ const candidate = (
         item.args.length > args.length &&
         item.args.length - args.length <= item.numArgDefaults,
     )
-  const hasAnyElement = callables.some(
+  const hasAnyElement = choices.some(
     ({ item }) =>
       item.kind === kind &&
       item.schema === 'pg_catalog' &&
@@ -1279,7 +1284,7 @@ const candidate = (
             ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatible'].includes(type),
           ))),
   )
-  const hasVariadicAny = callables.some(
+  const hasVariadicAny = choices.some(
     ({ item }) =>
       item.kind === kind &&
       item.schema === 'pg_catalog' &&
@@ -1289,7 +1294,7 @@ const candidate = (
   )
   const hasTypedVariadic =
     explicitVariadic ||
-    callables.some(
+    choices.some(
       ({ item }) =>
         item.kind === kind &&
         item.kind === 'function' &&
@@ -1298,6 +1303,7 @@ const candidate = (
         item.variadic !== 'pg_catalog."any"',
     )
   if (
+    !selectedSignature &&
     !hasAnyElement &&
     !hasVariadicAny &&
     !hasTypedVariadic &&
@@ -1314,11 +1320,11 @@ const candidate = (
   )
     return comparisonCandidate(args, name, true, kind, false)
   const integer =
-    hasOmittedDefaults || hasAnyElement || hasVariadicAny || hasTypedVariadic
+    selectedSignature || hasOmittedDefaults || hasAnyElement || hasVariadicAny || hasTypedVariadic
       ? undefined
       : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
-  const expandedMatches = callables.flatMap(({ signature, item }) => {
+  const expandedMatches = choices.flatMap(({ signature, item }) => {
     const variadicAny =
       !explicitVariadic && item.kind === 'function' && item.variadic === 'pg_catalog."any"'
     const typedVariadic =
@@ -2887,6 +2893,46 @@ export function bindCatalogCheck(
     )
   }
   const activeCoercions = new Set<unknown>()
+  const storedType = (name: unknown): Omit<Bound, 'value'> | null => {
+    if (typeof name !== 'string') return null
+    const builtin = catalogScalarType(name)
+    if (builtin) return { type: builtin }
+    const parts = catalogTypeNames(name),
+      domain =
+        parts?.length === 2
+          ? domains.find((d) => d.schema === parts[0] && d.name === parts[1])
+          : undefined,
+      definition = catalogEnumDefinition(name, enums, domain?.oid, domains),
+      type =
+        (definition ? enumType(definition) : null) ??
+        catalogArrayType(
+          name,
+          domain?.oid,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ) ??
+        catalogBaseScalarType(name, domain?.oid, domains, rangeTypes) ??
+        catalogCompositeType(name, compositeGraph, rangeTypes) ??
+        compositeDomainBaseType(domain, domains, compositeGraph, rangeTypes)
+    if (!type) return null
+    const member = type.startsWith('array:') ? arrayElementBaseType(type.slice(6)) : null,
+      enumDefinition =
+        definition ??
+        (member?.startsWith('enum:') ? enums.find((e) => enumType(e) === member) : undefined)
+    return {
+      type,
+      ...(enumDefinition ? { enum: enumDefinition } : {}),
+      ...(domain
+        ? {
+            nominalDomain: JSON.stringify([domain.schema, domain.name]),
+            ...(definition ? { enumDomain: domain.oid } : {}),
+          }
+        : {}),
+    }
+  }
   let storedArguments: ((index: number) => Bound) | undefined
   let storedCaseTest: Bound | undefined
   let nextCaseBinding = 0
@@ -3419,11 +3465,27 @@ export function bindCatalogCheck(
       )
         return unknown
       const args = nodes.map((arg) => bind(arg)),
-        type = catalogScalarType(selected.item.result),
+        carrier = storedType(storedCall['result'] ?? selected.item.result),
+        type = carrier?.type,
         collation = storedCollation(storedCall['inputCollation']),
         resultCollation = storedCollation(storedCall['resultCollation']),
         polymorphic = selected.item.args.some((type) => !catalogScalarType(type)),
-        resolved = polymorphic ? candidate('function', selected.item.name, args) : null
+        resolved = polymorphic
+          ? candidate(
+              'function',
+              selected.item.name,
+              args,
+              undefined,
+              false,
+              implicitOperand,
+              selected.signature,
+            )
+          : null,
+        resolvedType =
+          resolved?.resultType ??
+          (selected.item.result === 'pg_catalog.anyenum' && resolved?.enum
+            ? enumType(resolved.enum)
+            : catalogScalarType(selected.item.result))
       if (
         !type ||
         collation === undefined ||
@@ -3440,6 +3502,8 @@ export function bindCatalogCheck(
         (polymorphic
           ? !resolved ||
             resolved.signature !== selected.signature ||
+            resolvedType !== type ||
+            (resolved.resultNominalDomain ?? undefined) !== carrier?.nominalDomain ||
             resolved.operands.some((operand, index) => operand !== args[index]?.value)
           : args.some(
               (arg, index) =>
@@ -3448,6 +3512,7 @@ export function bindCatalogCheck(
       )
         return unknown
       return {
+        ...carrier!,
         type,
         ...(resultCollation ? { collation: resultCollation } : {}),
         value: {
@@ -3458,11 +3523,54 @@ export function bindCatalogCheck(
             type,
             collation: collation?.kind,
             ...arrayDefaultCollation(selected.signature, collation ?? undefined),
-            ...(resolved?.enum ? { enum: resolved.enum } : {}),
+            ...((resolved?.enum ?? carrier?.enum) ? { enum: resolved?.enum ?? carrier?.enum } : {}),
           },
           operands: args.map((arg) => arg.value!),
         },
       }
+    }
+    const storedComparison = fields(wrapper['PgsidStoredComparison'])
+    if (storedComparison) {
+      const compared = bind(storedComparison['expression']),
+        value = compared.value,
+        carrier = storedType(storedComparison['result'])
+      if (
+        !carrier?.type ||
+        compared.type !== 'pg_catalog.bool' ||
+        value?.kind !== 'call' ||
+        value.operands.length !== 2
+      )
+        return unknown
+      const operands = value.operands as [EvalExpression, EvalExpression]
+      if (storedComparison['kind'] === 'distinct')
+        return carrier.type === 'pg_catalog.bool'
+          ? {
+              type: 'pg_catalog.bool',
+              value: {
+                kind: 'distinct',
+                type: 'pg_catalog.bool',
+                negated: false,
+                operands,
+                comparison: value.call,
+              },
+            }
+          : unknown
+      const first = operands[0],
+        firstType =
+          first.kind === 'certain'
+            ? first.expression.type
+            : first.kind === 'call'
+              ? first.call.type
+              : first.kind === 'regex-count'
+                ? 'pg_catalog.int4'
+                : first.type
+      return storedComparison['kind'] === 'nullif' &&
+        arrayElementBaseType(firstType) === carrier.type
+        ? {
+            ...carrier,
+            value: { kind: 'nullif', type: carrier.type, operands, comparison: value.call },
+          }
+        : unknown
     }
     const xml = fields(wrapper['XmlExpr']),
       serialized = fields(wrapper['XmlSerialize'])
