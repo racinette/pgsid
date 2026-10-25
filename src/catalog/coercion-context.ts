@@ -1,3 +1,5 @@
+import { storedRowExpression, type StoredRowExpressionInput } from './stored-row-expressions.js'
+import { parseTree, tree, scalar, type Value, type Tree } from './expression-tree.js'
 import { tsqueryContainerConstant } from './tsquery-container-constants.js'
 import { tsqueryConstantStorage } from './tsquery-constant-storage.js'
 import { tsvectorContainerConstant } from './tsvector-container-constants.js'
@@ -16,84 +18,8 @@ import type {
 } from './types.js'
 import { xmlArrayConstantText } from './xml-array-constants.js'
 
-type Value = string | Value[] | Tree
-type Tree = { kind: string; fields: Record<string, Value[]> }
 export type DomainCoercionIdentity = { schema: string; name: string; array: boolean }
 export type RowCoercionIdentity = { identity: string; depth: number; fields?: number[] }
-
-function parseTree(source: string): Value {
-  const tokens: string[] = []
-  let index = 0
-  while (index < source.length) {
-    if (/\s/u.test(source[index]!)) {
-      index++
-      continue
-    }
-    const start = index,
-      first = source[index]!
-    if ('{}()[]'.includes(first)) {
-      tokens.push(first)
-      index++
-      continue
-    }
-    const quoted = first === '"'
-    if (quoted) index++
-    while (index < source.length) {
-      const char = source[index]!
-      if (char === '\\') {
-        index += 2
-        continue
-      }
-      if (quoted ? char === '"' : /\s/u.test(char) || '{}()[]'.includes(char)) break
-      index++
-    }
-    if (quoted) {
-      if (source[index] !== '"') throw new Error('Unclosed catalog string')
-      index++
-    }
-    if (index === start) throw new Error('Invalid catalog token')
-    tokens.push(source.slice(start, index))
-  }
-  let position = 0
-  const value = (): Value => {
-    const token = tokens[position++]
-    if (token === undefined) throw new Error('Incomplete catalog expression')
-    if (token === '{') {
-      const kind = tokens[position++]
-      if (!kind || !/^[A-Za-z][A-Za-z0-9_]*$/u.test(kind)) throw new Error('Invalid catalog node')
-      const fields: Record<string, Value[]> = {}
-      while (tokens[position] !== '}') {
-        const key = tokens[position++]
-        if (!key || !/^:[A-Za-z][A-Za-z0-9_]*$/u.test(key) || Object.hasOwn(fields, key.slice(1)))
-          throw new Error('Invalid catalog field')
-        const values: Value[] = []
-        while (tokens[position] !== '}' && !tokens[position]?.startsWith(':')) values.push(value())
-        fields[key.slice(1)] = values
-      }
-      position++
-      return { kind, fields }
-    }
-    if (token === '(' || token === '[') {
-      const close = token === '(' ? ')' : ']'
-      const list: Value[] = []
-      while (tokens[position] !== close) list.push(value())
-      position++
-      return list
-    }
-    if ('})]'.includes(token)) throw new Error('Unexpected catalog delimiter')
-    return token
-  }
-  const result = value()
-  if (position !== tokens.length) throw new Error('Trailing catalog expression')
-  return result
-}
-
-const tree = (value: Value | undefined): Tree | null =>
-  value && typeof value === 'object' && !Array.isArray(value) ? value : null
-const scalar = (node: Tree, name: string): string | null => {
-  const values = node.fields[name]
-  return values?.length === 1 && typeof values[0] === 'string' ? values[0] : null
-}
 
 function xmlConstantText(node: Tree, utf8: boolean): string | null | undefined {
   if (scalar(node, 'constisnull') === 'true') return null
@@ -163,6 +89,7 @@ function captureExpressionCoercions(
     types: ReadonlyMap<number, ConstantStorageType>
     roots: ReadonlySet<number>
   },
+  rowExpressions?: StoredRowExpressionInput,
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
@@ -217,6 +144,8 @@ function captureExpressionCoercions(
   const xmlArgumentNames: NonNullable<StoredXmlConstantContext['argumentNames']> = []
   const xmlArrayConstants: NonNullable<StoredXmlConstantContext['arrays']> = []
   const xmlContainerConstants: NonNullable<StoredXmlConstantContext['containers']> = []
+  const rowConstructors: NonNullable<StoredRowCoercionContext['constructors']> = []
+  let omittedComplete = true
   let complete = true
   const expressionType = (node: Tree): string | null => {
     const field: Record<string, string> = {
@@ -588,15 +517,27 @@ function captureExpressionCoercions(
             node.kind === 'ROWEXPR'
               ? identities.get(Number(expressionType(node)))?.fields
               : undefined
-        if (
-          live &&
-          values.some(
-            (value, index) =>
-              !live.includes(index) &&
-              (tree(value)?.kind !== 'CONST' || scalar(tree(value)!, 'constisnull') !== 'true'),
-          )
-        )
-          complete = false
+        if (live) {
+          const omitted: NonNullable<StoredRowCoercionContext['constructors']>[number]['omitted'] =
+            []
+          for (const [position, value] of values.entries()) {
+            if (live.includes(position)) continue
+            const expression = rowExpressions
+              ? storedRowExpression(value, rowExpressions)
+              : undefined
+            if (expression === undefined) omittedComplete = false
+            else omitted.push({ position, expression })
+          }
+          if (site === undefined) omittedComplete = false
+          else
+            rowConstructors.push({
+              site,
+              type: identities.get(Number(expressionType(node)))!.identity,
+              members: values.length,
+              live,
+              omitted,
+            })
+        }
         ;(live ? live.map((i) => values[i]!) : values).forEach((v, i) => {
           if (v !== undefined) visit(v, at(role[node.kind] + '/' + i))
         })
@@ -645,7 +586,16 @@ function captureExpressionCoercions(
     ...(arrayCandidate
       ? { arrayStorage: { definition, complete, constants: arrayConstants } }
       : {}),
-    ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
+    ...(casts.length || rowConstructors.length || !complete || !omittedComplete
+      ? {
+          row: {
+            definition,
+            complete: complete && omittedComplete,
+            casts,
+            ...(rowConstructors.length ? { constructors: rowConstructors } : {}),
+          },
+        }
+      : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
     ...(tsqueryCandidate
       ? {
@@ -926,8 +876,25 @@ export function captureRowCoercionContext(
   source: string | null,
   definition: string,
   identities: ReadonlyMap<number, RowCoercionIdentity>,
+  expressions?: StoredRowExpressionInput,
 ): StoredRowCoercionContext | undefined {
-  return captureExpressionCoercions(source, definition, identities, new Map()).row
+  return captureExpressionCoercions(
+    source,
+    definition,
+    identities,
+    new Map(),
+    new Set(),
+    false,
+    new Map(),
+    undefined,
+    new Set(),
+    undefined,
+    undefined,
+    undefined,
+    new Set(),
+    undefined,
+    expressions,
+  ).row
 }
 
 export function captureArrayConstructorContext(

@@ -530,3 +530,18 @@ INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_docum
 INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(1,2,'x','[{"score":1,"label":"x"}]','[{"score":1,"label":"x"},{"score":2,"label":"x"}]','{"(1,x)"}',true,false);
 -- name: GenericArrayBypassed
 INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(32768,-32769,'long','{}','{}','wrong',true,true);
+
+-- name: HistoricalRowPresent
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,1,true,'(1)',false);
+-- name: HistoricalRowNull
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(NULL,0,false,'()',false);
+-- name: HistoricalRowMissingRatio
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,NULL,false,'(1)',false);
+-- name: HistoricalRowOldError
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,0,true,'(1)',false);
+-- name: HistoricalRowWrongPresence
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,1,false,'(1)',false);
+-- name: HistoricalRowWrongText
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,1,true,'()',false);
+-- name: HistoricalRowBypassed
+INSERT INTO inspection_historical_rows(score,denominator,expected_present,expected_text,bypass) VALUES(1,0,false,'wrong',true);

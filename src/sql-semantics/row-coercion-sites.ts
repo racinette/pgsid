@@ -4,8 +4,27 @@ type Fields = Record<string, unknown>
 type Cast = StoredRowCoercionContext['casts'][number]
 type Identity = { identity: string; depth: number }
 export type RowCoercionSites = ReadonlyMap<unknown, readonly Cast[]>
+export type RowConstructorBinding = NonNullable<
+  StoredRowCoercionContext['constructors']
+>[number] & { source?: true }
+export type RowConstructorBindings = ReadonlyMap<unknown, RowConstructorBinding>
 const fields = (x: unknown): Fields | null =>
   x && typeof x === 'object' && !Array.isArray(x) ? (x as Fields) : null
+
+export function alignStoredRowConstructors(
+  root: unknown,
+  context: StoredRowCoercionContext,
+): RowConstructorBindings {
+  const result = new Map<unknown, RowConstructorBinding>()
+  if (!context.complete) return result
+  walkStoredExpression(root, (node, site) => {
+    const row = fields(fields(node)?.['RowExpr'])
+    if (!row || !Array.isArray(row['args'] ?? [])) return
+    const matches = context.constructors?.filter((c) => c.site === site) ?? []
+    if (matches.length === 1) result.set(row, matches[0]!)
+  })
+  return result
+}
 
 export function alignStoredRowCoercions(
   root: unknown,
@@ -131,6 +150,16 @@ export function walkStoredExpression(
     }
     const op = fields(wrapper['A_Expr'])
     if (op) {
+      if (['AEXPR_DISTINCT', 'AEXPR_NOT_DISTINCT'].includes(String(op['kind']))) {
+        const operands = [op['lexpr'], op['rexpr']],
+          nullIndex = operands.findIndex(
+            (value) => fields(fields(value)?.['A_Const'])?.['isnull'] === true,
+          )
+        if (nullIndex >= 0) {
+          visit(operands[1 - nullIndex], at('nulltest'))
+          return
+        }
+      }
       if (op['lexpr']) visit(op['lexpr'], at('operator/0'))
       visit(op['rexpr'], at('operator/' + (op['lexpr'] ? 1 : 0)))
       return

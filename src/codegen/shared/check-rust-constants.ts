@@ -29,7 +29,11 @@ export function constantScalarExpression(expression: EvalExpression): boolean {
     expression.kind === 'array-constructor' ||
     expression.kind === 'composite-constructor'
   )
-    return expression.operands.every(constantScalarExpression)
+    return (
+      expression.kind === 'composite-constructor'
+        ? (expression.physical?.operands ?? expression.operands)
+        : expression.operands
+    ).every(constantScalarExpression)
   if (expression.kind === 'case')
     return (
       (!expression.scrutinee || constantScalarExpression(expression.scrutinee.expression)) &&
@@ -96,7 +100,7 @@ function prepare(expression: EvalExpression): Preparation | null {
   }
   if (expression.kind === 'composite-null') return constant(expression, true)
   if (expression.kind === 'composite-constructor') {
-    const prepared = prepareAll(expression.operands)
+    const prepared = prepareAll(expression.physical?.operands ?? expression.operands)
     return prepared
       ? prepared.every((operand) => operand.constant)
         ? constant(expression)
@@ -115,7 +119,9 @@ function prepare(expression: EvalExpression): Preparation | null {
       const selected = expression.operand.operands[expression.index]
       const prepared = selected ? prepare(selected) : null
       if (prepared?.constant) return constant(expression, prepared.null)
-      const operands = prepareAll(expression.operand.operands)
+      const operands = prepareAll(
+        expression.operand.physical?.operands ?? expression.operand.operands,
+      )
       return prepared && operands
         ? { ...prepared, expressions: operands.flatMap((operand) => operand.expressions) }
         : null

@@ -11,7 +11,13 @@ import type {
 } from '../catalog/types.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './catalog-check-binder.js'
-import { alignStoredRowCoercions, type RowCoercionSites } from './row-coercion-sites.js'
+import {
+  alignStoredRowCoercions,
+  alignStoredRowConstructors,
+  type RowCoercionSites,
+  type RowConstructorBindings,
+  type RowConstructorBinding,
+} from './row-coercion-sites.js'
 import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { alignStoredXmlConstants, restoreStoredXmlNames } from './xml-constant-sites.js'
 import { alignStoredArrayConstructors } from './array-constructor-sites.js'
@@ -271,6 +277,7 @@ export function lowerTableCheck(
   let check: Fields | null
   let rowFieldBindings: ReadonlyMap<unknown, RowFieldBinding> | undefined
   let rowCoercionSites: RowCoercionSites | undefined
+  let rowConstructorBindings: RowConstructorBindings | undefined
   const xmlConstantBindings = new Map<unknown, string | null>()
   try {
     check = parseCheck(sourceDefinition ?? constraint.definition)
@@ -308,19 +315,36 @@ export function lowerTableCheck(
       context?.definition === constraint.definition
         ? alignStoredRowCoercions(stored?.['raw_expr'], context, compositeGraph)
         : undefined
+    const constructors =
+      context?.definition === constraint.definition
+        ? alignStoredRowConstructors(stored?.['raw_expr'], context)
+        : undefined
     if (sourceDefinition !== undefined && literalOrigin === 'source') {
+      const sourceConstructors = new Map<unknown, RowConstructorBinding>()
       const aligned = new Map<unknown, readonly NonNullable<typeof context>['casts'][number][]>()
       rowFieldBindings = alignRowFieldBindings(
         check?.['raw_expr'],
         stored?.['raw_expr'],
         (source, stored) => {
           if (capturedXml.has(stored)) xmlConstantBindings.set(source, capturedXml.get(stored)!)
+          const storedRow = fields(fields(stored)?.['RowExpr']),
+            sourceRow = fields(fields(source)?.['RowExpr']),
+            constructor = constructors?.get(storedRow)
+          if (sourceRow && constructor)
+            sourceConstructors.set(sourceRow, {
+              ...constructor,
+              ...(sourceDefinition !== constraint.definition ? { source: true as const } : {}),
+            })
           const casts = sites?.get(stored)
           if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])
         },
       )
       rowCoercionSites = aligned
-    } else rowCoercionSites = sites
+      rowConstructorBindings = sourceConstructors
+    } else {
+      rowCoercionSites = sites
+      rowConstructorBindings = constructors
+    }
   } catch {
     return { name: constraint.name, expression: { kind: 'uncertain' }, inputs: [] }
   }
@@ -363,6 +387,7 @@ export function lowerTableCheck(
         )
       : undefined,
     xmlConstantBindings,
+    rowConstructorBindings,
   )
   return { name: constraint.name, ...bound }
 }

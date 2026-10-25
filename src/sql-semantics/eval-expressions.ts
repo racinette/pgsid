@@ -70,6 +70,7 @@ export type EvalExpression =
       type: ScalarType
       anonymousIdentity?: string
       wholeRow?: true
+      physical?: { operands: readonly EvalExpression[]; discarded: readonly number[] }
       operands: readonly EvalExpression[]
       projectable: readonly (boolean | null)[]
     }
