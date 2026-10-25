@@ -248,6 +248,38 @@ export function characterValueRequirements(item: BuiltinCallable) {
 export function textSearchValueRequirements(item: BuiltinCallable) {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
   const owner = 'tests/sql-semantics/check-text-search-boundaries.test.ts'
+  if (
+    [
+      'tsquery_cmp',
+      'tsquery_eq',
+      'tsquery_ne',
+      'tsquery_lt',
+      'tsquery_le',
+      'tsquery_gt',
+      'tsquery_ge',
+    ].includes(item.name) &&
+    item.args.join(',') === 'pg_catalog.tsquery,pg_catalog.tsquery'
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Query ordering compares node count and stored size before tree structure and signed legacy operand CRCs. Reached unequal non-ASCII operands require declared UTF8 to derive those CRC bytes; ASCII, equal words and earlier deciding structure remain portable.',
+        owner: 'tests/sql-semantics/check-tsquery-comparison-context.test.ts',
+      },
+      ...(item.name === 'tsquery_cmp'
+        ? [
+            {
+              kind: 'platform',
+              setting: 'memcmp',
+              requirement:
+                'A CRC collision between unequal non-prefix terms reaches the C library byte comparator. The raw comparator magnitude requires that implementation; Boolean relations and normalized ordering preserve its portable sign.',
+              owner: 'tests/sql-semantics/check-tsquery-comparison.test.ts',
+            },
+          ]
+        : []),
+    ]
   if (['tsvectorsend', 'tsquerysend'].includes(item.name))
     return [
       {
@@ -889,7 +921,9 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push(
       requirement.kind === 'session'
         ? `session-setting:${requirement.setting}`
-        : `database-state:${requirement.setting}`,
+        : requirement.kind === 'platform'
+          ? `platform-setting:${requirement.setting}`
+          : `database-state:${requirement.setting}`,
     )
   if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
   if (jsonbTextRenderingContext(item)) categories.push('database-setting:server_encoding')

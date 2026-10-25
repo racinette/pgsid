@@ -45957,6 +45957,335 @@ export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: ch
     }
     return { kind: "Unknown" };
 }
+interface TsqueryCompareFrame {
+    left: number;
+    right: number;
+    finish: boolean;
+}
+function copyTsqueryCompareFrame(value: TsqueryCompareFrame): TsqueryCompareFrame {
+    return { left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), finish: langruntime.checkedBool(value.finish) };
+}
+function tsqueryAscii(text: string): boolean {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    while (index < chars.length) {
+        if ((langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) > 127) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function tsqueryLegacyCrc(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let wire: string = "";
+    let index: number = 0;
+    while (index < chars.length) {
+        wire = langruntime.checkedString(byteaUtf8Character(wire, langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const bytes: checkruntime.HashByte[] = byteaHashBytes(wire);
+    let crc: bigint = 4294967295n;
+    index = langruntime.checkedIndex(0);
+    while (index < bytes.length) {
+        let table: bigint = checkruntime.hashXor(langruntime.checkedI64Divide(crc, 16777216n), langruntime.indexStruct(bytes, langruntime.checkedIndex(index), checkruntime.copyHashByte).value);
+        let bit: number = 0;
+        while (bit < 8) {
+            const low: bigint = langruntime.checkedI64Remainder(table, 2n);
+            table = langruntime.checkedI64(langruntime.checkedI64Divide(table, 2n));
+            if (low === 1n) {
+                table = langruntime.checkedI64(checkruntime.hashXor(table, 3988292384n));
+            }
+            bit = langruntime.checkedI32(langruntime.checkedSignedAdd(bit, 1));
+        }
+        crc = langruntime.checkedI64(checkruntime.hashXor(table, langruntime.checkedI64Remainder(langruntime.checkedI64Multiply(crc, 256n), 4294967296n)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let result: bigint = langruntime.checkedI64Subtract(4294967295n, crc);
+    if (result > 2147483647n) {
+        result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, 4294967296n));
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(result)));
+}
+function tsqueryCompare(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, utf8: boolean, exact: boolean): checkruntime.Int4Value {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    utf8 = langruntime.checkedBool(utf8);
+    exact = langruntime.checkedBool(exact);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(right.value);
+            if (a.nodes.length < b.nodes.length) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+            }
+            if (a.nodes.length > b.nodes.length) {
+                return checkruntime.makeInt4Value(1);
+            }
+            if (a.nativeBytes < 0 || b.nativeBytes < 0) {
+                return { kind: "Unknown" };
+            }
+            if (a.nativeBytes < b.nativeBytes) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+            }
+            if (a.nativeBytes > b.nativeBytes) {
+                return checkruntime.makeInt4Value(1);
+            }
+            if (a.nodes.length === 0) {
+                return checkruntime.makeInt4Value(0);
+            }
+            let frames: TsqueryCompareFrame[] = [];
+            langruntime.pushStruct(frames, { left: a.root, right: b.root, finish: false }, copyTsqueryCompareFrame);
+            let depth: number = 1;
+            while (depth > 0) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                const frame: TsqueryCompareFrame = copyTsqueryCompareFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(depth), copyTsqueryCompareFrame));
+                const an: checkruntime.TsqueryNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(frame.left), checkruntime.copyTsqueryNode);
+                const bn: checkruntime.TsqueryNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(frame.right), checkruntime.copyTsqueryNode);
+                if (frame.finish) {
+                    if (an.distance > bn.distance) {
+                        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+                    }
+                    if (an.distance < bn.distance) {
+                        return checkruntime.makeInt4Value(1);
+                    }
+                }
+                else {
+                    if (an.kind > bn.kind) {
+                        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+                    }
+                    if (an.kind < bn.kind) {
+                        return checkruntime.makeInt4Value(1);
+                    }
+                    if (an.kind === 0) {
+                        if (!(an.text === bn.text)) {
+                            if (utf8 === false && (tsqueryAscii(an.text) === false || tsqueryAscii(bn.text) === false)) {
+                                return { kind: "Unknown" };
+                            }
+                            const ac: number = tsqueryLegacyCrc(an.text);
+                            const bc: number = tsqueryLegacyCrc(bn.text);
+                            if (ac > bc) {
+                                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+                            }
+                            if (ac < bc) {
+                                return checkruntime.makeInt4Value(1);
+                            }
+                            const order: number = checkruntime.tsvectorLexemeOrder(an.text, bn.text);
+                            if (exact && !(order === 0) && textHasPrefix(an.text, bn.text) === false && textHasPrefix(bn.text, an.text) === false) {
+                                return { kind: "Unknown" };
+                            }
+                            return checkruntime.makeInt4Value(order);
+                        }
+                    }
+                    else {
+                        if (an.kind === 4) {
+                            const finish: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: frame.left, right: frame.right, finish: true });
+                            if (depth < frames.length) {
+                                frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryCompareFrame(finish);
+                            }
+                            else {
+                                langruntime.pushStruct(frames, finish, copyTsqueryCompareFrame);
+                            }
+                            depth = langruntime.checkedAdd(depth, 1);
+                        }
+                        const first: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: an.left, right: bn.left, finish: false });
+                        if (depth < frames.length) {
+                            frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryCompareFrame(first);
+                        }
+                        else {
+                            langruntime.pushStruct(frames, first, copyTsqueryCompareFrame);
+                        }
+                        depth = langruntime.checkedAdd(depth, 1);
+                        if (!(an.kind === 1)) {
+                            const second: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: an.right, right: bn.right, finish: false });
+                            if (depth < frames.length) {
+                                frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryCompareFrame(second);
+                            }
+                            else {
+                                langruntime.pushStruct(frames, second, copyTsqueryCompareFrame);
+                            }
+                            depth = langruntime.checkedAdd(depth, 1);
+                        }
+                    }
+                }
+            }
+            return checkruntime.makeInt4Value(0);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsqueryOrder(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, utf8: boolean): checkruntime.Int4Value {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryCompare(left, right, utf8, false);
+}
+export function tsqueryCmp1oet(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, utf8: boolean): checkruntime.Int4Value {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryCompare(left, right, utf8, true);
+}
+function tsqueryRelation(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, utf8: boolean, mode: number): checkruntime.BoolValue {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    utf8 = langruntime.checkedBool(utf8);
+    mode = langruntime.checkedI32(mode);
+    const order: checkruntime.Int4Value = tsqueryCompare(left, right, utf8, false);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (order.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(value === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(value === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(value < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(value <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(value > 0);
+        }
+        return checkruntime.makeBoolValue(value >= 0);
+    }
+    return { kind: "Unknown" };
+}
+export function tsqueryEqD4ao(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 0);
+}
+export function tsqueryNe2lq4(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 1);
+}
+export function tsqueryLtZocf(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 2);
+}
+export function tsqueryLe3i4m(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 3);
+}
+export function tsqueryGt6cq7(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 4);
+}
+export function tsqueryGe0jdt(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, utf8: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    utf8 = langruntime.checkedBool(utf8);
+    return tsqueryRelation(a, b, utf8, 5);
+}
+function tsqueryContains(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, reverse: boolean): checkruntime.BoolValue {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    reverse = langruntime.checkedBool(reverse);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(right.value);
+            let haystack: checkruntime.TsqueryPayload = a;
+            let needles: checkruntime.TsqueryPayload = b;
+            if (reverse) {
+                const saved: checkruntime.TsqueryPayload = haystack;
+                haystack = checkruntime.copyTsqueryPayload(needles);
+                needles = checkruntime.copyTsqueryPayload(saved);
+            }
+            let i: number = 0;
+            while (i < needles.nodes.length) {
+                if (langruntime.indexStruct(needles.nodes, langruntime.checkedIndex(i), checkruntime.copyTsqueryNode).kind === 0) {
+                    let found: boolean = false;
+                    let j: number = 0;
+                    while (j < haystack.nodes.length) {
+                        if (langruntime.indexStruct(haystack.nodes, langruntime.checkedIndex(j), checkruntime.copyTsqueryNode).kind === 0 && langruntime.indexStruct(needles.nodes, langruntime.checkedIndex(i), checkruntime.copyTsqueryNode).text === langruntime.indexStruct(haystack.nodes, langruntime.checkedIndex(j), checkruntime.copyTsqueryNode).text) {
+                            found = langruntime.checkedBool(true);
+                            break;
+                        }
+                        j = langruntime.checkedAdd(j, 1);
+                    }
+                    if (found === false) {
+                        return checkruntime.makeBoolValue(false);
+                    }
+                }
+                i = langruntime.checkedAdd(i, 1);
+            }
+            return checkruntime.makeBoolValue(true);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsqMcontainsD21x(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryContains(a, b, false);
+}
+export function tsqMcontained4g5m(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue): checkruntime.BoolValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryContains(a, b, true);
+}
 const tsquerySyntaxError = 6819553;
 const tsqueryProgramLimit = 8584704;
 const tsqueryInvalidParameter = 3452619;

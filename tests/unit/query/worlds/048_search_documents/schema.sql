@@ -144,3 +144,16 @@ CREATE TABLE search_query_templates (
  CONSTRAINT query_template_tree CHECK(CASE WHEN bypass THEN true ELSE (tsquerysend(source::tsquery)=tsquerysend(CASE WHEN right_associated THEN 'a & (b & c)'::compact_search_query ELSE '(a & b) & c'::compact_search_query END)) IS NOT DISTINCT FROM expected_match END),
  CONSTRAINT query_template_selection CHECK(bypass OR source IS NULL OR right_associated IS NOT NULL)
 );
+
+CREATE TABLE search_query_relations (
+ source text,
+ reference text,
+ expected_order integer,
+ expected_equal boolean,
+ expected_contains boolean,
+ bypass boolean,
+ CONSTRAINT query_less_order CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery<reference::tsquery) IS NOT DISTINCT FROM (expected_order<0) END),
+ CONSTRAINT query_greater_order CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery>reference::tsquery) IS NOT DISTINCT FROM (expected_order>0) END),
+ CONSTRAINT query_equivalent CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery=reference::tsquery) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT query_terms_contained CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery @> reference::tsquery) IS NOT DISTINCT FROM expected_contains END)
+);

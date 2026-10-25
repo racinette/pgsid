@@ -209,6 +209,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/tsvector_operations.rs");
     include!("operations/pg_catalog/tsquery_input.rs");
     include!("operations/pg_catalog/tsquery_output.rs");
+    include!("operations/pg_catalog/tsquery_compare.rs");
     include!("operations/pg_catalog/internal_char.rs");
     include!("operations/pg_catalog/name_core.rs");
     include!("operations/pg_catalog/oid_core.rs");
