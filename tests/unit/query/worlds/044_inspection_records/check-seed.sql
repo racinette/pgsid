@@ -782,3 +782,26 @@ INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected
 INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',NULL,false);
 -- name: HistoricalJsonBypassedDivision
 INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,0,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',false,true);
+
+-- name: HistoricalDefaultsMatchedValues
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'3','$ ? (@ > 0)',true,true,1,false);
+-- name: HistoricalDefaultsSkippedDivision
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(-1,0,'0','$ ? (@ > 0)',false,false,0,false);
+-- name: HistoricalDefaultsNullDocument
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,NULL,'$ ? (@ > 0)',false,true,1,false);
+-- name: HistoricalDefaultsNullScore
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(NULL,1,'3','$ ? (@ > 0)',false,true,1,false);
+-- name: HistoricalDefaultsNullPath
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'3',NULL,false,NULL,1,false);
+-- name: HistoricalDefaultsWrongPresence
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'3','$ ? (@ > 0)',false,true,1,false);
+-- name: HistoricalDefaultsWrongNamedResult
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'3','$ ? (@ > 0)',true,false,1,false);
+-- name: HistoricalDefaultsWrongMutation
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'3','$ ? (@ > 0)',true,true,2,false);
+-- name: HistoricalDefaultsReachedDivision
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,0,'3','$ ? (@ > 0)',true,true,1,false);
+-- name: HistoricalDefaultsStrictPathError
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'{}','strict $.missing',true,true,1,false);
+-- name: HistoricalDefaultsBypassedErrors
+INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,0,'{}','strict $.missing',false,false,2,true);

@@ -21,9 +21,18 @@ export interface StoredExpressionCollation {
   deterministic: boolean
 }
 
+export interface StoredRowFunction {
+  signature: string
+  args: readonly string[]
+  result: string
+  defaults?: readonly Value[]
+}
+
 export interface StoredRowExpressionInput {
   types: ReadonlyMap<number, string>
-  functions: ReadonlyMap<number, { signature: string; args: readonly string[]; result: string }>
+  functions: ReadonlyMap<number, StoredRowFunction>
+  activeDefaults?: ReadonlySet<number>
+  arguments?: ReadonlyMap<Value, unknown>
   columns: ReadonlyMap<number, { name: string; type: number }>
   byteOrder: 'little' | 'big'
   utf8?: boolean
@@ -75,6 +84,7 @@ function typedExpression(arg: unknown, type: string): unknown {
 }
 
 export function storedRowExpression(value: Value, input: StoredRowExpressionInput): unknown {
+  if (input.arguments?.has(value)) return input.arguments.get(value)
   const node = tree(value)
   if (!node) return undefined
   const list = (name: string): Value[] => {
@@ -336,12 +346,47 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     return scalar(node, 'constcollid') === null ? result : collated(result, 'constcollid')
   }
   if (node.kind === 'FUNCEXPR' || node.kind === 'OPEXPR') {
-    const callable = input.functions.get(
-        Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcid' : 'opfuncid')),
-      ),
-      args = list('args').map(convert)
+    const id = Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcid' : 'opfuncid')),
+      callable = input.functions.get(id)
+    if (!callable) return undefined
+    const provided = list('args'),
+      values: (Value | undefined)[] = Array(callable.args.length).fill(undefined)
+    let named = false
+    for (const [index, value] of provided.entries()) {
+      const arg = tree(value),
+        number = arg?.kind === 'NAMEDARGEXPR' ? scalar(arg, 'argnumber') : String(index),
+        position = number === null ? -1 : Number(number)
+      if (arg?.kind === 'NAMEDARGEXPR') named = true
+      else if (named) return undefined
+      if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        position >= values.length ||
+        values[position] !== undefined
+      )
+        return undefined
+      values[position] = arg?.kind === 'NAMEDARGEXPR' ? arg.fields['arg']?.[0] : value
+      if (values[position] === undefined) return undefined
+    }
+    const missing = values.some((value) => value === undefined),
+      defaults = callable.defaults,
+      defaultStart = values.length - (defaults?.length ?? 0),
+      active = new Set(input.activeDefaults ?? [])
+    if (missing && (!defaults || active.has(id))) return undefined
+    if (missing) active.add(id)
+    const args = values.map((value, index) =>
+      value !== undefined
+        ? convert(value)
+        : index < defaultStart
+          ? undefined
+          : storedRowExpression(defaults![index - defaultStart]!, {
+              ...input,
+              columns: new Map(),
+              arrayElement: undefined,
+              activeDefaults: active,
+            }),
+    )
     if (
-      !callable ||
       args.some((arg) => arg === undefined) ||
       callable.args.length !== args.length ||
       collation('inputcollid') === undefined ||

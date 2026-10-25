@@ -20,6 +20,7 @@ import {
   alignStoredRowCoercions,
   alignStoredRowConstructors,
   alignStoredRowScalars,
+  alignStoredRowCalls,
   type RowCoercionSites,
   type RowConstructorBindings,
   type RowConstructorBinding,
@@ -417,6 +418,10 @@ export function lowerTableCheck(
     if (context?.definition === constraint.definition)
       for (const [node, expression] of alignStoredRowScalars(stored?.['raw_expr'], context))
         storedScalarBindings.set(node, { kind: 'scalar', expression })
+    if (context?.definition === constraint.definition)
+      for (const [node, call] of alignStoredRowCalls(stored?.['raw_expr'], context))
+        if (!storedScalarBindings.has(node))
+          storedScalarBindings.set(node, { kind: 'call', ...call })
     storedSites = sites
     storedConstructors = constructors
     if (sourceDefinition !== undefined && literalOrigin === 'source') {
@@ -429,8 +434,15 @@ export function lowerTableCheck(
         (source, stored, selection) => {
           const scalar = storedScalarBindings.get(stored)
           if (scalar) {
-            sourceScalarBindings.set(source, scalar)
-            return true
+            const sourceCall = fields(fields(source)?.['FuncCall']),
+              sourceArgs = sourceCall?.['args'] ?? []
+            sourceScalarBindings.set(
+              source,
+              scalar.kind === 'call' && sourceCall && Array.isArray(sourceArgs)
+                ? { ...scalar, args: sourceArgs }
+                : scalar,
+            )
+            return scalar.kind !== 'call'
           }
           if (isExpandedRowComparison(source, stored)) {
             nativeComparisons.set(source, selection ?? { nodes: [stored] })
@@ -450,7 +462,7 @@ export function lowerTableCheck(
         },
         context?.definition === constraint.definition &&
           context.complete &&
-          context.scalars !== undefined,
+          (context.scalars !== undefined || context.calls !== undefined),
       )
       for (const [node, scalar] of sourceScalarBindings) rowFieldBindings.set(node, scalar)
       rowCoercionSites = aligned
@@ -527,7 +539,8 @@ export function lowerTableCheck(
     )
     if (
       constraint.rowCoercionContext?.definition === constraint.definition &&
-      constraint.rowCoercionContext.scalars !== undefined
+      (constraint.rowCoercionContext.scalars !== undefined ||
+        constraint.rowCoercionContext.calls !== undefined)
     )
       bindPlan(
         storedCheck['raw_expr'],

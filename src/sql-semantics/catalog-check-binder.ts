@@ -137,6 +137,7 @@ export type RowFieldBinding =
   | { kind: 'cast'; typeName: unknown }
   | { kind: 'expression'; expression: EvalBoolExpression; inputs: readonly string[] }
   | { kind: 'scalar'; expression: unknown }
+  | { kind: 'call'; expression: unknown; args: readonly unknown[] }
   | { kind: 'coercion'; typeNames: readonly unknown[] }
 
 export function catalogEnumDefinition(
@@ -2886,6 +2887,7 @@ export function bindCatalogCheck(
     )
   }
   const activeCoercions = new Set<unknown>()
+  let storedArguments: ((index: number) => Bound) | undefined
   const bind = (
     node: unknown,
     expectedType?: ScalarType,
@@ -2911,6 +2913,21 @@ export function bindCatalogCheck(
     }
     if (selected?.kind === 'scalar')
       return bind(selected.expression, expectedType, implicitDomainInput, rowSite)
+    if (selected?.kind === 'call') {
+      const outer = storedArguments
+      storedArguments = (index) =>
+        index >= selected.args.length
+          ? unknown
+          : bind(
+              fields(fields(selected.args[index])?.['NamedArgExpr'])?.['arg'] ??
+                selected.args[index],
+            )
+      try {
+        return bind(selected.expression, expectedType, implicitDomainInput, rowSite)
+      } finally {
+        storedArguments = outer
+      }
+    }
     if (selected?.kind === 'expression') {
       for (const name of selected.inputs) inputs.add(name)
       importedExpressions.add(selected.expression)
@@ -2938,6 +2955,13 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const argument = fields(wrapper['PgsidStoredArgument'])
+    if (argument) {
+      const index = argument['index']
+      return typeof index === 'number' && Number.isInteger(index) && index >= 0 && storedArguments
+        ? storedArguments(index)
+        : unknown
+    }
     const storedArrayConstant = fields(wrapper['PgsidStoredArrayConstant'])
     if (storedArrayConstant) {
       const element = storedArrayConstant['element'],

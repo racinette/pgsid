@@ -643,3 +643,22 @@ CREATE TABLE inspection_json_history (
       THEN 1/divisor ELSE NULL::integer END)::historical_json_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_json_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_default_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_default_history (
+  score integer,
+  divisor integer NOT NULL,
+  document jsonb,
+  path jsonpath,
+  expected_present boolean,
+  expected_exists boolean,
+  expected_max integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT default_history_result CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN jsonb_path_exists(document,path) THEN 1/divisor ELSE NULL::integer END)::historical_default_result IS NOT NULL)=expected_present END),
+  CONSTRAINT default_history_named CHECK (CASE WHEN bypass THEN true ELSE
+    jsonb_path_exists(path=>path,target=>to_jsonb(GREATEST(score,divisor))) IS NOT DISTINCT FROM expected_exists END),
+  CONSTRAINT default_history_mutation CHECK (CASE WHEN bypass THEN true ELSE
+    (jsonb_set('{}'::jsonb,ARRAY['max'],to_jsonb(GREATEST(score,divisor)))->>'max')::integer IS NOT DISTINCT FROM expected_max END)
+);
+ALTER TYPE historical_default_result DROP ATTRIBUTE obsolete_result;

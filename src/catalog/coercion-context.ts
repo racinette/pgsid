@@ -101,6 +101,7 @@ function captureExpressionCoercions(
   const rowConstructors: NonNullable<StoredRowCoercionContext['constructors']> = []
   const scalarRoots = new Map<string, Tree>()
   const scalarSites = new Set<string>()
+  const calls: NonNullable<StoredRowCoercionContext['calls']> = []
   const domainSites = new Set<string>()
   let omittedComplete = true
   let complete = true
@@ -148,6 +149,31 @@ function captureExpressionCoercions(
       if (!node) return
       if (site !== undefined && !scalarRoots.has(site)) scalarRoots.set(site, node)
       if (site !== undefined && node.kind === 'COERCETODOMAIN') domainSites.add(site)
+      if (site !== undefined && node.kind === 'FUNCEXPR') {
+        const callable = rowExpressions?.functions.get(Number(scalar(node, 'funcid'))),
+          args = node.fields['args']?.[0],
+          values = Array.isArray(args) ? args : []
+        if (
+          callable &&
+          rowExpressions?.types.get(Number(scalar(node, 'funcresulttype'))) === callable.result &&
+          (values.length < callable.args.length ||
+            values.some((v) => tree(v)?.kind === 'NAMEDARGEXPR'))
+        ) {
+          const supplied = new Map<Value, unknown>()
+          for (const [index, value] of values.entries()) {
+            const named = tree(value),
+              arg = named?.kind === 'NAMEDARGEXPR' ? named.fields['arg']?.[0] : value
+            if (arg !== undefined)
+              supplied.set(
+                arg,
+                storedRowExpression(arg, rowExpressions!) ?? { PgsidStoredArgument: { index } },
+              )
+          }
+          const expression = storedRowExpression(node, { ...rowExpressions!, arguments: supplied })
+          if (expression === undefined) omittedComplete = false
+          else calls.push({ site, expression })
+        }
+      }
       if (
         node.kind === 'CONST' &&
         site?.includes('/row/') &&
@@ -605,13 +631,19 @@ function captureExpressionCoercions(
     ...(arrayCandidate
       ? { arrayStorage: { definition, complete, constants: arrayConstants } }
       : {}),
-    ...(casts.length || rowConstructors.length || scalars.length || !complete || !omittedComplete
+    ...(casts.length ||
+    rowConstructors.length ||
+    scalars.length ||
+    calls.length ||
+    !complete ||
+    !omittedComplete
       ? {
           row: {
             definition,
             complete: complete && omittedComplete,
             casts,
             ...(scalars.length ? { scalars } : {}),
+            ...(calls.length ? { calls } : {}),
             ...(rowConstructors.length ? { constructors: rowConstructors } : {}),
           },
         }

@@ -153,6 +153,7 @@ export interface StoredRowCoercionContext {
   definition: string
   complete: boolean
   scalars?: { site: string; expression: unknown }[]
+  calls?: { site: string; expression: unknown }[]
   constructors?: {
     site: string
     type: string
