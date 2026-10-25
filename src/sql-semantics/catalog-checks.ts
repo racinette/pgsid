@@ -1,3 +1,8 @@
+import {
+  isExpandedRowComparison,
+  alignExpandedBooleanArguments,
+  type ExpandedBooleanPair,
+} from './row-comparison-sites.js'
 import { restoreStoredTsqueryConstants } from './tsquery-constant-sites.js'
 import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import { parseSync, type Node } from 'libpg-query'
@@ -14,6 +19,7 @@ import { bindCatalogCheck, type CheckColumn, type RowFieldBinding } from './cata
 import {
   alignStoredRowCoercions,
   alignStoredRowConstructors,
+  alignStoredRowScalars,
   type RowCoercionSites,
   type RowConstructorBindings,
   type RowConstructorBinding,
@@ -73,10 +79,18 @@ const names = (value: unknown): string[] | null => {
 function alignRowFieldBindings(
   source: unknown,
   stored: unknown,
-  align?: (source: unknown, stored: unknown) => void,
+  align?: (
+    source: unknown,
+    stored: unknown,
+    selection?: ExpandedBooleanPair['selection'],
+  ) => boolean | void,
 ): Map<unknown, RowFieldBinding> {
   const result = new Map<unknown, RowFieldBinding>()
-  const visit = (source: unknown, stored: unknown): void => {
+  const visit = (
+    source: unknown,
+    stored: unknown,
+    selection?: ExpandedBooleanPair['selection'],
+  ): void => {
     if (Array.isArray(source) && Array.isArray(stored)) {
       if (source.length === stored.length) source.forEach((n, i) => visit(n, stored[i]))
       return
@@ -84,7 +98,12 @@ function alignRowFieldBindings(
     const a = fields(source),
       b = fields(stored)
     if (!a || !b) return
-    align?.(source, stored)
+    if (align?.(source, stored, selection)) return
+    const booleanArguments = alignExpandedBooleanArguments(source, stored)
+    if (booleanArguments) {
+      for (const pair of booleanArguments) visit(pair.source, pair.stored, pair.selection)
+      return
+    }
     const operator = fields(a['A_Expr']),
       negation = fields(b['BoolExpr']),
       args = negation?.['args']
@@ -275,10 +294,16 @@ export function lowerTableCheck(
 ): CatalogCheckPlan | null {
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let check: Fields | null
-  let rowFieldBindings: ReadonlyMap<unknown, RowFieldBinding> | undefined
+  let rowFieldBindings: Map<unknown, RowFieldBinding> | undefined
   let rowCoercionSites: RowCoercionSites | undefined
   let rowConstructorBindings: RowConstructorBindings | undefined
   const xmlConstantBindings = new Map<unknown, string | null>()
+  let storedCheck: Fields | null = null
+  let storedSites: RowCoercionSites | undefined
+  let storedConstructors: RowConstructorBindings | undefined
+  const storedScalarBindings = new Map<unknown, RowFieldBinding>()
+  let storedXmlConstants: ReadonlyMap<unknown, string | null> | undefined
+  const nativeComparisons = new Map<unknown, { nodes: unknown[]; operation?: 'and' | 'or' }>()
   try {
     check = parseCheck(sourceDefinition ?? constraint.definition)
     if (
@@ -304,11 +329,31 @@ export function lowerTableCheck(
     }
     const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),
       context = constraint.rowCoercionContext
+    storedCheck = stored
+    if (stored && stored !== check) {
+      restoreStoredArrayConstants(
+        stored['raw_expr'],
+        constraint.definition,
+        constraint.arrayConstants,
+      )
+      restoreStoredXmlNames(stored['raw_expr'], constraint.definition, constraint.xmlConstants)
+      restoreStoredTsvectorConstants(
+        stored['raw_expr'],
+        constraint.definition,
+        constraint.tsvectorConstants,
+      )
+      restoreStoredTsqueryConstants(
+        stored['raw_expr'],
+        constraint.definition,
+        constraint.tsqueryConstants,
+      )
+    }
     const capturedXml = alignStoredXmlConstants(
       stored?.['raw_expr'],
       constraint.definition,
       constraint.xmlConstants,
     )
+    storedXmlConstants = capturedXml
     if (sourceDefinition === undefined || literalOrigin === 'stored')
       for (const [node, text] of capturedXml) xmlConstantBindings.set(node, text)
     const sites =
@@ -319,13 +364,28 @@ export function lowerTableCheck(
       context?.definition === constraint.definition
         ? alignStoredRowConstructors(stored?.['raw_expr'], context)
         : undefined
+    if (context?.definition === constraint.definition)
+      for (const [node, expression] of alignStoredRowScalars(stored?.['raw_expr'], context))
+        storedScalarBindings.set(node, { kind: 'scalar', expression })
+    storedSites = sites
+    storedConstructors = constructors
     if (sourceDefinition !== undefined && literalOrigin === 'source') {
+      const sourceScalarBindings = new Map<unknown, RowFieldBinding>()
       const sourceConstructors = new Map<unknown, RowConstructorBinding>()
       const aligned = new Map<unknown, readonly NonNullable<typeof context>['casts'][number][]>()
       rowFieldBindings = alignRowFieldBindings(
         check?.['raw_expr'],
         stored?.['raw_expr'],
-        (source, stored) => {
+        (source, stored, selection) => {
+          const scalar = storedScalarBindings.get(stored)
+          if (scalar) {
+            sourceScalarBindings.set(source, scalar)
+            return true
+          }
+          if (isExpandedRowComparison(source, stored)) {
+            nativeComparisons.set(source, selection ?? { nodes: [stored] })
+            return true
+          }
           if (capturedXml.has(stored)) xmlConstantBindings.set(source, capturedXml.get(stored)!)
           const storedRow = fields(fields(stored)?.['RowExpr']),
             sourceRow = fields(fields(source)?.['RowExpr']),
@@ -339,9 +399,11 @@ export function lowerTableCheck(
           if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])
         },
       )
+      for (const [node, scalar] of sourceScalarBindings) rowFieldBindings.set(node, scalar)
       rowCoercionSites = aligned
       rowConstructorBindings = sourceConstructors
     } else {
+      rowFieldBindings = storedScalarBindings
       rowCoercionSites = sites
       rowConstructorBindings = constructors
     }
@@ -349,44 +411,104 @@ export function lowerTableCheck(
     return { name: constraint.name, expression: { kind: 'uncertain' }, inputs: [] }
   }
   if (check?.['contype'] !== 'CONSTR_CHECK') return null
-  const bound = bindCatalogCheck(
-    table.columns,
-    check['raw_expr'] as Node | undefined,
-    [],
-    enums,
-    domains,
-    constraint.moneyLiterals,
+  const bindPlan = (
+    root: unknown,
+    origin: 'source' | 'stored',
+    bindings: ReadonlyMap<unknown, RowFieldBinding> | undefined,
+    sites: RowCoercionSites | undefined,
+    constructors: RowConstructorBindings | undefined,
+    captured?: Map<
+      unknown,
+      { expression: EvalBoolExpression; inputs: readonly string[] } | undefined
+    >,
+  ) =>
+    bindCatalogCheck(
+      table.columns,
+      root as Node | undefined,
+      [],
+      enums,
+      domains,
+      constraint.moneyLiterals,
+      origin,
+      undefined,
+      undefined,
+      constraint.coercionContext?.definition === constraint.definition
+        ? constraint.coercionContext
+        : undefined,
+      undefined,
+      rangeTypes,
+      compositeGraph,
+      table.schema && table.name ? { schema: table.schema, name: table.name } : undefined,
+      bindings,
+      constraint.rowCoercionContext?.definition === constraint.definition
+        ? constraint.rowCoercionContext
+        : undefined,
+      sites,
+      constraint.arrayConstructorContext?.definition === constraint.definition
+        ? alignStoredArrayConstructors(
+            root,
+            origin === 'stored'
+              ? constraint.arrayConstructorContext
+              : {
+                  ...constraint.arrayConstructorContext,
+                  constructors: constraint.arrayConstructorContext.constructors.filter(
+                    (c) => c.type === 'pg_catalog._record',
+                  ),
+                },
+            compositeGraph,
+            rangeTypes,
+          )
+        : undefined,
+      origin === 'stored' ? storedXmlConstants : xmlConstantBindings,
+      constructors,
+      captured,
+    )
+  if (nativeComparisons.size && storedCheck) {
+    const captured = new Map<
+      unknown,
+      { expression: EvalBoolExpression; inputs: readonly string[] } | undefined
+    >(
+      [...nativeComparisons.values()].flatMap(({ nodes }) =>
+        nodes.map((node) => [node, undefined] as const),
+      ),
+    )
+    if (
+      constraint.rowCoercionContext?.definition === constraint.definition &&
+      constraint.rowCoercionContext.scalars !== undefined
+    )
+      bindPlan(
+        storedCheck['raw_expr'],
+        'stored',
+        storedScalarBindings,
+        storedSites,
+        storedConstructors,
+        captured,
+      )
+    for (const [source, { nodes, operation }] of nativeComparisons) {
+      const parts = nodes.map(
+          (node) =>
+            captured.get(node) ?? {
+              expression: { kind: 'uncertain' } as EvalBoolExpression,
+              inputs: [],
+            },
+        ),
+        expression = parts.slice(1).reduce<EvalBoolExpression>(
+          (left, right) => ({
+            kind: 'eval-boolean-logic',
+            operation: operation!,
+            operands: [left, right.expression],
+          }),
+          parts[0]!.expression,
+        ),
+        inputs = [...new Set(parts.flatMap((part) => part.inputs))].sort()
+      rowFieldBindings!.set(source, { kind: 'expression', expression, inputs })
+    }
+  }
+  const bound = bindPlan(
+    check['raw_expr'],
     literalOrigin,
-    undefined,
-    undefined,
-    constraint.coercionContext?.definition === constraint.definition
-      ? constraint.coercionContext
-      : undefined,
-    undefined,
-    rangeTypes,
-    compositeGraph,
-    table.schema && table.name ? { schema: table.schema, name: table.name } : undefined,
     rowFieldBindings,
-    constraint.rowCoercionContext?.definition === constraint.definition
-      ? constraint.rowCoercionContext
-      : undefined,
     rowCoercionSites,
-    constraint.arrayConstructorContext?.definition === constraint.definition
-      ? alignStoredArrayConstructors(
-          check['raw_expr'],
-          literalOrigin === 'stored'
-            ? constraint.arrayConstructorContext
-            : {
-                ...constraint.arrayConstructorContext,
-                constructors: constraint.arrayConstructorContext.constructors.filter(
-                  (c) => c.type === 'pg_catalog._record',
-                ),
-              },
-          compositeGraph,
-          rangeTypes,
-        )
-      : undefined,
-    xmlConstantBindings,
     rowConstructorBindings,
   )
   return { name: constraint.name, ...bound }

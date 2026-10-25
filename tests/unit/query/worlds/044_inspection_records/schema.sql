@@ -423,3 +423,24 @@ CREATE TABLE inspection_historical_captions (
     to_jsonb(ROW(score, label::int4)::historical_caption) = expected_document END)
 );
 ALTER TYPE historical_caption DROP ATTRIBUTE obsolete_caption;
+
+CREATE TYPE historical_comparison_reading AS (score integer, obsolete_ratio integer, label varchar(2) COLLATE "C");
+CREATE TABLE inspection_comparison_history (
+  score integer,
+  alternate_score integer,
+  denominator integer,
+  label text COLLATE "C",
+  reference_label text COLLATE "C",
+  expected_distinct boolean,
+  expected_member boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT comparison_difference CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,score/denominator,label)::historical_comparison_reading IS DISTINCT FROM
+      ROW(alternate_score,alternate_score/denominator,reference_label)::historical_comparison_reading) = expected_distinct END),
+  CONSTRAINT comparison_membership CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,score/denominator,label)::historical_comparison_reading IN
+      (ROW(alternate_score,alternate_score/denominator,reference_label)::historical_comparison_reading,
+       ROW(0,1,'ab')::historical_comparison_reading)) = expected_member END)
+);
+ALTER TYPE historical_comparison_reading DROP ATTRIBUTE obsolete_ratio;
+DROP TYPE historical_comparison_reading;

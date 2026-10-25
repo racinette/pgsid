@@ -26,6 +26,23 @@ export function alignStoredRowConstructors(
   return result
 }
 
+export function alignStoredRowScalars(
+  root: unknown,
+  context: StoredRowCoercionContext,
+): ReadonlyMap<unknown, unknown> {
+  const result = new Map<unknown, unknown>(),
+    seen = new Set<string>()
+  if (!context.complete) return result
+  walkStoredExpression(root, (node, site) => {
+    if (seen.has(site)) return
+    seen.add(site)
+    const selected = context.scalars?.filter((s) => s.site === site) ?? []
+    if (selected.length)
+      result.set(node, selected.length === 1 ? selected[0]!.expression : undefined)
+  })
+  return result
+}
+
 export function alignStoredRowCoercions(
   root: unknown,
   context: StoredRowCoercionContext,
@@ -171,7 +188,22 @@ export function walkStoredExpression(
           Array.isArray(args) && args.length === 1 ? fields(fields(args[0])?.['A_Expr']) : null
       if (boolean['boolop'] === 'NOT_EXPR' && negated?.['kind'] === 'AEXPR_DISTINCT')
         visit((args as unknown[])[0], site)
-      else list(args, 'boolean/' + String(boolean['boolop']).replace('_EXPR', '').toLowerCase())
+      else {
+        const flatten = (values: unknown[]): unknown[] =>
+          values.flatMap((value) => {
+            const child = fields(fields(value)?.['BoolExpr']),
+              nested = child?.['args']
+            return ['AND_EXPR', 'OR_EXPR'].includes(String(boolean['boolop'])) &&
+              child?.['boolop'] === boolean['boolop'] &&
+              Array.isArray(nested)
+              ? flatten(nested)
+              : [value]
+          })
+        list(
+          Array.isArray(args) ? flatten(args) : args,
+          'boolean/' + String(boolean['boolop']).replace('_EXPR', '').toLowerCase(),
+        )
+      }
       return
     }
     const choice = fields(wrapper['CaseExpr'])
