@@ -63,10 +63,6 @@ fn json_read_hex(character: char) -> i32 {
     code - 87
 }
 
-fn json_read_decode_string(source: &JsonSyntaxSource, token: JsonReadToken) -> TextValue {
-    json_read_decode_string_context(source, token, false)
-}
-
 fn json_read_decode_string_context(
     source: &JsonSyntaxSource,
     token: JsonReadToken,
@@ -203,7 +199,7 @@ fn json_read_array_count(source: &JsonSyntaxSource) -> i64 {
     count
 }
 
-fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: bool) -> TextValue {
+fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: bool, utf8: bool) -> TextValue {
     let source = JsonSyntaxSource {
         characters: value.chars().collect(),
     };
@@ -233,7 +229,7 @@ fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: b
         };
         let mut decoded = TextValue::Null;
         if token.kind == JSON_READ_QUOTE {
-            decoded = json_read_decode_string(&source, token);
+            decoded = json_read_decode_string_context(&source, token, utf8);
             if let TextValue::Error(error) = decoded {
                 return TextValue::Error(error);
             };
@@ -298,6 +294,10 @@ fn json_read_select(value: &str, key: &str, index: i32, object: bool, as_text: b
 }
 
 pub fn json_read_field(input: JsonValue, key: TextValue, as_text: bool) -> TextValue {
+    json_read_field_context(input,key,as_text,false)
+}
+
+pub fn json_read_field_context(input: JsonValue, key: TextValue, as_text: bool, utf8: bool) -> TextValue {
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -318,13 +318,17 @@ pub fn json_read_field(input: JsonValue, key: TextValue, as_text: bool) -> TextV
     };
     if let JsonValue::Value(value) = input {
         if let TextValue::Value(name) = key {
-            return json_read_select(value.source.as_str(), name.as_str(), 0, true, as_text);
+            return json_read_select(value.source.as_str(), name.as_str(), 0, true, as_text,utf8);
         };
     };
     TextValue::Unknown
 }
 
 pub fn json_read_element(input: JsonValue, index: Int4Value, as_text: bool) -> TextValue {
+    json_read_element_context(input,index,as_text,false)
+}
+
+pub fn json_read_element_context(input: JsonValue, index: Int4Value, as_text: bool, utf8: bool) -> TextValue {
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -345,7 +349,7 @@ pub fn json_read_element(input: JsonValue, index: Int4Value, as_text: bool) -> T
     };
     if let JsonValue::Value(value) = input {
         if let Int4Value::Value(number) = index {
-            return json_read_select(value.source.as_str(), "", number, false, as_text);
+            return json_read_select(value.source.as_str(), "", number, false, as_text,utf8);
         };
     };
     TextValue::Unknown

@@ -45,7 +45,7 @@ import {
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
 import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
-import { jsonbTextRenderingContext } from './check-jsonb-context.js'
+import { jsonbTextRenderingContext, jsonScalarExtractionContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
   rustArrayCastAlwaysValid,
@@ -2856,6 +2856,8 @@ export function emitCheckRustEvaluator(
       const xmlCast =
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
+      const jsonSend = call.signature === builtinTypeIO('pg_catalog."json"')?.send
+      const jsonbSend = call.signature === builtinTypeIO('pg_catalog.jsonb')?.send
       const tsvectorSend = call.signature === builtinTypeIO('pg_catalog.tsvector')?.send
       const tsquerySend = call.signature === builtinTypeIO('pg_catalog.tsquery')?.send
       const tsqueryComparison =
@@ -5104,12 +5106,20 @@ export function emitCheckRustEvaluator(
             'jsonb_path_query_first',
           ].includes(implementation.name))
       const characterContext = characterEncodingContext(implementation)
+      const jsonExtraction = jsonScalarExtractionContext(implementation)
       const callable = characterContext
         ? characterContext + '_context'
-        : jsonpathExecution
-          ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
-          : implementation.rustName
+        : jsonSend
+          ? 'json_send_context'
+          : jsonbSend
+            ? 'jsonb_send_context'
+            : jsonExtraction
+              ? implementation.name + '_context'
+              : jsonpathExecution
+                ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+                : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (jsonExtraction) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (circlePolygonTrigonometry(implementation))
         arguments_.push(String(executionContext.trigonometry === 'fdlibm'))
       if (jsonbTextRenderingContext(implementation))
@@ -5150,6 +5160,8 @@ export function emitCheckRustEvaluator(
         )
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (jsonbSend) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (jsonSend || jsonbSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (tsqueryComparison || tsqueryRewrite)
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (tsvectorSend || tsquerySend)

@@ -16557,8 +16557,20 @@ func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func JsonSendWrp3(input checkruntime.JsonValue) checkruntime.ByteaValue {
+	return JsonSendContext(input, false)
+}
+func jsonWireBytes(input checkruntime.TextValue, clientUtf8 bool) checkruntime.ByteaValue {
+	if clientUtf8 {
+		if input.Kind == checkruntime.TextValueValue {
+			value := langruntime.CheckedString(input.Value)
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: textBinaryHex(value, false)}
+		}
+	}
+	return TextsendMgfj(input)
+}
+func JsonSendContext(input checkruntime.JsonValue, clientUtf8 bool) checkruntime.ByteaValue {
 	text := JsonToText(input)
-	return TextsendMgfj(text)
+	return jsonWireBytes(text, clientUtf8)
 }
 
 const jsonInvalidText = 3484946
@@ -16597,6 +16609,18 @@ func JsonArrayElementTextT2sr(input checkruntime.JsonValue, index checkruntime.I
 }
 func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
 	return checkruntime.JsonReadLength(input)
+}
+func JsonObjectFieldContext(input checkruntime.JsonValue, key checkruntime.TextValue, utf8 bool) checkruntime.JsonValue {
+	return checkruntime.JsonFromCoercedText(checkruntime.JsonReadFieldContext(input, key, false, utf8))
+}
+func JsonObjectFieldTextContext(input checkruntime.JsonValue, key checkruntime.TextValue, utf8 bool) checkruntime.TextValue {
+	return checkruntime.JsonReadFieldContext(input, key, true, utf8)
+}
+func JsonArrayElementContext(input checkruntime.JsonValue, index checkruntime.Int4Value, utf8 bool) checkruntime.JsonValue {
+	return checkruntime.JsonFromCoercedText(checkruntime.JsonReadElementContext(input, index, false, utf8))
+}
+func JsonArrayElementTextContext(input checkruntime.JsonValue, index checkruntime.Int4Value, utf8 bool) checkruntime.TextValue {
+	return checkruntime.JsonReadElementContext(input, index, true, utf8)
 }
 func JsonStripNullsZ8vm(input checkruntime.JsonValue, arrays checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
 	return checkruntime.JsonStripNullsContext(input, arrays, utf8)
@@ -17644,8 +17668,12 @@ func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 }
 func JsonbSend8nmo(input checkruntime.JsonbValue) checkruntime.ByteaValue {
 	input = checkruntime.CopyJsonbValue(input)
-	text := checkruntime.JsonbToText(input)
-	bytes := TextsendMgfj(text)
+	return JsonbSendContext(input, false, false)
+}
+func JsonbSendContext(input checkruntime.JsonbValue, serverUtf8 bool, clientUtf8 bool) checkruntime.ByteaValue {
+	input = checkruntime.CopyJsonbValue(input)
+	text := JsonbTextContext(input, serverUtf8)
+	bytes := jsonWireBytes(text, clientUtf8)
 	if bytes.Kind == checkruntime.ByteaValueValue {
 		value := langruntime.CheckedString(bytes.Value)
 		output := langruntime.NewTextBuffer("01")

@@ -5227,10 +5227,6 @@ function jsonReadHex(character: string): number {
     }
     return langruntime.checkedSignedSubtract(code, 87);
 }
-function jsonReadDecodeString(source: JsonSyntaxSource, token: JsonReadToken): TextValue {
-    token = copyJsonReadToken(token);
-    return jsonReadDecodeStringContext(source, token, false);
-}
 function jsonReadDecodeStringContext(source: JsonSyntaxSource, token: JsonReadToken, utf8: boolean): TextValue {
     token = copyJsonReadToken(token);
     utf8 = langruntime.checkedBool(utf8);
@@ -5367,12 +5363,13 @@ function jsonReadArrayCount(source: JsonSyntaxSource): bigint {
     }
     return count;
 }
-function jsonReadSelect(value: string, key: string, index: number, object: boolean, asText: boolean): TextValue {
+function jsonReadSelect(value: string, key: string, index: number, object: boolean, asText: boolean, utf8: boolean): TextValue {
     value = langruntime.checkedString(value);
     key = langruntime.checkedString(key);
     index = langruntime.checkedI32(index);
     object = langruntime.checkedBool(object);
     asText = langruntime.checkedBool(asText);
+    utf8 = langruntime.checkedBool(utf8);
     const source: JsonSyntaxSource = { characters: Array.from(value) };
     const root: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, 0));
     const rootObject: boolean = root.kind === jsonReadObjectOpen;
@@ -5400,7 +5397,7 @@ function jsonReadSelect(value: string, key: string, index: number, object: boole
         }
         let decoded: TextValue = { kind: "Null" };
         if (token.kind === jsonReadQuote) {
-            decoded = jsonReadDecodeString(source, token);
+            decoded = jsonReadDecodeStringContext(source, token, utf8);
             if (decoded.kind === "Error") {
                 const error: SqlError = decoded.value;
                 return { kind: "Error", value: error };
@@ -5465,6 +5462,11 @@ function jsonReadSelect(value: string, key: string, index: number, object: boole
 }
 export function jsonReadField(input: JsonValue, key: TextValue, asText: boolean): TextValue {
     asText = langruntime.checkedBool(asText);
+    return jsonReadFieldContext(input, key, asText, false);
+}
+export function jsonReadFieldContext(input: JsonValue, key: TextValue, asText: boolean, utf8: boolean): TextValue {
+    asText = langruntime.checkedBool(asText);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5489,13 +5491,18 @@ export function jsonReadField(input: JsonValue, key: TextValue, asText: boolean)
         const value: JsonPayload = input.value;
         if (key.kind === "Value") {
             const name: string = langruntime.checkedString(key.value);
-            return jsonReadSelect(value.source, name, 0, true, asText);
+            return jsonReadSelect(value.source, name, 0, true, asText, utf8);
         }
     }
     return { kind: "Unknown" };
 }
 export function jsonReadElement(input: JsonValue, index: Int4Value, asText: boolean): TextValue {
     asText = langruntime.checkedBool(asText);
+    return jsonReadElementContext(input, index, asText, false);
+}
+export function jsonReadElementContext(input: JsonValue, index: Int4Value, asText: boolean, utf8: boolean): TextValue {
+    asText = langruntime.checkedBool(asText);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5520,7 +5527,7 @@ export function jsonReadElement(input: JsonValue, index: Int4Value, asText: bool
         const value: JsonPayload = input.value;
         if (index.kind === "Value") {
             const number: number = langruntime.checkedI32(index.value);
-            return jsonReadSelect(value.source, "", number, false, asText);
+            return jsonReadSelect(value.source, "", number, false, asText, utf8);
         }
     }
     return { kind: "Unknown" };

@@ -25,8 +25,21 @@ pub fn json_to_text(input: JsonValue) -> TextValue {
 }
 
 pub fn sql__pg_catalog__json_send__wrp3(input: JsonValue) -> ByteaValue {
+    json_send_context(input,false)
+}
+
+fn json_wire_bytes(input: TextValue, client_utf8: bool) -> ByteaValue {
+    if client_utf8 {
+        if let TextValue::Value(value) = input {
+            return ByteaValue::Value(text_binary_hex(value.as_str(),false));
+        };
+    };
+    sql__pg_catalog__textsend__mgfj(input)
+}
+
+pub fn json_send_context(input: JsonValue, client_utf8: bool) -> ByteaValue {
     let text = json_to_text(input);
-    sql__pg_catalog__textsend__mgfj(text)
+    json_wire_bytes(text,client_utf8)
 }
 const JSON_INVALID_TEXT: u32 = 3484946;
 
