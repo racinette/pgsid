@@ -248,6 +248,16 @@ export function characterValueRequirements(item: BuiltinCallable) {
 export function textSearchValueRequirements(item: BuiltinCallable) {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
   const owner = 'tests/sql-semantics/check-text-search-boundaries.test.ts'
+  if (['tsvectorsend', 'tsquerysend'].includes(item.name))
+    return [
+      {
+        kind: 'session',
+        setting: 'client_encoding',
+        requirement:
+          'Full-text binary output encodes lexeme operands for the client. ASCII bytes, strict NULLs and incoming errors remain available without an encoding declaration; non-ASCII bytes require the selected client encoding.',
+        owner,
+      },
+    ]
   if (
     item.name === 'ts_stat' ||
     (item.name === 'ts_rewrite' && item.args.join(',') === 'pg_catalog.tsquery,pg_catalog.text')

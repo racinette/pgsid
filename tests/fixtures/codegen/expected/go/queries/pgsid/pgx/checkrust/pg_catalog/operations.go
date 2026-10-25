@@ -45678,6 +45678,560 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 
+const tsquerySyntaxError = 6819553
+const tsqueryProgramLimit = 8584704
+const tsqueryInvalidParameter = 3452619
+const tsqueryStackError = 56966976
+
+type tsqueryOperator struct {
+	kind     int
+	distance int
+}
+
+func copytsqueryOperator(value tsqueryOperator) tsqueryOperator {
+	return tsqueryOperator{kind: langruntime.CheckedI32(value.kind), distance: langruntime.CheckedI32(value.distance)}
+}
+
+type tsqueryBuild struct {
+	nodes []checkruntime.TsqueryNode
+	roots []int
+	depth int
+	valid bool
+}
+
+func copytsqueryBuild(value tsqueryBuild) tsqueryBuild {
+	return tsqueryBuild{nodes: langruntime.CheckedStructs(value.nodes, checkruntime.CopyTsqueryNode), roots: langruntime.CheckedIndices(value.roots), depth: langruntime.CheckedIndex(value.depth), valid: value.valid}
+}
+
+type tsqueryText struct {
+	chars []rune
+}
+
+func copytsqueryText(value tsqueryText) tsqueryText {
+	return tsqueryText{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type tsqueryToken struct {
+	text   string
+	end    int
+	weight int
+	prefix bool
+	state  int
+}
+
+func copytsqueryToken(value tsqueryToken) tsqueryToken {
+	return tsqueryToken{text: langruntime.CheckedString(value.text), end: langruntime.CheckedIndex(value.end), weight: langruntime.CheckedI32(value.weight), prefix: value.prefix, state: langruntime.CheckedI32(value.state)}
+}
+func tsqueryPriority(kind int) int {
+	kind = langruntime.CheckedI32(kind)
+	if kind == 1 {
+		return 4
+	}
+	if kind == 2 {
+		return 2
+	}
+	if kind == 3 {
+		return 1
+	}
+	if kind == 4 {
+		return 3
+	}
+	return 0
+}
+func tsqueryDelimiter(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return value == '!' || value == '&' || value == '|' || value == '(' || value == ')' || value == '<'
+}
+func tsqueryReadToken(input *tsqueryText, start int, utf8 bool) tsqueryToken {
+	start = langruntime.CheckedIndex(start)
+	index := start
+	text := langruntime.NewTextBuffer("")
+	state := 0
+	quoted := input.chars[index] == '\''
+	if quoted {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	closed := false
+	for index < len(input.chars) {
+		value := input.chars[index]
+		if value == '\\' {
+			index = langruntime.CheckedAdd(index, 1)
+			if index == len(input.chars) {
+				state = langruntime.CheckedI32(1)
+				break
+			}
+			escaped := input.chars[index]
+			if escaped == '\x00' || (utf8 == false && (int(langruntime.CheckedChar(escaped))) > 127) {
+				state = langruntime.CheckedI32(2)
+				break
+			}
+			text = append(text, string(langruntime.CheckedChar(escaped))...)
+			index = langruntime.CheckedAdd(index, 1)
+		} else if quoted && value == '\'' {
+			if langruntime.CheckedAdd(index, 1) < len(input.chars) && input.chars[langruntime.CheckedAdd(index, 1)] == '\'' {
+				text = append(text, string(langruntime.CheckedChar('\''))...)
+				index = langruntime.CheckedAdd(index, 2)
+			} else {
+				closed = true
+				index = langruntime.CheckedAdd(index, 1)
+				break
+			}
+		} else if quoted == false && (checkruntime.NumericSpace(value) || tsqueryDelimiter(value) || value == ':') {
+			break
+		} else {
+			if value == '\x00' || (utf8 == false && (int(langruntime.CheckedChar(value))) > 127) {
+				state = langruntime.CheckedI32(2)
+				break
+			}
+			text = append(text, string(langruntime.CheckedChar(value))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if state == 0 && ((quoted && closed == false) || string(text) == "") {
+		state = langruntime.CheckedI32(1)
+	}
+	weight := 0
+	prefix := false
+	if state == 0 && index < len(input.chars) && input.chars[index] == ':' {
+		index = langruntime.CheckedAdd(index, 1)
+		for index < len(input.chars) {
+			modifier := input.chars[index]
+			if modifier == 'A' || modifier == 'a' {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(weight, 8), 2) == 0 {
+					weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 8))
+				}
+			} else if modifier == 'B' || modifier == 'b' {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(weight, 4), 2) == 0 {
+					weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 4))
+				}
+			} else if modifier == 'C' || modifier == 'c' {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(weight, 2), 2) == 0 {
+					weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 2))
+				}
+			} else if modifier == 'D' || modifier == 'd' {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(weight, 1), 2) == 0 {
+					weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 1))
+				}
+			} else if modifier == '*' {
+				prefix = true
+			} else {
+				break
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if state == 0 && checkruntime.TsvectorLexemeBytes(string(text)) >= 2047 {
+		state = langruntime.CheckedI32(3)
+	}
+	return tsqueryToken{text: string(text), end: index, weight: weight, prefix: prefix, state: state}
+}
+func tsqueryReduce(input tsqueryBuild, operator tsqueryOperator) tsqueryBuild {
+	input = copytsqueryBuild(input)
+	operator = copytsqueryOperator(operator)
+	nodes := input.nodes
+	roots := input.roots
+	depth := input.depth
+	arity := 2
+	if operator.kind == 1 {
+		arity = langruntime.CheckedIndex(1)
+	}
+	if depth < arity {
+		return tsqueryBuild{nodes: nodes, roots: roots, depth: depth, valid: false}
+	}
+	left := roots[langruntime.CheckedSubtract(depth, arity)]
+	right := 0
+	if arity == 2 {
+		right = langruntime.CheckedIndex(roots[langruntime.CheckedSubtract(depth, 1)])
+	}
+	depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, arity))
+	root := len(nodes)
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, checkruntime.TsqueryNode{Kind: operator.kind, Text: "", Weight: 0, Prefix: false, Distance: operator.distance, Left: left, Right: right})
+	roots[depth] = langruntime.CheckedIndex(root)
+	depth = langruntime.CheckedAdd(depth, 1)
+	return tsqueryBuild{nodes: nodes, roots: roots, depth: depth, valid: input.valid}
+}
+func TsqueryFromTextContext(input checkruntime.TextValue, utf8 bool) checkruntime.TsqueryValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		source := langruntime.CheckedString(input.Value)
+		chars := []rune(source)
+		text := tsqueryText{chars: chars}
+		nodes := []checkruntime.TsqueryNode{}
+		roots := []int{}
+		build := tsqueryBuild{nodes: nodes, roots: roots, depth: 0, valid: true}
+		operators := []tsqueryOperator{}
+		floors := []int{}
+		operatorDepth := 0
+		parenDepth := 0
+		floor := 0
+		index := 0
+		pool := 0
+		operand := true
+		for index < len(text.chars) {
+			value := text.chars[index]
+			if checkruntime.NumericSpace(value) {
+				index = langruntime.CheckedAdd(index, 1)
+			} else if operand && value == '(' {
+				if parenDepth < len(floors) {
+					floors[parenDepth] = langruntime.CheckedIndex(floor)
+				} else {
+					langruntime.CheckedAdd(len(floors), 1)
+					floors = append(floors, langruntime.CheckedIndex(floor))
+				}
+				parenDepth = langruntime.CheckedAdd(parenDepth, 1)
+				floor = langruntime.CheckedIndex(operatorDepth)
+				index = langruntime.CheckedAdd(index, 1)
+			} else if operand && value != '!' {
+				if value == ':' || tsqueryDelimiter(value) {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+				}
+				token := tsqueryReadToken(&text, index, utf8)
+				if token.state == 1 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+				}
+				if token.state == 2 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+				}
+				if token.state == 3 || pool >= 1048575 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+				}
+				pool = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pool, checkruntime.TsvectorLexemeBytes(token.text)), 1))
+				index = langruntime.CheckedIndex(token.end)
+				savedNodes := build.nodes
+				savedRoots := build.roots
+				root := len(savedNodes)
+				langruntime.CheckedAdd(len(savedNodes), 1)
+				savedNodes = append(savedNodes, checkruntime.TsqueryNode{Kind: 0, Text: token.text, Weight: token.weight, Prefix: token.prefix, Distance: 0, Left: 0, Right: 0})
+				if build.depth < len(savedRoots) {
+					savedRoots[build.depth] = langruntime.CheckedIndex(root)
+				} else {
+					langruntime.CheckedAdd(len(savedRoots), 1)
+					savedRoots = append(savedRoots, langruntime.CheckedIndex(root))
+				}
+				build = copytsqueryBuild(tsqueryBuild{nodes: savedNodes, roots: savedRoots, depth: langruntime.CheckedAdd(build.depth, 1), valid: build.valid})
+				operand = false
+			} else if operand == false && value == ')' {
+				if parenDepth == 0 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+				}
+				for operatorDepth > floor {
+					operatorDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(operatorDepth, 1))
+					build = copytsqueryBuild(tsqueryReduce(build, operators[operatorDepth]))
+				}
+				parenDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(parenDepth, 1))
+				floor = langruntime.CheckedIndex(floors[parenDepth])
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				kind := 0
+				distance := 0
+				if operand && value == '!' {
+					kind = langruntime.CheckedI32(1)
+					index = langruntime.CheckedAdd(index, 1)
+				} else if operand == false && value == '&' {
+					kind = langruntime.CheckedI32(2)
+					index = langruntime.CheckedAdd(index, 1)
+				} else if operand == false && value == '|' {
+					kind = langruntime.CheckedI32(3)
+					index = langruntime.CheckedAdd(index, 1)
+				} else if operand == false && value == '<' {
+					index = langruntime.CheckedAdd(index, 1)
+					if index < len(text.chars) && text.chars[index] == '-' {
+						distance = langruntime.CheckedI32(1)
+						index = langruntime.CheckedAdd(index, 1)
+					} else {
+						if index == len(text.chars) || (int(langruntime.CheckedChar(text.chars[index]))) < 48 || (int(langruntime.CheckedChar(text.chars[index]))) > 57 {
+							return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+						}
+						for index < len(text.chars) && (int(langruntime.CheckedChar(text.chars[index]))) >= 48 && (int(langruntime.CheckedChar(text.chars[index]))) <= 57 {
+							distance = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(distance, 10), (int(langruntime.CheckedChar(text.chars[index])))), 48))
+							if distance > 16384 {
+								return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryInvalidParameter)}
+							}
+							index = langruntime.CheckedAdd(index, 1)
+						}
+					}
+					if index == len(text.chars) || text.chars[index] != '>' {
+						return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+					kind = langruntime.CheckedI32(4)
+				} else {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+				}
+				priority := tsqueryPriority(kind)
+				for operatorDepth > floor {
+					previous := tsqueryPriority(operators[langruntime.CheckedSubtract(operatorDepth, 1)].kind)
+					if previous < priority || (kind == 1 && previous == priority) {
+						break
+					}
+					operatorDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(operatorDepth, 1))
+					build = copytsqueryBuild(tsqueryReduce(build, operators[operatorDepth]))
+				}
+				if langruntime.CheckedSubtract(operatorDepth, floor) >= 32 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryStackError)}
+				}
+				operator := tsqueryOperator{kind: kind, distance: distance}
+				if operatorDepth < len(operators) {
+					operators[operatorDepth] = copytsqueryOperator(operator)
+				} else {
+					langruntime.CheckedAdd(len(operators), 1)
+					operators = append(operators, copytsqueryOperator(operator))
+				}
+				operatorDepth = langruntime.CheckedAdd(operatorDepth, 1)
+				operand = true
+			}
+		}
+		if parenDepth != 0 || (operand && (operatorDepth != 0 || len(build.nodes) > 0)) {
+			return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+		}
+		for operatorDepth > 0 {
+			operatorDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(operatorDepth, 1))
+			build = copytsqueryBuild(tsqueryReduce(build, operators[operatorDepth]))
+		}
+		if build.valid == false || build.depth > 1 {
+			return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsquerySyntaxError)}
+		}
+		root := 0
+		if build.depth == 1 {
+			root = langruntime.CheckedIndex(build.roots[0])
+		}
+		payload := checkruntime.TsqueryPayload{Nodes: build.nodes, Root: root, NativeBytes: langruntime.CheckedSignedNegate(1)}
+		bytes := checkruntime.TsqueryCanonicalBytes(&payload)
+		if bytes < 0 {
+			return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+		}
+		return checkruntime.MakeTsqueryValue(checkruntime.TsqueryPayload{Nodes: payload.Nodes, Root: root, NativeBytes: bytes})
+	}
+	return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+}
+
+type tsqueryRenderFrame struct {
+	node        int
+	priority    int
+	rightPhrase bool
+	step        int
+}
+
+func copytsqueryRenderFrame(value tsqueryRenderFrame) tsqueryRenderFrame {
+	return tsqueryRenderFrame{node: langruntime.CheckedIndex(value.node), priority: langruntime.CheckedI32(value.priority), rightPhrase: value.rightPhrase, step: langruntime.CheckedI32(value.step)}
+}
+func Numnode7bkv(input checkruntime.TsqueryValue) checkruntime.Int4Value {
+	input = checkruntime.CopyTsqueryValue(input)
+	if input.Kind == checkruntime.TsqueryValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.TsqueryValueValue {
+		value := checkruntime.CopyTsqueryPayload(input.Value)
+		return checkruntime.MakeInt4Value(int(int32(len(value.Nodes))))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TsqueryToText(input checkruntime.TsqueryValue) checkruntime.TextValue {
+	input = checkruntime.CopyTsqueryValue(input)
+	if input.Kind == checkruntime.TsqueryValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TsqueryValueValue {
+		value := checkruntime.CopyTsqueryPayload(input.Value)
+		output := langruntime.NewTextBuffer("")
+		if len(value.Nodes) == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		frames := []tsqueryRenderFrame{}
+		langruntime.CheckedAdd(len(frames), 1)
+		frames = append(frames, copytsqueryRenderFrame(tsqueryRenderFrame{node: value.Root, priority: 0, rightPhrase: false, step: 0}))
+		depth := 1
+		for depth > 0 {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			frame := frames[depth]
+			node := value.Nodes[frame.node]
+			if frame.step == 2 {
+				output = append(output, " )"...)
+			} else if frame.step == 1 {
+				if node.Kind == 2 {
+					output = append(output, " & "...)
+				} else if node.Kind == 3 {
+					output = append(output, " | "...)
+				} else if node.Distance == 1 {
+					output = append(output, " <-> "...)
+				} else {
+					output = append(output, " <"...)
+					distance := checkruntime.TextSignedNumber(int64(langruntime.CheckedI32(node.Distance)))
+					output = append(output, distance...)
+					output = append(output, "> "...)
+				}
+			} else if node.Kind == 0 {
+				output = append(output, string(langruntime.CheckedChar('\''))...)
+				chars := []rune(node.Text)
+				index := 0
+				for index < len(chars) {
+					ch := chars[index]
+					if ch == '\'' || ch == '\\' {
+						output = append(output, string(langruntime.CheckedChar(ch))...)
+					}
+					output = append(output, string(langruntime.CheckedChar(ch))...)
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				output = append(output, string(langruntime.CheckedChar('\''))...)
+				if node.Prefix || node.Weight != 0 {
+					output = append(output, string(langruntime.CheckedChar(':'))...)
+					if node.Prefix {
+						output = append(output, string(langruntime.CheckedChar('*'))...)
+					}
+					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 8), 2)) != 0 {
+						output = append(output, string(langruntime.CheckedChar('A'))...)
+					}
+					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 4), 2)) != 0 {
+						output = append(output, string(langruntime.CheckedChar('B'))...)
+					}
+					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 2), 2)) != 0 {
+						output = append(output, string(langruntime.CheckedChar('C'))...)
+					}
+					if (langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(node.Weight, 1), 2)) != 0 {
+						output = append(output, string(langruntime.CheckedChar('D'))...)
+					}
+				}
+			} else {
+				priority := tsqueryPriority(node.Kind)
+				if priority < frame.priority || (node.Kind == 4 && frame.rightPhrase) {
+					output = append(output, "( "...)
+					closing := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 2}
+					if depth < len(frames) {
+						frames[depth] = copytsqueryRenderFrame(closing)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copytsqueryRenderFrame(closing))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+				if node.Kind == 1 {
+					output = append(output, string(langruntime.CheckedChar('!'))...)
+				} else {
+					right := tsqueryRenderFrame{node: node.Right, priority: priority, rightPhrase: node.Kind == 4, step: 0}
+					if depth < len(frames) {
+						frames[depth] = copytsqueryRenderFrame(right)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copytsqueryRenderFrame(right))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+					separator := tsqueryRenderFrame{node: frame.node, priority: 0, rightPhrase: false, step: 1}
+					if depth < len(frames) {
+						frames[depth] = copytsqueryRenderFrame(separator)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copytsqueryRenderFrame(separator))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+				left := tsqueryRenderFrame{node: node.Left, priority: priority, rightPhrase: false, step: 0}
+				if depth < len(frames) {
+					frames[depth] = copytsqueryRenderFrame(left)
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copytsqueryRenderFrame(left))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Tsquerysend0660(input checkruntime.TsqueryValue, utf8 bool) checkruntime.ByteaValue {
+	input = checkruntime.CopyTsqueryValue(input)
+	if input.Kind == checkruntime.TsqueryValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TsqueryValueValue {
+		value := checkruntime.CopyTsqueryPayload(input.Value)
+		output := langruntime.NewTextBuffer("")
+		count := int(int32(len(value.Nodes)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(count, 16777216), 256)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(count, 65536), 256)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(count, 256), 256)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(count, 256)))
+		if count == 0 {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+		}
+		stack := []int{}
+		langruntime.CheckedAdd(len(stack), 1)
+		stack = append(stack, langruntime.CheckedIndex(value.Root))
+		depth := 1
+		for depth > 0 {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			node := value.Nodes[stack[depth]]
+			if node.Kind == 0 {
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), 1))
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), node.Weight))
+				prefix := 0
+				if node.Prefix {
+					prefix = langruntime.CheckedI32(1)
+				}
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), prefix))
+				chars := []rune(node.Text)
+				index := 0
+				for index < len(chars) {
+					if utf8 == false && (int(langruntime.CheckedChar(chars[index]))) > 127 {
+						return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+					}
+					output = langruntime.NewTextBuffer(byteaUtf8Character(string(output), chars[index]))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), 0))
+			} else {
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), 2))
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), node.Kind))
+				if node.Kind == 4 {
+					distance := node.Distance
+					if distance < 0 {
+						distance = langruntime.CheckedI32(langruntime.CheckedSignedAdd(distance, 65536))
+					}
+					output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedDivide(distance, 256)))
+					output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(distance, 256)))
+				}
+				if depth < len(stack) {
+					stack[depth] = langruntime.CheckedIndex(node.Left)
+				} else {
+					langruntime.CheckedAdd(len(stack), 1)
+					stack = append(stack, langruntime.CheckedIndex(node.Left))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				if node.Kind != 1 {
+					if depth < len(stack) {
+						stack[depth] = langruntime.CheckedIndex(node.Right)
+					} else {
+						langruntime.CheckedAdd(len(stack), 1)
+						stack = append(stack, langruntime.CheckedIndex(node.Right))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+
 const tsvectorSyntaxError = 6819553
 const tsvectorProgramLimit = 8584704
 

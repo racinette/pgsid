@@ -2920,3 +2920,101 @@ pub fn tsvector_from_case_guard(input: CheckOutcome) -> TsvectorValue {
     if let CheckOutcome::Error(error) = input { return TsvectorValue::Error(error); };
     TsvectorValue::Unknown
 }
+
+#[derive(Clone)]
+pub struct TsqueryNode {
+    pub kind: i32,
+    pub text: String,
+    pub weight: i32,
+    pub prefix: bool,
+    pub distance: i32,
+    pub left: usize,
+    pub right: usize,
+}
+
+#[derive(Clone)]
+pub struct TsqueryPayload {
+    pub nodes: Vec<TsqueryNode>,
+    pub root: usize,
+    pub native_bytes: i32,
+}
+
+#[derive(Clone)]
+pub enum TsqueryValue {
+    Unknown,
+    Null,
+    Value(TsqueryPayload),
+    Error(SqlError),
+}
+
+pub fn tsquery_unknown() -> TsqueryValue { TsqueryValue::Unknown }
+pub fn tsquery_null() -> TsqueryValue { TsqueryValue::Null }
+
+pub fn tsquery_canonical_bytes(input: &TsqueryPayload) -> i32 {
+    if input.nodes.len() > 89478484 { return -1; };
+    let count = input.nodes.len() as i32;
+    let mut bytes: i64 = 8i64 + (count as i64) * 12i64;
+    let mut pool: i32 = 0;
+    let mut index: usize = 0;
+    while index < input.nodes.len() {
+        if input.nodes[index].kind == 0 {
+            let width = tsvector_lexeme_bytes(input.nodes[index].text.as_str());
+            if width < 0 || width > 2047 || pool > 1048575 { return -1; };
+            pool = pool + width + 1;
+            bytes = bytes + (width as i64) + 1i64;
+        };
+        index += 1;
+    }
+    if bytes > 1073741823i64 { return -1; };
+    bytes as i32
+}
+
+pub fn make_tsquery_value(input: TsqueryPayload) -> TsqueryValue {
+    if tsquery_canonical_bytes(&input) < 0 { return TsqueryValue::Unknown; };
+    if input.native_bytes < -1 || input.native_bytes > 1073741823 { return TsqueryValue::Unknown; };
+    let count = input.nodes.len() as i32;
+    if input.native_bytes != -1 && (input.native_bytes as i64) < 8i64 + (count as i64) * 12i64 { return TsqueryValue::Unknown; };
+    if input.nodes.len() == 0 {
+        if input.root != 0 { return TsqueryValue::Unknown; };
+        return TsqueryValue::Value(input);
+    };
+    if input.root != input.nodes.len() - 1 { return TsqueryValue::Unknown; };
+    let mut stack: Vec<usize> = Vec::new();
+    let mut depth: usize = 0;
+    let mut index: usize = 0;
+    while index < input.nodes.len() {
+        let node = input.nodes[index].clone();
+        if node.kind < 0 || node.kind > 4 { return TsqueryValue::Unknown; };
+        if node.kind == 0 {
+            if node.weight < 0 || node.weight > 15 || node.distance != 0 || node.left != 0 || node.right != 0 { return TsqueryValue::Unknown; };
+        } else {
+            if node.text != "" || node.weight != 0 || node.prefix { return TsqueryValue::Unknown; };
+            if node.kind != 4 && node.distance != 0 { return TsqueryValue::Unknown; };
+            if node.kind == 4 && (node.distance < -32768 || node.distance > 32767) { return TsqueryValue::Unknown; };
+            if node.kind == 1 {
+                if depth < 1 || node.left != stack[depth - 1] || node.right != 0 { return TsqueryValue::Unknown; };
+                depth = depth - 1;
+            } else {
+                if depth < 2 || node.left != stack[depth - 2] || node.right != stack[depth - 1] { return TsqueryValue::Unknown; };
+                depth = depth - 2;
+            };
+        };
+        if depth < stack.len() { stack[depth] = index; } else { stack.push(index); };
+        depth += 1;
+        index += 1;
+    }
+    if depth != 1 { return TsqueryValue::Unknown; };
+    TsqueryValue::Value(input)
+}
+
+pub fn tsquery_is_null(input: TsqueryValue) -> BoolValue {
+    if let TsqueryValue::Error(error) = input { return BoolValue::Error(error); };
+    if let TsqueryValue::Unknown = input { return BoolValue::Unknown; };
+    if let TsqueryValue::Null = input { return make_bool_value(true); };
+    make_bool_value(false)
+}
+
+pub fn tsquery_from_case_guard(input: CheckOutcome) -> TsqueryValue {
+    if let CheckOutcome::Error(error) = input { return TsqueryValue::Error(error); };
+    TsqueryValue::Unknown
+}

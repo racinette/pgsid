@@ -3602,6 +3602,168 @@ export function tsvectorFromCaseGuard(input: CheckOutcome): TsvectorValue {
     }
     return { kind: "Unknown" };
 }
+export interface TsqueryNode {
+    readonly kind: number;
+    readonly text: string;
+    readonly weight: number;
+    readonly prefix: boolean;
+    readonly distance: number;
+    readonly left: number;
+    readonly right: number;
+}
+export function copyTsqueryNode(value: TsqueryNode): TsqueryNode {
+    return { kind: langruntime.checkedI32(value.kind), text: langruntime.checkedString(value.text), weight: langruntime.checkedI32(value.weight), prefix: langruntime.checkedBool(value.prefix), distance: langruntime.checkedI32(value.distance), left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right) };
+}
+export interface TsqueryPayload {
+    readonly nodes: TsqueryNode[];
+    readonly root: number;
+    readonly nativeBytes: number;
+}
+export function copyTsqueryPayload(value: TsqueryPayload): TsqueryPayload {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyTsqueryNode), root: langruntime.checkedIndex(value.root), nativeBytes: langruntime.checkedI32(value.nativeBytes) };
+}
+export type TsqueryValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: TsqueryPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyTsqueryValue(value: TsqueryValue): TsqueryValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyTsqueryPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function tsqueryUnknown(): TsqueryValue {
+    return { kind: "Unknown" };
+}
+export function tsqueryNull(): TsqueryValue {
+    return { kind: "Null" };
+}
+export function tsqueryCanonicalBytes(input: TsqueryPayload): number {
+    input = copyTsqueryPayload(input);
+    if (input.nodes.length > 89478484) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    const count: number = langruntime.checkedI32(langruntime.checkedIndex(input.nodes.length));
+    let bytes: bigint = langruntime.checkedI64Add(8n, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(count))), 12n));
+    let pool: number = 0;
+    let index: number = 0;
+    while (index < input.nodes.length) {
+        if (langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyTsqueryNode).kind === 0) {
+            const width: number = tsvectorLexemeBytes(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyTsqueryNode).text);
+            if (width < 0 || width > 2047 || pool > 1048575) {
+                return langruntime.checkedSignedNegate(1);
+            }
+            pool = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pool, width), 1));
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add(bytes, (BigInt(langruntime.checkedI32(width)))), 1n));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (bytes > 1073741823n) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(bytes)));
+}
+export function makeTsqueryValue(input: TsqueryPayload): TsqueryValue {
+    input = copyTsqueryPayload(input);
+    if (tsqueryCanonicalBytes(input) < 0) {
+        return { kind: "Unknown" };
+    }
+    if (input.nativeBytes < langruntime.checkedSignedNegate(1) || input.nativeBytes > 1073741823) {
+        return { kind: "Unknown" };
+    }
+    const count: number = langruntime.checkedI32(langruntime.checkedIndex(input.nodes.length));
+    if (!(input.nativeBytes === langruntime.checkedSignedNegate(1)) && (BigInt(langruntime.checkedI32(input.nativeBytes))) < langruntime.checkedI64Add(8n, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(count))), 12n))) {
+        return { kind: "Unknown" };
+    }
+    if (input.nodes.length === 0) {
+        if (!(input.root === 0)) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: input };
+    }
+    if (!(input.root === langruntime.checkedSubtract(input.nodes.length, 1))) {
+        return { kind: "Unknown" };
+    }
+    let stack: number[] = [];
+    let depth: number = 0;
+    let index: number = 0;
+    while (index < input.nodes.length) {
+        const node: TsqueryNode = langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyTsqueryNode);
+        if (node.kind < 0 || node.kind > 4) {
+            return { kind: "Unknown" };
+        }
+        if (node.kind === 0) {
+            if (node.weight < 0 || node.weight > 15 || !(node.distance === 0) || !(node.left === 0) || !(node.right === 0)) {
+                return { kind: "Unknown" };
+            }
+        }
+        else {
+            if (!(node.text === "") || !(node.weight === 0) || node.prefix) {
+                return { kind: "Unknown" };
+            }
+            if (!(node.kind === 4) && !(node.distance === 0)) {
+                return { kind: "Unknown" };
+            }
+            if (node.kind === 4 && (node.distance < langruntime.checkedSignedNegate(32768) || node.distance > 32767)) {
+                return { kind: "Unknown" };
+            }
+            if (node.kind === 1) {
+                if (depth < 1 || !(node.left === langruntime.indexNumber(stack, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)))) || !(node.right === 0)) {
+                    return { kind: "Unknown" };
+                }
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            }
+            else {
+                if (depth < 2 || !(node.left === langruntime.indexNumber(stack, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 2)))) || !(node.right === langruntime.indexNumber(stack, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1))))) {
+                    return { kind: "Unknown" };
+                }
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 2));
+            }
+        }
+        if (depth < stack.length) {
+            stack[langruntime.checkedIndexIn(stack, depth)] = langruntime.checkedIndex(index);
+        }
+        else {
+            langruntime.pushIndex(stack, index);
+        }
+        depth = langruntime.checkedAdd(depth, 1);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (!(depth === 1)) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: input };
+}
+export function tsqueryIsNull(input: TsqueryValue): BoolValue {
+    input = copyTsqueryValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+export function tsqueryFromCaseGuard(input: CheckOutcome): TsqueryValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
