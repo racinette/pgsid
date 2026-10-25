@@ -47071,6 +47071,905 @@ export function tsquerysend0660(input: checkruntime.TsqueryValue, utf8: boolean)
     }
     return { kind: "Unknown" };
 }
+function tsqueryRewriteMatch(input: TsqueryRewriteTree, root: number, target: number, replacement: number, utf8: boolean): TsqueryRewriteTree {
+    input = copyTsqueryRewriteTree(input);
+    root = langruntime.checkedIndex(root);
+    target = langruntime.checkedIndex(target);
+    replacement = langruntime.checkedIndex(replacement);
+    utf8 = langruntime.checkedBool(utf8);
+    const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(root), copyTsqueryRewriteNode));
+    const pattern: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(target), copyTsqueryRewriteNode));
+    if (node.frozen || !(node.value.kind === pattern.value.kind)) {
+        return { nodes: input.nodes, root: root, known: true };
+    }
+    if (node.children.length === pattern.children.length) {
+        if (tsqueryRewriteEqual(input, root, target)) {
+            return { nodes: input.nodes, root: replacement, known: true };
+        }
+    }
+    else if (node.children.length > pattern.children.length && pattern.children.length > 0) {
+        let matched: number[] = [];
+        let index: number = 0;
+        while (index < node.children.length) {
+            langruntime.pushIndex(matched, 0);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let member: number = 0;
+        while (member < pattern.children.length) {
+            index = langruntime.checkedIndex(0);
+            let found: boolean = false;
+            while (index < node.children.length && found === false) {
+                if (langruntime.indexNumber(matched, langruntime.checkedIndex(index)) === 0 && tsqueryRewriteEqual(input, langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), langruntime.indexNumber(pattern.children, langruntime.checkedIndex(member)))) {
+                    matched[langruntime.checkedIndexIn(matched, index)] = langruntime.checkedIndex(1);
+                    found = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (found === false) {
+                return { nodes: input.nodes, root: root, known: true };
+            }
+            member = langruntime.checkedAdd(member, 1);
+        }
+        let children: number[] = [];
+        index = langruntime.checkedIndex(0);
+        while (index < node.children.length) {
+            if (langruntime.indexNumber(matched, langruntime.checkedIndex(index)) === 0) {
+                langruntime.pushIndex(children, langruntime.indexNumber(node.children, langruntime.checkedIndex(index)));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (!(replacement === 0)) {
+            langruntime.pushIndex(children, replacement);
+        }
+        let nodes: TsqueryRewriteNode[] = input.nodes;
+        nodes[langruntime.checkedIndexIn(nodes, root)] = copyTsqueryRewriteNode({ value: node.value, children: children, frozen: false });
+        const tree: TsqueryRewriteTree = { nodes: nodes, root: root, known: true };
+        return tsqueryRewriteSortTree(tree, root, utf8);
+    }
+    return { nodes: input.nodes, root: root, known: true };
+}
+function tsqueryRewriteVisit(input: TsqueryRewriteTree, root: number, target: number, replacement: number, utf8: boolean): TsqueryRewriteTree {
+    input = copyTsqueryRewriteTree(input);
+    root = langruntime.checkedIndex(root);
+    target = langruntime.checkedIndex(target);
+    replacement = langruntime.checkedIndex(replacement);
+    utf8 = langruntime.checkedBool(utf8);
+    let tree: TsqueryRewriteTree = input;
+    let results: number[] = [];
+    let index: number = 0;
+    while (index < tree.nodes.length) {
+        langruntime.pushIndex(results, 0);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let tasks: TsqueryRewriteTask[] = [];
+    langruntime.pushStruct(tasks, { node: root, finish: false }, copyTsqueryRewriteTask);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryRewriteTask = copyTsqueryRewriteTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryRewriteTask));
+        if (task.finish) {
+            const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+            let children: number[] = [];
+            index = langruntime.checkedIndex(0);
+            while (index < node.children.length) {
+                const child: number = langruntime.indexNumber(results, langruntime.checkedIndex(langruntime.indexNumber(node.children, langruntime.checkedIndex(index))));
+                if (!(child === 0)) {
+                    langruntime.pushIndex(children, child);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (children.length === 0) {
+                results[langruntime.checkedIndexIn(results, task.node)] = langruntime.checkedIndex(0);
+            }
+            else if (children.length === 1 && !(node.value.kind === 1)) {
+                results[langruntime.checkedIndexIn(results, task.node)] = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(0)));
+            }
+            else {
+                results[langruntime.checkedIndexIn(results, task.node)] = langruntime.checkedIndex(task.node);
+                let nodes: TsqueryRewriteNode[] = tree.nodes;
+                nodes[langruntime.checkedIndexIn(nodes, task.node)] = copyTsqueryRewriteNode({ value: node.value, children: children, frozen: node.frozen });
+                tree = copyTsqueryRewriteTree({ nodes: nodes, root: root, known: true });
+            }
+        }
+        else {
+            tree = copyTsqueryRewriteTree(tsqueryRewriteMatch(tree, task.node, target, replacement, utf8));
+            if (tree.known === false) {
+                return tree;
+            }
+            const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+            if (!(tree.root === task.node) || node.frozen || node.value.kind === 0) {
+                results[langruntime.checkedIndexIn(results, task.node)] = langruntime.checkedIndex(tree.root);
+            }
+            else {
+                const finish: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: task.node, finish: true });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(finish);
+                }
+                else {
+                    langruntime.pushStruct(tasks, finish, copyTsqueryRewriteTask);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                index = langruntime.checkedIndex(node.children.length);
+                while (index > 0) {
+                    index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                    const child: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), finish: false });
+                    if (depth < tasks.length) {
+                        tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(child);
+                    }
+                    else {
+                        langruntime.pushStruct(tasks, child, copyTsqueryRewriteTask);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+    }
+    return { nodes: tree.nodes, root: langruntime.indexNumber(results, langruntime.checkedIndex(root)), known: true };
+}
+function tsqueryRewriteBinary(input: TsqueryRewriteTree): TsqueryRewriteTree {
+    input = copyTsqueryRewriteTree(input);
+    const root: number = input.root;
+    let nodes: TsqueryRewriteNode[] = input.nodes;
+    let visited: number[] = [];
+    let position: number = 0;
+    while (position < nodes.length) {
+        langruntime.pushIndex(visited, 0);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let tasks: TsqueryRewriteTask[] = [];
+    langruntime.pushStruct(tasks, { node: root, finish: false }, copyTsqueryRewriteTask);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryRewriteTask = copyTsqueryRewriteTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryRewriteTask));
+        const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+        if (task.finish) {
+            visited[langruntime.checkedIndexIn(visited, task.node)] = langruntime.checkedIndex(1);
+            let children: number[] = node.children;
+            let count: number = children.length;
+            while (count > 2) {
+                let pair: number[] = [];
+                langruntime.pushIndex(pair, langruntime.indexNumber(children, langruntime.checkedIndex(0)));
+                langruntime.pushIndex(pair, langruntime.indexNumber(children, langruntime.checkedIndex(1)));
+                const next: number = nodes.length;
+                langruntime.pushStruct(nodes, { value: { kind: node.value.kind, text: "", weight: 0, prefix: false, distance: 0, left: 0, right: 0 }, children: pair, frozen: false }, copyTsqueryRewriteNode);
+                children[langruntime.checkedIndexIn(children, 0)] = langruntime.checkedIndex(next);
+                children[langruntime.checkedIndexIn(children, 1)] = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(langruntime.checkedSubtract(count, 1))));
+                count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 1));
+            }
+            let output: number[] = [];
+            let index: number = 0;
+            while (index < count) {
+                langruntime.pushIndex(output, langruntime.indexNumber(children, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            nodes[langruntime.checkedIndexIn(nodes, task.node)] = copyTsqueryRewriteNode({ value: node.value, children: output, frozen: node.frozen });
+        }
+        else if (langruntime.indexNumber(visited, langruntime.checkedIndex(task.node)) === 0) {
+            const finish: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: task.node, finish: true });
+            if (depth < tasks.length) {
+                tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(finish);
+            }
+            else {
+                langruntime.pushStruct(tasks, finish, copyTsqueryRewriteTask);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            let index: number = node.children.length;
+            while (index > 0) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                const child: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), finish: false });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(child);
+                }
+                else {
+                    langruntime.pushStruct(tasks, child, copyTsqueryRewriteTask);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+    }
+    return { nodes: nodes, root: root, known: true };
+}
+interface TsqueryRewriteSize {
+    count: bigint;
+    pool: bigint;
+}
+function copyTsqueryRewriteSize(value: TsqueryRewriteSize): TsqueryRewriteSize {
+    return { count: langruntime.checkedI64(value.count), pool: langruntime.checkedI64(value.pool) };
+}
+function tsqueryRewriteOutput(tree: TsqueryRewriteTree): checkruntime.TsqueryValue {
+    if (tree.root === 0) {
+        return checkruntime.makeTsqueryValue(checkruntime.makeTsqueryPayload(8));
+    }
+    let sizes: TsqueryRewriteSize[] = [];
+    let index: number = 0;
+    while (index < tree.nodes.length) {
+        langruntime.pushStruct(sizes, { count: 0n, pool: 0n }, copyTsqueryRewriteSize);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let tasks: TsqueryRewriteTask[] = [];
+    langruntime.pushStruct(tasks, { node: tree.root, finish: false }, copyTsqueryRewriteTask);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryRewriteTask = copyTsqueryRewriteTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryRewriteTask));
+        const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+        if (task.finish) {
+            let count: bigint = 1n;
+            let pool: bigint = 0n;
+            if (node.value.kind === 0) {
+                pool = langruntime.checkedI64(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(checkruntime.tsvectorLexemeBytes(node.value.text)))), 1n));
+            }
+            index = langruntime.checkedIndex(0);
+            while (index < node.children.length) {
+                const child: TsqueryRewriteSize = copyTsqueryRewriteSize(langruntime.indexStruct(sizes, langruntime.checkedIndex(langruntime.indexNumber(node.children, langruntime.checkedIndex(index))), copyTsqueryRewriteSize));
+                count = langruntime.checkedI64(langruntime.checkedI64Add(count, child.count));
+                pool = langruntime.checkedI64(langruntime.checkedI64Add(pool, child.pool));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (langruntime.checkedI64Add(langruntime.checkedI64Add(8n, langruntime.checkedI64Multiply(12n, count)), pool) > 1073741823n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+            }
+            sizes[langruntime.checkedIndexIn(sizes, task.node)] = copyTsqueryRewriteSize({ count: count, pool: pool });
+        }
+        else if (langruntime.indexStruct(sizes, langruntime.checkedIndex(task.node), copyTsqueryRewriteSize).count === 0n) {
+            const finish: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: task.node, finish: true });
+            if (depth < tasks.length) {
+                tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(finish);
+            }
+            else {
+                langruntime.pushStruct(tasks, finish, copyTsqueryRewriteTask);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            index = langruntime.checkedIndex(0);
+            while (index < node.children.length) {
+                const child: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), finish: false });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(child);
+                }
+                else {
+                    langruntime.pushStruct(tasks, child, copyTsqueryRewriteTask);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+    }
+    let nodes: checkruntime.TsqueryNode[] = [];
+    let roots: number[] = [];
+    let count: number = 0;
+    depth = langruntime.checkedIndex(1);
+    tasks[langruntime.checkedIndexIn(tasks, 0)] = copyTsqueryRewriteTask({ node: tree.root, finish: false });
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryRewriteTask = copyTsqueryRewriteTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryRewriteTask));
+        const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+        if (task.finish) {
+            let left: number = 0;
+            let right: number = 0;
+            if (node.value.kind === 1) {
+                count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 1));
+                left = langruntime.checkedIndex(langruntime.indexNumber(roots, langruntime.checkedIndex(count)));
+            }
+            else if (node.value.kind > 1) {
+                count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 2));
+                left = langruntime.checkedIndex(langruntime.indexNumber(roots, langruntime.checkedIndex(count)));
+                right = langruntime.checkedIndex(langruntime.indexNumber(roots, langruntime.checkedIndex(langruntime.checkedAdd(count, 1))));
+            }
+            const root: number = nodes.length;
+            langruntime.pushStruct(nodes, { kind: node.value.kind, text: node.value.text, weight: node.value.weight, prefix: node.value.prefix, distance: node.value.distance, left: left, right: right }, checkruntime.copyTsqueryNode);
+            if (count < roots.length) {
+                roots[langruntime.checkedIndexIn(roots, count)] = langruntime.checkedIndex(root);
+            }
+            else {
+                langruntime.pushIndex(roots, root);
+            }
+            count = langruntime.checkedAdd(count, 1);
+        }
+        else {
+            const finish: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: task.node, finish: true });
+            if (depth < tasks.length) {
+                tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(finish);
+            }
+            else {
+                langruntime.pushStruct(tasks, finish, copyTsqueryRewriteTask);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            index = langruntime.checkedIndex(0);
+            while (index < node.children.length) {
+                const child: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), finish: false });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(child);
+                }
+                else {
+                    langruntime.pushStruct(tasks, child, copyTsqueryRewriteTask);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+    }
+    return tsqueryRebuild({ nodes: nodes, root: langruntime.indexNumber(roots, langruntime.checkedIndex(0)), nativeBytes: langruntime.checkedSignedNegate(1) });
+}
+export function tsRewrite2hpb(input: checkruntime.TsqueryValue, target: checkruntime.TsqueryValue, replacement: checkruntime.TsqueryValue, utf8: boolean): checkruntime.TsqueryValue {
+    input = checkruntime.copyTsqueryValue(input);
+    target = checkruntime.copyTsqueryValue(target);
+    replacement = checkruntime.copyTsqueryValue(replacement);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (target.kind === "Error") {
+        const error: checkruntime.SqlError = target.value;
+        return { kind: "Error", value: error };
+    }
+    if (replacement.kind === "Error") {
+        const error: checkruntime.SqlError = replacement.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (target.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (replacement.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (target.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (replacement.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const a: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(input.value);
+        if (target.kind === "Value") {
+            const b: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(target.value);
+            if (replacement.kind === "Value") {
+                const c: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(replacement.value);
+                if (a.nodes.length === 0 || b.nodes.length === 0) {
+                    return { kind: "Value", value: a };
+                }
+                const empty: number[] = [];
+                let nodes: TsqueryRewriteNode[] = [];
+                langruntime.pushStruct(nodes, { value: { kind: 0, text: "", weight: 0, prefix: false, distance: 0, left: 0, right: 0 }, children: empty, frozen: false }, copyTsqueryRewriteNode);
+                const initial: TsqueryRewriteTree = { nodes: nodes, root: 0, known: true };
+                let tree: TsqueryRewriteTree = tsqueryRewriteImport(initial, a, true, utf8);
+                if (tree.known === false) {
+                    return { kind: "Unknown" };
+                }
+                const root: number = tree.root;
+                tree = copyTsqueryRewriteTree(tsqueryRewriteImport(tree, b, true, utf8));
+                if (tree.known === false) {
+                    return { kind: "Unknown" };
+                }
+                const pattern: number = tree.root;
+                let subst: number = 0;
+                if (!(c.nodes.length === 0)) {
+                    tree = copyTsqueryRewriteTree(tsqueryRewriteImport(tree, c, false, utf8));
+                    subst = langruntime.checkedIndex(tree.root);
+                    let nodes1: TsqueryRewriteNode[] = tree.nodes;
+                    const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(nodes1, langruntime.checkedIndex(subst), copyTsqueryRewriteNode));
+                    nodes1[langruntime.checkedIndexIn(nodes1, subst)] = copyTsqueryRewriteNode({ value: node.value, children: node.children, frozen: true });
+                    tree = copyTsqueryRewriteTree({ nodes: nodes1, root: root, known: true });
+                }
+                tree = copyTsqueryRewriteTree(tsqueryRewriteVisit(tree, root, pattern, subst, utf8));
+                if (tree.known === false) {
+                    return { kind: "Unknown" };
+                }
+                if (tree.root === 0) {
+                    return checkruntime.makeTsqueryValue(checkruntime.makeTsqueryPayload(8));
+                }
+                tree = copyTsqueryRewriteTree(tsqueryRewriteBinary(tree));
+                return tsqueryRewriteOutput(tree);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+interface TsqueryRewriteNode {
+    value: checkruntime.TsqueryNode;
+    children: number[];
+    frozen: boolean;
+}
+function copyTsqueryRewriteNode(value: TsqueryRewriteNode): TsqueryRewriteNode {
+    return { value: value.value, children: langruntime.checkedIndices(value.children), frozen: langruntime.checkedBool(value.frozen) };
+}
+interface TsqueryRewriteTree {
+    nodes: TsqueryRewriteNode[];
+    root: number;
+    known: boolean;
+}
+function copyTsqueryRewriteTree(value: TsqueryRewriteTree): TsqueryRewriteTree {
+    return { nodes: langruntime.checkedStructs(value.nodes, copyTsqueryRewriteNode), root: langruntime.checkedIndex(value.root), known: langruntime.checkedBool(value.known) };
+}
+interface TsqueryRewriteChildren {
+    items: number[];
+    known: boolean;
+}
+function copyTsqueryRewriteChildren(value: TsqueryRewriteChildren): TsqueryRewriteChildren {
+    return { items: langruntime.checkedIndices(value.items), known: langruntime.checkedBool(value.known) };
+}
+interface TsqueryRewriteTask {
+    node: number;
+    finish: boolean;
+}
+function copyTsqueryRewriteTask(value: TsqueryRewriteTask): TsqueryRewriteTask {
+    return { node: langruntime.checkedIndex(value.node), finish: langruntime.checkedBool(value.finish) };
+}
+function tsqueryRewriteCompare(tree: TsqueryRewriteTree, left: number, right: number, utf8: boolean): checkruntime.Int4Value {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    utf8 = langruntime.checkedBool(utf8);
+    let tasks: TsqueryCompareFrame[] = [];
+    langruntime.pushStruct(tasks, { left: left, right: right, finish: false }, copyTsqueryCompareFrame);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryCompareFrame = copyTsqueryCompareFrame(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryCompareFrame));
+        const a: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.left), copyTsqueryRewriteNode));
+        const b: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.right), copyTsqueryRewriteNode));
+        if (task.finish) {
+            if (a.value.distance > b.value.distance) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+            }
+            if (a.value.distance < b.value.distance) {
+                return checkruntime.makeInt4Value(1);
+            }
+        }
+        else {
+            if (a.value.kind > b.value.kind) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+            }
+            if (a.value.kind < b.value.kind) {
+                return checkruntime.makeInt4Value(1);
+            }
+            if (a.value.kind === 0) {
+                if (!(a.value.text === b.value.text)) {
+                    if (utf8 === false && (tsqueryAscii(a.value.text) === false || tsqueryAscii(b.value.text) === false)) {
+                        return { kind: "Unknown" };
+                    }
+                    const ac: number = tsqueryLegacyCrc(a.value.text);
+                    const bc: number = tsqueryLegacyCrc(b.value.text);
+                    if (ac > bc) {
+                        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+                    }
+                    if (ac < bc) {
+                        return checkruntime.makeInt4Value(1);
+                    }
+                    return checkruntime.makeInt4Value(checkruntime.tsvectorLexemeOrder(a.value.text, b.value.text));
+                }
+            }
+            else {
+                if (a.children.length > b.children.length) {
+                    return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+                }
+                if (a.children.length < b.children.length) {
+                    return checkruntime.makeInt4Value(1);
+                }
+                if (a.value.kind === 4) {
+                    const finish: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: task.left, right: task.right, finish: true });
+                    if (depth < tasks.length) {
+                        tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryCompareFrame(finish);
+                    }
+                    else {
+                        langruntime.pushStruct(tasks, finish, copyTsqueryCompareFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                let index: number = a.children.length;
+                while (index > 0) {
+                    index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                    const child: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: langruntime.indexNumber(a.children, langruntime.checkedIndex(index)), right: langruntime.indexNumber(b.children, langruntime.checkedIndex(index)), finish: false });
+                    if (depth < tasks.length) {
+                        tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryCompareFrame(child);
+                    }
+                    else {
+                        langruntime.pushStruct(tasks, child, copyTsqueryCompareFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+    }
+    return checkruntime.makeInt4Value(0);
+}
+function tsqueryRewriteEqual(tree: TsqueryRewriteTree, left: number, right: number): boolean {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    let tasks: TsqueryCompareFrame[] = [];
+    langruntime.pushStruct(tasks, { left: left, right: right, finish: false }, copyTsqueryCompareFrame);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryCompareFrame = copyTsqueryCompareFrame(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryCompareFrame));
+        const a: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.left), copyTsqueryRewriteNode));
+        const b: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.right), copyTsqueryRewriteNode));
+        if (!(a.value.kind === b.value.kind) || !(a.children.length === b.children.length)) {
+            return false;
+        }
+        if (a.value.kind === 0) {
+            if (!(a.value.text === b.value.text)) {
+                return false;
+            }
+        }
+        else {
+            if (a.value.kind === 4 && !(a.value.distance === b.value.distance)) {
+                return false;
+            }
+            let index: number = 0;
+            while (index < a.children.length) {
+                const child: TsqueryCompareFrame = copyTsqueryCompareFrame({ left: langruntime.indexNumber(a.children, langruntime.checkedIndex(index)), right: langruntime.indexNumber(b.children, langruntime.checkedIndex(index)), finish: false });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryCompareFrame(child);
+                }
+                else {
+                    langruntime.pushStruct(tasks, child, copyTsqueryCompareFrame);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+    }
+    return true;
+}
+function tsqueryRewriteOrderKnown(input: checkruntime.Int4Value): boolean {
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+function tsqueryRewriteOrderNumber(input: checkruntime.Int4Value): number {
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return value;
+    }
+    return 0;
+}
+function tsqueryRewriteMedian(input: TsqueryRewriteTree, a: number, b: number, c: number, utf8: boolean): checkruntime.Int4Value {
+    a = langruntime.checkedIndex(a);
+    b = langruntime.checkedIndex(b);
+    c = langruntime.checkedIndex(c);
+    utf8 = langruntime.checkedBool(utf8);
+    const ab: checkruntime.Int4Value = tsqueryRewriteCompare(input, a, b, utf8);
+    if (tsqueryRewriteOrderKnown(ab) === false) {
+        return ab;
+    }
+    const bc: checkruntime.Int4Value = tsqueryRewriteCompare(input, b, c, utf8);
+    if (tsqueryRewriteOrderKnown(bc) === false) {
+        return bc;
+    }
+    if (tsqueryRewriteOrderNumber(ab) < 0 && tsqueryRewriteOrderNumber(bc) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    if (tsqueryRewriteOrderNumber(ab) >= 0 && tsqueryRewriteOrderNumber(bc) > 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    const ac: checkruntime.Int4Value = tsqueryRewriteCompare(input, a, c, utf8);
+    if (tsqueryRewriteOrderKnown(ac) === false) {
+        return ac;
+    }
+    if (tsqueryRewriteOrderNumber(ac) < 0) {
+        if (tsqueryRewriteOrderNumber(ab) < 0) {
+            return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+        }
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    if (tsqueryRewriteOrderNumber(ab) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+}
+function tsqueryRewriteSort(input: TsqueryRewriteTree, children: number[], utf8: boolean): TsqueryRewriteChildren {
+    children = langruntime.checkedIndices(children);
+    utf8 = langruntime.checkedBool(utf8);
+    let order: number[] = children;
+    let starts: number[] = [];
+    let lengths: number[] = [];
+    langruntime.pushIndex(starts, 0);
+    langruntime.pushIndex(lengths, order.length);
+    let tasks: number = 1;
+    while (tasks > 0) {
+        tasks = langruntime.checkedIndex(langruntime.checkedSubtract(tasks, 1));
+        const start: number = langruntime.indexNumber(starts, langruntime.checkedIndex(tasks));
+        const count: number = langruntime.indexNumber(lengths, langruntime.checkedIndex(tasks));
+        const end: number = langruntime.checkedAdd(start, count);
+        let partition: boolean = count >= 7;
+        if (count < 7) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            while (next < end) {
+                let position: number = next;
+                let shifting: boolean = true;
+                while (position > start && shifting) {
+                    const compared: checkruntime.Int4Value = tsqueryRewriteCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(position)), utf8);
+                    if (tsqueryRewriteOrderKnown(compared) === false) {
+                        return { items: order, known: false };
+                    }
+                    if (tsqueryRewriteOrderNumber(compared) > 0) {
+                        const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(position));
+                        order[langruntime.checkedIndexIn(order, position)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))));
+                        order[langruntime.checkedIndexIn(order, langruntime.checkedSubtract(position, 1))] = langruntime.checkedIndex(saved);
+                        position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+                    }
+                    else {
+                        shifting = langruntime.checkedBool(false);
+                    }
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+        }
+        if (partition) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            let presorted: boolean = true;
+            while (next < end && presorted) {
+                const compared: checkruntime.Int4Value = tsqueryRewriteCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(next, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(next)), utf8);
+                if (tsqueryRewriteOrderKnown(compared) === false) {
+                    return { items: order, known: false };
+                }
+                if (tsqueryRewriteOrderNumber(compared) > 0) {
+                    presorted = langruntime.checkedBool(false);
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+            partition = langruntime.checkedBool(presorted === false);
+        }
+        if (partition) {
+            const half: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 2);
+            const middle: number = langruntime.checkedAdd(start, langruntime.indexFromI32(half, 0));
+            let pivot: number = langruntime.indexNumber(order, langruntime.checkedIndex(middle));
+            if (count > 7) {
+                let low: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+                let mid: number = pivot;
+                let high: number = langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)));
+                if (count > 40) {
+                    const eighth: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 8);
+                    const distance: number = langruntime.indexFromI32(eighth, 0);
+                    const loChoice: checkruntime.Int4Value = tsqueryRewriteMedian(input, low, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(start, distance))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(langruntime.checkedAdd(start, distance), distance))), utf8);
+                    if (tsqueryRewriteOrderKnown(loChoice) === false) {
+                        return { items: order, known: false };
+                    }
+                    low = langruntime.checkedIndex(langruntime.indexFromI32(tsqueryRewriteOrderNumber(loChoice), 0));
+                    const midChoice: checkruntime.Int4Value = tsqueryRewriteMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(middle, distance))), mid, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(middle, distance))), utf8);
+                    if (tsqueryRewriteOrderKnown(midChoice) === false) {
+                        return { items: order, known: false };
+                    }
+                    mid = langruntime.checkedIndex(langruntime.indexFromI32(tsqueryRewriteOrderNumber(midChoice), 0));
+                    const hiChoice: checkruntime.Int4Value = tsqueryRewriteMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), (langruntime.checkedAdd(distance, distance))))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), distance))), high, utf8);
+                    if (tsqueryRewriteOrderKnown(hiChoice) === false) {
+                        return { items: order, known: false };
+                    }
+                    high = langruntime.checkedIndex(langruntime.indexFromI32(tsqueryRewriteOrderNumber(hiChoice), 0));
+                }
+                const choice: checkruntime.Int4Value = tsqueryRewriteMedian(input, low, mid, high, utf8);
+                if (tsqueryRewriteOrderKnown(choice) === false) {
+                    return { items: order, known: false };
+                }
+                pivot = langruntime.checkedIndex(langruntime.indexFromI32(tsqueryRewriteOrderNumber(choice), 0));
+            }
+            let pivotPosition: number = start;
+            while (!(langruntime.indexNumber(order, langruntime.checkedIndex(pivotPosition)) === pivot)) {
+                pivotPosition = langruntime.checkedAdd(pivotPosition, 1);
+            }
+            const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+            order[langruntime.checkedIndexIn(order, start)] = langruntime.checkedIndex(pivot);
+            order[langruntime.checkedIndexIn(order, pivotPosition)] = langruntime.checkedIndex(saved);
+            let equalLow: number = langruntime.checkedAdd(start, 1);
+            let scanLow: number = equalLow;
+            let scanHigh: number = langruntime.checkedSubtract(end, 1);
+            let equalHigh: number = scanHigh;
+            let searching: boolean = true;
+            while (searching) {
+                let advance: boolean = true;
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = tsqueryRewriteCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)), pivot, utf8);
+                    if (tsqueryRewriteOrderKnown(compared) === false) {
+                        return { items: order, known: false };
+                    }
+                    const comparison: number = tsqueryRewriteOrderNumber(compared);
+                    if (comparison <= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalLow));
+                            order[langruntime.checkedIndexIn(order, equalLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)));
+                            order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(saved1);
+                            equalLow = langruntime.checkedAdd(equalLow, 1);
+                        }
+                        scanLow = langruntime.checkedAdd(scanLow, 1);
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                advance = langruntime.checkedBool(true);
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = tsqueryRewriteCompare(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)), pivot, utf8);
+                    if (tsqueryRewriteOrderKnown(compared) === false) {
+                        return { items: order, known: false };
+                    }
+                    const comparison: number = tsqueryRewriteOrderNumber(compared);
+                    if (comparison >= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalHigh));
+                            order[langruntime.checkedIndexIn(order, equalHigh)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                            order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                            equalHigh = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, 1));
+                        }
+                        scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                if (scanLow > scanHigh) {
+                    searching = langruntime.checkedBool(false);
+                }
+                else {
+                    const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(scanLow));
+                    order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                    order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                    scanLow = langruntime.checkedAdd(scanLow, 1);
+                    scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                }
+            }
+            let swapCount: number = langruntime.checkedSubtract(equalLow, start);
+            if (swapCount > langruntime.checkedSubtract(scanLow, equalLow)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(scanLow, equalLow));
+            }
+            let swapped: number = 0;
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(start, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(scanLow, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, scanHigh));
+            if (swapCount > langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1));
+            }
+            swapped = langruntime.checkedIndex(0);
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(scanLow, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(end, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            const leftCount: number = langruntime.checkedSubtract(scanLow, equalLow);
+            const rightCount: number = langruntime.checkedSubtract(equalHigh, scanHigh);
+            let largeStart: number = start;
+            let largeCount: number = leftCount;
+            let smallStart: number = langruntime.checkedSubtract(end, rightCount);
+            let smallCount: number = rightCount;
+            if (leftCount <= rightCount) {
+                largeStart = langruntime.checkedIndex(smallStart);
+                largeCount = langruntime.checkedIndex(rightCount);
+                smallStart = langruntime.checkedIndex(start);
+                smallCount = langruntime.checkedIndex(leftCount);
+            }
+            if (largeCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(largeStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(largeCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, largeStart);
+                    langruntime.pushIndex(lengths, largeCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+            if (smallCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(smallStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(smallCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, smallStart);
+                    langruntime.pushIndex(lengths, smallCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+        }
+    }
+    return { items: order, known: true };
+}
+function tsqueryRewriteImport(input: TsqueryRewriteTree, value: checkruntime.TsqueryPayload, normalize: boolean, utf8: boolean): TsqueryRewriteTree {
+    input = copyTsqueryRewriteTree(input);
+    value = checkruntime.copyTsqueryPayload(value);
+    normalize = langruntime.checkedBool(normalize);
+    utf8 = langruntime.checkedBool(utf8);
+    let nodes: TsqueryRewriteNode[] = input.nodes;
+    const offset: number = nodes.length;
+    let index: number = 0;
+    while (index < value.nodes.length) {
+        const node: checkruntime.TsqueryNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(index), checkruntime.copyTsqueryNode);
+        let children: number[] = [];
+        if (!(node.kind === 0)) {
+            let source: number[] = [];
+            if (!(node.kind === 1)) {
+                langruntime.pushIndex(source, langruntime.checkedAdd(offset, node.right));
+            }
+            langruntime.pushIndex(source, langruntime.checkedAdd(offset, node.left));
+            let childIndex: number = 0;
+            while (childIndex < source.length) {
+                const child: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(langruntime.indexNumber(source, langruntime.checkedIndex(childIndex))), copyTsqueryRewriteNode));
+                if (normalize && (node.kind === 2 || node.kind === 3) && child.value.kind === node.kind) {
+                    let member: number = 0;
+                    while (member < child.children.length) {
+                        langruntime.pushIndex(children, langruntime.indexNumber(child.children, langruntime.checkedIndex(member)));
+                        member = langruntime.checkedAdd(member, 1);
+                    }
+                }
+                else {
+                    langruntime.pushIndex(children, langruntime.indexNumber(source, langruntime.checkedIndex(childIndex)));
+                }
+                childIndex = langruntime.checkedAdd(childIndex, 1);
+            }
+        }
+        langruntime.pushStruct(nodes, { value: node, children: children, frozen: false }, copyTsqueryRewriteNode);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const root: number = langruntime.checkedAdd(offset, value.root);
+    const imported: TsqueryRewriteTree = { nodes: nodes, root: root, known: true };
+    if (normalize) {
+        return tsqueryRewriteSortTree(imported, root, utf8);
+    }
+    return imported;
+}
+function tsqueryRewriteSortTree(input: TsqueryRewriteTree, root: number, utf8: boolean): TsqueryRewriteTree {
+    input = copyTsqueryRewriteTree(input);
+    root = langruntime.checkedIndex(root);
+    utf8 = langruntime.checkedBool(utf8);
+    let tree: TsqueryRewriteTree = input;
+    let tasks: TsqueryRewriteTask[] = [];
+    langruntime.pushStruct(tasks, { node: root, finish: false }, copyTsqueryRewriteTask);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const task: TsqueryRewriteTask = copyTsqueryRewriteTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(depth), copyTsqueryRewriteTask));
+        const node: TsqueryRewriteNode = copyTsqueryRewriteNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(task.node), copyTsqueryRewriteNode));
+        if (task.finish) {
+            if (!(node.value.kind === 4) && node.children.length > 1) {
+                const sorted: TsqueryRewriteChildren = tsqueryRewriteSort(tree, node.children, utf8);
+                if (sorted.known === false) {
+                    return { nodes: tree.nodes, root: root, known: false };
+                }
+                let nodes: TsqueryRewriteNode[] = tree.nodes;
+                nodes[langruntime.checkedIndexIn(nodes, task.node)] = copyTsqueryRewriteNode({ value: node.value, children: sorted.items, frozen: node.frozen });
+                tree = copyTsqueryRewriteTree({ nodes: nodes, root: root, known: true });
+            }
+        }
+        else {
+            const finish: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: task.node, finish: true });
+            if (depth < tasks.length) {
+                tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(finish);
+            }
+            else {
+                langruntime.pushStruct(tasks, finish, copyTsqueryRewriteTask);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            let index: number = node.children.length;
+            while (index > 0) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                const child: TsqueryRewriteTask = copyTsqueryRewriteTask({ node: langruntime.indexNumber(node.children, langruntime.checkedIndex(index)), finish: false });
+                if (depth < tasks.length) {
+                    tasks[langruntime.checkedIndexIn(tasks, depth)] = copyTsqueryRewriteTask(child);
+                }
+                else {
+                    langruntime.pushStruct(tasks, child, copyTsqueryRewriteTask);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+    }
+    return tree;
+}
 const tsvectorSyntaxError = 6819553;
 const tsvectorProgramLimit = 8584704;
 function tsvectorNormalizeLexeme(text: string, positions: checkruntime.TsvectorPosition[]): checkruntime.TsvectorLexeme {

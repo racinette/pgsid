@@ -13,3 +13,4 @@ INSERT INTO search_query_templates(source,expected_match,right_associated,bypass
 INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a:A','a:*B',0,true,true,false);
 INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <2> ''b''',3,'!( ''a'' | ''b'' )',false);
 INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a & !b','''a''',false);
+INSERT INTO search_query_rewrites(source,target,replacement,expected,bypass) VALUES('a','a','x','''x''',false);

@@ -46766,6 +46766,916 @@ func Tsquerysend0660(input checkruntime.TsqueryValue, utf8 bool) checkruntime.By
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
+func tsqueryRewriteMatch(input tsqueryRewriteTree, root int, target int, replacement int, utf8 bool) tsqueryRewriteTree {
+	input = copytsqueryRewriteTree(input)
+	root = langruntime.CheckedIndex(root)
+	target = langruntime.CheckedIndex(target)
+	replacement = langruntime.CheckedIndex(replacement)
+	node := copytsqueryRewriteNode(input.nodes[root])
+	pattern := copytsqueryRewriteNode(input.nodes[target])
+	if node.frozen || node.value.Kind != pattern.value.Kind {
+		return tsqueryRewriteTree{nodes: input.nodes, root: root, known: true}
+	}
+	if len(node.children) == len(pattern.children) {
+		if tsqueryRewriteEqual(&input, root, target) {
+			return tsqueryRewriteTree{nodes: input.nodes, root: replacement, known: true}
+		}
+	} else if len(node.children) > len(pattern.children) && len(pattern.children) > 0 {
+		matched := []int{}
+		index := 0
+		for index < len(node.children) {
+			langruntime.CheckedAdd(len(matched), 1)
+			matched = append(matched, langruntime.CheckedIndex(0))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		member := 0
+		for member < len(pattern.children) {
+			index = langruntime.CheckedIndex(0)
+			found := false
+			for index < len(node.children) && found == false {
+				if matched[index] == 0 && tsqueryRewriteEqual(&input, node.children[index], pattern.children[member]) {
+					matched[index] = langruntime.CheckedIndex(1)
+					found = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if found == false {
+				return tsqueryRewriteTree{nodes: input.nodes, root: root, known: true}
+			}
+			member = langruntime.CheckedAdd(member, 1)
+		}
+		children := []int{}
+		index = langruntime.CheckedIndex(0)
+		for index < len(node.children) {
+			if matched[index] == 0 {
+				langruntime.CheckedAdd(len(children), 1)
+				children = append(children, langruntime.CheckedIndex(node.children[index]))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if replacement != 0 {
+			langruntime.CheckedAdd(len(children), 1)
+			children = append(children, langruntime.CheckedIndex(replacement))
+		}
+		nodes := input.nodes
+		nodes[root] = copytsqueryRewriteNode(tsqueryRewriteNode{value: node.value, children: children, frozen: false})
+		tree := tsqueryRewriteTree{nodes: nodes, root: root, known: true}
+		return tsqueryRewriteSortTree(tree, root, utf8)
+	}
+	return tsqueryRewriteTree{nodes: input.nodes, root: root, known: true}
+}
+func tsqueryRewriteVisit(input tsqueryRewriteTree, root int, target int, replacement int, utf8 bool) tsqueryRewriteTree {
+	input = copytsqueryRewriteTree(input)
+	root = langruntime.CheckedIndex(root)
+	target = langruntime.CheckedIndex(target)
+	replacement = langruntime.CheckedIndex(replacement)
+	tree := input
+	results := []int{}
+	index := 0
+	for index < len(tree.nodes) {
+		langruntime.CheckedAdd(len(results), 1)
+		results = append(results, langruntime.CheckedIndex(0))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	tasks := []tsqueryRewriteTask{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryRewriteTask(tsqueryRewriteTask{node: root, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		if task.finish {
+			node := copytsqueryRewriteNode(tree.nodes[task.node])
+			children := []int{}
+			index = langruntime.CheckedIndex(0)
+			for index < len(node.children) {
+				child := results[node.children[index]]
+				if child != 0 {
+					langruntime.CheckedAdd(len(children), 1)
+					children = append(children, langruntime.CheckedIndex(child))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if len(children) == 0 {
+				results[task.node] = langruntime.CheckedIndex(0)
+			} else if len(children) == 1 && node.value.Kind != 1 {
+				results[task.node] = langruntime.CheckedIndex(children[0])
+			} else {
+				results[task.node] = langruntime.CheckedIndex(task.node)
+				nodes := tree.nodes
+				nodes[task.node] = copytsqueryRewriteNode(tsqueryRewriteNode{value: node.value, children: children, frozen: node.frozen})
+				tree = copytsqueryRewriteTree(tsqueryRewriteTree{nodes: nodes, root: root, known: true})
+			}
+		} else {
+			tree = copytsqueryRewriteTree(tsqueryRewriteMatch(tree, task.node, target, replacement, utf8))
+			if tree.known == false {
+				return tree
+			}
+			node := copytsqueryRewriteNode(tree.nodes[task.node])
+			if tree.root != task.node || node.frozen || node.value.Kind == 0 {
+				results[task.node] = langruntime.CheckedIndex(tree.root)
+			} else {
+				finish := tsqueryRewriteTask{node: task.node, finish: true}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryRewriteTask(finish)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryRewriteTask(finish))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				index = langruntime.CheckedIndex(len(node.children))
+				for index > 0 {
+					index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+					child := tsqueryRewriteTask{node: node.children[index], finish: false}
+					if depth < len(tasks) {
+						tasks[depth] = copytsqueryRewriteTask(child)
+					} else {
+						langruntime.CheckedAdd(len(tasks), 1)
+						tasks = append(tasks, copytsqueryRewriteTask(child))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+	}
+	return tsqueryRewriteTree{nodes: tree.nodes, root: results[root], known: true}
+}
+func tsqueryRewriteBinary(input tsqueryRewriteTree) tsqueryRewriteTree {
+	input = copytsqueryRewriteTree(input)
+	root := input.root
+	nodes := input.nodes
+	visited := []int{}
+	position := 0
+	for position < len(nodes) {
+		langruntime.CheckedAdd(len(visited), 1)
+		visited = append(visited, langruntime.CheckedIndex(0))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	tasks := []tsqueryRewriteTask{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryRewriteTask(tsqueryRewriteTask{node: root, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		node := copytsqueryRewriteNode(nodes[task.node])
+		if task.finish {
+			visited[task.node] = langruntime.CheckedIndex(1)
+			children := node.children
+			count := len(children)
+			for count > 2 {
+				pair := []int{}
+				langruntime.CheckedAdd(len(pair), 1)
+				pair = append(pair, langruntime.CheckedIndex(children[0]))
+				langruntime.CheckedAdd(len(pair), 1)
+				pair = append(pair, langruntime.CheckedIndex(children[1]))
+				next := len(nodes)
+				langruntime.CheckedAdd(len(nodes), 1)
+				nodes = append(nodes, copytsqueryRewriteNode(tsqueryRewriteNode{value: checkruntime.TsqueryNode{Kind: node.value.Kind, Text: "", Weight: 0, Prefix: false, Distance: 0, Left: 0, Right: 0}, children: pair, frozen: false}))
+				children[0] = langruntime.CheckedIndex(next)
+				children[1] = langruntime.CheckedIndex(children[langruntime.CheckedSubtract(count, 1)])
+				count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
+			}
+			output := []int{}
+			index := 0
+			for index < count {
+				langruntime.CheckedAdd(len(output), 1)
+				output = append(output, langruntime.CheckedIndex(children[index]))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			nodes[task.node] = copytsqueryRewriteNode(tsqueryRewriteNode{value: node.value, children: output, frozen: node.frozen})
+		} else if visited[task.node] == 0 {
+			finish := tsqueryRewriteTask{node: task.node, finish: true}
+			if depth < len(tasks) {
+				tasks[depth] = copytsqueryRewriteTask(finish)
+			} else {
+				langruntime.CheckedAdd(len(tasks), 1)
+				tasks = append(tasks, copytsqueryRewriteTask(finish))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			index := len(node.children)
+			for index > 0 {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+				child := tsqueryRewriteTask{node: node.children[index], finish: false}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryRewriteTask(child)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryRewriteTask(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+	}
+	return tsqueryRewriteTree{nodes: nodes, root: root, known: true}
+}
+
+type tsqueryRewriteSize struct {
+	count int64
+	pool  int64
+}
+
+func copytsqueryRewriteSize(value tsqueryRewriteSize) tsqueryRewriteSize {
+	return tsqueryRewriteSize{count: value.count, pool: value.pool}
+}
+func tsqueryRewriteOutput(tree *tsqueryRewriteTree) checkruntime.TsqueryValue {
+	if tree.root == 0 {
+		return checkruntime.MakeTsqueryValue(checkruntime.MakeTsqueryPayload(8))
+	}
+	sizes := []tsqueryRewriteSize{}
+	index := 0
+	for index < len(tree.nodes) {
+		langruntime.CheckedAdd(len(sizes), 1)
+		sizes = append(sizes, copytsqueryRewriteSize(tsqueryRewriteSize{count: int64(0), pool: int64(0)}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	tasks := []tsqueryRewriteTask{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryRewriteTask(tsqueryRewriteTask{node: tree.root, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		node := copytsqueryRewriteNode(tree.nodes[task.node])
+		if task.finish {
+			count := int64(1)
+			pool := int64(0)
+			if node.value.Kind == 0 {
+				pool = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(checkruntime.TsvectorLexemeBytes(node.value.Text)))), int64(1))
+			}
+			index = langruntime.CheckedIndex(0)
+			for index < len(node.children) {
+				child := sizes[node.children[index]]
+				count = langruntime.CheckedI64Add(count, child.count)
+				pool = langruntime.CheckedI64Add(pool, child.pool)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if langruntime.CheckedI64Add(langruntime.CheckedI64Add(int64(8), langruntime.CheckedI64Multiply(int64(12), count)), pool) > int64(1073741823) {
+				return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+			}
+			sizes[task.node] = copytsqueryRewriteSize(tsqueryRewriteSize{count: count, pool: pool})
+		} else if sizes[task.node].count == int64(0) {
+			finish := tsqueryRewriteTask{node: task.node, finish: true}
+			if depth < len(tasks) {
+				tasks[depth] = copytsqueryRewriteTask(finish)
+			} else {
+				langruntime.CheckedAdd(len(tasks), 1)
+				tasks = append(tasks, copytsqueryRewriteTask(finish))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			index = langruntime.CheckedIndex(0)
+			for index < len(node.children) {
+				child := tsqueryRewriteTask{node: node.children[index], finish: false}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryRewriteTask(child)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryRewriteTask(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+	}
+	nodes := []checkruntime.TsqueryNode{}
+	roots := []int{}
+	count := 0
+	depth = langruntime.CheckedIndex(1)
+	tasks[0] = copytsqueryRewriteTask(tsqueryRewriteTask{node: tree.root, finish: false})
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		node := copytsqueryRewriteNode(tree.nodes[task.node])
+		if task.finish {
+			left := 0
+			right := 0
+			if node.value.Kind == 1 {
+				count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
+				left = langruntime.CheckedIndex(roots[count])
+			} else if node.value.Kind > 1 {
+				count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 2))
+				left = langruntime.CheckedIndex(roots[count])
+				right = langruntime.CheckedIndex(roots[langruntime.CheckedAdd(count, 1)])
+			}
+			root := len(nodes)
+			langruntime.CheckedAdd(len(nodes), 1)
+			nodes = append(nodes, checkruntime.TsqueryNode{Kind: node.value.Kind, Text: node.value.Text, Weight: node.value.Weight, Prefix: node.value.Prefix, Distance: node.value.Distance, Left: left, Right: right})
+			if count < len(roots) {
+				roots[count] = langruntime.CheckedIndex(root)
+			} else {
+				langruntime.CheckedAdd(len(roots), 1)
+				roots = append(roots, langruntime.CheckedIndex(root))
+			}
+			count = langruntime.CheckedAdd(count, 1)
+		} else {
+			finish := tsqueryRewriteTask{node: task.node, finish: true}
+			if depth < len(tasks) {
+				tasks[depth] = copytsqueryRewriteTask(finish)
+			} else {
+				langruntime.CheckedAdd(len(tasks), 1)
+				tasks = append(tasks, copytsqueryRewriteTask(finish))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			index = langruntime.CheckedIndex(0)
+			for index < len(node.children) {
+				child := tsqueryRewriteTask{node: node.children[index], finish: false}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryRewriteTask(child)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryRewriteTask(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+	}
+	return tsqueryRebuild(checkruntime.TsqueryPayload{Nodes: nodes, Root: roots[0], NativeBytes: langruntime.CheckedSignedNegate(1)})
+}
+func TsRewrite2hpb(input checkruntime.TsqueryValue, target checkruntime.TsqueryValue, replacement checkruntime.TsqueryValue, utf8 bool) checkruntime.TsqueryValue {
+	input = checkruntime.CopyTsqueryValue(input)
+	target = checkruntime.CopyTsqueryValue(target)
+	replacement = checkruntime.CopyTsqueryValue(replacement)
+	if input.Kind == checkruntime.TsqueryValueError {
+		error := input.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if target.Kind == checkruntime.TsqueryValueError {
+		error := target.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.TsqueryValueError {
+		error := replacement.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if target.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if replacement.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if input.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if target.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if replacement.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if input.Kind == checkruntime.TsqueryValueValue {
+		a := checkruntime.CopyTsqueryPayload(input.Value)
+		if target.Kind == checkruntime.TsqueryValueValue {
+			b := checkruntime.CopyTsqueryPayload(target.Value)
+			if replacement.Kind == checkruntime.TsqueryValueValue {
+				c := checkruntime.CopyTsqueryPayload(replacement.Value)
+				if len(a.Nodes) == 0 || len(b.Nodes) == 0 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueValue, Value: a}
+				}
+				empty := []int{}
+				nodes := []tsqueryRewriteNode{}
+				langruntime.CheckedAdd(len(nodes), 1)
+				nodes = append(nodes, copytsqueryRewriteNode(tsqueryRewriteNode{value: checkruntime.TsqueryNode{Kind: 0, Text: "", Weight: 0, Prefix: false, Distance: 0, Left: 0, Right: 0}, children: empty, frozen: false}))
+				initial := tsqueryRewriteTree{nodes: nodes, root: 0, known: true}
+				tree := tsqueryRewriteImport(initial, a, true, utf8)
+				if tree.known == false {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+				}
+				root := tree.root
+				tree = copytsqueryRewriteTree(tsqueryRewriteImport(tree, b, true, utf8))
+				if tree.known == false {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+				}
+				pattern := tree.root
+				subst := 0
+				if len(c.Nodes) != 0 {
+					tree = copytsqueryRewriteTree(tsqueryRewriteImport(tree, c, false, utf8))
+					subst = langruntime.CheckedIndex(tree.root)
+					nodes := tree.nodes
+					node := copytsqueryRewriteNode(nodes[subst])
+					nodes[subst] = copytsqueryRewriteNode(tsqueryRewriteNode{value: node.value, children: node.children, frozen: true})
+					tree = copytsqueryRewriteTree(tsqueryRewriteTree{nodes: nodes, root: root, known: true})
+				}
+				tree = copytsqueryRewriteTree(tsqueryRewriteVisit(tree, root, pattern, subst, utf8))
+				if tree.known == false {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+				}
+				if tree.root == 0 {
+					return checkruntime.MakeTsqueryValue(checkruntime.MakeTsqueryPayload(8))
+				}
+				tree = copytsqueryRewriteTree(tsqueryRewriteBinary(tree))
+				return tsqueryRewriteOutput(&tree)
+			}
+		}
+	}
+	return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+}
+
+type tsqueryRewriteNode struct {
+	value    checkruntime.TsqueryNode
+	children []int
+	frozen   bool
+}
+
+func copytsqueryRewriteNode(value tsqueryRewriteNode) tsqueryRewriteNode {
+	return tsqueryRewriteNode{value: value.value, children: langruntime.CheckedIndices(value.children), frozen: value.frozen}
+}
+
+type tsqueryRewriteTree struct {
+	nodes []tsqueryRewriteNode
+	root  int
+	known bool
+}
+
+func copytsqueryRewriteTree(value tsqueryRewriteTree) tsqueryRewriteTree {
+	return tsqueryRewriteTree{nodes: langruntime.CheckedStructs(value.nodes, copytsqueryRewriteNode), root: langruntime.CheckedIndex(value.root), known: value.known}
+}
+
+type tsqueryRewriteChildren struct {
+	items []int
+	known bool
+}
+
+func copytsqueryRewriteChildren(value tsqueryRewriteChildren) tsqueryRewriteChildren {
+	return tsqueryRewriteChildren{items: langruntime.CheckedIndices(value.items), known: value.known}
+}
+
+type tsqueryRewriteTask struct {
+	node   int
+	finish bool
+}
+
+func copytsqueryRewriteTask(value tsqueryRewriteTask) tsqueryRewriteTask {
+	return tsqueryRewriteTask{node: langruntime.CheckedIndex(value.node), finish: value.finish}
+}
+func tsqueryRewriteCompare(tree *tsqueryRewriteTree, left int, right int, utf8 bool) checkruntime.Int4Value {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	tasks := []tsqueryCompareFrame{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryCompareFrame(tsqueryCompareFrame{left: left, right: right, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		a := copytsqueryRewriteNode(tree.nodes[task.left])
+		b := copytsqueryRewriteNode(tree.nodes[task.right])
+		if task.finish {
+			if a.value.Distance > b.value.Distance {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if a.value.Distance < b.value.Distance {
+				return checkruntime.MakeInt4Value(1)
+			}
+		} else {
+			if a.value.Kind > b.value.Kind {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if a.value.Kind < b.value.Kind {
+				return checkruntime.MakeInt4Value(1)
+			}
+			if a.value.Kind == 0 {
+				if a.value.Text != b.value.Text {
+					if utf8 == false && (tsqueryAscii(a.value.Text) == false || tsqueryAscii(b.value.Text) == false) {
+						return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+					}
+					ac := tsqueryLegacyCrc(a.value.Text)
+					bc := tsqueryLegacyCrc(b.value.Text)
+					if ac > bc {
+						return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+					}
+					if ac < bc {
+						return checkruntime.MakeInt4Value(1)
+					}
+					return checkruntime.MakeInt4Value(checkruntime.TsvectorLexemeOrder(a.value.Text, b.value.Text))
+				}
+			} else {
+				if len(a.children) > len(b.children) {
+					return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+				}
+				if len(a.children) < len(b.children) {
+					return checkruntime.MakeInt4Value(1)
+				}
+				if a.value.Kind == 4 {
+					finish := tsqueryCompareFrame{left: task.left, right: task.right, finish: true}
+					if depth < len(tasks) {
+						tasks[depth] = copytsqueryCompareFrame(finish)
+					} else {
+						langruntime.CheckedAdd(len(tasks), 1)
+						tasks = append(tasks, copytsqueryCompareFrame(finish))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+				index := len(a.children)
+				for index > 0 {
+					index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+					child := tsqueryCompareFrame{left: a.children[index], right: b.children[index], finish: false}
+					if depth < len(tasks) {
+						tasks[depth] = copytsqueryCompareFrame(child)
+					} else {
+						langruntime.CheckedAdd(len(tasks), 1)
+						tasks = append(tasks, copytsqueryCompareFrame(child))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+	}
+	return checkruntime.MakeInt4Value(0)
+}
+func tsqueryRewriteEqual(tree *tsqueryRewriteTree, left int, right int) bool {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	tasks := []tsqueryCompareFrame{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryCompareFrame(tsqueryCompareFrame{left: left, right: right, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		a := copytsqueryRewriteNode(tree.nodes[task.left])
+		b := copytsqueryRewriteNode(tree.nodes[task.right])
+		if a.value.Kind != b.value.Kind || len(a.children) != len(b.children) {
+			return false
+		}
+		if a.value.Kind == 0 {
+			if a.value.Text != b.value.Text {
+				return false
+			}
+		} else {
+			if a.value.Kind == 4 && a.value.Distance != b.value.Distance {
+				return false
+			}
+			index := 0
+			for index < len(a.children) {
+				child := tsqueryCompareFrame{left: a.children[index], right: b.children[index], finish: false}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryCompareFrame(child)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryCompareFrame(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+	}
+	return true
+}
+func tsqueryRewriteOrderKnown(input checkruntime.Int4Value) bool {
+	if input.Kind == checkruntime.Int4ValueValue {
+		return true
+	}
+	return false
+}
+func tsqueryRewriteOrderNumber(input checkruntime.Int4Value) int {
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return value
+	}
+	return 0
+}
+func tsqueryRewriteMedian(input *tsqueryRewriteTree, a int, b int, c int, utf8 bool) checkruntime.Int4Value {
+	a = langruntime.CheckedIndex(a)
+	b = langruntime.CheckedIndex(b)
+	c = langruntime.CheckedIndex(c)
+	ab := tsqueryRewriteCompare(input, a, b, utf8)
+	if tsqueryRewriteOrderKnown(ab) == false {
+		return ab
+	}
+	bc := tsqueryRewriteCompare(input, b, c, utf8)
+	if tsqueryRewriteOrderKnown(bc) == false {
+		return bc
+	}
+	if tsqueryRewriteOrderNumber(ab) < 0 && tsqueryRewriteOrderNumber(bc) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	if tsqueryRewriteOrderNumber(ab) >= 0 && tsqueryRewriteOrderNumber(bc) > 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	ac := tsqueryRewriteCompare(input, a, c, utf8)
+	if tsqueryRewriteOrderKnown(ac) == false {
+		return ac
+	}
+	if tsqueryRewriteOrderNumber(ac) < 0 {
+		if tsqueryRewriteOrderNumber(ab) < 0 {
+			return checkruntime.MakeInt4Value(int(int32(c)))
+		}
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	if tsqueryRewriteOrderNumber(ab) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	return checkruntime.MakeInt4Value(int(int32(c)))
+}
+func tsqueryRewriteSort(input *tsqueryRewriteTree, children []int, utf8 bool) tsqueryRewriteChildren {
+	children = langruntime.CheckedIndices(children)
+	order := children
+	starts := []int{}
+	lengths := []int{}
+	langruntime.CheckedAdd(len(starts), 1)
+	starts = append(starts, langruntime.CheckedIndex(0))
+	langruntime.CheckedAdd(len(lengths), 1)
+	lengths = append(lengths, langruntime.CheckedIndex(len(order)))
+	tasks := 1
+	for tasks > 0 {
+		tasks = langruntime.CheckedIndex(langruntime.CheckedSubtract(tasks, 1))
+		start := starts[tasks]
+		count := lengths[tasks]
+		end := langruntime.CheckedAdd(start, count)
+		partition := count >= 7
+		if count < 7 {
+			next := langruntime.CheckedAdd(start, 1)
+			for next < end {
+				position := next
+				shifting := true
+				for position > start && shifting {
+					compared := tsqueryRewriteCompare(input, order[langruntime.CheckedSubtract(position, 1)], order[position], utf8)
+					if tsqueryRewriteOrderKnown(compared) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					if tsqueryRewriteOrderNumber(compared) > 0 {
+						saved := order[position]
+						order[position] = langruntime.CheckedIndex(order[langruntime.CheckedSubtract(position, 1)])
+						order[langruntime.CheckedSubtract(position, 1)] = langruntime.CheckedIndex(saved)
+						position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
+					} else {
+						shifting = false
+					}
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+		}
+		if partition {
+			next := langruntime.CheckedAdd(start, 1)
+			presorted := true
+			for next < end && presorted {
+				compared := tsqueryRewriteCompare(input, order[langruntime.CheckedSubtract(next, 1)], order[next], utf8)
+				if tsqueryRewriteOrderKnown(compared) == false {
+					return tsqueryRewriteChildren{items: order, known: false}
+				}
+				if tsqueryRewriteOrderNumber(compared) > 0 {
+					presorted = false
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+			partition = presorted == false
+		}
+		if partition {
+			half := langruntime.CheckedSignedDivide((int(int32(count))), 2)
+			middle := langruntime.CheckedAdd(start, langruntime.IndexFromI32(half, 0))
+			pivot := order[middle]
+			if count > 7 {
+				low := order[start]
+				mid := pivot
+				high := order[langruntime.CheckedSubtract(end, 1)]
+				if count > 40 {
+					eighth := langruntime.CheckedSignedDivide((int(int32(count))), 8)
+					distance := langruntime.IndexFromI32(eighth, 0)
+					loChoice := tsqueryRewriteMedian(input, low, order[langruntime.CheckedAdd(start, distance)], order[langruntime.CheckedAdd(langruntime.CheckedAdd(start, distance), distance)], utf8)
+					if tsqueryRewriteOrderKnown(loChoice) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					low = langruntime.CheckedIndex(langruntime.IndexFromI32(tsqueryRewriteOrderNumber(loChoice), 0))
+					midChoice := tsqueryRewriteMedian(input, order[langruntime.CheckedSubtract(middle, distance)], mid, order[langruntime.CheckedAdd(middle, distance)], utf8)
+					if tsqueryRewriteOrderKnown(midChoice) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					mid = langruntime.CheckedIndex(langruntime.IndexFromI32(tsqueryRewriteOrderNumber(midChoice), 0))
+					hiChoice := tsqueryRewriteMedian(input, order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), (langruntime.CheckedAdd(distance, distance)))], order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), distance)], high, utf8)
+					if tsqueryRewriteOrderKnown(hiChoice) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					high = langruntime.CheckedIndex(langruntime.IndexFromI32(tsqueryRewriteOrderNumber(hiChoice), 0))
+				}
+				choice := tsqueryRewriteMedian(input, low, mid, high, utf8)
+				if tsqueryRewriteOrderKnown(choice) == false {
+					return tsqueryRewriteChildren{items: order, known: false}
+				}
+				pivot = langruntime.CheckedIndex(langruntime.IndexFromI32(tsqueryRewriteOrderNumber(choice), 0))
+			}
+			pivotPosition := start
+			for order[pivotPosition] != pivot {
+				pivotPosition = langruntime.CheckedAdd(pivotPosition, 1)
+			}
+			saved := order[start]
+			order[start] = langruntime.CheckedIndex(pivot)
+			order[pivotPosition] = langruntime.CheckedIndex(saved)
+			equalLow := langruntime.CheckedAdd(start, 1)
+			scanLow := equalLow
+			scanHigh := langruntime.CheckedSubtract(end, 1)
+			equalHigh := scanHigh
+			searching := true
+			for searching {
+				advance := true
+				for scanLow <= scanHigh && advance {
+					compared := tsqueryRewriteCompare(input, order[scanLow], pivot, utf8)
+					if tsqueryRewriteOrderKnown(compared) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					comparison := tsqueryRewriteOrderNumber(compared)
+					if comparison <= 0 {
+						if comparison == 0 {
+							saved := order[equalLow]
+							order[equalLow] = langruntime.CheckedIndex(order[scanLow])
+							order[scanLow] = langruntime.CheckedIndex(saved)
+							equalLow = langruntime.CheckedAdd(equalLow, 1)
+						}
+						scanLow = langruntime.CheckedAdd(scanLow, 1)
+					} else {
+						advance = false
+					}
+				}
+				advance = true
+				for scanLow <= scanHigh && advance {
+					compared := tsqueryRewriteCompare(input, order[scanHigh], pivot, utf8)
+					if tsqueryRewriteOrderKnown(compared) == false {
+						return tsqueryRewriteChildren{items: order, known: false}
+					}
+					comparison := tsqueryRewriteOrderNumber(compared)
+					if comparison >= 0 {
+						if comparison == 0 {
+							saved := order[equalHigh]
+							order[equalHigh] = langruntime.CheckedIndex(order[scanHigh])
+							order[scanHigh] = langruntime.CheckedIndex(saved)
+							equalHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, 1))
+						}
+						scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+					} else {
+						advance = false
+					}
+				}
+				if scanLow > scanHigh {
+					searching = false
+				} else {
+					saved := order[scanLow]
+					order[scanLow] = langruntime.CheckedIndex(order[scanHigh])
+					order[scanHigh] = langruntime.CheckedIndex(saved)
+					scanLow = langruntime.CheckedAdd(scanLow, 1)
+					scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+				}
+			}
+			swapCount := langruntime.CheckedSubtract(equalLow, start)
+			if swapCount > langruntime.CheckedSubtract(scanLow, equalLow) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanLow, equalLow))
+			}
+			swapped := 0
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(start, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(scanLow, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, scanHigh))
+			if swapCount > langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1))
+			}
+			swapped = langruntime.CheckedIndex(0)
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(scanLow, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(end, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			leftCount := langruntime.CheckedSubtract(scanLow, equalLow)
+			rightCount := langruntime.CheckedSubtract(equalHigh, scanHigh)
+			largeStart := start
+			largeCount := leftCount
+			smallStart := langruntime.CheckedSubtract(end, rightCount)
+			smallCount := rightCount
+			if leftCount <= rightCount {
+				largeStart = langruntime.CheckedIndex(smallStart)
+				largeCount = langruntime.CheckedIndex(rightCount)
+				smallStart = langruntime.CheckedIndex(start)
+				smallCount = langruntime.CheckedIndex(leftCount)
+			}
+			if largeCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(largeStart)
+					lengths[tasks] = langruntime.CheckedIndex(largeCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(largeStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(largeCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+			if smallCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(smallStart)
+					lengths[tasks] = langruntime.CheckedIndex(smallCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(smallStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(smallCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+		}
+	}
+	return tsqueryRewriteChildren{items: order, known: true}
+}
+func tsqueryRewriteImport(input tsqueryRewriteTree, value checkruntime.TsqueryPayload, normalize bool, utf8 bool) tsqueryRewriteTree {
+	input = copytsqueryRewriteTree(input)
+	value = checkruntime.CopyTsqueryPayload(value)
+	nodes := input.nodes
+	offset := len(nodes)
+	index := 0
+	for index < len(value.Nodes) {
+		node := value.Nodes[index]
+		children := []int{}
+		if node.Kind != 0 {
+			source := []int{}
+			if node.Kind != 1 {
+				langruntime.CheckedAdd(len(source), 1)
+				source = append(source, langruntime.CheckedIndex(langruntime.CheckedAdd(offset, node.Right)))
+			}
+			langruntime.CheckedAdd(len(source), 1)
+			source = append(source, langruntime.CheckedIndex(langruntime.CheckedAdd(offset, node.Left)))
+			childIndex := 0
+			for childIndex < len(source) {
+				child := copytsqueryRewriteNode(nodes[source[childIndex]])
+				if normalize && (node.Kind == 2 || node.Kind == 3) && child.value.Kind == node.Kind {
+					member := 0
+					for member < len(child.children) {
+						langruntime.CheckedAdd(len(children), 1)
+						children = append(children, langruntime.CheckedIndex(child.children[member]))
+						member = langruntime.CheckedAdd(member, 1)
+					}
+				} else {
+					langruntime.CheckedAdd(len(children), 1)
+					children = append(children, langruntime.CheckedIndex(source[childIndex]))
+				}
+				childIndex = langruntime.CheckedAdd(childIndex, 1)
+			}
+		}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, copytsqueryRewriteNode(tsqueryRewriteNode{value: node, children: children, frozen: false}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	root := langruntime.CheckedAdd(offset, value.Root)
+	imported := tsqueryRewriteTree{nodes: nodes, root: root, known: true}
+	if normalize {
+		return tsqueryRewriteSortTree(imported, root, utf8)
+	}
+	return imported
+}
+func tsqueryRewriteSortTree(input tsqueryRewriteTree, root int, utf8 bool) tsqueryRewriteTree {
+	input = copytsqueryRewriteTree(input)
+	root = langruntime.CheckedIndex(root)
+	tree := input
+	tasks := []tsqueryRewriteTask{}
+	langruntime.CheckedAdd(len(tasks), 1)
+	tasks = append(tasks, copytsqueryRewriteTask(tsqueryRewriteTask{node: root, finish: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		task := tasks[depth]
+		node := copytsqueryRewriteNode(tree.nodes[task.node])
+		if task.finish {
+			if node.value.Kind != 4 && len(node.children) > 1 {
+				sorted := tsqueryRewriteSort(&tree, node.children, utf8)
+				if sorted.known == false {
+					return tsqueryRewriteTree{nodes: tree.nodes, root: root, known: false}
+				}
+				nodes := tree.nodes
+				nodes[task.node] = copytsqueryRewriteNode(tsqueryRewriteNode{value: node.value, children: sorted.items, frozen: node.frozen})
+				tree = copytsqueryRewriteTree(tsqueryRewriteTree{nodes: nodes, root: root, known: true})
+			}
+		} else {
+			finish := tsqueryRewriteTask{node: task.node, finish: true}
+			if depth < len(tasks) {
+				tasks[depth] = copytsqueryRewriteTask(finish)
+			} else {
+				langruntime.CheckedAdd(len(tasks), 1)
+				tasks = append(tasks, copytsqueryRewriteTask(finish))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			index := len(node.children)
+			for index > 0 {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+				child := tsqueryRewriteTask{node: node.children[index], finish: false}
+				if depth < len(tasks) {
+					tasks[depth] = copytsqueryRewriteTask(child)
+				} else {
+					langruntime.CheckedAdd(len(tasks), 1)
+					tasks = append(tasks, copytsqueryRewriteTask(child))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+	}
+	return tree
+}
 
 const tsvectorSyntaxError = 6819553
 const tsvectorProgramLimit = 8584704
