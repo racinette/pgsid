@@ -1,4 +1,5 @@
-import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import { builtinTypeComparison, builtinCallables } from '../../postgres/builtins/inventory.js'
+import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import { anonymousRecordProfile } from '../../sql-semantics/anonymous-records.js'
 import {
   compositeProfile,
@@ -384,6 +385,29 @@ export function arrayInputPlan(type: string): string[] {
 export const arrayElementComparison = (type: string) => {
   const domain = domainElementDefinition(type)
   type = arrayElementBaseType(type)
+  if (anonymousRecordProfile(type)) {
+    const selected = (name: string) =>
+      builtinCallables().find(
+        (item) =>
+          item.schema === 'pg_catalog' &&
+          item.name === name &&
+          item.args[0] === 'pg_catalog.record',
+      )
+    const identity = (name: string) => {
+      const item = selected(name)
+      return item ? callableIdentity(item) : null
+    }
+    return {
+      identity: 'pg_catalog.record',
+      collation: null,
+      btreeClass: null,
+      hashClass: null,
+      equality: identity('='),
+      comparator: identity('btrecordcmp'),
+      hash: identity('hash_record'),
+      hashExtended: identity('hash_record_extended'),
+    }
+  }
   const composite = compositeProfile(type)
   if (composite) {
     const support = composite.graph.definitions.find(

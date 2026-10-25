@@ -32,6 +32,7 @@ import {
 import {
   anonymousRecordType,
   anonymousRecordProfile,
+  anonymousComparisonContext,
   commonAnonymousRecordType,
   canRelabelAnonymousRecords,
   type AnonymousRecordField,
@@ -1422,12 +1423,10 @@ const candidate = (
     const arrayTypes = fullArgs.flatMap((arg, index) =>
       item.args[index] === 'pg_catalog.anyarray' && isArrayLikeType(arg.type) ? [arg.type] : [],
     )
-    const arrayIdentity = arrayTypes[0]
-    if (
-      item.args.includes('pg_catalog.anyarray') &&
-      (!arrayIdentity || arrayTypes.some((type) => type !== arrayIdentity))
-    )
-      return []
+    const arrayIdentity = arrayTypes.every((type) => type === arrayTypes[0])
+      ? arrayTypes[0]
+      : commonAnonymousRecordType(arrayTypes)
+    if (item.args.includes('pg_catalog.anyarray') && !arrayIdentity) return []
     if (arrayIdentity && elementType && arrayLikeElementType(arrayIdentity) !== elementType)
       return []
     const capturedEnum = capturedEnumSupport(item)
@@ -1519,7 +1518,7 @@ const candidate = (
                     anonymousRecordProfile(boundType(arg) ?? ''))
                 ? materialize(arg, boundType(arg)!)
                 : item.args[index] === 'pg_catalog.anyarray'
-                  ? materialize(arg, arrayIdentity!)
+                  ? coerce(arg, arrayIdentity!, definition)
                   : item.args[index] === 'pg_catalog.anymultirange'
                     ? materialize(arg, multirangeIdentity!)
                     : item.args[index] === 'pg_catalog.anyrange'
@@ -1894,8 +1893,11 @@ const comparisonCandidate = (
   const definition = args.find((arg) => arg.enum)?.enum
   const enumIdentity = definition ? enumType(definition) : null
   const arrayTypes = types.filter(isArrayLikeType)
-  const arrayIdentity =
-    arrayTypes.length && arrayTypes.every((type) => type === arrayTypes[0]) ? arrayTypes[0]! : null
+  const arrayIdentity = arrayTypes.length
+    ? arrayTypes.every((type) => type === arrayTypes[0])
+      ? arrayTypes[0]!
+      : commonAnonymousRecordType(arrayTypes)
+    : null
   const multirangeTypes = types.filter(isMultirangeType)
   const multirangeIdentity =
     multirangeTypes.length && multirangeTypes.every((type) => type === multirangeTypes[0])
@@ -1909,9 +1911,11 @@ const comparisonCandidate = (
     rangeTypes.length && rangeTypes.every((type) => type === rangeTypes[0]) ? rangeTypes[0]! : null
   const concrete = (type: string, index: number): string | null =>
     type === 'pg_catalog.record'
-      ? compositeProfile(types[index] ?? '')
+      ? compositeProfile(types[index] ?? '') || anonymousRecordProfile(types[index] ?? '')
         ? types[index]!
-        : (types.find((type) => compositeProfile(type ?? '')) ?? null)
+        : (types.find(
+            (type) => compositeProfile(type ?? '') || anonymousRecordProfile(type ?? ''),
+          ) ?? null)
       : type === 'pg_catalog.anyenum'
         ? enumIdentity
         : type === 'pg_catalog.anyarray'
@@ -1948,6 +1952,7 @@ const comparisonCandidate = (
         return (
           source === null ||
           source === target ||
+          canRelabelAnonymousRecords(source, target) ||
           builtinCast(source, target)?.context === 'i' ||
           (source.startsWith('array:') &&
             target.startsWith('array:') &&
@@ -3061,10 +3066,18 @@ export function bindCatalogCheck(
         const value = materialize(bound, boundType(bound) ?? type)
         if (!value) return unknown
         const definition = arrayOutputEnum(type)
+        const comparisonContext = anonymousComparisonContext(type, compositeGraph)
         descriptors.push({
           type,
+          ...(comparisonContext ? { comparisonContext } : {}),
           ...(bound.collation
             ? { collation: bound.collation.default ? ('default' as const) : bound.collation.kind }
+            : {}),
+          ...(bound.collation &&
+          !bound.collation.default &&
+          bound.collation.kind !== 'C' &&
+          typeof bound.collation.identity === 'string'
+            ? { collationIdentity: bound.collation.identity }
             : {}),
           ...(boundType(bound) === null || bound.unknownField ? { unknown: true as const } : {}),
           ...(definition

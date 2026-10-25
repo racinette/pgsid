@@ -11095,6 +11095,9 @@ export function recordComparisonPair(left: checkruntime.ArrayElement, right: che
     }
     return checkruntime.arrayComparisonPair(left, right, equality);
 }
+export function recordComparisonReady(input: checkruntime.ArrayComparisonPayload): boolean {
+    return input.state === 1;
+}
 export function recordInvalidCollation(): checkruntime.Int4Value {
     return { kind: "Error", value: checkruntime.makeSqlError(recordComparisonCollation) };
 }

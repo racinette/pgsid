@@ -224,7 +224,13 @@ CREATE DOMAIN public.unrelated AS int4;`)
     expect(nodes.get('public.approved')).toMatchObject({ kind: 'd', base: 'foreign_types.leaf' })
     expect(nodes.get('foreign_types.leaf')).toMatchObject({ kind: 'c' })
     expect(nodes.get('public._required')).toMatchObject({ element: 'public.required' })
-    expect(nodes.has('public.unrelated')).toBe(false)
+    expect(nodes.get('public.unrelated')).toMatchObject({
+      kind: 'd',
+      base: 'pg_catalog.int4',
+      comparison: {
+        equalityImplementation: 'function:["pg_catalog","int4eq"](pg_catalog.int4,pg_catalog.int4)',
+      },
+    })
     expect(oidKey(graph)).toBe(false)
     expect(await readCatalogCompositeTypes(pg, [])).toEqual({ roots: [], definitions: [] })
   } finally {
@@ -258,7 +264,14 @@ CREATE DOMAIN public.unrelated AS int4[];`)
       expect(nodes.get('public._' + name)).toMatchObject({ element: 'public.' + name })
     }
     expect(nodes.get('foreign_types.leaf')).toMatchObject({ kind: 'c' })
-    expect(nodes.has('public.unrelated')).toBe(false)
+    expect(nodes.get('public.unrelated')).toMatchObject({
+      kind: 'd',
+      base: 'pg_catalog._int4',
+      comparison: {
+        equalityImplementation:
+          'function:["pg_catalog","array_eq"](pg_catalog.anyarray,pg_catalog.anyarray)',
+      },
+    })
     expect(oidKey(graph)).toBe(false)
     for (const node of nodes.values())
       for (const ref of [node.array, node.base, node.element, ...node.fields.map((f) => f.type)])

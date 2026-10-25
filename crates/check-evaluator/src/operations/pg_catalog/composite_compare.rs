@@ -97,6 +97,10 @@ pub fn record_comparison_pair(
     array_comparison_pair(left, right, equality)
 }
 
+pub(crate) fn record_comparison_ready(input: &ArrayComparisonPayload) -> bool {
+    input.state == 1
+}
+
 pub fn record_invalid_collation() -> Int4Value {
     Int4Value::Error(make_sql_error(RECORD_COMPARISON_COLLATION))
 }
