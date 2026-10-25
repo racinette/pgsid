@@ -2,6 +2,7 @@ import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
 import { tree, scalar, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
+import { storedNumericConstant } from './numeric-constant-storage.js'
 
 export interface StoredExpressionCollation {
   schema: string
@@ -83,6 +84,10 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (type === 'pg_catalog."numeric"' || type === 'pg_catalog.numeric') {
+      const numeric = storedNumericConstant(node, input.byteOrder)
+      if (numeric === undefined || numeric === null) return undefined
+      return typedExpression({ A_Const: { sval: { sval: numeric } } }, type)
     } else {
       const raw = node.fields['constvalue'],
         data = raw?.[1],

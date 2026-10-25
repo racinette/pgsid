@@ -157,7 +157,7 @@ it('defers selected unavailable scalar cast functions after row comparison expan
   }
 })
 
-it('retains an explicit recovery gap for hidden native numeric constants instead of evaluating the lossy printed cast chain', async () => {
+it('recovers hidden numeric constants and their selected narrowing casts instead of evaluating the lossy printed cast chain', async () => {
   const pg = await PGlite.create()
   try {
     const source = 'CHECK(ROW(n,1.25)::ip IS DISTINCT FROM ROW(n,1.25)::np)'
@@ -167,7 +167,7 @@ it('retains an explicit recovery gap for hidden native numeric constants instead
     const c = await snapshotCatalog(pg),
       table = c.tables.find((t) => t.name === 'changing')!,
       constraint = table.constraints[0]!
-    expect(constraint.rowCoercionContext?.complete).toBe(false)
+    expect(constraint.rowCoercionContext?.complete).toBe(true)
     expect(
       uncertain(
         lowerTableCheck(
@@ -181,7 +181,7 @@ it('retains an explicit recovery gap for hidden native numeric constants instead
           source,
         )!.expression,
       ),
-    ).toBe(true)
+    ).toBe(false)
     await pg.exec('INSERT INTO changing VALUES(1)')
   } finally {
     await pg.close()
