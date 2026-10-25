@@ -909,6 +909,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       con.coercion_tree,
       con.definition,
       typeIdentities,
+      rowIdentities,
     )
     const ci: ConstraintInfo = {
       ...(arrayConstants ? { arrayConstants } : {}),
@@ -1252,6 +1253,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           check.coercion_tree,
           check.definition,
           typeIdentities,
+          rowIdentities,
         )
         return {
           name: check.name,

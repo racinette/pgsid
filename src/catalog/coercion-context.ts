@@ -460,7 +460,13 @@ function captureExpressionCoercions(
       }
       if (node.kind === 'ARRAYEXPR') {
         const type = arrayIdentities.get(Number(expressionType(node)))
-        if (type === 'pg_catalog.int2vector' || type === 'pg_catalog.oidvector') {
+        if (
+          type !== undefined &&
+          (type === 'pg_catalog.int2vector' ||
+            type === 'pg_catalog.oidvector' ||
+            type === 'pg_catalog._record' ||
+            identities.get(Number(expressionType(node)))?.depth === 1)
+        ) {
           const elementType = arrayIdentities.get(Number(scalar(node, 'element_typeid')))
           const dimensions = scalar(node, 'multidims')
           if (site === undefined || !elementType || !['true', 'false'].includes(dimensions ?? ''))
@@ -928,8 +934,9 @@ export function captureArrayConstructorContext(
   source: string | null,
   definition: string,
   identities: ReadonlyMap<number, string>,
+  rows: ReadonlyMap<number, RowCoercionIdentity> = new Map(),
 ): StoredArrayConstructorContext | undefined {
-  return captureExpressionCoercions(source, definition, new Map(), identities).arrays
+  return captureExpressionCoercions(source, definition, rows, identities).arrays
 }
 
 export function captureDomainCoercionContext(

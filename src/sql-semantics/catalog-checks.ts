@@ -347,9 +347,20 @@ export function lowerTableCheck(
       ? constraint.rowCoercionContext
       : undefined,
     rowCoercionSites,
-    literalOrigin === 'stored' &&
-      constraint.arrayConstructorContext?.definition === constraint.definition
-      ? alignStoredArrayConstructors(check['raw_expr'], constraint.arrayConstructorContext)
+    constraint.arrayConstructorContext?.definition === constraint.definition
+      ? alignStoredArrayConstructors(
+          check['raw_expr'],
+          literalOrigin === 'stored'
+            ? constraint.arrayConstructorContext
+            : {
+                ...constraint.arrayConstructorContext,
+                constructors: constraint.arrayConstructorContext.constructors.filter(
+                  (c) => c.type === 'pg_catalog._record',
+                ),
+              },
+          compositeGraph,
+          rangeTypes,
+        )
       : undefined,
     xmlConstantBindings,
   )

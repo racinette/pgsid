@@ -51,7 +51,9 @@ function jsonRendersAcl(type: string, seen = new Set<string>()): boolean {
   const anonymous = anonymousRecordProfile(type)
   if (anonymous)
     return anonymous.some((layout) =>
-      layout.fields.some((field) => jsonRendersAcl(field.type, seen)),
+      layout.namedType
+        ? jsonRendersAcl(layout.namedType, seen)
+        : layout.fields.some((field) => jsonRendersAcl(field.type, seen)),
     )
   const profile = compositeProfile(type),
     root = profile?.graph.definitions.find((definition) => definition.identity === profile.identity)
