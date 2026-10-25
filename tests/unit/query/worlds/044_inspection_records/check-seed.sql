@@ -805,3 +805,22 @@ INSERT INTO inspection_default_history(score,divisor,document,path,expected_pres
 INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,1,'{}','strict $.missing',true,true,1,false);
 -- name: HistoricalDefaultsBypassedErrors
 INSERT INTO inspection_default_history(score,divisor,document,path,expected_present,expected_exists,expected_max,bypass) VALUES(1,0,'{}','strict $.missing',false,false,2,true);
+
+-- name: HistoricalSelectionMatchedValues
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(1,1,true,false);
+-- name: HistoricalSelectionNestedCase
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(2,2,true,false);
+-- name: HistoricalSelectionSkippedDivision
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(2,0,true,false);
+-- name: HistoricalSelectionNullOperand
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(NULL,0,false,false);
+-- name: HistoricalSelectionUnmatchedCase
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(3,0,true,false);
+-- name: HistoricalSelectionWrongPresence
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(1,1,false,false);
+-- name: HistoricalSelectionNullPresence
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(1,1,NULL,false);
+-- name: HistoricalSelectionReachedDivision
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(1,0,true,false);
+-- name: HistoricalSelectionBypassedDivision
+INSERT INTO inspection_selection_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);

@@ -92,6 +92,7 @@ import { rustStringLiteral } from './rust-literals.js'
 import {
   constantCheckExpression,
   constantScalarExpression,
+  caseWhenExpression,
   strictNullPreparation,
   nullifNullPreparation,
   type ConstantPreparation,
@@ -8220,8 +8221,12 @@ export function emitCheckRustEvaluator(
           ]
         }
         const branch = node.branches[position]!
-        let condition = emitScalar(branch.when, lines, used)
-        if (scrutinee && node.scrutinee) {
+        const when =
+          node.scrutinee?.binding && constantScalarExpression(node.scrutinee.expression)
+            ? caseWhenExpression(node, branch.when)
+            : branch.when
+        let condition = emitScalar(when, lines, used)
+        if (scrutinee && node.scrutinee && !node.scrutinee.binding) {
           if (!branch.equality)
             throw new UnsupportedCheckRustExpression('Simple CASE needs equality for each WHEN')
           condition = emitCall(branch.equality, [scrutinee, condition], lines)
@@ -8239,7 +8244,7 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression('CASE result type mismatch')
         const otherwise = capturePreparation(() => branchLines(position + 1))
         const prepared = prepareBranches(
-          constantScalarExpression(branch.when) &&
+          constantScalarExpression(caseWhenExpression(node, branch.when)) &&
             (!node.scrutinee || constantScalarExpression(node.scrutinee.expression)),
           lines,
           guard,
@@ -8273,7 +8278,25 @@ export function emitCheckRustEvaluator(
           '};',
         ]
       }
-      const branches = capturePreparation(() => branchLines(0))
+      const binding = node.scrutinee?.binding,
+        key = binding ? JSON.stringify([binding, false]) : undefined,
+        outer = key ? localInputs.get(key) : undefined
+      if (key && binding && scrutinee)
+        localInputs.set(key, {
+          name: binding,
+          type: scrutinee.type,
+          rustName: scrutinee.name,
+          rustType: rustType(scrutinee.type),
+        })
+      let branches: ReturnType<typeof capturePreparation<string[]>>
+      try {
+        branches = capturePreparation(() => branchLines(0))
+      } finally {
+        if (key) {
+          if (outer) localInputs.set(key, outer)
+          else localInputs.delete(key)
+        }
+      }
       if (
         branches.lines.length &&
         node.scrutinee &&

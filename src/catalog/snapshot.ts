@@ -878,7 +878,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       rowTrees.flatMap((source) =>
         [
           ...source.matchAll(
-            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid|array_collid|collation|refcollid)\s+(\d+)/gu,
+            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|minmaxcollid|coalescecollid|array_collid|collation|refcollid)\s+(\d+)/gu,
           ),
         ]
           .map((m) => Number(m[1]))

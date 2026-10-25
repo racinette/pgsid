@@ -40,6 +40,7 @@ export interface StoredRowExpressionInput {
   networkFamilies?: NetworkStorageFamilies
   arrayElements?: ReadonlyMap<number, number>
   arrayElement?: number
+  caseOperand?: number
   storageTypes?: ReadonlyMap<number, ConstantStorageType>
   storageDoubleAlign?: 4 | 8
   enumLabels?: ReadonlyMap<number, ReadonlyMap<number, string>>
@@ -148,13 +149,18 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       ? collated({ A_Indirection: { arg, indirection: indices } }, 'refcollid')
       : undefined
   }
-  if (node.kind === 'CASETESTEXPR')
+  if (node.kind === 'CASETESTEXPR') {
+    if (input.caseOperand !== undefined)
+      return Number(scalar(node, 'typeId')) === input.caseOperand
+        ? collated({ PgsidStoredCaseTest: {} }, 'collation')
+        : undefined
     return input.arrayElement !== undefined && Number(scalar(node, 'typeId')) === input.arrayElement
       ? collated(
           { ColumnRef: { fields: [{ String: { sval: '__pgsid_domain_element' } }] } },
           'collation',
         )
       : undefined
+  }
   if (node.kind === 'ARRAYEXPR') {
     const array = Number(scalar(node, 'array_typeid')),
       element = Number(scalar(node, 'element_typeid')),
@@ -183,7 +189,11 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       conversion =
         rawConversion === undefined || sourceElement === undefined
           ? undefined
-          : storedRowExpression(rawConversion, { ...input, arrayElement: sourceElement })
+          : storedRowExpression(rawConversion, {
+              ...input,
+              arrayElement: sourceElement,
+              caseOperand: undefined,
+            })
     return arg !== undefined && source && target && conversion !== undefined
       ? collated({ PgsidStoredArrayCoercion: { arg, source, target, conversion } }, 'resultcollid')
       : undefined
@@ -383,6 +393,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
               ...input,
               columns: new Map(),
               arrayElement: undefined,
+              caseOperand: undefined,
               activeDefaults: active,
             }),
     )
@@ -454,6 +465,26 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       ? collated({ CoalesceExpr: { args } }, 'coalescecollid')
       : undefined
   }
+  if (node.kind === 'MINMAXEXPR') {
+    const args = list('args').map(convert),
+      operation = scalar(node, 'op'),
+      inputCollation = collation('inputcollid')
+    return args.length &&
+      args.every((arg) => arg !== undefined) &&
+      inputCollation !== undefined &&
+      (operation === '0' || operation === '1')
+      ? collated(
+          {
+            MinMaxExpr: {
+              args,
+              op: operation === '0' ? 'IS_GREATEST' : 'IS_LEAST',
+              __pgsid_inputCollation: inputCollation,
+            },
+          },
+          'minmaxcollid',
+        )
+      : undefined
+  }
   if (node.kind === 'NULLTEST' && scalar(node, 'argisrow') === 'false') {
     const arg = convert(node.fields['arg']?.[0]),
       kind = scalar(node, 'nulltesttype')
@@ -461,18 +492,36 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       ? { NullTest: { arg, nulltesttype: kind === '0' ? 'IS_NULL' : 'IS_NOT_NULL' } }
       : undefined
   }
-  if (node.kind === 'CASEEXPR' && !tree(node.fields['arg']?.[0])) {
-    const otherwise = convert(node.fields['defresult']?.[0]),
+  if (node.kind === 'CASEEXPR') {
+    const operand = tree(node.fields['arg']?.[0]),
+      arg = operand ? convert(operand) : undefined,
+      operandType = operand ? expressionType(operand) : null,
+      otherwise = convert(node.fields['defresult']?.[0]),
       args = list('args').map((value) => {
         const when = tree(value),
-          expr = convert(when?.fields['expr']?.[0]),
+          condition = when?.fields['expr']?.[0],
+          expr =
+            operand && operandType && condition !== undefined
+              ? storedRowExpression(condition, { ...input, caseOperand: Number(operandType) })
+              : convert(condition),
           result = convert(when?.fields['result']?.[0])
         return expr !== undefined && result !== undefined
           ? { CaseWhen: { expr, result } }
           : undefined
       })
-    return otherwise !== undefined && args.every((arg) => arg !== undefined)
-      ? collated({ CaseExpr: { args, defresult: otherwise } }, 'casecollid')
+    return (!operand || (arg !== undefined && operandType !== null)) &&
+      otherwise !== undefined &&
+      args.every((arg) => arg !== undefined)
+      ? collated(
+          {
+            CaseExpr: {
+              ...(operand ? { arg, __pgsid_stored: true } : {}),
+              args,
+              defresult: otherwise,
+            },
+          },
+          'casecollid',
+        )
       : undefined
   }
   return undefined
