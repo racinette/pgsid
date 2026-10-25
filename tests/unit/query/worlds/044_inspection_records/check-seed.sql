@@ -878,3 +878,22 @@ INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,by
 INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,0,'x',true,false);
 -- name: HistoricalPredicatesBypassedDivision
 INSERT INTO inspection_predicate_history(score,divisor,label,expected_present,bypass) VALUES(1,0,'x',false,true);
+
+-- name: HistoricalQuantifiersMatchedValues
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,1,'1',true,true,false);
+-- name: HistoricalQuantifiersUnmatchedValues
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(2,1,'2',false,false,false);
+-- name: HistoricalQuantifiersNullScore
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(NULL,0,'1',false,false,false);
+-- name: HistoricalQuantifiersWrongPresence
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,1,'1',false,true,false);
+-- name: HistoricalQuantifiersWrongTextPresence
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,1,'1',true,false,false);
+-- name: HistoricalQuantifiersNullPresence
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,1,NULL,NULL,NULL,false);
+-- name: HistoricalQuantifiersReachedDivision
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(0,0,'1',true,true,false);
+-- name: HistoricalQuantifiersSkippedDivision
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(1,0,'1',false,true,false);
+-- name: HistoricalQuantifiersBypassedDivision
+INSERT INTO inspection_quantifier_history(score,divisor,label,expected_number,expected_text,bypass) VALUES(0,0,'1',false,false,true);

@@ -937,6 +937,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rowExpressions = (relation?: number): StoredRowExpressionInput => ({
     types: typeIdentities,
     functions: rowFunctions,
+    operators: capturedRowFunctions.operators,
     columns: new Map(
       columnRows
         .filter((c) => c.attrelid === relation)

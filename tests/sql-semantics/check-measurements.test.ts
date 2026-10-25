@@ -1276,6 +1276,7 @@ describe('CHECK measurement boundaries', () => {
         'pg_catalog.int4:array',
         'pg_catalog.point:scalar',
         'boolean_test',
+        'scalar_array',
         'named_field',
         'default_arguments',
         'current_date',
@@ -1299,6 +1300,7 @@ describe('CHECK measurement boundaries', () => {
       'named_field',
       'default_arguments',
       'boolean_test',
+      'scalar_array',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
     for (const name of ['pg_catalog.point:scalar'])

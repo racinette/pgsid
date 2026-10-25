@@ -2553,7 +2553,7 @@ export function bindCatalogCheck(
   }
   const bindArray = (
     node: unknown,
-    target?: { type: ArrayElementType; name: Fields; modifiers?: readonly number[] },
+    target?: { type: ArrayElementType; name: Fields; modifiers?: readonly number[]; stored?: true },
   ): Bound => {
     const array = fields(fields(node)?.['A_ArrayExpr'])
     if (!array) return unknown
@@ -2597,6 +2597,7 @@ export function bindCatalogCheck(
     if (
       literalOrigin === 'stored' &&
       !selected &&
+      !target?.stored &&
       !anonymousRecordProfile(target?.type ?? '') &&
       candidates.some((arg) => compositeProfile(arrayElementBaseType(arg.type ?? '')))
     )
@@ -3269,7 +3270,7 @@ export function bindCatalogCheck(
       if (!type || !member) return unknown
       const result = bindArray(
         { A_ArrayExpr: { elements: args } },
-        { type: member, name: elementTypeName(member) },
+        { type: member, name: elementTypeName(member), stored: true },
       )
       return result.value?.kind === 'array-constructor' &&
         result.value.multidimensional === storedArray['multidimensional']
@@ -3307,32 +3308,38 @@ export function bindCatalogCheck(
         !targetArray ||
         !sourceElement ||
         !targetElement ||
-        operand.type !== sourceArray ||
+        (operand.type !== sourceArray &&
+          (!isCatalogVectorType(operand.type) ||
+            arrayLikeElementType(operand.type) !== sourceElement)) ||
         !operand.value
       )
         return unknown
-      const converted = bindCatalogCheck(
-        [
-          {
-            name: '__pgsid_domain_element',
-            typeName: source,
-            collationIsDefault: true,
-            isRowType: false,
-          },
-        ],
-        { NullTest: { nulltesttype: 'IS_NOT_NULL', arg: storedArrayCoercion['conversion'] } },
-        [],
-        enums,
-        domains,
-        moneyLiterals,
-        literalOrigin,
-        domainStack,
-        undefined,
-        undefined,
-        undefined,
-        rangeTypes,
-        compositeGraph,
-      ).expression
+      const sourceValue =
+          operand.type === sourceArray
+            ? operand.value
+            : coerceArray(operand.value, operand.type as CatalogVectorType, sourceArray, 'i'),
+        converted = bindCatalogCheck(
+          [
+            {
+              name: '__pgsid_domain_element',
+              typeName: source,
+              collationIsDefault: true,
+              isRowType: false,
+            },
+          ],
+          { NullTest: { nulltesttype: 'IS_NOT_NULL', arg: storedArrayCoercion['conversion'] } },
+          [],
+          enums,
+          domains,
+          moneyLiterals,
+          literalOrigin,
+          domainStack,
+          undefined,
+          undefined,
+          undefined,
+          rangeTypes,
+          compositeGraph,
+        ).expression
       if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
         return unknown
       const conversion = converted.expression.operand,
@@ -3344,7 +3351,7 @@ export function bindCatalogCheck(
               : 'type' in conversion
                 ? conversion.type
                 : null
-      if (convertedType !== arrayElementBaseType(targetElement)) return unknown
+      if (!sourceValue || convertedType !== arrayElementBaseType(targetElement)) return unknown
       return {
         type: targetArray,
         collation: operand.collation,
@@ -3353,7 +3360,7 @@ export function bindCatalogCheck(
           type: targetArray,
           sourceElementType: sourceElement,
           elementType: targetElement,
-          operand: operand.value,
+          operand: sourceValue,
           conversion,
         },
       }
@@ -3508,6 +3515,70 @@ export function bindCatalogCheck(
           : null,
         typeName = fields(cast?.['TypeCast'])?.['typeName']
       return typeName ? bind({ TypeCast: { arg: storedCast['arg'], typeName } }) : unknown
+    }
+    const storedScalarArray = fields(wrapper['PgsidStoredScalarArray'])
+    if (storedScalarArray) {
+      const selected = callables.find((c) => c.signature === storedScalarArray['signature']),
+        nodes = storedScalarArray['args'],
+        collation = storedCollation(storedScalarArray['inputCollation'])
+      if (
+        selected?.item.kind !== 'operator' ||
+        selected.item.result !== 'pg_catalog.bool' ||
+        selected.item.implementation !== storedScalarArray['implementation'] ||
+        !Array.isArray(nodes) ||
+        nodes.length !== 2 ||
+        typeof storedScalarArray['any'] !== 'boolean' ||
+        collation === undefined
+      )
+        return unknown
+      const subject = bind(nodes[0]),
+        array = bind(nodes[1]),
+        element = arrayLikeElementType(array.type),
+        base = element && (arrayElementBaseType(element) as ScalarType | null),
+        definition =
+          array.enum ??
+          subject.enum ??
+          (base?.startsWith('enum:') ? enums.find((e) => enumType(e) === base) : undefined),
+        dummy =
+          base &&
+          materialize(
+            { type: null, value: null, literal: { kind: 'null', value: null } },
+            base,
+            definition,
+          )
+      if (!subject.value || !array.value || !element || !base || !dummy) return unknown
+      const resolved = candidate(
+        'operator',
+        selected.item.name,
+        [
+          { ...subject, collation: collation ?? undefined },
+          { type: base, value: dummy, enum: definition, collation: collation ?? undefined },
+        ],
+        undefined,
+        false,
+        implicitOperand,
+        selected.signature,
+      )
+      if (!resolved || resolved.operands[0] !== subject.value || resolved.operands[1] !== dummy)
+        return unknown
+      return {
+        type: 'pg_catalog.bool',
+        value: {
+          kind: 'array-quantifier',
+          type: 'pg_catalog.bool',
+          elementType: element,
+          operands: [subject.value, array.value],
+          comparison: {
+            kind: 'operator',
+            signature: selected.signature,
+            type: 'pg_catalog.bool',
+            collation: collation?.kind,
+            ...(collation?.default ? { collationDefault: true as const } : {}),
+            ...(resolved.enum ? { enum: resolved.enum } : {}),
+          },
+          any: storedScalarArray['any'],
+        },
+      }
     }
     const storedCall = fields(wrapper['PgsidStoredCall'])
     if (storedCall) {

@@ -765,3 +765,22 @@ ALTER TYPE historical_predicate_value DROP ATTRIBUTE obsolete;
 ALTER TYPE historical_predicate_value RENAME ATTRIBUTE reading TO current_reading;
 ALTER TYPE historical_predicate_value ADD ATTRIBUTE added integer;
 ALTER TYPE historical_predicate_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_quantifier_result AS (score integer, obsolete_result boolean);
+CREATE TABLE inspection_quantifier_history (
+ score integer,
+ divisor integer NOT NULL,
+ label text COLLATE "C",
+ expected_number boolean,
+ expected_text boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT any_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,score=ANY(ARRAY[divisor,NULL]))::historical_quantifier_result IS NOT NULL)=expected_number END),
+ CONSTRAINT all_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,score<>ALL(ARRAY[divisor,NULL]))::historical_quantifier_result IS NOT NULL)=expected_number END),
+ CONSTRAINT text_any_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,label=ANY(ARRAY['1',NULL]))::historical_quantifier_result IS NOT NULL)=expected_text END),
+ CONSTRAINT guarded_any_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN score=ANY(ARRAY[divisor,NULL]) THEN 1/divisor>0 ELSE NULL::boolean END)::historical_quantifier_result IS NOT NULL)=expected_number END)
+);
+ALTER TYPE historical_quantifier_result DROP ATTRIBUTE obsolete_result;
