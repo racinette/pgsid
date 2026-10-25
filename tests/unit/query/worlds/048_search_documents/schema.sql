@@ -239,6 +239,12 @@ CREATE TABLE archived_query_templates (
 CREATE TYPE search_query_window AS RANGE(subtype=tsquery,multirange_type_name=search_query_windows);
 CREATE TYPE search_query_array_window AS RANGE(subtype=tsquery[]);
 CREATE TYPE search_query_record_window AS RANGE(subtype=query_reference_set);
+CREATE TYPE search_query_window_bounds AS RANGE(subtype=search_query_window);
+CREATE TYPE search_query_windows_bounds AS RANGE(subtype=search_query_windows);
+CREATE FUNCTION default_stored_query_window(lo search_query_window DEFAULT '["a & (b & c)",)',hi search_query_window DEFAULT NULL)
+ RETURNS search_query_window_bounds LANGUAGE internal IMMUTABLE AS 'range_constructor2';
+CREATE FUNCTION default_stored_query_windows(lo search_query_windows DEFAULT '{["a & (b & c)",)}',hi search_query_windows DEFAULT NULL)
+ RETURNS search_query_windows_bounds LANGUAGE internal IMMUTABLE AS 'range_constructor2';
 CREATE FUNCTION default_query_window(lo tsquery DEFAULT 'a & (b & c)',hi tsquery DEFAULT NULL)
  RETURNS search_query_window LANGUAGE internal IMMUTABLE AS 'range_constructor2';
 CREATE FUNCTION default_query_array_window(lo tsquery[] DEFAULT '{"a & (b & c)",NULL}',hi tsquery[] DEFAULT NULL)
@@ -256,5 +262,9 @@ CREATE TABLE query_window_templates (
  CONSTRAINT query_windows_member CHECK(CASE WHEN bypass THEN true ELSE (members::search_query_windows @> term::tsquery) IS NOT DISTINCT FROM expected_member END),
  CONSTRAINT query_window_default CHECK(CASE WHEN bypass THEN true ELSE (lower(default_query_window())=term::tsquery) IS NOT DISTINCT FROM expected_default END),
  CONSTRAINT query_array_window_default CHECK(CASE WHEN bypass THEN true ELSE ((lower(default_query_array_window()))[1]=term::tsquery) IS NOT DISTINCT FROM expected_default END),
- CONSTRAINT query_record_window_default CHECK(CASE WHEN bypass THEN true ELSE ((lower(default_query_record_window())).head=term::tsquery) IS NOT DISTINCT FROM expected_default END)
+ CONSTRAINT query_record_window_default CHECK(CASE WHEN bypass THEN true ELSE ((lower(default_query_record_window())).head=term::tsquery) IS NOT DISTINCT FROM expected_default END),
+ CONSTRAINT query_window_stored CHECK(CASE WHEN bypass THEN true ELSE (lower('["a & (b & c)",)'::search_query_window)=term::tsquery) IS NOT DISTINCT FROM expected_default END),
+ CONSTRAINT query_windows_stored CHECK(CASE WHEN bypass THEN true ELSE (lower('{["a & (b & c)",)}'::search_query_windows)=term::tsquery) IS NOT DISTINCT FROM expected_default END),
+ CONSTRAINT query_window_stored_default CHECK(CASE WHEN bypass THEN true ELSE (lower(lower(default_stored_query_window()))=term::tsquery) IS NOT DISTINCT FROM expected_default END),
+ CONSTRAINT query_windows_stored_default CHECK(CASE WHEN bypass THEN true ELSE (lower(lower(default_stored_query_windows()))=term::tsquery) IS NOT DISTINCT FROM expected_default END)
 );
