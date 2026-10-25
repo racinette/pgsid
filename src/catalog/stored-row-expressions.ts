@@ -1,16 +1,34 @@
 import { parseSync } from 'libpg-query'
 import { tree, scalar, type Value } from './expression-tree.js'
+import { storedTextConstant } from './text-constant-storage.js'
+
+export interface StoredExpressionCollation {
+  schema: string
+  name: string
+  deterministic: boolean
+}
 
 export interface StoredRowExpressionInput {
   types: ReadonlyMap<number, string>
   functions: ReadonlyMap<number, { signature: string; args: readonly string[]; result: string }>
   columns: ReadonlyMap<number, { name: string; type: number }>
   byteOrder: 'little' | 'big'
+  utf8?: boolean
+  collations?: ReadonlyMap<number, StoredExpressionCollation>
 }
 
 type Fields = Record<string, unknown>
 const fields = (value: unknown): Fields | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Fields) : undefined
+
+function typedExpression(arg: unknown, type: string): unknown {
+  const select = fields(parseSync(`SELECT NULL::${type}`).stmts?.[0]?.stmt)?.['SelectStmt'],
+    targets = fields(select)?.['targetList'],
+    value = Array.isArray(targets) ? fields(fields(targets[0])?.['ResTarget'])?.['val'] : undefined,
+    cast = fields(fields(value)?.['TypeCast'])
+  if (cast) cast['arg'] = arg
+  return value
+}
 
 export function storedRowExpression(value: Value, input: StoredRowExpressionInput): unknown {
   const node = tree(value)
@@ -21,6 +39,19 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   const convert = (value: Value | undefined): unknown =>
     value === undefined ? undefined : storedRowExpression(value, input)
+  const collation = (name: string): StoredExpressionCollation | null | undefined => {
+    const oid = scalar(node, name)
+    return oid === '0' ? null : oid === null ? undefined : input.collations?.get(Number(oid))
+  }
+  const collated = (arg: unknown, name: string, explicit = false): unknown => {
+    if (arg === undefined) return undefined
+    const selected = collation(name)
+    return selected === null
+      ? arg
+      : selected
+        ? { PgsidStoredCollation: { arg, collation: selected, explicit } }
+        : undefined
+  }
   if (node.kind === 'VAR') {
     const column = input.columns.get(Number(scalar(node, 'varattno')))
     if (
@@ -30,7 +61,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       Number(scalar(node, 'vartype')) !== column.type
     )
       return undefined
-    return { ColumnRef: { fields: [{ String: { sval: column.name } }] } }
+    return collated({ ColumnRef: { fields: [{ String: { sval: column.name } }] } }, 'varcollid')
   }
   if (node.kind === 'COERCETODOMAINVALUE')
     return { ColumnRef: { fields: [{ String: { sval: 'value' } }] } }
@@ -39,7 +70,19 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     if (!type?.startsWith('pg_catalog.')) return undefined
     let literal: string
     if (scalar(node, 'constisnull') === 'true') literal = 'NULL'
-    else {
+    else if (
+      [
+        'pg_catalog.text',
+        'pg_catalog."varchar"',
+        'pg_catalog.varchar',
+        'pg_catalog.bpchar',
+      ].includes(type)
+    ) {
+      const text = storedTextConstant(node, input.utf8 === true, input.byteOrder)
+      return text === undefined || text === null
+        ? undefined
+        : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else {
       const raw = node.fields['constvalue'],
         data = raw?.[1],
         length = Number(scalar(node, 'constlen')),
@@ -79,9 +122,12 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         literal = "'" + number.toString() + "'"
       }
     }
-    const select = fields(parseSync(`SELECT ${literal}::${type}`).stmts?.[0]?.stmt)?.['SelectStmt'],
-      targets = fields(select)?.['targetList']
-    return Array.isArray(targets) ? fields(fields(targets[0])?.['ResTarget'])?.['val'] : undefined
+    const arg =
+      literal === 'NULL'
+        ? { A_Const: { isnull: true } }
+        : { A_Const: { sval: { sval: literal.slice(1, -1) } } }
+    const result = typedExpression(arg, type)
+    return scalar(node, 'constcollid') === null ? result : collated(result, 'constcollid')
   }
   if (node.kind === 'FUNCEXPR' || node.kind === 'OPEXPR') {
     const callable = input.functions.get(
@@ -92,14 +138,40 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       !callable ||
       args.some((arg) => arg === undefined) ||
       callable.args.length !== args.length ||
-      scalar(node, 'inputcollid') !== '0' ||
+      collation('inputcollid') === undefined ||
+      collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid') === undefined ||
       scalar(node, node.kind === 'FUNCEXPR' ? 'funcretset' : 'opretset') !== 'false' ||
       input.types.get(
         Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcresulttype' : 'opresulttype')),
       ) !== callable.result
     )
       return undefined
-    return { PgsidStoredCall: { signature: callable.signature, args } }
+    return {
+      PgsidStoredCall: {
+        signature: callable.signature,
+        args,
+        inputCollation: collation('inputcollid'),
+        resultCollation: collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid'),
+      },
+    }
+  }
+  if (node.kind === 'COLLATEEXPR')
+    return collated(convert(node.fields['arg']?.[0]), 'collOid', true)
+  if (node.kind === 'RELABELTYPE' || node.kind === 'COERCEVIAIO') {
+    const arg = convert(node.fields['arg']?.[0]),
+      target = input.types.get(Number(scalar(node, 'resulttype')))
+    return arg !== undefined && target?.startsWith('pg_catalog.')
+      ? collated(
+          {
+            PgsidStoredCast: {
+              arg,
+              type: target,
+              kind: node.kind === 'RELABELTYPE' ? 'binary' : 'io',
+            },
+          },
+          'resultcollid',
+        )
+      : undefined
   }
   if (node.kind === 'BOOLEXPR') {
     const boolop = { and: 'AND_EXPR', or: 'OR_EXPR', not: 'NOT_EXPR' }[
@@ -113,7 +185,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   if (node.kind === 'COALESCEEXPR') {
     const args = list('args').map(convert)
     return args.length && args.every((arg) => arg !== undefined)
-      ? { CoalesceExpr: { args } }
+      ? collated({ CoalesceExpr: { args } }, 'coalescecollid')
       : undefined
   }
   if (node.kind === 'NULLTEST' && scalar(node, 'argisrow') === 'false') {
@@ -134,7 +206,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           : undefined
       })
     return otherwise !== undefined && args.every((arg) => arg !== undefined)
-      ? { CaseExpr: { args, defresult: otherwise } }
+      ? collated({ CaseExpr: { args, defresult: otherwise } }, 'casecollid')
       : undefined
   }
   return undefined

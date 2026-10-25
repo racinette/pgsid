@@ -685,6 +685,26 @@ type Bound = {
   unknownField?: true
 }
 
+function storedCollation(value: unknown): BoundCollation | null | undefined {
+  if (value === null || value === undefined) return null
+  const identity = fields(value)
+  if (
+    !identity ||
+    typeof identity['schema'] !== 'string' ||
+    typeof identity['name'] !== 'string' ||
+    typeof identity['deterministic'] !== 'boolean'
+  )
+    return undefined
+  return identity['schema'] === 'pg_catalog' && identity['name'] === 'default'
+    ? defaultCollation
+    : identity['schema'] === 'pg_catalog' && identity['name'] === 'C'
+      ? { kind: 'C', identity: 'C' }
+      : {
+          kind: identity['deterministic'] ? 'deterministic' : 'other',
+          identity: JSON.stringify([identity['schema'], identity['name']]),
+        }
+}
+
 const nominalScalarType = (arg: Bound): ScalarType | null => {
   const type = boundType(arg)
   if (!arg.nominalDomain || !type) return type
@@ -2862,6 +2882,39 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const annotation = fields(wrapper['PgsidStoredCollation'])
+    if (annotation) {
+      const collation = storedCollation(annotation['collation'])
+      if (!collation) return unknown
+      return {
+        ...bind(annotation['arg']),
+        collation: { ...collation, ...(annotation['explicit'] === true ? { explicit: true } : {}) },
+      }
+    }
+    const storedCast = fields(wrapper['PgsidStoredCast'])
+    if (storedCast) {
+      const operand = bind(storedCast['arg']),
+        target =
+          typeof storedCast['type'] === 'string' ? catalogScalarType(storedCast['type']) : null,
+        conversion = operand.type && target ? builtinCast(operand.type, target) : null
+      if (
+        !operand.value ||
+        !operand.type ||
+        !target ||
+        (storedCast['kind'] === 'binary'
+          ? operand.type !== target && conversion?.method !== 'b'
+          : storedCast['kind'] !== 'io' || (conversion && conversion.method !== 'i'))
+      )
+        return unknown
+      const names = storedCast['type'] as string
+      const parsed = fields(parseSync(`SELECT NULL::${names}`).stmts?.[0]?.stmt),
+        targets = fields(parsed?.['SelectStmt'])?.['targetList'],
+        cast = Array.isArray(targets)
+          ? fields(fields(fields(targets[0])?.['ResTarget'])?.['val'])
+          : null,
+        typeName = fields(cast?.['TypeCast'])?.['typeName']
+      return typeName ? bind({ TypeCast: { arg: storedCast['arg'], typeName } }) : unknown
+    }
     const storedCall = fields(wrapper['PgsidStoredCall'])
     if (storedCall) {
       const selected = callables.find((c) => c.signature === storedCall['signature']),
@@ -2876,9 +2929,22 @@ export function bindCatalogCheck(
       )
         return unknown
       const args = nodes.map((arg) => bind(arg)),
-        type = catalogScalarType(selected.item.result)
+        type = catalogScalarType(selected.item.result),
+        collation = storedCollation(storedCall['inputCollation']),
+        resultCollation = storedCollation(storedCall['resultCollation'])
       if (
         !type ||
+        collation === undefined ||
+        resultCollation === undefined ||
+        (selected.item.args.some((type) =>
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(type),
+        ) &&
+          !supportsTextCallableCollation(selected.signature, collation?.kind)) ||
         args.some(
           (arg, index) => !arg.value || arg.type !== catalogScalarType(selected.item.args[index]!),
         )
@@ -2886,9 +2952,15 @@ export function bindCatalogCheck(
         return unknown
       return {
         type,
+        ...(resultCollation ? { collation: resultCollation } : {}),
         value: {
           kind: 'call',
-          call: { kind: 'function', signature: selected.signature, type },
+          call: {
+            kind: 'function',
+            signature: selected.signature,
+            type,
+            collation: collation?.kind,
+          },
           operands: args.map((arg) => arg.value!),
         },
       }
