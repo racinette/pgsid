@@ -1,3 +1,4 @@
+import { tsqueryContainerTypes } from './tsquery-container-constants.js'
 import { tsqueryConstantTypes } from './tsquery-constant-storage.js'
 import { arrayStorageContainerTypes } from './array-constant-storage.js'
 import { storageRowIdentities } from './container-constant-storage.js'
@@ -838,7 +839,8 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     const type = typesByOid.get(oid)
     return type?.identity === 'pg_catalog.xml' || (type?.kind === 'd' && isXml(type.base, seen))
   }
-  const tsqueryTypes = tsqueryConstantTypes(typesByOid)
+  const tsqueryTypes = tsqueryConstantTypes(typesByOid),
+    tsqueryContainers = tsqueryContainerTypes(typesByOid, tsqueryTypes)
   const { scalars: tsvectorTypes, containers: tsvectorContainers } =
     tsvectorConstantTypes(typesByOid)
   const xmlTypes = new Set(typeRows.filter((type) => isXml(type.oid)).map((type) => type.oid))
@@ -875,6 +877,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       tsqueryTypes,
       rowIdentities,
       utf8,
+      { types: typesByOid, roots: tsqueryContainers },
     )
     const tsvectorConstants = captureTsvectorConstantContext(
       con.coercion_tree,
@@ -1134,6 +1137,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           tsqueryTypes,
           rowIdentities,
           utf8,
+          { types: typesByOid, roots: tsqueryContainers },
         ),
       ),
       // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
@@ -1216,6 +1220,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           tsqueryTypes,
           rowIdentities,
           utf8,
+          { types: typesByOid, roots: tsqueryContainers },
         )
         const tsvectorConstants = captureTsvectorConstantContext(
           check.coercion_tree,

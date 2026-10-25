@@ -661,6 +661,7 @@ type Literal = {
   tsvectorStorage?: TsvectorConstantStorage
   arrayConstantStorage?: readonly ArrayConstantStorage[]
   tsvectorContainerStorage?: readonly TsvectorConstantStorage[]
+  tsqueryContainerStorage?: readonly TsqueryConstantStorage[]
   moneyUnits?: string
   xmlOrigin?: 'source' | 'stored'
   xmlStorage?: string
@@ -730,6 +731,9 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
       ...(literal.tsvectorContainerStorage
         ? { tsvectorStorage: literal.tsvectorContainerStorage }
         : {}),
+      ...(literal.tsqueryContainerStorage
+        ? { tsqueryStorage: literal.tsqueryContainerStorage }
+        : {}),
     }
   if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
     return {
@@ -739,6 +743,9 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
       ...(literal.arrayConstantStorage ? { arrayStorage: literal.arrayConstantStorage } : {}),
       ...(literal.tsvectorContainerStorage
         ? { tsvectorStorage: literal.tsvectorContainerStorage }
+        : {}),
+      ...(literal.tsqueryContainerStorage
+        ? { tsqueryStorage: literal.tsqueryContainerStorage }
         : {}),
     }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -972,6 +979,9 @@ const materialize = (
           : {}),
         ...(bound.literal.tsvectorContainerStorage
           ? { tsvectorStorage: bound.literal.tsvectorContainerStorage }
+          : {}),
+        ...(bound.literal.tsqueryContainerStorage
+          ? { tsqueryStorage: bound.literal.tsqueryContainerStorage }
           : {}),
         type: type as ArrayType,
         elementType: type.slice(6) as ArrayElementType,
@@ -3690,6 +3700,9 @@ export function bindCatalogCheck(
                     ...(operand.literal?.tsvectorContainerStorage
                       ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
                       : {}),
+                    ...(operand.literal?.tsqueryContainerStorage
+                      ? { tsqueryStorage: operand.literal.tsqueryContainerStorage }
+                      : {}),
                     ...common,
                     value: operand.literal.xmlContainerStorage ?? operand.literal.value!,
                     ...(operand.literal.xmlContainerStorage !== undefined
@@ -3862,6 +3875,9 @@ export function bindCatalogCheck(
                       : {}),
                     ...(operand.literal?.tsvectorContainerStorage
                       ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
+                      : {}),
+                    ...(operand.literal?.tsqueryContainerStorage
+                      ? { tsqueryStorage: operand.literal.tsqueryContainerStorage }
                       : {}),
                     type,
                     elementType: element as ArrayElementType,
@@ -4508,6 +4524,9 @@ export function bindCatalogCheck(
                 : {}),
               ...(operand.literal?.tsvectorContainerStorage
                 ? { tsvectorStorage: operand.literal.tsvectorContainerStorage }
+                : {}),
+              ...(operand.literal?.tsqueryContainerStorage
+                ? { tsqueryStorage: operand.literal.tsqueryContainerStorage }
                 : {}),
               ...(operand.literal?.xmlContainerStorage !== undefined
                 ? { xmlStorage: true as const }
@@ -5657,6 +5676,14 @@ export function bindCatalogCheck(
                 : {}),
               tsvectorStored: literalOrigin === 'stored',
               tsqueryStored: literalOrigin === 'stored',
+              ...(literalOrigin === 'stored' &&
+              Array.isArray(wrapper['__pgsid_tsquery_container_storage'])
+                ? {
+                    tsqueryContainerStorage: wrapper[
+                      '__pgsid_tsquery_container_storage'
+                    ] as TsqueryConstantStorage[],
+                  }
+                : {}),
               ...(literalOrigin === 'stored' && wrapper['__pgsid_tsquery_storage']
                 ? { tsqueryStorage: wrapper['__pgsid_tsquery_storage'] as TsqueryConstantStorage }
                 : {}),
@@ -7355,6 +7382,7 @@ export function bindCatalogCheck(
         origin: literalOrigin,
         ...(literal['arrayStorage'] ? { arrayStorage: literal['arrayStorage'] } : {}),
         ...(literal['tsvectorStorage'] ? { tsvectorStorage: literal['tsvectorStorage'] } : {}),
+        ...(literal['tsqueryStorage'] ? { tsqueryStorage: literal['tsqueryStorage'] } : {}),
         operand: {
           kind: 'certain',
           expression: { kind: 'text', type: 'pg_catalog.text', value: literal['value'] },

@@ -1,3 +1,4 @@
+import { tsqueryContainerConstant } from './tsquery-container-constants.js'
 import { tsqueryConstantStorage } from './tsquery-constant-storage.js'
 import { tsvectorContainerConstant } from './tsvector-container-constants.js'
 import { arrayConstantStorage } from './array-constant-storage.js'
@@ -158,6 +159,10 @@ function captureExpressionCoercions(
   parsedRoot?: Value,
   arrayStorage?: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
   tsqueryTypes: ReadonlySet<number> = new Set(),
+  tsqueryContainers?: {
+    types: ReadonlyMap<number, ConstantStorageType>
+    roots: ReadonlySet<number>
+  },
 ): {
   row?: StoredRowCoercionContext
   arrays?: StoredArrayConstructorContext
@@ -168,8 +173,11 @@ function captureExpressionCoercions(
 } {
   const tsqueryCandidate =
     source !== null &&
-    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => tsqueryTypes.has(Number(m[1])))
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some(
+      (m) => tsqueryTypes.has(Number(m[1])) || tsqueryContainers?.roots.has(Number(m[1])),
+    )
   const tsqueryConstants: StoredTsqueryConstantContext['constants'] = []
+  const tsqueryContainerConstants: NonNullable<StoredTsqueryConstantContext['containers']> = []
   const arrayCandidate =
     source !== null &&
     [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => arrayStorage?.roots.has(Number(m[1])))
@@ -360,6 +368,37 @@ function captureExpressionCoercions(
               : undefined
         if (site === undefined || text === undefined) complete = false
         else xmlArrayConstants.push({ site, text })
+      }
+      if (
+        node.kind === 'CONST' &&
+        tsqueryContainers?.roots.has(Number(scalar(node, 'consttype')))
+      ) {
+        const raw = node.fields['constvalue'],
+          data = Array.isArray(raw?.[1]) ? raw[1] : undefined
+        const facet =
+          scalar(node, 'constisnull') === 'true'
+            ? null
+            : scalar(node, 'constlen') === '-1' &&
+                scalar(node, 'constbyval') === 'false' &&
+                raw?.length === 2 &&
+                data &&
+                Number(raw[0]) === data.length &&
+                data.every(
+                  (v) =>
+                    typeof v === 'string' &&
+                    /^-?\d+$/u.test(v) &&
+                    Number(v) >= -128 &&
+                    Number(v) <= 255,
+                )
+              ? tsqueryContainerConstant(
+                  Buffer.from(data.map((v) => Number(v) & 255)),
+                  Number(scalar(node, 'consttype')),
+                  tsqueryContainers.types,
+                  utf8,
+                )
+              : undefined
+        if (site === undefined || facet === undefined) complete = false
+        else tsqueryContainerConstants.push({ site, storage: facet })
       }
       if (
         node.kind === 'CONST' &&
@@ -602,7 +641,16 @@ function captureExpressionCoercions(
       : {}),
     ...(casts.length || !complete ? { row: { definition, complete, casts } } : {}),
     ...(constructors.length || !complete ? { arrays: { definition, complete, constructors } } : {}),
-    ...(tsqueryCandidate ? { tsquery: { definition, complete, constants: tsqueryConstants } } : {}),
+    ...(tsqueryCandidate
+      ? {
+          tsquery: {
+            definition,
+            complete,
+            constants: tsqueryConstants,
+            ...(tsqueryContainerConstants.length ? { containers: tsqueryContainerConstants } : {}),
+          },
+        }
+      : {}),
     ...(tsvectorCandidate
       ? {
           tsvector: {
@@ -665,8 +713,14 @@ export function captureTsqueryConstantContext(
   types: ReadonlySet<number>,
   rows: ReadonlyMap<number, RowCoercionIdentity>,
   utf8: boolean,
+  containers?: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
 ): StoredTsqueryConstantContext | undefined {
-  if (!source || ![...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => types.has(Number(m[1]))))
+  if (
+    !source ||
+    ![...source.matchAll(/:consttype\s+(\d+)/gu)].some(
+      (m) => types.has(Number(m[1])) || containers?.roots.has(Number(m[1])),
+    )
+  )
     return undefined
   return captureExpressionCoercions(
     source,
@@ -682,6 +736,7 @@ export function captureTsqueryConstantContext(
     undefined,
     undefined,
     types,
+    containers,
   ).tsquery
 }
 
@@ -691,11 +746,12 @@ export function captureTsqueryDefaultContexts(
   types: ReadonlySet<number>,
   rows: ReadonlyMap<number, RowCoercionIdentity>,
   utf8: boolean,
+  containers?: { types: ReadonlyMap<number, ConstantStorageType>; roots: ReadonlySet<number> },
 ): (StoredTsqueryConstantContext | null)[] {
   return captureDefaultContexts(
     source,
     definitions,
-    types,
+    new Set([...types, ...(containers?.roots ?? [])]),
     (root, definition) =>
       captureExpressionCoercions(
         source,
@@ -711,6 +767,7 @@ export function captureTsqueryDefaultContexts(
         root,
         undefined,
         types,
+        containers,
       ).tsquery,
   )
 }

@@ -49645,6 +49645,89 @@ function tsqueryRewriteSortTree(input: TsqueryRewriteTree, root: number, utf8: b
     }
     return tree;
 }
+export interface TsqueryStoragePlan {
+    entries: checkruntime.TsqueryPayload[];
+    valid: boolean;
+}
+function copyTsqueryStoragePlan(value: TsqueryStoragePlan): TsqueryStoragePlan {
+    return { entries: langruntime.checkedStructs(value.entries, checkruntime.copyTsqueryPayload), valid: langruntime.checkedBool(value.valid) };
+}
+export function makeTsqueryStoragePlan(): TsqueryStoragePlan {
+    const entries: checkruntime.TsqueryPayload[] = [];
+    return { entries: entries, valid: true };
+}
+export function appendTsqueryStorage(input: TsqueryStoragePlan, value: checkruntime.TsqueryValue): TsqueryStoragePlan {
+    input = copyTsqueryStoragePlan(input);
+    value = checkruntime.copyTsqueryValue(value);
+    let entries: checkruntime.TsqueryPayload[] = input.entries;
+    if (value.kind === "Value") {
+        const payload: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(value.value);
+        langruntime.pushStruct(entries, payload, checkruntime.copyTsqueryPayload);
+        return { entries: entries, valid: input.valid };
+    }
+    return { entries: entries, valid: false };
+}
+export function tsqueryFromCapturedText(input: checkruntime.TextValue, plan: TsqueryStoragePlan, index: checkruntime.Int4Value): checkruntime.TsqueryValue {
+    plan = copyTsqueryStoragePlan(plan);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            const position: number = langruntime.indexFromI32(offset, plan.entries.length);
+            if (plan.valid && offset >= 0 && position < plan.entries.length) {
+                const captured: checkruntime.TsqueryValue = checkruntime.makeTsqueryValue(checkruntime.copyTsqueryPayload(langruntime.indexStruct(plan.entries, langruntime.checkedIndex(position), checkruntime.copyTsqueryPayload)));
+                const rendered: checkruntime.TextValue = tsqueryToText(checkruntime.copyTsqueryValue(captured));
+                if (rendered.kind === "Value") {
+                    const expected: string = langruntime.checkedString(rendered.value);
+                    if (expected === text) {
+                        return captured;
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function advanceTsqueryStorage(nullness: checkruntime.BoolValue, index: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (nullness.kind === "Error") {
+        const error: checkruntime.SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: true })) {
+        return index;
+    }
+    if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: false })) {
+        if (index.kind === "Value") {
+            const value: number = langruntime.checkedI32(index.value);
+            if (value < 2147483647) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedAdd(value, 1));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function finishTsqueryStorage(input: checkruntime.ArrayElement, plan: TsqueryStoragePlan, index: checkruntime.Int4Value): checkruntime.ArrayElement {
+    input = checkruntime.copyArrayElement(input);
+    plan = copyTsqueryStoragePlan(plan);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Value") {
+        const count: number = langruntime.checkedI32(index.value);
+        if (plan.valid && count >= 0 && langruntime.indexFromI32(count, 0) === plan.entries.length) {
+            return input;
+        }
+    }
+    return { kind: "Unknown" };
+}
 const tsvectorSyntaxError = 6819553;
 const tsvectorProgramLimit = 8584704;
 function tsvectorNormalizeLexeme(text: string, positions: checkruntime.TsvectorPosition[]): checkruntime.TsvectorLexeme {

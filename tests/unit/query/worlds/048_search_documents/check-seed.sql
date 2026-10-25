@@ -439,3 +439,19 @@ INSERT INTO search_query_sets(source,reference,expected_member,expected_record,e
 INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a &','a',NULL,NULL,NULL,false);
 -- name: query_set_skipped
 INSERT INTO search_query_sets(source,reference,expected_member,expected_record,expected_text,bypass) VALUES('a &','b |',NULL,NULL,NULL,true);
+-- name: archived_query_original_grouping
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a & (b & c)',true,false,false);
+-- name: archived_query_other_grouping
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('(a & b) & c',false,true,false);
+-- name: archived_query_different_terms
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a',false,false,false);
+-- name: archived_query_null
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES(NULL,NULL,NULL,false);
+-- name: archived_query_wrong_head
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a & (b & c)',false,false,false);
+-- name: archived_query_wrong_option
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a & (b & c)',true,true,false);
+-- name: archived_query_bad_input
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a &',NULL,NULL,false);
+-- name: archived_query_skipped
+INSERT INTO archived_query_templates(source,expected_head,expected_option,bypass) VALUES('a &',NULL,NULL,true);

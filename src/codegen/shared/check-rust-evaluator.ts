@@ -1430,6 +1430,22 @@ export function emitCheckRustEvaluator(
   let comparisonProfileScope: CompositeProfile | null = null
   let comparisonCollationInvalid = false
   let storedArrayMoneyLiterals: readonly { text: string; units: string }[] | undefined
+  let storedTsqueryStorageScope: { plan: string; index: string } | null = null
+  const renderStoredTsquery = (input: string, lines: string[]): string => {
+    if (storedTsqueryStorageScope === null)
+      throw new UnsupportedCheckRustExpression(
+        'Stored tsquery container input requires captured query trees',
+      )
+    const { plan, index } = storedTsqueryStorageScope,
+      result = fresh('tsquery_storage_value'),
+      nullness = fresh('tsquery_storage_nullness')
+    lines.push(
+      `let ${result}=tsquery_from_captured_text(${input},&${plan},${index});`,
+      `let ${nullness}=tsquery_is_null(${result}.clone());`,
+      `${index}=advance_tsquery_storage(${nullness},${index});`,
+    )
+    return result
+  }
   let storedTsvectorStorageScope: { plan: string; index: string } | null = null
   const applyTsvectorStorage = (input: string, lines: string[]): string => {
     if (storedTsvectorStorageScope === null) return input
@@ -1584,10 +1600,11 @@ export function emitCheckRustEvaluator(
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 48) {
-      if (stored)
-        throw new UnsupportedCheckRustExpression(
-          'Stored tsquery container input requires captured query trees',
-        )
+      if (stored) {
+        const captured = renderStoredTsquery(event, destination)
+        destination.push(`let ${element}=array_element_from_tsquery(${captured});`)
+        return element
+      }
       scalar = `tsquery_from_text_context(${event},${executionContext.serverEncoding === 'UTF8'})`
     } else if (family === 47) {
       scalar = `${stored ? 'tsvector_from_stored_text_context' : 'tsvector_from_text_context'}(${event},${executionContext.serverEncoding === 'UTF8'})`
@@ -1892,6 +1909,41 @@ export function emitCheckRustEvaluator(
         restored = bind(`apply_array_storage(${cell},&${plan})`)
       } else restored = bind(`forget_array_storage(${cell})`)
       return { name: bind(`array_element_to_${prefix}(${restored})`), type: value.type }
+    }
+    if (
+      (node.kind === 'array-text-literal' ||
+        node.kind === 'text-to-composite' ||
+        node.kind === 'text-to-range' ||
+        node.kind === 'text-to-multirange') &&
+      node.tsqueryStorage !== undefined
+    ) {
+      const { tsqueryStorage, ...plain } = node
+      let plan = bind('make_tsquery_storage_plan()')
+      const initial = bind('make_int4_value(0)'),
+        index = fresh('tsquery_storage_index')
+      bindings.push(`let mut ${index}:Int4Value=${initial};`)
+      for (const entry of tsqueryStorage) {
+        if (!validTsqueryConstantStorage(entry))
+          throw new UnsupportedCheckRustExpression('Invalid tsquery container storage metadata')
+        let payload = bind(`make_tsquery_payload(${entry.nativeBytes})`)
+        for (const node of entry.nodes)
+          payload = bind(
+            `tsquery_append_node(${payload},${node.kind},${rustStringLiteral(node.text)},${node.weight},${node.prefix},${node.distance},${node.left},${node.right})`,
+          )
+        const value = bind(`make_tsquery_value(${payload})`)
+        plan = bind(`append_tsquery_storage(${plan},${value})`)
+      }
+      const previous = storedTsqueryStorageScope
+      storedTsqueryStorageScope = { plan, index }
+      try {
+        const decoded = emitScalarInner(plain, bindings, used),
+          prefix = rustValuePrefix(rustType(decoded.type)),
+          cell = bind(`array_element_from_${prefix}(${ownedOperand(decoded)})`),
+          finished = bind(`finish_tsquery_storage(${cell},&${plan},${index})`)
+        return { name: bind(`array_element_to_${prefix}(${finished})`), type: decoded.type }
+      } finally {
+        storedTsqueryStorageScope = previous
+      }
     }
     if (
       (node.kind === 'array-text-literal' ||
@@ -5739,14 +5791,12 @@ export function emitCheckRustEvaluator(
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'text-to-tsquery') {
-      if (storedArrayInputScope)
-        throw new UnsupportedCheckRustExpression(
-          'Stored tsquery container input requires captured query trees',
-        )
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
       if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')
         throw new UnsupportedCheckRustExpression('Tsquery input requires its catalog I/O identity')
+      if (storedArrayInputScope)
+        return { name: renderStoredTsquery(ownedOperand(operand), bindings), type: node.type }
       return {
         name: bind(
           `tsquery_from_text_context(${ownedOperand(operand)},${executionContext.serverEncoding === 'UTF8'})`,
