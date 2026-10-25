@@ -120,6 +120,20 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
             : undefined
     return member ? [...input.types].find(([, name]) => name === member)?.[0] : undefined
   }
+  const typeName = (oid: number): string | undefined => {
+    const element = input.arrayElements?.get(oid),
+      name = input.types.get(element ?? oid)
+    return name && (element === undefined ? name : name + '[]')
+  }
+  const baseType = (oid: number): number | undefined => {
+    const seen = new Set<number>()
+    let type = input.storageTypes?.get(oid)
+    while (type?.kind === 'd' && !seen.has(type.oid)) {
+      seen.add(type.oid)
+      type = input.storageTypes?.get(type.base)
+    }
+    return type && !seen.has(type.oid) ? type.oid : undefined
+  }
   const collation = (name: string): StoredExpressionCollation | null | undefined => {
     const oid = scalar(node, name)
     return oid === '0' ? null : oid === null ? undefined : input.collations?.get(Number(oid))
@@ -619,6 +633,42 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'COLLATEEXPR')
     return collated(convert(node.fields['arg']?.[0]), 'collOid', true)
+  if (['COERCETODOMAIN', 'CONVERTROWTYPEEXPR', 'RELABELTYPE'].includes(node.kind)) {
+    const original = tree(node.fields['arg']?.[0]),
+      sourceOid = original ? Number(expressionType(original, input)) : 0,
+      targetOid = Number(scalar(node, 'resulttype')),
+      source = typeName(sourceOid),
+      target = typeName(targetOid),
+      targetStorage = input.storageTypes?.get(targetOid),
+      sourceStorage = input.storageTypes?.get(sourceOid),
+      sourceBase = baseType(sourceOid),
+      targetBase = baseType(targetOid),
+      arg = convert(node.fields['arg']?.[0])
+    if (node.kind !== 'RELABELTYPE' || sourceStorage?.kind === 'd' || targetStorage?.kind === 'd') {
+      const row = node.kind === 'CONVERTROWTYPEEXPR'
+      if (
+        arg === undefined ||
+        !source ||
+        !target ||
+        sourceBase === undefined ||
+        targetBase === undefined ||
+        (row
+          ? input.storageTypes?.get(sourceBase)?.kind !== 'c' || targetStorage?.kind !== 'c'
+          : sourceBase !== targetBase ||
+            (node.kind === 'COERCETODOMAIN' && targetStorage?.kind !== 'd'))
+      )
+        return undefined
+      const expression = {
+        PgsidStoredCoercion: {
+          kind: row ? 'row' : node.kind === 'COERCETODOMAIN' ? 'domain' : 'relabel',
+          source,
+          type: target,
+          arg,
+        },
+      }
+      return row ? expression : collated(expression, 'resultcollid')
+    }
+  }
   if (node.kind === 'RELABELTYPE' || node.kind === 'COERCEVIAIO') {
     const arg = convert(node.fields['arg']?.[0]),
       target = input.types.get(Number(scalar(node, 'resulttype')))

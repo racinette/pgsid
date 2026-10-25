@@ -684,6 +684,7 @@ func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
 const sqlErrorNumericOutOfRange = 3452547
 const sqlErrorNotNullViolation = 3505682
 const sqlErrorCheckViolation = 3505720
+const sqlErrorDatatypeMismatch = 6822148
 const sqlErrorCardinalityViolation = 3405888
 const sqlErrorNullValueNotAllowed = 3452548
 const sqlErrorInvalidDatetimeFormat = 3452551
@@ -725,6 +726,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorDatatypeMismatch {
+		return SqlErrorDescription{Message: "could not convert row type"}
+	}
 	if error.State == sqlErrorZeroLengthCharacterString {
 		return SqlErrorDescription{Message: "zero-length character string"}
 	}
@@ -9476,6 +9480,14 @@ func PrepareCompositeRowCoercion(input CompositeValue, typeName string) Composit
 	checked := CompositeFromCoercedValue(input)
 	if checked.Kind == CompositeValueValue {
 		return MakeCompositeFields(typeName)
+	}
+	return checked
+}
+func InvalidCompositeRowCoercion(input CompositeValue) CompositeValue {
+	input = CopyCompositeValue(input)
+	checked := CompositeFromCoercedValue(input)
+	if checked.Kind == CompositeValueValue {
+		return CompositeValue{Kind: CompositeValueError, Error: MakeSqlError(sqlErrorDatatypeMismatch)}
 	}
 	return checked
 }

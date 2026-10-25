@@ -784,3 +784,40 @@ CREATE TABLE inspection_quantifier_history (
    (ROW(score,CASE WHEN score=ANY(ARRAY[divisor,NULL]) THEN 1/divisor>0 ELSE NULL::boolean END)::historical_quantifier_result IS NOT NULL)=expected_number END)
 );
 ALTER TYPE historical_quantifier_result DROP ATTRIBUTE obsolete_result;
+
+CREATE DOMAIN historical_checked_scalar AS integer CHECK(VALUE>=0);
+CREATE TABLE historical_coercion_parent(score integer CONSTRAINT historical_coercion_score CHECK(score>=0));
+CREATE TABLE historical_coercion_child(divisor integer) INHERITS(historical_coercion_parent);
+CREATE TYPE historical_coercion_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_coercion_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT domain_history_coercion CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,(score/divisor)::historical_checked_scalar)::historical_coercion_result IS NOT NULL)=expected_present END),
+ CONSTRAINT domain_history_relabel CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,(score/divisor)::historical_checked_scalar::integer)::historical_coercion_result IS NOT NULL)=expected_present END),
+ CONSTRAINT ancestor_history_coercion CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,(ROW(score,1/divisor)::historical_coercion_child::historical_coercion_parent).score)::historical_coercion_result IS NOT NULL)=expected_present END)
+);
+ALTER DOMAIN historical_checked_scalar ADD CHECK(VALUE>=2);
+ALTER TABLE historical_coercion_child NO INHERIT historical_coercion_parent;
+
+CREATE TABLE historical_mismatch_parent(score integer);
+CREATE TABLE historical_mismatch_child(divisor integer) INHERITS(historical_mismatch_parent);
+CREATE TABLE inspection_mismatch_history (
+ score integer,
+ divisor integer NOT NULL,
+ missing boolean NOT NULL,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT mismatch_history_coercion CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,((CASE WHEN missing THEN NULL::historical_mismatch_child ELSE
+     ROW(score/divisor,1)::historical_mismatch_child END)::historical_mismatch_parent).score)::historical_coercion_result IS NOT NULL)=expected_present END)
+);
+ALTER TABLE historical_mismatch_child NO INHERIT historical_mismatch_parent;
+ALTER TABLE historical_mismatch_parent RENAME COLUMN score TO current_score;
+ALTER TABLE historical_mismatch_parent ADD CONSTRAINT historical_mismatch_score CHECK(current_score>=0);
+ALTER TABLE historical_mismatch_child ADD CONSTRAINT historical_mismatch_score CHECK(score>=0);
+ALTER TYPE historical_coercion_result DROP ATTRIBUTE obsolete_result;

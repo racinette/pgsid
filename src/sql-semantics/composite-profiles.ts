@@ -179,7 +179,11 @@ export function compositeRowCoercion(
   return mapping ? { kind: 'row', mapping } : null
 }
 
-export function compositeStructuralMapping(source: string, target: string): number[] | null {
+export function compositeStructuralMapping(
+  source: string,
+  target: string,
+  native = false,
+): number[] | null {
   const from = compositeProfile(source),
     to = compositeProfile(target)
   if (!from || !to || from.identity === to.identity) return null
@@ -194,7 +198,7 @@ export function compositeStructuralMapping(source: string, target: string): numb
     seen.add(identity)
     return nodes.get(identity)?.parents?.some(inherits) ?? false
   }
-  if (!inherits(from.identity) && child.typedOf !== to.identity) return null
+  if (!native && !inherits(from.identity) && child.typedOf !== to.identity) return null
   const mapping = parent.fields.map((f) =>
     child.fields.findIndex(
       (c) => c.name === f.name && c.type === f.type && c.typeMod === f.typeMod,
