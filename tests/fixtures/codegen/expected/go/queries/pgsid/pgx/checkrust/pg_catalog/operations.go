@@ -45703,6 +45703,793 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func tsRankDistance(distance int) float64 {
+	distance = langruntime.CheckedI32(distance)
+	if distance > 100 {
+		return tsRankSingle(float64(1.0e-30))
+	}
+	return checkruntime.Float4Number(tsRankDistanceBits[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(distance, 1), 0)])
+}
+func tsRankOr(weights *tsRankWeightSet, document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, operands *tsRankOperandList) float64 {
+	result := float64(0.0)
+	index := 0
+	for index < len(operands.items) {
+		operand := query.Nodes[operands.items[index]]
+		entries := tsRankFind(document, &operand)
+		entry := 0
+		for entry < entries.count {
+			lexeme := checkruntime.CopyTsvectorLexeme(document.Lexemes[langruntime.CheckedAdd(entries.start, entry)])
+			count := len(lexeme.Positions)
+			if count == 0 {
+				count = langruntime.CheckedIndex(1)
+			}
+			partial := float64(0.0)
+			maximum := float64(-1.0)
+			selected := 0
+			position := 0
+			for position < count {
+				weight := 0
+				if len(lexeme.Positions) > 0 {
+					weight = langruntime.CheckedI32(lexeme.Positions[position].Weight)
+				}
+				value := tsRankWeight(weights, weight)
+				order := langruntime.CheckedSignedAdd(int(int32(position)), 1)
+				partial = tsRankSingle(langruntime.F64Add(partial, tsRankSingle(langruntime.F64Divide(value, (float64((langruntime.CheckedSignedMultiply(order, order))))))))
+				if value > maximum {
+					maximum = value
+					selected = langruntime.CheckedIndex(position)
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			order := langruntime.CheckedSignedAdd(int(int32(selected)), 1)
+			numerator := tsRankSingle(langruntime.F64Subtract(tsRankSingle(langruntime.F64Add(maximum, partial)), tsRankSingle(langruntime.F64Divide(maximum, (float64((langruntime.CheckedSignedMultiply(order, order))))))))
+			result = tsRankSingle(langruntime.F64Add(result, langruntime.F64Divide(numerator, float64(1.64493406685))))
+			entry = langruntime.CheckedAdd(entry, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if len(operands.items) > 0 {
+		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(float64((int(int32(len(operands.items))))))))
+	}
+	return result
+}
+func tsRankAnd(weights *tsRankWeightSet, document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, operands *tsRankOperandList) float64 {
+	if len(operands.items) < 2 {
+		return tsRankOr(weights, document, query, operands)
+	}
+	previous := []tsRankPrevious{}
+	index := 0
+	for index < len(operands.items) {
+		langruntime.CheckedAdd(len(previous), 1)
+		previous = append(previous, copytsRankPrevious(tsRankPrevious{entry: langruntime.CheckedSignedNegate(1)}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	result := float64(-1.0)
+	index = langruntime.CheckedIndex(0)
+	for index < len(operands.items) {
+		operand := query.Nodes[operands.items[index]]
+		entries := tsRankFind(document, &operand)
+		entry := 0
+		for entry < entries.count {
+			current := langruntime.CheckedAdd(entries.start, entry)
+			previous[index] = copytsRankPrevious(tsRankPrevious{entry: int(int32(current))})
+			lexeme := checkruntime.CopyTsvectorLexeme(document.Lexemes[current])
+			count := len(lexeme.Positions)
+			if count == 0 {
+				count = langruntime.CheckedIndex(1)
+			}
+			earlier := 0
+			for earlier < index {
+				if previous[earlier].entry >= 0 {
+					old := checkruntime.CopyTsvectorLexeme(document.Lexemes[langruntime.IndexFromI32(previous[earlier].entry, 0)])
+					oldCount := len(old.Positions)
+					if oldCount == 0 {
+						oldCount = langruntime.CheckedIndex(1)
+					}
+					p := 0
+					for p < count {
+						a := 16383
+						aw := 0
+						if len(lexeme.Positions) > 0 {
+							a = langruntime.CheckedI32(lexeme.Positions[p].Position)
+							aw = langruntime.CheckedI32(lexeme.Positions[p].Weight)
+						}
+						q := 0
+						for q < oldCount {
+							b := 16383
+							bw := 0
+							if len(old.Positions) > 0 {
+								b = langruntime.CheckedI32(old.Positions[q].Position)
+								bw = langruntime.CheckedI32(old.Positions[q].Weight)
+							}
+							distance := langruntime.CheckedSignedSubtract(a, b)
+							if distance < 0 {
+								distance = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, distance))
+							}
+							if distance != 0 || len(lexeme.Positions) == 0 || len(old.Positions) == 0 {
+								if distance == 0 {
+									distance = langruntime.CheckedI32(16384)
+								}
+								pair := tsRankSingle(langruntime.F64Multiply(tsRankWeight(weights, aw), tsRankWeight(weights, bw)))
+								product := tsRankSingle(langruntime.F64Multiply(pair, tsRankDistance(distance)))
+								value := tsRankSingle(langruntime.F64Sqrt(product))
+								if result < float64(0.0) {
+									result = value
+								} else {
+									result = tsRankSingle(langruntime.F64Subtract(float64(1.0), langruntime.F64Multiply((langruntime.F64Subtract(float64(1.0), result)), (langruntime.F64Subtract(float64(1.0), value)))))
+								}
+							}
+							q = langruntime.CheckedAdd(q, 1)
+						}
+						p = langruntime.CheckedAdd(p, 1)
+					}
+				}
+				earlier = langruntime.CheckedAdd(earlier, 1)
+			}
+			entry = langruntime.CheckedAdd(entry, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return result
+}
+func tsRankCalculate(weights *tsRankWeightSet, document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, method int) float64 {
+	method = langruntime.CheckedI32(method)
+	if len(document.Lexemes) == 0 || len(query.Nodes) == 0 {
+		return float64(0.0)
+	}
+	operands := tsRankItems(query)
+	root := query.Nodes[query.Root]
+	result := float64(0.0)
+	if root.Kind == 2 || root.Kind == 4 {
+		result = tsRankAnd(weights, document, query, &operands)
+	} else {
+		result = tsRankOr(weights, document, query, &operands)
+	}
+	if result < float64(0.0) {
+		result = tsRankSingle(float64(1.0e-20))
+	}
+	length := tsRankLength(document)
+	if tsRankFlag(method, 1) {
+		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(length, 1))))), langruntime.F64Ln(float64(2.0))))))
+	}
+	if tsRankFlag(method, 2) && length > 0 {
+		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(float64(length))))
+	}
+	unique := int(int32(len(document.Lexemes)))
+	if tsRankFlag(method, 8) {
+		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(float64(unique))))
+	}
+	if tsRankFlag(method, 16) {
+		result = tsRankSingle(langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(unique, 1))))), langruntime.F64Ln(float64(2.0))))))
+	}
+	if tsRankFlag(method, 32) {
+		result = tsRankSingle(langruntime.F64Divide(result, tsRankSingle(langruntime.F64Add(result, float64(1.0)))))
+	}
+	return result
+}
+func tsRankRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	if weights.Kind == checkruntime.ArrayValueError {
+		error := weights.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if document.Kind == checkruntime.TsvectorValueError {
+		error := document.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if query.Kind == checkruntime.TsqueryValueError {
+		error := query.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if method.Kind == checkruntime.Int4ValueError {
+		error := method.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if defaults == false {
+		if weights.Kind == checkruntime.ArrayValueUnknown {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if query.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if method == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if defaults == false {
+		if weights.Kind == checkruntime.ArrayValueNull {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	if query.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	if method == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	selected := tsRankDefaults()
+	if defaults == false {
+		parsed := tsRankReadWeights(weights)
+		if parsed.kind == tsRankWeightsUnknown {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+		}
+		if parsed.kind == tsRankWeightsError {
+			error := parsed.error
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+		}
+		if parsed.kind == tsRankWeightsValue {
+			value := copytsRankWeightSet(parsed.value)
+			selected = copytsRankWeightSet(value)
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(document.Value)
+		if query.Kind == checkruntime.TsqueryValueValue {
+			pattern := checkruntime.CopyTsqueryPayload(query.Value)
+			if method.Kind == checkruntime.Int4ValueValue {
+				normalization := langruntime.CheckedI32(method.Value)
+				result := tsRankCalculate(&selected, &value, &pattern, normalization)
+				if result != result {
+					return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
+				}
+				return checkruntime.MakeFloat4Bits(langruntime.F32ToI32Bits(result))
+			}
+		}
+	}
+	return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+}
+func TsRankHfbf(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankRun(weights, document, query, checkruntime.MakeInt4Value(0), false)
+}
+func TsRankWvbm(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankRun(weights, document, query, method, false)
+}
+func TsRankFite(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true)
+}
+func TsRankD2j5(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true)
+}
+
+var tsRankDistanceBits = []int{1065053655, 1064853957, 1064478574, 1063794993, 1062619232, 1060782469, 1058304202, 1054130172, 1049171398, 1042413691, 1035223700, 1027697705, 1019956935, 1012093949, 1004167255, 996210734, 988243216, 980274995, 972311703, 964356469, 956356202, 948194690, 940039026, 931889482, 923746285, 915609638, 907479732, 899356759, 891240908, 883132374, 875031354, 866938051, 858852671, 850775428, 842706540, 834646231, 826594732, 818552280, 810519116, 802495490, 794481658, 786477883, 778484434, 770501589, 762529633, 754568857, 746602837, 738439780, 730282775, 722131985, 713987577, 705849721, 697718595, 689594378, 681477255, 673367418, 665265061, 657170385, 649083597, 641004908, 632934536, 624872703, 616819639, 608775579, 600740764, 592715444, 584699872, 576694310, 568699027, 560714298, 552740407, 544777645, 536826310, 528684507, 520526426, 512374532, 504228990, 496089971, 487957649, 479832204, 471713821, 463602689, 455499003, 447402963, 439314773, 431234646, 423162795, 415099445, 407044823, 398999163, 390962706, 382935699, 374918395, 366911055, 358913945, 350927341, 342951525, 334986786, 327033420, 318929419}
+
+const tsRankWeightShape = 3452630
+const tsRankWeightNull = 3452548
+const tsRankWeightRange = 3452619
+
+type tsRankWeightSet struct {
+	d int
+	c int
+	b int
+	a int
+}
+
+func copytsRankWeightSet(value tsRankWeightSet) tsRankWeightSet {
+	return tsRankWeightSet{d: langruntime.CheckedI32(value.d), c: langruntime.CheckedI32(value.c), b: langruntime.CheckedI32(value.b), a: langruntime.CheckedI32(value.a)}
+}
+
+type tsRankWeightsKind uint8
+
+const (
+	tsRankWeightsUnknown tsRankWeightsKind = iota
+	tsRankWeightsError
+	tsRankWeightsValue
+)
+
+type tsRankWeights struct {
+	kind  tsRankWeightsKind
+	error checkruntime.SqlError
+	value tsRankWeightSet
+}
+
+func copytsRankWeights(value tsRankWeights) tsRankWeights {
+	switch value.kind {
+	case tsRankWeightsUnknown:
+		return tsRankWeights{kind: tsRankWeightsUnknown}
+	case tsRankWeightsError:
+		return tsRankWeights{kind: tsRankWeightsError, error: value.error}
+	case tsRankWeightsValue:
+		return tsRankWeights{kind: tsRankWeightsValue, value: copytsRankWeightSet(value.value)}
+	}
+	panic("unknown enum variant")
+}
+
+type tsRankWordRange struct {
+	start int
+	count int
+}
+
+func copytsRankWordRange(value tsRankWordRange) tsRankWordRange {
+	return tsRankWordRange{start: langruntime.CheckedIndex(value.start), count: langruntime.CheckedIndex(value.count)}
+}
+
+type tsRankOperandList struct {
+	items []int
+}
+
+func copytsRankOperandList(value tsRankOperandList) tsRankOperandList {
+	return tsRankOperandList{items: langruntime.CheckedIndices(value.items)}
+}
+
+type tsRankPrevious struct {
+	entry int
+}
+
+func copytsRankPrevious(value tsRankPrevious) tsRankPrevious {
+	return tsRankPrevious{entry: langruntime.CheckedI32(value.entry)}
+}
+func tsRankDefaults() tsRankWeightSet {
+	return tsRankWeightSet{d: 1036831949, c: 1045220557, b: 1053609165, a: 1065353216}
+}
+func tsRankSingle(value float64) float64 {
+	return checkruntime.Float4Number(langruntime.F32ToI32Bits(value))
+}
+func tsRankWeight(weights *tsRankWeightSet, weight int) float64 {
+	weight = langruntime.CheckedI32(weight)
+	if weight == 1 {
+		return checkruntime.Float4Number(weights.c)
+	}
+	if weight == 2 {
+		return checkruntime.Float4Number(weights.b)
+	}
+	if weight == 3 {
+		return checkruntime.Float4Number(weights.a)
+	}
+	return checkruntime.Float4Number(weights.d)
+}
+func tsRankFlag(method int, bit int) bool {
+	method = langruntime.CheckedI32(method)
+	bit = langruntime.CheckedI32(bit)
+	mask := int64(langruntime.CheckedI32(method))
+	if mask < int64(0) {
+		mask = langruntime.CheckedI64Add(mask, int64(4294967296))
+	}
+	return langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(mask, (int64(langruntime.CheckedI32(bit)))), int64(2)) != int64(0)
+}
+func tsRankReadWeights(input checkruntime.ArrayValue) tsRankWeights {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return tsRankWeights{kind: tsRankWeightsError, error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if value.ElementKind != 19 || value.ElementType != "pg_catalog.float4" {
+			return tsRankWeights{kind: tsRankWeightsUnknown}
+		}
+		if len(value.Dimensions) != 1 || len(value.Elements) < 4 {
+			return tsRankWeights{kind: tsRankWeightsError, error: checkruntime.MakeSqlError(tsRankWeightShape)}
+		}
+		uncertain := false
+		index := 0
+		for index < len(value.Elements) {
+			element := checkruntime.CopyArrayElement(value.Elements[index])
+			if element.Kind == checkruntime.ArrayElementNull {
+				return tsRankWeights{kind: tsRankWeightsError, error: checkruntime.MakeSqlError(tsRankWeightNull)}
+			}
+			if element.Kind == checkruntime.ArrayElementUnknown {
+				if value.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+					uncertain = true
+				}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if uncertain {
+			return tsRankWeights{kind: tsRankWeightsUnknown}
+		}
+		defaults := tsRankDefaults()
+		weights := defaults
+		index = langruntime.CheckedIndex(0)
+		for index < 4 {
+			input := checkruntime.ArrayElementToFloat4(checkruntime.CopyArrayElement(value.Elements[index]))
+			if input.Kind == checkruntime.Float4ValueError {
+				error := input.Error
+				return tsRankWeights{kind: tsRankWeightsError, error: error}
+			}
+			if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}) {
+				uncertain = true
+			}
+			bits := defaults.d
+			if index == 1 {
+				bits = langruntime.CheckedI32(defaults.c)
+			}
+			if index == 2 {
+				bits = langruntime.CheckedI32(defaults.b)
+			}
+			if index == 3 {
+				bits = langruntime.CheckedI32(defaults.a)
+			}
+			if input.Kind == checkruntime.Float4ValueValue {
+				source := langruntime.CheckedI32(input.Value)
+				number := checkruntime.Float4Number(source)
+				if number > float64(1.0) {
+					return tsRankWeights{kind: tsRankWeightsError, error: checkruntime.MakeSqlError(tsRankWeightRange)}
+				}
+				if number >= float64(0.0) {
+					bits = langruntime.CheckedI32(source)
+				}
+			}
+			if index == 0 {
+				weights = copytsRankWeightSet(tsRankWeightSet{d: bits, c: weights.c, b: weights.b, a: weights.a})
+			}
+			if index == 1 {
+				weights = copytsRankWeightSet(tsRankWeightSet{d: weights.d, c: bits, b: weights.b, a: weights.a})
+			}
+			if index == 2 {
+				weights = copytsRankWeightSet(tsRankWeightSet{d: weights.d, c: weights.c, b: bits, a: weights.a})
+			}
+			if index == 3 {
+				weights = copytsRankWeightSet(tsRankWeightSet{d: weights.d, c: weights.c, b: weights.b, a: bits})
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if uncertain {
+			return tsRankWeights{kind: tsRankWeightsUnknown}
+		}
+		return tsRankWeights{kind: tsRankWeightsValue, value: weights}
+	}
+	return tsRankWeights{kind: tsRankWeightsUnknown}
+}
+func tsRankFind(document *checkruntime.TsvectorPayload, operand *checkruntime.TsqueryNode) tsRankWordRange {
+	low := 0
+	high := len(document.Lexemes)
+	middle := high
+	found := false
+	for low < high && found == false {
+		middle = langruntime.CheckedIndex(langruntime.CheckedAdd(low, langruntime.IndexFromI32(langruntime.CheckedSignedDivide((int(int32((langruntime.CheckedSubtract(high, low))))), 2), 0)))
+		order := checkruntime.TsvectorLexemeOrder(operand.Text, document.Lexemes[middle].Text)
+		if order == 0 {
+			high = langruntime.CheckedIndex(middle)
+			found = true
+		} else if order > 0 {
+			low = langruntime.CheckedIndex(langruntime.CheckedAdd(middle, 1))
+		} else {
+			high = langruntime.CheckedIndex(middle)
+		}
+	}
+	count := 0
+	if found {
+		count = langruntime.CheckedIndex(1)
+	}
+	if operand.Prefix {
+		if low >= high {
+			middle = langruntime.CheckedIndex(high)
+		}
+		count = langruntime.CheckedIndex(0)
+		scanning := true
+		for middle < len(document.Lexemes) && scanning {
+			if textHasPrefix(document.Lexemes[middle].Text, operand.Text) {
+				count = langruntime.CheckedAdd(count, 1)
+				middle = langruntime.CheckedAdd(middle, 1)
+			} else {
+				scanning = false
+			}
+		}
+	}
+	return tsRankWordRange{start: high, count: count}
+}
+func tsRankLength(document *checkruntime.TsvectorPayload) int {
+	length := 0
+	index := 0
+	for index < len(document.Lexemes) {
+		count := int(int32(len(document.Lexemes[index].Positions)))
+		if count == 0 {
+			count = langruntime.CheckedI32(1)
+		}
+		length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, count))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return length
+}
+func tsRankOperandCompare(input *checkruntime.TsqueryPayload, a int, b int) checkruntime.Int4Value {
+	a = langruntime.CheckedIndex(a)
+	b = langruntime.CheckedIndex(b)
+	return checkruntime.MakeInt4Value(checkruntime.TsvectorLexemeOrder(input.Nodes[a].Text, input.Nodes[b].Text))
+}
+func tsRankOrderKnown(input checkruntime.Int4Value) bool {
+	if input.Kind == checkruntime.Int4ValueValue {
+		return true
+	}
+	return false
+}
+func tsRankOrderNumber(input checkruntime.Int4Value) int {
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return value
+	}
+	return 0
+}
+func tsRankMedian(input *checkruntime.TsqueryPayload, a int, b int, c int) checkruntime.Int4Value {
+	a = langruntime.CheckedIndex(a)
+	b = langruntime.CheckedIndex(b)
+	c = langruntime.CheckedIndex(c)
+	ab := tsRankOperandCompare(input, a, b)
+	if tsRankOrderKnown(ab) == false {
+		return ab
+	}
+	bc := tsRankOperandCompare(input, b, c)
+	if tsRankOrderKnown(bc) == false {
+		return bc
+	}
+	if tsRankOrderNumber(ab) < 0 && tsRankOrderNumber(bc) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	if tsRankOrderNumber(ab) >= 0 && tsRankOrderNumber(bc) > 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	ac := tsRankOperandCompare(input, a, c)
+	if tsRankOrderKnown(ac) == false {
+		return ac
+	}
+	if tsRankOrderNumber(ac) < 0 {
+		if tsRankOrderNumber(ab) < 0 {
+			return checkruntime.MakeInt4Value(int(int32(c)))
+		}
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	if tsRankOrderNumber(ab) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	return checkruntime.MakeInt4Value(int(int32(c)))
+}
+func tsRankSort(input *checkruntime.TsqueryPayload, children []int) tsRankOperandList {
+	children = langruntime.CheckedIndices(children)
+	order := children
+	starts := []int{}
+	lengths := []int{}
+	langruntime.CheckedAdd(len(starts), 1)
+	starts = append(starts, langruntime.CheckedIndex(0))
+	langruntime.CheckedAdd(len(lengths), 1)
+	lengths = append(lengths, langruntime.CheckedIndex(len(order)))
+	tasks := 1
+	for tasks > 0 {
+		tasks = langruntime.CheckedIndex(langruntime.CheckedSubtract(tasks, 1))
+		start := starts[tasks]
+		count := lengths[tasks]
+		end := langruntime.CheckedAdd(start, count)
+		partition := count >= 7
+		if count < 7 {
+			next := langruntime.CheckedAdd(start, 1)
+			for next < end {
+				position := next
+				shifting := true
+				for position > start && shifting {
+					compared := tsRankOperandCompare(input, order[langruntime.CheckedSubtract(position, 1)], order[position])
+					if tsRankOrderKnown(compared) == false {
+						return tsRankOperandList{items: order}
+					}
+					if tsRankOrderNumber(compared) > 0 {
+						saved := order[position]
+						order[position] = langruntime.CheckedIndex(order[langruntime.CheckedSubtract(position, 1)])
+						order[langruntime.CheckedSubtract(position, 1)] = langruntime.CheckedIndex(saved)
+						position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
+					} else {
+						shifting = false
+					}
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+		}
+		if partition {
+			next := langruntime.CheckedAdd(start, 1)
+			presorted := true
+			for next < end && presorted {
+				compared := tsRankOperandCompare(input, order[langruntime.CheckedSubtract(next, 1)], order[next])
+				if tsRankOrderKnown(compared) == false {
+					return tsRankOperandList{items: order}
+				}
+				if tsRankOrderNumber(compared) > 0 {
+					presorted = false
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+			partition = presorted == false
+		}
+		if partition {
+			half := langruntime.CheckedSignedDivide((int(int32(count))), 2)
+			middle := langruntime.CheckedAdd(start, langruntime.IndexFromI32(half, 0))
+			pivot := order[middle]
+			if count > 7 {
+				low := order[start]
+				mid := pivot
+				high := order[langruntime.CheckedSubtract(end, 1)]
+				if count > 40 {
+					eighth := langruntime.CheckedSignedDivide((int(int32(count))), 8)
+					distance := langruntime.IndexFromI32(eighth, 0)
+					loChoice := tsRankMedian(input, low, order[langruntime.CheckedAdd(start, distance)], order[langruntime.CheckedAdd(langruntime.CheckedAdd(start, distance), distance)])
+					if tsRankOrderKnown(loChoice) == false {
+						return tsRankOperandList{items: order}
+					}
+					low = langruntime.CheckedIndex(langruntime.IndexFromI32(tsRankOrderNumber(loChoice), 0))
+					midChoice := tsRankMedian(input, order[langruntime.CheckedSubtract(middle, distance)], mid, order[langruntime.CheckedAdd(middle, distance)])
+					if tsRankOrderKnown(midChoice) == false {
+						return tsRankOperandList{items: order}
+					}
+					mid = langruntime.CheckedIndex(langruntime.IndexFromI32(tsRankOrderNumber(midChoice), 0))
+					hiChoice := tsRankMedian(input, order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), (langruntime.CheckedAdd(distance, distance)))], order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), distance)], high)
+					if tsRankOrderKnown(hiChoice) == false {
+						return tsRankOperandList{items: order}
+					}
+					high = langruntime.CheckedIndex(langruntime.IndexFromI32(tsRankOrderNumber(hiChoice), 0))
+				}
+				choice := tsRankMedian(input, low, mid, high)
+				if tsRankOrderKnown(choice) == false {
+					return tsRankOperandList{items: order}
+				}
+				pivot = langruntime.CheckedIndex(langruntime.IndexFromI32(tsRankOrderNumber(choice), 0))
+			}
+			pivotPosition := start
+			for order[pivotPosition] != pivot {
+				pivotPosition = langruntime.CheckedAdd(pivotPosition, 1)
+			}
+			saved := order[start]
+			order[start] = langruntime.CheckedIndex(pivot)
+			order[pivotPosition] = langruntime.CheckedIndex(saved)
+			equalLow := langruntime.CheckedAdd(start, 1)
+			scanLow := equalLow
+			scanHigh := langruntime.CheckedSubtract(end, 1)
+			equalHigh := scanHigh
+			searching := true
+			for searching {
+				advance := true
+				for scanLow <= scanHigh && advance {
+					compared := tsRankOperandCompare(input, order[scanLow], pivot)
+					if tsRankOrderKnown(compared) == false {
+						return tsRankOperandList{items: order}
+					}
+					comparison := tsRankOrderNumber(compared)
+					if comparison <= 0 {
+						if comparison == 0 {
+							saved := order[equalLow]
+							order[equalLow] = langruntime.CheckedIndex(order[scanLow])
+							order[scanLow] = langruntime.CheckedIndex(saved)
+							equalLow = langruntime.CheckedAdd(equalLow, 1)
+						}
+						scanLow = langruntime.CheckedAdd(scanLow, 1)
+					} else {
+						advance = false
+					}
+				}
+				advance = true
+				for scanLow <= scanHigh && advance {
+					compared := tsRankOperandCompare(input, order[scanHigh], pivot)
+					if tsRankOrderKnown(compared) == false {
+						return tsRankOperandList{items: order}
+					}
+					comparison := tsRankOrderNumber(compared)
+					if comparison >= 0 {
+						if comparison == 0 {
+							saved := order[equalHigh]
+							order[equalHigh] = langruntime.CheckedIndex(order[scanHigh])
+							order[scanHigh] = langruntime.CheckedIndex(saved)
+							equalHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, 1))
+						}
+						scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+					} else {
+						advance = false
+					}
+				}
+				if scanLow > scanHigh {
+					searching = false
+				} else {
+					saved := order[scanLow]
+					order[scanLow] = langruntime.CheckedIndex(order[scanHigh])
+					order[scanHigh] = langruntime.CheckedIndex(saved)
+					scanLow = langruntime.CheckedAdd(scanLow, 1)
+					scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+				}
+			}
+			swapCount := langruntime.CheckedSubtract(equalLow, start)
+			if swapCount > langruntime.CheckedSubtract(scanLow, equalLow) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanLow, equalLow))
+			}
+			swapped := 0
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(start, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(scanLow, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, scanHigh))
+			if swapCount > langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1))
+			}
+			swapped = langruntime.CheckedIndex(0)
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(scanLow, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(end, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			leftCount := langruntime.CheckedSubtract(scanLow, equalLow)
+			rightCount := langruntime.CheckedSubtract(equalHigh, scanHigh)
+			largeStart := start
+			largeCount := leftCount
+			smallStart := langruntime.CheckedSubtract(end, rightCount)
+			smallCount := rightCount
+			if leftCount <= rightCount {
+				largeStart = langruntime.CheckedIndex(smallStart)
+				largeCount = langruntime.CheckedIndex(rightCount)
+				smallStart = langruntime.CheckedIndex(start)
+				smallCount = langruntime.CheckedIndex(leftCount)
+			}
+			if largeCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(largeStart)
+					lengths[tasks] = langruntime.CheckedIndex(largeCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(largeStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(largeCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+			if smallCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(smallStart)
+					lengths[tasks] = langruntime.CheckedIndex(smallCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(smallStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(smallCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+		}
+	}
+	return tsRankOperandList{items: order}
+}
+func tsRankItems(query *checkruntime.TsqueryPayload) tsRankOperandList {
+	order := []int{}
+	index := len(query.Nodes)
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		if query.Nodes[index].Kind == 0 {
+			langruntime.CheckedAdd(len(order), 1)
+			order = append(order, langruntime.CheckedIndex(index))
+		}
+	}
+	sorted := tsRankSort(query, order)
+	items := []int{}
+	index = langruntime.CheckedIndex(0)
+	for index < len(sorted.items) {
+		current := sorted.items[index]
+		keep := len(items) == 0
+		if len(items) > 0 {
+			keep = query.Nodes[items[langruntime.CheckedSubtract(len(items), 1)]].Text != query.Nodes[current].Text
+		}
+		if keep {
+			langruntime.CheckedAdd(len(items), 1)
+			items = append(items, langruntime.CheckedIndex(current))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return tsRankOperandList{items: items}
+}
 
 type tsqueryCompareFrame struct {
 	left   int
