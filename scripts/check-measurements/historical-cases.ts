@@ -137,6 +137,27 @@ export const historicalExpressionCases: readonly {
   { name: 'xml_serialize', type: 'text', value: "XMLSERIALIZE(DOCUMENT '<r/>'::xml AS text)" },
   { name: 'xml_element', type: 'xml', value: 'XMLELEMENT(NAME r,n)' },
   { name: 'xml_document', type: 'bool', value: "'<r/>'::xml IS DOCUMENT" },
+  { name: 'xml_concat', type: 'xml', value: "XMLCONCAT('<r/>'::xml,XMLFOREST(n AS reading))" },
+  { name: 'xml_forest', type: 'xml', value: 'XMLFOREST(n AS "😊",label)' },
+  { name: 'xml_parse', type: 'xml', value: 'XMLPARSE(CONTENT label STRIP WHITESPACE)' },
+  { name: 'xml_pi', type: 'xml', value: 'XMLPI(NAME "😊",label)' },
+  { name: 'xml_root', type: 'xml', value: "XMLROOT('<r/>'::xml,VERSION '1.1',STANDALONE YES)" },
+  {
+    name: 'xml_indent',
+    type: 'text',
+    value: "XMLSERIALIZE(DOCUMENT '<r><a/></r>'::xml AS text INDENT)",
+  },
+  {
+    name: 'xml_varchar',
+    type: 'varchar',
+    value: 'XMLSERIALIZE(CONTENT XMLELEMENT(NAME r,n) AS varchar(7))',
+  },
+  {
+    name: 'xml_char',
+    type: 'char(20)',
+    value: 'XMLSERIALIZE(CONTENT XMLELEMENT(NAME r,n) AS char(20))',
+  },
+
   { name: 'current_date', type: 'date', value: 'CURRENT_DATE', requirement: 'session' },
   { name: 'custom_call', type: 'int4', value: 'chosen(n)', requirement: 'database-callback' },
   { name: 'subquery', type: 'int4', value: '(SELECT n)', requirement: 'outside-check' },

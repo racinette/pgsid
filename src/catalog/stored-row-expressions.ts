@@ -62,6 +62,10 @@ const fields = (value: unknown): Fields | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Fields) : undefined
 
 function expressionType(node: Tree, input: StoredRowExpressionInput): string | null {
+  if (node.kind === 'XMLEXPR')
+    return scalar(node, 'op') === '7'
+      ? ([...input.types].find(([, name]) => name === 'pg_catalog.bool')?.[0].toString() ?? null)
+      : scalar(node, 'type')
   if (
     ['BOOLEXPR', 'BOOLEANTEST', 'NULLTEST', 'SCALARARRAYOPEXPR', 'ROWCOMPAREEXPR'].includes(
       node.kind,
@@ -236,6 +240,107 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           'collation',
         )
       : undefined
+  }
+  if (node.kind === 'XMLEXPR') {
+    const op = scalar(node, 'op'),
+      operation = [
+        'IS_XMLCONCAT',
+        'IS_XMLELEMENT',
+        'IS_XMLFOREST',
+        'IS_XMLPARSE',
+        'IS_XMLPI',
+        'IS_XMLROOT',
+        'IS_XMLSERIALIZE',
+        'IS_DOCUMENT',
+      ][Number(op)],
+      option = scalar(node, 'xmloption'),
+      xmloption =
+        option === '0' ? 'XMLOPTION_DOCUMENT' : option === '1' ? 'XMLOPTION_CONTENT' : null,
+      indent = scalar(node, 'indent'),
+      rawArgs = list('args'),
+      args = rawArgs.map(convert),
+      named = list('named_args').map(convert),
+      names = list('arg_names').map((value) => {
+        if (typeof value !== 'string') return undefined
+        try {
+          const decoded: unknown = JSON.parse(value)
+          return typeof decoded === 'string' ? decoded : undefined
+        } catch {
+          return undefined
+        }
+      }),
+      rawName = scalar(node, 'name'),
+      name = rawName === '<>' ? null : rawName,
+      type = input.types.get(Number(scalar(node, 'type')))
+    if (
+      !op ||
+      !/^[0-7]$/u.test(op) ||
+      !operation ||
+      !xmloption ||
+      (indent !== 'true' && indent !== 'false') ||
+      args.some((arg) => arg === undefined) ||
+      named.some((arg) => arg === undefined) ||
+      names.some((name) => name === undefined) ||
+      names.length !== named.length ||
+      (Number(op) !== 6 && type !== 'pg_catalog.xml') ||
+      (![1, 2].includes(Number(op)) && named.length > 0) ||
+      ([1, 4].includes(Number(op)) ? !name : name !== null)
+    )
+      return undefined
+    if (op === '6') {
+      if (
+        args.length !== 1 ||
+        !type ||
+        !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+      )
+        return undefined
+      const cast = fields(fields(typedExpression(null, type))?.['TypeCast'])
+      return {
+        XmlSerialize: {
+          expr: args[0],
+          typeName: cast?.['typeName'],
+          xmloption,
+          indent: indent === 'true',
+        },
+      }
+    }
+    if (
+      (op === '0' && !args.length) ||
+      (op === '2' && args.length > 0) ||
+      (op === '3' && args.length !== 2) ||
+      (op === '4' && args.length > 1) ||
+      (op === '5' && args.length !== 3) ||
+      (op === '7' && args.length !== 1)
+    )
+      return undefined
+    if (op === '5') {
+      const control = tree(rawArgs[2]),
+        cast = fields(fields(args[2])?.['TypeCast']),
+        constant = fields(fields(cast?.['arg'])?.['A_Const']),
+        mode = fields(constant?.['sval'])?.['sval']
+      if (
+        control?.kind !== 'CONST' ||
+        input.types.get(Number(scalar(control, 'consttype'))) !== 'pg_catalog.int4' ||
+        typeof mode !== 'string' ||
+        !/^[0-3]$/u.test(mode)
+      )
+        return undefined
+      args[2] = { A_Const: { ival: { ival: Number(mode) } } }
+    }
+    return {
+      XmlExpr: {
+        op: operation,
+        xmloption,
+        args,
+        ...(name === null ? {} : { name, __pgsid_mapped_name: name }),
+        ...(named.length
+          ? {
+              named_args: named.map((val, index) => ({ ResTarget: { name: names[index], val } })),
+              __pgsid_mapped_arguments: names,
+            }
+          : {}),
+      },
+    }
   }
   if (node.kind === 'ARRAYEXPR') {
     const array = Number(scalar(node, 'array_typeid')),

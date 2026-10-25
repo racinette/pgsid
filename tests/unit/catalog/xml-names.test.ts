@@ -32,7 +32,11 @@ it('captures original mapped XML names when stored SQL cannot distinguish supple
     )
     expect(
       hasUncertain(
-        lowerTableCheck(longTable, { ...longCheck, xmlConstants: undefined })!.expression,
+        lowerTableCheck(longTable, {
+          ...longCheck,
+          xmlConstants: undefined,
+          rowCoercionContext: undefined,
+        })!.expression,
       ),
     ).toBe(true)
     await pg.query('INSERT INTO xml_long_header VALUES($1,$2)', ['go', `<?${mappedLongName} go?>`])
@@ -80,7 +84,13 @@ it('retains original XML attribute and forest argument names across ambiguous de
     })
     expect(hasUncertain(lowerTableCheck(table, forest)!.expression)).toBe(false)
     expect(
-      hasUncertain(lowerTableCheck(table, { ...forest, xmlConstants: undefined })!.expression),
+      hasUncertain(
+        lowerTableCheck(table, {
+          ...forest,
+          xmlConstants: undefined,
+          rowCoercionContext: undefined,
+        })!.expression,
+      ),
     ).toBe(true)
     const xml = '<root _x1F60A_="go" _x005F_x1F60A_="stop"/>'
     await pg.query('INSERT INTO xml_attributes VALUES($1,$2,$3,$4,$5)', [

@@ -85,7 +85,7 @@ function captureExpressionCoercions(
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   if (
     !source ||
-    (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR|ROWCOMPAREEXPR)\s/u.test(
+    (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR|ROWCOMPAREEXPR|XMLEXPR)\s/u.test(
       source,
     ) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
@@ -110,6 +110,14 @@ function captureExpressionCoercions(
   let omittedComplete = true
   let complete = true
   const expressionType = (node: Tree): string | null => {
+    if (node.kind === 'XMLEXPR') {
+      if (scalar(node, 'op') !== '7') return scalar(node, 'type')
+      return rowExpressions
+        ? ([...rowExpressions.types]
+            .find(([, name]) => name === 'pg_catalog.bool')?.[0]
+            .toString() ?? null)
+        : null
+    }
     const field: Record<string, string> = {
       VAR: 'vartype',
       CONST: 'consttype',
@@ -493,6 +501,12 @@ function captureExpressionCoercions(
         return
       }
       if (node.kind === 'XMLEXPR') {
+        if (
+          site !== undefined &&
+          rowExpressions &&
+          storedRowExpression(scalarRoots.get(site)!, rowExpressions) !== undefined
+        )
+          scalarSites.add(site)
         const name = scalar(node, 'name')
         if (name && name !== '<>') {
           if (site === undefined) complete = false

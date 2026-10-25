@@ -1005,3 +1005,39 @@ INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_pay
 
 -- name: HistoricalVariadicDuplicateKeys
 INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,1,'again',false,'[1,1,"again"]','[1,1]','{"again" : 1, "again" : "again"}',true,false);
+
+-- name: HistoricalXmlExpressionsValues
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;">1</_x1F60A_>',E'<r/>\n',true,true,false);
+
+-- name: HistoricalXmlExpressionsNullScore
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(NULL,0,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;"/>',E'<r/>\n',true,false,false);
+
+-- name: HistoricalXmlExpressionsNullLabel
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,NULL,false,'<_x1F60A_>1</_x1F60A_>',NULL,NULL,true,false);
+
+-- name: HistoricalXmlExpressionsContentTail
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>tail',true,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;tail">1</_x1F60A_>',NULL,false,true,false);
+
+-- name: HistoricalXmlExpressionsWrongXml
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<wrong/>',E'<r/>\n',true,true,false);
+
+-- name: HistoricalXmlExpressionsWrongSerialization
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;">1</_x1F60A_>','<wrong/>',true,true,false);
+
+-- name: HistoricalXmlExpressionsWrongDocument
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;">1</_x1F60A_>',E'<r/>\n',false,true,false);
+
+-- name: HistoricalXmlExpressionsWrongPresence
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;">1</_x1F60A_>',E'<r/>\n',true,false,false);
+
+-- name: HistoricalXmlExpressionsNullExpectation
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<r/>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;r/&gt;">1</_x1F60A_>',NULL,true,NULL,false);
+
+-- name: HistoricalXmlExpressionsReachedDivision
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,0,'<r/>',false,NULL,NULL,true,true,false);
+
+-- name: HistoricalXmlExpressionsInvalidParse
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,1,'<bad>',false,'<_x1F60A_ _x005F_x1F60A_="&lt;bad&gt;">1</_x1F60A_>',NULL,false,true,false);
+
+-- name: HistoricalXmlExpressionsBypassedErrors
+INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,0,'<bad>',false,NULL,NULL,false,false,true);
