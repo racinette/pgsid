@@ -1,14 +1,18 @@
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, type BuiltinCatalog } from '../postgres/builtins/catalog.js'
 import { parseTree, type Value } from './expression-tree.js'
-import type { StoredRowFunction } from './stored-row-expressions.js'
+import type { StoredRowFunction, StoredRowOperator } from './stored-row-expressions.js'
 
 export async function readStoredRowFunctions(
   pg: PGlite,
   sources: readonly string[],
   types: ReadonlyMap<number, string>,
-  catalog: Pick<BuiltinCatalog, 'functions'>,
-): Promise<{ functions: ReadonlyMap<number, StoredRowFunction>; sources: string[] }> {
+  catalog: Pick<BuiltinCatalog, 'functions' | 'operators'>,
+): Promise<{
+  functions: ReadonlyMap<number, StoredRowFunction>
+  operators: ReadonlyMap<number, StoredRowOperator>
+  sources: string[]
+}> {
   const pending = new Set<number>(),
     seen = new Set<number>(),
     functions = new Map<number, StoredRowFunction>(),
@@ -77,5 +81,50 @@ export async function readStoredRowFunctions(
       })
     }
   }
-  return { functions, sources: defaults }
+  const ids = [
+      ...new Set(
+        [...sources, ...defaults].flatMap((source) =>
+          [...source.matchAll(/:opno\s+(\d+)/gu)].map((match) => Number(match[1])),
+        ),
+      ),
+    ],
+    operators = new Map<number, StoredRowOperator>()
+  if (ids.length) {
+    const rows = (
+      await pg.query<{
+        oid: number
+        name: string
+        left_type: number
+        right_type: number
+        result: number
+        implementation: number
+      }>(
+        `SELECT o.oid,o.oprname AS name,o.oprleft AS left_type,o.oprright AS right_type,
+        o.oprresult AS result,o.oprcode::oid AS implementation
+      FROM pg_operator o JOIN pg_namespace n ON n.oid=o.oprnamespace
+      WHERE n.nspname='pg_catalog' AND o.oid=ANY($1::oid[])`,
+        [ids],
+      )
+    ).rows
+    for (const row of rows) {
+      const implementation = functions.get(row.implementation),
+        match =
+          implementation &&
+          catalog.operators.find(
+            ({ metadata: m }) =>
+              m.schema === 'pg_catalog' &&
+              m.name === row.name &&
+              m.left === types.get(row.left_type) &&
+              m.right === types.get(row.right_type) &&
+              m.result === types.get(row.result) &&
+              m.implementation === implementation.signature,
+          )
+      if (match)
+        operators.set(row.oid, {
+          signature: callableIdentity(match.metadata),
+          implementation: implementation!.signature,
+        })
+    }
+  }
+  return { functions, operators, sources: defaults }
 }

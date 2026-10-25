@@ -29,9 +29,15 @@ export interface StoredRowFunction {
   defaults?: readonly Value[]
 }
 
+export interface StoredRowOperator {
+  signature: string
+  implementation: string
+}
+
 export interface StoredRowExpressionInput {
   types: ReadonlyMap<number, string>
   functions: ReadonlyMap<number, StoredRowFunction>
+  operators?: ReadonlyMap<number, StoredRowOperator>
   activeDefaults?: ReadonlySet<number>
   arguments?: ReadonlyMap<Value, unknown>
   columns: ReadonlyMap<number, { name: string; type: number }>
@@ -102,6 +108,18 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   const convert = (value: Value | undefined): unknown =>
     value === undefined ? undefined : storedRowExpression(value, input)
+  const arrayElement = (oid: number): number | undefined => {
+    const element = input.arrayElements?.get(oid)
+    if (element !== undefined) return element
+    const name = input.types.get(oid),
+      member =
+        name === 'pg_catalog.int2vector'
+          ? 'pg_catalog.int2'
+          : name === 'pg_catalog.oidvector'
+            ? 'pg_catalog.oid'
+            : undefined
+    return member ? [...input.types].find(([, name]) => name === member)?.[0] : undefined
+  }
   const collation = (name: string): StoredExpressionCollation | null | undefined => {
     const oid = scalar(node, name)
     return oid === '0' ? null : oid === null ? undefined : input.collations?.get(Number(oid))
@@ -220,7 +238,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   if (node.kind === 'ARRAYCOERCEEXPR') {
     const original = tree(node.fields['arg']?.[0]),
       sourceArray = original && expressionType(original, input),
-      sourceElement = sourceArray ? input.arrayElements?.get(Number(sourceArray)) : undefined,
+      sourceElement = sourceArray ? arrayElement(Number(sourceArray)) : undefined,
       targetElement = input.arrayElements?.get(Number(scalar(node, 'resulttype'))),
       source = sourceElement === undefined ? undefined : input.types.get(sourceElement),
       target = targetElement === undefined ? undefined : input.types.get(targetElement),
@@ -456,6 +474,37 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           { A_Indirection: { arg, indirection: [{ String: { sval: field.name } }] } },
           'resultcollid',
         )
+      : undefined
+  }
+  if (node.kind === 'SCALARARRAYOPEXPR') {
+    const raw = list('args'),
+      args = raw.map(convert),
+      callable = input.functions.get(Number(scalar(node, 'opfuncid'))),
+      operator = input.operators?.get(Number(scalar(node, 'opno'))),
+      array = tree(raw[1]),
+      element = array ? arrayElement(Number(expressionType(array, input))) : undefined,
+      any = scalar(node, 'useOr'),
+      selectedCollation = collation('inputcollid')
+    return args.length === 2 &&
+      args.every((arg) => arg !== undefined) &&
+      element !== undefined &&
+      input.types.has(element) &&
+      callable?.result === 'pg_catalog.bool' &&
+      callable.args.length === 2 &&
+      operator?.implementation === callable.signature &&
+      selectedCollation !== undefined &&
+      (any === 'true' || any === 'false') &&
+      scalar(node, 'hashfuncid') === '0' &&
+      scalar(node, 'negfuncid') === '0'
+      ? {
+          PgsidStoredScalarArray: {
+            signature: operator.signature,
+            implementation: callable.signature,
+            args,
+            any: any === 'true',
+            inputCollation: selectedCollation,
+          },
+        }
       : undefined
   }
   if (['FUNCEXPR', 'OPEXPR', 'DISTINCTEXPR', 'NULLIFEXPR'].includes(node.kind)) {
