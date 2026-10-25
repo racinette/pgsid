@@ -2770,6 +2770,19 @@ export function emitCheckRustEvaluator(
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
       const tsvectorSend = call.signature === builtinTypeIO('pg_catalog.tsvector')?.send
       const tsquerySend = call.signature === builtinTypeIO('pg_catalog.tsquery')?.send
+      const tsqueryComparison =
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        [
+          'tsquery_cmp',
+          'tsquery_eq',
+          'tsquery_ne',
+          'tsquery_lt',
+          'tsquery_le',
+          'tsquery_gt',
+          'tsquery_ge',
+        ].includes(implementation.name) &&
+        implementation.args.join(',') === 'pg_catalog.tsquery,pg_catalog.tsquery'
       const xmlPredicate = isXmlOptionPredicate(implementation)
       const xmlConcat =
         implementation.schema === 'pg_catalog' &&
@@ -5015,6 +5028,7 @@ export function emitCheckRustEvaluator(
         )
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (tsqueryComparison) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (tsvectorSend || tsquerySend)
         arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (

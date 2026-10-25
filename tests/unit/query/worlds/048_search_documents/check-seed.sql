@@ -233,3 +233,29 @@ INSERT INTO search_query_templates(source,expected_match,right_associated,bypass
 INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a &',NULL,true,false);
 -- name: query_skipped_template
 INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a &',NULL,NULL,true);
+-- name: query_relation_equal_flags
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a:A','a:*B',0,true,true,false);
+-- name: query_relation_boolean_operator
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a | b','a & b',-1,false,true,false);
+-- name: query_relation_node_count
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a & b','a',1,false,true,false);
+-- name: query_relation_missing_term
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a','a & b',-1,false,false,false);
+-- name: query_relation_phrase_distance
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a <2> b','a <1> b',-1,false,true,false);
+-- name: query_relation_grouping
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a & (b & c)','(a & b) & c',-1,false,true,false);
+-- name: query_relation_crc_collision
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('fGEtsNKMDB','6P7Sag1hsi',1,false,false,false);
+-- name: query_relation_null
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES(NULL,'a',NULL,NULL,NULL,false);
+-- name: query_relation_wrong_order
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a <2> b','a <1> b',1,false,true,false);
+-- name: query_relation_wrong_equality
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a:A','a:*B',0,false,true,false);
+-- name: query_relation_wrong_membership
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a:*','abc',-1,false,true,false);
+-- name: query_relation_bad_grammar
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a &','b',NULL,NULL,NULL,false);
+-- name: query_relation_skipped
+INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a &','b',NULL,NULL,NULL,true);

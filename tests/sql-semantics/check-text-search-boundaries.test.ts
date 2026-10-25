@@ -23,7 +23,7 @@ it('classifies text-search configuration, dictionaries, parsers, query execution
       stateful = functions.filter(
         (fn) => textSearchValueRequirements(fn)![0]!.setting === 'text_search_configuration',
       )
-    expect(functions).toHaveLength(43)
+    expect(functions).toHaveLength(50)
     const configId = (await pg.query<{ id: number }>("SELECT 'live_config'::regconfig::oid id"))
       .rows[0]!.id
     const observe = async (configuration: 'simple' | 'english') => {
@@ -129,7 +129,11 @@ it('classifies text-search configuration, dictionaries, parsers, query execution
       expect(boundary.categories).not.toContain('pure-callable-candidate')
       for (const r of requirements)
         expect(boundary.categories).toContain(
-          r.kind === 'session' ? `session-setting:${r.setting}` : `database-state:${r.setting}`,
+          r.kind === 'session'
+            ? `session-setting:${r.setting}`
+            : r.kind === 'platform'
+              ? `platform-setting:${r.setting}`
+              : `database-state:${r.setting}`,
         )
       expect(textSearchValueRequirements({ ...fn, schema: 'custom' })).toBeNull()
       expect(fn.strict).toBe(true)

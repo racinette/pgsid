@@ -45678,6 +45678,324 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 
+type tsqueryCompareFrame struct {
+	left   int
+	right  int
+	finish bool
+}
+
+func copytsqueryCompareFrame(value tsqueryCompareFrame) tsqueryCompareFrame {
+	return tsqueryCompareFrame{left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), finish: value.finish}
+}
+func tsqueryAscii(text string) bool {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	index := 0
+	for index < len(chars) {
+		if (int(langruntime.CheckedChar(chars[index]))) > 127 {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func tsqueryLegacyCrc(text string) int {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	wire := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(chars) {
+		wire = langruntime.NewTextBuffer(byteaUtf8Character(string(wire), chars[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	bytes := byteaHashBytes(string(wire))
+	crc := int64(4294967295)
+	index = langruntime.CheckedIndex(0)
+	for index < len(bytes) {
+		table := checkruntime.HashXor(langruntime.CheckedI64Divide(crc, int64(16777216)), bytes[index].Value)
+		bit := 0
+		for bit < 8 {
+			low := langruntime.CheckedI64Remainder(table, int64(2))
+			table = langruntime.CheckedI64Divide(table, int64(2))
+			if low == int64(1) {
+				table = checkruntime.HashXor(table, int64(3988292384))
+			}
+			bit = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bit, 1))
+		}
+		crc = checkruntime.HashXor(table, langruntime.CheckedI64Remainder(langruntime.CheckedI64Multiply(crc, int64(256)), int64(4294967296)))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	result := langruntime.CheckedI64Subtract(int64(4294967295), crc)
+	if result > int64(2147483647) {
+		result = langruntime.CheckedI64Subtract(result, int64(4294967296))
+	}
+	return int(int32(result))
+}
+func tsqueryCompare(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, utf8 bool, exact bool) checkruntime.Int4Value {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	if left.Kind == checkruntime.TsqueryValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TsqueryValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if right.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TsqueryValueValue {
+		a := checkruntime.CopyTsqueryPayload(left.Value)
+		if right.Kind == checkruntime.TsqueryValueValue {
+			b := checkruntime.CopyTsqueryPayload(right.Value)
+			if len(a.Nodes) < len(b.Nodes) {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if len(a.Nodes) > len(b.Nodes) {
+				return checkruntime.MakeInt4Value(1)
+			}
+			if a.NativeBytes < 0 || b.NativeBytes < 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+			if a.NativeBytes < b.NativeBytes {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			if a.NativeBytes > b.NativeBytes {
+				return checkruntime.MakeInt4Value(1)
+			}
+			if len(a.Nodes) == 0 {
+				return checkruntime.MakeInt4Value(0)
+			}
+			frames := []tsqueryCompareFrame{}
+			langruntime.CheckedAdd(len(frames), 1)
+			frames = append(frames, copytsqueryCompareFrame(tsqueryCompareFrame{left: a.Root, right: b.Root, finish: false}))
+			depth := 1
+			for depth > 0 {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				frame := frames[depth]
+				an := a.Nodes[frame.left]
+				bn := b.Nodes[frame.right]
+				if frame.finish {
+					if an.Distance > bn.Distance {
+						return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+					}
+					if an.Distance < bn.Distance {
+						return checkruntime.MakeInt4Value(1)
+					}
+				} else {
+					if an.Kind > bn.Kind {
+						return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+					}
+					if an.Kind < bn.Kind {
+						return checkruntime.MakeInt4Value(1)
+					}
+					if an.Kind == 0 {
+						if an.Text != bn.Text {
+							if utf8 == false && (tsqueryAscii(an.Text) == false || tsqueryAscii(bn.Text) == false) {
+								return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+							}
+							ac := tsqueryLegacyCrc(an.Text)
+							bc := tsqueryLegacyCrc(bn.Text)
+							if ac > bc {
+								return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+							}
+							if ac < bc {
+								return checkruntime.MakeInt4Value(1)
+							}
+							order := checkruntime.TsvectorLexemeOrder(an.Text, bn.Text)
+							if exact && order != 0 && textHasPrefix(an.Text, bn.Text) == false && textHasPrefix(bn.Text, an.Text) == false {
+								return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+							}
+							return checkruntime.MakeInt4Value(order)
+						}
+					} else {
+						if an.Kind == 4 {
+							finish := tsqueryCompareFrame{left: frame.left, right: frame.right, finish: true}
+							if depth < len(frames) {
+								frames[depth] = copytsqueryCompareFrame(finish)
+							} else {
+								langruntime.CheckedAdd(len(frames), 1)
+								frames = append(frames, copytsqueryCompareFrame(finish))
+							}
+							depth = langruntime.CheckedAdd(depth, 1)
+						}
+						first := tsqueryCompareFrame{left: an.Left, right: bn.Left, finish: false}
+						if depth < len(frames) {
+							frames[depth] = copytsqueryCompareFrame(first)
+						} else {
+							langruntime.CheckedAdd(len(frames), 1)
+							frames = append(frames, copytsqueryCompareFrame(first))
+						}
+						depth = langruntime.CheckedAdd(depth, 1)
+						if an.Kind != 1 {
+							second := tsqueryCompareFrame{left: an.Right, right: bn.Right, finish: false}
+							if depth < len(frames) {
+								frames[depth] = copytsqueryCompareFrame(second)
+							} else {
+								langruntime.CheckedAdd(len(frames), 1)
+								frames = append(frames, copytsqueryCompareFrame(second))
+							}
+							depth = langruntime.CheckedAdd(depth, 1)
+						}
+					}
+				}
+			}
+			return checkruntime.MakeInt4Value(0)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TsqueryOrder(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, utf8 bool) checkruntime.Int4Value {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	return tsqueryCompare(left, right, utf8, false)
+}
+func TsqueryCmp1oet(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, utf8 bool) checkruntime.Int4Value {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	return tsqueryCompare(left, right, utf8, true)
+}
+func tsqueryRelation(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, utf8 bool, mode int) checkruntime.BoolValue {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	mode = langruntime.CheckedI32(mode)
+	order := tsqueryCompare(left, right, utf8, false)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if order.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(value == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(value != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(value < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(value <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(value > 0)
+		}
+		return checkruntime.MakeBoolValue(value >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TsqueryEqD4ao(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 0)
+}
+func TsqueryNe2lq4(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 1)
+}
+func TsqueryLtZocf(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 2)
+}
+func TsqueryLe3i4m(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 3)
+}
+func TsqueryGt6cq7(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 4)
+}
+func TsqueryGe0jdt(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, utf8 bool) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryRelation(a, b, utf8, 5)
+}
+func tsqueryContains(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, reverse bool) checkruntime.BoolValue {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	if left.Kind == checkruntime.TsqueryValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TsqueryValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TsqueryValueValue {
+		a := checkruntime.CopyTsqueryPayload(left.Value)
+		if right.Kind == checkruntime.TsqueryValueValue {
+			b := checkruntime.CopyTsqueryPayload(right.Value)
+			haystack := a
+			needles := b
+			if reverse {
+				saved := haystack
+				haystack = checkruntime.CopyTsqueryPayload(needles)
+				needles = checkruntime.CopyTsqueryPayload(saved)
+			}
+			i := 0
+			for i < len(needles.Nodes) {
+				if needles.Nodes[i].Kind == 0 {
+					found := false
+					j := 0
+					for j < len(haystack.Nodes) {
+						if haystack.Nodes[j].Kind == 0 && needles.Nodes[i].Text == haystack.Nodes[j].Text {
+							found = true
+							break
+						}
+						j = langruntime.CheckedAdd(j, 1)
+					}
+					if found == false {
+						return checkruntime.MakeBoolValue(false)
+					}
+				}
+				i = langruntime.CheckedAdd(i, 1)
+			}
+			return checkruntime.MakeBoolValue(true)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TsqMcontainsD21x(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryContains(a, b, false)
+}
+func TsqMcontained4g5m(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue) checkruntime.BoolValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryContains(a, b, true)
+}
+
 const tsquerySyntaxError = 6819553
 const tsqueryProgramLimit = 8584704
 const tsqueryInvalidParameter = 3452619
