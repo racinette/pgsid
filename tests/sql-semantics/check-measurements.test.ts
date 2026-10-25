@@ -1284,6 +1284,11 @@ describe('CHECK measurement boundaries', () => {
         'inherited_row',
         'inherited_array',
         'row_comparison',
+        'variadic_call',
+        'variadic_explicit',
+        'variadic_null_array',
+        'variadic_nullary',
+        'variadic_typed',
         'named_field',
         'default_arguments',
         'current_date',
@@ -1315,6 +1320,11 @@ describe('CHECK measurement boundaries', () => {
       'inherited_row',
       'inherited_array',
       'row_comparison',
+      'variadic_call',
+      'variadic_explicit',
+      'variadic_null_array',
+      'variadic_nullary',
+      'variadic_typed',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
     for (const name of ['pg_catalog.point:scalar'])

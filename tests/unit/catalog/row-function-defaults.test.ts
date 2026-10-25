@@ -69,7 +69,7 @@ it('captures current transitive defaults and named argument slots independently 
 it('keeps supplied expressions in the ordinary binder and ignores unavailable unused defaults', async () => {
   const pg = await PGlite.create()
   try {
-    await pg.exec(`CREATE TABLE complex(n int4,d int4,CHECK(jsonb_path_exists(path=>'$',target=>to_jsonb(jsonb_build_array(GREATEST(n,d),n)))));
+    await pg.exec(`CREATE TABLE complex(n int4,d int4,CHECK(jsonb_path_exists(path=>'$',target=>to_jsonb(XMLELEMENT(NAME item,GREATEST(n,d),n)))));
       CREATE TABLE explicit(document jsonb,CHECK(jsonb_path_exists(path=>'$need',target=>document,vars=>'{"need":true}',silent=>false)));
       CREATE FUNCTION unavailable() RETURNS jsonb LANGUAGE SQL IMMUTABLE AS 'SELECT ''{"need":true}''::jsonb';`)
     await pg.exec(replaceExists('public.unavailable()'))

@@ -840,3 +840,28 @@ CREATE TABLE inspection_ordering_history (
    (ROW(score,CASE WHEN ROW(score,score/divisor)<ROW(peer,0) THEN 1 ELSE NULL::integer END)::historical_ordering_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_ordering_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_variadic_result AS(score integer,obsolete_result jsonb);
+CREATE TABLE inspection_variadic_history (
+ score integer,
+ divisor integer NOT NULL,
+ label text COLLATE "C",
+ missing boolean NOT NULL,
+ expected_payload jsonb,
+ expected_numbers jsonb,
+ expected_raw text COLLATE "C",
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT variadic_expanded_values CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_build_array(score,divisor,label) IS NOT DISTINCT FROM expected_payload END),
+ CONSTRAINT variadic_explicit_values CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_build_array(VARIADIC CASE WHEN missing THEN NULL::integer[] ELSE ARRAY[score,divisor] END)
+     IS NOT DISTINCT FROM expected_numbers END),
+ CONSTRAINT variadic_raw_values CHECK(CASE WHEN bypass THEN true ELSE
+   (CASE WHEN missing THEN NULL::json ELSE json_build_object(label,score/divisor,'again',label) END)::text
+     COLLATE "C"=expected_raw END),
+ CONSTRAINT variadic_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,jsonb_build_array(VARIADIC CASE WHEN missing THEN NULL::integer[] ELSE
+     ARRAY[score/divisor,divisor] END))::historical_variadic_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_variadic_result DROP ATTRIBUTE obsolete_result;
