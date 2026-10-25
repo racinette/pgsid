@@ -667,3 +667,30 @@ INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,ex
 INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,1,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,true,false,false);
 -- name: HistoricalBinaryBypassed
 INSERT INTO inspection_binary_history(score,denominator,payload,identity_uuid,expected_payload_present,expected_identity_present,bypass) VALUES(1,0,'\x000180ff'::bytea,'01234567-89ab-cdef-8012-3456789abcde'::uuid,false,false,true);
+
+-- name: HistoricalAddressValues
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',true,true,false);
+-- name: HistoricalAddressOutside
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'198.51.100.1','08:00:2b:ff:fe:01:02:03',B'00101',false,false,false);
+-- name: HistoricalAddressFlagsOnly
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'198.51.100.1','08:00:2b:ff:fe:01:02:03',B'10101',false,true,false);
+-- name: HistoricalAddressDifferentHardware
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'192.0.2.129','00:00:00:00:00:00:00:00',B'10101',true,false,false);
+-- name: HistoricalAddressNullValues
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,NULL,NULL,NULL,false,false,false);
+-- name: HistoricalAddressNullScore
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(NULL,1,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',false,false,false);
+-- name: HistoricalAddressNullRatio
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,NULL,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',false,false,false);
+-- name: HistoricalAddressNetworkError
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,0,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',true,true,false);
+-- name: HistoricalAddressFlagsError
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,0,'198.51.100.1','08:00:2b:ff:fe:01:02:03',B'10101',false,true,false);
+-- name: HistoricalAddressEmptyFlags
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'198.51.100.1','08:00:2b:ff:fe:01:02:03',B'',false,false,false);
+-- name: HistoricalAddressWrongNetwork
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',false,true,false);
+-- name: HistoricalAddressWrongFlags
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,1,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'10101',true,false,false);
+-- name: HistoricalAddressBypassed
+INSERT INTO inspection_address_history(score,denominator,ip_address,hardware,flags,expected_network_present,expected_flags_present,bypass) VALUES(1,0,'192.0.2.129','08:00:2b:ff:fe:01:02:03',B'',false,false,true);

@@ -1,4 +1,5 @@
 import { scalar, type Tree } from './expression-tree.js'
+import { storedReferenceBytes, storedVarlenaBody } from './constant-storage-bytes.js'
 
 export type BinaryConstantStorage =
   { type: 'pg_catalog.bytea'; value: string } | { type: 'pg_catalog.uuid'; value: string }
@@ -20,24 +21,9 @@ export function storedBinaryConstant(
   byteOrder: 'little' | 'big',
 ): BinaryConstantStorage | null | undefined {
   if (scalar(node, 'constisnull') === 'true') return null
-  if (
-    scalar(node, 'constisnull') !== 'false' ||
-    scalar(node, 'constbyval') !== 'false' ||
-    scalar(node, 'constlen') !== (type === 'pg_catalog.uuid' ? '16' : '-1')
-  )
-    return undefined
-  const raw = node.fields['constvalue'],
-    data = raw?.[1]
-  if (
-    raw?.length !== 2 ||
-    typeof raw[0] !== 'string' ||
-    !/^\d+$/u.test(raw[0]) ||
-    !Array.isArray(data) ||
-    Number(raw[0]) !== data.length ||
-    data.some((v) => typeof v !== 'string' || !/^-?\d+$/u.test(v) || +v < -128 || +v > 255)
-  )
-    return undefined
-  const bytes = Buffer.from(data.map((v) => Number(v) & 255))
+  const bytes =
+    type === 'pg_catalog.uuid' ? storedReferenceBytes(node, 16) : storedVarlenaBody(node, byteOrder)
+  if (!bytes) return undefined
   if (type === 'pg_catalog.uuid') {
     if (bytes.length !== 16) return undefined
     const hex = bytes.toString('hex')
@@ -52,21 +38,5 @@ export function storedBinaryConstant(
       ].join('-'),
     }
   }
-  let header = 0
-  if (
-    bytes.length >= 4 &&
-    (byteOrder === 'little'
-      ? (bytes.readUInt32LE(0) & 3) === 0 && bytes.readUInt32LE(0) / 4 === bytes.length
-      : bytes.readUInt32BE(0) < 1073741824 && bytes.readUInt32BE(0) === bytes.length)
-  )
-    header = 4
-  else if (
-    bytes.length > 0 &&
-    bytes.length <= 127 &&
-    (byteOrder === 'little'
-      ? (bytes[0]! & 1) === 1 && bytes[0]! >>> 1 === bytes.length
-      : (bytes[0]! & 128) !== 0 && (bytes[0]! & 127) === bytes.length)
-  )
-    header = 1
-  return header ? { type, value: bytes.subarray(header).toString('hex') } : undefined
+  return { type, value: bytes.toString('hex') }
 }

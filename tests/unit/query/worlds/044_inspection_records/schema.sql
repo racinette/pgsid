@@ -520,3 +520,27 @@ CREATE TABLE inspection_binary_history (
       THEN 1/denominator ELSE NULL::integer END)::historical_binary_reading IS NOT NULL) = expected_identity_present END)
 );
 ALTER TYPE historical_binary_reading DROP ATTRIBUTE obsolete_ratio;
+
+CREATE TYPE historical_address_reading AS (score integer, obsolete_ratio integer);
+CREATE TABLE inspection_address_history (
+  score integer,
+  denominator integer,
+  ip_address inet,
+  hardware macaddr8,
+  flags varbit,
+  expected_network_present boolean NOT NULL,
+  expected_flags_present boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT address_history_network CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN ip_address <<= CIDR '192.0.2.0/24'
+      AND inet_send(INET '192.0.2.129/24')='\x02180004c0000281'::bytea
+      AND get_byte(cidr_send(CIDR '2001:db8::/32'),1)=32
+      THEN 1/denominator ELSE NULL::integer END)::historical_address_reading IS NOT NULL) = expected_network_present END),
+  CONSTRAINT address_history_flags CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN hardware=MACADDR8 '08:00:2b:ff:fe:01:02:03'
+      AND macaddr_send(MACADDR '08:00:2b:01:02:03')='\x08002b010203'::bytea
+      AND get_bit(flags,0)=1 AND bit_send(B'10101')='\x00000005a8'::bytea
+      AND varbit_send(B'101010101'::varbit)='\x00000009aa80'::bytea
+      THEN 1/denominator ELSE NULL::integer END)::historical_address_reading IS NOT NULL) = expected_flags_present END)
+);
+ALTER TYPE historical_address_reading DROP ATTRIBUTE obsolete_ratio;

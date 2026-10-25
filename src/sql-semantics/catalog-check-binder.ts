@@ -81,6 +81,7 @@ import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import { validTemporalConstantStorage } from '../catalog/temporal-constant-storage.js'
 import { validBinaryConstantStorage } from '../catalog/binary-constant-storage.js'
+import { validAddressBitConstantStorage } from '../catalog/address-bit-constant-storage.js'
 import {
   combineCollations,
   defaultCollation,
@@ -2919,6 +2920,24 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedAddressBit = wrapper['PgsidStoredAddressBit']
+    if (storedAddressBit !== undefined) {
+      if (!validAddressBitConstantStorage(storedAddressBit)) return unknown
+      const type = storedAddressBit.type,
+        value = storedAddressBit.value
+      return {
+        type,
+        value: {
+          kind: 'certain',
+          expression:
+            type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+              ? { kind: 'network', type, value }
+              : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+                ? { kind: 'mac', type, value }
+                : { kind: 'bit', type, value },
+        },
+      }
+    }
     const storedBinary = wrapper['PgsidStoredBinary']
     if (storedBinary !== undefined) {
       if (!validBinaryConstantStorage(storedBinary)) return unknown

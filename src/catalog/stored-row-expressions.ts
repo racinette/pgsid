@@ -5,6 +5,10 @@ import { storedTextConstant } from './text-constant-storage.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
+import {
+  storedAddressBitConstant,
+  type NetworkStorageFamilies,
+} from './address-bit-constant-storage.js'
 
 export interface StoredExpressionCollation {
   schema: string
@@ -19,6 +23,7 @@ export interface StoredRowExpressionInput {
   byteOrder: 'little' | 'big'
   utf8?: boolean
   collations?: ReadonlyMap<number, StoredExpressionCollation>
+  networkFamilies?: NetworkStorageFamilies
 }
 
 type Fields = Record<string, unknown>
@@ -89,6 +94,16 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     } else if (type === 'pg_catalog.bytea' || type === 'pg_catalog.uuid') {
       const storage = storedBinaryConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredBinary: storage } : undefined
+    } else if (
+      type === 'pg_catalog.inet' ||
+      type === 'pg_catalog.cidr' ||
+      type === 'pg_catalog.macaddr' ||
+      type === 'pg_catalog.macaddr8' ||
+      type === 'pg_catalog."bit"' ||
+      type === 'pg_catalog.varbit'
+    ) {
+      const storage = storedAddressBitConstant(node, type, input.byteOrder, input.networkFamilies)
+      return storage ? { PgsidStoredAddressBit: storage } : undefined
     } else if (type === 'pg_catalog."numeric"' || type === 'pg_catalog.numeric') {
       const numeric = storedNumericConstant(node, input.byteOrder)
       if (numeric === undefined || numeric === null) return undefined

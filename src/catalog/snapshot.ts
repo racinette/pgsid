@@ -838,6 +838,23 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     ...constraintRows.map((c) => c.coercion_tree),
     ...domainRows.flatMap((d) => (d.check_exprs ?? []).map((c) => c.coercion_tree)),
   ].filter((source): source is string => !!source && /\{(?:ROWEXPR|FUNCEXPR)\b/u.test(source))
+  const networkTypes = new Set(
+      typeRows
+        .filter((t) => t.identity === 'pg_catalog.inet' || t.identity === 'pg_catalog.cidr')
+        .map((t) => t.oid),
+    ),
+    hasNetworkConstants = rowTrees.some((source) =>
+      [...source.matchAll(/\{CONST\s+:consttype\s+(\d+)/gu)].some((match) =>
+        networkTypes.has(Number(match[1])),
+      ),
+    ),
+    networkFamilies = hasNetworkConstants
+      ? (
+          await pg.query<{ ipv4: number; ipv6: number }>(
+            "SELECT pg_catalog.get_byte(pg_catalog.inet_send('0.0.0.0'::pg_catalog.inet),0) ipv4,pg_catalog.get_byte(pg_catalog.inet_send('::'::pg_catalog.inet),0) ipv6",
+          )
+        ).rows[0]
+      : undefined
   const rowFunctionIds = [
     ...new Set(
       rowTrees.flatMap((source) =>
@@ -916,6 +933,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     byteOrder: 'little',
     utf8,
     collations: rowCollations,
+    networkFamilies,
   })
   const isXml = (oid: number, seen = new Set<number>()): boolean => {
     if (seen.has(oid)) return false
