@@ -6,6 +6,7 @@ import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
+import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedArrayConstant } from './array-value-constant-storage.js'
 import { storedEnumConstant } from './enum-constant-storage.js'
 import type { ConstantStorageType } from './container-constant-storage.js'
@@ -240,12 +241,19 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         'pg_catalog."varchar"',
         'pg_catalog.varchar',
         'pg_catalog.bpchar',
+        'pg_catalog."json"',
+        'pg_catalog.json',
       ].includes(type)
     ) {
       const text = storedTextConstant(node, input.utf8 === true, input.byteOrder)
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (type === 'pg_catalog.jsonb') {
+      const text = storedJsonbConstant(node, input.byteOrder, input.utf8 === true)
+      return text === undefined
+        ? undefined
+        : typedExpression({ A_Const: { sval: { sval: text } } }, type)
     } else if (type === 'pg_catalog.jsonpath') {
       const text = storedJsonpathConstant(node, input.byteOrder, input.utf8 === true)
       return typeof text === 'string' ? { PgsidStoredJsonpath: text } : undefined

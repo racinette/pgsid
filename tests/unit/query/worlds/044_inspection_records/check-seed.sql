@@ -759,3 +759,26 @@ INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_m
 INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,true,true,NULL,NULL,false);
 -- name: HistoricalArrayConstantsBypassedDivision
 INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,false,false,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',true);
+
+-- name: HistoricalJsonRetainedValues
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',true,false);
+-- name: HistoricalJsonUnicodeField
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'é',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','😊',true,false);
+-- name: HistoricalJsonNullScore
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(NULL,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',false,false);
+-- name: HistoricalJsonWrongSource
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a','{"a":2.4500}','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',true,false);
+-- name: HistoricalJsonWrongDocument
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.23, "b": [true, null], "é": "😊"}','1.2300',true,false);
+-- name: HistoricalJsonWrongField
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','wrong',true,false);
+-- name: HistoricalJsonReachedDivision
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,0,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',true,false);
+-- name: HistoricalJsonSkippedDivision
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,0,'missing','wrong','wrong','wrong',false,false);
+-- name: HistoricalJsonNullComparison
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,0,'missing',NULL,NULL,NULL,false,false);
+-- name: HistoricalJsonNullExpectation
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,1,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',NULL,false);
+-- name: HistoricalJsonBypassedDivision
+INSERT INTO inspection_json_history(score,divisor,label,expected_source,expected_document,expected_field,expected_present,bypass) VALUES(1,0,'a',' { "a":1, "a":2.4500,"é":"😊" } ','{"a": 1.2300, "b": [true, null], "é": "😊"}','1.2300',false,true);

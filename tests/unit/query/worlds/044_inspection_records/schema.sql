@@ -619,3 +619,27 @@ ALTER DOMAIN historical_positive ADD CONSTRAINT historical_positive_tighter CHEC
 ALTER TYPE historical_phase RENAME VALUE 'z' TO 'middle';
 ALTER TYPE historical_constant_reading DROP ATTRIBUTE obsolete_values;
 ALTER TYPE historical_constant_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_json_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_json_history (
+  score integer,
+  divisor integer NOT NULL,
+  label text,
+  expected_source text,
+  expected_document text,
+  expected_field text,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT json_history_source CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN ' { "a":1, "a":2.4500,"é":"😊" } '::json::text COLLATE "C"=expected_source
+      THEN 1/divisor ELSE NULL::integer END)::historical_json_result IS NOT NULL)=expected_present END),
+  CONSTRAINT json_history_document CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN '{"b":[true,null],"a":1.2300,"é":"😊"}'::jsonb::text COLLATE "C"=expected_document
+      AND jsonb_path_exists('{"b":[true,null]}'::jsonb,'$.b[*] ? (@ == true)'::jsonpath,'{}'::jsonb,false)
+      AND jsonb_send('{"n":1.2300}'::jsonb)='\x017b226e223a20312e323330307d'::bytea
+      THEN 1/divisor ELSE NULL::integer END)::historical_json_result IS NOT NULL)=expected_present END),
+  CONSTRAINT json_history_field CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN ('{"a":1.2300,"é":"😊"}'::jsonb->>label) COLLATE "C"=expected_field
+      THEN 1/divisor ELSE NULL::integer END)::historical_json_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_json_result DROP ATTRIBUTE obsolete_result;

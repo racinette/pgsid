@@ -244,16 +244,8 @@ const declaredValueContextCases = new Map<string, string>([
         `world_042_query_paths.query_clock_rules.${name}`,
       ] as const,
   ),
-  ...['field_source', 'field_text', 'field_presence'].map(
-    (name) =>
-      [
-        `041_json_documents/field_encoding_context/${name}`,
-        `world_041_json_documents.document_fields.${name}`,
-      ] as const,
-  ),
   ...[
     'bytea',
-    'money',
     'interval',
     'point',
     'line',
@@ -1956,7 +1948,7 @@ describe('world CHECK INSERT parity', () => {
         continue
       expect(item, identity).toBeDefined()
       const check = item!.checks.find((row) => row.constraint === identity.slice(slash + 1))!
-      expect(check.result.certain, identity).toBe(false)
+      expect.soft(check.result.certain, identity).toBe(false)
       expect(`${item!.schema}.${item!.relation}.${check.constraint}`, identity).toBe(constraint)
       expect(item!.database.accepted, identity).toBe(true)
       expect(check.postgres, identity).toBe(true)

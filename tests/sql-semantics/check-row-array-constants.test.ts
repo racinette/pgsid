@@ -11,15 +11,25 @@ import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/p
 it('preserves whole scalar array constants, bounds, domain values and renamed enum labels in historical rows', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-row-array-constants-')),
-    artifact = 'artifacts/goal-checks/row-array-constants-active'
+    artifact =
+      process.env['PGSID_ROW_ARRAY_CONSTANT_ARTIFACT'] ??
+      'artifacts/goal-checks/row-array-constants-active'
   try {
     await pg.exec(`SET extra_float_digits=1;
       CREATE DOMAIN positive AS int4 CHECK(VALUE>0);
       CREATE TYPE phase AS ENUM('z','','a');
       CREATE DOMAIN phase_value AS phase;
       CREATE DOMAIN batch AS int4[] CHECK(cardinality(VALUE)<=3);
+      CREATE DOMAIN document_value AS jsonb CHECK(jsonb_typeof(VALUE)='object');
       CREATE TYPE result_row AS(n int4,old int4);`)
-    const families = [
+    const families: {
+        name: string
+        type: string
+        literal: string | null
+        send?: string
+        text: boolean
+        matrix?: boolean
+      }[] = [
         {
           name: 'integer',
           type: 'int4[]',
@@ -159,6 +169,21 @@ it('preserves whole scalar array constants, bounds, domain values and renamed en
           send: 'jsonpath_send',
           text: true,
         },
+        ...(['json', 'jsonb', 'document_value'] as const).map((type) => ({
+          name: type === 'document_value' ? 'jsonb_domain' : type,
+          type: type + '[]',
+          literal:
+            '{' +
+            [
+              '{"n":1.2300,"n":2.4500,"é":"😊"}',
+              '{"n":1,"items":[null,true,{"v":9007199254740993.2300}]}',
+            ]
+              .map((value) => JSON.stringify(value))
+              .join(',') +
+            ',NULL}',
+          send: type === 'json' ? 'json_send' : 'jsonb_send',
+          text: true,
+        })),
         {
           name: 'inet',
           type: 'inet[]',
@@ -279,6 +304,7 @@ it('preserves whole scalar array constants, bounds, domain values and renamed en
         )
     await pg.exec(`ALTER DOMAIN positive ADD CONSTRAINT tighter CHECK(VALUE>2) NOT VALID;
       ALTER DOMAIN batch ADD CONSTRAINT tighter CHECK(cardinality(VALUE)<=1) NOT VALID;
+      ALTER DOMAIN document_value ADD CONSTRAINT tighter CHECK((VALUE->>'n')::numeric>3) NOT VALID;
       ALTER TYPE phase RENAME VALUE 'z' TO 'middle';`)
     for (const f of families) await pg.exec(`ALTER TYPE r_${f.name} DROP ATTRIBUTE old`)
     await pg.exec('ALTER TYPE result_row DROP ATTRIBUTE old')
@@ -308,6 +334,7 @@ it('preserves whole scalar array constants, bounds, domain values and renamed en
       group = prepareCheckRustGroup(plans, {
         defaultCollation: 'C',
         serverEncoding: 'UTF8',
+        clientEncoding: 'UTF8',
         extraFloatDigits: 1,
       }),
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],

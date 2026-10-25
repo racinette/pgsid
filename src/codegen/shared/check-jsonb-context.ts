@@ -1,5 +1,25 @@
 import type { BuiltinCallable } from '../../postgres/builtins/taxonomy.js'
 
+export function jsonScalarExtractionContext(item: BuiltinCallable): boolean {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 'i' ||
+    item.returnsSet ||
+    item.args.length !== 2 ||
+    item.args[0] !== 'pg_catalog."json"'
+  )
+    return false
+  const field = ['json_object_field', 'json_object_field_text'].includes(item.name),
+    element = ['json_array_element', 'json_array_element_text'].includes(item.name)
+  return (
+    (field || element) &&
+    item.args[1] === (field ? 'pg_catalog.text' : 'pg_catalog.int4') &&
+    item.result === (item.name.endsWith('_text') ? 'pg_catalog.text' : 'pg_catalog."json"')
+  )
+}
+
 export function jsonbTextRenderingContext(item: BuiltinCallable): boolean {
   if (
     item.kind !== 'function' ||

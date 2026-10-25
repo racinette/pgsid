@@ -98,10 +98,10 @@ INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_jso
 INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'bad unused string','{"a":1,"z":"\u0000"}','a','1','1',false,false);
 -- name: field_bad_unselected_surrogate
 INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'bad unused surrogate','{"a":1,"z":"\ud800"}','a','1','1',false,false);
--- name: field_encoding_context
-INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'requires database encoding','{"a":1,"z":"\u00e9"}','a','1','1',false,false);
--- name: field_skip_encoding_context
-INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'skipped encoding context','{"a":1,"z":"\u00e9"}','a','1','1',false,true);
+-- name: field_unicode_escape
+INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'unused Unicode escape','{"a":1,"z":"\u00e9"}','a','1','1',false,false);
+-- name: field_skip_unicode_escape
+INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(2,1,'skipped Unicode escape','{"a":1,"z":"\u00e9"}','a','1','1',false,true);
 -- name: element_first
 INSERT INTO document_elements(id,archive_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'first array element','[1,null,"last"]',0,'1','1',3,false,false);
 -- name: element_last

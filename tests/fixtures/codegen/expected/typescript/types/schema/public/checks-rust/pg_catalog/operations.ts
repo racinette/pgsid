@@ -16666,8 +16666,22 @@ export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValu
     return { kind: "Unknown" };
 }
 export function jsonSendWrp3(input: checkruntime.JsonValue): checkruntime.ByteaValue {
+    return jsonSendContext(input, false);
+}
+function jsonWireBytes(input: checkruntime.TextValue, clientUtf8: boolean): checkruntime.ByteaValue {
+    clientUtf8 = langruntime.checkedBool(clientUtf8);
+    if (clientUtf8) {
+        if (input.kind === "Value") {
+            const value: string = langruntime.checkedString(input.value);
+            return { kind: "Value", value: textBinaryHex(value, false) };
+        }
+    }
+    return textsendMgfj(input);
+}
+export function jsonSendContext(input: checkruntime.JsonValue, clientUtf8: boolean): checkruntime.ByteaValue {
+    clientUtf8 = langruntime.checkedBool(clientUtf8);
     const text: checkruntime.TextValue = jsonToText(input);
-    return textsendMgfj(text);
+    return jsonWireBytes(text, clientUtf8);
 }
 const jsonInvalidText = 3484946;
 export function jsonFromText(input: checkruntime.TextValue): checkruntime.JsonValue {
@@ -16704,6 +16718,22 @@ export function jsonArrayElementTextT2sr(input: checkruntime.JsonValue, index: c
 }
 export function jsonArrayLength97pw(input: checkruntime.JsonValue): checkruntime.Int4Value {
     return checkruntime.jsonReadLength(input);
+}
+export function jsonObjectFieldContext(input: checkruntime.JsonValue, key: checkruntime.TextValue, utf8: boolean): checkruntime.JsonValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return checkruntime.jsonFromCoercedText(checkruntime.jsonReadFieldContext(input, key, false, utf8));
+}
+export function jsonObjectFieldTextContext(input: checkruntime.JsonValue, key: checkruntime.TextValue, utf8: boolean): checkruntime.TextValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return checkruntime.jsonReadFieldContext(input, key, true, utf8);
+}
+export function jsonArrayElementContext(input: checkruntime.JsonValue, index: checkruntime.Int4Value, utf8: boolean): checkruntime.JsonValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return checkruntime.jsonFromCoercedText(checkruntime.jsonReadElementContext(input, index, false, utf8));
+}
+export function jsonArrayElementTextContext(input: checkruntime.JsonValue, index: checkruntime.Int4Value, utf8: boolean): checkruntime.TextValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return checkruntime.jsonReadElementContext(input, index, true, utf8);
 }
 export function jsonStripNullsZ8vm(input: checkruntime.JsonValue, arrays: checkruntime.BoolValue, utf8: boolean): checkruntime.JsonValue {
     utf8 = langruntime.checkedBool(utf8);
@@ -17736,8 +17766,14 @@ export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.Te
 }
 export function jsonbSend8nmo(input: checkruntime.JsonbValue): checkruntime.ByteaValue {
     input = checkruntime.copyJsonbValue(input);
-    const text: checkruntime.TextValue = checkruntime.jsonbToText(input);
-    const bytes: checkruntime.ByteaValue = textsendMgfj(text);
+    return jsonbSendContext(input, false, false);
+}
+export function jsonbSendContext(input: checkruntime.JsonbValue, serverUtf8: boolean, clientUtf8: boolean): checkruntime.ByteaValue {
+    input = checkruntime.copyJsonbValue(input);
+    serverUtf8 = langruntime.checkedBool(serverUtf8);
+    clientUtf8 = langruntime.checkedBool(clientUtf8);
+    const text: checkruntime.TextValue = jsonbTextContext(input, serverUtf8);
+    const bytes: checkruntime.ByteaValue = jsonWireBytes(text, clientUtf8);
     if (bytes.kind === "Value") {
         const value: string = langruntime.checkedString(bytes.value);
         let output: string = "01";

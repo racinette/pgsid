@@ -5120,10 +5120,6 @@ func jsonReadHex(character rune) int {
 	}
 	return langruntime.CheckedSignedSubtract(code, 87)
 }
-func jsonReadDecodeString(source *jsonSyntaxSource, token jsonReadToken) TextValue {
-	token = copyjsonReadToken(token)
-	return jsonReadDecodeStringContext(source, token, false)
-}
 func jsonReadDecodeStringContext(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) TextValue {
 	token = copyjsonReadToken(token)
 	position := langruntime.CheckedAdd(token.start, 1)
@@ -5249,7 +5245,7 @@ func jsonReadArrayCount(source *jsonSyntaxSource) int64 {
 	}
 	return count
 }
-func jsonReadSelect(value string, key string, index int, object bool, asText bool) TextValue {
+func jsonReadSelect(value string, key string, index int, object bool, asText bool, utf8 bool) TextValue {
 	value = langruntime.CheckedString(value)
 	key = langruntime.CheckedString(key)
 	index = langruntime.CheckedI32(index)
@@ -5280,7 +5276,7 @@ func jsonReadSelect(value string, key string, index int, object bool, asText boo
 		}
 		decoded := TextValue{Kind: TextValueNull}
 		if token.kind == jsonReadQuote {
-			decoded = jsonReadDecodeString(&source, token)
+			decoded = jsonReadDecodeStringContext(&source, token, utf8)
 			if decoded.Kind == TextValueError {
 				error := decoded.Error
 				return TextValue{Kind: TextValueError, Error: error}
@@ -5337,6 +5333,9 @@ func jsonReadSelect(value string, key string, index int, object bool, asText boo
 	return result
 }
 func JsonReadField(input JsonValue, key TextValue, asText bool) TextValue {
+	return JsonReadFieldContext(input, key, asText, false)
+}
+func JsonReadFieldContext(input JsonValue, key TextValue, asText bool, utf8 bool) TextValue {
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -5361,12 +5360,15 @@ func JsonReadField(input JsonValue, key TextValue, asText bool) TextValue {
 		value := input.Value
 		if key.Kind == TextValueValue {
 			name := langruntime.CheckedString(key.Value)
-			return jsonReadSelect(value.Source, name, 0, true, asText)
+			return jsonReadSelect(value.Source, name, 0, true, asText, utf8)
 		}
 	}
 	return TextValue{Kind: TextValueUnknown}
 }
 func JsonReadElement(input JsonValue, index Int4Value, asText bool) TextValue {
+	return JsonReadElementContext(input, index, asText, false)
+}
+func JsonReadElementContext(input JsonValue, index Int4Value, asText bool, utf8 bool) TextValue {
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -5391,7 +5393,7 @@ func JsonReadElement(input JsonValue, index Int4Value, asText bool) TextValue {
 		value := input.Value
 		if index.Kind == Int4ValueValue {
 			number := langruntime.CheckedI32(index.Value)
-			return jsonReadSelect(value.Source, "", number, false, asText)
+			return jsonReadSelect(value.Source, "", number, false, asText, utf8)
 		}
 	}
 	return TextValue{Kind: TextValueUnknown}
