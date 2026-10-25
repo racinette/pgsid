@@ -571,3 +571,25 @@ ALTER TYPE historical_flag_reading ALTER ATTRIBUTE flags TYPE bit(6);
 ALTER TYPE historical_amount_reading ALTER ATTRIBUTE amount TYPE numeric(6,3);
 ALTER TYPE historical_capture_reading ALTER ATTRIBUTE captured TYPE timestamp(4);
 ALTER TYPE historical_flag_batch ALTER ATTRIBUTE flags TYPE bit(6)[];
+
+CREATE TYPE historical_array_reading AS (score integer, obsolete_values integer[]);
+CREATE TYPE historical_array_conversion AS (score integer, obsolete_values smallint[]);
+CREATE TYPE historical_array_shape AS (score integer, obsolete_values integer[]);
+CREATE TABLE inspection_array_history (
+  score integer,
+  divisor integer NOT NULL,
+  label text NOT NULL,
+  expected_present boolean,
+  expected_converted boolean,
+  expected_shape boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT array_history_present CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,ARRAY[score/divisor,NULL])::historical_array_reading IS NOT NULL)=expected_present END),
+  CONSTRAINT array_history_converted CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,(CASE WHEN divisor>=0 THEN ARRAY[label] ELSE ARRAY['0'::text] END)::smallint[])::historical_array_conversion IS NOT NULL)=expected_converted END),
+  CONSTRAINT array_history_shape CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,ARRAY[ARRAY[score/divisor],CASE WHEN divisor=2 THEN ARRAY[1,2] ELSE ARRAY[1] END])::historical_array_shape IS NOT NULL)=expected_shape END)
+);
+ALTER TYPE historical_array_reading DROP ATTRIBUTE obsolete_values;
+ALTER TYPE historical_array_conversion DROP ATTRIBUTE obsolete_values;
+ALTER TYPE historical_array_shape DROP ATTRIBUTE obsolete_values;
