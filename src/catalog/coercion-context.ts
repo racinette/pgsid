@@ -1,6 +1,8 @@
 import { storedTextConstant } from './text-constant-storage.js'
 import { storedRowExpression, type StoredRowExpressionInput } from './stored-row-expressions.js'
-import { parseTree, tree, scalar, type Value, type Tree } from './expression-tree.js'
+import { parseTree, tree, scalar, oidList, type Value, type Tree } from './expression-tree.js'
+import { storedOrderingKey } from './stored-row-orderings.js'
+import { builtinBtreeComparisons } from '../postgres/builtins/inventory.js'
 import { tsqueryContainerConstant } from './tsquery-container-constants.js'
 import { tsqueryConstantStorage } from './tsquery-constant-storage.js'
 import { tsvectorContainerConstant } from './tsvector-container-constants.js'
@@ -83,7 +85,9 @@ function captureExpressionCoercions(
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
   if (
     !source ||
-    (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR)\s/u.test(source) &&
+    (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR|ROWCOMPAREEXPR)\s/u.test(
+      source,
+    ) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
       !xmlCandidate &&
       !arrayCandidate &&
@@ -606,6 +610,35 @@ function captureExpressionCoercions(
         return
       }
       if (node.kind === 'ROWCOMPAREEXPR') {
+        if (site !== undefined && rowExpressions) {
+          const expression = storedRowExpression(scalarRoots.get(site)!, rowExpressions)
+          if (expression !== undefined) scalarSites.add(site)
+          else {
+            const operators = oidList(node, 'opnos'),
+              families = oidList(node, 'opfamilies'),
+              strategy = Number(scalar(node, 'cmptype'))
+            if (
+              !operators?.length ||
+              operators.length !== families?.length ||
+              operators.some((operator, i) => {
+                const ordering = rowExpressions.orderings?.get(
+                  storedOrderingKey(operator, families[i]!, strategy),
+                )
+                const defaults = ordering && builtinBtreeComparisons(ordering.operator)
+                return (
+                  !ordering ||
+                  !defaults?.length ||
+                  defaults.some(
+                    (entry) =>
+                      entry.comparator !== ordering.comparator ||
+                      entry.strategy !== ordering.strategy,
+                  )
+                )
+              })
+            )
+              omittedComplete = false
+          }
+        }
         for (const [name, index] of [
           ['largs', 0],
           ['rargs', 1],

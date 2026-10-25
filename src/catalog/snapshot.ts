@@ -838,7 +838,10 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rowTrees = [
     ...constraintRows.map((c) => c.coercion_tree),
     ...domainRows.flatMap((d) => (d.check_exprs ?? []).map((c) => c.coercion_tree)),
-  ].filter((source): source is string => !!source && /\{(?:ROWEXPR|FUNCEXPR)\b/u.test(source))
+  ].filter(
+    (source): source is string =>
+      !!source && /\{(?:ROWEXPR|FUNCEXPR|ROWCOMPAREEXPR)\b/u.test(source),
+  )
   const capturedRowFunctions = await readStoredRowFunctions(
       pg,
       rowTrees,
@@ -877,12 +880,15 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     ...new Set(
       rowTrees.flatMap((source) =>
         [
-          ...source.matchAll(
-            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|minmaxcollid|coalescecollid|array_collid|collation|refcollid)\s+(\d+)/gu,
+          ...[
+            ...source.matchAll(
+              /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|minmaxcollid|coalescecollid|array_collid|collation|refcollid)\s+(\d+)/gu,
+            ),
+          ].map((m) => Number(m[1])),
+          ...[...source.matchAll(/:inputcollids\s+\(o\s+([\d\s]+)\)/gu)].flatMap((m) =>
+            m[1]!.trim().split(/\s+/u).map(Number),
           ),
-        ]
-          .map((m) => Number(m[1]))
-          .filter((id) => id !== 0),
+        ].filter((id) => id !== 0),
       ),
     ),
   ]
@@ -938,6 +944,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     types: typeIdentities,
     functions: rowFunctions,
     operators: capturedRowFunctions.operators,
+    orderings: capturedRowFunctions.orderings,
     columns: new Map(
       columnRows
         .filter((c) => c.attrelid === relation)
