@@ -1,6 +1,7 @@
 import { catalogScalarType, type EnumDefinition, type ScalarType } from './expressions.js'
 import { builtinTypeComparison } from '../postgres/builtins/inventory.js'
 import type { CompositeTypeGraph } from '../catalog/types.js'
+import { compositeProfile } from './composite-profiles.js'
 
 export type AnonymousRecordType = `anonymous-record:${string}`
 export interface AnonymousRecordField {
@@ -14,6 +15,8 @@ export interface AnonymousRecordField {
 export interface AnonymousRecordLayout {
   identity: string
   fields: readonly AnonymousRecordField[]
+  namedType?: ScalarType
+  fieldCount?: number
 }
 
 function encodedFields(fields: readonly AnonymousRecordField[]): unknown[] {
@@ -33,6 +36,11 @@ export function anonymousRecordType(fields: readonly AnonymousRecordField[]): An
   return `anonymous-record:${JSON.stringify([encodedFields(fields)])}`
 }
 
+export function genericRecordType(type: ScalarType): AnonymousRecordType | null {
+  if (anonymousRecordProfile(type)) return type as AnonymousRecordType
+  return compositeProfile(type) ? `anonymous-record:${JSON.stringify([{ named: type }])}` : null
+}
+
 export function anonymousRecordProfile(type: string): readonly AnonymousRecordLayout[] | null {
   if (!type.startsWith('anonymous-record:')) return null
   try {
@@ -40,6 +48,19 @@ export function anonymousRecordProfile(type: string): readonly AnonymousRecordLa
     if (!Array.isArray(layouts)) return null
     const result: AnonymousRecordLayout[] = []
     for (const layout of layouts) {
+      if (layout && !Array.isArray(layout) && typeof layout === 'object') {
+        if (Object.keys(layout).length !== 1 || typeof layout.named !== 'string') return null
+        const profile = compositeProfile(layout.named),
+          definition = profile?.graph.definitions.find((node) => node.identity === profile.identity)
+        if (!profile || !definition) return null
+        result.push({
+          identity: profile.identity,
+          fields: [],
+          namedType: layout.named as ScalarType,
+          fieldCount: definition.fields.length,
+        })
+        continue
+      }
       if (!Array.isArray(layout)) return null
       const fields: AnonymousRecordField[] = []
       for (const raw of layout as AnonymousRecordField[]) {
@@ -216,7 +237,11 @@ export function commonAnonymousRecordType(types: readonly string[]): ScalarType 
   if (profiles.some((profile) => profile === null)) return null
   const layouts = [
     ...new Set(
-      profiles.flatMap((profile) => profile!.map((p) => JSON.stringify(encodedFields(p.fields)))),
+      profiles.flatMap((profile) =>
+        profile!.map((p) =>
+          JSON.stringify(p.namedType ? { named: p.namedType } : encodedFields(p.fields)),
+        ),
+      ),
     ),
   ].sort()
   return `anonymous-record:[${layouts.join(',')}]`
@@ -224,7 +249,12 @@ export function commonAnonymousRecordType(types: readonly string[]): ScalarType 
 
 export function canRelabelAnonymousRecords(source: string, target: string): boolean {
   if (source.startsWith('array:') && target.startsWith('array:'))
-    return canRelabelAnonymousRecords(source.slice(6), target.slice(6))
+    return (
+      (source.slice(6).startsWith('array:') || !!anonymousRecordProfile(source.slice(6))) &&
+      canRelabelAnonymousRecords(source.slice(6), target.slice(6))
+    )
+  const named = compositeProfile(source)
+  if (named) return !!anonymousRecordProfile(target)?.some((layout) => layout.namedType === source)
   const from = anonymousRecordProfile(source),
     to = anonymousRecordProfile(target)
   return (

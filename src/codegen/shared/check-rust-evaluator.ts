@@ -1217,10 +1217,21 @@ export function emitCheckRustEvaluator(
       result = fresh('xml_record_result')
     destination.push(
       `let ${cell}=array_element_from_composite(${ownedOperand(operand)});`,
-      `let ${initial}=array_contextual_output(${cell});`,
+      `let ${initial}=array_contextual_output(${cell}.clone());`,
       `let mut ${result}:TextValue=${initial};`,
     )
     for (const layout of layouts) {
+      if (layout.namedType) {
+        const lines: string[] = []
+        const rendered = renderTypedOutput(`${cell}.clone()`, layout.namedType, lines)
+        lines.push(`${result}=${rendered};`)
+        destination.push(
+          `if composite_output_matches(${ownedOperand(operand)},${rustStringLiteral(layout.identity)},${layout.fieldCount!}) {`,
+          ...indent(lines),
+          '}',
+        )
+        continue
+      }
       const lines: string[] = [],
         start = fresh('xml_record_start')
       lines.push(
@@ -3592,7 +3603,7 @@ export function emitCheckRustEvaluator(
         const results = orders.map(() => fresh('array_hash_result'))
         destination.push(
           recordLeaf
-            ? `let ${payload} = prepare_record_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${anonymousRecordProfile(arrayElementBaseType(elementType)) ? 1 : recordFieldHashSupport(elementType, extended).availability});`
+            ? `let ${payload} = prepare_record_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${anonymousRecordProfile(arrayElementBaseType(elementType)) ? (extended ? 0 : 1) : recordFieldHashSupport(elementType, extended).availability});`
             : `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null && !missingRangeHash});`,
           `let ${initial} = ${extended ? 'array_hash_initial64' : 'array_comparison_initial'}(&${payload});`,
           `let ${start} = make_int4_value(0);`,
@@ -4922,44 +4933,49 @@ export function emitCheckRustEvaluator(
           pretty: string,
           lines: string[],
         ): string => {
-          const profile = compositeProfile(operand.type),
-            definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
-            anonymous = anonymousRecordProfile(operand.type)
-          const layouts =
-            anonymous?.map((layout) => ({
-              identity: layout.identity,
-              fields: layout.fields.map((field, index) => ({
-                name: 'f' + (index + 1),
-                type: field.type as string | null,
-                enum: field.enum as EnumDefinition | undefined,
-              })),
-            })) ??
-            (profile && definition
-              ? [
-                  {
-                    identity: profile.identity,
-                    fields: definition.fields.map((field) => {
-                      let leaf = compositePhysicalType(profile, field.type)
-                      while (leaf?.element) leaf = compositePhysicalType(profile, leaf.element)
-                      const enumDefinition: EnumDefinition | undefined =
-                        leaf?.kind === 'e' && leaf.jsonCast !== undefined
-                          ? {
-                              schema: leaf.schema,
-                              name: leaf.name,
-                              values: leaf.enumLabels ?? [],
-                              outputFunction: leaf.output ?? undefined,
-                              jsonConversion: leaf.jsonCast === null ? 'label' : 'cast',
-                            }
-                          : undefined
-                      return {
-                        name: field.name,
-                        type: compositeFieldType(profile, field.type),
-                        enum: enumDefinition,
-                      }
-                    }),
-                  },
-                ]
-              : null)
+          const namedLayout = (type: string) => {
+            const profile = compositeProfile(type),
+              definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
+            return profile && definition
+              ? {
+                  identity: profile.identity,
+                  fields: definition.fields.map((field) => {
+                    let leaf = compositePhysicalType(profile, field.type)
+                    while (leaf?.element) leaf = compositePhysicalType(profile, leaf.element)
+                    const enumDefinition: EnumDefinition | undefined =
+                      leaf?.kind === 'e' && leaf.jsonCast !== undefined
+                        ? {
+                            schema: leaf.schema,
+                            name: leaf.name,
+                            values: leaf.enumLabels ?? [],
+                            outputFunction: leaf.output ?? undefined,
+                            jsonConversion: leaf.jsonCast === null ? 'label' : 'cast',
+                          }
+                        : undefined
+                    return {
+                      name: field.name,
+                      type: compositeFieldType(profile, field.type),
+                      enum: enumDefinition,
+                    }
+                  }),
+                }
+              : null
+          }
+          const anonymous = anonymousRecordProfile(operand.type),
+            named = namedLayout(operand.type),
+            layouts =
+              anonymous?.map((layout) =>
+                layout.namedType
+                  ? namedLayout(layout.namedType)!
+                  : {
+                      identity: layout.identity,
+                      fields: layout.fields.map((field, index) => ({
+                        name: 'f' + (index + 1),
+                        type: field.type as string | null,
+                        enum: field.enum as EnumDefinition | undefined,
+                      })),
+                    },
+              ) ?? (named ? [named] : null)
           if (!layouts)
             throw new UnsupportedCheckRustExpression(
               'JSON record conversion requires field descriptors',

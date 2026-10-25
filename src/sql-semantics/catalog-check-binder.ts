@@ -32,6 +32,7 @@ import {
 import {
   anonymousRecordType,
   anonymousRecordProfile,
+  genericRecordType,
   anonymousComparisonContext,
   commonAnonymousRecordType,
   canRelabelAnonymousRecords,
@@ -2228,29 +2229,31 @@ export function bindCatalogCheck(
               names: [definition.schema, definition.name].map((sval) => ({ String: { sval } })),
             }
           })()
-        : rangeTypeProfile(type)?.captured || multirangeTypeProfile(type)?.captured
-          ? (() => {
-              const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)!
-              return {
-                names: (isRangeType(type)
-                  ? [profile.schema, profile.name]
-                  : [profile.multirangeSchema, profile.multirangeName]
-                ).map((sval) => ({ String: { sval } })),
+        : anonymousRecordProfile(type)
+          ? { names: ['pg_catalog', 'record'].map((sval) => ({ String: { sval } })) }
+          : rangeTypeProfile(type)?.captured || multirangeTypeProfile(type)?.captured
+            ? (() => {
+                const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)!
+                return {
+                  names: (isRangeType(type)
+                    ? [profile.schema, profile.name]
+                    : [profile.multirangeSchema, profile.multirangeName]
+                  ).map((sval) => ({ String: { sval } })),
+                }
+              })()
+            : {
+                names: type.startsWith('domain:')
+                  ? (() => {
+                      const domain = domainElementDefinition(type)!
+                      return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
+                    })()
+                  : type.startsWith('enum:')
+                    ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
+                    : [
+                        { String: { sval: 'pg_catalog' } },
+                        { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
+                      ],
               }
-            })()
-          : {
-              names: type.startsWith('domain:')
-                ? (() => {
-                    const domain = domainElementDefinition(type)!
-                    return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
-                  })()
-                : type.startsWith('enum:')
-                  ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
-                  : [
-                      { String: { sval: 'pg_catalog' } },
-                      { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
-                    ],
-            }
   const bindArrayElementCoercion = (
     operand: Bound,
     type: ArrayType,
@@ -2508,15 +2511,21 @@ export function bindCatalogCheck(
     const array = fields(fields(node)?.['A_ArrayExpr'])
     if (!array) return unknown
     const selected = arrayConstructorBindings?.get(node)
-    if (selected) {
+    const genericRecord =
+      selected?.type === 'array:anonymous-record:[]' || target?.type === 'anonymous-record:[]'
+    if (selected && !genericRecord) {
       const element = arrayLikeElementType(selected.type)!
       if (target && target.type !== element) return unknown
       target ??= { type: element, name: elementTypeName(element) }
     }
     const members = Array.isArray(array['elements']) ? array['elements'] : []
-    if (members.length === 0 && !target) return unknown
+    if (members.length === 0 && !target && !genericRecord) return unknown
     const args = members.map((member) =>
-      fields(fields(member)?.['A_ArrayExpr']) ? bindArray(member, target) : bind(member),
+      fields(fields(member)?.['A_ArrayExpr'])
+        ? bindArray(member, target)
+        : genericRecord && target && compositeProfile(arrayElementBaseType(target.type))
+          ? bind({ TypeCast: { arg: member, typeName: target.name } })
+          : bind(member),
     )
     if (
       args.some((arg) => arg.unknownField) &&
@@ -2538,13 +2547,38 @@ export function bindCatalogCheck(
           type: arg.type?.startsWith('array:') ? (arg.type.slice(6) as ArrayElementType) : null,
         }))
       : args
+    if (
+      literalOrigin === 'stored' &&
+      !selected &&
+      !anonymousRecordProfile(target?.type ?? '') &&
+      candidates.some((arg) => compositeProfile(arrayElementBaseType(arg.type ?? '')))
+    )
+      return unknown
     if (multidimensional && !target && candidates.every((arg) => arg.type === null)) return unknown
+    const genericMembers = genericRecord
+      ? candidates.map((arg) =>
+          arg.type
+            ? genericRecordType(arrayElementBaseType(arg.type) as ScalarType)
+            : arg.literal
+              ? ('anonymous-record:[]' as const)
+              : null,
+        )
+      : []
     const inferred =
-      target?.type ??
-      (multidimensional
-        ? (commonType(args)?.slice(6) as ArrayElementType | undefined)
-        : commonType(candidates))
-    const nominal = !target && !multidimensional ? commonNominalDomain(args) : undefined
+      (genericRecord
+        ? genericMembers.length === 0
+          ? ('anonymous-record:[]' as const)
+          : genericMembers.every((type) => type !== null)
+            ? commonAnonymousRecordType(genericMembers as ScalarType[])
+            : null
+        : target?.type) ??
+      (genericRecord
+        ? null
+        : multidimensional
+          ? (commonType(args)?.slice(6) as ArrayElementType | undefined)
+          : commonType(candidates))
+    const nominal =
+      !genericRecord && !target && !multidimensional ? commonNominalDomain(args) : undefined
     if (!inferred || (inferred.startsWith('array:') && !nominal)) return unknown
     const identity = nominal ? (JSON.parse(nominal) as [string, string]) : null
     const element =
@@ -2606,10 +2640,10 @@ export function bindCatalogCheck(
     if (
       selected &&
       (selected.multidimensional !== multidimensional ||
-        arrayLikeElementType(selected.type) !== element)
+        (!genericRecord && arrayLikeElementType(selected.type) !== element))
     )
       return unknown
-    const resultType = selected?.type ?? type
+    const resultType = genericRecord ? type : (selected?.type ?? type)
     return {
       type: resultType,
       collation:
@@ -3575,7 +3609,7 @@ export function bindCatalogCheck(
           type = arrayType(element),
           constructor = fields(fields(cast['arg'])?.['A_ArrayExpr']),
           members = constructor?.['elements'] ?? []
-        if (constructor && Array.isArray(members) && members.length === 0)
+        if (constructor && Array.isArray(members))
           return bindArray(cast['arg'], {
             type: element,
             name: { names: [{ String: { sval: 'pg_catalog' } }, { String: { sval: 'record' } }] },
@@ -3583,6 +3617,9 @@ export function bindCatalogCheck(
         const operand = castOperand()
         if (operand.type?.startsWith('array:') && anonymousRecordProfile(operand.type.slice(6)))
           return operand
+        if (operand.type?.startsWith('array:') && operand.value && !operand.nominalDomain) {
+          if (compositeProfile(arrayElementBaseType(operand.type.slice(6)))) return operand
+        }
         if (operand.literal?.kind === 'null') {
           const value = materialize(operand, type)
           return value ? { type, value } : unknown
@@ -4372,6 +4409,8 @@ export function bindCatalogCheck(
                       ? alignStoredArrayConstructors(
                           constraint['raw_expr'],
                           check.arrayConstructorContext,
+                          compositeGraph,
+                          rangeTypes,
                         )
                       : undefined,
                     alignStoredXmlConstants(

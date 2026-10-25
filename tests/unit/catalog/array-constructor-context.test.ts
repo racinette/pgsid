@@ -239,3 +239,70 @@ it('uses supplied catalog identities and rejects incomplete or quoted fake const
     ],
   })
 })
+
+it('captures generic record constructor headers separately from named CASE results and elided casts', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec('CREATE TYPE pair AS(n int4,label text);')
+    const forms = {
+      constructor: 'to_jsonb(ARRAY[ROW(n,label)::pair]::record[])',
+      nested_cast: 'to_jsonb((ARRAY[ROW(n,label)]::pair[])::record[])',
+      selected: 'to_jsonb((CASE WHEN pick THEN ARRAY[ROW(n,label)::pair] END)::record[])',
+      mixed: 'to_jsonb(ARRAY[ROW(n,label)::pair,ROW(n,label)]::record[])',
+    }
+    for (const [name, body] of Object.entries(forms))
+      await pg.exec(
+        `CREATE TABLE header_${name}(n int4,label text,pick bool,CHECK(${body} IS NOT NULL))`,
+      )
+    const catalog = await snapshotCatalog(pg)
+    for (const [name, body] of Object.entries(forms)) {
+      const table = catalog.tables.find((t) => t.name === 'header_' + name)!,
+        c = table.constraints[0]!
+      expect(c.arrayConstructorContext).toMatchObject({
+        complete: true,
+        constructors: [
+          {
+            type:
+              name === 'selected' || name === 'nested_cast' ? 'public._pair' : 'pg_catalog._record',
+            elementType:
+              name === 'selected' || name === 'nested_cast' ? 'public.pair' : 'pg_catalog.record',
+          },
+        ],
+      })
+      for (const origin of ['source', 'stored'] as const)
+        expect(
+          uncertain(
+            lowerTableCheck(
+              table,
+              c,
+              [],
+              [],
+              origin,
+              catalog.rangeTypes,
+              catalog.compositeTypeGraph,
+              origin === 'source' ? `CHECK(${body} IS NOT NULL)` : undefined,
+            )!.expression,
+          ),
+          name + '/' + origin,
+        ).toBe(false)
+      expect(
+        uncertain(
+          lowerTableCheck(
+            table,
+            { ...c, arrayConstructorContext: undefined },
+            [],
+            [],
+            'stored',
+            catalog.rangeTypes,
+            catalog.compositeTypeGraph,
+          )!.expression,
+        ),
+      ).toBe(true)
+    }
+    await expect(
+      pg.exec('CREATE TABLE invalid(n int4,CHECK(ARRAY[ROW(n,NULL)::pair]=ARRAY[ROW(n,NULL)]))'),
+    ).rejects.toMatchObject({ code: '42883' })
+  } finally {
+    await pg.close()
+  }
+})

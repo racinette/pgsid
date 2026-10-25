@@ -5,7 +5,12 @@ import {
   anonymousRecordProfile,
   commonAnonymousRecordType,
   canRelabelAnonymousRecords,
+  genericRecordType,
 } from '../../src/sql-semantics/anonymous-records.js'
+import { catalogCompositeType } from '../../src/sql-semantics/composite-profiles.js'
+import { recordComparisonLayouts } from '../../src/codegen/shared/check-record-comparison.js'
+import { recordHashLayouts } from '../../src/codegen/shared/check-record-hash.js'
+import { checkUnknownMessage } from '../../src/codegen/shared/check-diagnostics.js'
 import {
   arrayElementFamily,
   arrayElementIdentity,
@@ -130,3 +135,78 @@ it('derives identical enum layouts across catalog OIDs and identifier settings',
     await second.close()
   }
 }, 60_000)
+
+it('retains named descriptors under generic record headers without merging SQL array identities or deployment OIDs', async () => {
+  const first = await PGlite.create(),
+    second = await PGlite.create()
+  try {
+    const ddl =
+      'CREATE TYPE pair AS(n int4,obsolete json,label text COLLATE "C");ALTER TYPE pair DROP ATTRIBUTE obsolete;'
+    await first.exec(ddl)
+    await second.exec(
+      "CREATE TYPE shifted AS ENUM('extra');" +
+        ddl +
+        'SET quote_all_identifiers=on;SET search_path=pg_catalog;',
+    )
+    const types = []
+    for (const pg of [first, second]) {
+      const catalog = await snapshotCatalog(pg),
+        named = catalogCompositeType('public.pair', catalog.compositeTypeGraph)!,
+        generic = genericRecordType(named)!,
+        layout = anonymousRecordProfile(generic)![0]!
+      expect(layout).toMatchObject({ identity: 'public.pair', namedType: named, fieldCount: 2 })
+      expect(arrayElementIdentity(generic)).toBe('pg_catalog.record')
+      expect(arrayElementIdentity(named)).toBe('public.pair')
+      expect(canRelabelAnonymousRecords(named, generic)).toBe(true)
+      expect(canRelabelAnonymousRecords('array:' + named, 'array:' + generic)).toBe(false)
+      expect(recordComparisonLayouts(generic)).toEqual(recordComparisonLayouts(named))
+      expect(recordHashLayouts(generic, false)).toEqual(recordHashLayouts(named, false))
+      const row = anonymousRecordType([
+          { type: 'pg_catalog.int4' },
+          { type: 'pg_catalog.text', collation: 'C' },
+        ]),
+        union = commonAnonymousRecordType([generic, row])!
+      expect(anonymousRecordProfile(union)).toHaveLength(2)
+      expect(canRelabelAnonymousRecords(generic, union)).toBe(true)
+      expect(
+        anonymousRecordProfile(anonymousRecordType([{ type: generic }]))![0]!.fields[0]!.type,
+      ).toBe(generic)
+      expect(generic).not.toContain('"oid":')
+      expect(generic).not.toContain('valueOids')
+      types.push(generic)
+    }
+    expect(types[0]).toBe(types[1])
+    for (const type of [
+      'anonymous-record:[{"named":"pg_catalog.int4"}]',
+      'anonymous-record:[{"named":null}]',
+      'anonymous-record:[{"named":"pg_catalog.record","oid":1}]',
+    ])
+      expect(anonymousRecordProfile(type)).toBeNull()
+  } finally {
+    await first.close()
+    await second.close()
+  }
+}, 60_000)
+
+it('keeps role-catalog JSON diagnostics through named descriptors under generic record arrays', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(
+      'CREATE TYPE acl_pair AS(entry aclitem);CREATE TABLE gate_acl(entry aclitem,CHECK(to_jsonb(ARRAY[ROW(entry)::acl_pair]::record[]) IS NOT NULL))',
+    )
+    const c = await snapshotCatalog(pg),
+      t = c.tables.find((t) => t.name === 'gate_acl')!,
+      e = lowerTableCheck(
+        t,
+        t.constraints[0]!,
+        [],
+        [],
+        'stored',
+        c.rangeTypes,
+        c.compositeTypeGraph,
+      )!.expression
+    expect(checkUnknownMessage(e)).toContain('deployment role catalog')
+  } finally {
+    await pg.close()
+  }
+})

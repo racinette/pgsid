@@ -17,18 +17,22 @@ export interface RecordHashLayout {
 export function recordHashLayouts(type: string, extended: boolean): RecordHashLayout[] | null {
   const anonymous = anonymousRecordProfile(type)
   if (anonymous)
-    return anonymous.map((layout) => ({
-      identity: layout.identity,
-      fields: layout.fields.map((field) => {
-        const support = recordFieldHashSupport(field.type, extended)
-        return {
-          type: field.type,
-          signature: field.unknown ? null : support.signature,
-          availability: field.unknown ? 0 : support.availability,
-          collation: field.collation ?? 'default',
-        }
-      }),
-    }))
+    return anonymous.map((layout) =>
+      layout.namedType
+        ? recordHashLayouts(layout.namedType, extended)![0]!
+        : {
+            identity: layout.identity,
+            fields: layout.fields.map((field) => {
+              const support = recordFieldHashSupport(field.type, extended)
+              return {
+                type: field.type,
+                signature: field.unknown ? null : support.signature,
+                availability: field.unknown ? 0 : support.availability,
+                collation: field.collation ?? 'default',
+              }
+            }),
+          },
+    )
   const profile = compositeProfile(type),
     definition = profile?.graph.definitions.find((n) => n.identity === profile.identity)
   if (!profile || !definition) return null

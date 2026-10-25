@@ -379,3 +379,19 @@ CREATE TABLE inspection_record_inputs (
   CONSTRAINT record_array_output CHECK(CASE WHEN bypass THEN true ELSE ARRAY[ROW(score,label)]::text IS NOT DISTINCT FROM expected_row_text END),
   CONSTRAINT record_unknown_output CHECK(CASE WHEN bypass THEN true ELSE ARRAY[ROW(score,'constant',NULL)]::text IS NOT NULL END)
 );
+
+CREATE TABLE inspection_generic_arrays (
+  score integer,
+  alternate_score integer,
+  label text,
+  expected_document jsonb,
+  expected_sorted jsonb,
+  expected_text text,
+  extended_requested boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT generic_array_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[ROW(score,label)::draft_reading]::record[]) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT generic_array_output CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[ROW(score,label)::draft_reading]::record[])::text IS NOT DISTINCT FROM expected_text END),
+  CONSTRAINT generic_array_sort CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(array_sort(ARRAY[ROW(score,label)::draft_reading,ROW(alternate_score,label)::draft_reading]::record[])) IS NOT DISTINCT FROM expected_sorted END),
+  CONSTRAINT generic_array_equal CHECK(CASE WHEN bypass THEN true ELSE record_eq((ARRAY[ROW(score,label)::draft_reading]::record[])[1],ROW(score::smallint,label::varchar(3) COLLATE "C")) END),
+  CONSTRAINT generic_array_extended CHECK(CASE WHEN bypass THEN true WHEN extended_requested THEN hash_array_extended(ARRAY[ROW(score,label)::draft_reading]::record[],0)=0 ELSE true END)
+);

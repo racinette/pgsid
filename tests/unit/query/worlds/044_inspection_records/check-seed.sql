@@ -517,3 +517,16 @@ INSERT INTO inspection_record_inputs(source_record,expected_document,expected_di
 INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{}','[]',NULL,'{}',32768,'x','{"(32768,x)"}',false);
 -- name: AnonymousInputBypassed
 INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{x}','{}','wrong','wrong',32768,'long','wrong',true);
+
+-- name: GenericArrayNamedFields
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(1,2,'x','[{"score":1,"label":"x"}]','[{"score":1,"label":"x"},{"score":2,"label":"x"}]','{"(1,x)"}',false,false);
+-- name: GenericArrayReverseOrder
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(2,1,'x','[{"score":2,"label":"x"}]','[{"score":1,"label":"x"},{"score":2,"label":"x"}]','{"(2,x)"}',false,false);
+-- name: GenericArrayNullFields
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(NULL,NULL,NULL,'[{"score":null,"label":null}]','[{"score":null,"label":null},{"score":null,"label":null}]','{"(,)"}',false,false);
+-- name: GenericArrayWrongDocument
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(1,2,'x','{}','[{"score":1,"label":"x"},{"score":2,"label":"x"}]','{"(1,x)"}',false,false);
+-- name: GenericArrayMissingExtendedHash
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(1,2,'x','[{"score":1,"label":"x"}]','[{"score":1,"label":"x"},{"score":2,"label":"x"}]','{"(1,x)"}',true,false);
+-- name: GenericArrayBypassed
+INSERT INTO inspection_generic_arrays(score,alternate_score,label,expected_document,expected_sorted,expected_text,extended_requested,bypass) VALUES(32768,-32769,'long','{}','{}','wrong',true,true);
