@@ -74,10 +74,27 @@ Named input-form cases are shared with their parity suites. Handled cases includ
 SQL errors; deferred cases require Unknown. These lists inventory tested
 spellings and retain their executing owner without claiming complete grammar coverage.
 
+The historical-expression inventory creates CHECKs with operands that disappear
+from rendered SQL after a composite field is dropped. It compares capture and
+source/stored preparation for nonempty values, typed NULLs, whole literal arrays,
+and a maintained expression matrix. Missing literal samples remain explicit when
+the represented type set grows. PostgreSQL rejection, missing implementation, and
+declared session or callback requirements are separate outcomes. These probes do
+not establish executed parity or exhaustive grammar coverage.
+
 To rerun individual reports after refreshing world parity:
 
 ```sh
 node --import tsx scripts/check-measurements/types.ts
 node --import tsx scripts/check-measurements/surface.ts
 node --import tsx scripts/check-measurements/coercions.ts
+node --import tsx scripts/check-measurements/arrays.ts
+node --import tsx scripts/check-measurements/historical.ts
+```
+
+Pass exact historical probe names to select a development subset. Selected
+reports retain their selection instead of presenting it as the full inventory:
+
+```sh
+node --import tsx scripts/check-measurements/historical.ts 'pg_catalog.int4:array' boolean_test
 ```
