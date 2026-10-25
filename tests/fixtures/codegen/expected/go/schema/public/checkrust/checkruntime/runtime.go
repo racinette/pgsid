@@ -7570,6 +7570,7 @@ const (
 	ArrayElementTextNonNull
 	ArrayElementAclitem
 	ArrayElementTsvector
+	ArrayElementTsquery
 )
 
 type ArrayElement struct {
@@ -7626,6 +7627,7 @@ type ArrayElement struct {
 	XmlNonNull         XmlKnowledge
 	Aclitem            AclitemPayload
 	Tsvector           TsvectorPayload
+	Tsquery            TsqueryPayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -7746,11 +7748,16 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementAclitem, Aclitem: value.Aclitem}
 	case ArrayElementTsvector:
 		return ArrayElement{Kind: ArrayElementTsvector, Tsvector: CopyTsvectorPayload(value.Tsvector)}
+	case ArrayElementTsquery:
+		return ArrayElement{Kind: ArrayElementTsquery, Tsquery: CopyTsqueryPayload(value.Tsquery)}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementTsquery {
+		return 48
+	}
 	if input.Kind == ArrayElementTsvector {
 		return 47
 	}
@@ -9322,6 +9329,36 @@ func ArrayElementToTsvector(input ArrayElement) TsvectorValue {
 	}
 	return TsvectorValue{Kind: TsvectorValueUnknown}
 }
+func ArrayElementFromTsquery(input TsqueryValue) ArrayElement {
+	input = CopyTsqueryValue(input)
+	if input.Kind == TsqueryValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TsqueryValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TsqueryValueValue {
+		value := CopyTsqueryPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementTsquery, Tsquery: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTsquery(input ArrayElement) TsqueryValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TsqueryValue{Kind: TsqueryValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TsqueryValue{Kind: TsqueryValueNull}
+	}
+	if input.Kind == ArrayElementTsquery {
+		value := CopyTsqueryPayload(input.Tsquery)
+		return TsqueryValue{Kind: TsqueryValueValue, Value: value}
+	}
+	return TsqueryValue{Kind: TsqueryValueUnknown}
+}
 
 type CompositePayload struct {
 	TypeName string
@@ -9662,7 +9699,7 @@ func compositeTypeContextValid(context *CompositeTypeContext) bool {
 	index := 0
 	for index < len(context.Nodes) {
 		node := copyCompositeTypeNode(context.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 47 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 48 {
 			return false
 		}
 		if node.Kind == 41 && (node.ElementType == "" || node.Child >= len(context.Nodes)) {
@@ -9765,6 +9802,10 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 	return RangePrepareProfiledBound(input, &profile)
 }
 func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
+	if checked.Kind == ArrayElementTsquery {
+		payload := CopyTsqueryPayload(checked.Tsquery)
+		return ArrayElementFromTsquery(MakeTsqueryValue(payload))
+	}
 	if checked.Kind == ArrayElementTsvector {
 		payload := CopyTsvectorPayload(checked.Tsvector)
 		return ArrayElementFromTsvector(MakeTsvectorValue(payload))
@@ -10318,7 +10359,7 @@ func RangeBoundProfileValid(profile *RangeBoundContext) bool {
 	index := 0
 	for index < len(profile.Nodes) {
 		node := CopyRangeBoundProfile(profile.Nodes[index])
-		if node.TypeName == "" || node.Kind < 0 || node.Kind > 47 {
+		if node.TypeName == "" || node.Kind < 0 || node.Kind > 48 {
 			return false
 		}
 		if node.Kind >= 41 && node.Kind <= 43 {
@@ -10620,6 +10661,14 @@ func rangeBoundWordValid(value int) bool {
 }
 func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementTsquery {
+		value := CopyTsqueryPayload(input.Tsquery)
+		checked := MakeTsqueryValue(value)
+		if checked.Kind == TsqueryValueValue {
+			return true
+		}
+		return false
+	}
 	if input.Kind == ArrayElementTsvector {
 		value := CopyTsvectorPayload(input.Tsvector)
 		checked := MakeTsvectorValue(value)
@@ -11768,6 +11817,10 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 }
 func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	element = CopyArrayElement(element)
+	if element.Kind == ArrayElementTsquery {
+		value := CopyTsqueryPayload(element.Tsquery)
+		return ArrayElementFromTsquery(MakeTsqueryValue(value))
+	}
 	if element.Kind == ArrayElementTsvector {
 		value := CopyTsvectorPayload(element.Tsvector)
 		return ArrayElementFromTsvector(MakeTsvectorValue(value))
@@ -11818,7 +11871,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		}
 		if checked.Kind == ArrayElementUnknown {
 			family := ArrayElementFamily(CopyArrayElement(elements[position]))
-			if (family >= 41 && family <= 44) || family == 46 || family == 47 {
+			if (family >= 41 && family <= 44) || family == 46 || family == 47 || family == 48 {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
 		}
@@ -11826,7 +11879,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 47 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 48 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)

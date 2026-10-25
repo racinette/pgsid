@@ -212,3 +212,16 @@ CREATE TABLE search_result_scores (
  CONSTRAINT score_cover_weighted CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(weights::real[],document::tsvector,query::tsquery)>=minimum_score END),
  CONSTRAINT score_cover_weighted_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(weights::real[],document::tsvector,query::tsquery,normalization)>=minimum_score END)
 );
+
+CREATE TYPE query_reference_set AS(head tsquery,options tsquery[]);
+CREATE TABLE search_query_sets (
+ source text,
+ reference text,
+ expected_member boolean,
+ expected_record boolean,
+ expected_text text,
+ bypass boolean,
+ CONSTRAINT query_set_member CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[source::tsquery]<@ARRAY['a'::tsquery,NULL::tsquery,'z'::tsquery]) IS NOT DISTINCT FROM expected_member END),
+ CONSTRAINT query_set_record CHECK(CASE WHEN bypass THEN true ELSE ((ROW(source::tsquery,ARRAY[reference::tsquery])::query_reference_set).head=reference::tsquery) IS NOT DISTINCT FROM expected_record END),
+ CONSTRAINT query_set_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(ARRAY[source::tsquery,NULL::tsquery,reference::tsquery],'|','-') IS NOT DISTINCT FROM expected_text END)
+);

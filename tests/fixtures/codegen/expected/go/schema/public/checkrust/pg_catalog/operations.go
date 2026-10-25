@@ -3029,6 +3029,30 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	if kind == 46 {
 		return checkruntime.ArrayElementToAclitem(left) == checkruntime.ArrayElementToAclitem(right)
 	}
+	if kind == 48 {
+		a := checkruntime.ArrayElementToTsquery(left)
+		b := checkruntime.ArrayElementToTsquery(right)
+		if a.Kind == checkruntime.TsqueryValueValue {
+			first := checkruntime.CopyTsqueryPayload(a.Value)
+			if b.Kind == checkruntime.TsqueryValueValue {
+				second := checkruntime.CopyTsqueryPayload(b.Value)
+				if first.NativeBytes != second.NativeBytes || first.Root != second.Root || len(first.Nodes) != len(second.Nodes) {
+					return false
+				}
+				index := 0
+				for index < len(first.Nodes) {
+					x := first.Nodes[index]
+					y := second.Nodes[index]
+					if x.Kind != y.Kind || x.Text != y.Text || x.Weight != y.Weight || x.Prefix != y.Prefix || x.Distance != y.Distance || x.Left != y.Left || x.Right != y.Right {
+						return false
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if kind == 47 {
 		firstVector := checkruntime.ArrayElementToTsvector(left)
 		secondVector := checkruntime.ArrayElementToTsvector(right)
@@ -17237,6 +17261,10 @@ func JsonbInputFromJsonContext(input checkruntime.JsonValue, utf8 bool) checkrun
 func JsonbInputFromXml(input checkruntime.XmlValue) checkruntime.JsonbInput {
 	text := XmlToOutputText(input)
 	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromTsquery(input checkruntime.TsqueryValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyTsqueryValue(input)
+	return checkruntime.JsonbInputFromText(TsqueryToText(input))
 }
 
 type jsonbGeometryCoordinate struct {
@@ -37444,6 +37472,9 @@ func rangeOutputBound(input checkruntime.ArrayElement, kind int, cidr bool, alia
 	}
 	if kind == 39 {
 		return TidToText(checkruntime.ArrayElementToTid(input))
+	}
+	if kind == 48 {
+		return TsqueryToText(checkruntime.ArrayElementToTsquery(input))
 	}
 	if kind == 47 {
 		return TsvectorToText(checkruntime.ArrayElementToTsvector(input))

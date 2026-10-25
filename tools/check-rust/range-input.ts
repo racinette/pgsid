@@ -1,3 +1,4 @@
+import { tsqueryRustPayload, tsqueryGoPayload, type TsqueryInputPayload } from './tsquery-input.js'
 import {
   tsvectorRustPayload,
   tsvectorGoPayload,
@@ -39,6 +40,7 @@ export type RangeJsonbPayload = {
 }
 
 export type RangeInputCell =
+  | { kind: 'Tsquery'; value: TsqueryInputPayload }
   | { kind: 'Tsvector'; value: TsvectorInputPayload }
   | { kind: 'Composite'; value: CompositeInputPayload }
   | { kind: 'Range'; value: RangeInputPayload }
@@ -118,6 +120,7 @@ const cellRecords = {
 } as const
 
 export function rangeRustCell(cell: RangeInputCell): string {
+  if (cell.kind === 'Tsquery') return `ArrayElement::Tsquery(${tsqueryRustPayload(cell.value)})`
   if (cell.kind === 'Tsvector') return `ArrayElement::Tsvector(${tsvectorRustPayload(cell.value)})`
   if (cell.kind === 'Composite')
     return `array_element_from_composite(${compositeRustInput(cell.value)})`
@@ -156,6 +159,11 @@ export function rangeRustCell(cell: RangeInputCell): string {
 }
 
 export function rangeGoCell(cell: RangeInputCell): GoExpression {
+  if (cell.kind === 'Tsquery')
+    return go.composite(go.selector(go.ident('checkruntime'), 'ArrayElement'), [
+      go.keyValue('Kind', go.selector(go.ident('checkruntime'), 'ArrayElementTsquery')),
+      go.keyValue('Tsquery', tsqueryGoPayload(cell.value)),
+    ])
   if (cell.kind === 'Tsvector')
     return go.composite(go.selector(go.ident('checkruntime'), 'ArrayElement'), [
       go.keyValue('Kind', go.selector(go.ident('checkruntime'), 'ArrayElementTsvector')),

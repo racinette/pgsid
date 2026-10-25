@@ -7800,6 +7800,9 @@ export type ArrayElement = {
 } | {
     readonly kind: "Tsvector";
     readonly value: TsvectorPayload;
+} | {
+    readonly kind: "Tsquery";
+    readonly value: TsqueryPayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7861,10 +7864,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "TextNonNull": return { kind: "TextNonNull" };
         case "Aclitem": return { kind: "Aclitem", value: value.value };
         case "Tsvector": return { kind: "Tsvector", value: copyTsvectorPayload(value.value) };
+        case "Tsquery": return { kind: "Tsquery", value: copyTsqueryPayload(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Tsquery") {
+        return 48;
+    }
     if (input.kind === "Tsvector") {
         return 47;
     }
@@ -9436,6 +9443,36 @@ export function arrayElementToTsvector(input: ArrayElement): TsvectorValue {
     }
     return { kind: "Unknown" };
 }
+export function arrayElementFromTsquery(input: TsqueryValue): ArrayElement {
+    input = copyTsqueryValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: TsqueryPayload = copyTsqueryPayload(input.value);
+        return { kind: "Tsquery", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTsquery(input: ArrayElement): TsqueryValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Tsquery") {
+        const value: TsqueryPayload = copyTsqueryPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
 export interface CompositePayload {
     readonly typeName: string;
     readonly fields: ArrayElement[];
@@ -9748,7 +9785,7 @@ function compositeTypeContextValid(context: CompositeTypeContext): boolean {
     let index: number = 0;
     while (index < context.nodes.length) {
         const node: CompositeTypeNode = copyCompositeTypeNode(langruntime.indexStruct(context.nodes, langruntime.checkedIndex(index), copyCompositeTypeNode));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 47) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 48) {
             return false;
         }
         if (node.kind === 41 && (node.elementType === "" || node.child >= context.nodes.length)) {
@@ -9849,6 +9886,10 @@ function compositePrepareCell(input: ArrayElement, context: CompositeTypeContext
     return rangePrepareProfiledBound(input, profile);
 }
 export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement {
+    if (checked.kind === "Tsquery") {
+        const payload: TsqueryPayload = copyTsqueryPayload(checked.value);
+        return arrayElementFromTsquery(makeTsqueryValue(payload));
+    }
     if (checked.kind === "Tsvector") {
         const payload: TsvectorPayload = copyTsvectorPayload(checked.value);
         return arrayElementFromTsvector(makeTsvectorValue(payload));
@@ -10356,7 +10397,7 @@ export function rangeBoundProfileValid(profile: RangeBoundContext): boolean {
     let index: number = 0;
     while (index < profile.nodes.length) {
         const node: RangeBoundProfile = copyRangeBoundProfile(langruntime.indexStruct(profile.nodes, langruntime.checkedIndex(index), copyRangeBoundProfile));
-        if (node.typeName === "" || node.kind < 0 || node.kind > 47) {
+        if (node.typeName === "" || node.kind < 0 || node.kind > 48) {
             return false;
         }
         if (node.kind >= 41 && node.kind <= 43) {
@@ -10656,6 +10697,14 @@ function rangeBoundWordValid(value: number): boolean {
 function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
     input = copyArrayElement(input);
     cidr = langruntime.checkedBool(cidr);
+    if (input.kind === "Tsquery") {
+        const value: TsqueryPayload = copyTsqueryPayload(input.value);
+        const checked: TsqueryValue = makeTsqueryValue(value);
+        if (checked.kind === "Value") {
+            return true;
+        }
+        return false;
+    }
     if (input.kind === "Tsvector") {
         const value: TsvectorPayload = copyTsvectorPayload(input.value);
         const checked: TsvectorValue = makeTsvectorValue(value);
@@ -11762,6 +11811,10 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
 }
 function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     element = copyArrayElement(element);
+    if (element.kind === "Tsquery") {
+        const value: TsqueryPayload = copyTsqueryPayload(element.value);
+        return arrayElementFromTsquery(makeTsqueryValue(value));
+    }
     if (element.kind === "Tsvector") {
         const value: TsvectorPayload = copyTsvectorPayload(element.value);
         return arrayElementFromTsvector(makeTsvectorValue(value));
@@ -11812,7 +11865,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         if (checked.kind === "Unknown") {
             const family: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
-            if ((family >= 41 && family <= 44) || family === 46 || family === 47) {
+            if ((family >= 41 && family <= 44) || family === 46 || family === 47 || family === 48) {
                 return { kind: "Unknown" };
             }
         }
@@ -11820,7 +11873,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 47) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 48) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);

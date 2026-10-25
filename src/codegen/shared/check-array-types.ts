@@ -114,6 +114,7 @@ export function arrayElementFamily(type: string): number | null {
     'pg_catalog.xml': 45,
     'pg_catalog.aclitem': 46,
     'pg_catalog.tsvector': 47,
+    'pg_catalog.tsquery': 48,
   }
   return families[type] ?? null
 }

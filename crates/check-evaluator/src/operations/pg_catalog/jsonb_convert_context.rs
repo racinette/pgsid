@@ -1,3 +1,7 @@
+pub fn jsonb_input_from_tsquery(input: TsqueryValue) -> JsonbInput {
+    jsonb_input_from_text(tsquery_to_text(input))
+}
+
 #[derive(Clone, Copy)]
 struct JsonbGeometryCoordinate {
     bits: i64,

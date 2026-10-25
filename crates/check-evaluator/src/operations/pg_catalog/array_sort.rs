@@ -478,6 +478,23 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
         return array_element_to_circle(left) == array_element_to_circle(right);
     };
     if kind == 46 { return array_element_to_aclitem(left) == array_element_to_aclitem(right); };
+    if kind == 48 {
+        let a = array_element_to_tsquery(left);
+        let b = array_element_to_tsquery(right);
+        if let TsqueryValue::Value(first) = a {
+            if let TsqueryValue::Value(second) = b {
+                if first.native_bytes != second.native_bytes || first.root != second.root || first.nodes.len() != second.nodes.len() { return false; };
+                let mut index: usize = 0;
+                while index < first.nodes.len() {
+                    let x = first.nodes[index].clone(); let y = second.nodes[index].clone();
+                    if x.kind != y.kind || x.text != y.text || x.weight != y.weight || x.prefix != y.prefix || x.distance != y.distance || x.left != y.left || x.right != y.right { return false; };
+                    index += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
     if kind == 47 {
         let first_vector = array_element_to_tsvector(left);
         let second_vector = array_element_to_tsvector(right);
