@@ -21,4 +21,13 @@ export function restoreStoredTsqueryConstants(
     )
       matches[0]!['__pgsid_tsquery_storage'] = constant.storage
   }
+  for (const constant of context.containers ?? []) {
+    const matches = literals.get(constant.site)
+    if (
+      matches?.length === 1 &&
+      (context.containers ?? []).filter((c) => c.site === constant.site).length === 1 &&
+      constant.storage
+    )
+      matches[0]!['__pgsid_tsquery_container_storage'] = constant.storage
+  }
 }

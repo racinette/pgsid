@@ -114,6 +114,7 @@ export interface StoredTsqueryConstantContext {
   definition: string
   complete: boolean
   constants: { site: string; storage: TsqueryConstantStorage | null }[]
+  containers?: { site: string; storage: TsqueryConstantStorage[] | null }[]
 }
 
 export interface StoredTsvectorConstantContext {

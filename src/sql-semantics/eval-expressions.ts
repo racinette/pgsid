@@ -1,3 +1,4 @@
+import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import {
@@ -46,6 +47,7 @@ export type EvalExpression =
       kind: 'text-to-composite'
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
       xmlStorage?: true
       type: ScalarType
       operand: EvalExpression
@@ -156,6 +158,7 @@ export type EvalExpression =
       kind: 'array-text-literal'
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
       xmlStorage?: true
       inputConversion?: EvalExpression
       storedInputConversion?: EvalExpression
@@ -322,6 +325,7 @@ export type EvalExpression =
       kind: 'text-to-range'
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
       type: RangeType
       operand: EvalExpression
       conversion?: EvalExpression
@@ -332,6 +336,7 @@ export type EvalExpression =
       kind: 'text-to-multirange'
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
       type: MultirangeType
       operand: EvalExpression
       conversion?: EvalExpression

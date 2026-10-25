@@ -628,6 +628,7 @@ export type SqlExpression =
       value: string | null
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
     }
   | {
       kind: 'range'
@@ -635,6 +636,7 @@ export type SqlExpression =
       value: string | null
       arrayStorage?: readonly ArrayConstantStorage[]
       tsvectorStorage?: readonly TsvectorConstantStorage[]
+      tsqueryStorage?: readonly TsqueryConstantStorage[]
     }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }

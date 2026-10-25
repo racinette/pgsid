@@ -225,3 +225,13 @@ CREATE TABLE search_query_sets (
  CONSTRAINT query_set_record CHECK(CASE WHEN bypass THEN true ELSE ((ROW(source::tsquery,ARRAY[reference::tsquery])::query_reference_set).head=reference::tsquery) IS NOT DISTINCT FROM expected_record END),
  CONSTRAINT query_set_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(ARRAY[source::tsquery,NULL::tsquery,reference::tsquery],'|','-') IS NOT DISTINCT FROM expected_text END)
 );
+
+CREATE TABLE archived_query_templates (
+ source text,
+ expected_head boolean,
+ expected_option boolean,
+ bypass boolean,
+ CONSTRAINT archived_query_head CHECK(CASE WHEN bypass THEN true ELSE (($archive$("a & (b & c)","{""(a & b) & c"",NULL}")$archive$::query_reference_set).head=source::tsquery) IS NOT DISTINCT FROM expected_head END),
+ CONSTRAINT archived_query_option CHECK(CASE WHEN bypass THEN true ELSE ((($archive$("a & (b & c)","{""(a & b) & c"",NULL}")$archive$::query_reference_set).options)[1]=source::tsquery) IS NOT DISTINCT FROM expected_option END),
+ CONSTRAINT archived_query_array CHECK(CASE WHEN bypass THEN true ELSE (($queries$[0:2]={"a & (b & c)",NULL,"(a & b) & c"}$queries$::tsquery[])[0]=source::tsquery) IS NOT DISTINCT FROM expected_head END)
+);

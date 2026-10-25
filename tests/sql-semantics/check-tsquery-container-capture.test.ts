@@ -5,7 +5,7 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 
-it('keeps erased query grouping in stored whole containers visible as missing capture support', async () => {
+it('captures erased query grouping in stored whole containers without reparsing canonical output', async () => {
   const pg = await PGlite.create()
   try {
     const definition = 'CHECK((($q${a & (b & c)}$q$::tsquery[])[1])=source::tsquery)'
@@ -41,10 +41,10 @@ it('keeps erased query grouping in stored whole containers visible as missing ca
         { serverEncoding: 'UTF8', defaultCollation: 'C', arrayNulls: true },
       ).checks[0]!
     expect(prepare('source').kind).toBe('supported')
-    expect(prepare('stored')).toMatchObject({
-      kind: 'unsupported',
-      reason: expect.stringContaining('captured query trees'),
-    })
+    expect(constraint.tsqueryConstants?.complete).toBe(true)
+    expect(constraint.tsqueryConstants?.containers).toHaveLength(1)
+    expect(constraint.tsqueryConstants?.containers?.[0]?.storage).toHaveLength(1)
+    expect(prepare('stored').kind).toBe('supported')
   } finally {
     await pg.close()
   }

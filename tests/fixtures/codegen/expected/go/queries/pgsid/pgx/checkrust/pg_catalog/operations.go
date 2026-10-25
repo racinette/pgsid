@@ -49353,6 +49353,92 @@ func tsqueryRewriteSortTree(input tsqueryRewriteTree, root int, utf8 bool) tsque
 	return tree
 }
 
+type TsqueryStoragePlan struct {
+	entries []checkruntime.TsqueryPayload
+	valid   bool
+}
+
+func copyTsqueryStoragePlan(value TsqueryStoragePlan) TsqueryStoragePlan {
+	return TsqueryStoragePlan{entries: langruntime.CheckedStructs(value.entries, checkruntime.CopyTsqueryPayload), valid: value.valid}
+}
+func MakeTsqueryStoragePlan() TsqueryStoragePlan {
+	entries := []checkruntime.TsqueryPayload{}
+	return TsqueryStoragePlan{entries: entries, valid: true}
+}
+func AppendTsqueryStorage(input TsqueryStoragePlan, value checkruntime.TsqueryValue) TsqueryStoragePlan {
+	input = copyTsqueryStoragePlan(input)
+	value = checkruntime.CopyTsqueryValue(value)
+	entries := input.entries
+	if value.Kind == checkruntime.TsqueryValueValue {
+		payload := checkruntime.CopyTsqueryPayload(value.Value)
+		langruntime.CheckedAdd(len(entries), 1)
+		entries = append(entries, checkruntime.CopyTsqueryPayload(payload))
+		return TsqueryStoragePlan{entries: entries, valid: input.valid}
+	}
+	return TsqueryStoragePlan{entries: entries, valid: false}
+}
+func TsqueryFromCapturedText(input checkruntime.TextValue, plan *TsqueryStoragePlan, index checkruntime.Int4Value) checkruntime.TsqueryValue {
+	plan = langruntime.CheckedBorrowed(plan, copyTsqueryStoragePlan)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if index.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			position := langruntime.IndexFromI32(offset, len(plan.entries))
+			if plan.valid && offset >= 0 && position < len(plan.entries) {
+				captured := checkruntime.MakeTsqueryValue(checkruntime.CopyTsqueryPayload(plan.entries[position]))
+				rendered := TsqueryToText(checkruntime.CopyTsqueryValue(captured))
+				if rendered.Kind == checkruntime.TextValueValue {
+					expected := langruntime.CheckedString(rendered.Value)
+					if expected == text {
+						return captured
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+}
+func AdvanceTsqueryStorage(nullness checkruntime.BoolValue, index checkruntime.Int4Value) checkruntime.Int4Value {
+	if nullness.Kind == checkruntime.BoolValueError {
+		error := nullness.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return index
+	}
+	if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		if index.Kind == checkruntime.Int4ValueValue {
+			value := langruntime.CheckedI32(index.Value)
+			if value < 2147483647 {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedAdd(value, 1))
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func FinishTsqueryStorage(input checkruntime.ArrayElement, plan *TsqueryStoragePlan, index checkruntime.Int4Value) checkruntime.ArrayElement {
+	input = checkruntime.CopyArrayElement(input)
+	plan = langruntime.CheckedBorrowed(plan, copyTsqueryStoragePlan)
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementError, Error: error}
+	}
+	if index.Kind == checkruntime.Int4ValueValue {
+		count := langruntime.CheckedI32(index.Value)
+		if plan.valid && count >= 0 && langruntime.IndexFromI32(count, 0) == len(plan.entries) {
+			return input
+		}
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+
 const tsvectorSyntaxError = 6819553
 const tsvectorProgramLimit = 8584704
 
