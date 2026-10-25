@@ -11086,6 +11086,55 @@ func RecordAnonymousInput(input checkruntime.TextValue) checkruntime.CompositeVa
 	}
 	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
 }
+func recordArrayInputWithNulls(input checkruntime.TextValue, nulls int) checkruntime.ArrayValue {
+	nulls = langruntime.CheckedI32(nulls)
+	plan := checkruntime.PrepareArrayText(input, false, nulls)
+	converted := checkruntime.MakeArrayConversion()
+	index := checkruntime.MakeInt4Value(0)
+	for checkruntime.ArrayTextHasEvent(&plan, index) {
+		text := checkruntime.ArrayTextEventAt(&plan, index)
+		record := RecordAnonymousInput(text)
+		element := checkruntime.ArrayElementFromComposite(record)
+		converted = checkruntime.AppendArrayConversion(converted, element, true)
+		index = checkruntime.ArrayTextNextIndex(index)
+	}
+	convertedArguments := checkruntime.ArrayConversionArguments(converted, "pg_catalog.record", 44)
+	return checkruntime.FinishPreparedArrayText(plan, convertedArguments)
+}
+func RecordArrayFromText(input checkruntime.TextValue, nulls int) checkruntime.ArrayValue {
+	nulls = langruntime.CheckedI32(nulls)
+	if nulls == 0 || nulls == 1 {
+		return recordArrayInputWithNulls(input, nulls)
+	}
+	first := recordArrayInputWithNulls(input, 1)
+	second := recordArrayInputWithNulls(input, 0)
+	if first.Kind == checkruntime.ArrayValueError {
+		left := first.Error
+		if second.Kind == checkruntime.ArrayValueError {
+			right := second.Error
+			if left.State == right.State {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: left}
+			}
+		}
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if first.Kind == checkruntime.ArrayValueNull {
+		if second.Kind == checkruntime.ArrayValueNull {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+		}
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if first.Kind == checkruntime.ArrayValueValue {
+		left := checkruntime.CopyArrayPayload(first.Value)
+		if second.Kind == checkruntime.ArrayValueValue {
+			right := checkruntime.CopyArrayPayload(second.Value)
+			if len(left.Elements) == 0 && len(right.Elements) == 0 {
+				return checkruntime.MakeArrayValue(left)
+			}
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func RecordEqRc7m(input checkruntime.Int4Value) checkruntime.BoolValue {
 	return arrayComparisonBoolean(input, 3)
 }

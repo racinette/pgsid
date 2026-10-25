@@ -500,3 +500,20 @@ INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_
 INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',0,true,true,999,true,true,true);
 -- name: AnonymousRecordsReverseOrder
 INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(2,1,'x','x',1,true,false,1,false,false,false);
+
+-- name: AnonymousInputNull
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES(NULL,NULL,NULL,NULL,1,'x','{"(1,x)"}',false);
+-- name: AnonymousInputEmpty
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{}','[]',NULL,'{}',1,'x','{"(1,x)"}',false);
+-- name: AnonymousInputBounds
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('[0:1]={NULL,NULL}','[null,null]','[0:1]','[0:1]={NULL,NULL}',NULL,NULL,'{"(,)"}',false);
+-- name: AnonymousInputUnavailableRecord
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{x}',NULL,NULL,NULL,1,'x','{"(1,x)"}',false);
+-- name: AnonymousInputMalformedArray
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{NULL,}',NULL,NULL,NULL,1,'x','{"(1,x)"}',false);
+-- name: AnonymousInputWrongDocument
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{}','{}',NULL,'{}',1,'x','{"(1,x)"}',false);
+-- name: AnonymousInputBadAliasScore
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{}','[]',NULL,'{}',32768,'x','{"(32768,x)"}',false);
+-- name: AnonymousInputBypassed
+INSERT INTO inspection_record_inputs(source_record,expected_document,expected_dimensions,expected_array_text,score,label,expected_row_text,bypass) VALUES('{x}','{}','wrong','wrong',32768,'long','wrong',true);

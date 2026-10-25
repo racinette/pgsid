@@ -3587,6 +3587,35 @@ export function bindCatalogCheck(
           const value = materialize(operand, type)
           return value ? { type, value } : unknown
         }
+        if (
+          operand.literal?.kind === 'string' ||
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(operand.type ?? '')
+        ) {
+          const inputConversion: EvalExpression = {
+            kind: 'text-to-composite',
+            type: element,
+            anonymous: true,
+            conversions: [],
+            operand: {
+              kind: 'input',
+              type: 'pg_catalog.text',
+              name: '__pgsid_array_text_element',
+            },
+          }
+          const common = { type, elementType: element, inputConversion }
+          if (operand.literal?.kind === 'string')
+            return {
+              type,
+              value: { kind: 'array-text-literal', ...common, value: operand.literal.value! },
+            }
+          if (operand.value)
+            return { type, value: { kind: 'text-to-array', ...common, operand: operand.value } }
+        }
         return unknown
       }
       if (
@@ -3599,7 +3628,32 @@ export function bindCatalogCheck(
           const type = 'anonymous-record:[]' as const
           return { type, value: { kind: 'composite-null', type } }
         }
-        if (anonymousRecordProfile(operand.type ?? '')) return operand
+        if (anonymousRecordProfile(operand.type ?? '') || compositeProfile(operand.type ?? ''))
+          return operand
+        if (
+          operand.literal?.kind === 'string' ||
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(operand.type ?? '')
+        ) {
+          const input = operand.literal ? materialize(operand, 'pg_catalog.text') : operand.value
+          const type = 'anonymous-record:[]' as const
+          if (input)
+            return {
+              type,
+              value: {
+                kind: 'text-to-composite',
+                type,
+                anonymous: true,
+                conversions: [],
+                operand: input,
+                ...(operand.literal ? { literal: true as const } : {}),
+              },
+            }
+        }
       }
       if (names?.length === 2 && (!Array.isArray(bounds) || bounds.length === 0)) {
         const catalogType =
