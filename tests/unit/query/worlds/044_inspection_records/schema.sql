@@ -444,3 +444,22 @@ CREATE TABLE inspection_comparison_history (
 );
 ALTER TYPE historical_comparison_reading DROP ATTRIBUTE obsolete_ratio;
 DROP TYPE historical_comparison_reading;
+
+CREATE TYPE historical_rounded_reading AS (score integer, obsolete_amount integer);
+CREATE TYPE historical_decimal_reading AS (score integer, obsolete_amount numeric);
+CREATE TABLE inspection_numeric_history (
+  score integer,
+  alternate_score integer,
+  denominator integer,
+  fractional boolean NOT NULL,
+  expected_distinct boolean NOT NULL,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT numeric_history_difference CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN fractional THEN 1.2500 ELSE 1.0000 END)::historical_rounded_reading IS DISTINCT FROM
+      ROW(alternate_score,CASE WHEN fractional THEN 1.2500 ELSE 1.0000 END)::historical_decimal_reading) = expected_distinct END),
+  CONSTRAINT numeric_history_presence CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,scale(1.2500)/denominator)::historical_rounded_reading IS NOT NULL) = expected_present END)
+);
+ALTER TYPE historical_rounded_reading DROP ATTRIBUTE obsolete_amount;
+ALTER TYPE historical_decimal_reading DROP ATTRIBUTE obsolete_amount;

@@ -577,3 +577,22 @@ INSERT INTO inspection_comparison_history(score,alternate_score,denominator,labe
 INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,0,'abcdef','wrong',true,false,true);
 -- name: HistoricalComparisonFixedRecord
 INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(0,2,1,'ab','xy',true,false,false);
+
+-- name: HistoricalNumericFraction
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,1,true,true,true,false);
+-- name: HistoricalNumericWhole
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,1,false,false,true,false);
+-- name: HistoricalNumericDifferentScores
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,2,1,false,true,true,false);
+-- name: HistoricalNumericNullScores
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(NULL,NULL,1,false,false,false,false);
+-- name: HistoricalNumericNullAmount
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,NULL,false,false,false,false);
+-- name: HistoricalNumericOldError
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,0,true,true,true,false);
+-- name: HistoricalNumericWrongDifference
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,1,true,false,true,false);
+-- name: HistoricalNumericWrongPresence
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,1,false,false,false,false);
+-- name: HistoricalNumericBypassed
+INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,0,true,false,false,true);
