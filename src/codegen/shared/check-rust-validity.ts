@@ -473,6 +473,8 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'domain-cast':
       return node.notNull || node.checks.length > 0
     case 'input':
+    case 'range-constant':
+    case 'multirange-constant':
     case 'composite-null':
     case 'composite-constructor':
     case 'composite-field':

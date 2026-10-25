@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { storedArrayConstant } from '../../../src/catalog/array-value-constant-storage.js'
+import { storedContainerConstant } from '../../../src/catalog/container-value-constant-storage.js'
 import { storedEnumConstant } from '../../../src/catalog/enum-constant-storage.js'
 import type { ConstantStorageType } from '../../../src/catalog/container-constant-storage.js'
 import type { Tree } from '../../../src/catalog/expression-tree.js'
@@ -61,10 +61,16 @@ it('recovers fixed scalar cells, bounds and NULL bitmap in each source byte orde
         bytes.writeBigInt64BE(9223372036854775807n, 40)
       }
       const capture = (data: Buffer) =>
-        storedArrayConstant(constant(data, array.oid), types, order, alignment, (cell, type) => ({
-          value: String(order === 'little' ? cell.readBigInt64LE() : cell.readBigInt64BE()),
-          type: type.identity,
-        }))
+        storedContainerConstant(
+          constant(data, array.oid),
+          types,
+          order,
+          alignment,
+          (cell, type) => ({
+            value: String(order === 'little' ? cell.readBigInt64LE() : cell.readBigInt64BE()),
+            type: type.identity,
+          }),
+        )
       expect(capture(bytes)).toEqual({
         PgsidStoredArrayConstant: {
           element: 'public.amount',
@@ -84,7 +90,13 @@ it('recovers fixed scalar cells, bounds and NULL bitmap in each source byte orde
       else wrongElement.writeInt32BE(42, 12)
       expect(capture(wrongElement)).toBeUndefined()
       expect(
-        storedArrayConstant(constant(bytes, array.oid), types, order, alignment, () => undefined),
+        storedContainerConstant(
+          constant(bytes, array.oid),
+          types,
+          order,
+          alignment,
+          () => undefined,
+        ),
       ).toBeUndefined()
     }
 })
@@ -115,7 +127,7 @@ it('requires source alignment when trailing zeroes permit distinct native cell i
     Buffer.from('0102030405060708090a0b0c', 'hex').copy(bytes, 24)
     Buffer.from('0d0e0f101112131400000000', 'hex').copy(bytes, 40)
     const capture = (alignment: 4 | 8 | undefined) =>
-      storedArrayConstant(constant(bytes, array.oid), types, order, alignment, (value) =>
+      storedContainerConstant(constant(bytes, array.oid), types, order, alignment, (value) =>
         value.toString('hex'),
       )
     expect(capture(undefined)).toBeUndefined()

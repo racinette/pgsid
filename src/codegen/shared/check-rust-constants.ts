@@ -49,6 +49,8 @@ export function constantScalarExpression(expression: EvalExpression): boolean {
     expression.kind === 'boolean-logic' ||
     expression.kind === 'coalesce' ||
     expression.kind === 'array-constructor' ||
+    expression.kind === 'range-constant' ||
+    expression.kind === 'multirange-constant' ||
     expression.kind === 'composite-constructor'
   )
     return (
@@ -250,7 +252,11 @@ function prepare(expression: EvalExpression): Preparation | null {
       ? { constant: false, null: operand.null, expressions: operand.expressions }
       : null
   }
-  if (expression.kind === 'array-constructor') {
+  if (
+    expression.kind === 'array-constructor' ||
+    expression.kind === 'range-constant' ||
+    expression.kind === 'multirange-constant'
+  ) {
     const operands = prepareAll(expression.operands)
     if (!operands) return null
     return operands.every((operand) => operand.constant)

@@ -7,7 +7,7 @@ import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
-import { storedArrayConstant } from './array-value-constant-storage.js'
+import { storedContainerConstant } from './container-value-constant-storage.js'
 import { storedEnumConstant } from './enum-constant-storage.js'
 import type { ConstantStorageType } from './container-constant-storage.js'
 import {
@@ -203,7 +203,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       type = input.types.get(oid)
     if (!type) return undefined
     if (input.storageTypes) {
-      const expression = storedArrayConstant(
+      const expression = storedContainerConstant(
         node,
         input.storageTypes,
         input.byteOrder,

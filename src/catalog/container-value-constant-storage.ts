@@ -9,7 +9,7 @@ import {
 
 type Scalar = { kind: 'scalar'; expression: unknown }
 
-export function storedArrayConstant(
+export function storedContainerConstant(
   node: Tree,
   types: ReadonlyMap<number, ConstantStorageType>,
   byteOrder: 'little' | 'big',
@@ -28,21 +28,30 @@ export function storedArrayConstant(
       return type
     },
     type = base(oid),
-    element = type?.element ? types.get(type.element) : undefined
-  if (!type?.element || !element) return undefined
-  if (scalar(node, 'constisnull') === 'true')
-    return {
-      PgsidStoredArrayConstant: {
-        element: element.identity,
-        dimensions: [],
-        nullBitmap: false,
-        args: null,
-      },
-    }
+    element = type?.element ? types.get(type.element) : undefined,
+    container = type && (type.element || ['c', 'r', 'm'].includes(type.kind))
+  if (!container || !type) return undefined
+  if (scalar(node, 'constisnull') === 'true') {
+    if (type.kind === 'c') return { PgsidStoredRecordConstant: { type: type.identity, args: null } }
+    if (type.kind === 'r') return { PgsidStoredRangeConstant: { type: type.identity, args: null } }
+    if (type.kind === 'm')
+      return { PgsidStoredMultirangeConstant: { type: type.identity, args: null } }
+    return element
+      ? {
+          PgsidStoredArrayConstant: {
+            element: element.identity,
+            dimensions: [],
+            nullBitmap: false,
+            args: null,
+          },
+        }
+      : undefined
+  }
   const bytes = storedReferenceBytes(node, -1)
   if (!bytes) return undefined
   const facet = containerConstant<Scalar>(bytes, oid, types, '', () => undefined, {
     arrayStorage: true,
+    ranges: true,
     byteOrder,
     doubleAlign,
     scalar: (bytes, type) => {
@@ -64,12 +73,47 @@ export function storedArrayConstant(
           },
           ...value.elements.flatMap((v, i) => storage(v, path + '/' + i)),
         ]
-      : []
+      : value?.kind === 'record' || value?.kind === 'range' || value?.kind === 'multirange'
+        ? (value.kind === 'record'
+            ? value.fields
+            : value.kind === 'range'
+              ? value.bounds
+              : value.ranges
+          ).flatMap((v, i) => storage(v, path + '/' + i))
+        : []
   const convert = (value: ContainerStorageFacet<Scalar> | null, id: number): unknown => {
     if (value === null) return { A_Const: { isnull: true } }
     const type = base(id)
     if (!type) return undefined
     if (value.kind === 'scalar') return value.expression
+    if (value.kind === 'record' && type.kind === 'c') {
+      const attributes = type.attributes.filter((a) => !a.dropped)
+      if (attributes.length !== value.fields.length) return undefined
+      const args = value.fields.map((field, index) => convert(field, attributes[index]!.type))
+      return args.every((arg) => arg !== undefined)
+        ? { PgsidStoredRecordConstant: { type: type.identity, args } }
+        : undefined
+    }
+    if (value.kind === 'range' && type.kind === 'r' && type.rangeSubtype) {
+      const args = value.bounds.map((bound) => convert(bound, type.rangeSubtype!))
+      return args.every((arg) => arg !== undefined)
+        ? {
+            PgsidStoredRangeConstant: {
+              type: type.identity,
+              empty: (value.flags & 1) !== 0,
+              lowerInclusive: (value.flags & 2) !== 0,
+              upperInclusive: (value.flags & 4) !== 0,
+              args,
+            },
+          }
+        : undefined
+    }
+    if (value.kind === 'multirange' && type.kind === 'm' && type.rangeType) {
+      const args = value.ranges.map((range) => convert(range, type.rangeType!))
+      return args.every((arg) => arg !== undefined)
+        ? { PgsidStoredMultirangeConstant: { type: type.identity, args } }
+        : undefined
+    }
     if (value.kind !== 'array' || !type.element) return undefined
     const element = types.get(type.element),
       args = value.elements.map((v) => convert(v, type.element!))

@@ -11245,6 +11245,32 @@ export function multirangeFromProfiledRanges(typeName: string, rangeType: string
     ranges = langruntime.checkedStructs(ranges, copyRangeValue);
     return makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
 }
+export function multirangeFromCoercedArray(input: ArrayValue, typeName: string, rangeType: string, elementType: string, elementKind: number, support: RangeSupport): MultirangeValue {
+    input = copyArrayValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const coerced: ArrayValue = arrayFromCoercedValue(input, rangeType, 42);
+    if (coerced.kind === "Error") {
+        const error: SqlError = coerced.value;
+        return { kind: "Error", value: error };
+    }
+    if (coerced.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(coerced.value);
+        if (!(payload.elementType === rangeType) || !(payload.elementKind === 42) || payload.dimensions.length > 1) {
+            return { kind: "Unknown" };
+        }
+        let ranges: RangeValue[] = [];
+        let index: number = 0;
+        while (index < payload.elements.length) {
+            langruntime.pushStruct(ranges, arrayElementToRange(copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(index), copyArrayElement))), copyRangeValue);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, support);
+    }
+    return { kind: "Unknown" };
+}
 export function multirangeFromCoercedProfile(input: MultirangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number): MultirangeValue {
     input = copyMultirangeValue(input);
     typeName = langruntime.checkedString(typeName);
