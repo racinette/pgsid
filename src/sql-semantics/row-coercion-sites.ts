@@ -43,6 +43,26 @@ export function alignStoredRowScalars(
   return result
 }
 
+export function alignStoredRowCalls(
+  root: unknown,
+  context: StoredRowCoercionContext,
+): ReadonlyMap<unknown, { expression: unknown; args: readonly unknown[] }> {
+  const result = new Map<unknown, { expression: unknown; args: readonly unknown[] }>()
+  if (!context.complete) return result
+  walkStoredExpression(root, (node, site) => {
+    const call = fields(fields(node)?.['FuncCall']),
+      args = call?.['args'] ?? []
+    if (!call || !Array.isArray(args)) return
+    const matches = context.calls?.filter((c) => c.site === site) ?? []
+    if (matches.length)
+      result.set(node, {
+        expression: matches.length === 1 ? matches[0]!.expression : undefined,
+        args,
+      })
+  })
+  return result
+}
+
 export function alignStoredRowCoercions(
   root: unknown,
   context: StoredRowCoercionContext,

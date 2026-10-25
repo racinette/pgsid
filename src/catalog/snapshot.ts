@@ -1,3 +1,4 @@
+import { readStoredRowFunctions } from './stored-row-functions.js'
 import type { StoredRowExpressionInput } from './stored-row-expressions.js'
 import { tsqueryContainerTypes } from './tsquery-container-constants.js'
 import { tsqueryConstantTypes } from './tsquery-constant-storage.js'
@@ -23,7 +24,7 @@ import {
   type DomainCoercionIdentity,
 } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
-import { readBuiltinCatalog, callableIdentity } from '../postgres/builtins/catalog.js'
+import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
 import type { PGlite } from '@electric-sql/pglite'
 import type {
   BuiltinSignature,
@@ -838,6 +839,14 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     ...constraintRows.map((c) => c.coercion_tree),
     ...domainRows.flatMap((d) => (d.check_exprs ?? []).map((c) => c.coercion_tree)),
   ].filter((source): source is string => !!source && /\{(?:ROWEXPR|FUNCEXPR)\b/u.test(source))
+  const capturedRowFunctions = await readStoredRowFunctions(
+      pg,
+      rowTrees,
+      typeIdentities,
+      builtinCatalog,
+    ),
+    rowFunctions = capturedRowFunctions.functions
+  rowTrees.push(...capturedRowFunctions.sources)
   const networkTypes = new Set(
       typeRows
         .filter((t) => t.identity === 'pg_catalog.inet' || t.identity === 'pg_catalog.cidr')
@@ -864,49 +873,6 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           )
         ).rows[0]
       : undefined
-  const rowFunctionIds = [
-    ...new Set(
-      rowTrees.flatMap((source) =>
-        [...source.matchAll(/:(?:funcid|opfuncid)\s+(\d+)/gu)].map((m) => Number(m[1])),
-      ),
-    ),
-  ]
-  const rowFunctions: StoredRowExpressionInput['functions'] = new Map(
-    rowFunctionIds.length
-      ? (
-          await pg.query<{ oid: number; name: string; args: number[]; result: number }>(
-            `SELECT p.oid, p.proname AS name, p.proargtypes::oid[] AS args, p.prorettype AS result
-       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-       WHERE n.nspname='pg_catalog' AND p.oid=ANY($1::oid[]) AND p.prokind='f' AND NOT p.proretset`,
-            [rowFunctionIds],
-          )
-        ).rows.flatMap((row) => {
-          const args = row.args.map((oid) => typeIdentities.get(oid)),
-            result = typeIdentities.get(row.result),
-            match = builtinCatalog.functions.find(
-              ({ metadata: m }) =>
-                m.kind === 'function' &&
-                m.schema === 'pg_catalog' &&
-                m.name === row.name &&
-                m.result === result &&
-                JSON.stringify(m.args) === JSON.stringify(args) &&
-                m.variadic === null,
-            )
-          return match
-            ? [
-                [
-                  row.oid,
-                  {
-                    signature: callableIdentity(match.metadata),
-                    args: match.metadata.args,
-                    result: match.metadata.result,
-                  },
-                ] as const,
-              ]
-            : []
-        })
-      : [],
-  )
   const rowCollationIds = [
     ...new Set(
       rowTrees.flatMap((source) =>
