@@ -837,3 +837,16 @@ INSERT INTO inspection_container_history(score,divisor,expected_present,bypass) 
 INSERT INTO inspection_container_history(score,divisor,expected_present,bypass) VALUES(1,0,true,false);
 -- name: HistoricalContainerBypassedDivision
 INSERT INTO inspection_container_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);
+
+-- name: HistoricalXmlMoneyMatchedValues
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,1,true,false);
+-- name: HistoricalXmlMoneyNullScore
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(NULL,1,false,false);
+-- name: HistoricalXmlMoneyWrongPresence
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,1,false,false);
+-- name: HistoricalXmlMoneyNullPresence
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,1,NULL,false);
+-- name: HistoricalXmlMoneyReachedDivision
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,0,true,false);
+-- name: HistoricalXmlMoneyBypassedDivision
+INSERT INTO inspection_xml_money_history(score,divisor,expected_present,bypass) VALUES(1,0,false,true);

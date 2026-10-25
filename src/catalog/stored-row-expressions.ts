@@ -269,6 +269,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (type === 'pg_catalog.xml') {
+      const text = storedTextConstant(node, input.utf8 === true, input.byteOrder)
+      return typeof text === 'string' ? { PgsidStoredXml: text } : undefined
     } else if (type === 'pg_catalog.jsonb') {
       const text = storedJsonbConstant(node, input.byteOrder, input.utf8 === true)
       return text === undefined
@@ -308,6 +311,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           'pg_catalog.int2': 2,
           'pg_catalog.int4': 4,
           'pg_catalog.int8': 8,
+          'pg_catalog.money': 8,
           'pg_catalog.float4': 4,
           'pg_catalog.float8': 8,
         }
@@ -345,6 +349,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
             : little
               ? bytes.readIntLE(0, length)
               : bytes.readIntBE(0, length)
+        if (type === 'pg_catalog.money') return { PgsidStoredMoney: number.toString() }
         literal = "'" + number.toString() + "'"
       }
     }
