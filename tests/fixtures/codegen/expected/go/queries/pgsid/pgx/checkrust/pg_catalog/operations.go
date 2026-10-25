@@ -17430,26 +17430,86 @@ func JsonbInputFromInterval(input checkruntime.IntervalValue) checkruntime.Jsonb
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func jsonbGeometryNumber(bits int64) checkruntime.TextValue {
-	if bits == int64(-9223372036854775808) {
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "-0"}
+func jsonbFloatOutputInput(input checkruntime.TextValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
 	}
-	input := checkruntime.MakeFloat8Bits(bits)
-	rendered := checkruntime.JsonbInputFromFloat8(input)
-	if rendered.Kind == checkruntime.JsonbInputNumber {
-		text := langruntime.CheckedString(rendered.Number)
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
 	}
-	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNumber, Number: text}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func jsonbGeometryValues(values []jsonbGeometryCoordinate, opening string, ending string) checkruntime.TextValue {
+func jsonbFloatInvariant(bits int64, single bool) checkruntime.JsonbInput {
+	extra := langruntime.CheckedSignedNegate(15)
+	previous := langruntime.NewTextBuffer("")
+	for extra <= 3 {
+		rendered := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		if single {
+			rendered = Float4OutputContext(checkruntime.MakeFloat4Bits(int(int32(bits))), extra, true)
+		} else {
+			rendered = Float8OutputContext(checkruntime.MakeFloat8Bits(bits), extra, true)
+		}
+		normalized := JsonbTextContext(checkruntime.JsonbFromText(rendered), true)
+		ready := false
+		if normalized.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(normalized.Value)
+			ready = true
+			if extra > langruntime.CheckedSignedNegate(15) && string(previous) != text {
+				return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+			}
+			previous = langruntime.NewTextBuffer(text)
+		}
+		if ready == false {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+		}
+		extra = langruntime.CheckedI32(langruntime.CheckedSignedAdd(extra, 1))
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNumber, Number: string(previous)}
+}
+func JsonbInputFromFloat4Context(input checkruntime.Float4Value, extra int, known bool, textual bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
+	rendered := Float4OutputContext(input, extra, known)
+	if known == false && textual == false {
+		if rendered.Kind == checkruntime.TextValueUnknown {
+			if input.Kind == checkruntime.Float4ValueValue {
+				bits := langruntime.CheckedI32(input.Value)
+				return jsonbFloatInvariant(int64(langruntime.CheckedI32(bits)), true)
+			}
+		}
+	}
+	return jsonbFloatOutputInput(rendered)
+}
+func JsonbInputFromFloat8Context(input checkruntime.Float8Value, extra int, known bool, textual bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
+	rendered := Float8OutputContext(input, extra, known)
+	if known == false && textual == false {
+		if rendered.Kind == checkruntime.TextValueUnknown {
+			if input.Kind == checkruntime.Float8ValueValue {
+				bits := input.Value
+				return jsonbFloatInvariant(bits, false)
+			}
+		}
+	}
+	return jsonbFloatOutputInput(rendered)
+}
+func jsonbGeometryNumber(bits int64, extra int, known bool) checkruntime.TextValue {
+	extra = langruntime.CheckedI32(extra)
+	return Float8OutputContext(checkruntime.MakeFloat8Bits(bits), extra, known)
+}
+func jsonbGeometryValues(values []jsonbGeometryCoordinate, opening string, ending string, extra int, known bool) checkruntime.TextValue {
 	values = langruntime.CheckedStructs(values, copyjsonbGeometryCoordinate)
 	opening = langruntime.CheckedString(opening)
 	ending = langruntime.CheckedString(ending)
+	extra = langruntime.CheckedI32(extra)
 	output := langruntime.NewTextBuffer(opening)
 	index := 0
 	for index < len(values) {
-		rendered := jsonbGeometryNumber(values[index].bits)
+		rendered := jsonbGeometryNumber(values[index].bits, extra, known)
 		ready := false
 		if rendered.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(rendered.Value)
@@ -17467,23 +17527,25 @@ func jsonbGeometryValues(values []jsonbGeometryCoordinate, opening string, endin
 	output = append(output, ending...)
 	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 }
-func jsonbGeometryPair(x int64, y int64) checkruntime.TextValue {
+func jsonbGeometryPair(x int64, y int64, extra int, known bool) checkruntime.TextValue {
+	extra = langruntime.CheckedI32(extra)
 	values := []jsonbGeometryCoordinate{}
 	langruntime.CheckedAdd(len(values), 1)
 	values = append(values, copyjsonbGeometryCoordinate(jsonbGeometryCoordinate{bits: x}))
 	langruntime.CheckedAdd(len(values), 1)
 	values = append(values, copyjsonbGeometryCoordinate(jsonbGeometryCoordinate{bits: y}))
-	return jsonbGeometryValues(values, "(", ")")
+	return jsonbGeometryValues(values, "(", ")", extra, known)
 }
-func jsonbGeometryPoints(points []checkruntime.PointPayload, opening string, ending string) checkruntime.TextValue {
+func jsonbGeometryPoints(points []checkruntime.PointPayload, opening string, ending string, extra int, known bool) checkruntime.TextValue {
 	points = langruntime.CheckedStructs(points, checkruntime.CopyPointPayload)
 	opening = langruntime.CheckedString(opening)
 	ending = langruntime.CheckedString(ending)
+	extra = langruntime.CheckedI32(extra)
 	output := langruntime.NewTextBuffer(opening)
 	index := 0
 	for index < len(points) {
 		point := points[index]
-		rendered := jsonbGeometryPair(point.X, point.Y)
+		rendered := jsonbGeometryPair(point.X, point.Y, extra, known)
 		ready := false
 		if rendered.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(rendered.Value)
@@ -17501,7 +17563,8 @@ func jsonbGeometryPoints(points []checkruntime.PointPayload, opening string, end
 	output = append(output, ending...)
 	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 }
-func JsonbInputFromPoint(input checkruntime.PointValue) checkruntime.JsonbInput {
+func JsonbInputFromPointContext(input checkruntime.PointValue, extra int, known bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.PointValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17511,12 +17574,13 @@ func JsonbInputFromPoint(input checkruntime.PointValue) checkruntime.JsonbInput 
 	}
 	if input.Kind == checkruntime.PointValueValue {
 		value := input.Value
-		text := jsonbGeometryPair(value.X, value.Y)
+		text := jsonbGeometryPair(value.X, value.Y, extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromLine(input checkruntime.LineValue) checkruntime.JsonbInput {
+func JsonbInputFromLineContext(input checkruntime.LineValue, extra int, known bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.LineValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17533,12 +17597,13 @@ func JsonbInputFromLine(input checkruntime.LineValue) checkruntime.JsonbInput {
 		values = append(values, copyjsonbGeometryCoordinate(jsonbGeometryCoordinate{bits: value.B}))
 		langruntime.CheckedAdd(len(values), 1)
 		values = append(values, copyjsonbGeometryCoordinate(jsonbGeometryCoordinate{bits: value.C}))
-		text := jsonbGeometryValues(values, "{", "}")
+		text := jsonbGeometryValues(values, "{", "}", extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromLseg(input checkruntime.LsegValue) checkruntime.JsonbInput {
+func JsonbInputFromLsegContext(input checkruntime.LsegValue, extra int, known bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.LsegValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17553,12 +17618,13 @@ func JsonbInputFromLseg(input checkruntime.LsegValue) checkruntime.JsonbInput {
 		points = append(points, checkruntime.PointPayload{X: value.X1, Y: value.Y1, WireKnown: value.WireKnown})
 		langruntime.CheckedAdd(len(points), 1)
 		points = append(points, checkruntime.PointPayload{X: value.X2, Y: value.Y2, WireKnown: value.WireKnown})
-		text := jsonbGeometryPoints(points, "[", "]")
+		text := jsonbGeometryPoints(points, "[", "]", extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromBox(input checkruntime.BoxValue) checkruntime.JsonbInput {
+func JsonbInputFromBoxContext(input checkruntime.BoxValue, extra int, known bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.BoxValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17573,12 +17639,13 @@ func JsonbInputFromBox(input checkruntime.BoxValue) checkruntime.JsonbInput {
 		points = append(points, checkruntime.PointPayload{X: value.HighX, Y: value.HighY, WireKnown: value.WireKnown})
 		langruntime.CheckedAdd(len(points), 1)
 		points = append(points, checkruntime.PointPayload{X: value.LowX, Y: value.LowY, WireKnown: value.WireKnown})
-		text := jsonbGeometryPoints(points, "", "")
+		text := jsonbGeometryPoints(points, "", "", extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromCircle(input checkruntime.CircleValue) checkruntime.JsonbInput {
+func JsonbInputFromCircleContext(input checkruntime.CircleValue, extra int, known bool) checkruntime.JsonbInput {
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.CircleValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17588,8 +17655,8 @@ func JsonbInputFromCircle(input checkruntime.CircleValue) checkruntime.JsonbInpu
 	}
 	if input.Kind == checkruntime.CircleValueValue {
 		value := input.Value
-		center := jsonbGeometryPair(value.X, value.Y)
-		radius := jsonbGeometryNumber(value.Radius)
+		center := jsonbGeometryPair(value.X, value.Y, extra, known)
+		radius := jsonbGeometryNumber(value.Radius, extra, known)
 		if center.Kind == checkruntime.TextValueValue {
 			point := langruntime.CheckedString(center.Value)
 			if radius.Kind == checkruntime.TextValueValue {
@@ -17605,8 +17672,9 @@ func JsonbInputFromCircle(input checkruntime.CircleValue) checkruntime.JsonbInpu
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromPath(input checkruntime.PathValue) checkruntime.JsonbInput {
+func JsonbInputFromPathContext(input checkruntime.PathValue, extra int, known bool) checkruntime.JsonbInput {
 	input = checkruntime.CopyPathValue(input)
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.PathValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17617,16 +17685,17 @@ func JsonbInputFromPath(input checkruntime.PathValue) checkruntime.JsonbInput {
 	if input.Kind == checkruntime.PathValueValue {
 		value := checkruntime.CopyPathPayload(input.Value)
 		if value.Closed {
-			text := jsonbGeometryPoints(value.Points, "(", ")")
+			text := jsonbGeometryPoints(value.Points, "(", ")", extra, known)
 			return checkruntime.JsonbInputFromText(text)
 		}
-		text := jsonbGeometryPoints(value.Points, "[", "]")
+		text := jsonbGeometryPoints(value.Points, "[", "]", extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
-func JsonbInputFromPolygon(input checkruntime.PolygonValue) checkruntime.JsonbInput {
+func JsonbInputFromPolygonContext(input checkruntime.PolygonValue, extra int, known bool) checkruntime.JsonbInput {
 	input = checkruntime.CopyPolygonValue(input)
+	extra = langruntime.CheckedI32(extra)
 	if input.Kind == checkruntime.PolygonValueError {
 		error := input.Error
 		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
@@ -17636,10 +17705,33 @@ func JsonbInputFromPolygon(input checkruntime.PolygonValue) checkruntime.JsonbIn
 	}
 	if input.Kind == checkruntime.PolygonValueValue {
 		value := checkruntime.CopyPolygonPayload(input.Value)
-		text := jsonbGeometryPoints(value.Points, "(", ")")
+		text := jsonbGeometryPoints(value.Points, "(", ")", extra, known)
 		return checkruntime.JsonbInputFromText(text)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromPoint(input checkruntime.PointValue) checkruntime.JsonbInput {
+	return JsonbInputFromPointContext(input, 0, false)
+}
+func JsonbInputFromLine(input checkruntime.LineValue) checkruntime.JsonbInput {
+	return JsonbInputFromLineContext(input, 0, false)
+}
+func JsonbInputFromLseg(input checkruntime.LsegValue) checkruntime.JsonbInput {
+	return JsonbInputFromLsegContext(input, 0, false)
+}
+func JsonbInputFromBox(input checkruntime.BoxValue) checkruntime.JsonbInput {
+	return JsonbInputFromBoxContext(input, 0, false)
+}
+func JsonbInputFromCircle(input checkruntime.CircleValue) checkruntime.JsonbInput {
+	return JsonbInputFromCircleContext(input, 0, false)
+}
+func JsonbInputFromPath(input checkruntime.PathValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyPathValue(input)
+	return JsonbInputFromPathContext(input, 0, false)
+}
+func JsonbInputFromPolygon(input checkruntime.PolygonValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyPolygonValue(input)
+	return JsonbInputFromPolygonContext(input, 0, false)
 }
 func JsonbInputFromEnum(input checkruntime.EnumValue) checkruntime.JsonbInput {
 	if input.Kind == checkruntime.EnumValueError {

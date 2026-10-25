@@ -4864,21 +4864,26 @@ export function emitCheckRustEvaluator(
                 'JSONB string conversion requires its catalog output identity',
               )
           }
-          const helper =
-            operand.type === 'pg_catalog.money'
-              ? 'jsonb_input_from_money_context'
-              : rawJson && operand.type === 'pg_catalog."numeric"'
-                ? 'json_input_from_numeric'
-                : rawJson && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                  ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+          const floatOutput = [
+              'pg_catalog.float4',
+              'pg_catalog.float8',
+              'pg_catalog.point',
+              'pg_catalog.line',
+              'pg_catalog.lseg',
+              'pg_catalog.box',
+              'pg_catalog.circle',
+              'pg_catalog.path',
+              'pg_catalog.polygon',
+            ].includes(operand.type),
+            helper = floatOutput
+              ? jsonbConversionHelper(operand.type) + '_context'
+              : operand.type === 'pg_catalog.money'
+                ? 'jsonb_input_from_money_context'
+                : rawJson && operand.type === 'pg_catalog."numeric"'
+                  ? 'json_input_from_numeric'
                   : operand.type === 'pg_catalog."json"' && !rawJson
                     ? 'jsonb_input_from_json_context'
-                    : typeof key === 'string' &&
-                        ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                      ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
-                      : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                        ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                        : jsonbConversionHelper(operand.type)
+                    : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
@@ -4889,12 +4894,13 @@ export function emitCheckRustEvaluator(
             args.push(String(moneyTextCLocale(executionContext)))
           if (operand.type === 'pg_catalog."json"' && !rawJson)
             args.push(String(executionContext.serverEncoding === 'UTF8'))
-          if (
-            !rawJson &&
-            typeof key === 'string' &&
-            ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-          )
-            args.push(key)
+          if (floatOutput)
+            args.push(
+              String(executionContext.extraFloatDigits ?? 0),
+              String(executionContext.extraFloatDigits !== undefined),
+            )
+          if (['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type))
+            args.push(rawJson ? 'true' : typeof key === 'string' ? key : String(key))
           lines.push(`let ${carrier} = ${helper}(${args.join(', ')});`)
           return carrier
         }

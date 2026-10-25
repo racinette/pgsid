@@ -17534,27 +17534,96 @@ export function jsonbInputFromInterval(input: checkruntime.IntervalValue): check
     }
     return { kind: "Unknown" };
 }
-function jsonbGeometryNumber(bits: bigint): checkruntime.TextValue {
-    bits = langruntime.checkedI64(bits);
-    if (bits === -9223372036854775808n) {
-        return { kind: "Value", value: "-0" };
+function jsonbFloatOutputInput(input: checkruntime.TextValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
     }
-    const input: checkruntime.Float8Value = checkruntime.makeFloat8Bits(bits);
-    const rendered: checkruntime.JsonbInput = checkruntime.jsonbInputFromFloat8(input);
-    if (rendered.kind === "Number") {
-        const text: string = langruntime.checkedString(rendered.value);
-        return { kind: "Value", value: text };
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        return { kind: "Number", value: text };
     }
     return { kind: "Unknown" };
 }
-function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string, ending: string): checkruntime.TextValue {
+function jsonbFloatInvariant(bits: bigint, single: boolean): checkruntime.JsonbInput {
+    bits = langruntime.checkedI64(bits);
+    single = langruntime.checkedBool(single);
+    let extra: number = langruntime.checkedSignedNegate(15);
+    let previous: string = "";
+    while (extra <= 3) {
+        let rendered: checkruntime.TextValue = { kind: "Unknown" };
+        if (single) {
+            rendered = float4OutputContext(checkruntime.makeFloat4Bits(Number(BigInt.asIntN(32, langruntime.checkedI64(bits)))), extra, true);
+        }
+        else {
+            rendered = float8OutputContext(checkruntime.makeFloat8Bits(bits), extra, true);
+        }
+        const normalized: checkruntime.TextValue = jsonbTextContext(checkruntime.jsonbFromText(rendered), true);
+        let ready: boolean = false;
+        if (normalized.kind === "Value") {
+            const text: string = langruntime.checkedString(normalized.value);
+            ready = langruntime.checkedBool(true);
+            if (extra > langruntime.checkedSignedNegate(15) && !(previous === text)) {
+                return { kind: "Unknown" };
+            }
+            previous = langruntime.checkedString(text);
+        }
+        if (ready === false) {
+            return { kind: "Unknown" };
+        }
+        extra = langruntime.checkedI32(langruntime.checkedSignedAdd(extra, 1));
+    }
+    return { kind: "Number", value: previous };
+}
+export function jsonbInputFromFloat4Context(input: checkruntime.Float4Value, extra: number, known: boolean, textual: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    textual = langruntime.checkedBool(textual);
+    const rendered: checkruntime.TextValue = float4OutputContext(input, extra, known);
+    if (known === false && textual === false) {
+        if (rendered.kind === "Unknown") {
+            if (input.kind === "Value") {
+                const bits: number = langruntime.checkedI32(input.value);
+                return jsonbFloatInvariant(BigInt(langruntime.checkedI32(bits)), true);
+            }
+        }
+    }
+    return jsonbFloatOutputInput(rendered);
+}
+export function jsonbInputFromFloat8Context(input: checkruntime.Float8Value, extra: number, known: boolean, textual: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    textual = langruntime.checkedBool(textual);
+    const rendered: checkruntime.TextValue = float8OutputContext(input, extra, known);
+    if (known === false && textual === false) {
+        if (rendered.kind === "Unknown") {
+            if (input.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(input.value);
+                return jsonbFloatInvariant(bits, false);
+            }
+        }
+    }
+    return jsonbFloatOutputInput(rendered);
+}
+function jsonbGeometryNumber(bits: bigint, extra: number, known: boolean): checkruntime.TextValue {
+    bits = langruntime.checkedI64(bits);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    return float8OutputContext(checkruntime.makeFloat8Bits(bits), extra, known);
+}
+function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string, ending: string, extra: number, known: boolean): checkruntime.TextValue {
     values = langruntime.checkedStructs(values, copyJsonbGeometryCoordinate);
     opening = langruntime.checkedString(opening);
     ending = langruntime.checkedString(ending);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     let output: string = opening;
     let index: number = 0;
     while (index < values.length) {
-        const rendered: checkruntime.TextValue = jsonbGeometryNumber(langruntime.indexStruct(values, langruntime.checkedIndex(index), copyJsonbGeometryCoordinate).bits);
+        const rendered: checkruntime.TextValue = jsonbGeometryNumber(langruntime.indexStruct(values, langruntime.checkedIndex(index), copyJsonbGeometryCoordinate).bits, extra, known);
         let ready: boolean = false;
         if (rendered.kind === "Value") {
             const text: string = langruntime.checkedString(rendered.value);
@@ -17572,23 +17641,27 @@ function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string,
     output = output + ending;
     return { kind: "Value", value: output };
 }
-function jsonbGeometryPair(x: bigint, y: bigint): checkruntime.TextValue {
+function jsonbGeometryPair(x: bigint, y: bigint, extra: number, known: boolean): checkruntime.TextValue {
     x = langruntime.checkedI64(x);
     y = langruntime.checkedI64(y);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     let values: JsonbGeometryCoordinate[] = [];
     langruntime.pushStruct(values, { bits: x }, copyJsonbGeometryCoordinate);
     langruntime.pushStruct(values, { bits: y }, copyJsonbGeometryCoordinate);
-    return jsonbGeometryValues(values, "(", ")");
+    return jsonbGeometryValues(values, "(", ")", extra, known);
 }
-function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: string, ending: string): checkruntime.TextValue {
+function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: string, ending: string, extra: number, known: boolean): checkruntime.TextValue {
     points = langruntime.checkedStructs(points, checkruntime.copyPointPayload);
     opening = langruntime.checkedString(opening);
     ending = langruntime.checkedString(ending);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     let output: string = opening;
     let index: number = 0;
     while (index < points.length) {
         const point: checkruntime.PointPayload = langruntime.indexStruct(points, langruntime.checkedIndex(index), checkruntime.copyPointPayload);
-        const rendered: checkruntime.TextValue = jsonbGeometryPair(point.x, point.y);
+        const rendered: checkruntime.TextValue = jsonbGeometryPair(point.x, point.y, extra, known);
         let ready: boolean = false;
         if (rendered.kind === "Value") {
             const text: string = langruntime.checkedString(rendered.value);
@@ -17606,7 +17679,9 @@ function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: strin
     output = output + ending;
     return { kind: "Value", value: output };
 }
-export function jsonbInputFromPoint(input: checkruntime.PointValue): checkruntime.JsonbInput {
+export function jsonbInputFromPointContext(input: checkruntime.PointValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17616,12 +17691,14 @@ export function jsonbInputFromPoint(input: checkruntime.PointValue): checkruntim
     }
     if (input.kind === "Value") {
         const value: checkruntime.PointPayload = input.value;
-        const text: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y);
+        const text: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y, extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromLine(input: checkruntime.LineValue): checkruntime.JsonbInput {
+export function jsonbInputFromLineContext(input: checkruntime.LineValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17635,12 +17712,14 @@ export function jsonbInputFromLine(input: checkruntime.LineValue): checkruntime.
         langruntime.pushStruct(values, { bits: value.a }, copyJsonbGeometryCoordinate);
         langruntime.pushStruct(values, { bits: value.b }, copyJsonbGeometryCoordinate);
         langruntime.pushStruct(values, { bits: value.c }, copyJsonbGeometryCoordinate);
-        const text: checkruntime.TextValue = jsonbGeometryValues(values, "{", "}");
+        const text: checkruntime.TextValue = jsonbGeometryValues(values, "{", "}", extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromLseg(input: checkruntime.LsegValue): checkruntime.JsonbInput {
+export function jsonbInputFromLsegContext(input: checkruntime.LsegValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17653,12 +17732,14 @@ export function jsonbInputFromLseg(input: checkruntime.LsegValue): checkruntime.
         let points: checkruntime.PointPayload[] = [];
         langruntime.pushStruct(points, { x: value.x1, y: value.y1, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         langruntime.pushStruct(points, { x: value.x2, y: value.y2, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
-        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "[", "]");
+        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "[", "]", extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromBox(input: checkruntime.BoxValue): checkruntime.JsonbInput {
+export function jsonbInputFromBoxContext(input: checkruntime.BoxValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17671,12 +17752,14 @@ export function jsonbInputFromBox(input: checkruntime.BoxValue): checkruntime.Js
         let points: checkruntime.PointPayload[] = [];
         langruntime.pushStruct(points, { x: value.highX, y: value.highY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         langruntime.pushStruct(points, { x: value.lowX, y: value.lowY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
-        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "", "");
+        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "", "", extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromCircle(input: checkruntime.CircleValue): checkruntime.JsonbInput {
+export function jsonbInputFromCircleContext(input: checkruntime.CircleValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17686,8 +17769,8 @@ export function jsonbInputFromCircle(input: checkruntime.CircleValue): checkrunt
     }
     if (input.kind === "Value") {
         const value: checkruntime.CirclePayload = input.value;
-        const center: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y);
-        const radius: checkruntime.TextValue = jsonbGeometryNumber(value.radius);
+        const center: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y, extra, known);
+        const radius: checkruntime.TextValue = jsonbGeometryNumber(value.radius, extra, known);
         if (center.kind === "Value") {
             const point: string = langruntime.checkedString(center.value);
             if (radius.kind === "Value") {
@@ -17703,8 +17786,10 @@ export function jsonbInputFromCircle(input: checkruntime.CircleValue): checkrunt
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromPath(input: checkruntime.PathValue): checkruntime.JsonbInput {
+export function jsonbInputFromPathContext(input: checkruntime.PathValue, extra: number, known: boolean): checkruntime.JsonbInput {
     input = checkruntime.copyPathValue(input);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17715,16 +17800,18 @@ export function jsonbInputFromPath(input: checkruntime.PathValue): checkruntime.
     if (input.kind === "Value") {
         const value: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
         if (value.closed) {
-            const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")");
+            const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")", extra, known);
             return checkruntime.jsonbInputFromText(text);
         }
-        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "[", "]");
+        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "[", "]", extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromPolygon(input: checkruntime.PolygonValue): checkruntime.JsonbInput {
+export function jsonbInputFromPolygonContext(input: checkruntime.PolygonValue, extra: number, known: boolean): checkruntime.JsonbInput {
     input = checkruntime.copyPolygonValue(input);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17734,10 +17821,33 @@ export function jsonbInputFromPolygon(input: checkruntime.PolygonValue): checkru
     }
     if (input.kind === "Value") {
         const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
-        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")");
+        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")", extra, known);
         return checkruntime.jsonbInputFromText(text);
     }
     return { kind: "Unknown" };
+}
+export function jsonbInputFromPoint(input: checkruntime.PointValue): checkruntime.JsonbInput {
+    return jsonbInputFromPointContext(input, 0, false);
+}
+export function jsonbInputFromLine(input: checkruntime.LineValue): checkruntime.JsonbInput {
+    return jsonbInputFromLineContext(input, 0, false);
+}
+export function jsonbInputFromLseg(input: checkruntime.LsegValue): checkruntime.JsonbInput {
+    return jsonbInputFromLsegContext(input, 0, false);
+}
+export function jsonbInputFromBox(input: checkruntime.BoxValue): checkruntime.JsonbInput {
+    return jsonbInputFromBoxContext(input, 0, false);
+}
+export function jsonbInputFromCircle(input: checkruntime.CircleValue): checkruntime.JsonbInput {
+    return jsonbInputFromCircleContext(input, 0, false);
+}
+export function jsonbInputFromPath(input: checkruntime.PathValue): checkruntime.JsonbInput {
+    input = checkruntime.copyPathValue(input);
+    return jsonbInputFromPathContext(input, 0, false);
+}
+export function jsonbInputFromPolygon(input: checkruntime.PolygonValue): checkruntime.JsonbInput {
+    input = checkruntime.copyPolygonValue(input);
+    return jsonbInputFromPolygonContext(input, 0, false);
 }
 export function jsonbInputFromEnum(input: checkruntime.EnumValue): checkruntime.JsonbInput {
     if (input.kind === "Error") {

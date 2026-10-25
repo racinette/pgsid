@@ -932,3 +932,25 @@ VALUES('one',2,0,'{}',false);
 -- name: cast_enum_key_bypassed
 INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
 VALUES('two',2,0,'{}',true);
+
+-- name: float_formats_match
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(1.25,2.5,'(1.25,-0)','1.25','[1.25, 2.5, [1.25,null], {"f1":1.25,"f2":2.5}, "(1.25,-0)"]','{"1.25": 2.5}',false);
+-- name: float_formats_wrong_number
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(1.25,2.5,'(1.25,-0)','wrong','[1.25, 2.5, [1.25,null], {"f1":1.25,"f2":2.5}, "(1.25,-0)"]','{"1.25": 2.5}',false);
+-- name: float_formats_wrong_layout
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(1.25,2.5,'(1.25,-0)','1.25','wrong','{"1.25": 2.5}',false);
+-- name: float_formats_wrong_key
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(1.25,2.5,'(1.25,-0)','1.25','[1.25, 2.5, [1.25,null], {"f1":1.25,"f2":2.5}, "(1.25,-0)"]','wrong',false);
+-- name: float_formats_null_expectations
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(1.25,2.5,'(1.25,-0)',NULL,NULL,NULL,false);
+-- name: float_formats_null_key
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(NULL,NULL,NULL,NULL,'[null, null, [null,null], {"f1":null,"f2":null}, null]',NULL,false);
+-- name: float_formats_bypassed
+INSERT INTO document_float_formats(reading,single_reading,location,expected_number,expected_layout,expected_object,bypass)
+VALUES(NULL,NULL,NULL,'wrong','wrong','wrong',true);

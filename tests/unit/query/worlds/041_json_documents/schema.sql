@@ -510,3 +510,19 @@ CREATE TABLE document_enum_keys (
  bypass boolean,
  CONSTRAINT custom_enum_key CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object(source_enum,quantity/divisor) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE document_float_formats (
+ reading double precision,
+ single_reading real,
+ location point,
+ expected_number text,
+ expected_layout text,
+ expected_object text,
+ bypass boolean NOT NULL,
+ CONSTRAINT float_number_format CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb(reading)::text COLLATE "C" IS NOT DISTINCT FROM expected_number COLLATE "C" END),
+ CONSTRAINT float_nested_format CHECK(CASE WHEN bypass THEN true ELSE
+   json_build_array(reading,single_reading,ARRAY[reading,NULL],ROW(reading,single_reading),location)::text COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C" END),
+ CONSTRAINT float_key_format CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_build_object(reading,single_reading)::text COLLATE "C" IS NOT DISTINCT FROM expected_object COLLATE "C" END)
+);
