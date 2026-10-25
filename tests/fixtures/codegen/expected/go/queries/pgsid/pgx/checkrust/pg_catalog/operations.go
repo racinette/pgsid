@@ -11034,6 +11034,9 @@ func RecordComparisonPair(left checkruntime.ArrayElement, right checkruntime.Arr
 	}
 	return checkruntime.ArrayComparisonPair(left, right, equality)
 }
+func RecordComparisonReady(input *checkruntime.ArrayComparisonPayload) bool {
+	return input.State == 1
+}
 func RecordInvalidCollation() checkruntime.Int4Value {
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(recordComparisonCollation)}
 }

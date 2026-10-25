@@ -16,9 +16,11 @@ import {
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
 import { recordHashLayouts, recordFieldHashSupport } from './check-record-hash.js'
+import { recordComparisonLayouts } from './check-record-comparison.js'
 import {
   anonymousRecordProfile,
   canRelabelAnonymousRecords,
+  commonAnonymousRecordType,
 } from '../../sql-semantics/anonymous-records.js'
 import type { ArrayElementType, ScalarType } from '../../sql-semantics/expressions.js'
 import {
@@ -2792,6 +2794,11 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      const anonymousArray = isArrayComparison(implementation)
+        ? commonAnonymousRecordType(operands.map((operand) => operand.type))
+        : null
+      if (anonymousArray)
+        operands = operands.map((operand) => ({ ...operand, type: anonymousArray }))
       const vectorTypeNames = isCatalogVectorTypeNames(implementation)
       const arrayRegex = isRegexArrayCallable(call.signature)
       if (
@@ -3927,158 +3934,177 @@ export function emitCheckRustEvaluator(
       if (isRecordComparison(implementation)) {
         const left = operands[0]!,
           right = operands[1]!,
-          a = compositeProfile(left.type),
-          b = compositeProfile(right.type),
-          first = a?.graph.definitions.find((n) => n.identity === a.identity),
-          second = b?.graph.definitions.find((n) => n.identity === b.identity)
-        if (!a || !b || !first || !second)
-          throw new UnsupportedCheckRustExpression(
-            'Record comparison requires captured field descriptors',
-          )
-        const equality = ['record_eq', 'record_ne'].includes(implementation.name),
-          payload = fresh('record_comparison'),
-          result = fresh('record_ordering')
+          leftLayouts = recordComparisonLayouts(left.type),
+          rightLayouts = recordComparisonLayouts(right.type)
+        if (!leftLayouts || !rightLayouts)
+          throw new UnsupportedCheckRustExpression('Record comparison requires known field layouts')
+        const unresolved = fresh('record_comparison_unresolved'),
+          resolved = fresh('record_comparison_resolved')
         destination.push(
-          `let ${payload}=prepare_record_comparison(${ownedOperand(left)},${ownedOperand(right)},${rustStringLiteral(a.identity)},${rustStringLiteral(b.identity)},${first.fields.length},${second.fields.length});`,
-          `let mut ${result}:Int4Value=array_comparison_initial(&${payload});`,
+          `let ${unresolved}=prepare_record_comparison(${ownedOperand(left)},${ownedOperand(right)},"","",-1,-1);`,
+          `let mut ${resolved}:Int4Value=array_comparison_initial(&${unresolved});`,
         )
-        for (let index = 0; index < Math.min(first.fields.length, second.fields.length); index++) {
-          const field = first.fields[index]!,
-            other = second.fields[index]!,
-            selectedType = compositeFieldType(a, field.type),
-            otherType = compositeFieldType(b, other.type),
-            support = a.graph.definitions.find((n) => n.identity === field.type)?.comparison,
-            otherSupport = b.graph.definitions.find((n) => n.identity === other.type)?.comparison,
-            availability =
-              support && JSON.stringify(support) === JSON.stringify(otherSupport)
-                ? (equality ? support.equalityAvailable : support.comparisonAvailable)
-                  ? 1
-                  : 0
-                : -1,
-            selected = equality ? support?.equalityImplementation : support?.comparator,
-            metadata = selected
-              ? builtinCallables().find((n) => callableIdentity(n) === selected)
-              : null,
-            leftCell = fresh('record_left_cell'),
-            rightCell = fresh('record_right_cell'),
-            position = fresh('record_position'),
-            pair = fresh('record_pair'),
-            compared = fresh('record_compared'),
-            lines: string[] = [],
-            scalarLines: string[] = []
-          lines.push(
-            `let ${position}=make_int4_value(${index});`,
-            `let ${leftCell}=array_comparison_element_at(&${payload},${position},false);`,
-            `let ${rightCell}=array_comparison_element_at(&${payload},${position},true);`,
-            `let ${pair}=record_comparison_pair(${leftCell}.clone(),${rightCell}.clone(),${field.type === other.type},${availability},${equality});`,
-            `let mut ${compared}:Int4Value=${pair};`,
-          )
-          const text = metadata?.args.some((type) =>
-              [
-                'pg_catalog.text',
-                'pg_catalog."varchar"',
-                'pg_catalog.bpchar',
-                'pg_catalog.name',
-              ].includes(type),
-            ),
-            invalid = field.collation !== other.collation,
-            collation =
-              field.collationIsC && other.collationIsC
-                ? ('C' as const)
-                : field.collationIsDefault &&
-                    other.collationIsDefault &&
-                    executionContext.defaultCollation === 'C'
-                  ? ('C' as const)
-                  : field.collationDeterministic && other.collationDeterministic
-                    ? ('deterministic' as const)
-                    : ('other' as const)
-          if (invalid && text) scalarLines.push(`${compared}=record_invalid_collation();`)
-          else if (
-            field.type === other.type &&
-            selected &&
-            selectedType &&
-            otherType &&
-            metadata?.kind === 'function' &&
-            metadata.strict &&
-            !metadata.returnsSet &&
-            metadata.volatility === 'i' &&
-            checkRustCallableNames().has(metadata.rustName) &&
-            (!text || supportsTextCallableCollation(selected, collation))
-          ) {
-            const prefix = rustValuePrefix(rustType(selectedType)),
-              leftScalar = fresh('record_left_scalar'),
-              rightScalar = fresh('record_right_scalar')
-            scalarLines.push(
-              `let ${leftScalar}=array_element_to_${prefix}(${leftCell});`,
-              `let ${rightScalar}=array_element_to_${rustValuePrefix(rustType(otherType))}(${rightCell});`,
+        for (const first of leftLayouts)
+          for (const second of rightLayouts) {
+            const a = first.profile
+            const equality = ['record_eq', 'record_ne'].includes(implementation.name),
+              payload = fresh('record_comparison'),
+              result = fresh('record_ordering')
+            destination.push(
+              `let ${payload}=prepare_record_comparison(${ownedOperand(left)},${ownedOperand(right)},${rustStringLiteral(first.identity)},${rustStringLiteral(second.identity)},${first.fields.length},${second.fields.length});`,
+              `if record_comparison_ready(&${payload}) {`,
+              `let mut ${result}:Int4Value=array_comparison_initial(&${payload});`,
             )
-            const outer = comparisonProfileScope,
-              outerInvalid = comparisonCollationInvalid
-            comparisonProfileScope = a
-            comparisonCollationInvalid = invalid
-            try {
-              const values = [
-                { name: leftScalar, type: selectedType },
-                { name: rightScalar, type: otherType },
-              ].map((value, i) => {
-                const target = metadata.args[i]!
-                if (
-                  [
-                    'pg_catalog.anyenum',
-                    'pg_catalog.anyarray',
-                    'pg_catalog.anyrange',
-                    'pg_catalog.anymultirange',
-                    'pg_catalog.record',
-                  ].includes(target) ||
-                  target === value.type
-                )
-                  return value
-                if (builtinCast(value.type, target)?.method !== 'b')
-                  throw new UnsupportedCheckRustExpression(
-                    'Record field support requires its catalog binary relabel',
-                  )
-                return emitCall(
-                  { kind: 'cast', signature: null, type: target as typeof selectedType },
-                  [value],
-                  scalarLines,
-                )
-              })
-              const normalizedComparison = !equality
-                ? portableComparison(selectedType, selected)
-                : null
-              const value = normalizedComparison
-                ? { name: fresh('record_comparison_value'), type: 'pg_catalog.int4' }
-                : emitCall(
-                    { kind: 'function', signature: selected, type: metadata.result, collation },
-                    values,
-                    scalarLines,
-                  )
-              if (normalizedComparison)
-                scalarLines.push(
-                  `let ${value.name}=${normalizedComparison}(${[...values.map(ownedOperand), ...(normalizedComparison === 'tsquery_order' ? [String(executionContext.serverEncoding === 'UTF8')] : [])].join(', ')});`,
-                )
-              scalarLines.push(
-                `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
+            for (
+              let index = 0;
+              index < Math.min(first.fields.length, second.fields.length);
+              index++
+            ) {
+              const field = first.fields[index]!,
+                other = second.fields[index]!,
+                selectedType = field.type,
+                otherType = other.type,
+                support = field.support,
+                otherSupport = other.support,
+                availability =
+                  support &&
+                  otherSupport &&
+                  (equality
+                    ? support.equalityImplementation === otherSupport.equalityImplementation &&
+                      support.equalityAvailable === otherSupport.equalityAvailable
+                    : support.comparator === otherSupport.comparator &&
+                      support.comparisonAvailable === otherSupport.comparisonAvailable)
+                    ? (equality ? support.equalityAvailable : support.comparisonAvailable)
+                      ? 1
+                      : 0
+                    : -1,
+                selected = equality ? support?.equalityImplementation : support?.comparator,
+                metadata = selected
+                  ? builtinCallables().find((n) => callableIdentity(n) === selected)
+                  : null,
+                leftCell = fresh('record_left_cell'),
+                rightCell = fresh('record_right_cell'),
+                position = fresh('record_position'),
+                pair = fresh('record_pair'),
+                compared = fresh('record_compared'),
+                lines: string[] = [],
+                scalarLines: string[] = []
+              lines.push(
+                `let ${position}=make_int4_value(${index});`,
+                `let ${leftCell}=array_comparison_element_at(&${payload},${position},false);`,
+                `let ${rightCell}=array_comparison_element_at(&${payload},${position},true);`,
+                `let ${pair}=record_comparison_pair(${leftCell}.clone(),${rightCell}.clone(),${field.identity === other.identity},${availability},${equality});`,
+                `let mut ${compared}:Int4Value=${pair};`,
               )
-            } finally {
-              comparisonProfileScope = outer
-              comparisonCollationInvalid = outerInvalid
+              const text = metadata?.args.some((type) =>
+                  [
+                    'pg_catalog.text',
+                    'pg_catalog."varchar"',
+                    'pg_catalog.bpchar',
+                    'pg_catalog.name',
+                  ].includes(type),
+                ),
+                invalid = field.collationIdentity !== other.collationIdentity,
+                collation =
+                  field.collation === 'C' && other.collation === 'C'
+                    ? ('C' as const)
+                    : field.collation === 'default' &&
+                        other.collation === 'default' &&
+                        executionContext.defaultCollation === 'C'
+                      ? ('C' as const)
+                      : field.collation !== 'other' && other.collation !== 'other'
+                        ? ('deterministic' as const)
+                        : ('other' as const)
+              if (invalid && text) scalarLines.push(`${compared}=record_invalid_collation();`)
+              else if (
+                field.identity === other.identity &&
+                selected &&
+                selectedType &&
+                otherType &&
+                metadata?.kind === 'function' &&
+                metadata.strict &&
+                !metadata.returnsSet &&
+                metadata.volatility === 'i' &&
+                checkRustCallableNames().has(metadata.rustName) &&
+                (!text || supportsTextCallableCollation(selected, collation))
+              ) {
+                const prefix = rustValuePrefix(rustType(selectedType)),
+                  leftScalar = fresh('record_left_scalar'),
+                  rightScalar = fresh('record_right_scalar')
+                scalarLines.push(
+                  `let ${leftScalar}=array_element_to_${prefix}(${leftCell});`,
+                  `let ${rightScalar}=array_element_to_${rustValuePrefix(rustType(otherType))}(${rightCell});`,
+                )
+                const outer = comparisonProfileScope,
+                  outerInvalid = comparisonCollationInvalid
+                comparisonProfileScope = a
+                comparisonCollationInvalid = invalid
+                try {
+                  const values = [
+                    { name: leftScalar, type: selectedType },
+                    { name: rightScalar, type: otherType },
+                  ].map((value, i) => {
+                    const target = metadata.args[i]!
+                    if (
+                      [
+                        'pg_catalog.anyenum',
+                        'pg_catalog.anyarray',
+                        'pg_catalog.anyrange',
+                        'pg_catalog.anymultirange',
+                        'pg_catalog.record',
+                      ].includes(target) ||
+                      target === value.type
+                    )
+                      return value
+                    if (builtinCast(value.type, target)?.method !== 'b')
+                      throw new UnsupportedCheckRustExpression(
+                        'Record field support requires its catalog binary relabel',
+                      )
+                    return emitCall(
+                      { kind: 'cast', signature: null, type: target as typeof selectedType },
+                      [value],
+                      scalarLines,
+                    )
+                  })
+                  const normalizedComparison = !equality
+                    ? portableComparison(selectedType, selected)
+                    : null
+                  const value = normalizedComparison
+                    ? { name: fresh('record_comparison_value'), type: 'pg_catalog.int4' }
+                    : emitCall(
+                        { kind: 'function', signature: selected, type: metadata.result, collation },
+                        values,
+                        scalarLines,
+                      )
+                  if (normalizedComparison)
+                    scalarLines.push(
+                      `let ${value.name}=${normalizedComparison}(${[...values.map(ownedOperand), ...(normalizedComparison === 'tsquery_order' ? [String(executionContext.serverEncoding === 'UTF8')] : [])].join(', ')});`,
+                    )
+                  scalarLines.push(
+                    `${compared}=${equality ? 'array_equality_step' : 'array_order_step'}(${value.name});`,
+                  )
+                } finally {
+                  comparisonProfileScope = outer
+                  comparisonCollationInvalid = outerInvalid
+                }
+              } else scalarLines.push(`${compared}=int4_unknown();`)
+              lines.push(
+                `if array_pair_requires_scalar(${pair}) {`,
+                ...indent(scalarLines),
+                '}',
+                `${result}=${compared};`,
+              )
+              destination.push(`if row_compare_continues(${result}) {`, ...indent(lines), '}')
             }
-          } else scalarLines.push(`${compared}=int4_unknown();`)
-          lines.push(
-            `if array_pair_requires_scalar(${pair}) {`,
-            ...indent(scalarLines),
-            '}',
-            `${result}=${compared};`,
-          )
-          destination.push(`if row_compare_continues(${result}) {`, ...indent(lines), '}')
-        }
-        const completed = fresh('record_completed'),
-          name = fresh('record_result')
-        destination.push(
-          `let ${completed}=finish_record_comparison(&${payload},${result});`,
-          `let ${name}=${implementation.rustName}(${completed});`,
-        )
+            const completed = fresh('record_completed')
+            destination.push(
+              `let ${completed}=finish_record_comparison(&${payload},${result});`,
+              `${resolved}=${completed};`,
+              '}',
+            )
+          }
+        const name = fresh('record_result')
+        destination.push(`let ${name}=${implementation.rustName}(${resolved});`)
         callables.add(implementation.rustName)
         return { name, type: call.type }
       }
@@ -4181,7 +4207,8 @@ export function emitCheckRustEvaluator(
               const target = scalar.args[position]
               if (
                 target === baseType ||
-                (target === 'pg_catalog.record' && compositeProfile(baseType)) ||
+                (target === 'pg_catalog.record' &&
+                  (compositeProfile(baseType) || anonymousRecordProfile(baseType))) ||
                 target === 'pg_catalog.anyenum' ||
                 (target === 'pg_catalog.anyrange' && isRangeType(baseType)) ||
                 (target === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) ||
@@ -4232,6 +4259,8 @@ export function emitCheckRustEvaluator(
             if (
               !equality &&
               !compositeProfile(arrayElementBaseType(elementType)) &&
+              actual?.kind === 'function' &&
+              actual.schema === 'pg_catalog' &&
               selected &&
               eq &&
               defaults.equality &&

@@ -481,3 +481,20 @@ INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected
 INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(NULL,NULL,NULL,NULL)::inspection_extensions,NULL,1,NULL,true,false);
 -- name: MixedConversionBypassed
 INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'bad',-1,false)::inspection_extensions,NULL,999,'{}',true,true);
+
+-- name: AnonymousRecordsEqual
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,1,'x','x',1,true,true,0,true,true,false);
+-- name: AnonymousRecordsOrdered
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',1,true,false,-1,false,false,false);
+-- name: AnonymousRecordsNullFields
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(NULL,NULL,NULL,NULL,1,true,true,0,true,true,false);
+-- name: AnonymousRecordsNullOrder
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(NULL,1,NULL,NULL,1,true,false,1,false,false,false);
+-- name: AnonymousRecordsSelectedText
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',1,false,false,-1,true,false,false);
+-- name: AnonymousRecordsWrongExpectation
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,1,'x','x',1,true,false,0,true,true,false);
+-- name: AnonymousRecordsEagerError
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',0,true,false,-1,false,false,false);
+-- name: AnonymousRecordsSkipped
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',0,true,true,999,true,true,true);

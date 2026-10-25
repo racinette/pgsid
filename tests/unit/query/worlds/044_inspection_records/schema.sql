@@ -336,3 +336,22 @@ CREATE TABLE inspection_mixed_conversions (
   CONSTRAINT mixed_conversion_score CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN use_text THEN reading::inspection_origins ELSE COALESCE(reading,fallback) END).score>=minimum_score END),
   CONSTRAINT mixed_conversion_document CHECK(CASE WHEN bypass THEN true ELSE (CASE WHEN use_text THEN to_jsonb(reading::inspection_origins) ELSE to_jsonb(COALESCE(reading,fallback)) END) IS NOT DISTINCT FROM expected_document END)
 );
+
+CREATE TABLE inspection_anonymous_comparisons (
+ n integer,
+ m integer,
+ label text,
+ other_label text,
+ divisor integer,
+ pick_number boolean,
+ expected_equal boolean,
+ expected_order integer,
+ expected_selected boolean,
+ expected_arithmetic boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT anonymous_equal CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(ROW(n,label COLLATE "C"),ROW(m,other_label COLLATE "C")) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT anonymous_order CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.btrecordcmp(ROW(n,label COLLATE "C"),ROW(m,other_label COLLATE "C")) IS NOT DISTINCT FROM expected_order END),
+ CONSTRAINT anonymous_selected CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(CASE WHEN pick_number THEN ROW(n) ELSE ROW(label) END,CASE WHEN pick_number THEN ROW(m) ELSE ROW(other_label) END) IS NOT DISTINCT FROM expected_selected END),
+ CONSTRAINT anonymous_array CHECK(CASE WHEN bypass THEN true ELSE (ARRAY[ROW(n,label COLLATE "C")]=ARRAY[ROW(m,other_label COLLATE "C")]) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT anonymous_arithmetic CHECK(CASE WHEN bypass THEN true ELSE pg_catalog.record_eq(ROW(n,1/divisor),ROW(m,1)) IS NOT DISTINCT FROM expected_arithmetic END)
+);
