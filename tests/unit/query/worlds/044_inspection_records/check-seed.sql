@@ -596,3 +596,24 @@ INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractio
 INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,1,false,false,false,false);
 -- name: HistoricalNumericBypassed
 INSERT INTO inspection_numeric_history(score,alternate_score,denominator,fractional,expected_distinct,expected_present,bypass) VALUES(1,1,0,true,false,false,true);
+
+-- name: HistoricalFloatNan
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,'\x7ff8000000000000'::bytea,true,true,false);
+-- name: HistoricalFloatDifferentNan
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,'\x0000000000000000'::bytea,false,true,false);
+-- name: HistoricalFloatNullNan
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,NULL,false,true,false);
+-- name: HistoricalFloatNullScore
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(NULL,1,'\x7ff8000000000000'::bytea,false,false,false);
+-- name: HistoricalFloatNullRatio
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,NULL,'\x7ff8000000000000'::bytea,false,false,false);
+-- name: HistoricalFloatNanError
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,0,'\x7ff8000000000000'::bytea,true,true,false);
+-- name: HistoricalFloatZeroError
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,0,'\x0000000000000000'::bytea,false,true,false);
+-- name: HistoricalFloatWrongPresence
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,'\x7ff8000000000000'::bytea,false,true,false);
+-- name: HistoricalFloatWrongZero
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,1,'\x7ff8000000000000'::bytea,true,false,false);
+-- name: HistoricalFloatBypassed
+INSERT INTO inspection_float_history(score,denominator,expected_nan,expected_present,expected_zero_present,bypass) VALUES(1,0,'\x7ff8000000000000'::bytea,false,false,true);

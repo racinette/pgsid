@@ -679,7 +679,7 @@ export type SqlExpression =
     }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly SqlExpression[] }
   | { kind: 'integer'; type: IntegerType; value: string | null }
-  | { kind: 'float'; type: FloatType; bits: string | null }
+  | { kind: 'float'; type: FloatType; bits: string | null; exact?: true }
   | { kind: 'network'; type: NetworkType; value: string | null }
   | { kind: 'mac'; type: MacType; value: string | null }
   | { kind: 'decimal'; type: DecimalType; value: string | null }

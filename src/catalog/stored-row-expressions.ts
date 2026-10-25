@@ -97,6 +97,8 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           'pg_catalog.int2': 2,
           'pg_catalog.int4': 4,
           'pg_catalog.int8': 8,
+          'pg_catalog.float4': 4,
+          'pg_catalog.float8': 8,
         }
       if (
         scalar(node, 'constisnull') !== 'false' ||
@@ -113,6 +115,13 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       const stored = Buffer.from(data.map((v) => Number(v) & 255)),
         little = input.byteOrder === 'little',
         bytes = little ? stored.subarray(0, length) : stored.subarray(stored.length - length)
+      if (type === 'pg_catalog.float4' || type === 'pg_catalog.float8')
+        return {
+          PgsidStoredFloat: {
+            type,
+            bits: (little ? Buffer.from(bytes).reverse() : bytes).toString('hex'),
+          },
+        }
       if (type === 'pg_catalog.bool') {
         if (bytes[0] !== 0 && bytes[0] !== 1) return undefined
         literal = bytes[0] === 1 ? "'true'" : "'false'"

@@ -2917,6 +2917,21 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedFloat = fields(wrapper['PgsidStoredFloat'])
+    if (storedFloat) {
+      const type = storedFloat['type'],
+        bits = storedFloat['bits']
+      if (
+        (type !== 'pg_catalog.float4' && type !== 'pg_catalog.float8') ||
+        typeof bits !== 'string' ||
+        !(type === 'pg_catalog.float4' ? /^[0-9a-f]{8}$/u : /^[0-9a-f]{16}$/u).test(bits)
+      )
+        return unknown
+      return {
+        type,
+        value: { kind: 'certain', expression: { kind: 'float', type, bits, exact: true } },
+      }
+    }
     const annotation = fields(wrapper['PgsidStoredCollation'])
     if (annotation) {
       const collation = storedCollation(annotation['collation'])
