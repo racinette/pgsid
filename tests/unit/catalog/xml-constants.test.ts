@@ -3,7 +3,10 @@ import { PGlite } from '@electric-sql/pglite'
 import { loadModule, parseSync } from 'libpg-query'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { diffCatalogs } from '../../../src/catalog/diff.js'
-import { captureXmlConstantContext } from '../../../src/catalog/coercion-context.js'
+import {
+  captureXmlConstantContext,
+  captureRowCoercionContext,
+} from '../../../src/catalog/coercion-context.js'
 import { walkStoredExpression } from '../../../src/sql-semantics/row-coercion-sites.js'
 
 beforeAll(() => loadModule())
@@ -65,7 +68,7 @@ it('defers malformed, compressed, external and non-UTF8 constant storage instead
     expect(capture(source), source).toMatchObject({ complete: false })
 })
 
-it('retains row field positions and defers XML constants hidden in dropped expressions', () => {
+it('retains live XML literal sites and recovers dropped values through row capture', () => {
   const value = xmlConst([32, 0, 0, 0, 60, 114, 47, 62]),
     nullValue = '{CONST :consttype 23 :constisnull true}'
   const rows = new Map([[51000, { identity: 'public.xml_record', depth: 0, fields: [1] }]])
@@ -78,15 +81,28 @@ it('retains row field positions and defers XML constants hidden in dropped expre
       true,
     ),
   ).toMatchObject({ complete: true, constants: [{ site: '/row/0', text: '<r/>' }] })
+  const source = `{ROWEXPR :row_typeid 51000 :args (${value} ${nullValue})}`
   expect(
-    captureXmlConstantContext(
-      `{ROWEXPR :row_typeid 51000 :args (${value} ${nullValue})}`,
-      'CHECK (example)',
-      new Set([41001]),
-      rows,
-      true,
-    ),
-  ).toMatchObject({ complete: false })
+    captureXmlConstantContext(source, 'CHECK (example)', new Set([41001]), rows, true),
+  ).toMatchObject({ complete: true, constants: [] })
+  expect(captureRowCoercionContext(source, 'CHECK (example)', rows)).toMatchObject({
+    complete: false,
+  })
+  expect(
+    captureRowCoercionContext(source, 'CHECK (example)', rows, {
+      types: new Map([
+        [41001, 'pg_catalog.xml'],
+        [23, 'pg_catalog.int4'],
+      ]),
+      functions: new Map(),
+      columns: new Map(),
+      byteOrder: 'little',
+      utf8: true,
+    }),
+  ).toMatchObject({
+    complete: true,
+    constructors: [{ omitted: [{ position: 0, expression: { PgsidStoredXml: '<r/>' } }] }],
+  })
 })
 
 it('captures XML literals at semantic positions across table/domain CHECKs and independent catalog identities', async () => {

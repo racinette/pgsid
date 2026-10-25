@@ -701,3 +701,26 @@ CREATE TABLE inspection_container_history (
 ALTER TYPE historical_container_record DROP ATTRIBUTE obsolete_reading;
 ALTER TYPE historical_container_array DROP ATTRIBUTE obsolete_spans;
 ALTER TYPE historical_container_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_xml_reading AS (score integer, obsolete_document xml);
+CREATE TYPE historical_money_reading AS (score integer, obsolete_amount money);
+CREATE TYPE historical_leaf_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_xml_money_history (
+  score integer,
+  divisor integer NOT NULL,
+  expected_present boolean,
+  bypass boolean NOT NULL,
+  CONSTRAINT xml_history_storage CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,'text<a/>tail'::xml)::historical_xml_reading IS NOT NULL)=expected_present END),
+  CONSTRAINT money_history_units CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,'1.25'::money)::historical_money_reading IS NOT NULL)=expected_present END),
+  CONSTRAINT xml_history_text CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN ('<r/>'::xml)::text COLLATE "C"='<r/>' COLLATE "C"
+      THEN 1/divisor ELSE NULL::integer END)::historical_leaf_result IS NOT NULL)=expected_present END),
+  CONSTRAINT money_history_send CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN encode(cash_send('1.25'::money),'hex') COLLATE "C"='000000000000007d' COLLATE "C"
+      THEN 1/divisor ELSE NULL::integer END)::historical_leaf_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_xml_reading DROP ATTRIBUTE obsolete_document;
+ALTER TYPE historical_money_reading DROP ATTRIBUTE obsolete_amount;
+ALTER TYPE historical_leaf_result DROP ATTRIBUTE obsolete_result;

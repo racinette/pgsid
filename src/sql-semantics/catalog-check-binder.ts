@@ -3308,6 +3308,50 @@ export function bindCatalogCheck(
         value: { kind: 'certain', expression: { ...storedTemporal, kind: 'temporal-storage' } },
       }
     }
+    const storedXml = wrapper['PgsidStoredXml']
+    if (storedXml !== undefined) {
+      if (
+        typeof storedXml !== 'string' ||
+        storedXml.includes('\0') ||
+        /[\uD800-\uDFFF]/u.test(storedXml)
+      )
+        return unknown
+      return {
+        type: 'pg_catalog.xml',
+        value: {
+          kind: 'certain',
+          expression: {
+            kind: 'xml',
+            type: 'pg_catalog.xml',
+            value: storedXml,
+            storage: storedXml,
+          },
+        },
+      }
+    }
+    const storedMoney = wrapper['PgsidStoredMoney']
+    if (storedMoney !== undefined) {
+      if (
+        typeof storedMoney !== 'string' ||
+        storedMoney.length > 20 ||
+        !/^(?:0|-?[1-9][0-9]*)$/u.test(storedMoney) ||
+        BigInt(storedMoney) < -9223372036854775808n ||
+        BigInt(storedMoney) > 9223372036854775807n
+      )
+        return unknown
+      return {
+        type: 'pg_catalog.money',
+        value: {
+          kind: 'certain',
+          expression: {
+            kind: 'money',
+            type: 'pg_catalog.money',
+            value: storedMoney,
+            units: storedMoney,
+          },
+        },
+      }
+    }
     const storedFloat = fields(wrapper['PgsidStoredFloat'])
     if (storedFloat) {
       const type = storedFloat['type'],
