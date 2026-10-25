@@ -3654,15 +3654,13 @@ export function tsqueryCanonicalBytes(input: TsqueryPayload): number {
     }
     const count: number = langruntime.checkedI32(langruntime.checkedIndex(input.nodes.length));
     let bytes: bigint = langruntime.checkedI64Add(8n, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(count))), 12n));
-    let pool: number = 0;
     let index: number = 0;
     while (index < input.nodes.length) {
         if (langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyTsqueryNode).kind === 0) {
             const width: number = tsvectorLexemeBytes(langruntime.indexStruct(input.nodes, langruntime.checkedIndex(index), copyTsqueryNode).text);
-            if (width < 0 || width > 2047 || pool > 1048575) {
+            if (width < 0 || width > 2047) {
                 return langruntime.checkedSignedNegate(1);
             }
-            pool = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pool, width), 1));
             bytes = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add(bytes, (BigInt(langruntime.checkedI32(width)))), 1n));
         }
         index = langruntime.checkedAdd(index, 1);
@@ -3674,7 +3672,7 @@ export function tsqueryCanonicalBytes(input: TsqueryPayload): number {
 }
 export function makeTsqueryValue(input: TsqueryPayload): TsqueryValue {
     input = copyTsqueryPayload(input);
-    if (tsqueryCanonicalBytes(input) < 0) {
+    if (input.nodes.length > 89478484) {
         return { kind: "Unknown" };
     }
     if (input.nativeBytes < langruntime.checkedSignedNegate(1) || input.nativeBytes > 1073741823) {
@@ -3702,6 +3700,10 @@ export function makeTsqueryValue(input: TsqueryPayload): TsqueryValue {
             return { kind: "Unknown" };
         }
         if (node.kind === 0) {
+            const width: number = tsvectorLexemeBytes(node.text);
+            if (width < 0 || width > 2047) {
+                return { kind: "Unknown" };
+            }
             if (node.weight < 0 || node.weight > 15 || !(node.distance === 0) || !(node.left === 0) || !(node.right === 0)) {
                 return { kind: "Unknown" };
             }

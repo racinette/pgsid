@@ -157,3 +157,16 @@ CREATE TABLE search_query_relations (
  CONSTRAINT query_equivalent CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery=reference::tsquery) IS NOT DISTINCT FROM expected_equal END),
  CONSTRAINT query_terms_contained CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery @> reference::tsquery) IS NOT DISTINCT FROM expected_contains END)
 );
+
+CREATE TABLE search_query_composition (
+ source text,
+ continuation text,
+ gap integer,
+ expected_phrase text,
+ expected_terms integer,
+ expected_negation text,
+ bypass boolean,
+ CONSTRAINT query_phrase_composed CHECK(CASE WHEN bypass THEN true ELSE tsquery_phrase(source::tsquery,continuation::tsquery,gap)::text IS NOT DISTINCT FROM expected_phrase END),
+ CONSTRAINT query_terms_composed CHECK(CASE WHEN bypass THEN true ELSE numnode(source::tsquery && continuation::tsquery) IS NOT DISTINCT FROM expected_terms END),
+ CONSTRAINT query_negation_composed CHECK(CASE WHEN bypass THEN true ELSE (!!(source::tsquery || continuation::tsquery))::text IS NOT DISTINCT FROM expected_negation END)
+);

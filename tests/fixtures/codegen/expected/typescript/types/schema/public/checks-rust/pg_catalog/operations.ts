@@ -46286,6 +46286,166 @@ export function tsqMcontained4g5m(a: checkruntime.TsqueryValue, b: checkruntime.
     b = checkruntime.copyTsqueryValue(b);
     return tsqueryContains(a, b, true);
 }
+function tsqueryRebuild(input: checkruntime.TsqueryPayload): checkruntime.TsqueryValue {
+    input = checkruntime.copyTsqueryPayload(input);
+    const bytes: number = checkruntime.tsqueryCanonicalBytes(input);
+    if (bytes < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+    }
+    let stack: number[] = [];
+    langruntime.pushIndex(stack, input.root);
+    let depth: number = 1;
+    let pool: number = 0;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const node: checkruntime.TsqueryNode = langruntime.indexStruct(input.nodes, langruntime.checkedIndex(langruntime.indexNumber(stack, langruntime.checkedIndex(depth))), checkruntime.copyTsqueryNode);
+        if (node.kind === 0) {
+            if (pool > 1048575) {
+                return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+            }
+            pool = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pool, checkruntime.tsvectorLexemeBytes(node.text)), 1));
+        }
+        else {
+            if (depth < stack.length) {
+                stack[langruntime.checkedIndexIn(stack, depth)] = langruntime.checkedIndex(node.left);
+            }
+            else {
+                langruntime.pushIndex(stack, node.left);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            if (!(node.kind === 1)) {
+                if (depth < stack.length) {
+                    stack[langruntime.checkedIndexIn(stack, depth)] = langruntime.checkedIndex(node.right);
+                }
+                else {
+                    langruntime.pushIndex(stack, node.right);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+    }
+    return checkruntime.makeTsqueryValue({ nodes: input.nodes, root: input.root, nativeBytes: bytes });
+}
+function tsqueryJoin(left: checkruntime.TsqueryValue, right: checkruntime.TsqueryValue, distance: checkruntime.Int4Value, kind: number): checkruntime.TsqueryValue {
+    left = checkruntime.copyTsqueryValue(left);
+    right = checkruntime.copyTsqueryValue(right);
+    kind = langruntime.checkedI32(kind);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (distance.kind === "Error") {
+        const error: checkruntime.SqlError = distance.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(distance, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(distance, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(right.value);
+            if (distance.kind === "Value") {
+                const space: number = langruntime.checkedI32(distance.value);
+                if (kind === 4 && (space < 0 || space > 16384)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsqueryInvalidParameter) };
+                }
+                if (a.nodes.length === 0) {
+                    return { kind: "Value", value: b };
+                }
+                if (b.nodes.length === 0) {
+                    return { kind: "Value", value: a };
+                }
+                if (langruntime.checkedAdd(a.nodes.length, b.nodes.length) > 89478483) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+                }
+                const offset: number = a.nodes.length;
+                const leftRoot: number = a.root;
+                const rightRoot: number = langruntime.checkedAdd(offset, b.root);
+                let nodes: checkruntime.TsqueryNode[] = a.nodes;
+                let index: number = 0;
+                while (index < b.nodes.length) {
+                    const node: checkruntime.TsqueryNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(index), checkruntime.copyTsqueryNode);
+                    let l: number = 0;
+                    let r: number = 0;
+                    if (!(node.kind === 0)) {
+                        l = langruntime.checkedIndex(langruntime.checkedAdd(node.left, offset));
+                    }
+                    if (node.kind > 1) {
+                        r = langruntime.checkedIndex(langruntime.checkedAdd(node.right, offset));
+                    }
+                    langruntime.pushStruct(nodes, { kind: node.kind, text: node.text, weight: node.weight, prefix: node.prefix, distance: node.distance, left: l, right: r }, checkruntime.copyTsqueryNode);
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                const root: number = nodes.length;
+                let phrase: number = 0;
+                if (kind === 4) {
+                    phrase = langruntime.checkedI32(space);
+                }
+                langruntime.pushStruct(nodes, { kind: kind, text: "", weight: 0, prefix: false, distance: phrase, left: leftRoot, right: rightRoot }, checkruntime.copyTsqueryNode);
+                return tsqueryRebuild({ nodes: nodes, root: root, nativeBytes: langruntime.checkedSignedNegate(1) });
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tsqueryAndZwff(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue): checkruntime.TsqueryValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryJoin(a, b, checkruntime.makeInt4Value(0), 2);
+}
+export function tsqueryOrLe7y(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue): checkruntime.TsqueryValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryJoin(a, b, checkruntime.makeInt4Value(0), 3);
+}
+export function tsqueryPhraseGq2o(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue): checkruntime.TsqueryValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryJoin(a, b, checkruntime.makeInt4Value(1), 4);
+}
+export function tsqueryPhraseU1ck(a: checkruntime.TsqueryValue, b: checkruntime.TsqueryValue, distance: checkruntime.Int4Value): checkruntime.TsqueryValue {
+    a = checkruntime.copyTsqueryValue(a);
+    b = checkruntime.copyTsqueryValue(b);
+    return tsqueryJoin(a, b, distance, 4);
+}
+export function tsqueryNot5zwa(input: checkruntime.TsqueryValue): checkruntime.TsqueryValue {
+    input = checkruntime.copyTsqueryValue(input);
+    if (input.kind === "Value") {
+        const value: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(input.value);
+        if (value.nodes.length === 0) {
+            return { kind: "Value", value: value };
+        }
+        if (value.nodes.length > 89478483) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+        }
+        const left: number = value.root;
+        let nodes: checkruntime.TsqueryNode[] = value.nodes;
+        const root: number = nodes.length;
+        langruntime.pushStruct(nodes, { kind: 1, text: "", weight: 0, prefix: false, distance: 0, left: left, right: 0 }, checkruntime.copyTsqueryNode);
+        return tsqueryRebuild({ nodes: nodes, root: root, nativeBytes: langruntime.checkedSignedNegate(1) });
+    }
+    return input;
+}
 const tsquerySyntaxError = 6819553;
 const tsqueryProgramLimit = 8584704;
 const tsqueryInvalidParameter = 3452619;

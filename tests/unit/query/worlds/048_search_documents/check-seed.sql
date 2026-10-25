@@ -259,3 +259,31 @@ INSERT INTO search_query_relations(source,reference,expected_order,expected_equa
 INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a &','b',NULL,NULL,NULL,false);
 -- name: query_relation_skipped
 INSERT INTO search_query_relations(source,reference,expected_order,expected_equal,expected_contains,bypass) VALUES('a &','b',NULL,NULL,NULL,true);
+-- name: query_construct_pair
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <2> ''b''',3,'!( ''a'' | ''b'' )',false);
+-- name: query_construct_empty_head
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('','b',1,'''b''',1,'!''b''',false);
+-- name: query_construct_empty_pair
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('','',0,'',0,'',false);
+-- name: query_construct_weighted
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a:A','b:*B',0,'''a'':A <0> ''b'':*B',3,'!( ''a'':A | ''b'':*B )',false);
+-- name: query_construct_grouped
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a & (b & c)','d',1,'( ''a'' & ''b'' & ''c'' ) <-> ''d''',7,'!( ''a'' & ''b'' & ''c'' | ''d'' )',false);
+-- name: query_construct_unicode
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('é:*AB','😀:D',16384,'''é'':*AB <16384> ''😀'':D',3,'!( ''é'':*AB | ''😀'':D )',false);
+-- name: query_construct_null_source
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES(NULL,'b',1,NULL,NULL,NULL,false);
+-- name: query_construct_null_gap
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',NULL,NULL,3,'!( ''a'' | ''b'' )',false);
+-- name: query_construct_wrong_phrase
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <-> ''b''',3,'!( ''a'' | ''b'' )',false);
+-- name: query_construct_wrong_terms
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <2> ''b''',2,'!( ''a'' | ''b'' )',false);
+-- name: query_construct_wrong_negation
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a','b',2,'''a'' <2> ''b''',3,'''a'' | ''b''',false);
+-- name: query_construct_bad_gap
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('','b',-1,NULL,1,'!''b''',false);
+-- name: query_construct_bad_source
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a &','b',NULL,NULL,NULL,NULL,false);
+-- name: query_construct_skipped
+INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a &','b',-1,NULL,NULL,NULL,true);

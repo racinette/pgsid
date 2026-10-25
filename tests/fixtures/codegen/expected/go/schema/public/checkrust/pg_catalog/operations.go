@@ -45995,6 +45995,169 @@ func TsqMcontained4g5m(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue)
 	b = checkruntime.CopyTsqueryValue(b)
 	return tsqueryContains(a, b, true)
 }
+func tsqueryRebuild(input checkruntime.TsqueryPayload) checkruntime.TsqueryValue {
+	input = checkruntime.CopyTsqueryPayload(input)
+	bytes := checkruntime.TsqueryCanonicalBytes(&input)
+	if bytes < 0 {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+	}
+	stack := []int{}
+	langruntime.CheckedAdd(len(stack), 1)
+	stack = append(stack, langruntime.CheckedIndex(input.Root))
+	depth := 1
+	pool := 0
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		node := input.Nodes[stack[depth]]
+		if node.Kind == 0 {
+			if pool > 1048575 {
+				return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+			}
+			pool = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pool, checkruntime.TsvectorLexemeBytes(node.Text)), 1))
+		} else {
+			if depth < len(stack) {
+				stack[depth] = langruntime.CheckedIndex(node.Left)
+			} else {
+				langruntime.CheckedAdd(len(stack), 1)
+				stack = append(stack, langruntime.CheckedIndex(node.Left))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			if node.Kind != 1 {
+				if depth < len(stack) {
+					stack[depth] = langruntime.CheckedIndex(node.Right)
+				} else {
+					langruntime.CheckedAdd(len(stack), 1)
+					stack = append(stack, langruntime.CheckedIndex(node.Right))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+	}
+	return checkruntime.MakeTsqueryValue(checkruntime.TsqueryPayload{Nodes: input.Nodes, Root: input.Root, NativeBytes: bytes})
+}
+func tsqueryJoin(left checkruntime.TsqueryValue, right checkruntime.TsqueryValue, distance checkruntime.Int4Value, kind int) checkruntime.TsqueryValue {
+	left = checkruntime.CopyTsqueryValue(left)
+	right = checkruntime.CopyTsqueryValue(right)
+	kind = langruntime.CheckedI32(kind)
+	if left.Kind == checkruntime.TsqueryValueError {
+		error := left.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TsqueryValueError {
+		error := right.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if distance.Kind == checkruntime.Int4ValueError {
+		error := distance.Error
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
+	}
+	if left.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if right.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if distance == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+	}
+	if left.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if right.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if distance == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueNull}
+	}
+	if left.Kind == checkruntime.TsqueryValueValue {
+		a := checkruntime.CopyTsqueryPayload(left.Value)
+		if right.Kind == checkruntime.TsqueryValueValue {
+			b := checkruntime.CopyTsqueryPayload(right.Value)
+			if distance.Kind == checkruntime.Int4ValueValue {
+				space := langruntime.CheckedI32(distance.Value)
+				if kind == 4 && (space < 0 || space > 16384) {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryInvalidParameter)}
+				}
+				if len(a.Nodes) == 0 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueValue, Value: b}
+				}
+				if len(b.Nodes) == 0 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueValue, Value: a}
+				}
+				if langruntime.CheckedAdd(len(a.Nodes), len(b.Nodes)) > 89478483 {
+					return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+				}
+				offset := len(a.Nodes)
+				leftRoot := a.Root
+				rightRoot := langruntime.CheckedAdd(offset, b.Root)
+				nodes := a.Nodes
+				index := 0
+				for index < len(b.Nodes) {
+					node := b.Nodes[index]
+					l := 0
+					r := 0
+					if node.Kind != 0 {
+						l = langruntime.CheckedIndex(langruntime.CheckedAdd(node.Left, offset))
+					}
+					if node.Kind > 1 {
+						r = langruntime.CheckedIndex(langruntime.CheckedAdd(node.Right, offset))
+					}
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, checkruntime.TsqueryNode{Kind: node.Kind, Text: node.Text, Weight: node.Weight, Prefix: node.Prefix, Distance: node.Distance, Left: l, Right: r})
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				root := len(nodes)
+				phrase := 0
+				if kind == 4 {
+					phrase = langruntime.CheckedI32(space)
+				}
+				langruntime.CheckedAdd(len(nodes), 1)
+				nodes = append(nodes, checkruntime.TsqueryNode{Kind: kind, Text: "", Weight: 0, Prefix: false, Distance: phrase, Left: leftRoot, Right: rightRoot})
+				return tsqueryRebuild(checkruntime.TsqueryPayload{Nodes: nodes, Root: root, NativeBytes: langruntime.CheckedSignedNegate(1)})
+			}
+		}
+	}
+	return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueUnknown}
+}
+func TsqueryAndZwff(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue) checkruntime.TsqueryValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryJoin(a, b, checkruntime.MakeInt4Value(0), 2)
+}
+func TsqueryOrLe7y(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue) checkruntime.TsqueryValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryJoin(a, b, checkruntime.MakeInt4Value(0), 3)
+}
+func TsqueryPhraseGq2o(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue) checkruntime.TsqueryValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryJoin(a, b, checkruntime.MakeInt4Value(1), 4)
+}
+func TsqueryPhraseU1ck(a checkruntime.TsqueryValue, b checkruntime.TsqueryValue, distance checkruntime.Int4Value) checkruntime.TsqueryValue {
+	a = checkruntime.CopyTsqueryValue(a)
+	b = checkruntime.CopyTsqueryValue(b)
+	return tsqueryJoin(a, b, distance, 4)
+}
+func TsqueryNot5zwa(input checkruntime.TsqueryValue) checkruntime.TsqueryValue {
+	input = checkruntime.CopyTsqueryValue(input)
+	if input.Kind == checkruntime.TsqueryValueValue {
+		value := checkruntime.CopyTsqueryPayload(input.Value)
+		if len(value.Nodes) == 0 {
+			return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueValue, Value: value}
+		}
+		if len(value.Nodes) > 89478483 {
+			return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: checkruntime.MakeSqlError(tsqueryProgramLimit)}
+		}
+		left := value.Root
+		nodes := value.Nodes
+		root := len(nodes)
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.TsqueryNode{Kind: 1, Text: "", Weight: 0, Prefix: false, Distance: 0, Left: left, Right: 0})
+		return tsqueryRebuild(checkruntime.TsqueryPayload{Nodes: nodes, Root: root, NativeBytes: langruntime.CheckedSignedNegate(1)})
+	}
+	return input
+}
 
 const tsquerySyntaxError = 6819553
 const tsqueryProgramLimit = 8584704
