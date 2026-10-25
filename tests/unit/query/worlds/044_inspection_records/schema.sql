@@ -362,3 +362,20 @@ CREATE TABLE inspection_anonymous_comparisons (
  CONSTRAINT anonymous_bucket CHECK(CASE WHEN bypass THEN true ELSE width_bucket(ROW(n),ARRAY[ROW(m)])=CASE WHEN n IS NULL THEN 1 WHEN m IS NULL THEN 0 WHEN n<m THEN 0 ELSE 1 END END),
  CONSTRAINT anonymous_empty CHECK(CASE WHEN bypass THEN true ELSE NOT(ROW(n)=ANY(ARRAY[]::record[])) END)
 );
+
+CREATE TABLE inspection_record_inputs (
+  source_record text,
+  expected_document jsonb,
+  expected_dimensions text,
+  expected_array_text text,
+  score integer,
+  label text,
+  expected_row_text text,
+  bypass boolean NOT NULL,
+  CONSTRAINT record_input_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_record::record[]) IS NOT DISTINCT FROM expected_document END),
+  CONSTRAINT record_input_dimensions CHECK(CASE WHEN bypass THEN true ELSE array_dims(source_record::record[]) IS NOT DISTINCT FROM expected_dimensions END),
+  CONSTRAINT record_input_output CHECK(CASE WHEN bypass THEN true ELSE (source_record::record[])::text IS NOT DISTINCT FROM expected_array_text END),
+  CONSTRAINT record_alias_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb((ROW(score,label)::draft_reading)::record)=jsonb_build_object('score',score,'label',label) END),
+  CONSTRAINT record_array_output CHECK(CASE WHEN bypass THEN true ELSE ARRAY[ROW(score,label)]::text IS NOT DISTINCT FROM expected_row_text END),
+  CONSTRAINT record_unknown_output CHECK(CASE WHEN bypass THEN true ELSE ARRAY[ROW(score,'constant',NULL)]::text IS NOT NULL END)
+);

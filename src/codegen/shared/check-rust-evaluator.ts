@@ -1237,7 +1237,9 @@ export function emitCheckRustEvaluator(
           `let ${cell}=composite_field_at(${ownedOperand(operand)},${position});`,
         )
         const conversion = field.unknown
-          ? `array_contextual_output(${cell})`
+          ? field.type === 'pg_catalog.text'
+            ? `array_element_to_text(${cell})`
+            : `array_contextual_output(${cell})`
           : renderTypedOutput(cell, field.type, lines, field.enum as EnumDefinition | undefined)
         lines.push(
           `let ${text}=${conversion};`,
@@ -1352,7 +1354,10 @@ export function emitCheckRustEvaluator(
     const inner: string[] = []
     const base = arrayElementBaseType(elementType)
     let conversion: string
-    if (usesTypedRangeOutput(rangeTypeProfile(base) ?? multirangeTypeProfile(base))) {
+    if (
+      usesTypedRangeOutput(rangeTypeProfile(base) ?? multirangeTypeProfile(base)) ||
+      anonymousRecordProfile(base)
+    ) {
       conversion = renderTypedOutput(element, base, inner, definition)
     } else if (compositeProfile(base)) {
       const key = JSON.stringify(['__pgsid_array_output_element', false]),
@@ -2455,6 +2460,16 @@ export function emitCheckRustEvaluator(
           : executionContext.arrayNulls === false
             ? 0
             : -1
+      if (
+        !conversion &&
+        anonymousRecordProfile(baseType) &&
+        node.inputConversion?.kind === 'text-to-composite' &&
+        node.inputConversion.anonymous
+      )
+        return {
+          name: bind(`record_array_from_text(${ownedOperand(operand)},${nulls})`),
+          type: node.type,
+        }
       const payload = bind(
         `prepare_array_text(${ownedOperand(operand)}, ${arrayElementDelimiter(node.elementType) === ';'}, ${nulls})`,
       )

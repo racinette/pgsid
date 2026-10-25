@@ -132,6 +132,51 @@ pub fn record_anonymous_input(input: TextValue) -> CompositeValue {
     CompositeValue::Unknown
 }
 
+fn record_array_input_with_nulls(input: TextValue, nulls: i32) -> ArrayValue {
+    let plan = prepare_array_text(input, false, nulls);
+    let mut converted = make_array_conversion();
+    let mut index = make_int4_value(0);
+    while array_text_has_event(&plan, index) {
+        let text = array_text_event_at(&plan, index);
+        let record = record_anonymous_input(text);
+        let element = array_element_from_composite(record);
+        converted = append_array_conversion(converted, element, true);
+        index = array_text_next_index(index);
+    }
+    let converted_arguments = array_conversion_arguments(converted, "pg_catalog.record", 44);
+    finish_prepared_array_text(plan, converted_arguments)
+}
+
+pub fn record_array_from_text(input: TextValue, nulls: i32) -> ArrayValue {
+    if nulls == 0 || nulls == 1 {
+        return record_array_input_with_nulls(input, nulls);
+    };
+    let first = record_array_input_with_nulls(input.clone(), 1);
+    let second = record_array_input_with_nulls(input, 0);
+    if let ArrayValue::Error(left) = first {
+        if let ArrayValue::Error(right) = second {
+            if left.state == right.state {
+                return ArrayValue::Error(left);
+            };
+        };
+        return ArrayValue::Unknown;
+    };
+    if let ArrayValue::Null = first {
+        if let ArrayValue::Null = second {
+            return ArrayValue::Null;
+        };
+        return ArrayValue::Unknown;
+    };
+    if let ArrayValue::Value(left) = first {
+        if let ArrayValue::Value(right) = second {
+            if left.elements.len() == 0 && right.elements.len() == 0 {
+                return make_array_value(left);
+            };
+        };
+    };
+    ArrayValue::Unknown
+}
+
 pub fn sql__pg_catalog__record_eq__rc7m(input: Int4Value) -> BoolValue {
     array_comparison_boolean(input, 3)
 }

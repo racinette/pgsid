@@ -11147,6 +11147,55 @@ export function recordAnonymousInput(input: checkruntime.TextValue): checkruntim
     }
     return { kind: "Unknown" };
 }
+function recordArrayInputWithNulls(input: checkruntime.TextValue, nulls: number): checkruntime.ArrayValue {
+    nulls = langruntime.checkedI32(nulls);
+    const plan: checkruntime.ArrayTextPayload = checkruntime.prepareArrayText(input, false, nulls);
+    let converted: checkruntime.ArrayOutputPayload = checkruntime.makeArrayConversion();
+    let index: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+    while (checkruntime.arrayTextHasEvent(plan, index)) {
+        const text: checkruntime.TextValue = checkruntime.arrayTextEventAt(plan, index);
+        const record: checkruntime.CompositeValue = recordAnonymousInput(text);
+        const element: checkruntime.ArrayElement = checkruntime.arrayElementFromComposite(record);
+        converted = checkruntime.appendArrayConversion(converted, element, true);
+        index = checkruntime.arrayTextNextIndex(index);
+    }
+    const convertedArguments: checkruntime.ArrayArguments = checkruntime.arrayConversionArguments(converted, "pg_catalog.record", 44);
+    return checkruntime.finishPreparedArrayText(plan, convertedArguments);
+}
+export function recordArrayFromText(input: checkruntime.TextValue, nulls: number): checkruntime.ArrayValue {
+    nulls = langruntime.checkedI32(nulls);
+    if (nulls === 0 || nulls === 1) {
+        return recordArrayInputWithNulls(input, nulls);
+    }
+    const first: checkruntime.ArrayValue = recordArrayInputWithNulls(input, 1);
+    const second: checkruntime.ArrayValue = recordArrayInputWithNulls(input, 0);
+    if (first.kind === "Error") {
+        const left: checkruntime.SqlError = first.value;
+        if (second.kind === "Error") {
+            const right: checkruntime.SqlError = second.value;
+            if (left.state === right.state) {
+                return { kind: "Error", value: left };
+            }
+        }
+        return { kind: "Unknown" };
+    }
+    if (first.kind === "Null") {
+        if (second.kind === "Null") {
+            return { kind: "Null" };
+        }
+        return { kind: "Unknown" };
+    }
+    if (first.kind === "Value") {
+        const left: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(first.value);
+        if (second.kind === "Value") {
+            const right: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(second.value);
+            if (left.elements.length === 0 && right.elements.length === 0) {
+                return checkruntime.makeArrayValue(left);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function recordEqRc7m(input: checkruntime.Int4Value): checkruntime.BoolValue {
     return arrayComparisonBoolean(input, 3);
 }
