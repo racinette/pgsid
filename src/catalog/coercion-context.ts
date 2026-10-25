@@ -99,6 +99,9 @@ function captureExpressionCoercions(
   const xmlArrayConstants: NonNullable<StoredXmlConstantContext['arrays']> = []
   const xmlContainerConstants: NonNullable<StoredXmlConstantContext['containers']> = []
   const rowConstructors: NonNullable<StoredRowCoercionContext['constructors']> = []
+  const scalarRoots = new Map<string, Tree>()
+  const scalarSites = new Set<string>()
+  const domainSites = new Set<string>()
   let omittedComplete = true
   let complete = true
   const expressionType = (node: Tree): string | null => {
@@ -143,6 +146,41 @@ function captureExpressionCoercions(
       }
       const node = tree(value)
       if (!node) return
+      if (site !== undefined && !scalarRoots.has(site)) scalarRoots.set(site, node)
+      if (site !== undefined && node.kind === 'COERCETODOMAIN') domainSites.add(site)
+      if (
+        site !== undefined &&
+        node.kind === 'FUNCEXPR' &&
+        ['1', '2'].includes(scalar(node, 'funcformat') ?? '')
+      ) {
+        const callable = rowExpressions?.functions.get(Number(scalar(node, 'funcid')))
+        const operands = node.fields['args']?.[0],
+          operand = Array.isArray(operands) ? tree(operands[0]) : null,
+          sourceType = operand ? expressionType(operand) : null
+        if (
+          rowExpressions &&
+          !callable &&
+          (!identities.has(Number(scalar(node, 'funcresulttype'))) ||
+            sourceType === null ||
+            !identities.has(Number(sourceType)))
+        )
+          omittedComplete = false
+        if (
+          callable &&
+          scalar(node, 'funcformat') === '2' &&
+          !domainSites.has(site) &&
+          ((scalarRoots.get(site) !== node &&
+            ['FUNCEXPR', 'RELABELTYPE', 'COERCEVIAIO', 'COLLATEEXPR'].includes(
+              scalarRoots.get(site)!.kind,
+            )) ||
+            (['pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(callable.result) &&
+              callable.args[0] === callable.result &&
+              callable.args[1] === 'pg_catalog.int4' &&
+              callable.args[2] === 'pg_catalog.bool' &&
+              callable.args.length === 3))
+        )
+          scalarSites.add(site)
+      }
       if (node.kind === 'CONST' && arrayStorage?.roots.has(Number(scalar(node, 'consttype')))) {
         const raw = node.fields['constvalue'],
           data = Array.isArray(raw?.[1]) ? raw[1] : undefined
@@ -432,7 +470,20 @@ function captureExpressionCoercions(
         const op = scalar(node, 'boolop')
         if (op === 'not' && args.length === 1 && tree(args[0])?.kind === 'DISTINCTEXPR')
           visit(args[0]!, site)
-        else args.forEach((v, i) => visit(v, at('boolean/' + op + '/' + i)))
+        else {
+          const flatten = (values: Value[]): Value[] =>
+            values.flatMap((value) => {
+              const child = tree(value),
+                nested = child?.fields['args']?.[0]
+              return ['and', 'or'].includes(op ?? '') &&
+                child?.kind === 'BOOLEXPR' &&
+                scalar(child, 'boolop') === op &&
+                Array.isArray(nested)
+                ? flatten(nested)
+                : [value]
+            })
+          flatten(args).forEach((v, i) => visit(v, at('boolean/' + op + '/' + i)))
+        }
         return
       }
       if (node.kind === 'CASEEXPR') {
@@ -537,16 +588,25 @@ function captureExpressionCoercions(
   } catch {
     complete = false
   }
+  const scalars: NonNullable<StoredRowCoercionContext['scalars']> = []
+  for (const site of scalarSites) {
+    const expression = rowExpressions
+      ? storedRowExpression(scalarRoots.get(site)!, rowExpressions)
+      : undefined
+    if (expression === undefined) omittedComplete = false
+    else scalars.push({ site, expression })
+  }
   return {
     ...(arrayCandidate
       ? { arrayStorage: { definition, complete, constants: arrayConstants } }
       : {}),
-    ...(casts.length || rowConstructors.length || !complete || !omittedComplete
+    ...(casts.length || rowConstructors.length || scalars.length || !complete || !omittedComplete
       ? {
           row: {
             definition,
             complete: complete && omittedComplete,
             casts,
+            ...(scalars.length ? { scalars } : {}),
             ...(rowConstructors.length ? { constructors: rowConstructors } : {}),
           },
         }
@@ -833,7 +893,7 @@ export function captureRowCoercionContext(
   identities: ReadonlyMap<number, RowCoercionIdentity>,
   expressions?: StoredRowExpressionInput,
 ): StoredRowCoercionContext | undefined {
-  return captureExpressionCoercions(
+  const captured = captureExpressionCoercions(
     source,
     definition,
     identities,
@@ -850,6 +910,14 @@ export function captureRowCoercionContext(
     undefined,
     expressions,
   ).row
+  if (!expressions || !source) return captured
+  if (captured) return { ...captured, scalars: captured.scalars ?? [] }
+  try {
+    if (!tree(parseTree(source))) return { definition, complete: false, casts: [], scalars: [] }
+    return { definition, complete: true, casts: [], scalars: [] }
+  } catch {
+    return { definition, complete: false, casts: [], scalars: [] }
+  }
 }
 
 export function captureArrayConstructorContext(

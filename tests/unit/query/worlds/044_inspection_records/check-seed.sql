@@ -558,3 +558,22 @@ INSERT INTO inspection_historical_captions(score,label,expected_present,expected
 INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'blue',true,'{}',false);
 -- name: HistoricalCaptionBypassed
 INSERT INTO inspection_historical_captions(score,label,expected_present,expected_document,bypass) VALUES(1,'bad',false,'{}',true);
+
+-- name: HistoricalComparisonSkippedRatio
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,2,0,'abcdef','wrong',true,false,false);
+-- name: HistoricalComparisonWidth
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,1,'abc','ab',false,true,false);
+-- name: HistoricalComparisonCaption
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,1,'xy','ab',true,false,false);
+-- name: HistoricalComparisonNulls
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(NULL,NULL,0,NULL,NULL,false,NULL,false);
+-- name: HistoricalComparisonOldError
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,0,'ab','ab',true,false,false);
+-- name: HistoricalComparisonWrongDifference
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,2,0,'ab','ab',false,false,false);
+-- name: HistoricalComparisonWrongMember
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,1,'abc','ab',false,false,false);
+-- name: HistoricalComparisonBypassed
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(1,1,0,'abcdef','wrong',true,false,true);
+-- name: HistoricalComparisonFixedRecord
+INSERT INTO inspection_comparison_history(score,alternate_score,denominator,label,reference_label,expected_distinct,expected_member,bypass) VALUES(0,2,1,'ab','xy',true,false,false);

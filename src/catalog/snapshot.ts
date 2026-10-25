@@ -837,7 +837,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rowTrees = [
     ...constraintRows.map((c) => c.coercion_tree),
     ...domainRows.flatMap((d) => (d.check_exprs ?? []).map((c) => c.coercion_tree)),
-  ].filter((source): source is string => !!source && source.includes('{ROWEXPR'))
+  ].filter((source): source is string => !!source && /\{(?:ROWEXPR|FUNCEXPR)\b/u.test(source))
   const rowFunctionIds = [
     ...new Set(
       rowTrees.flatMap((source) =>

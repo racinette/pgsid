@@ -152,6 +152,7 @@ export interface StoredDomainCoercionContext {
 export interface StoredRowCoercionContext {
   definition: string
   complete: boolean
+  scalars?: { site: string; expression: unknown }[]
   constructors?: {
     site: string
     type: string

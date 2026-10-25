@@ -1,3 +1,4 @@
+import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
 import { tree, scalar, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
@@ -146,6 +147,21 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       ) !== callable.result
     )
       return undefined
+    const conversion =
+      callable.args.length === 1 ? builtinCast(callable.args[0]!, callable.result) : null
+    if (conversion?.method === 'f' && conversion.implementation === callable.signature)
+      return collated(
+        {
+          PgsidStoredCast: {
+            arg: args[0],
+            type: callable.result,
+            source: callable.args[0],
+            signature: callable.signature,
+            kind: 'function',
+          },
+        },
+        node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid',
+      )
     return {
       PgsidStoredCall: {
         signature: callable.signature,

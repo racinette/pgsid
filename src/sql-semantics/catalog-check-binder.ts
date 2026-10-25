@@ -132,6 +132,8 @@ export type RowFieldBinding =
   | { kind: 'field'; name: string }
   | { kind: 'function'; names: readonly string[] }
   | { kind: 'cast'; typeName: unknown }
+  | { kind: 'expression'; expression: EvalBoolExpression; inputs: readonly string[] }
+  | { kind: 'scalar'; expression: unknown }
 
 export function catalogEnumDefinition(
   name: string,
@@ -2156,6 +2158,10 @@ export function bindCatalogCheck(
   arrayConstructorBindings?: ArrayConstructorBindings,
   xmlConstantBindings?: ReadonlyMap<unknown, string | null>,
   rowConstructorBindings?: RowConstructorBindings,
+  capturedExpressions?: Map<
+    unknown,
+    { expression: EvalBoolExpression; inputs: readonly string[] } | undefined
+  >,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   if (rowCoercionContext && !rowCoercionContext.complete)
     return { expression: { kind: 'uncertain' }, inputs: [] }
@@ -2214,6 +2220,7 @@ export function bindCatalogCheck(
       moneyUnits.set(literal.text, value.toString())
   }
   const inputs = new Set<string>()
+  const importedExpressions = new WeakSet<object>()
   const selectedRowCoercion = (
     source: string,
     target: string,
@@ -2880,6 +2887,34 @@ export function bindCatalogCheck(
     implicitDomainInput?: boolean,
     rowSite = node,
   ): Bound => {
+    const selected = rowFieldBindings?.get(node)
+    if (selected?.kind === 'scalar')
+      return bind(selected.expression, expectedType, implicitDomainInput, rowSite)
+    if (selected?.kind === 'expression') {
+      for (const name of selected.inputs) inputs.add(name)
+      importedExpressions.add(selected.expression)
+      return {
+        type: 'pg_catalog.bool',
+        value: { kind: 'check', type: 'pg_catalog.bool', expression: selected.expression },
+      }
+    }
+    const result = bindNode(node, expectedType, implicitDomainInput, rowSite)
+    if (capturedExpressions?.has(node))
+      capturedExpressions.set(node, {
+        expression:
+          result.type === 'pg_catalog.bool' && result.value
+            ? { kind: 'eval-scalar', expression: result.value }
+            : { kind: 'uncertain' },
+        inputs: [],
+      })
+    return result
+  }
+  const bindNode = (
+    node: unknown,
+    expectedType?: ScalarType,
+    implicitDomainInput?: boolean,
+    rowSite = node,
+  ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
     const annotation = fields(wrapper['PgsidStoredCollation'])
@@ -2903,7 +2938,12 @@ export function bindCatalogCheck(
         !target ||
         (storedCast['kind'] === 'binary'
           ? operand.type !== target && conversion?.method !== 'b'
-          : storedCast['kind'] !== 'io' || (conversion && conversion.method !== 'i'))
+          : storedCast['kind'] === 'function'
+            ? typeof storedCast['source'] !== 'string' ||
+              operand.type !== catalogScalarType(storedCast['source']) ||
+              conversion?.method !== 'f' ||
+              conversion.implementation !== storedCast['signature']
+            : storedCast['kind'] !== 'io' || (conversion && conversion.method !== 'i'))
       )
         return unknown
       const names = storedCast['type'] as string
@@ -4623,7 +4663,7 @@ export function bindCatalogCheck(
             )
             if (!value.value || value.type !== type) return unknown
             let operand = value.value
-            if (field.typeMod !== -1) {
+            if (field.typeMod !== -1 && rowFieldBindings?.get(args[index])?.kind !== 'scalar') {
               if (type.startsWith('array:'))
                 operand = {
                   kind: 'array-typmod',
@@ -7392,6 +7432,12 @@ export function bindCatalogCheck(
     return candidates.length > 0 && candidates.every(({ item }) => item.volatility !== 'i')
   }
   const lower = (node: unknown): EvalBoolExpression => {
+    const result = lowerNode(node)
+    if (capturedExpressions?.has(node))
+      capturedExpressions.set(node, { expression: result, inputs: [] })
+    return result
+  }
+  const lowerNode = (node: unknown): EvalBoolExpression => {
     const wrapper = fields(node)
     if (!wrapper) return { kind: 'uncertain' }
     if (fields(wrapper['A_Const'])?.['isnull'] === true)
@@ -7483,6 +7529,7 @@ export function bindCatalogCheck(
     return base === 'pg_catalog.money'
   }
   const annotate = (value: unknown): unknown => {
+    if (value && typeof value === 'object' && importedExpressions.has(value)) return value
     if (Array.isArray(value)) {
       const mapped = value.map(annotate)
       return mapped.every((item, index) => item === value[index]) ? value : mapped
@@ -7610,6 +7657,7 @@ export function bindCatalogCheck(
     return result
   }
   const attachContainerInput = (value: unknown): unknown => {
+    if (value && typeof value === 'object' && importedExpressions.has(value)) return value
     if (Array.isArray(value)) {
       const items = value.map(attachContainerInput)
       return items.every((item, index) => item === value[index]) ? value : items
@@ -7696,14 +7744,36 @@ export function bindCatalogCheck(
     }
     return result
   }
-  const lowered = lower(root)
-  const expression =
-    rangeTypes.length || compositeGraph?.definitions.length
-      ? (attachContainerInput(lowered) as EvalBoolExpression)
-      : lowered
-  return {
-    expression:
-      literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression,
-    inputs: [...inputs].sort(),
+  const finish = (value: EvalBoolExpression): EvalBoolExpression => {
+    const expression =
+      rangeTypes.length || compositeGraph?.definitions.length
+        ? (attachContainerInput(value) as EvalBoolExpression)
+        : value
+    return literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression
   }
+  const lowered = lower(root)
+  if (capturedExpressions)
+    for (const [node, value] of capturedExpressions) {
+      if (!value) continue
+      const expression = finish(value.expression),
+        names = new Set<string>()
+      const visit = (value: unknown): void => {
+        if (Array.isArray(value)) {
+          value.forEach(visit)
+          return
+        }
+        const object = fields(value)
+        if (!object) return
+        if (
+          (object['kind'] === 'input' || object['kind'] === 'input-null-test') &&
+          typeof object['name'] === 'string' &&
+          columns.some((column) => column.name === object['name'])
+        )
+          names.add(object['name'])
+        Object.values(object).forEach(visit)
+      }
+      visit(expression)
+      capturedExpressions.set(node, { expression, inputs: [...names].sort() })
+    }
+  return { expression: finish(lowered), inputs: [...inputs].sort() }
 }
