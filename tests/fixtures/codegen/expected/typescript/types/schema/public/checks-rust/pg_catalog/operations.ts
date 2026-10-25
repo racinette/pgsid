@@ -2900,6 +2900,28 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     if (left.kind === "ByteaUnspecified") {
         return false;
     }
+    if (kind === 44) {
+        const firstRecord: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(left);
+        const secondRecord: checkruntime.CompositeValue = checkruntime.arrayElementToComposite(right);
+        if (firstRecord.kind === "Value") {
+            const first: checkruntime.CompositePayload = checkruntime.copyCompositePayload(firstRecord.value);
+            if (secondRecord.kind === "Value") {
+                const second: checkruntime.CompositePayload = checkruntime.copyCompositePayload(secondRecord.value);
+                if (!(first.typeName === second.typeName) || !(first.fields.length === second.fields.length)) {
+                    return false;
+                }
+                let index: number = 0;
+                while (index < first.fields.length) {
+                    if (arraySortSameElement(checkruntime.copyArrayElement(langruntime.indexStruct(first.fields, langruntime.checkedIndex(index), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(second.fields, langruntime.checkedIndex(index), checkruntime.copyArrayElement))) === false) {
+                        return false;
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     if (kind === 42) {
         const firstRange: checkruntime.RangeValue = checkruntime.arrayElementToRange(left);
         const secondRange: checkruntime.RangeValue = checkruntime.arrayElementToRange(right);

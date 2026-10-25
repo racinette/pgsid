@@ -3567,6 +3567,31 @@ export function bindCatalogCheck(
       if (
         names?.at(-1) === 'record' &&
         (names.length === 1 || names[0] === 'pg_catalog') &&
+        Array.isArray(bounds) &&
+        bounds.length > 0
+      ) {
+        if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+        const element = 'anonymous-record:[]' as const,
+          type = arrayType(element),
+          constructor = fields(fields(cast['arg'])?.['A_ArrayExpr']),
+          members = constructor?.['elements'] ?? []
+        if (constructor && Array.isArray(members) && members.length === 0)
+          return bindArray(cast['arg'], {
+            type: element,
+            name: { names: [{ String: { sval: 'pg_catalog' } }, { String: { sval: 'record' } }] },
+          })
+        const operand = castOperand()
+        if (operand.type?.startsWith('array:') && anonymousRecordProfile(operand.type.slice(6)))
+          return operand
+        if (operand.literal?.kind === 'null') {
+          const value = materialize(operand, type)
+          return value ? { type, value } : unknown
+        }
+        return unknown
+      }
+      if (
+        names?.at(-1) === 'record' &&
+        (names.length === 1 || names[0] === 'pg_catalog') &&
         (!Array.isArray(bounds) || bounds.length === 0)
       ) {
         const operand = castOperand()
@@ -6084,7 +6109,7 @@ export function bindCatalogCheck(
       if (!resolved || resolved.item.result !== 'pg_catalog.bool') return unknown
       const element =
         resolved.item.args[1] === 'pg_catalog.record'
-          ? compositeProfile(baseElement) && baseElement
+          ? (compositeProfile(baseElement) || anonymousRecordProfile(baseElement)) && baseElement
           : resolved.item.args[1] === 'pg_catalog.anyenum'
             ? resolved.enum && enumType(resolved.enum)
             : resolved.item.args[1] === 'pg_catalog.anyarray'

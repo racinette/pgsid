@@ -498,3 +498,5 @@ INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_
 INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',0,true,false,-1,false,false,false);
 -- name: AnonymousRecordsSkipped
 INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(1,2,'x','x',0,true,true,999,true,true,true);
+-- name: AnonymousRecordsReverseOrder
+INSERT INTO inspection_anonymous_comparisons(n,m,label,other_label,divisor,pick_number,expected_equal,expected_order,expected_selected,expected_arithmetic,bypass) VALUES(2,1,'x','x',1,true,false,1,false,false,false);

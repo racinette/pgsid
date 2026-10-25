@@ -16,7 +16,7 @@ import {
 } from '../../sql-semantics/composite-profiles.js'
 import { compositePlanExpression } from './check-composite-types.js'
 import { recordHashLayouts, recordFieldHashSupport } from './check-record-hash.js'
-import { recordComparisonLayouts } from './check-record-comparison.js'
+import { recordComparisonLayouts, isRecordComparison } from './check-record-comparison.js'
 import {
   anonymousRecordProfile,
   canRelabelAnonymousRecords,
@@ -471,19 +471,7 @@ export const isArrayComparison = (
         'arrayoverlap',
       ].includes(item.name) && item.result === 'pg_catalog.bool')
 
-export const isRecordComparison = (item: ReturnType<typeof builtinMetadata>): boolean =>
-  item.kind === 'function' &&
-  item.schema === 'pg_catalog' &&
-  item.strict &&
-  item.volatility === 'i' &&
-  !item.returnsSet &&
-  item.args.length === 2 &&
-  item.args.every((type) => type === 'pg_catalog.record') &&
-  (item.name === 'btrecordcmp'
-    ? item.result === 'pg_catalog.int4'
-    : ['record_eq', 'record_ne', 'record_lt', 'record_le', 'record_gt', 'record_ge'].includes(
-        item.name,
-      ) && item.result === 'pg_catalog.bool')
+export { isRecordComparison } from './check-record-comparison.js'
 
 export const isRecordHash = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
