@@ -346,7 +346,7 @@ const arrayElementOutput = (
   definition: EnumDefinition | undefined,
   element: string,
   scalar: string,
-  context: { moneyLocale?: 'C'; moneyFractionDigits?: number },
+  context: { moneyLocale?: 'C'; moneyFractionDigits?: number; extraFloatDigits?: number },
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
   elementType = arrayElementBaseType(elementType)
   const family = arrayElementFamily(elementType)
@@ -407,7 +407,11 @@ const arrayElementOutput = (
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
     conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
-  else if (family === 19 || family === 20) conversion = `array_${prefix}_output(${scalar})`
+  else if (family === 19 || family === 20)
+    conversion =
+      context.extraFloatDigits === undefined
+        ? `array_${prefix}_output(${scalar})`
+        : `${prefix}_output_context(${scalar},${context.extraFloatDigits},true)`
   else if (family === 21 || family === 22) conversion = `clock_${prefix}_to_text(${scalar})`
   else if (family === 32) {
     const cast = builtinCast(elementType, 'pg_catalog.text')
@@ -1878,8 +1882,9 @@ export function emitCheckRustEvaluator(
       (node.kind === 'array-text-literal' ||
         node.kind === 'text-to-composite' ||
         node.kind === 'text-to-range' ||
-        node.kind === 'text-to-multirange') &&
-      (node.origin === 'stored' || node.arrayStorage !== undefined) &&
+        node.kind === 'text-to-multirange' ||
+        node.kind === 'array-constructor') &&
+      (('origin' in node && node.origin === 'stored') || node.arrayStorage !== undefined) &&
       !arrayStorageInProgress.has(node)
     ) {
       arrayStorageInProgress.add(node)
@@ -7692,6 +7697,8 @@ export function emitCheckRustEvaluator(
       )
     }
     if (node.kind === 'array-constructor') {
+      if (node.dimensions !== undefined && node.multidimensional)
+        throw new UnsupportedCheckRustExpression('Explicit array dimensions require flat cells')
       const family = arrayElementFamily(node.elementType)
       if (family === null)
         throw new UnsupportedCheckRustExpression(
@@ -7711,6 +7718,10 @@ export function emitCheckRustEvaluator(
       let builder = bind(
         `${node.multidimensional ? 'make_array_children' : 'make_array_arguments'}(${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
+      for (const dimension of node.dimensions ?? [])
+        builder = bind(
+          `append_array_dimension(${builder}, ${dimension.lower}, ${dimension.length})`,
+        )
       for (const operand of operands) {
         if (node.multidimensional)
           builder = bind(`append_array_child(${builder}, ${ownedOperand(operand)})`)
@@ -7721,7 +7732,7 @@ export function emitCheckRustEvaluator(
         }
       }
       const finished = bind(
-        `${node.multidimensional ? 'finish_array_children' : 'finish_array_constructor'}(${builder})`,
+        `${node.multidimensional ? 'finish_array_children' : node.dimensions !== undefined ? 'finish_array_arguments' : 'finish_array_constructor'}(${builder})`,
       )
       return {
         name: bind(`array_constructor_from_validity(${finished}, ${validity})`),

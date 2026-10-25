@@ -843,9 +843,18 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         .filter((t) => t.identity === 'pg_catalog.inet' || t.identity === 'pg_catalog.cidr')
         .map((t) => t.oid),
     ),
+    needsNetworkFamilies = (oid: number, seen = new Set<number>()): boolean => {
+      if (networkTypes.has(oid)) return true
+      if (seen.has(oid)) return false
+      seen.add(oid)
+      const type = typesByOid.get(oid)
+      return type?.kind === 'd'
+        ? needsNetworkFamilies(type.base, seen)
+        : !!type?.element && needsNetworkFamilies(type.element, seen)
+    },
     hasNetworkConstants = rowTrees.some((source) =>
       [...source.matchAll(/\{CONST\s+:consttype\s+(\d+)/gu)].some((match) =>
-        networkTypes.has(Number(match[1])),
+        needsNetworkFamilies(Number(match[1])),
       ),
     ),
     networkFamilies = hasNetworkConstants
@@ -903,7 +912,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       rowTrees.flatMap((source) =>
         [
           ...source.matchAll(
-            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid|array_collid|collation)\s+(\d+)/gu,
+            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid|array_collid|collation|refcollid)\s+(\d+)/gu,
           ),
         ]
           .map((m) => Number(m[1]))
@@ -925,6 +934,36 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
   const rowArrayElements = new Map(
     typeRows.filter((type) => type.element).map((type) => [type.oid, type.element!]),
   )
+  const isStoredArray = (oid: number, seen = new Set<number>()): boolean => {
+    if (rowArrayElements.has(oid)) return true
+    if (seen.has(oid)) return false
+    seen.add(oid)
+    const type = typesByOid.get(oid)
+    return type?.kind === 'd' && isStoredArray(type.base, seen)
+  }
+  const hasArrayConstants = rowTrees.some((source) =>
+    [...source.matchAll(/\{CONST\s+:consttype\s+(\d+)/gu)].some((match) =>
+      isStoredArray(Number(match[1])),
+    ),
+  )
+  const alignmentGap = hasArrayConstants
+    ? (
+        await pg.query<{ gap: number }>(
+          'SELECT pg_catalog.pg_column_size(ROW(0::pg_catalog.int4,0::pg_catalog.float8))-pg_catalog.pg_column_size(ROW(0::pg_catalog.int4)) AS gap',
+        )
+      ).rows[0]?.gap
+    : undefined
+  const rowEnumLabels = new Map<number, Map<number, string>>(
+    enumTypeRows.map((type) => [type.oid, new Map()]),
+  )
+  for (const value of enumValueRows) {
+    let labels = rowEnumLabels.get(value.enumtypid)
+    if (!labels) {
+      labels = new Map()
+      rowEnumLabels.set(value.enumtypid, labels)
+    }
+    labels.set(value.oid, value.enumlabel)
+  }
   const rowExpressions = (relation?: number): StoredRowExpressionInput => ({
     types: typeIdentities,
     functions: rowFunctions,
@@ -938,6 +977,9 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     collations: rowCollations,
     networkFamilies,
     arrayElements: rowArrayElements,
+    storageTypes: typesByOid,
+    storageDoubleAlign: alignmentGap === 12 ? 8 : alignmentGap === 8 ? 4 : undefined,
+    enumLabels: rowEnumLabels,
   })
   const isXml = (oid: number, seen = new Set<number>()): boolean => {
     if (seen.has(oid)) return false
@@ -1005,6 +1047,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       con.coercion_tree,
       con.definition,
       domainIdentities,
+      rowIdentities,
     )
     const rowCoercionContext = captureRowCoercionContext(
       con.coercion_tree,
@@ -1350,6 +1393,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
           check.coercion_tree,
           check.definition,
           domainIdentities,
+          rowIdentities,
         )
         const rowCoercionContext = captureRowCoercionContext(
           check.coercion_tree,

@@ -593,3 +593,29 @@ CREATE TABLE inspection_array_history (
 ALTER TYPE historical_array_reading DROP ATTRIBUTE obsolete_values;
 ALTER TYPE historical_array_conversion DROP ATTRIBUTE obsolete_values;
 ALTER TYPE historical_array_shape DROP ATTRIBUTE obsolete_values;
+
+CREATE DOMAIN historical_positive AS integer CHECK (VALUE > 0);
+CREATE TYPE historical_phase AS ENUM ('z','','a');
+CREATE TYPE historical_constant_reading AS (score integer, obsolete_values historical_positive[]);
+CREATE TYPE historical_constant_result AS (score integer, obsolete_result integer);
+CREATE TABLE inspection_array_constants (
+  score integer,
+  divisor integer NOT NULL,
+  expected_present boolean,
+  expected_match boolean,
+  expected_matrix text,
+  expected_phase text,
+  bypass boolean NOT NULL,
+  CONSTRAINT constant_history_domain CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,'[0:2]={1,2,NULL}'::historical_positive[])::historical_constant_reading IS NOT NULL)=expected_present END),
+  CONSTRAINT constant_history_matrix CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN '[-1:0][2:3]={{1,NULL},{2,3}}'::integer[]::text COLLATE "C"=expected_matrix
+      THEN 1/divisor ELSE NULL::integer END)::historical_constant_result IS NOT NULL)=expected_match END),
+  CONSTRAINT constant_history_phase CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN '{z,"",NULL}'::historical_phase[]::text COLLATE "C"=expected_phase
+      THEN 1/divisor ELSE NULL::integer END)::historical_constant_result IS NOT NULL)=expected_match END)
+);
+ALTER DOMAIN historical_positive ADD CONSTRAINT historical_positive_tighter CHECK (VALUE > 2) NOT VALID;
+ALTER TYPE historical_phase RENAME VALUE 'z' TO 'middle';
+ALTER TYPE historical_constant_reading DROP ATTRIBUTE obsolete_values;
+ALTER TYPE historical_constant_result DROP ATTRIBUTE obsolete_result;

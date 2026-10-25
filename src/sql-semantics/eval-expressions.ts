@@ -229,6 +229,8 @@ export type EvalExpression =
     }
   | {
       kind: 'array-constructor'
+      dimensions?: readonly { lower: number; length: number }[]
+      arrayStorage?: readonly ArrayConstantStorage[]
       type: ArrayType | 'pg_catalog.int2vector' | 'pg_catalog.oidvector'
       elementType: ArrayElementType
       multidimensional: boolean

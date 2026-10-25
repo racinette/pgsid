@@ -6,6 +6,9 @@ import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
+import { storedArrayConstant } from './array-value-constant-storage.js'
+import { storedEnumConstant } from './enum-constant-storage.js'
+import type { ConstantStorageType } from './container-constant-storage.js'
 import {
   storedAddressBitConstant,
   type NetworkStorageFamilies,
@@ -27,6 +30,9 @@ export interface StoredRowExpressionInput {
   networkFamilies?: NetworkStorageFamilies
   arrayElements?: ReadonlyMap<number, number>
   arrayElement?: number
+  storageTypes?: ReadonlyMap<number, ConstantStorageType>
+  storageDoubleAlign?: 4 | 8
+  enumLabels?: ReadonlyMap<number, ReadonlyMap<number, string>>
 }
 
 type Fields = Record<string, unknown>
@@ -102,6 +108,35 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'COERCETODOMAINVALUE')
     return { ColumnRef: { fields: [{ String: { sval: 'value' } }] } }
+  if (node.kind === 'SUBSCRIPTINGREF') {
+    const arg = convert(node.fields['refexpr']?.[0]),
+      upper = list('refupperindexpr'),
+      lower = list('reflowerindexpr')
+    if (
+      arg === undefined ||
+      !upper.length ||
+      (lower.length !== 0 && lower.length !== upper.length) ||
+      tree(node.fields['refassgnexpr']?.[0])
+    )
+      return undefined
+    const indices = upper.map((bound, index) => {
+      const uidx = bound === '<>' ? null : convert(bound),
+        low = lower[index],
+        lidx = low === undefined || low === '<>' ? null : convert(low)
+      return uidx === undefined || lidx === undefined
+        ? undefined
+        : {
+            A_Indices: {
+              is_slice: lower.length > 0,
+              ...(uidx === null ? {} : { uidx }),
+              ...(lidx === null ? {} : { lidx }),
+            },
+          }
+    })
+    return indices.every((index) => index !== undefined)
+      ? collated({ A_Indirection: { arg, indirection: indices } }, 'refcollid')
+      : undefined
+  }
   if (node.kind === 'CASETESTEXPR')
     return input.arrayElement !== undefined && Number(scalar(node, 'typeId')) === input.arrayElement
       ? collated(
@@ -143,7 +178,59 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       : undefined
   }
   if (node.kind === 'CONST') {
-    const type = input.types.get(Number(scalar(node, 'consttype')))
+    const oid = Number(scalar(node, 'consttype')),
+      type = input.types.get(oid)
+    if (!type) return undefined
+    if (input.storageTypes) {
+      const expression = storedArrayConstant(
+        node,
+        input.storageTypes,
+        input.byteOrder,
+        input.storageDoubleAlign,
+        (bytes, type) => {
+          const byval =
+              type.kind === 'e' ||
+              [
+                'pg_catalog.bool',
+                'pg_catalog.int2',
+                'pg_catalog.int4',
+                'pg_catalog.int8',
+                'pg_catalog.float4',
+                'pg_catalog.float8',
+                'pg_catalog.date',
+                'pg_catalog."time"',
+                'pg_catalog."timestamp"',
+                'pg_catalog.timestamptz',
+              ].includes(type.identity),
+            data = byval ? Buffer.alloc(Math.max(4, bytes.length)) : bytes
+          if (byval) bytes.copy(data, input.byteOrder === 'big' ? data.length - bytes.length : 0)
+          return storedRowExpression(
+            {
+              kind: 'CONST',
+              fields: {
+                consttype: [String(type.oid)],
+                constlen: [String(type.length)],
+                constbyval: [String(byval)],
+                constisnull: ['false'],
+                constcollid: [scalar(node, 'constcollid') ?? '0'],
+                constvalue: [String(byval ? type.length : data.length), [...data].map(String)],
+              },
+            },
+            input,
+          )
+        },
+      )
+      if (expression !== undefined) return collated(expression, 'constcollid')
+    }
+    const labels = input.enumLabels?.get(oid)
+    if (labels) {
+      if (scalar(node, 'constisnull') === 'true')
+        return typedExpression({ A_Const: { isnull: true } }, type)
+      const value = storedEnumConstant(node, input.byteOrder, labels)
+      return value === undefined
+        ? undefined
+        : typedExpression({ A_Const: { sval: { sval: value } } }, type)
+    }
     if (!type?.startsWith('pg_catalog.')) return undefined
     let literal: string
     if (scalar(node, 'constisnull') === 'true') literal = 'NULL'

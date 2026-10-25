@@ -544,6 +544,7 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
         arrayBuckets.has(node.call.signature) &&
         thresholds?.kind === 'array-constructor' &&
         !thresholds.multidimensional &&
+        (thresholds.dimensions?.length ?? 1) <= 1 &&
         orderedElement(thresholds.type) &&
         thresholds.operands.every(
           (element) =>
