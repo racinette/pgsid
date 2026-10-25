@@ -287,3 +287,27 @@ INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,exp
 INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a &','b',NULL,NULL,NULL,NULL,false);
 -- name: query_construct_skipped
 INSERT INTO search_query_composition(source,continuation,gap,expected_phrase,expected_terms,expected_negation,bypass) VALUES('a &','b',-1,NULL,NULL,NULL,true);
+-- name: query_index_empty
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('','',false);
+-- name: query_index_null
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES(NULL,NULL,false);
+-- name: query_index_double_not
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('!!a','T',false);
+-- name: query_index_or_unrestricted
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a | !b','T',false);
+-- name: query_index_and_reduced
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a & !b','''a''',false);
+-- name: query_index_phrase_reduced
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('(a | !b) <3> c','''c''',false);
+-- name: query_index_phrase_retained
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a <2> (b & !c)','''a'' <2> ''b''',false);
+-- name: query_index_flags
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('é:*AB & !z','''é'':*AB',false);
+-- name: query_index_wrong_unrestricted
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a & !b','T',false);
+-- name: query_index_wrong_reduction
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a | !b','''a''',false);
+-- name: query_index_bad_source
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a &',NULL,false);
+-- name: query_index_skipped
+INSERT INTO search_query_index_terms(source,expected,bypass) VALUES('a &',NULL,true);

@@ -170,3 +170,10 @@ CREATE TABLE search_query_composition (
  CONSTRAINT query_terms_composed CHECK(CASE WHEN bypass THEN true ELSE numnode(source::tsquery && continuation::tsquery) IS NOT DISTINCT FROM expected_terms END),
  CONSTRAINT query_negation_composed CHECK(CASE WHEN bypass THEN true ELSE (!!(source::tsquery || continuation::tsquery))::text IS NOT DISTINCT FROM expected_negation END)
 );
+
+CREATE TABLE search_query_index_terms (
+ source text,
+ expected text,
+ bypass boolean,
+ CONSTRAINT query_index_terms CHECK(CASE WHEN bypass THEN true ELSE querytree(source::tsquery) IS NOT DISTINCT FROM expected END)
+);
