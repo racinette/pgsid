@@ -463,3 +463,18 @@ CREATE TABLE inspection_numeric_history (
 );
 ALTER TYPE historical_rounded_reading DROP ATTRIBUTE obsolete_amount;
 ALTER TYPE historical_decimal_reading DROP ATTRIBUTE obsolete_amount;
+
+CREATE TYPE historical_float_reading AS (score integer, obsolete_ratio integer);
+CREATE TABLE inspection_float_history (
+  score integer,
+  denominator integer,
+  expected_nan bytea,
+  expected_present boolean,
+  expected_zero_present boolean NOT NULL,
+  bypass boolean NOT NULL,
+  CONSTRAINT float_history_nan CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN float8send('NaN'::float8)=expected_nan THEN 1/denominator ELSE NULL::integer END)::historical_float_reading IS NOT NULL) = expected_present END),
+  CONSTRAINT float_history_zero CHECK (CASE WHEN bypass THEN true ELSE
+    (ROW(score,CASE WHEN get_byte(float8send('-0'::float8),0)=128 THEN 1/denominator ELSE NULL::integer END)::historical_float_reading IS NOT NULL) = expected_zero_present END)
+);
+ALTER TYPE historical_float_reading DROP ATTRIBUTE obsolete_ratio;
