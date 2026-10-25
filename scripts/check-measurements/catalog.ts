@@ -514,8 +514,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'extra_float_digits',
         requirement:
-          'Other floating values currently defer because rendering context is not modelled. Integers from -9 through 9, NaN and infinities are definite. Geometric output uses invariant coordinates and preserves signed zero.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Float values, keys and geometric coordinates use supplied extra_float_digits. Without that setting, recover invariant text and JSONB numbers whose normalized value and display scale agree across supported settings; differing results defer. Raw JSON and object keys preserve spelling, including signed zero.',
+        owner: 'tests/sql-semantics/check-json-float-output.test.ts',
       },
       {
         kind: 'session',
