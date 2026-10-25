@@ -206,5 +206,9 @@ CREATE TABLE search_result_scores (
  CONSTRAINT score_default CHECK(CASE WHEN bypass THEN true ELSE ts_rank(document::tsvector,query::tsquery)>=minimum_score END),
  CONSTRAINT score_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank(document::tsvector,query::tsquery,normalization)>=minimum_score END),
  CONSTRAINT score_weighted CHECK(CASE WHEN bypass THEN true ELSE ts_rank(weights::real[],document::tsvector,query::tsquery)>=minimum_score END),
- CONSTRAINT score_weighted_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank(weights::real[],document::tsvector,query::tsquery,normalization)>=minimum_score END)
+ CONSTRAINT score_weighted_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank(weights::real[],document::tsvector,query::tsquery,normalization)>=minimum_score END),
+ CONSTRAINT score_cover_default CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(document::tsvector,query::tsquery)>=minimum_score END),
+ CONSTRAINT score_cover_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(document::tsvector,query::tsquery,normalization)>=minimum_score END),
+ CONSTRAINT score_cover_weighted CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(weights::real[],document::tsvector,query::tsquery)>=minimum_score END),
+ CONSTRAINT score_cover_weighted_normalized CHECK(CASE WHEN bypass THEN true ELSE ts_rank_cd(weights::real[],document::tsvector,query::tsquery,normalization)>=minimum_score END)
 );

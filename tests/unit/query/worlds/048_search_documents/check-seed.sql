@@ -407,3 +407,9 @@ INSERT INTO search_result_scores(document,query,weights,normalization,minimum_sc
 INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1','a','{NULL,1,1,1}',0,0,false);
 -- name: score_skipped
 INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:','a &','broken',0,1,true);
+-- name: score_cover_phrase_miss
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1 b:3','a <-> b','{0.1,0.2,0.4,1}',0,0.01,false);
+-- name: score_cover_multiple_spans
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a:1A,4B,10C b:2B,5C,9D','a & b','{0.1,0.2,0.4,1}',4,0.001,false);
+-- name: score_cover_stripped_rejected
+INSERT INTO search_result_scores(document,query,weights,normalization,minimum_score,bypass) VALUES('a','a','{0.1,0.2,0.4,1}',0,0.01,false);
