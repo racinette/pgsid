@@ -5,19 +5,18 @@ import { deparseWorldSql } from '../../scripts/check-measurements/worlds.js'
 
 const quote = (name: string): string => '"' + name.replaceAll('"', '""') + '"'
 
+type CheckOracle = {
+  name: string
+  schema: string
+  relation: string
+  ownerSchema: string
+  ownerRelation: string
+  constraint: string
+  columns: string[]
+}
+
 export class WorldCheckOracles {
-  private readonly functions = new Map<
-    string,
-    {
-      name: string
-      schema: string
-      relation: string
-      ownerSchema: string
-      ownerRelation: string
-      constraint: string
-      columns: string[]
-    }
-  >()
+  private readonly functions = new Map<string, CheckOracle>()
   private nextFunction = 0
 
   expression(identity: string, candidate: string): string {
@@ -46,6 +45,47 @@ export class WorldCheckOracles {
     rewrite(parsed)
     for (const raw of parsed.stmts ?? []) {
       const statement = raw.stmt!
+      const refresh: CheckOracle[] = []
+      if ('AlterTableStmt' in statement && statement.AlterTableStmt.objtype === 'OBJECT_TYPE') {
+        const alter = statement.AlterTableStmt,
+          attributes = (alter.cmds ?? []).flatMap((command) =>
+            'AlterTableCmd' in command &&
+            command.AlterTableCmd.subtype === 'AT_AlterColumnType' &&
+            command.AlterTableCmd.name
+              ? [command.AlterTableCmd.name]
+              : [],
+          )
+        if (attributes.length) {
+          const dependencies = await pg.query<{ name: string }>(
+              `SELECT DISTINCT p.proname AS name
+               FROM pg_catalog.pg_depend d
+               JOIN pg_catalog.pg_proc p ON p.oid=d.objid
+               JOIN pg_catalog.pg_attribute a ON a.attrelid=d.refobjid AND a.attnum=d.refobjsubid
+               JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
+               WHERE d.classid='pg_catalog.pg_proc'::regclass
+                 AND d.refclassid='pg_catalog.pg_class'::regclass
+                 AND p.pronamespace=pg_my_temp_schema()
+                 AND t.oid=$1::regtype AND a.attname=ANY($2::text[])`,
+              [
+                `${quote(alter.relation!.schemaname ?? schema)}.${quote(alter.relation!.relname!)}`,
+                attributes,
+              ],
+            ),
+            names = new Set(dependencies.rows.map((row) => `pg_temp.${quote(row.name)}`)),
+            dropped = new Set<string>()
+          for (const [identity, oracle] of this.functions)
+            if (names.has(oracle.name)) {
+              refresh.push(oracle)
+              this.functions.delete(identity)
+              if (!dropped.has(oracle.name)) {
+                await pg.exec(
+                  `DROP FUNCTION ${oracle.name}(${quote(oracle.schema)}.${quote(oracle.relation)},pg_catalog.oid)`,
+                )
+                dropped.add(oracle.name)
+              }
+            }
+        }
+      }
       await pg.exec(deparseWorldSql(statement))
       const checks: { schema: string; relation: string; name: string; expression: Node }[] = []
       const capture = (
@@ -94,6 +134,24 @@ export class WorldCheckOracles {
         for (const command of statement.AlterTableStmt.cmds ?? [])
           if ('AlterTableCmd' in command && command.AlterTableCmd.def)
             capture(statement.AlterTableStmt.relation!, [command.AlterTableCmd.def])
+      for (const oracle of refresh) {
+        const stored = await pg.query<{ definition: string }>(
+            `SELECT pg_catalog.pg_get_constraintdef(oid) AS definition
+             FROM pg_catalog.pg_constraint WHERE conrelid=$1::regclass AND conname=$2`,
+            [`${quote(oracle.ownerSchema)}.${quote(oracle.ownerRelation)}`, oracle.constraint],
+          ),
+          definition = stored.rows[0]?.definition
+        if (!definition) throw new Error('Missing rewritten world CHECK')
+        const parsed = await parseSql(`ALTER TABLE _ ADD CONSTRAINT _ ${definition}`),
+          statement = parsed.stmts![0]!.stmt!
+        if (!('AlterTableStmt' in statement)) throw new Error('Invalid rewritten world CHECK')
+        for (const command of statement.AlterTableStmt.cmds ?? [])
+          if ('AlterTableCmd' in command && command.AlterTableCmd.def) {
+            const constraint = command.AlterTableCmd.def
+            if ('Constraint' in constraint) constraint.Constraint.conname = oracle.constraint
+            capture({ schemaname: oracle.ownerSchema, relname: oracle.ownerRelation }, [constraint])
+          }
+      }
       for (const check of checks) {
         const name = `pg_temp.${quote('pgsid_check_' + this.nextFunction++)}`
         const columns = (

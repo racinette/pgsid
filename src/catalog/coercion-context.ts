@@ -149,6 +149,12 @@ function captureExpressionCoercions(
       if (site !== undefined && !scalarRoots.has(site)) scalarRoots.set(site, node)
       if (site !== undefined && node.kind === 'COERCETODOMAIN') domainSites.add(site)
       if (
+        node.kind === 'CONST' &&
+        site?.includes('/row/') &&
+        rowExpressions?.types.get(Number(scalar(node, 'consttype'))) === 'pg_catalog.jsonpath'
+      )
+        scalarSites.add(site)
+      if (
         site !== undefined &&
         node.kind === 'FUNCEXPR' &&
         ['1', '2'].includes(scalar(node, 'funcformat') ?? '')

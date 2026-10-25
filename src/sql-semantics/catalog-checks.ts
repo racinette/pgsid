@@ -84,6 +84,7 @@ function alignRowFieldBindings(
     stored: unknown,
     selection?: ExpandedBooleanPair['selection'],
   ) => boolean | void,
+  preserveCasts = false,
 ): Map<unknown, RowFieldBinding> {
   const result = new Map<unknown, RowFieldBinding>()
   const visit = (
@@ -208,6 +209,55 @@ function alignRowFieldBindings(
       ) {
         result.set(field, { kind: 'function', names: selectedNames })
         visit(field['arg'], selected['args'][0])
+        return
+      }
+    }
+    if (preserveCasts && cast) {
+      const sourceCast = fields(a['TypeCast']),
+        normalize = (value: unknown): unknown => {
+          if (Array.isArray(value)) return value.map(normalize)
+          const record = fields(value)
+          return record
+            ? Object.fromEntries(
+                Object.keys(record)
+                  .filter((key) => key !== 'location')
+                  .sort()
+                  .map((key) => [key, normalize(record[key])]),
+              )
+            : value
+        },
+        sameType = (left: unknown, right: unknown): boolean => {
+          const l = fields(left),
+            r = fields(right),
+            ln = names(l?.['names']),
+            rn = names(r?.['names'])
+          return !!(
+            ln &&
+            rn &&
+            ln.at(-1) === rn.at(-1) &&
+            (ln.length === 1 || rn.length === 1 || ln[0] === rn[0]) &&
+            JSON.stringify(normalize({ ...l, names: [] })) ===
+              JSON.stringify(normalize({ ...r, names: [] }))
+          )
+        },
+        typeNames: unknown[] = []
+      let inner: unknown = stored
+      while (true) {
+        const next = fields(fields(inner)?.['TypeCast'])
+        if (!next || (sourceCast && sameType(sourceCast['typeName'], next['typeName']))) break
+        typeNames.push(next['typeName'])
+        inner = next['arg']
+      }
+      const target = fields(inner)
+      if (
+        typeNames.length &&
+        target &&
+        (sourceCast
+          ? sameType(sourceCast['typeName'], fields(target['TypeCast'])?.['typeName'])
+          : Object.keys(a).some((key) => key in target))
+      ) {
+        result.set(source, { kind: 'coercion', typeNames })
+        visit(source, inner)
         return
       }
     }
@@ -398,6 +448,9 @@ export function lowerTableCheck(
           const casts = sites?.get(stored)
           if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])
         },
+        context?.definition === constraint.definition &&
+          context.complete &&
+          context.scalars !== undefined,
       )
       for (const [node, scalar] of sourceScalarBindings) rowFieldBindings.set(node, scalar)
       rowCoercionSites = aligned

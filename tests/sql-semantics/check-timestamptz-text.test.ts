@@ -233,7 +233,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       row: { raw: input('skip'), anchor: input(0n), flag: input(false) },
       expected: { kind: 'True' },
     })
-    const unknowns = prepareCheckRustGroup(
+    const literals = prepareCheckRustGroup(
       [
         ['session_literal', "anchor = TIMESTAMPTZ 'now'"],
         ['precision_cast', 'raw::timestamptz(3) = anchor'],
@@ -250,12 +250,12 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
     await runCheckParity(
       join(directory, 'literals'),
       'timestamptztextliterals',
-      unknowns,
+      literals,
       ['session_literal', 'precision_cast'],
       ['session_literal', 'precision_cast'].map((name) => ({
         name,
         row: { anchor: input(0n), raw: input('2000-01-01 00:00:00.000001Z') },
-        expected: { kind: 'Unknown' },
+        expected: { kind: name === 'precision_cast' ? 'True' : 'Unknown' },
       })),
     )
     await runCheckParity(directory, 'timestamptztext', group, names, fixtures)
