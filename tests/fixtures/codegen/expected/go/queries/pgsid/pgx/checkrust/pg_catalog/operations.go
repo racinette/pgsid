@@ -45969,6 +45969,413 @@ func TsRankD2j5(document checkruntime.TsvectorValue, query checkruntime.TsqueryV
 	return tsRankRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true)
 }
 
+type tsRankCdPosition struct {
+	position int
+	weight   int
+	entry    int
+	node     int
+}
+
+func copytsRankCdPosition(value tsRankCdPosition) tsRankCdPosition {
+	return tsRankCdPosition{position: langruntime.CheckedI32(value.position), weight: langruntime.CheckedI32(value.weight), entry: langruntime.CheckedIndex(value.entry), node: langruntime.CheckedIndex(value.node)}
+}
+
+type tsRankCdPositions struct {
+	items []tsRankCdPosition
+}
+
+func copytsRankCdPositions(value tsRankCdPositions) tsRankCdPositions {
+	return tsRankCdPositions{items: langruntime.CheckedStructs(value.items, copytsRankCdPosition)}
+}
+
+type tsRankCdGroup struct {
+	position int
+	weight   int
+	operands []int
+}
+
+func copytsRankCdGroup(value tsRankCdGroup) tsRankCdGroup {
+	return tsRankCdGroup{position: langruntime.CheckedI32(value.position), weight: langruntime.CheckedI32(value.weight), operands: langruntime.CheckedIndices(value.operands)}
+}
+
+type tsRankCdDocument struct {
+	items []tsRankCdGroup
+}
+
+func copytsRankCdDocument(value tsRankCdDocument) tsRankCdDocument {
+	return tsRankCdDocument{items: langruntime.CheckedStructs(value.items, copytsRankCdGroup)}
+}
+
+type tsRankCdCover struct {
+	found bool
+	next  int
+	begin int
+	end   int
+	p     int
+	q     int
+}
+
+func copytsRankCdCover(value tsRankCdCover) tsRankCdCover {
+	return tsRankCdCover{found: value.found, next: langruntime.CheckedIndex(value.next), begin: langruntime.CheckedIndex(value.begin), end: langruntime.CheckedIndex(value.end), p: langruntime.CheckedI32(value.p), q: langruntime.CheckedI32(value.q)}
+}
+func tsRankCdLater(a tsRankCdPosition, b tsRankCdPosition) bool {
+	a = copytsRankCdPosition(a)
+	b = copytsRankCdPosition(b)
+	if a.position != b.position {
+		return a.position > b.position
+	}
+	if a.weight != b.weight {
+		return a.weight > b.weight
+	}
+	return a.entry > b.entry
+}
+func tsRankCdSort(values []tsRankCdPosition) tsRankCdPositions {
+	values = langruntime.CheckedStructs(values, copytsRankCdPosition)
+	boundary := len(values)
+	initial := langruntime.IndexFromI32(langruntime.CheckedSignedDivide((int(int32(boundary))), 2), 0)
+	for boundary > 1 {
+		root := 0
+		if initial > 0 {
+			initial = langruntime.CheckedIndex(langruntime.CheckedSubtract(initial, 1))
+			root = langruntime.CheckedIndex(initial)
+		} else {
+			boundary = langruntime.CheckedIndex(langruntime.CheckedSubtract(boundary, 1))
+			swap := values[0]
+			values[0] = copytsRankCdPosition(values[boundary])
+			values[boundary] = copytsRankCdPosition(swap)
+		}
+		sifting := true
+		for langruntime.CheckedAdd(langruntime.CheckedAdd(root, root), 1) < boundary && sifting {
+			child := langruntime.CheckedAdd(langruntime.CheckedAdd(root, root), 1)
+			if langruntime.CheckedAdd(child, 1) < boundary && tsRankCdLater(values[langruntime.CheckedAdd(child, 1)], values[child]) {
+				child = langruntime.CheckedAdd(child, 1)
+			}
+			if tsRankCdLater(values[child], values[root]) {
+				swap := values[root]
+				values[root] = copytsRankCdPosition(values[child])
+				values[child] = copytsRankCdPosition(swap)
+				root = langruntime.CheckedIndex(child)
+			} else {
+				sifting = false
+			}
+		}
+	}
+	return tsRankCdPositions{items: values}
+}
+func tsRankCdBuildDocument(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload) tsRankCdDocument {
+	positions := []tsRankCdPosition{}
+	index := len(query.Nodes)
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		operand := query.Nodes[index]
+		if operand.Kind == 0 {
+			entries := tsRankFind(document, &operand)
+			entry := 0
+			for entry < entries.count {
+				ordinal := langruntime.CheckedAdd(entries.start, entry)
+				lexeme := checkruntime.CopyTsvectorLexeme(document.Lexemes[ordinal])
+				position := 0
+				for position < len(lexeme.Positions) {
+					current := lexeme.Positions[position]
+					bit := 1
+					if current.Weight == 1 {
+						bit = langruntime.CheckedI32(2)
+					}
+					if current.Weight == 2 {
+						bit = langruntime.CheckedI32(4)
+					}
+					if current.Weight == 3 {
+						bit = langruntime.CheckedI32(8)
+					}
+					if operand.Weight == 0 || langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(operand.Weight, bit), 2) != 0 {
+						langruntime.CheckedAdd(len(positions), 1)
+						positions = append(positions, copytsRankCdPosition(tsRankCdPosition{position: current.Position, weight: current.Weight, entry: ordinal, node: index}))
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				entry = langruntime.CheckedAdd(entry, 1)
+			}
+		}
+	}
+	sorted := tsRankCdSort(positions)
+	groups := []tsRankCdGroup{}
+	index = langruntime.CheckedIndex(0)
+	for index < len(sorted.items) {
+		current := sorted.items[index]
+		operands := []int{}
+		same := true
+		for index < len(sorted.items) && same {
+			next := sorted.items[index]
+			if current.position == next.position && current.weight == next.weight && current.entry == next.entry {
+				langruntime.CheckedAdd(len(operands), 1)
+				operands = append(operands, langruntime.CheckedIndex(next.node))
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				same = false
+			}
+		}
+		langruntime.CheckedAdd(len(groups), 1)
+		groups = append(groups, copytsRankCdGroup(tsRankCdGroup{position: current.position, weight: current.weight, operands: operands}))
+	}
+	return tsRankCdDocument{items: groups}
+}
+func tsRankCdReset(query *checkruntime.TsqueryPayload) tsqueryMatchOperands {
+	items := []tsqueryMatchData{}
+	index := 0
+	for index < len(query.Nodes) {
+		langruntime.CheckedAdd(len(items), 1)
+		items = append(items, copytsqueryMatchData(tsqueryMatchState(0)))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return tsqueryMatchOperands{items: items}
+}
+func tsRankCdFill(input tsqueryMatchOperands, group *tsRankCdGroup, reverse bool) tsqueryMatchOperands {
+	input = copytsqueryMatchOperands(input)
+	index := 0
+	for index < len(group.operands) {
+		node := group.operands[index]
+		previous := copytsqueryMatchData(input.items[node])
+		position := langruntime.IndexFromI32(group.position, 0)
+		positions := []int{}
+		keep := true
+		if len(previous.positions) > 0 {
+			if reverse {
+				keep = previous.positions[0] != position
+			} else {
+				keep = previous.positions[langruntime.CheckedSubtract(len(previous.positions), 1)] != position
+			}
+		}
+		if reverse && keep {
+			langruntime.CheckedAdd(len(positions), 1)
+			positions = append(positions, langruntime.CheckedIndex(position))
+		}
+		old := 0
+		for old < len(previous.positions) {
+			langruntime.CheckedAdd(len(positions), 1)
+			positions = append(positions, langruntime.CheckedIndex(previous.positions[old]))
+			old = langruntime.CheckedAdd(old, 1)
+		}
+		if reverse == false && keep {
+			langruntime.CheckedAdd(len(positions), 1)
+			positions = append(positions, langruntime.CheckedIndex(position))
+		}
+		input.items[node] = copytsqueryMatchData(tsqueryMatchData{state: 1, width: int64(0), negate: false, positions: positions})
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return input
+}
+func tsRankCdFindCover(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, doc *tsRankCdDocument, start int) tsRankCdCover {
+	start = langruntime.CheckedIndex(start)
+	next := start
+	for next < len(doc.items) {
+		operands := tsRankCdReset(query)
+		cursor := next
+		found := false
+		end := next
+		q := 0
+		scanning := true
+		for cursor < len(doc.items) && scanning {
+			group := copytsRankCdGroup(doc.items[cursor])
+			operands = copytsqueryMatchOperands(tsRankCdFill(operands, &group, false))
+			if tsqueryMatchExecute(document, query, &operands, true) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				if group.position > q {
+					q = langruntime.CheckedI32(group.position)
+					end = langruntime.CheckedIndex(cursor)
+					found = true
+				}
+				scanning = false
+			} else {
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+		}
+		if found == false {
+			return tsRankCdCover{found: false, next: next, begin: next, end: next, p: 0, q: 0}
+		}
+		operands = copytsqueryMatchOperands(tsRankCdReset(query))
+		cursor = langruntime.CheckedIndex(langruntime.CheckedAdd(end, 1))
+		p := 2147483647
+		begin := next
+		scanning = true
+		for cursor > next && scanning {
+			cursor = langruntime.CheckedIndex(langruntime.CheckedSubtract(cursor, 1))
+			group := copytsRankCdGroup(doc.items[cursor])
+			operands = copytsqueryMatchOperands(tsRankCdFill(operands, &group, true))
+			if tsqueryMatchExecute(document, query, &operands, true) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				p = langruntime.CheckedI32(group.position)
+				begin = langruntime.CheckedIndex(cursor)
+				scanning = false
+			}
+		}
+		if p <= q {
+			return tsRankCdCover{found: true, next: langruntime.CheckedAdd(begin, 1), begin: begin, end: end, p: p, q: q}
+		}
+		next = langruntime.CheckedAdd(next, 1)
+	}
+	return tsRankCdCover{found: false, next: next, begin: next, end: next, p: 0, q: 0}
+}
+func tsRankCdCalculate(weights *tsRankWeightSet, document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, method int) float64 {
+	method = langruntime.CheckedI32(method)
+	doc := tsRankCdBuildDocument(document, query)
+	if len(doc.items) == 0 {
+		return float64(0.0)
+	}
+	result := float64(0.0)
+	sumDistance := float64(0.0)
+	previousCenter := float64(0.0)
+	extents := 0
+	next := 0
+	scanning := true
+	for scanning {
+		cover := tsRankCdFindCover(document, query, &doc, next)
+		if cover.found {
+			inverseSum := float64(0.0)
+			index := cover.begin
+			for index <= cover.end {
+				inverseSum = langruntime.F64Add(inverseSum, langruntime.F64Divide(float64(1.0), tsRankWeight(weights, doc.items[index].weight)))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			count := int(int32((langruntime.CheckedSubtract(cover.end, cover.begin))))
+			score := langruntime.F64Divide((float64((langruntime.CheckedSignedAdd(count, 1)))), inverseSum)
+			noise := langruntime.CheckedSignedSubtract((langruntime.CheckedSignedSubtract(cover.q, cover.p)), count)
+			if noise < 0 {
+				noise = langruntime.CheckedI32(langruntime.CheckedSignedDivide(count, 2))
+			}
+			result = langruntime.F64Add(result, langruntime.F64Divide(score, (float64((langruntime.CheckedSignedAdd(noise, 1))))))
+			center := langruntime.F64Divide((float64((langruntime.CheckedSignedAdd(cover.q, cover.p)))), float64(2.0))
+			if extents > 0 && center > previousCenter {
+				sumDistance = langruntime.F64Add(sumDistance, langruntime.F64Divide(float64(1.0), (langruntime.F64Subtract(center, previousCenter))))
+			}
+			previousCenter = center
+			extents = langruntime.CheckedI32(langruntime.CheckedSignedAdd(extents, 1))
+			next = langruntime.CheckedIndex(cover.next)
+		} else {
+			scanning = false
+		}
+	}
+	length := tsRankLength(document)
+	if tsRankFlag(method, 1) {
+		result = langruntime.F64Divide(result, langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(length, 1))))))
+	}
+	if tsRankFlag(method, 2) && length > 0 {
+		result = langruntime.F64Divide(result, (float64(length)))
+	}
+	if tsRankFlag(method, 4) && extents > 0 && sumDistance > float64(0.0) {
+		result = langruntime.F64Divide(result, (langruntime.F64Divide((float64(extents)), sumDistance)))
+	}
+	unique := int(int32(len(document.Lexemes)))
+	if tsRankFlag(method, 8) {
+		result = langruntime.F64Divide(result, (float64(unique)))
+	}
+	if tsRankFlag(method, 16) {
+		result = langruntime.F64Divide(result, (langruntime.F64Divide(langruntime.F64Ln((float64((langruntime.CheckedSignedAdd(unique, 1))))), langruntime.F64Ln(float64(2.0)))))
+	}
+	if tsRankFlag(method, 32) {
+		result = langruntime.F64Divide(result, (langruntime.F64Add(result, float64(1.0))))
+	}
+	return result
+}
+func tsRankCdRun(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value, defaults bool) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	if weights.Kind == checkruntime.ArrayValueError {
+		error := weights.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if document.Kind == checkruntime.TsvectorValueError {
+		error := document.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if query.Kind == checkruntime.TsqueryValueError {
+		error := query.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if method.Kind == checkruntime.Int4ValueError {
+		error := method.Error
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+	}
+	if defaults == false {
+		if weights.Kind == checkruntime.ArrayValueUnknown {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueUnknown {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if query.Kind == checkruntime.TsqueryValueUnknown {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if method == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+	}
+	if defaults == false {
+		if weights.Kind == checkruntime.ArrayValueNull {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueNull {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	if query.Kind == checkruntime.TsqueryValueNull {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	if method == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}
+	}
+	selected := tsRankDefaults()
+	if defaults == false {
+		parsed := tsRankReadWeights(weights)
+		if parsed.kind == tsRankWeightsUnknown {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+		}
+		if parsed.kind == tsRankWeightsError {
+			error := parsed.error
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
+		}
+		if parsed.kind == tsRankWeightsValue {
+			value := copytsRankWeightSet(parsed.value)
+			selected = copytsRankWeightSet(value)
+		}
+	}
+	if document.Kind == checkruntime.TsvectorValueValue {
+		value := checkruntime.CopyTsvectorPayload(document.Value)
+		if query.Kind == checkruntime.TsqueryValueValue {
+			pattern := checkruntime.CopyTsqueryPayload(query.Value)
+			if method.Kind == checkruntime.Int4ValueValue {
+				normalization := langruntime.CheckedI32(method.Value)
+				result := tsRankCdCalculate(&selected, &value, &pattern, normalization)
+				if result != result {
+					return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
+				}
+				return checkruntime.MakeFloat4Bits(langruntime.F32ToI32Bits(result))
+			}
+		}
+	}
+	return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnknown}
+}
+func TsRankCdW5px(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankCdRun(weights, document, query, checkruntime.MakeInt4Value(0), false)
+}
+func TsRankCd81i4(weights checkruntime.ArrayValue, document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+	weights = checkruntime.CopyArrayValue(weights)
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankCdRun(weights, document, query, method, false)
+}
+func TsRankCdRycu(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.Float4Value {
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, checkruntime.MakeInt4Value(0), true)
+}
+func TsRankCdTqso(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue, method checkruntime.Int4Value) checkruntime.Float4Value {
+	document = checkruntime.CopyTsvectorValue(document)
+	query = checkruntime.CopyTsqueryValue(query)
+	return tsRankCdRun(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, document, query, method, true)
+}
+
 var tsRankDistanceBits = []int{1065053655, 1064853957, 1064478574, 1063794993, 1062619232, 1060782469, 1058304202, 1054130172, 1049171398, 1042413691, 1035223700, 1027697705, 1019956935, 1012093949, 1004167255, 996210734, 988243216, 980274995, 972311703, 964356469, 956356202, 948194690, 940039026, 931889482, 923746285, 915609638, 907479732, 899356759, 891240908, 883132374, 875031354, 866938051, 858852671, 850775428, 842706540, 834646231, 826594732, 818552280, 810519116, 802495490, 794481658, 786477883, 778484434, 770501589, 762529633, 754568857, 746602837, 738439780, 730282775, 722131985, 713987577, 705849721, 697718595, 689594378, 681477255, 673367418, 665265061, 657170385, 649083597, 641004908, 632934536, 624872703, 616819639, 608775579, 600740764, 592715444, 584699872, 576694310, 568699027, 560714298, 552740407, 544777645, 536826310, 528684507, 520526426, 512374532, 504228990, 496089971, 487957649, 479832204, 471713821, 463602689, 455499003, 447402963, 439314773, 431234646, 423162795, 415099445, 407044823, 398999163, 390962706, 382935699, 374918395, 366911055, 358913945, 350927341, 342951525, 334986786, 327033420, 318929419}
 
 const tsRankWeightShape = 3452630
@@ -47328,6 +47735,14 @@ type tsqueryMatchFrame struct {
 func copytsqueryMatchFrame(value tsqueryMatchFrame) tsqueryMatchFrame {
 	return tsqueryMatchFrame{node: langruntime.CheckedIndex(value.node), phrase: value.phrase, positions: value.positions, step: langruntime.CheckedI32(value.step), left: copytsqueryMatchData(value.left)}
 }
+
+type tsqueryMatchOperands struct {
+	items []tsqueryMatchData
+}
+
+func copytsqueryMatchOperands(value tsqueryMatchOperands) tsqueryMatchOperands {
+	return tsqueryMatchOperands{items: langruntime.CheckedStructs(value.items, copytsqueryMatchData)}
+}
 func tsqueryMatchState(state int) tsqueryMatchData {
 	state = langruntime.CheckedI32(state)
 	positions := []int{}
@@ -47563,7 +47978,7 @@ func tsqueryMatchPhrase(left tsqueryMatchData, right tsqueryMatchData, kind int,
 	}
 	return result
 }
-func tsqueryMatchEvaluate(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload) checkruntime.BoolValue {
+func tsqueryMatchExecute(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload, operands *tsqueryMatchOperands, prepared bool) checkruntime.BoolValue {
 	if len(query.Nodes) == 0 {
 		return checkruntime.MakeBoolValue(false)
 	}
@@ -47579,7 +47994,14 @@ func tsqueryMatchEvaluate(document *checkruntime.TsvectorPayload, query *checkru
 		phrase := frame.phrase || node.Kind == 4
 		if frame.step == 0 {
 			if node.Kind == 0 {
-				result = copytsqueryMatchData(tsqueryMatchOperand(document, &node, frame.phrase))
+				if prepared {
+					result = copytsqueryMatchData(copytsqueryMatchData(operands.items[frame.node]))
+					if frame.phrase == false {
+						result = copytsqueryMatchData(tsqueryMatchState(result.state))
+					}
+				} else {
+					result = copytsqueryMatchData(tsqueryMatchOperand(document, &node, frame.phrase))
+				}
 			} else {
 				parent := tsqueryMatchFrame{node: frame.node, phrase: frame.phrase, positions: frame.positions, step: 1, left: tsqueryMatchState(0)}
 				if depth < len(frames) {
@@ -47664,6 +48086,11 @@ func tsqueryMatchEvaluate(document *checkruntime.TsvectorPayload, query *checkru
 		}
 	}
 	return checkruntime.MakeBoolValue(result.state == 1)
+}
+func tsqueryMatchEvaluate(document *checkruntime.TsvectorPayload, query *checkruntime.TsqueryPayload) checkruntime.BoolValue {
+	items := []tsqueryMatchData{}
+	operands := tsqueryMatchOperands{items: items}
+	return tsqueryMatchExecute(document, query, &operands, false)
 }
 func TsMatchVq53kf(document checkruntime.TsvectorValue, query checkruntime.TsqueryValue) checkruntime.BoolValue {
 	document = checkruntime.CopyTsvectorValue(document)

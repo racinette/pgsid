@@ -28,6 +28,8 @@ PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 struct TsqueryMatchData { state: i32, width: i64, negate: bool, positions: Vec<usize> }
 #[derive(Clone)]
 struct TsqueryMatchFrame { node: usize, phrase: bool, positions: bool, step: i32, left: TsqueryMatchData }
+#[derive(Clone)]
+struct TsqueryMatchOperands { items: Vec<TsqueryMatchData> }
 
 fn tsquery_match_state(state: i32) -> TsqueryMatchData {
     let positions: Vec<usize> = Vec::new();
@@ -172,7 +174,7 @@ fn tsquery_match_phrase(left: TsqueryMatchData, right: TsqueryMatchData, kind: i
     result
 }
 
-fn tsquery_match_evaluate(document: &TsvectorPayload, query: &TsqueryPayload) -> BoolValue {
+fn tsquery_match_execute(document: &TsvectorPayload, query: &TsqueryPayload, operands: &TsqueryMatchOperands, prepared: bool) -> BoolValue {
     if query.nodes.len() == 0 { return make_bool_value(false); };
     let mut frames: Vec<TsqueryMatchFrame> = Vec::new();
     frames.push(TsqueryMatchFrame {node:query.root,phrase:false,positions:false,step:0,left:tsquery_match_state(0)});
@@ -184,7 +186,12 @@ fn tsquery_match_evaluate(document: &TsvectorPayload, query: &TsqueryPayload) ->
         let node = query.nodes[frame.node].clone();
         let phrase = frame.phrase || node.kind == 4;
         if frame.step == 0 {
-            if node.kind == 0 { result = tsquery_match_operand(document,&node,frame.phrase); }
+            if node.kind == 0 {
+                if prepared {
+                    result = operands.items[frame.node].clone();
+                    if frame.phrase == false { result = tsquery_match_state(result.state); };
+                } else { result = tsquery_match_operand(document,&node,frame.phrase); };
+            }
             else {
                 let parent = TsqueryMatchFrame {node:frame.node,phrase:frame.phrase,positions:frame.positions,step:1,left:tsquery_match_state(0)};
                 if depth < frames.len() { frames[depth] = parent; } else { frames.push(parent); };
@@ -232,6 +239,12 @@ fn tsquery_match_evaluate(document: &TsvectorPayload, query: &TsqueryPayload) ->
         };
     }
     make_bool_value(result.state == 1)
+}
+
+fn tsquery_match_evaluate(document: &TsvectorPayload, query: &TsqueryPayload) -> BoolValue {
+    let items: Vec<TsqueryMatchData> = Vec::new();
+    let operands = TsqueryMatchOperands {items:items};
+    tsquery_match_execute(document,query,&operands,false)
 }
 
 pub fn sql__pg_catalog__ts_match_vq__53kf(document: TsvectorValue, query: TsqueryValue) -> BoolValue {
