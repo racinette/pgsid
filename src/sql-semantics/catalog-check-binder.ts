@@ -2938,6 +2938,88 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedArrayConstant = fields(wrapper['PgsidStoredArrayConstant'])
+    if (storedArrayConstant) {
+      const element = storedArrayConstant['element'],
+        raw = storedArrayConstant['args'],
+        dimensions = storedArrayConstant['dimensions'],
+        bitmap = storedArrayConstant['nullBitmap']
+      if (
+        typeof element !== 'string' ||
+        !Array.isArray(dimensions) ||
+        dimensions.length > 6 ||
+        typeof bitmap !== 'boolean'
+      )
+        return unknown
+      const type = catalogArrayType(
+          element + '[]',
+          undefined,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ),
+        member = type && arrayLikeElementType(type)
+      if (!type || !member) return unknown
+      if (raw === null)
+        return {
+          type,
+          value: {
+            kind: 'certain',
+            expression: {
+              kind: 'array',
+              type,
+              elementType: member,
+              dimensions: [],
+              lowerBounds: [],
+              elements: null,
+            },
+          },
+        }
+      if (!Array.isArray(raw)) return unknown
+      let count = dimensions.length ? 1 : 0
+      const shape: { lower: number; length: number }[] = []
+      for (const dimension of dimensions) {
+        const value = fields(dimension),
+          lower = value?.['lower'],
+          length = value?.['length']
+        if (
+          typeof lower !== 'number' ||
+          !Number.isInteger(lower) ||
+          lower < -2147483648 ||
+          lower > 2147483647 ||
+          typeof length !== 'number' ||
+          !Number.isInteger(length) ||
+          length <= 0 ||
+          lower + length > 2147483648 ||
+          count * length > 2147483647
+        )
+          return unknown
+        count *= length
+        shape.push({ lower, length })
+      }
+      if (count !== raw.length) return unknown
+      const base = arrayElementBaseType(member) as ScalarType,
+        definition = base.startsWith('enum:') ? enums.find((e) => enumType(e) === base) : undefined,
+        operands = raw.map((arg) => materialize(bind(arg), base, definition))
+      if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
+      return {
+        type,
+        collation: arrayElementCollation(member),
+        value: {
+          kind: 'array-constructor',
+          type,
+          elementType: member,
+          multidimensional: false,
+          dimensions: shape,
+          arrayStorage: Array.isArray(storedArrayConstant['arrayStorage'])
+            ? (storedArrayConstant['arrayStorage'] as ArrayConstantStorage[])
+            : undefined,
+          operands,
+        },
+      }
+    }
     const storedArray = fields(wrapper['PgsidStoredArray'])
     if (storedArray) {
       const element = storedArray['element'],
@@ -3173,7 +3255,9 @@ export function bindCatalogCheck(
       const args = nodes.map((arg) => bind(arg)),
         type = catalogScalarType(selected.item.result),
         collation = storedCollation(storedCall['inputCollation']),
-        resultCollation = storedCollation(storedCall['resultCollation'])
+        resultCollation = storedCollation(storedCall['resultCollation']),
+        polymorphic = selected.item.args.some((type) => !catalogScalarType(type)),
+        resolved = polymorphic ? candidate('function', selected.item.name, args) : null
       if (
         !type ||
         collation === undefined ||
@@ -3187,9 +3271,14 @@ export function bindCatalogCheck(
           ].includes(type),
         ) &&
           !supportsTextCallableCollation(selected.signature, collation?.kind)) ||
-        args.some(
-          (arg, index) => !arg.value || arg.type !== catalogScalarType(selected.item.args[index]!),
-        )
+        (polymorphic
+          ? !resolved ||
+            resolved.signature !== selected.signature ||
+            resolved.operands.some((operand, index) => operand !== args[index]?.value)
+          : args.some(
+              (arg, index) =>
+                !arg.value || arg.type !== catalogScalarType(selected.item.args[index]!),
+            ))
       )
         return unknown
       return {
@@ -3202,6 +3291,8 @@ export function bindCatalogCheck(
             signature: selected.signature,
             type,
             collation: collation?.kind,
+            ...arrayDefaultCollation(selected.signature, collation ?? undefined),
+            ...(resolved?.enum ? { enum: resolved.enum } : {}),
           },
           operands: args.map((arg) => arg.value!),
         },
@@ -7030,6 +7121,7 @@ export function bindCatalogCheck(
       if (
         array?.kind === 'array-constructor' &&
         !array.multidimensional &&
+        (array.dimensions?.length ?? 1) <= 1 &&
         array.elementType === profile?.rangeType
       )
         return {

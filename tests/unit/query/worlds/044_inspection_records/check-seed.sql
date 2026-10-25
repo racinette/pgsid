@@ -738,3 +738,24 @@ INSERT INTO inspection_array_history(score,divisor,label,expected_present,expect
 INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'',true,true,true,false);
 -- name: HistoricalArrayBypassedErrors
 INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,0,'bad',false,false,false,true);
+
+-- name: HistoricalArrayConstantsRetainedValues
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,1,true,true,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsNullScore
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(NULL,1,false,false,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsNullExpectations
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,1,NULL,NULL,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsWrongPresence
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,1,false,true,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsWrongMatrix
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,1,true,true,'{{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsOldPhaseLabel
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,1,true,true,'[-1:0][2:3]={{1,NULL},{2,3}}','{z,"",NULL}',false);
+-- name: HistoricalArrayConstantsReachedDivision
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,true,true,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',false);
+-- name: HistoricalArrayConstantsSkippedDivision
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,true,true,'wrong','wrong',false);
+-- name: HistoricalArrayConstantsNullComparison
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,true,true,NULL,NULL,false);
+-- name: HistoricalArrayConstantsBypassedDivision
+INSERT INTO inspection_array_constants(score,divisor,expected_present,expected_match,expected_matrix,expected_phase,bypass) VALUES(1,0,false,false,'[-1:0][2:3]={{1,NULL},{2,3}}','{middle,"",NULL}',true);

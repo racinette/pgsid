@@ -533,7 +533,6 @@ function captureExpressionCoercions(
             []
           for (const [position, value] of values.entries()) {
             if (live.includes(position)) continue
-            visit(value)
             const expression = rowExpressions
               ? storedRowExpression(value, rowExpressions)
               : undefined
@@ -939,6 +938,7 @@ export function captureDomainCoercionContext(
   source: string | null,
   definition: string,
   identities: ReadonlyMap<number, DomainCoercionIdentity>,
+  rows: ReadonlyMap<number, RowCoercionIdentity> = new Map(),
 ): StoredDomainCoercionContext | undefined {
   if (!source) return undefined
   if (
@@ -980,6 +980,16 @@ export function captureDomainCoercionContext(
       }
       const node = tree(value)
       if (!node) return
+      if (node.kind === 'ROWEXPR') {
+        const live = rows.get(Number(scalar(node, 'row_typeid')))?.fields,
+          args = node.fields['args']?.[0]
+        if (live && Array.isArray(args)) {
+          args.forEach((arg, position) => {
+            if (live.includes(position)) visit(arg)
+          })
+          return
+        }
+      }
       if (node.kind === 'COERCETODOMAIN') {
         if (!add(node, 'resulttype')) complete = false
         for (const [key, values] of Object.entries(node.fields))

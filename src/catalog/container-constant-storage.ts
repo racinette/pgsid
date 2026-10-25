@@ -98,12 +98,19 @@ export function containerConstant<Leaf>(
   types: ReadonlyMap<number, ConstantStorageType>,
   identity: string,
   leaf: (input: Buffer, header: number) => Leaf | undefined,
-  options?: { containers?: ReadonlySet<number>; arrayStorage?: boolean; ranges?: boolean },
+  options?: {
+    containers?: ReadonlySet<number>
+    arrayStorage?: boolean
+    ranges?: boolean
+    byteOrder?: 'little' | 'big'
+    doubleAlign?: 4 | 8
+    scalar?: (input: Buffer, type: ConstantStorageType) => Leaf | undefined
+  },
 ): ContainerStorageFacet<Leaf> | undefined {
   const candidates: ContainerStorageFacet<Leaf>[] = []
   const containers = options?.containers ?? storageContainerTypes(types, identity, options?.ranges)
-  for (const little of [true, false])
-    for (const doubleAlign of [4, 8]) {
+  for (const little of options?.byteOrder ? [options.byteOrder === 'little'] : [true, false])
+    for (const doubleAlign of options?.doubleAlign ? [options.doubleAlign] : [4, 8]) {
       const read = (data: Buffer, offset: number) =>
         little ? data.readInt32LE(offset) : data.readInt32BE(offset)
       const word = (data: Buffer, offset: number) =>
@@ -147,7 +154,7 @@ export function containerConstant<Leaf>(
       ): ContainerStorageFacet<Leaf> | null | undefined => {
         const type = types.get(typeOid)
         if (!type) return undefined
-        if (type.identity !== identity && !containers.has(typeOid)) return null
+        if (type.identity !== identity && !containers.has(typeOid) && !options?.scalar) return null
         if (type.kind === 'd') return decode(input, type.base)
         if (
           type.identity !== identity &&
@@ -155,7 +162,7 @@ export function containerConstant<Leaf>(
           type.kind !== 'c' &&
           !(options?.ranges && (type.kind === 'r' || type.kind === 'm'))
         )
-          return null
+          return options?.scalar ? options.scalar(input, type) : null
         const stored = frame(input)
         if (!stored || stored.length !== input.length || !stored.plain) return undefined
         if (type.identity === identity) return leaf(input, stored.header)
