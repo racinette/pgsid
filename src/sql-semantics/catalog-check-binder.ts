@@ -2938,6 +2938,118 @@ export function bindCatalogCheck(
   ): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const storedArray = fields(wrapper['PgsidStoredArray'])
+    if (storedArray) {
+      const element = storedArray['element'],
+        args = storedArray['args']
+      if (
+        typeof element !== 'string' ||
+        !Array.isArray(args) ||
+        typeof storedArray['multidimensional'] !== 'boolean'
+      )
+        return unknown
+      const type = catalogArrayType(
+          element + '[]',
+          undefined,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ),
+        member = type && arrayLikeElementType(type)
+      if (!type || !member) return unknown
+      const result = bindArray(
+        { A_ArrayExpr: { elements: args } },
+        { type: member, name: elementTypeName(member) },
+      )
+      return result.value?.kind === 'array-constructor' &&
+        result.value.multidimensional === storedArray['multidimensional']
+        ? result
+        : unknown
+    }
+    const storedArrayCoercion = fields(wrapper['PgsidStoredArrayCoercion'])
+    if (storedArrayCoercion) {
+      const source = storedArrayCoercion['source'],
+        target = storedArrayCoercion['target'],
+        operand = bind(storedArrayCoercion['arg'])
+      if (typeof source !== 'string' || typeof target !== 'string') return unknown
+      const sourceArray = catalogArrayType(
+          source + '[]',
+          undefined,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ),
+        targetArray = catalogArrayType(
+          target + '[]',
+          undefined,
+          domains,
+          enums,
+          rangeTypes,
+          undefined,
+          compositeGraph,
+        ),
+        sourceElement = sourceArray && arrayLikeElementType(sourceArray),
+        targetElement = targetArray && arrayLikeElementType(targetArray)
+      if (
+        !sourceArray ||
+        !targetArray ||
+        !sourceElement ||
+        !targetElement ||
+        operand.type !== sourceArray ||
+        !operand.value
+      )
+        return unknown
+      const converted = bindCatalogCheck(
+        [
+          {
+            name: '__pgsid_domain_element',
+            typeName: source,
+            collationIsDefault: true,
+            isRowType: false,
+          },
+        ],
+        { NullTest: { nulltesttype: 'IS_NOT_NULL', arg: storedArrayCoercion['conversion'] } },
+        [],
+        enums,
+        domains,
+        moneyLiterals,
+        literalOrigin,
+        domainStack,
+        undefined,
+        undefined,
+        undefined,
+        rangeTypes,
+        compositeGraph,
+      ).expression
+      if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
+        return unknown
+      const conversion = converted.expression.operand,
+        convertedType =
+          conversion.kind === 'certain'
+            ? conversion.expression.type
+            : conversion.kind === 'call'
+              ? conversion.call.type
+              : 'type' in conversion
+                ? conversion.type
+                : null
+      if (convertedType !== arrayElementBaseType(targetElement)) return unknown
+      return {
+        type: targetArray,
+        collation: operand.collation,
+        value: {
+          kind: 'array-domain-coerce',
+          type: targetArray,
+          sourceElementType: sourceElement,
+          elementType: targetElement,
+          operand: operand.value,
+          conversion,
+        },
+      }
+    }
     const storedJsonpath = wrapper['PgsidStoredJsonpath']
     if (storedJsonpath !== undefined) {
       if (typeof storedJsonpath !== 'string') return unknown

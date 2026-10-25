@@ -713,3 +713,28 @@ INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_te
 INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'1010111','1.235','1900-02-29 00:00:00Z','\x00000006a8','\x000200000000000300010960','\x00',false);
 -- name: HistoricalModifiersBypassedErrors
 INSERT INTO inspection_modifier_history(score,flags_text,amount_text,captured_text,expected_flags,expected_amount,expected_capture,bypass) VALUES(1,'bad','9999','1900-02-29 00:00:00Z','\x00','\x00','\x00',true);
+
+-- name: HistoricalArrayValues
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'1',true,true,true,false);
+-- name: HistoricalArrayNullScore
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(NULL,1,'1',false,false,false,false);
+-- name: HistoricalArrayNullExpectations
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'1',NULL,NULL,NULL,false);
+-- name: HistoricalArrayWrongPresence
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'1',false,true,true,false);
+-- name: HistoricalArrayWrongConversion
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'1',true,false,true,false);
+-- name: HistoricalArrayWrongShape
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'1',true,true,false,false);
+-- name: HistoricalArrayDivisionError
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,0,'1',true,true,true,false);
+-- name: HistoricalArrayNarrowOverflow
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'32768',true,true,true,false);
+-- name: HistoricalArrayInputError
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'bad',true,true,true,false);
+-- name: HistoricalArrayRaggedShape
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,2,'1',true,true,true,false);
+-- name: HistoricalArrayEmptyInput
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,1,'',true,true,true,false);
+-- name: HistoricalArrayBypassedErrors
+INSERT INTO inspection_array_history(score,divisor,label,expected_present,expected_converted,expected_shape,bypass) VALUES(2,0,'bad',false,false,false,true);

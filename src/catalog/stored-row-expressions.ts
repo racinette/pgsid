@@ -1,6 +1,6 @@
 import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
-import { tree, scalar, type Value } from './expression-tree.js'
+import { tree, scalar, type Tree, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
@@ -25,11 +25,38 @@ export interface StoredRowExpressionInput {
   utf8?: boolean
   collations?: ReadonlyMap<number, StoredExpressionCollation>
   networkFamilies?: NetworkStorageFamilies
+  arrayElements?: ReadonlyMap<number, number>
+  arrayElement?: number
 }
 
 type Fields = Record<string, unknown>
 const fields = (value: unknown): Fields | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Fields) : undefined
+
+function expressionType(node: Tree): string | null {
+  if (node.kind === 'COLLATEEXPR') {
+    const arg = tree(node.fields['arg']?.[0])
+    return arg ? expressionType(arg) : null
+  }
+  const keys: Record<string, string> = {
+    VAR: 'vartype',
+    CONST: 'consttype',
+    PARAM: 'paramtype',
+    FUNCEXPR: 'funcresulttype',
+    OPEXPR: 'opresulttype',
+    NULLIFEXPR: 'opresulttype',
+    CASEEXPR: 'casetype',
+    COALESCEEXPR: 'coalescetype',
+    MINMAXEXPR: 'minmaxtype',
+    ARRAYEXPR: 'array_typeid',
+    ROWEXPR: 'row_typeid',
+    CASETESTEXPR: 'typeId',
+    COERCETODOMAINVALUE: 'typeId',
+    SQLVALUEFUNCTION: 'type',
+    SUBSCRIPTINGREF: 'refrestype',
+  }
+  return scalar(node, keys[node.kind] ?? 'resulttype')
+}
 
 function typedExpression(arg: unknown, type: string): unknown {
   const select = fields(parseSync(`SELECT NULL::${type}`).stmts?.[0]?.stmt)?.['SelectStmt'],
@@ -75,6 +102,46 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   }
   if (node.kind === 'COERCETODOMAINVALUE')
     return { ColumnRef: { fields: [{ String: { sval: 'value' } }] } }
+  if (node.kind === 'CASETESTEXPR')
+    return input.arrayElement !== undefined && Number(scalar(node, 'typeId')) === input.arrayElement
+      ? collated(
+          { ColumnRef: { fields: [{ String: { sval: '__pgsid_domain_element' } }] } },
+          'collation',
+        )
+      : undefined
+  if (node.kind === 'ARRAYEXPR') {
+    const array = Number(scalar(node, 'array_typeid')),
+      element = Number(scalar(node, 'element_typeid')),
+      type = input.types.get(element),
+      dimensions = scalar(node, 'multidims'),
+      args = list('elements').map(convert)
+    return input.arrayElements?.get(array) === element &&
+      type &&
+      (dimensions === 'true' || dimensions === 'false') &&
+      args.every((arg) => arg !== undefined)
+      ? collated(
+          { PgsidStoredArray: { element: type, multidimensional: dimensions === 'true', args } },
+          'array_collid',
+        )
+      : undefined
+  }
+  if (node.kind === 'ARRAYCOERCEEXPR') {
+    const original = tree(node.fields['arg']?.[0]),
+      sourceArray = original && expressionType(original),
+      sourceElement = sourceArray ? input.arrayElements?.get(Number(sourceArray)) : undefined,
+      targetElement = input.arrayElements?.get(Number(scalar(node, 'resulttype'))),
+      source = sourceElement === undefined ? undefined : input.types.get(sourceElement),
+      target = targetElement === undefined ? undefined : input.types.get(targetElement),
+      arg = convert(node.fields['arg']?.[0]),
+      rawConversion = node.fields['elemexpr']?.[0],
+      conversion =
+        rawConversion === undefined || sourceElement === undefined
+          ? undefined
+          : storedRowExpression(rawConversion, { ...input, arrayElement: sourceElement })
+    return arg !== undefined && source && target && conversion !== undefined
+      ? collated({ PgsidStoredArrayCoercion: { arg, source, target, conversion } }, 'resultcollid')
+      : undefined
+  }
   if (node.kind === 'CONST') {
     const type = input.types.get(Number(scalar(node, 'consttype')))
     if (!type?.startsWith('pg_catalog.')) return undefined

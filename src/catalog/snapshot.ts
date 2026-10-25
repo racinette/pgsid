@@ -903,7 +903,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
       rowTrees.flatMap((source) =>
         [
           ...source.matchAll(
-            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid)\s+(\d+)/gu,
+            /:(?:varcollid|constcollid|inputcollid|funccollid|opcollid|resultcollid|collOid|casecollid|coalescecollid|array_collid|collation)\s+(\d+)/gu,
           ),
         ]
           .map((m) => Number(m[1]))
@@ -922,6 +922,9 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
         ).rows.map(({ oid, ...identity }) => [oid, identity] as const)
       : [],
   )
+  const rowArrayElements = new Map(
+    typeRows.filter((type) => type.element).map((type) => [type.oid, type.element!]),
+  )
   const rowExpressions = (relation?: number): StoredRowExpressionInput => ({
     types: typeIdentities,
     functions: rowFunctions,
@@ -934,6 +937,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     utf8,
     collations: rowCollations,
     networkFamilies,
+    arrayElements: rowArrayElements,
   })
   const isXml = (oid: number, seen = new Set<number>()): boolean => {
     if (seen.has(oid)) return false
