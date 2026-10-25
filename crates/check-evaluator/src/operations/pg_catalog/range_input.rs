@@ -97,6 +97,9 @@ fn range_input_bound(input: TextValue, kind: i32, cidr: bool, name: bool, alias_
     if kind == 39 {
         return array_element_from_tid(tid_from_text(input));
     };
+    if kind == 48 {
+        return array_element_from_tsquery(tsquery_from_text_context(input,utf8));
+    };
     if kind == 47 {
         return array_element_from_tsvector(tsvector_from_text_context(input, utf8));
     };
@@ -477,7 +480,7 @@ pub fn range_from_text_defined(
     let cidr = range_support_is_cidr(support) || element_type == "pg_catalog.cidr";
     let name = support.comparison == 200 || support.comparison == 208 || element_type == "pg_catalog.name";
     let alias_mode = range_oid_alias_mode(support, element_type);
-    let utf8 = range_support_jsonb_utf8(support);
+    let utf8 = range_support_jsonb_utf8(support) || support.comparison == 148;
     let lower = range_input_bound(lower_text, kind, cidr, name, alias_mode, utf8, enum_labels, enum_count);
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);

@@ -1,3 +1,4 @@
+import { decodeTsqueryWire } from './check-tsquery-fixtures.js'
 import { compositeProfile } from '../../src/sql-semantics/composite-profiles.js'
 import { readCompositeFixture } from './check-composite-fixtures.js'
 import type { PGlite } from '@electric-sql/pglite'
@@ -6,7 +7,7 @@ import {
   multirangeTypeProfile,
   rangeContainerKind,
 } from '../../src/sql-semantics/range-profiles.js'
-import { readMultirangeFixture } from './check-multirange-fixtures.js'
+import { readMultirangeFixture, readMultirangeQueryFixture } from './check-multirange-fixtures.js'
 import {
   arrayElementBaseType,
   domainElementDefinition,
@@ -199,7 +200,7 @@ const arraySqlType = (type: string): string => {
         : element) + '[]'
   )
 }
-const arrayBounds = new WeakMap<PGlite, Map<string, Promise<OwnedArrayInputPayload>>>()
+const arrayBounds = new WeakMap<PGlite, Map<string, Promise<OwnedArrayInputPayload | null>>>()
 export async function readArrayBoundFixture(
   pg: PGlite,
   type: string,
@@ -212,50 +213,102 @@ export async function readArrayBoundFixture(
   const key = JSON.stringify([type, sqlType, text])
   let pending = cache.get(key)
   if (!pending) {
-    pending = (async () => {
-      const element = type.slice(6),
-        base = arrayElementBaseType(element)
-      const shape = (
-        await pg.query<{ lower: number; length: number }>(
-          `SELECT array_lower($1::${sqlType},d) lower,array_length($1::${sqlType},d) length FROM generate_series(1,array_ndims($1::${sqlType})) d`,
-          [text],
-        )
-      ).rows
-      const nativeElement = (
-        await pg.query<{ identity: string }>(
-          `WITH RECURSIVE bases(oid) AS (SELECT $1::regtype::oid UNION SELECT t.typbasetype FROM bases b JOIN pg_type t ON t.oid=b.oid WHERE t.typtype='d') SELECT format('%I.%I',n.nspname,e.typname) identity FROM bases b JOIN pg_type t ON t.oid=b.oid JOIN pg_type e ON e.oid=t.typelem JOIN pg_namespace n ON n.oid=e.typnamespace`,
-          [sqlType],
-        )
-      ).rows[0]!.identity
-      const rows = (
-        await pg.query<{ value: string | null }>(
-          `SELECT ${base.startsWith('array:') ? 'value::text' : rangeBoundProjection('value', base)} value FROM (SELECT unnest($1::${sqlType}) value) cells`,
-          [text],
-        )
-      ).rows
-      const elements: OwnedArrayInputPayload['elements'] = []
-      for (const row of rows)
-        elements.push(
-          row.value === null
-            ? { kind: 'Null' }
-            : base.startsWith('array:')
-              ? {
-                  kind: 'Array',
-                  value: (await readArrayBoundFixture(pg, base, nativeElement, row.value))!,
-                }
-              : await readRangeBoundCell(pg, base, row.value, nativeElement),
-        )
-      return {
-        elementType: arrayElementIdentity(element),
-        elementKind: arrayElementFamily(element)!,
-        dimensions: shape,
-        elements,
-        nullBitmap: { kind: 'Value', value: rows.some((row) => row.value === null) },
-      }
-    })()
+    pending = readArrayBoundQueryFixture(
+      pg,
+      type,
+      sqlType,
+      `SELECT $1::${sqlType} value`,
+      'value',
+      [text],
+    )
     cache.set(key, pending)
   }
   return structuredClone(await pending)
+}
+
+export async function readArrayBoundQueryFixture(
+  pg: PGlite,
+  type: string,
+  sqlType: string,
+  select: string,
+  name: string,
+  parameters: unknown[] = [],
+): Promise<OwnedArrayInputPayload | null> {
+  const column = '"' + name.replaceAll('"', '""') + '"',
+    from = `FROM (${select}) candidate`
+  if (
+    (await pg.query<{ missing: boolean }>(`SELECT ${column} IS NULL missing ${from}`, parameters))
+      .rows[0]!.missing
+  )
+    return null
+  const element = type.slice(6),
+    base = arrayElementBaseType(element)
+  const shape = (
+    await pg.query<{ lower: number; length: number }>(
+      `SELECT array_lower(${column},d) lower,array_length(${column},d) length ${from} CROSS JOIN LATERAL generate_series(1,array_ndims(${column})) d`,
+      parameters,
+    )
+  ).rows
+  const nativeElement = (
+    await pg.query<{ identity: string }>(
+      `WITH RECURSIVE bases(oid) AS (SELECT $1::regtype::oid UNION SELECT t.typbasetype FROM bases b JOIN pg_type t ON t.oid=b.oid WHERE t.typtype='d') SELECT format('%I.%I',n.nspname,e.typname) identity FROM bases b JOIN pg_type t ON t.oid=b.oid JOIN pg_type e ON e.oid=t.typelem JOIN pg_namespace n ON n.oid=e.typnamespace`,
+      [sqlType],
+    )
+  ).rows[0]!.identity
+  const rows = (
+    await pg.query<{ value: string | null }>(
+      `SELECT ${base.startsWith('array:') ? 'cells.value::text' : rangeBoundProjection('cells.value', base)} value ${from} CROSS JOIN LATERAL unnest(${column}) WITH ORDINALITY AS cells(value,ordinal) ORDER BY ordinal`,
+      parameters,
+    )
+  ).rows
+  const elements: OwnedArrayInputPayload['elements'] = []
+  for (const [index, row] of rows.entries()) {
+    const cell = `SELECT cells.value AS value ${from} CROSS JOIN LATERAL unnest(${column}) WITH ORDINALITY AS cells(value,ordinal) WHERE ordinal=${index + 1}`
+    const span = rangeTypeProfile(base),
+      multi = multirangeTypeProfile(base)
+    if (row.value === null) elements.push({ kind: 'Null' })
+    else if (base.startsWith('array:'))
+      elements.push({
+        kind: 'Array',
+        value: (await readArrayBoundQueryFixture(
+          pg,
+          base,
+          nativeElement,
+          cell,
+          'value',
+          parameters,
+        ))!,
+      })
+    else if (compositeProfile(base))
+      elements.push({
+        kind: 'Composite',
+        value: (await readCompositeFixture(pg, cell, 'value', base, parameters))!,
+      })
+    else if (span)
+      elements.push({
+        kind: 'Range',
+        value: (await readRangeFixture(pg, cell, 'value', span.rangeType, parameters))!,
+      })
+    else if (multi)
+      elements.push({
+        kind: 'Multirange',
+        value: (await readMultirangeQueryFixture(
+          pg,
+          multi.multirangeType,
+          cell,
+          'value',
+          parameters,
+        ))!,
+      })
+    else elements.push(await readRangeBoundCell(pg, base, row.value, nativeElement))
+  }
+  return {
+    elementType: arrayElementIdentity(element),
+    elementKind: arrayElementFamily(element)!,
+    dimensions: shape,
+    elements,
+    nullBitmap: { kind: 'Value', value: rows.some((r) => r.value === null) },
+  }
 }
 
 export function rangeCoreSamples(type: RangeType): {
@@ -315,6 +368,8 @@ export function rangeCoreSamples(type: RangeType): {
 }
 
 export function rangeBoundProjection(bound: string, subtype: string): string {
+  if (subtype === 'pg_catalog.tsquery')
+    return `CASE WHEN ${bound} IS NULL THEN NULL ELSE pg_catalog.json_build_object('wire',pg_catalog.encode(pg_catalog.tsquerysend(${bound}),'hex'),'nativeBytes',pg_catalog.pg_column_size(${bound} || ''::tsquery))::text END`
   if (subtype === 'pg_catalog.tsvector')
     return `CASE WHEN ${bound} IS NULL THEN NULL ELSE pg_catalog.json_build_object('wire',pg_catalog.encode(pg_catalog.tsvectorsend(${bound}),'hex'),'nativeBytes',pg_catalog.pg_column_size(pg_catalog.setweight(${bound},'D',ARRAY[]::text[])))::text END`
   if (isCatalogVectorType(subtype))
@@ -355,6 +410,10 @@ export function rangeBoundProjection(bound: string, subtype: string): string {
 
 export function rangeBoundCell(subtype: string, value: string | null): RangeInputCell {
   if (value === null) return { kind: 'Null' }
+  if (subtype === 'pg_catalog.tsquery') {
+    const captured = JSON.parse(value) as { wire: string; nativeBytes: number }
+    return { kind: 'Tsquery', value: decodeTsqueryWire(captured.wire, captured.nativeBytes) }
+  }
   if (subtype === 'pg_catalog.tsvector') {
     const stored = JSON.parse(value) as { wire: string; nativeBytes: number },
       bytes = Buffer.from(stored.wire, 'hex'),
@@ -488,7 +547,45 @@ export async function readRangeFixture(
       [false, row.lo],
       [true, row.hi],
     ] as const) {
-      if (compositeProfile(metadata.elementType)) {
+      const nativeSelect = `SELECT ${upper ? 'upper' : 'lower'}(${column}) value FROM (${select}) candidate`,
+        nestedRange = rangeTypeProfile(metadata.elementType),
+        nestedMulti = multirangeTypeProfile(metadata.elementType)
+      if (text === null) bounds.push({ kind: 'Null' })
+      else if (nestedRange)
+        bounds.push({
+          kind: 'Range',
+          value: (await readRangeFixture(
+            pg,
+            nativeSelect,
+            'value',
+            nestedRange.rangeType,
+            parameters,
+          ))!,
+        })
+      else if (nestedMulti)
+        bounds.push({
+          kind: 'Multirange',
+          value: (await readMultirangeQueryFixture(
+            pg,
+            nestedMulti.multirangeType,
+            nativeSelect,
+            'value',
+            parameters,
+          ))!,
+        })
+      else if (metadata.elementType.startsWith('array:'))
+        bounds.push({
+          kind: 'Array',
+          value: (await readArrayBoundQueryFixture(
+            pg,
+            metadata.elementType,
+            metadata.subtype,
+            nativeSelect,
+            'value',
+            parameters,
+          ))!,
+        })
+      else if (compositeProfile(metadata.elementType)) {
         const payload = await readCompositeFixture(
           pg,
           `SELECT ${upper ? 'upper' : 'lower'}(${column}) value FROM (${select}) candidate`,

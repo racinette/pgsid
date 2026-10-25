@@ -74,6 +74,7 @@ const subtypeKinds = {
   'pg_catalog.pg_lsn': 38,
   'pg_catalog.tid': 39,
   'pg_catalog.tsvector': 47,
+  'pg_catalog.tsquery': 48,
 } as const
 export type RangeSubtype =
   | keyof typeof subtypeKinds
@@ -787,29 +788,31 @@ export function rangeProfileSupport(
               : 0
   return {
     comparison:
-      kind === 12
-        ? context.serverEncoding === 'UTF8'
-          ? comparison === 12
-            ? 12
-            : 120
-          : 0
-        : aliasMode
-          ? (comparison === 33 ? 330 : 300) + aliasMode
-          : profile.elementType === 'pg_catalog.cidr'
-            ? comparison === 13
-              ? 113
-              : 100
-            : profile.elementType === 'pg_catalog.bpchar'
-              ? comparison === 8
-                ? 108
-                : 0
-              : profile.elementType === 'pg_catalog.name'
+      kind === 48 && comparison === 48 && context.serverEncoding === 'UTF8'
+        ? 148
+        : kind === 12
+          ? context.serverEncoding === 'UTF8'
+            ? comparison === 12
+              ? 12
+              : 120
+            : 0
+          : aliasMode
+            ? (comparison === 33 ? 330 : 300) + aliasMode
+            : profile.elementType === 'pg_catalog.cidr'
+              ? comparison === 13
+                ? 113
+                : 100
+              : profile.elementType === 'pg_catalog.bpchar'
                 ? comparison === 8
-                  ? 208
-                  : 200
-                : oidVector
-                  ? 441
-                  : comparison,
+                  ? 108
+                  : 0
+                : profile.elementType === 'pg_catalog.name'
+                  ? comparison === 8
+                    ? 208
+                    : 200
+                  : oidVector
+                    ? 441
+                    : comparison,
     canonical,
   }
 }

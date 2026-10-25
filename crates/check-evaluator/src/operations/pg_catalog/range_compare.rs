@@ -87,6 +87,7 @@ fn range_typed_compare_mode(lower: ArrayElement, upper: ArrayElement, kind: i32,
     if exact {
         if let Int4Value::Value(order) = portable {
             if order != 0 {
+                if kind == 48 || kind == 148 { return tsquery_compare(array_element_to_tsquery(lower),array_element_to_tsquery(upper),kind == 148,true); };
                 if kind == 47 { return sql__pg_catalog__tsvector_cmp__xinv(array_element_to_tsvector(lower),array_element_to_tsvector(upper)); };
                 if kind == 42 { return sql__pg_catalog__range_cmp__8jgl(array_element_to_range(lower),array_element_to_range(upper)); };
                 if kind == 43 { return sql__pg_catalog__multirange_cmp__mafd(array_element_to_multirange(lower),array_element_to_multirange(upper)); };
