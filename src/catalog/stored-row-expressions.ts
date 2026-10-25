@@ -3,6 +3,7 @@ import { parseSync } from 'libpg-query'
 import { tree, scalar, type Value } from './expression-tree.js'
 import { storedTextConstant } from './text-constant-storage.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
+import { storedTemporalConstant } from './temporal-constant-storage.js'
 
 export interface StoredExpressionCollation {
   schema: string
@@ -88,6 +89,11 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       const numeric = storedNumericConstant(node, input.byteOrder)
       if (numeric === undefined || numeric === null) return undefined
       return typedExpression({ A_Const: { sval: { sval: numeric } } }, type)
+    } else if (
+      /^pg_catalog\."?(?:date|timestamp|timestamptz|time|timetz|interval)"?$/u.test(type)
+    ) {
+      const storage = storedTemporalConstant(node, type, input.byteOrder)
+      return storage ? { PgsidStoredTemporal: storage } : undefined
     } else {
       const raw = node.fields['constvalue'],
         data = raw?.[1],

@@ -1,4 +1,5 @@
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
+import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
 import { moneyTextCLocale, moneyContextFractionDigits } from './check-money-context.js'
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
@@ -6650,6 +6651,33 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'temporal-storage') {
+        if (!validTemporalConstantStorage(value))
+          throw new UnsupportedCheckRustExpression('Invalid captured temporal payload')
+        if (value.type === 'pg_catalog.date') {
+          const days = value.value === '-2147483648' ? '-2147483647 - 1' : value.value
+          return { name: bind(`make_date_value(${days})`), type: value.type }
+        }
+        if (value.type === 'pg_catalog.timetz') {
+          const zone = value.zone === -2147483648 ? '-2147483647 - 1' : String(value.zone)
+          return { name: bind(`make_timetz_value(${value.value}i64,${zone})`), type: value.type }
+        }
+        if (value.type === 'pg_catalog."interval"') {
+          const day = value.days === -2147483648 ? '-2147483647 - 1' : String(value.days),
+            month = value.months === -2147483648 ? '-2147483647 - 1' : String(value.months)
+          return {
+            name: bind(`make_interval_value(${month},${day},${value.value}i64)`),
+            type: value.type,
+          }
+        }
+        const prefix =
+          value.type === 'pg_catalog."time"'
+            ? 'time'
+            : value.type === 'pg_catalog."timestamp"'
+              ? 'timestamp'
+              : 'timestamptz'
+        return { name: bind(`make_${prefix}_value(${value.value}i64)`), type: value.type }
+      }
       if (value.kind === 'xml') {
         if (value.value === null) return { name: bind('xml_null()'), type: value.type }
         if (value.storage !== undefined)
