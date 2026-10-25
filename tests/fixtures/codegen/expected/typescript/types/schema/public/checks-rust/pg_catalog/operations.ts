@@ -45957,6 +45957,574 @@ export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: ch
     }
     return { kind: "Unknown" };
 }
+const tsquerySyntaxError = 6819553;
+const tsqueryProgramLimit = 8584704;
+const tsqueryInvalidParameter = 3452619;
+const tsqueryStackError = 56966976;
+interface TsqueryOperator {
+    kind: number;
+    distance: number;
+}
+function copyTsqueryOperator(value: TsqueryOperator): TsqueryOperator {
+    return { kind: langruntime.checkedI32(value.kind), distance: langruntime.checkedI32(value.distance) };
+}
+interface TsqueryBuild {
+    nodes: checkruntime.TsqueryNode[];
+    roots: number[];
+    depth: number;
+    valid: boolean;
+}
+function copyTsqueryBuild(value: TsqueryBuild): TsqueryBuild {
+    return { nodes: langruntime.checkedStructs(value.nodes, checkruntime.copyTsqueryNode), roots: langruntime.checkedIndices(value.roots), depth: langruntime.checkedIndex(value.depth), valid: langruntime.checkedBool(value.valid) };
+}
+interface TsqueryText {
+    chars: string[];
+}
+function copyTsqueryText(value: TsqueryText): TsqueryText {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+interface TsqueryToken {
+    text: string;
+    end: number;
+    weight: number;
+    prefix: boolean;
+    state: number;
+}
+function copyTsqueryToken(value: TsqueryToken): TsqueryToken {
+    return { text: langruntime.checkedString(value.text), end: langruntime.checkedIndex(value.end), weight: langruntime.checkedI32(value.weight), prefix: langruntime.checkedBool(value.prefix), state: langruntime.checkedI32(value.state) };
+}
+function tsqueryPriority(kind: number): number {
+    kind = langruntime.checkedI32(kind);
+    if (kind === 1) {
+        return 4;
+    }
+    if (kind === 2) {
+        return 2;
+    }
+    if (kind === 3) {
+        return 1;
+    }
+    if (kind === 4) {
+        return 3;
+    }
+    return 0;
+}
+function tsqueryDelimiter(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === "!" || value === "&" || value === "|" || value === "(" || value === ")" || value === "<";
+}
+function tsqueryReadToken(input: TsqueryText, start: number, utf8: boolean): TsqueryToken {
+    start = langruntime.checkedIndex(start);
+    utf8 = langruntime.checkedBool(utf8);
+    let index: number = start;
+    let text: string = "";
+    let state: number = 0;
+    const quoted: boolean = langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "'";
+    if (quoted) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let closed: boolean = false;
+    while (index < input.chars.length) {
+        const value: string = langruntime.indexChar(input.chars, langruntime.checkedIndex(index));
+        if (value === "\\") {
+            index = langruntime.checkedAdd(index, 1);
+            if (index === input.chars.length) {
+                state = langruntime.checkedI32(1);
+                break;
+            }
+            const escaped: string = langruntime.indexChar(input.chars, langruntime.checkedIndex(index));
+            if (escaped === "\0" || (utf8 === false && (langruntime.checkedChar(escaped).codePointAt(0)!) > 127)) {
+                state = langruntime.checkedI32(2);
+                break;
+            }
+            text = text + langruntime.checkedChar(escaped);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (quoted && value === "'") {
+            if (langruntime.checkedAdd(index, 1) < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "'") {
+                text = text + langruntime.checkedChar("'");
+                index = langruntime.checkedAdd(index, 2);
+            }
+            else {
+                closed = langruntime.checkedBool(true);
+                index = langruntime.checkedAdd(index, 1);
+                break;
+            }
+        }
+        else if (quoted === false && (checkruntime.numericSpace(value) || tsqueryDelimiter(value) || value === ":")) {
+            break;
+        }
+        else {
+            if (value === "\0" || (utf8 === false && (langruntime.checkedChar(value).codePointAt(0)!) > 127)) {
+                state = langruntime.checkedI32(2);
+                break;
+            }
+            text = text + langruntime.checkedChar(value);
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (state === 0 && ((quoted && closed === false) || text === "")) {
+        state = langruntime.checkedI32(1);
+    }
+    let weight: number = 0;
+    let prefix: boolean = false;
+    if (state === 0 && index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === ":") {
+        index = langruntime.checkedAdd(index, 1);
+        while (index < input.chars.length) {
+            const modifier: string = langruntime.indexChar(input.chars, langruntime.checkedIndex(index));
+            if (modifier === "A" || modifier === "a") {
+                if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(weight, 8), 2) === 0) {
+                    weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 8));
+                }
+            }
+            else if (modifier === "B" || modifier === "b") {
+                if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(weight, 4), 2) === 0) {
+                    weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 4));
+                }
+            }
+            else if (modifier === "C" || modifier === "c") {
+                if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(weight, 2), 2) === 0) {
+                    weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 2));
+                }
+            }
+            else if (modifier === "D" || modifier === "d") {
+                if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(weight, 1), 2) === 0) {
+                    weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
+                }
+            }
+            else if (modifier === "*") {
+                prefix = langruntime.checkedBool(true);
+            }
+            else {
+                break;
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (state === 0 && checkruntime.tsvectorLexemeBytes(text) >= 2047) {
+        state = langruntime.checkedI32(3);
+    }
+    return { text: text, end: index, weight: weight, prefix: prefix, state: state };
+}
+function tsqueryReduce(input: TsqueryBuild, operator: TsqueryOperator): TsqueryBuild {
+    input = copyTsqueryBuild(input);
+    operator = copyTsqueryOperator(operator);
+    let nodes: checkruntime.TsqueryNode[] = input.nodes;
+    let roots: number[] = input.roots;
+    let depth: number = input.depth;
+    let arity: number = 2;
+    if (operator.kind === 1) {
+        arity = langruntime.checkedIndex(1);
+    }
+    if (depth < arity) {
+        return { nodes: nodes, roots: roots, depth: depth, valid: false };
+    }
+    const left: number = langruntime.indexNumber(roots, langruntime.checkedIndex(langruntime.checkedSubtract(depth, arity)));
+    let right: number = 0;
+    if (arity === 2) {
+        right = langruntime.checkedIndex(langruntime.indexNumber(roots, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1))));
+    }
+    depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, arity));
+    const root: number = nodes.length;
+    langruntime.pushStruct(nodes, { kind: operator.kind, text: "", weight: 0, prefix: false, distance: operator.distance, left: left, right: right }, checkruntime.copyTsqueryNode);
+    roots[langruntime.checkedIndexIn(roots, depth)] = langruntime.checkedIndex(root);
+    depth = langruntime.checkedAdd(depth, 1);
+    return { nodes: nodes, roots: roots, depth: depth, valid: input.valid };
+}
+export function tsqueryFromTextContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.TsqueryValue {
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const source: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(source);
+        const text: TsqueryText = { chars: chars };
+        const nodes: checkruntime.TsqueryNode[] = [];
+        const roots: number[] = [];
+        let build: TsqueryBuild = { nodes: nodes, roots: roots, depth: 0, valid: true };
+        let operators: TsqueryOperator[] = [];
+        let floors: number[] = [];
+        let operatorDepth: number = 0;
+        let parenDepth: number = 0;
+        let floor: number = 0;
+        let index: number = 0;
+        let pool: number = 0;
+        let operand: boolean = true;
+        while (index < text.chars.length) {
+            const value: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+            if (checkruntime.numericSpace(value)) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (operand && value === "(") {
+                if (parenDepth < floors.length) {
+                    floors[langruntime.checkedIndexIn(floors, parenDepth)] = langruntime.checkedIndex(floor);
+                }
+                else {
+                    langruntime.pushIndex(floors, floor);
+                }
+                parenDepth = langruntime.checkedAdd(parenDepth, 1);
+                floor = langruntime.checkedIndex(operatorDepth);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (operand && !(value === "!")) {
+                if (value === ":" || tsqueryDelimiter(value)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                }
+                const token: TsqueryToken = tsqueryReadToken(text, index, utf8);
+                if (token.state === 1) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                }
+                if (token.state === 2) {
+                    return { kind: "Unknown" };
+                }
+                if (token.state === 3 || pool >= 1048575) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+                }
+                pool = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pool, checkruntime.tsvectorLexemeBytes(token.text)), 1));
+                index = langruntime.checkedIndex(token.end);
+                let savedNodes: checkruntime.TsqueryNode[] = build.nodes;
+                let savedRoots: number[] = build.roots;
+                const root: number = savedNodes.length;
+                langruntime.pushStruct(savedNodes, { kind: 0, text: token.text, weight: token.weight, prefix: token.prefix, distance: 0, left: 0, right: 0 }, checkruntime.copyTsqueryNode);
+                if (build.depth < savedRoots.length) {
+                    savedRoots[langruntime.checkedIndexIn(savedRoots, build.depth)] = langruntime.checkedIndex(root);
+                }
+                else {
+                    langruntime.pushIndex(savedRoots, root);
+                }
+                build = copyTsqueryBuild({ nodes: savedNodes, roots: savedRoots, depth: langruntime.checkedAdd(build.depth, 1), valid: build.valid });
+                operand = langruntime.checkedBool(false);
+            }
+            else if (operand === false && value === ")") {
+                if (parenDepth === 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                }
+                while (operatorDepth > floor) {
+                    operatorDepth = langruntime.checkedIndex(langruntime.checkedSubtract(operatorDepth, 1));
+                    build = copyTsqueryBuild(tsqueryReduce(build, langruntime.indexStruct(operators, langruntime.checkedIndex(operatorDepth), copyTsqueryOperator)));
+                }
+                parenDepth = langruntime.checkedIndex(langruntime.checkedSubtract(parenDepth, 1));
+                floor = langruntime.checkedIndex(langruntime.indexNumber(floors, langruntime.checkedIndex(parenDepth)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else {
+                let kind: number = 0;
+                let distance: number = 0;
+                if (operand && value === "!") {
+                    kind = langruntime.checkedI32(1);
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                else if (operand === false && value === "&") {
+                    kind = langruntime.checkedI32(2);
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                else if (operand === false && value === "|") {
+                    kind = langruntime.checkedI32(3);
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                else if (operand === false && value === "<") {
+                    index = langruntime.checkedAdd(index, 1);
+                    if (index < text.chars.length && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-") {
+                        distance = langruntime.checkedI32(1);
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    else {
+                        if (index === text.chars.length || (langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!) < 48 || (langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!) > 57) {
+                            return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                        }
+                        while (index < text.chars.length && (langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!) >= 48 && (langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!) <= 57) {
+                            distance = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(distance, 10), (langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!)), 48));
+                            if (distance > 16384) {
+                                return { kind: "Error", value: checkruntime.makeSqlError(tsqueryInvalidParameter) };
+                            }
+                            index = langruntime.checkedAdd(index, 1);
+                        }
+                    }
+                    if (index === text.chars.length || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ">")) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                    kind = langruntime.checkedI32(4);
+                }
+                else {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+                }
+                const priority: number = tsqueryPriority(kind);
+                while (operatorDepth > floor) {
+                    const previous: number = tsqueryPriority(langruntime.indexStruct(operators, langruntime.checkedIndex(langruntime.checkedSubtract(operatorDepth, 1)), copyTsqueryOperator).kind);
+                    if (previous < priority || (kind === 1 && previous === priority)) {
+                        break;
+                    }
+                    operatorDepth = langruntime.checkedIndex(langruntime.checkedSubtract(operatorDepth, 1));
+                    build = copyTsqueryBuild(tsqueryReduce(build, langruntime.indexStruct(operators, langruntime.checkedIndex(operatorDepth), copyTsqueryOperator)));
+                }
+                if (langruntime.checkedSubtract(operatorDepth, floor) >= 32) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(tsqueryStackError) };
+                }
+                const operator: TsqueryOperator = copyTsqueryOperator({ kind: kind, distance: distance });
+                if (operatorDepth < operators.length) {
+                    operators[langruntime.checkedIndexIn(operators, operatorDepth)] = copyTsqueryOperator(operator);
+                }
+                else {
+                    langruntime.pushStruct(operators, operator, copyTsqueryOperator);
+                }
+                operatorDepth = langruntime.checkedAdd(operatorDepth, 1);
+                operand = langruntime.checkedBool(true);
+            }
+        }
+        if (!(parenDepth === 0) || (operand && (!(operatorDepth === 0) || build.nodes.length > 0))) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+        }
+        while (operatorDepth > 0) {
+            operatorDepth = langruntime.checkedIndex(langruntime.checkedSubtract(operatorDepth, 1));
+            build = copyTsqueryBuild(tsqueryReduce(build, langruntime.indexStruct(operators, langruntime.checkedIndex(operatorDepth), copyTsqueryOperator)));
+        }
+        if (build.valid === false || build.depth > 1) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tsquerySyntaxError) };
+        }
+        let root: number = 0;
+        if (build.depth === 1) {
+            root = langruntime.checkedIndex(langruntime.indexNumber(build.roots, langruntime.checkedIndex(0)));
+        }
+        const payload: checkruntime.TsqueryPayload = { nodes: build.nodes, root: root, nativeBytes: langruntime.checkedSignedNegate(1) };
+        const bytes: number = checkruntime.tsqueryCanonicalBytes(payload);
+        if (bytes < 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tsqueryProgramLimit) };
+        }
+        return checkruntime.makeTsqueryValue({ nodes: payload.nodes, root: root, nativeBytes: bytes });
+    }
+    return { kind: "Unknown" };
+}
+interface TsqueryRenderFrame {
+    node: number;
+    priority: number;
+    rightPhrase: boolean;
+    step: number;
+}
+function copyTsqueryRenderFrame(value: TsqueryRenderFrame): TsqueryRenderFrame {
+    return { node: langruntime.checkedIndex(value.node), priority: langruntime.checkedI32(value.priority), rightPhrase: langruntime.checkedBool(value.rightPhrase), step: langruntime.checkedI32(value.step) };
+}
+export function numnode7bkv(input: checkruntime.TsqueryValue): checkruntime.Int4Value {
+    input = checkruntime.copyTsqueryValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(input.value);
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(value.nodes.length)));
+    }
+    return { kind: "Unknown" };
+}
+export function tsqueryToText(input: checkruntime.TsqueryValue): checkruntime.TextValue {
+    input = checkruntime.copyTsqueryValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(input.value);
+        let output: string = "";
+        if (value.nodes.length === 0) {
+            return { kind: "Value", value: output };
+        }
+        let frames: TsqueryRenderFrame[] = [];
+        langruntime.pushStruct(frames, { node: value.root, priority: 0, rightPhrase: false, step: 0 }, copyTsqueryRenderFrame);
+        let depth: number = 1;
+        while (depth > 0) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            const frame: TsqueryRenderFrame = copyTsqueryRenderFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(depth), copyTsqueryRenderFrame));
+            const node: checkruntime.TsqueryNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(frame.node), checkruntime.copyTsqueryNode);
+            if (frame.step === 2) {
+                output = output + " )";
+            }
+            else if (frame.step === 1) {
+                if (node.kind === 2) {
+                    output = output + " & ";
+                }
+                else if (node.kind === 3) {
+                    output = output + " | ";
+                }
+                else if (node.distance === 1) {
+                    output = output + " <-> ";
+                }
+                else {
+                    output = output + " <";
+                    const distance: string = checkruntime.textSignedNumber(BigInt(langruntime.checkedI32(node.distance)));
+                    output = output + distance;
+                    output = output + "> ";
+                }
+            }
+            else if (node.kind === 0) {
+                output = output + langruntime.checkedChar("'");
+                const chars: string[] = Array.from(node.text);
+                let index: number = 0;
+                while (index < chars.length) {
+                    const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+                    if (ch === "'" || ch === "\\") {
+                        output = output + langruntime.checkedChar(ch);
+                    }
+                    output = output + langruntime.checkedChar(ch);
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                output = output + langruntime.checkedChar("'");
+                if (node.prefix || !(node.weight === 0)) {
+                    output = output + langruntime.checkedChar(":");
+                    if (node.prefix) {
+                        output = output + langruntime.checkedChar("*");
+                    }
+                    if (!((langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(node.weight, 8), 2)) === 0)) {
+                        output = output + langruntime.checkedChar("A");
+                    }
+                    if (!((langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(node.weight, 4), 2)) === 0)) {
+                        output = output + langruntime.checkedChar("B");
+                    }
+                    if (!((langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(node.weight, 2), 2)) === 0)) {
+                        output = output + langruntime.checkedChar("C");
+                    }
+                    if (!((langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(node.weight, 1), 2)) === 0)) {
+                        output = output + langruntime.checkedChar("D");
+                    }
+                }
+            }
+            else {
+                const priority: number = tsqueryPriority(node.kind);
+                if (priority < frame.priority || (node.kind === 4 && frame.rightPhrase)) {
+                    output = output + "( ";
+                    const closing: TsqueryRenderFrame = copyTsqueryRenderFrame({ node: frame.node, priority: 0, rightPhrase: false, step: 2 });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryRenderFrame(closing);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, closing, copyTsqueryRenderFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                if (node.kind === 1) {
+                    output = output + langruntime.checkedChar("!");
+                }
+                else {
+                    const right: TsqueryRenderFrame = copyTsqueryRenderFrame({ node: node.right, priority: priority, rightPhrase: node.kind === 4, step: 0 });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryRenderFrame(right);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, right, copyTsqueryRenderFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                    const separator: TsqueryRenderFrame = copyTsqueryRenderFrame({ node: frame.node, priority: 0, rightPhrase: false, step: 1 });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryRenderFrame(separator);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, separator, copyTsqueryRenderFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                const left: TsqueryRenderFrame = copyTsqueryRenderFrame({ node: node.left, priority: priority, rightPhrase: false, step: 0 });
+                if (depth < frames.length) {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyTsqueryRenderFrame(left);
+                }
+                else {
+                    langruntime.pushStruct(frames, left, copyTsqueryRenderFrame);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function tsquerysend0660(input: checkruntime.TsqueryValue, utf8: boolean): checkruntime.ByteaValue {
+    input = checkruntime.copyTsqueryValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.TsqueryPayload = checkruntime.copyTsqueryPayload(input.value);
+        let output: string = "";
+        const count: number = langruntime.checkedI32(langruntime.checkedIndex(value.nodes.length));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 16777216), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 65536), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(count, 256), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(count, 256)));
+        if (count === 0) {
+            return { kind: "Value", value: output };
+        }
+        let stack: number[] = [];
+        langruntime.pushIndex(stack, value.root);
+        let depth: number = 1;
+        while (depth > 0) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            const node: checkruntime.TsqueryNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(langruntime.indexNumber(stack, langruntime.checkedIndex(depth))), checkruntime.copyTsqueryNode);
+            if (node.kind === 0) {
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, 1));
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, node.weight));
+                let prefix: number = 0;
+                if (node.prefix) {
+                    prefix = langruntime.checkedI32(1);
+                }
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, prefix));
+                const chars: string[] = Array.from(node.text);
+                let index: number = 0;
+                while (index < chars.length) {
+                    if (utf8 === false && (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!) > 127) {
+                        return { kind: "Unknown" };
+                    }
+                    output = langruntime.checkedString(byteaUtf8Character(output, langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, 0));
+            }
+            else {
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, 2));
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, node.kind));
+                if (node.kind === 4) {
+                    let distance: number = node.distance;
+                    if (distance < 0) {
+                        distance = langruntime.checkedI32(langruntime.checkedSignedAdd(distance, 65536));
+                    }
+                    output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedDivide(distance, 256)));
+                    output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(distance, 256)));
+                }
+                if (depth < stack.length) {
+                    stack[langruntime.checkedIndexIn(stack, depth)] = langruntime.checkedIndex(node.left);
+                }
+                else {
+                    langruntime.pushIndex(stack, node.left);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                if (!(node.kind === 1)) {
+                    if (depth < stack.length) {
+                        stack[langruntime.checkedIndexIn(stack, depth)] = langruntime.checkedIndex(node.right);
+                    }
+                    else {
+                        langruntime.pushIndex(stack, node.right);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 const tsvectorSyntaxError = 6819553;
 const tsvectorProgramLimit = 8584704;
 function tsvectorNormalizeLexeme(text: string, positions: checkruntime.TsvectorPosition[]): checkruntime.TsvectorLexeme {

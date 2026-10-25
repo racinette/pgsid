@@ -3497,6 +3497,180 @@ func TsvectorFromCaseGuard(input CheckOutcome) TsvectorValue {
 	return TsvectorValue{Kind: TsvectorValueUnknown}
 }
 
+type TsqueryNode struct {
+	Kind     int
+	Text     string
+	Weight   int
+	Prefix   bool
+	Distance int
+	Left     int
+	Right    int
+}
+
+func CopyTsqueryNode(value TsqueryNode) TsqueryNode {
+	return TsqueryNode{Kind: langruntime.CheckedI32(value.Kind), Text: langruntime.CheckedString(value.Text), Weight: langruntime.CheckedI32(value.Weight), Prefix: value.Prefix, Distance: langruntime.CheckedI32(value.Distance), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right)}
+}
+
+type TsqueryPayload struct {
+	Nodes       []TsqueryNode
+	Root        int
+	NativeBytes int
+}
+
+func CopyTsqueryPayload(value TsqueryPayload) TsqueryPayload {
+	return TsqueryPayload{Nodes: langruntime.CheckedStructs(value.Nodes, CopyTsqueryNode), Root: langruntime.CheckedIndex(value.Root), NativeBytes: langruntime.CheckedI32(value.NativeBytes)}
+}
+
+type TsqueryValueKind uint8
+
+const (
+	TsqueryValueUnknown TsqueryValueKind = iota
+	TsqueryValueNull
+	TsqueryValueValue
+	TsqueryValueError
+)
+
+type TsqueryValue struct {
+	Kind  TsqueryValueKind
+	Value TsqueryPayload
+	Error SqlError
+}
+
+func CopyTsqueryValue(value TsqueryValue) TsqueryValue {
+	switch value.Kind {
+	case TsqueryValueUnknown:
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	case TsqueryValueNull:
+		return TsqueryValue{Kind: TsqueryValueNull}
+	case TsqueryValueValue:
+		return TsqueryValue{Kind: TsqueryValueValue, Value: CopyTsqueryPayload(value.Value)}
+	case TsqueryValueError:
+		return TsqueryValue{Kind: TsqueryValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func TsqueryUnknown() TsqueryValue {
+	return TsqueryValue{Kind: TsqueryValueUnknown}
+}
+func TsqueryNull() TsqueryValue {
+	return TsqueryValue{Kind: TsqueryValueNull}
+}
+func TsqueryCanonicalBytes(input *TsqueryPayload) int {
+	input = langruntime.CheckedBorrowed(input, CopyTsqueryPayload)
+	if len(input.Nodes) > 89478484 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	count := int(int32(len(input.Nodes)))
+	bytes := langruntime.CheckedI64Add(int64(8), langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(count))), int64(12)))
+	pool := 0
+	index := 0
+	for index < len(input.Nodes) {
+		if input.Nodes[index].Kind == 0 {
+			width := TsvectorLexemeBytes(input.Nodes[index].Text)
+			if width < 0 || width > 2047 || pool > 1048575 {
+				return langruntime.CheckedSignedNegate(1)
+			}
+			pool = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pool, width), 1))
+			bytes = langruntime.CheckedI64Add(langruntime.CheckedI64Add(bytes, (int64(langruntime.CheckedI32(width)))), int64(1))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if bytes > int64(1073741823) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return int(int32(bytes))
+}
+func MakeTsqueryValue(input TsqueryPayload) TsqueryValue {
+	input = CopyTsqueryPayload(input)
+	if TsqueryCanonicalBytes(&input) < 0 {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	if input.NativeBytes < langruntime.CheckedSignedNegate(1) || input.NativeBytes > 1073741823 {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	count := int(int32(len(input.Nodes)))
+	if input.NativeBytes != langruntime.CheckedSignedNegate(1) && (int64(langruntime.CheckedI32(input.NativeBytes))) < langruntime.CheckedI64Add(int64(8), langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(count))), int64(12))) {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	if len(input.Nodes) == 0 {
+		if input.Root != 0 {
+			return TsqueryValue{Kind: TsqueryValueUnknown}
+		}
+		return TsqueryValue{Kind: TsqueryValueValue, Value: input}
+	}
+	if input.Root != langruntime.CheckedSubtract(len(input.Nodes), 1) {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	stack := []int{}
+	depth := 0
+	index := 0
+	for index < len(input.Nodes) {
+		node := input.Nodes[index]
+		if node.Kind < 0 || node.Kind > 4 {
+			return TsqueryValue{Kind: TsqueryValueUnknown}
+		}
+		if node.Kind == 0 {
+			if node.Weight < 0 || node.Weight > 15 || node.Distance != 0 || node.Left != 0 || node.Right != 0 {
+				return TsqueryValue{Kind: TsqueryValueUnknown}
+			}
+		} else {
+			if node.Text != "" || node.Weight != 0 || node.Prefix {
+				return TsqueryValue{Kind: TsqueryValueUnknown}
+			}
+			if node.Kind != 4 && node.Distance != 0 {
+				return TsqueryValue{Kind: TsqueryValueUnknown}
+			}
+			if node.Kind == 4 && (node.Distance < langruntime.CheckedSignedNegate(32768) || node.Distance > 32767) {
+				return TsqueryValue{Kind: TsqueryValueUnknown}
+			}
+			if node.Kind == 1 {
+				if depth < 1 || node.Left != stack[langruntime.CheckedSubtract(depth, 1)] || node.Right != 0 {
+					return TsqueryValue{Kind: TsqueryValueUnknown}
+				}
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else {
+				if depth < 2 || node.Left != stack[langruntime.CheckedSubtract(depth, 2)] || node.Right != stack[langruntime.CheckedSubtract(depth, 1)] {
+					return TsqueryValue{Kind: TsqueryValueUnknown}
+				}
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 2))
+			}
+		}
+		if depth < len(stack) {
+			stack[depth] = langruntime.CheckedIndex(index)
+		} else {
+			langruntime.CheckedAdd(len(stack), 1)
+			stack = append(stack, langruntime.CheckedIndex(index))
+		}
+		depth = langruntime.CheckedAdd(depth, 1)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if depth != 1 {
+		return TsqueryValue{Kind: TsqueryValueUnknown}
+	}
+	return TsqueryValue{Kind: TsqueryValueValue, Value: input}
+}
+func TsqueryIsNull(input TsqueryValue) BoolValue {
+	input = CopyTsqueryValue(input)
+	if input.Kind == TsqueryValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == TsqueryValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == TsqueryValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func TsqueryFromCaseGuard(input CheckOutcome) TsqueryValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return TsqueryValue{Kind: TsqueryValueError, Error: error}
+	}
+	return TsqueryValue{Kind: TsqueryValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int
