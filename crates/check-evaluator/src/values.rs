@@ -3018,3 +3018,15 @@ pub fn tsquery_from_case_guard(input: CheckOutcome) -> TsqueryValue {
     if let CheckOutcome::Error(error) = input { return TsqueryValue::Error(error); };
     TsqueryValue::Unknown
 }
+
+pub fn make_tsquery_payload(native_bytes: i32) -> TsqueryPayload {
+    let nodes: Vec<TsqueryNode> = Vec::new();
+    TsqueryPayload {nodes:nodes,root:0,native_bytes:native_bytes}
+}
+
+pub fn tsquery_append_node(input: TsqueryPayload, kind: i32, text: &str, weight: i32, prefix: bool, distance: i32, left: usize, right: usize) -> TsqueryPayload {
+    let mut nodes = input.nodes;
+    let root = nodes.len();
+    nodes.push(TsqueryNode {kind:kind,text:text.to_owned(),weight:weight,prefix:prefix,distance:distance,left:left,right:right});
+    TsqueryPayload {nodes:nodes,root:root,native_bytes:input.native_bytes}
+}

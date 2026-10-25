@@ -217,7 +217,7 @@ it('keeps raw tsquery and domain query parameters on database coercion', async (
   }
 })
 
-it('requires original trees for stored tsquery literals whose printed grouping is ambiguous', async () => {
+it('preserves captured tsquery trees and refuses ambiguous stored literals without their capture', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(
@@ -254,7 +254,31 @@ it('requires original trees for stored tsquery literals whose printed grouping i
       ],
       { serverEncoding: 'UTF8', clientEncoding: 'UTF8', defaultCollation: 'C' },
     )
-    expect(prepared.checks[0]).toMatchObject({
+    expect(constraint.tsqueryConstants).toMatchObject({ complete: true })
+    expect(prepared.checks[0]).toMatchObject({ kind: 'supported' })
+    const missing = prepareCheckRustGroup(
+      [
+        {
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: table.name,
+            constraint: constraint.name,
+          },
+          expression: portableCheckAtoms(
+            lowerTableCheck(
+              table,
+              { ...constraint, tsqueryConstants: undefined },
+              [],
+              catalog.domains,
+              'stored',
+            )!.expression,
+          ),
+        },
+      ],
+      { serverEncoding: 'UTF8', clientEncoding: 'UTF8', defaultCollation: 'C' },
+    )
+    expect(missing.checks[0]).toMatchObject({
       kind: 'unsupported',
       reason: expect.stringContaining('Stored tsquery constants require captured query trees'),
     })

@@ -7,6 +7,7 @@ import type {
   EntityId,
   FunctionInfo,
   StoredTsvectorConstantContext,
+  StoredTsqueryConstantContext,
   StoredArrayConstantContext,
   RangeTypeInfo,
   SchemaDiff,
@@ -164,6 +165,7 @@ function functionState(f: FunctionInfo): {
   argDefaults: (string | null)[]
   argArrayConstants?: (StoredArrayConstantContext | null)[]
   argTsvectorConstants?: (StoredTsvectorConstantContext | null)[]
+  argTsqueryConstants?: (StoredTsqueryConstantContext | null)[]
   returnType: string
   language: string
   isProcedure: boolean
@@ -185,6 +187,9 @@ function functionState(f: FunctionInfo): {
       : {}),
     ...(f.args.some((a) => a.tsvectorConstants !== undefined)
       ? { argTsvectorConstants: f.args.map((a) => a.tsvectorConstants ?? null) }
+      : {}),
+    ...(f.args.some((a) => a.tsqueryConstants !== undefined)
+      ? { argTsqueryConstants: f.args.map((a) => a.tsqueryConstants ?? null) }
       : {}),
     returnType: f.returnType,
     language: f.language,

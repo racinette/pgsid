@@ -1,3 +1,4 @@
+import { restoreStoredTsqueryConstants } from './tsquery-constant-sites.js'
 import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import { parseSync, type Node } from 'libpg-query'
 import type {
@@ -53,6 +54,7 @@ type CheckConstraint = Pick<
   | 'arrayConstructorContext'
   | 'arrayConstants'
   | 'tsvectorConstants'
+  | 'tsqueryConstants'
   | 'xmlConstants'
 >
 
@@ -286,6 +288,11 @@ export function lowerTableCheck(
         check?.['raw_expr'],
         constraint.definition,
         constraint.tsvectorConstants,
+      )
+      restoreStoredTsqueryConstants(
+        check?.['raw_expr'],
+        constraint.definition,
+        constraint.tsqueryConstants,
       )
     }
     const stored = sourceDefinition === undefined ? check : parseCheck(constraint.definition),

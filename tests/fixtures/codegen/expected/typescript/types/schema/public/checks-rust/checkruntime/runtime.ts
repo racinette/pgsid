@@ -3764,6 +3764,25 @@ export function tsqueryFromCaseGuard(input: CheckOutcome): TsqueryValue {
     }
     return { kind: "Unknown" };
 }
+export function makeTsqueryPayload(nativeBytes: number): TsqueryPayload {
+    nativeBytes = langruntime.checkedI32(nativeBytes);
+    const nodes: TsqueryNode[] = [];
+    return { nodes: nodes, root: 0, nativeBytes: nativeBytes };
+}
+export function tsqueryAppendNode(input: TsqueryPayload, kind: number, text: string, weight: number, prefix: boolean, distance: number, left: number, right: number): TsqueryPayload {
+    input = copyTsqueryPayload(input);
+    kind = langruntime.checkedI32(kind);
+    text = langruntime.checkedString(text);
+    weight = langruntime.checkedI32(weight);
+    prefix = langruntime.checkedBool(prefix);
+    distance = langruntime.checkedI32(distance);
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    let nodes: TsqueryNode[] = input.nodes;
+    const root: number = nodes.length;
+    langruntime.pushStruct(nodes, { kind: kind, text: text, weight: weight, prefix: prefix, distance: distance, left: left, right: right }, copyTsqueryNode);
+    return { nodes: nodes, root: root, nativeBytes: input.nativeBytes };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

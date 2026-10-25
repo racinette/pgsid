@@ -9,3 +9,4 @@ INSERT INTO document_default_windows(source,expected_default,expected_supplied,b
 INSERT INTO document_score_updates(observation,minimum_updates,source,expected_reference,bypass) VALUES(4,1,'a',true,false);
 INSERT INTO document_archived_scores(source,expected_reference,observation,minimum_updates,bypass) VALUES('a',true,4,1,false);
 INSERT INTO search_query_imports(source,fallback_source,expected_rendered,node_budget,choose_source,bypass) VALUES('a & b','z','''a'' & ''b''',3,true,false);
+INSERT INTO search_query_templates(source,expected_match,right_associated,bypass) VALUES('a & (b & c)',true,true,false);

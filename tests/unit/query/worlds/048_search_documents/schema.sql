@@ -135,3 +135,12 @@ CREATE TABLE search_query_imports (
  CONSTRAINT query_node_budget CHECK(CASE WHEN bypass THEN true ELSE numnode(COALESCE(source::tsquery,fallback_source::tsquery))<=node_budget END),
  CONSTRAINT query_presence CHECK(CASE WHEN bypass THEN true ELSE (source::tsquery IS NULL) OR node_budget IS NOT NULL END)
 );
+
+CREATE TABLE search_query_templates (
+ source text,
+ expected_match boolean,
+ right_associated boolean,
+ bypass boolean,
+ CONSTRAINT query_template_tree CHECK(CASE WHEN bypass THEN true ELSE (tsquerysend(source::tsquery)=tsquerysend(CASE WHEN right_associated THEN 'a & (b & c)'::compact_search_query ELSE '(a & b) & c'::compact_search_query END)) IS NOT DISTINCT FROM expected_match END),
+ CONSTRAINT query_template_selection CHECK(bypass OR source IS NULL OR right_associated IS NOT NULL)
+);

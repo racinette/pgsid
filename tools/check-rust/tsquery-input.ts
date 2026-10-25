@@ -1,21 +1,12 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 
-export interface TsqueryInputNode {
-  kind: number
-  text: string
-  weight: number
-  prefix: boolean
-  distance: number
-  left: number
-  right: number
-}
-
-export interface TsqueryInputPayload {
-  nodes: TsqueryInputNode[]
-  root: number
-  nativeBytes: number
-}
+import type {
+  TsqueryConstantNode,
+  TsqueryConstantStorage,
+} from '../../src/catalog/tsquery-constant-storage.js'
+export type TsqueryInputNode = TsqueryConstantNode
+export type TsqueryInputPayload = TsqueryConstantStorage
 
 export function tsqueryRustPayload(value: TsqueryInputPayload): string {
   return `TsqueryPayload {nodes:vec![${value.nodes.map(tsqueryRustNode).join(',')}],root:${value.root},native_bytes:${value.nativeBytes}}`
