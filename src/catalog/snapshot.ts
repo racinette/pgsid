@@ -945,6 +945,7 @@ async function readCatalog(pg: PGlite, utf8: boolean): Promise<CatalogSnapshot> 
     functions: rowFunctions,
     operators: capturedRowFunctions.operators,
     orderings: capturedRowFunctions.orderings,
+    unavailableVariadics: capturedRowFunctions.unavailableVariadics,
     columns: new Map(
       columnRows
         .filter((c) => c.attrelid === relation)

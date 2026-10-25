@@ -969,3 +969,39 @@ INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,
 INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(1,1,0,'m',false,false,false,true);
 -- name: HistoricalOrderingNullExpectation
 INSERT INTO inspection_ordering_history(score,peer,divisor,label,expected_order,expected_text,expected_present,bypass) VALUES(NULL,0,0,'m',NULL,NULL,NULL,false);
+
+-- name: HistoricalVariadicValues
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[1,2,"x"]','[1,2]','{"x" : 0, "again" : "x"}',true,false);
+
+-- name: HistoricalVariadicNullScore
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(NULL,0,'x',false,'[null,0,"x"]','[null,0]','{"x" : null, "again" : "x"}',false,false);
+
+-- name: HistoricalVariadicNullArray
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,0,'x',true,'[1,0,"x"]',NULL,NULL,false,false);
+
+-- name: HistoricalVariadicWrongPayload
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[]','[1,2]','{"x" : 0, "again" : "x"}',true,false);
+
+-- name: HistoricalVariadicWrongNumbers
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[1,2,"x"]','[]','{"x" : 0, "again" : "x"}',true,false);
+
+-- name: HistoricalVariadicWrongRaw
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[1,2,"x"]','[1,2]','{}',true,false);
+
+-- name: HistoricalVariadicWrongPresence
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[1,2,"x"]','[1,2]','{"x" : 0, "again" : "x"}',false,false);
+
+-- name: HistoricalVariadicNullExpectation
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,2,'x',false,'[1,2,"x"]','[1,2]',NULL,NULL,false);
+
+-- name: HistoricalVariadicReachedDivision
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,0,'x',false,'[1,0,"x"]','[1,0]',NULL,true,false);
+
+-- name: HistoricalVariadicNullKey
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,1,NULL,false,'[1,1,null]','[1,1]',NULL,true,false);
+
+-- name: HistoricalVariadicBypassedErrors
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,0,NULL,false,NULL,NULL,NULL,false,true);
+
+-- name: HistoricalVariadicDuplicateKeys
+INSERT INTO inspection_variadic_history(score,divisor,label,missing,expected_payload,expected_numbers,expected_raw,expected_present,bypass) VALUES(1,1,'again',false,'[1,1,"again"]','[1,1]','{"again" : 1, "again" : "again"}',true,false);

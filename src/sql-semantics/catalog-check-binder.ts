@@ -3673,19 +3673,29 @@ export function bindCatalogCheck(
     const storedCall = fields(wrapper['PgsidStoredCall'])
     if (storedCall) {
       const selected = callables.find((c) => c.signature === storedCall['signature']),
-        nodes = storedCall['args']
+        nodes = storedCall['args'],
+        variadic = selected?.item.kind === 'function' ? selected.item.variadic : null,
+        explicit = storedCall['variadic'] === true,
+        expanded = variadic === 'pg_catalog."any"' && !explicit
       if (
         !selected ||
         selected.item.kind !== 'function' ||
         !Array.isArray(nodes) ||
         selected.item.returnsSet ||
-        selected.item.variadic !== null ||
-        selected.item.args.length !== nodes.length
+        (storedCall['variadic'] !== undefined && typeof storedCall['variadic'] !== 'boolean') ||
+        (expanded
+          ? nodes.length < selected.item.args.length
+          : selected.item.args.length !== nodes.length)
       )
         return unknown
       const args = nodes.map((node, index) => {
-          const arg = bind(node),
-            target = catalogScalarType(selected.item.args[index]!)
+          let arg = bind(node)
+          if (variadic) {
+            const type = boundType(arg) ?? 'pg_catalog.text',
+              value = arg.value ?? materialize(arg, type, arg.enum)
+            if (value) arg = { ...arg, type, value, literal: undefined }
+          }
+          const target = catalogScalarType(selected.item.args[index] ?? '')
           if (
             !target ||
             !arg.type ||
@@ -3701,14 +3711,15 @@ export function bindCatalogCheck(
         type = carrier?.type,
         collation = storedCollation(storedCall['inputCollation']),
         resultCollation = storedCollation(storedCall['resultCollation']),
-        polymorphic = selected.item.args.some((type) => !catalogScalarType(type)),
+        polymorphic =
+          variadic !== null || selected.item.args.some((type) => !catalogScalarType(type)),
         resolved = polymorphic
           ? candidate(
               'function',
               selected.item.name,
               args,
               undefined,
-              false,
+              explicit || (variadic !== null && variadic !== 'pg_catalog."any"'),
               implicitOperand,
               selected.signature,
             )
@@ -3736,6 +3747,7 @@ export function bindCatalogCheck(
             resolved.signature !== selected.signature ||
             resolvedType !== type ||
             (resolved.resultNominalDomain ?? undefined) !== carrier?.nominalDomain ||
+            resolved.operands.length !== args.length ||
             resolved.operands.some((operand, index) => operand !== args[index]?.value)
           : args.some(
               (arg, index) =>
@@ -3753,6 +3765,24 @@ export function bindCatalogCheck(
             kind: 'function',
             signature: selected.signature,
             type,
+            ...(explicit && variadic ? { variadic: true as const } : {}),
+            ...([
+              'json_build_array',
+              'jsonb_build_array',
+              'json_build_object',
+              'jsonb_build_object',
+            ].includes(selected.item.name)
+              ? {
+                  inputEnums: [
+                    ...new Map(
+                      args.flatMap((arg) => {
+                        const definition = arrayOutputEnum(boundType(arg) ?? '')
+                        return definition ? [[enumType(definition), definition] as const] : []
+                      }),
+                    ).values(),
+                  ],
+                }
+              : {}),
             collation: collation?.kind,
             ...arrayDefaultCollation(selected.signature, collation ?? undefined),
             ...((resolved?.enum ?? carrier?.enum) ? { enum: resolved?.enum ?? carrier?.enum } : {}),

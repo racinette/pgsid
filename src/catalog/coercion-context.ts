@@ -154,6 +154,15 @@ function captureExpressionCoercions(
       if (site !== undefined && !scalarRoots.has(site)) scalarRoots.set(site, node)
       if (site !== undefined && node.kind === 'COERCETODOMAIN') domainSites.add(site)
       if (site !== undefined && node.kind === 'FUNCEXPR') {
+        const id = Number(scalar(node, 'funcid'))
+        if (rowExpressions?.unavailableVariadics?.has(id)) omittedComplete = false
+        else if (
+          rowExpressions?.functions.get(id)?.variadic &&
+          storedRowExpression(scalarRoots.get(site)!, rowExpressions) !== undefined
+        )
+          scalarSites.add(site)
+      }
+      if (site !== undefined && node.kind === 'FUNCEXPR') {
         const callable = rowExpressions?.functions.get(Number(scalar(node, 'funcid'))),
           args = node.fields['args']?.[0],
           values = Array.isArray(args) ? args : []

@@ -13,11 +13,18 @@ export async function readStoredRowFunctions(
   functions: ReadonlyMap<number, StoredRowFunction>
   operators: ReadonlyMap<number, StoredRowOperator>
   orderings: ReadonlyMap<string, StoredRowOrdering>
+  unavailableVariadics: ReadonlySet<number>
   sources: string[]
 }> {
   const pending = new Set<number>(),
     seen = new Set<number>(),
     functions = new Map<number, StoredRowFunction>(),
+    unavailableVariadics = new Set<number>(),
+    variadicNames = new Set(
+      catalog.functions
+        .filter(({ metadata: m }) => m.variadic !== null)
+        .map(({ metadata: m }) => m.name),
+    ),
     defaults: string[] = [],
     orderingSources = [...sources],
     orderingFunctions = new Map<
@@ -51,15 +58,40 @@ export async function readStoredRowFunctions(
         result: number
         default_count: number
         defaults: string | null
+        variadic: number
+        schema: string
+        source: string
+        internal: boolean
+        result_kind: string
       }>(
-        `SELECT p.oid,p.proname AS name,p.proargtypes::oid[] AS args,p.prorettype AS result,
-         p.pronargdefaults AS default_count,p.proargdefaults::text AS defaults
+        `SELECT p.oid,n.nspname AS schema,p.proname AS name,p.proargtypes::oid[] AS args,p.prorettype AS result,
+         p.prosrc AS source,l.lanname='internal' AS internal,t.typtype AS result_kind,
+         p.pronargdefaults AS default_count,p.proargdefaults::text AS defaults,p.provariadic AS variadic
        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-       WHERE n.nspname='pg_catalog' AND p.oid=ANY($1::oid[]) AND p.prokind='f' AND NOT p.proretset`,
+       JOIN pg_language l ON l.oid=p.prolang JOIN pg_type t ON t.oid=p.prorettype
+       WHERE p.oid=ANY($1::oid[]) AND p.prokind='f' AND NOT p.proretset`,
         [ids],
       )
     ).rows
     for (const row of rows) {
+      if (row.schema !== 'pg_catalog') {
+        if (
+          variadicNames.has(row.name) &&
+          !(
+            row.internal &&
+            ['r', 'm'].includes(row.result_kind) &&
+            [
+              'range_constructor2',
+              'range_constructor3',
+              'multirange_constructor0',
+              'multirange_constructor1',
+              'multirange_constructor2',
+            ].includes(row.source)
+          )
+        )
+          unavailableVariadics.add(row.oid)
+        continue
+      }
       const args = row.args.map((oid) => types.get(oid)),
         result = types.get(row.result),
         match = catalog.functions.find(
@@ -69,7 +101,7 @@ export async function readStoredRowFunctions(
             m.name === row.name &&
             m.result === result &&
             JSON.stringify(m.args) === JSON.stringify(args) &&
-            m.variadic === null,
+            m.variadic === (row.variadic === 0 ? null : types.get(row.variadic)),
         )
       if (!match) continue
       let expressions: readonly Value[] | undefined = row.default_count === 0 ? [] : undefined
@@ -94,6 +126,7 @@ export async function readStoredRowFunctions(
         args: match.metadata.args,
         result: match.metadata.result,
         defaults: expressions,
+        ...(match.metadata.variadic ? { variadic: match.metadata.variadic } : {}),
       })
     }
   }
@@ -148,5 +181,5 @@ export async function readStoredRowFunctions(
     if (comparator?.result === 'pg_catalog.int4' && comparator.args.length === 2)
       orderings.set(key, { ...ordering, comparator: comparator.signature })
   }
-  return { functions, operators, orderings, sources: defaults }
+  return { functions, operators, orderings, unavailableVariadics, sources: defaults }
 }

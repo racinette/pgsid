@@ -28,6 +28,7 @@ export interface StoredRowFunction {
   args: readonly string[]
   result: string
   defaults?: readonly Value[]
+  variadic?: string | null
 }
 
 export interface StoredRowOperator {
@@ -40,6 +41,7 @@ export interface StoredRowExpressionInput {
   functions: ReadonlyMap<number, StoredRowFunction>
   operators?: ReadonlyMap<number, StoredRowOperator>
   orderings?: ReadonlyMap<string, StoredRowOrdering>
+  unavailableVariadics?: ReadonlySet<number>
   activeDefaults?: ReadonlySet<number>
   arguments?: ReadonlyMap<Value, unknown>
   columns: ReadonlyMap<number, { name: string; type: number }>
@@ -575,7 +577,12 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       callable = input.functions.get(id)
     if (!callable) return undefined
     const provided = list('args'),
-      values: (Value | undefined)[] = Array(callable.args.length).fill(undefined)
+      variadic = callable.variadic ?? null,
+      explicit = node.kind === 'FUNCEXPR' && scalar(node, 'funcvariadic') === 'true',
+      expanded = variadic === 'pg_catalog."any"' && !explicit,
+      values: (Value | undefined)[] = Array(
+        expanded ? Math.max(provided.length, callable.args.length) : callable.args.length,
+      ).fill(undefined)
     let named = false
     for (const [index, value] of provided.entries()) {
       const arg = tree(value),
@@ -614,7 +621,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     )
     if (
       args.some((arg) => arg === undefined) ||
-      callable.args.length !== args.length ||
+      (expanded ? args.length < callable.args.length : callable.args.length !== args.length) ||
       collation('inputcollid') === undefined ||
       collation(node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid') === undefined ||
       scalar(node, node.kind === 'FUNCEXPR' ? 'funcretset' : 'opretset') !== 'false' ||
@@ -653,6 +660,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       PgsidStoredCall: {
         signature: callable.signature,
         args,
+        ...(variadic ? { variadic: explicit } : {}),
         inputCollation: collation('inputcollid'),
         resultCollation: special
           ? null
