@@ -8,12 +8,12 @@ The starting revision is `027d433` (XML well-formedness predicates). The bounded
 
 Measure each boundary separately:
 
-| Evidence                                                                       | What it measures                                                                         |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `artifacts/check-surface/report.json`                                          | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions    |
-| `artifacts/check-type-audit/report.json`, `artifacts/check-arrays/report.json` | Catalog type representations, row shape, basic preparation and array callable boundaries |
-| `artifacts/check-worlds/report.json`                                           | Actual INSERT outcomes, Unknown results, and unexercised constraints                     |
-| `artifacts/check-coercions/report.json`                                        | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs          |
+| Evidence                                                                                                                 | What it measures                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `artifacts/check-surface/report.json`                                                                                    | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions                                |
+| `artifacts/check-type-audit/report.json`, `artifacts/check-arrays/report.json`, `artifacts/check-historical/report.json` | Catalog representations, row shape, historical literal/expression capture, preparation and array callable boundaries |
+| `artifacts/check-worlds/report.json`                                                                                     | Actual INSERT outcomes, Unknown results, and unexercised constraints                                                 |
+| `artifacts/check-coercions/report.json`                                                                                  | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs                                      |
 
 Generated artifacts are ignored by Git. The census and type-audit producers live under maintained `scripts/check-measurements/`. Refresh world outcomes before measuring the surface. Run from the repository root:
 

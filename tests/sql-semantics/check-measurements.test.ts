@@ -33,6 +33,7 @@ import {
   worldRejectionCoverage,
 } from '../../scripts/check-measurements/worlds.js'
 import { measureTypes } from '../../scripts/check-measurements/types.js'
+import { measureHistorical } from '../../scripts/check-measurements/historical.js'
 import { readCatalogCompositeTypes } from '../../src/postgres/composite-types.js'
 import { measureCoercions } from '../../scripts/check-measurements/coercions.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -740,11 +741,12 @@ describe('CHECK measurement boundaries', () => {
 
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
     const nullness = bindProbe('value IS NULL', [
-      { name: 'value', typeName: 'aclitem', isRowType: false },
+      { name: 'value', typeName: 'pg_node_tree', isRowType: false },
     ])
     expect(nullness.fullyBound).toBe(true)
     expect(nullness.preparation.kind).toBe('supported')
-    expect(valueRepresentation('aclitem').represented).toBe(false)
+    expect(valueRepresentation('pg_node_tree').represented).toBe(false)
+    expect(valueRepresentation('aclitem').represented).toBe(true)
     expect(valueRepresentation('jsonb').represented).toBe(true)
     expect(valueRepresentation('json').represented).toBe(true)
     expect(valueRepresentation('xml').represented).toBe(true)
@@ -1250,6 +1252,89 @@ describe('CHECK measurement boundaries', () => {
     }
   })
 
+  it('inventories historical capture separately from representation and native CHECK admission', async () => {
+    const path = (await pg.query<{ path: string }>("SELECT current_setting('search_path') path"))
+      .rows[0]!.path
+    await pg.exec(
+      'CREATE SCHEMA _pgsid_measure_historical;CREATE TABLE _pgsid_measure_historical.sentinel(n int4)',
+    )
+    try {
+      await expect(measureHistorical(pg, ['variable'])).rejects.toMatchObject({ code: '42P06' })
+      expect(
+        (
+          await pg.query<{ present: string | null }>(
+            "SELECT to_regclass('_pgsid_measure_historical.sentinel') present",
+          )
+        ).rows[0]?.present,
+      ).toBe('_pgsid_measure_historical.sentinel')
+    } finally {
+      await pg.exec('DROP SCHEMA _pgsid_measure_historical CASCADE')
+    }
+    const selected = [
+        'pg_catalog.int4:scalar',
+        'pg_catalog.int4:null',
+        'pg_catalog.int4:array',
+        'pg_catalog.point:scalar',
+        'boolean_test',
+        'named_field',
+        'default_arguments',
+        'current_date',
+        'custom_call',
+        'subquery',
+        'aggregate',
+        'window',
+        'set_returning',
+        'pg_catalog.regrole:scalar',
+      ],
+      report = await measureHistorical(pg, selected),
+      inventory = new Map(report.cases.map((c) => [c.name, c]))
+    expect(report.selection).toEqual(selected)
+    expect(report.missingSamples).toEqual([])
+    expect(report.summary.cases).toBe(selected.length)
+    expect(new Set(report.cases.map((c) => c.name)).size).toBe(selected.length)
+    for (const name of [
+      'pg_catalog.int4:scalar',
+      'pg_catalog.int4:null',
+      'pg_catalog.int4:array',
+      'named_field',
+      'default_arguments',
+    ])
+      expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
+    for (const name of ['pg_catalog.point:scalar', 'boolean_test'])
+      expect(inventory.get(name)?.classification, name).toBe('implementation-gap')
+    expect(inventory.get('current_date')?.classification).toBe('requires-session')
+    expect(inventory.get('custom_call')?.classification).toBe('requires-database-callback')
+    for (const name of [
+      'subquery',
+      'aggregate',
+      'window',
+      'set_returning',
+      'pg_catalog.regrole:scalar',
+    ])
+      expect(inventory.get(name)?.classification, name).toBe('native-rejection')
+    expect(
+      (await pg.query<{ path: string }>("SELECT current_setting('search_path') path")).rows[0]!
+        .path,
+    ).toBe(path)
+    expect(
+      (
+        await pg.query<{ present: string | null }>(
+          "SELECT to_regnamespace('_pgsid_measure_historical') present",
+        )
+      ).rows[0]?.present,
+    ).toBeNull()
+    await expect(measureHistorical(pg, ['misspelled-probe'])).rejects.toThrow(
+      'Unknown historical probe',
+    )
+    expect(
+      (
+        await pg.query<{ present: string | null }>(
+          "SELECT to_regnamespace('_pgsid_measure_historical') present",
+        )
+      ).rows[0]?.present,
+    ).toBeNull()
+  })
+
   it('measures column admission and nullness against PostgreSQL catalog row shape', async () => {
     const report = await measureTypes(pg)
     const inventory = new Map(report.types.map((type) => [type.identity, type]))
@@ -1279,9 +1364,7 @@ describe('CHECK measurement boundaries', () => {
       'pg_catalog.pg_ndistinct',
       'pg_catalog.pg_node_tree',
     ])
-    for (const type of ['aclitem', 'tsquery', 'tsvector'])
-      expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('unimplemented-value')
-    for (const type of ['int2vector', 'oidvector', 'xml'])
+    for (const type of ['aclitem', 'tsquery', 'tsvector', 'int2vector', 'oidvector', 'xml'])
       expect(inventory.get('pg_catalog.' + type)?.boundary.kind, type).toBe('represented-value')
     expect(inventory.get('pg_catalog._xml')?.representation.represented).toBe(true)
     expect(inventory.get('pg_catalog.pg_class')?.boundary.kind).toBe('captured-composite')
@@ -1321,6 +1404,7 @@ describe('CHECK measurement boundaries', () => {
       report.types.filter((t) => t.storedColumn && t.boundary.kind === 'unimplemented-value')
         .length,
     )
+    expect(report.summary.missingConcreteValueFamilies).toBe(0)
     expect(report.rangeTypes).toEqual(catalog.rangeTypes)
     expect(report.rangeTypes.map((range) => range.identity).sort()).toEqual(
       report.types
