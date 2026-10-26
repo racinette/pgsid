@@ -1365,3 +1365,15 @@ CREATE TABLE inspection_zone_arithmetic (
  CONSTRAINT explicit_zone_array CHECK(CASE WHEN bypass THEN true ELSE
    timestamptz_send((ARRAY[date_add(instant_at,duration,zone_name),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_add) END)
 );
+
+CREATE TABLE inspection_zone_truncation (
+ instant_at timestamptz,
+ unit_name text,
+ zone_name text,
+ expected_truncated timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT explicit_zone_truncate CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(date_trunc(unit_name,instant_at,zone_name)) IS NOT DISTINCT FROM timestamptz_send(expected_truncated) END),
+ CONSTRAINT explicit_zone_truncate_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send((ARRAY[date_trunc(unit_name,instant_at,zone_name),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_truncated) END)
+);

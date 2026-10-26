@@ -154,7 +154,12 @@ describe('explicit timezone truncation CHECKs', () => {
           }
         }),
       )
-      const group = prepareCheckRustGroup(prepared)
+      const group = prepareCheckRustGroup(prepared, {
+        timeZone: 'UTC',
+        timeZoneAbbreviations: 'Default',
+        maxIdentifierBytes: 63,
+        serverEncoding: 'UTF8',
+      })
       expect(group.checks.every((check) => check.kind === 'supported')).toBe(true)
       expect(
         group
@@ -282,7 +287,8 @@ describe('explicit timezone truncation CHECKs', () => {
         )
         record({ ...defaults(), unit_name: error('22003'), [name]: error('22012') }, error('22003'))
       }
-      for (const zone of ['PST', 'Foo/Bar', 'America/Does_Not_Exist'])
+      await execute('hour', timestamps[9]!, 'PST')
+      for (const zone of ['Foo/Bar', 'America/Does_Not_Exist'])
         record({ ...defaults(), zone_name: value(zone) }, { kind: 'Unknown' })
       await runCheckParity(
         directory,

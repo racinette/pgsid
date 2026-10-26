@@ -16,6 +16,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalExplicitZoneArithmetic,
+  isTemporalExplicitZoneLookup,
 } from '../../../src/sql-semantics/temporal-casts.js'
 import { constantCheckExpression } from '../../../src/codegen/shared/check-rust-constants.js'
 import { portableCheckAtoms } from '../../../src/codegen/shared/check-atom-support.js'
@@ -122,4 +123,27 @@ it('keeps explicit-zone arithmetic tied to the native overload and exposes order
       }),
     ).not.toContain('sql.codegen.checks.')
   }
+})
+
+it('classifies explicit timezone truncation with native lookup requirements independently of arithmetic', () => {
+  const operations = builtinCallables().filter(isTemporalExplicitZoneLookup)
+  expect(operations).toHaveLength(3)
+  const item = operations.find((item) => item.name === 'date_trunc')!
+  expect(isTemporalExplicitZoneArithmetic(item)).toBe(false)
+  expect(
+    temporalArithmeticRequirements(item)?.every(
+      (r) => r.owner === 'tests/sql-semantics/check-temporal-zone-lookup.test.ts',
+    ),
+  ).toBe(true)
+  expect(isTemporalExplicitZoneLookup({ ...item, schema: 'other' })).toBe(false)
+  expect(isTemporalExplicitZoneLookup({ ...item, volatility: 's' })).toBe(false)
+  const probe = bindProbe('date_trunc(unit,v,zone) IS NOT NULL', [
+    { name: 'unit', typeName: 'pg_catalog.text' },
+    { name: 'v', typeName: 'pg_catalog.timestamptz' },
+    { name: 'zone', typeName: 'pg_catalog.text' },
+  ])
+  expect(probe.fullyBound).toBe(true)
+  expect(checkUnknownMessage(probe.expression)).toContain(
+    'sql.codegen.checks.timeZoneAbbreviations',
+  )
 })
