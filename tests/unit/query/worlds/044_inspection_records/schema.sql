@@ -971,3 +971,34 @@ CREATE TABLE inspection_system_history (
      IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_system_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_vector_values AS(positions int2vector,type_ids oidvector,old integer);
+CREATE TYPE historical_vector_result AS(score integer,obsolete_result int2vector);
+CREATE TABLE inspection_vector_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_positions text COLLATE "C",
+ expected_types text COLLATE "C",
+ expected_rank integer,
+ expected_payload jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT vector_history_positions CHECK(CASE WHEN bypass THEN true ELSE
+   ('-32768 0 32767'::int2vector)::text COLLATE "C" IS NOT DISTINCT FROM expected_positions END),
+ CONSTRAINT vector_history_types CHECK(CASE WHEN bypass THEN true ELSE
+   ('4294967295 0'::oidvector)::text COLLATE "C" IS NOT DISTINCT FROM expected_types END),
+ CONSTRAINT vector_history_empty CHECK(CASE WHEN bypass THEN true ELSE
+   array_ndims(''::int2vector)=expected_rank END),
+ CONSTRAINT vector_history_array CHECK(CASE WHEN bypass THEN true ELSE
+   (('{"-32768 0 32767",NULL,""}'::int2vector[])[1])::text COLLATE "C"
+     IS NOT DISTINCT FROM expected_positions END),
+ CONSTRAINT vector_history_record CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('("-32768 0 32767","4294967295 0",1)'::historical_vector_values)
+     IS NOT DISTINCT FROM expected_payload END),
+ CONSTRAINT vector_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN ('-32768 0 32767'::int2vector)::text COLLATE "C"=expected_positions
+     THEN ARRAY[score/divisor,0]::int2vector ELSE NULL::int2vector END)::historical_vector_result
+     IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_vector_values DROP ATTRIBUTE old;
+ALTER TYPE historical_vector_result DROP ATTRIBUTE obsolete_result;

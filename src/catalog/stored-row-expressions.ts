@@ -351,12 +351,23 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       type = input.types.get(element),
       dimensions = scalar(node, 'multidims'),
       args = list('elements').map(convert)
-    return input.arrayElements?.get(array) === element &&
+    return arrayElement(array) === element &&
       type &&
       (dimensions === 'true' || dimensions === 'false') &&
       args.every((arg) => arg !== undefined)
       ? collated(
-          { PgsidStoredArray: { element: type, multidimensional: dimensions === 'true', args } },
+          {
+            PgsidStoredArray: {
+              ...(['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(
+                input.types.get(array) ?? '',
+              )
+                ? { vector: input.types.get(array) }
+                : {}),
+              element: type,
+              multidimensional: dimensions === 'true',
+              args,
+            },
+          },
           'array_collid',
         )
       : undefined

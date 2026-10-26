@@ -93,9 +93,13 @@ function captureExpressionCoercions(
       if (
         isGeometryConstantType(rowExpressions?.types.get(id)) ||
         isSystemConstantType(rowExpressions?.types.get(id)) ||
-        ['pg_catalog."char"', 'pg_catalog.name', 'pg_catalog.refcursor'].includes(
-          rowExpressions?.types.get(id) ?? '',
-        )
+        [
+          'pg_catalog."char"',
+          'pg_catalog.name',
+          'pg_catalog.refcursor',
+          'pg_catalog.int2vector',
+          'pg_catalog.oidvector',
+        ].includes(rowExpressions?.types.get(id) ?? '')
       )
         return true
       const storage = rowExpressions?.storageTypes?.get(id),
