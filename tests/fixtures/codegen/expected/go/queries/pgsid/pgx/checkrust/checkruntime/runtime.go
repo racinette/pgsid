@@ -2713,6 +2713,12 @@ type AclitemPayload struct {
 	Privileges   int64
 	GrantOptions int64
 }
+type AclitemCatalogPayload struct {
+	Privileges     int64
+	GrantOptions   int64
+	PublicGrantee  bool
+	InvalidGrantor bool
+}
 type AclitemValueKind uint8
 
 const (
@@ -2720,12 +2726,14 @@ const (
 	AclitemValueNull
 	AclitemValueValue
 	AclitemValueError
+	AclitemValueCatalog
 )
 
 type AclitemValue struct {
-	Kind  AclitemValueKind
-	Value AclitemPayload
-	Error SqlError
+	Kind    AclitemValueKind
+	Value   AclitemPayload
+	Error   SqlError
+	Catalog AclitemCatalogPayload
 }
 
 func AclitemUnknown() AclitemValue {
@@ -2739,6 +2747,15 @@ func MakeAclitemValue(grantee int64, grantor int64, privileges int64, grantOptio
 		return AclitemValue{Kind: AclitemValueUnknown}
 	}
 	return AclitemValue{Kind: AclitemValueValue, Value: AclitemPayload{Grantee: grantee, Grantor: grantor, Privileges: privileges, GrantOptions: grantOptions}}
+}
+func MakeAclitemCatalogValue(privileges int64, grantOptions int64, publicGrantee bool, invalidGrantor bool) AclitemValue {
+	if privileges < int64(0) || privileges > int64(4294967295) || grantOptions < int64(0) || grantOptions > int64(4294967295) {
+		return AclitemValue{Kind: AclitemValueUnknown}
+	}
+	if publicGrantee && invalidGrantor {
+		return MakeAclitemValue(int64(0), int64(0), privileges, grantOptions)
+	}
+	return AclitemValue{Kind: AclitemValueCatalog, Catalog: AclitemCatalogPayload{Privileges: privileges, GrantOptions: grantOptions, PublicGrantee: publicGrantee, InvalidGrantor: invalidGrantor}}
 }
 func AclitemIsNull(input AclitemValue) BoolValue {
 	if input.Kind == AclitemValueError {
@@ -7682,6 +7699,7 @@ const (
 	ArrayElementAclitem
 	ArrayElementTsvector
 	ArrayElementTsquery
+	ArrayElementAclitemCatalog
 )
 
 type ArrayElement struct {
@@ -7739,6 +7757,7 @@ type ArrayElement struct {
 	Aclitem            AclitemPayload
 	Tsvector           TsvectorPayload
 	Tsquery            TsqueryPayload
+	AclitemCatalog     AclitemCatalogPayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -7861,11 +7880,16 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementTsvector, Tsvector: CopyTsvectorPayload(value.Tsvector)}
 	case ArrayElementTsquery:
 		return ArrayElement{Kind: ArrayElementTsquery, Tsquery: CopyTsqueryPayload(value.Tsquery)}
+	case ArrayElementAclitemCatalog:
+		return ArrayElement{Kind: ArrayElementAclitemCatalog, AclitemCatalog: value.AclitemCatalog}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementAclitemCatalog {
+		return 46
+	}
 	if input.Kind == ArrayElementTsquery {
 		return 48
 	}
@@ -9382,6 +9406,10 @@ func ArrayElementToXml(input ArrayElement) XmlValue {
 	return XmlValue{Kind: XmlValueUnknown}
 }
 func ArrayElementFromAclitem(input AclitemValue) ArrayElement {
+	if input.Kind == AclitemValueCatalog {
+		value := input.Catalog
+		return ArrayElement{Kind: ArrayElementAclitemCatalog, AclitemCatalog: value}
+	}
 	if input.Kind == AclitemValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -9397,6 +9425,10 @@ func ArrayElementFromAclitem(input AclitemValue) ArrayElement {
 }
 func ArrayElementToAclitem(input ArrayElement) AclitemValue {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementAclitemCatalog {
+		value := input.AclitemCatalog
+		return MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor)
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return AclitemValue{Kind: AclitemValueError, Error: error}
@@ -10796,6 +10828,10 @@ func rangeBoundValueValid(input ArrayElement, cidr bool) bool {
 		}
 		return false
 	}
+	if input.Kind == ArrayElementAclitemCatalog {
+		value := input.AclitemCatalog
+		return MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor) != (AclitemValue{Kind: AclitemValueUnknown})
+	}
 	if input.Kind == ArrayElementAclitem {
 		value := input.Aclitem
 		return MakeAclitemValue(value.Grantee, value.Grantor, value.Privileges, value.GrantOptions) != (AclitemValue{Kind: AclitemValueUnknown})
@@ -11970,6 +12006,10 @@ func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
 	if element.Kind == ArrayElementTsvector {
 		value := CopyTsvectorPayload(element.Tsvector)
 		return ArrayElementFromTsvector(MakeTsvectorValue(value))
+	}
+	if element.Kind == ArrayElementAclitemCatalog {
+		value := element.AclitemCatalog
+		return ArrayElementFromAclitem(MakeAclitemCatalogValue(value.Privileges, value.GrantOptions, value.PublicGrantee, value.InvalidGrantor))
 	}
 	if element.Kind == ArrayElementAclitem {
 		value := element.Aclitem

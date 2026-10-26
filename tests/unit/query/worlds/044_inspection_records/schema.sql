@@ -1093,3 +1093,33 @@ CREATE TABLE inspection_alias_history (
 ALTER TYPE historical_alias_value DROP ATTRIBUTE obsolete;
 ALTER TYPE historical_alias_value RENAME ATTRIBUTE object TO current_object;
 ALTER TYPE historical_alias_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_acl_result AS(score integer,obsolete_acl aclitem);
+CREATE TABLE inspection_acl_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_nonnull boolean,
+ expected_count integer,
+ expected_equal boolean,
+ expected_present boolean,
+ obsolete_call boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT acl_history_nonnull CHECK(CASE WHEN bypass THEN true ELSE
+   ('=r/postgres'::aclitem IS NOT NULL) IS NOT DISTINCT FROM expected_nonnull END),
+ CONSTRAINT acl_history_count CHECK(CASE WHEN bypass THEN true ELSE
+   cardinality('{=r/postgres,NULL}'::aclitem[]) IS NOT DISTINCT FROM expected_count END),
+ CONSTRAINT acl_history_equal CHECK(CASE WHEN bypass THEN true ELSE
+   ('=r/postgres'::aclitem=makeaclitem(score::oid,score::oid,'UPDATE',false))
+     IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT acl_history_contains CHECK(CASE WHEN bypass THEN true ELSE
+   aclcontains('{=r/postgres}'::aclitem[],makeaclitem(score::oid,score::oid,'UPDATE',false))
+     IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT acl_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score/divisor,'=r/postgres'::aclitem)::historical_acl_result IS NOT NULL)
+     IS NOT DISTINCT FROM expected_present END),
+ CONSTRAINT acl_history_text_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (('=r/postgres'::aclitem)::text IS NOT NULL) IS NOT DISTINCT FROM expected_nonnull END),
+ CONSTRAINT acl_history_obsolete CHECK(CASE WHEN bypass OR NOT obsolete_call THEN true ELSE
+   aclinsert('{=r/postgres}'::aclitem[],makeaclitem(score::oid,score::oid,'SELECT',false)) IS NULL END)
+);
+ALTER TYPE historical_acl_result DROP ATTRIBUTE obsolete_acl;

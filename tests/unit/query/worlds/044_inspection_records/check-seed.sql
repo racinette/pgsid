@@ -1293,3 +1293,36 @@ INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,e
 
 -- name: HistoricalAliasBypassedDivision
 INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,NULL,true);
+
+-- name: HistoricalAclValues
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,true,2,false,true,false,false);
+
+-- name: HistoricalAclNullScore
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(NULL,1,true,2,NULL,false,false,false);
+
+-- name: HistoricalAclZeroIdentity
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(0,1,true,2,false,true,false,false);
+
+-- name: HistoricalAclWrongPresence
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,false,2,false,true,false,false);
+
+-- name: HistoricalAclWrongCount
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,true,3,false,true,false,false);
+
+-- name: HistoricalAclWrongEquality
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,true,2,true,true,false,false);
+
+-- name: HistoricalAclWrongResultPresence
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,true,2,false,false,false,false);
+
+-- name: HistoricalAclNullPresence
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,NULL,2,false,true,false,false);
+
+-- name: HistoricalAclReachedDivision
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,0,true,2,false,true,false,false);
+
+-- name: HistoricalAclReachedObsoleteCall
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,1,true,2,false,true,true,false);
+
+-- name: HistoricalAclBypassedErrors
+INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,true,true);

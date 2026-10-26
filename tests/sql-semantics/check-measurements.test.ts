@@ -1324,6 +1324,7 @@ describe('CHECK measurement boundaries', () => {
           type + ':array',
         ]),
         'pg_catalog.aclitem:scalar',
+        'pg_catalog.aclitem:array',
         'boolean_test',
         'scalar_array',
         'domain_coercion',
@@ -1370,6 +1371,8 @@ describe('CHECK measurement boundaries', () => {
         ...(type === 'pg_catalog.regrole' ? [] : [type + ':scalar']),
         type + ':array',
       ]),
+      'pg_catalog.aclitem:scalar',
+      'pg_catalog.aclitem:array',
       'pg_catalog.int4:scalar',
       'pg_catalog.int4:null',
       'pg_catalog.int4:array',
@@ -1446,8 +1449,6 @@ describe('CHECK measurement boundaries', () => {
       'xml_char',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
-    for (const name of ['pg_catalog.aclitem:scalar'])
-      expect(inventory.get(name)?.classification, name).toBe('implementation-gap')
     expect(inventory.get('current_date')?.classification).toBe('requires-session')
     expect(inventory.get('custom_call')?.classification).toBe('requires-database-callback')
     for (const name of [

@@ -2309,11 +2309,19 @@ pub struct AclitemPayload {
     pub grant_options: i64,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub struct AclitemCatalogPayload {
+    pub privileges: i64,
+    pub grant_options: i64,
+    pub public_grantee: bool,
+    pub invalid_grantor: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum AclitemValue {
     Unknown,
     Null,
     Value(AclitemPayload),
     Error(SqlError),
+    Catalog(AclitemCatalogPayload),
 }
 pub fn aclitem_unknown() -> AclitemValue { AclitemValue::Unknown }
 pub fn aclitem_null() -> AclitemValue { AclitemValue::Null }
@@ -2323,6 +2331,11 @@ pub fn make_aclitem_value(grantee: i64, grantor: i64, privileges: i64, grant_opt
         return AclitemValue::Unknown;
     };
     AclitemValue::Value(AclitemPayload { grantee: grantee, grantor: grantor, privileges: privileges, grant_options: grant_options })
+}
+pub fn make_aclitem_catalog_value(privileges: i64, grant_options: i64, public_grantee: bool, invalid_grantor: bool) -> AclitemValue {
+    if privileges < 0i64 || privileges > 4294967295i64 || grant_options < 0i64 || grant_options > 4294967295i64 { return AclitemValue::Unknown; };
+    if public_grantee && invalid_grantor { return make_aclitem_value(0i64,0i64,privileges,grant_options); };
+    AclitemValue::Catalog(AclitemCatalogPayload { privileges, grant_options, public_grantee, invalid_grantor })
 }
 pub fn aclitem_is_null(input: AclitemValue) -> BoolValue {
     if let AclitemValue::Error(error) = input { return BoolValue::Error(error); };

@@ -140,6 +140,20 @@ export function rustCallCanFail(
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
   const boundary = hash.kind === 'operator' ? builtinMetadata(hash.implementation) : hash
+  if (
+    boundary.kind === 'function' &&
+    boundary.schema === 'pg_catalog' &&
+    boundary.strict &&
+    boundary.volatility === 'i' &&
+    !boundary.returnsSet &&
+    ((boundary.name === 'hash_aclitem' &&
+      boundary.args.join(',') === 'pg_catalog.aclitem' &&
+      boundary.result === 'pg_catalog.int4') ||
+      (boundary.name === 'hash_aclitem_extended' &&
+        boundary.args.join(',') === 'pg_catalog.aclitem,pg_catalog.int8' &&
+        boundary.result === 'pg_catalog.int8'))
+  )
+    return false
   if (isRecordComparison(boundary)) {
     const left = recordComparisonLayouts(types[0] ?? ''),
       right = recordComparisonLayouts(types[1] ?? '')

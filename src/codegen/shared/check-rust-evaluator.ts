@@ -1,3 +1,4 @@
+import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validStoredTsvectorValue } from '../../catalog/tsvector-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
@@ -6982,6 +6983,17 @@ export function emitCheckRustEvaluator(
         }
       }
       if (value.kind === 'aclitem') {
+        if (value.storage !== undefined) {
+          const storage = value.storage
+          if (!validAclitemConstantKnowledge(storage))
+            throw new UnsupportedCheckRustExpression('Invalid stored ACL knowledge')
+          return {
+            type: value.type,
+            name: bind(
+              `make_aclitem_catalog_value(${storage.privileges}i64,${storage.grantOptions}i64,${storage.publicGrantee},${storage.invalidGrantor})`,
+            ),
+          }
+        }
         if (value.value === null) return { name: bind('aclitem_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return {

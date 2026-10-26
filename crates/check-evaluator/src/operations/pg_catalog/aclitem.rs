@@ -118,6 +118,7 @@ pub fn aclitem_to_text(input: AclitemValue) -> TextValue {
     if let AclitemValue::Error(error) = input { return TextValue::Error(error); };
     if input == AclitemValue::Null { return TextValue::Null; };
     if let AclitemValue::Value(_) = input { return TextValue::NonNull; };
+    if let AclitemValue::Catalog(_) = input { return TextValue::NonNull; };
     TextValue::Unknown
 }
 
@@ -193,12 +194,43 @@ pub fn sql__pg_catalog__makeaclitem__ab9i(grantee: OidValue, grantor: OidValue, 
     AclitemValue::Unknown
 }
 
+fn aclitem_catalog_facts(input: AclitemValue) -> AclitemCatalogPayload {
+    if let AclitemValue::Value(value) = input {
+        return AclitemCatalogPayload { privileges: value.privileges, grant_options: value.grant_options,
+            public_grantee: value.grantee == 0i64, invalid_grantor: value.grantor == 0i64 };
+    };
+    if let AclitemValue::Catalog(value) = input { return value; };
+    AclitemCatalogPayload { privileges: 0i64, grant_options: 0i64, public_grantee: false, invalid_grantor: false }
+}
+
+fn aclitem_role_match(left: AclitemValue, right: AclitemValue) -> BoolValue {
+    let a = aclitem_catalog_facts(left);
+    let b = aclitem_catalog_facts(right);
+    if a.public_grantee != b.public_grantee || a.invalid_grantor != b.invalid_grantor { return make_bool_value(false); };
+    if let AclitemValue::Value(l) = left {
+        if let AclitemValue::Value(r) = right { return make_bool_value(l.grantee == r.grantee && l.grantor == r.grantor); };
+    };
+    BoolValue::Unknown
+}
+
+fn aclitem_covers(left: AclitemValue, right: AclitemValue) -> BoolValue {
+    if left == AclitemValue::Unknown || right == AclitemValue::Unknown { return BoolValue::Unknown; };
+    let a = aclitem_catalog_facts(left);
+    let b = aclitem_catalog_facts(right);
+    if integer_bits_combine(a.privileges,b.privileges,0) != b.privileges
+        || integer_bits_combine(a.grant_options,b.grant_options,0) != b.grant_options { return make_bool_value(false); };
+    aclitem_role_match(left,right)
+}
+
 pub fn sql__pg_catalog__aclitemeq__cphl(left: AclitemValue, right: AclitemValue) -> BoolValue {
     if let AclitemValue::Error(error) = left { return BoolValue::Error(error); };
     if let AclitemValue::Error(error) = right { return BoolValue::Error(error); };
     if left == AclitemValue::Unknown || right == AclitemValue::Unknown { return BoolValue::Unknown; };
     if left == AclitemValue::Null || right == AclitemValue::Null { return BoolValue::Null; };
-    make_bool_value(left == right)
+    let a = aclitem_catalog_facts(left);
+    let b = aclitem_catalog_facts(right);
+    if a.privileges != b.privileges || a.grant_options != b.grant_options { return make_bool_value(false); };
+    aclitem_role_match(left,right)
 }
 
 fn aclitem_hash_sum(input: AclitemValue) -> Int8Value {
@@ -249,24 +281,17 @@ pub fn sql__pg_catalog__aclcontains__90xb(input: ArrayValue, item: AclitemValue)
             return BoolValue::Error(make_sql_error(ACLITEM_NULL_VALUE_NOT_ALLOWED));
         };
         if array.null_bitmap != BoolValue::Value(false) { return BoolValue::Unknown; };
-        if let AclitemValue::Value(requested) = item {
-            let mut position: usize = 0;
-            let mut unknown = false;
-            while position < array.elements.len() {
-                let entry = array_element_to_aclitem(array.elements[position].clone());
-                if let AclitemValue::Value(value) = entry {
-                    if value.grantee == requested.grantee && value.grantor == requested.grantor
-                        && integer_bits_combine(value.privileges,requested.privileges,0) == requested.privileges
-                        && integer_bits_combine(value.grant_options,requested.grant_options,0) == requested.grant_options {
-                        return make_bool_value(true);
-                    };
-                };
-                if entry == AclitemValue::Unknown { unknown = true; };
-                position += 1;
-            }
-            if unknown { return BoolValue::Unknown; };
-            return make_bool_value(false);
-        };
+        let mut position: usize = 0;
+        let mut unknown = false;
+        while position < array.elements.len() {
+            let entry = array_element_to_aclitem(array.elements[position].clone());
+            let matched = aclitem_covers(entry,item);
+            if matched == BoolValue::Value(true) { return make_bool_value(true); };
+            if matched != BoolValue::Value(false) { unknown = true; };
+            position += 1;
+        }
+        if unknown { return BoolValue::Unknown; };
+        return make_bool_value(false);
     };
     BoolValue::Unknown
 }

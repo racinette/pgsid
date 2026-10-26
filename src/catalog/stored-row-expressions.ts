@@ -1,3 +1,4 @@
+import { storedAclitemKnowledge } from './aclitem-constant-storage.js'
 import { isOidAliasType, storedOidAliasZero } from './oid-alias-constant-storage.js'
 import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
@@ -494,6 +495,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     ) {
       const storage = storedTextLikeConstant(node, type, input.byteOrder, input.utf8 === true)
       return storage ? collated({ PgsidStoredTextLike: storage }, 'constcollid') : undefined
+    } else if (type === 'pg_catalog.aclitem') {
+      const storage = storedAclitemKnowledge(node, input.byteOrder)
+      return storage ? { PgsidStoredAclitem: storage } : undefined
     } else if (isOidAliasType(type)) {
       const zero = storedOidAliasZero(node, type, input.byteOrder)
       return zero ? { PgsidStoredOidAliasZero: zero } : undefined
