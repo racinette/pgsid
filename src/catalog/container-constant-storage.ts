@@ -269,7 +269,13 @@ export function containerConstant<Leaf>(
           for (let i = 0; i < dimensions; i++) {
             const length = read(data, 16 + i * 4),
               lower = read(data, 16 + dimensions * 4 + i * 4)
-            if (length <= 0 || lower + length > 2147483648 || count * length > 2147483647)
+            if (
+              length < 0 ||
+              (length === 0 &&
+                !['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(type.identity)) ||
+              lower + length > 2147483648 ||
+              count * length > 2147483647
+            )
               return undefined
             count *= length
             shape.push({ lower, length })

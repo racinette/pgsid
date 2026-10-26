@@ -3175,6 +3175,7 @@ export function bindCatalogCheck(
     const storedArrayConstant = fields(wrapper['PgsidStoredArrayConstant'])
     if (storedArrayConstant) {
       const element = storedArrayConstant['element'],
+        vector = storedArrayConstant['vector'],
         raw = storedArrayConstant['args'],
         dimensions = storedArrayConstant['dimensions'],
         bitmap = storedArrayConstant['nullBitmap']
@@ -3185,18 +3186,29 @@ export function bindCatalogCheck(
         typeof bitmap !== 'boolean'
       )
         return unknown
-      const type = catalogArrayType(
-          element + '[]',
-          undefined,
-          domains,
-          enums,
-          rangeTypes,
-          undefined,
-          compositeGraph,
-        ),
+      if (
+        vector !== undefined &&
+        (typeof vector !== 'string' ||
+          !isCatalogVectorType(vector) ||
+          arrayLikeElementType(vector) !== element)
+      )
+        return unknown
+      const type =
+          vector !== undefined
+            ? (vector as CatalogVectorType)
+            : catalogArrayType(
+                element + '[]',
+                undefined,
+                domains,
+                enums,
+                rangeTypes,
+                undefined,
+                compositeGraph,
+              ),
         member = type && arrayLikeElementType(type)
       if (!type || !member) return unknown
-      if (raw === null)
+      if (raw === null) {
+        if (isCatalogVectorType(type)) return unknown
         return {
           type,
           value: {
@@ -3211,6 +3223,7 @@ export function bindCatalogCheck(
             },
           },
         }
+      }
       if (!Array.isArray(raw)) return unknown
       let count = dimensions.length ? 1 : 0
       const shape: { lower: number; length: number }[] = []
@@ -3225,7 +3238,8 @@ export function bindCatalogCheck(
           lower > 2147483647 ||
           typeof length !== 'number' ||
           !Number.isInteger(length) ||
-          length <= 0 ||
+          length < 0 ||
+          (length === 0 && vector === undefined) ||
           lower + length > 2147483648 ||
           count * length > 2147483647
         )
@@ -3257,6 +3271,7 @@ export function bindCatalogCheck(
     const storedArray = fields(wrapper['PgsidStoredArray'])
     if (storedArray) {
       const element = storedArray['element'],
+        vector = storedArray['vector'],
         args = storedArray['args']
       if (
         typeof element !== 'string' ||
@@ -3264,24 +3279,57 @@ export function bindCatalogCheck(
         typeof storedArray['multidimensional'] !== 'boolean'
       )
         return unknown
-      const type = catalogArrayType(
-          element + '[]',
-          undefined,
-          domains,
-          enums,
-          rangeTypes,
-          undefined,
-          compositeGraph,
-        ),
+      if (
+        vector !== undefined &&
+        (typeof vector !== 'string' ||
+          !isCatalogVectorType(vector) ||
+          arrayLikeElementType(vector) !== element)
+      )
+        return unknown
+      const type =
+          vector !== undefined
+            ? (vector as CatalogVectorType)
+            : catalogArrayType(
+                element + '[]',
+                undefined,
+                domains,
+                enums,
+                rangeTypes,
+                undefined,
+                compositeGraph,
+              ),
         member = type && arrayLikeElementType(type)
       if (!type || !member) return unknown
+      if (vector !== undefined) {
+        const multidimensional = storedArray['multidimensional'],
+          operands = args.map((arg) => {
+            const bound = bind(arg)
+            return multidimensional
+              ? arrayLikeElementType(bound.type) === member
+                ? (bound.value ?? null)
+                : null
+              : materialize(bound, member as ScalarType)
+          })
+        return operands.every((operand): operand is EvalExpression => operand !== null)
+          ? {
+              type,
+              value: {
+                kind: 'array-constructor',
+                type,
+                elementType: member,
+                multidimensional,
+                operands,
+              },
+            }
+          : unknown
+      }
       const result = bindArray(
         { A_ArrayExpr: { elements: args } },
         { type: member, name: elementTypeName(member), stored: true },
       )
       return result.value?.kind === 'array-constructor' &&
         result.value.multidimensional === storedArray['multidimensional']
-        ? result
+        ? { ...result, type, value: { ...result.value, type } }
         : unknown
     }
     const storedArrayCoercion = fields(wrapper['PgsidStoredArrayCoercion'])

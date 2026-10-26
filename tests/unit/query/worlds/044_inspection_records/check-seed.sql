@@ -1146,3 +1146,39 @@ INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide
 
 -- name: HistoricalSystemBypassedDivision
 INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,false,false,true);
+
+-- name: HistoricalVectorValues
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',true,false);
+
+-- name: HistoricalVectorNullScore
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(NULL,1,'-32768 0 32767','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',false,false);
+
+-- name: HistoricalVectorWrongPositions
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'0','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',false,false);
+
+-- name: HistoricalVectorWrongTypes
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',true,false);
+
+-- name: HistoricalVectorWrongRank
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',0,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',true,false);
+
+-- name: HistoricalVectorWrongPayload
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',1,'{}',true,false);
+
+-- name: HistoricalVectorWrongPresence
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',false,false);
+
+-- name: HistoricalVectorNullPositions
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,0,NULL,'4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',false,false);
+
+-- name: HistoricalVectorNullRank
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',NULL,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',true,false);
+
+-- name: HistoricalVectorNullPresence
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,1,'-32768 0 32767','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',NULL,false);
+
+-- name: HistoricalVectorReachedDivision
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,0,'-32768 0 32767','4294967295 0',1,'{"positions":[-32768,0,32767],"type_ids":["4294967295","0"]}',true,false);
+
+-- name: HistoricalVectorBypassedDivision
+INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,false,true);

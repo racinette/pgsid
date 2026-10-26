@@ -11,11 +11,16 @@ type Scalar = { kind: 'scalar'; expression: unknown }
 
 export function storedContainerConstant(
   node: Tree,
-  types: ReadonlyMap<number, ConstantStorageType>,
+  storageTypes: ReadonlyMap<number, ConstantStorageType>,
   byteOrder: 'little' | 'big',
   doubleAlign: 4 | 8 | undefined,
   convertScalar: (bytes: Buffer, type: ConstantStorageType) => unknown,
 ): unknown {
+  let types = storageTypes
+  const members: Record<string, string> = {
+    'pg_catalog.int2vector': 'pg_catalog.int2',
+    'pg_catalog.oidvector': 'pg_catalog.oid',
+  }
   const oid = Number(scalar(node, 'consttype')),
     base = (id: number): ConstantStorageType | undefined => {
       const seen = new Set<number>()
@@ -29,9 +34,11 @@ export function storedContainerConstant(
     },
     type = base(oid),
     element = type?.element ? types.get(type.element) : undefined,
-    container = type && (type.element || ['c', 'r', 'm'].includes(type.kind))
+    container =
+      type && (type.element || members[type.identity] || ['c', 'r', 'm'].includes(type.kind))
   if (!container || !type) return undefined
   if (scalar(node, 'constisnull') === 'true') {
+    if (members[type.identity]) return undefined
     if (type.kind === 'c') return { PgsidStoredRecordConstant: { type: type.identity, args: null } }
     if (type.kind === 'r') return { PgsidStoredRangeConstant: { type: type.identity, args: null } }
     if (type.kind === 'm')
@@ -49,6 +56,14 @@ export function storedContainerConstant(
   }
   const bytes = storedReferenceBytes(node, -1)
   if (!bytes) return undefined
+  const vectors = new Map<number, ConstantStorageType>()
+  for (const native of storageTypes.values()) {
+    const memberName = members[native.identity]
+    if (!memberName) continue
+    const member = [...storageTypes.values()].find((t) => t.identity === memberName)
+    if (member) vectors.set(native.oid, { ...native, element: member.oid })
+  }
+  if (vectors.size) types = new Map([...storageTypes, ...vectors])
   const facet = containerConstant<Scalar>(bytes, oid, types, '', () => undefined, {
     arrayStorage: true,
     ranges: true,
@@ -120,6 +135,7 @@ export function storedContainerConstant(
     return element && args.every((arg) => arg !== undefined)
       ? {
           PgsidStoredArrayConstant: {
+            ...(members[type.identity] ? { vector: type.identity } : {}),
             element: element.identity,
             dimensions: value.dimensions,
             nullBitmap: value.nullBitmap,
