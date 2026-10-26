@@ -84,14 +84,19 @@ recalculating its offset after each step, then adds elapsed microseconds. This
 preserves the difference between a calendar day and elapsed hours across DST.
 Pure elapsed-time arithmetic, NULLs and infinities do not need timezone context.
 
-Explicit calendar arithmetic and truncation consult the session's timezone
+Explicit calendar arithmetic, truncation and zone conversions consult the session's timezone
 abbreviations before the registry
 and named timezone data. `timeZoneAbbreviations: Default` declares the bundled
 PostgreSQL Default definitions; deployments must supply matching definitions.
 Lookup also uses `maxIdentifierBytes` for abbreviation truncation. A missing
 profile defers reached lookup, including calls with otherwise trivial arithmetic.
 Long custom abbreviation collisions and empty labels can depend on native lookup
-history, which is unavailable to local validators.
+history, which is unavailable to local validators. Conversions force the offset
+of a selected dynamic abbreviation at the supplied time; calendar operations use
+the referenced zone's full rules. Conversion of infinities skips name lookup,
+while calendar operations resolve names before handling special values. Matching
+timezone data includes historical abbreviation definitions and their original
+transition references.
 
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and

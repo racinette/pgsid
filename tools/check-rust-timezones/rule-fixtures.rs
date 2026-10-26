@@ -42,3 +42,9 @@ const ZONE_TYPE_VISIBLE: &[i32] = &[1, 1, 1, 1, 1];
 const ZONE_DEFAULT_ABBREVIATION_NAMES: &[&str] = &[];
 const ZONE_DEFAULT_ABBREVIATION_SECONDS: &[i32] = &[];
 const ZONE_DEFAULT_ABBREVIATION_ZONES: &[&str] = &[];
+
+const ZONE_FORCE_STARTS: &[usize] = &[0, 1, 2, 3, 4];
+const ZONE_FORCE_ENDS: &[usize] = &[1, 2, 3, 4, 5];
+const ZONE_FORCE_SECONDS: &[i64] = &[0i64, 0i64, 0i64, 0i64, 0i64];
+const ZONE_FORCE_TYPE_IDS: &[u16] = &[0, 1, 2, 3, 4];
+const ZONE_FORCE_INITIAL_TYPES: &[usize] = &[0, 1, 2, 3, 4];

@@ -17,6 +17,9 @@ struct Zone {
     initial_abbreviation: String,
     future: String,
     types: Vec<(String, i32, i32, bool)>,
+    forced_seconds: Vec<i64>,
+    forced_types: Vec<usize>,
+    initial_type: usize,
 }
 
 fn u32_at(bytes: &[u8], index: usize) -> usize {
@@ -115,6 +118,17 @@ fn decode(bytes: &[u8]) -> Zone {
             .find(|i| bytes[offset_start + i * 6 + 4] == 0)
             .unwrap_or(0)
     });
+    let forced_seconds = (0..transitions)
+        .map(|index| {
+            let unix = i64::from_be_bytes(
+                bytes[times_start + index * 8..times_start + index * 8 + 8]
+                    .try_into()
+                    .unwrap(),
+            );
+            (i128::from(unix) - 946684800).clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+        })
+        .collect();
+    let forced_types = indexes.iter().map(|index| usize::from(*index)).collect();
     let mut initial = offsets[default_type];
     let mut initial_abbreviation = abbreviations[default_type].clone();
     let mut times = Vec::new();
@@ -146,7 +160,9 @@ fn decode(bytes: &[u8]) -> Zone {
         .trim_matches('\n')
         .to_string();
     let mut characters = bytes[abbreviation_start..abbreviation_end].to_vec();
-    for (label, seconds, daylight) in footer_types(&future) {
+    let footer = footer_types(&future);
+    for (label, seconds, daylight) in &footer {
+        let (label, seconds, daylight) = (label.clone(), *seconds, *daylight);
         let mut terminated = label.as_bytes().to_vec();
         terminated.push(0);
         let slot = characters
@@ -171,6 +187,30 @@ fn decode(bytes: &[u8]) -> Zone {
         }
         all_types.push((label, seconds, daylight, visible == slot));
     }
+    if footer.len() == 2 {
+        for (label, seconds, _) in &footer {
+            let entry = all_types
+                .iter()
+                .rev()
+                .find(|(candidate, offset, _, _)| candidate == label && offset == seconds)
+                .unwrap();
+            if entry.3 {
+                let last = indexes
+                    .iter()
+                    .rev()
+                    .map(|index| &all_types[usize::from(*index)])
+                    .find(|(candidate, _, _, visible)| *visible && candidate == label)
+                    .or_else(|| {
+                        let initial = &all_types[default_type];
+                        (initial.3 && initial.0 == *label).then_some(initial)
+                    });
+                assert!(
+                    last.is_none_or(|entry| entry.1 == *seconds),
+                    "future abbreviation {label} changes after the raw transition window"
+                );
+            }
+        }
+    }
     Zone {
         times,
         offsets: changes,
@@ -179,6 +219,9 @@ fn decode(bytes: &[u8]) -> Zone {
         initial_abbreviation,
         future,
         types: all_types,
+        forced_seconds,
+        forced_types,
+        initial_type: default_type,
     }
 }
 
@@ -361,7 +404,26 @@ pub fn generate(root: &Path, output: &Path) {
     let mut type_visible = Vec::new();
     let mut abbreviation_ids = Vec::new();
     let mut initial_abbreviation_ids = Vec::new();
+    let mut forced_starts = Vec::new();
+    let mut forced_ends = Vec::new();
+    let mut forced_seconds = Vec::new();
+    let mut forced_type_ids = Vec::new();
+    let mut forced_initial_types = Vec::new();
     for zone in &zones {
+        let type_base = type_offsets.len();
+        forced_starts.push(integer(forced_seconds.len() as i64, false));
+        forced_seconds.extend(
+            zone.forced_seconds
+                .iter()
+                .map(|seconds| integer(*seconds, true)),
+        );
+        forced_type_ids.extend(
+            zone.forced_types
+                .iter()
+                .map(|index| u16::try_from(type_base + index).unwrap()),
+        );
+        forced_ends.push(integer(forced_seconds.len() as i64, false));
+        forced_initial_types.push(integer((type_base + zone.initial_type) as i64, false));
         type_starts.push(integer(type_offsets.len() as i64, false));
         for (label, seconds, daylight, visible) in &zone.types {
             type_abbreviation_ids.push(integer(
@@ -465,7 +527,10 @@ pub fn generate(root: &Path, output: &Path) {
         .values()
         .map(|(_, zone)| zone.clone())
         .collect();
-    let numeric_table_bytes = (checkpoint_seconds.len() + delta_seconds.len()) * 8
+    let numeric_table_bytes = forced_seconds.len() * 8
+        + forced_type_ids.len() * size_of::<u16>()
+        + zones.len() * 3 * size_of::<usize>()
+        + (checkpoint_seconds.len() + delta_seconds.len()) * 8
         + delta_ids.len() * size_of::<u16>()
         + abbreviation_ids.len() * size_of::<u16>()
         + initial_abbreviation_ids.len() * size_of::<usize>()
@@ -536,6 +601,13 @@ pub fn generate(root: &Path, output: &Path) {
     let mut step = checkpoint_seconds
         .len()
         .max(names.len())
+        .max(
+            zones
+                .iter()
+                .map(|zone| zone.forced_seconds.len())
+                .max()
+                .unwrap_or(0),
+        )
         .next_power_of_two()
         / 2;
     let mut steps = Vec::new();
@@ -543,6 +615,10 @@ pub fn generate(root: &Path, output: &Path) {
         steps.push(integer(step as i64, false));
         step /= 2;
     }
+    let forced_type_literals: Vec<_> = forced_type_ids
+        .iter()
+        .map(|index| integer(i64::from(*index), false))
+        .collect();
     let file: syn::File = parse_quote! {
         const ZONE_SEARCH_STEPS: &[usize] = &[#(#steps),*];
         const ZONE_NAMES: &[&str] = &[#(#names),*];
@@ -563,6 +639,11 @@ pub fn generate(root: &Path, output: &Path) {
         const ZONE_OFFSET_STARTS: &[usize] = &[#(#offset_starts),*];
         const ZONE_OFFSET_IDS: &[usize] = &[#(#offset_ids),*];
         const ZONE_OFFSET_SECONDS: &[i32] = &[#(#offsets),*];
+        const ZONE_FORCE_STARTS: &[usize] = &[#(#forced_starts),*];
+        const ZONE_FORCE_ENDS: &[usize] = &[#(#forced_ends),*];
+        const ZONE_FORCE_SECONDS: &[i64] = &[#(#forced_seconds),*];
+        const ZONE_FORCE_TYPE_IDS: &[u16] = &[#(#forced_type_literals),*];
+        const ZONE_FORCE_INITIAL_TYPES: &[usize] = &[#(#forced_initial_types),*];
         const ZONE_TYPE_STARTS: &[usize] = &[#(#type_starts),*];
         const ZONE_TYPE_ENDS: &[usize] = &[#(#type_ends),*];
         const ZONE_TYPE_ABBREVIATION_IDS: &[usize] = &[#(#type_abbreviation_ids),*];
@@ -595,6 +676,7 @@ pub fn generate(root: &Path, output: &Path) {
         "offsetDictionaryEntries": offset_dictionary_entries,
         "distinctAbbreviations": abbreviations.len(),
         "timezoneTypeRecords": type_offsets.len(),
+        "forcedAbbreviationTransitions": forced_seconds.len(),
         "defaultAbbreviations": default_abbreviations.len(),
         "transitionAbbreviationIndexBytes": size_of::<u16>(),
         "transitionOffsetIndexBytes": size_of::<usize>(),
@@ -673,6 +755,33 @@ mod tests {
             footer_types("STD0DST,M3.2.0,M11.1.0"),
             vec![("STD".into(), 0, 0), ("DST".into(), 3600, 1)]
         );
+    }
+
+    #[test]
+    fn retains_forced_history_and_initial_type_before_the_microsecond_domain() {
+        let mut header = vec![0u8; 44];
+        header[..5].copy_from_slice(b"TZif2");
+        let mut second = header.clone();
+        second[32..36].copy_from_slice(&1u32.to_be_bytes());
+        second[36..40].copy_from_slice(&2u32.to_be_bytes());
+        second[40..44].copy_from_slice(&8u32.to_be_bytes());
+        let mut bytes = header;
+        bytes.extend(second);
+        bytes.extend(i64::MIN.to_be_bytes());
+        bytes.push(1);
+        for (seconds, label) in [(0i32, 0), (3600, 4)] {
+            bytes.extend(seconds.to_be_bytes());
+            bytes.push(0);
+            bytes.push(label);
+        }
+        bytes.extend(b"UTC\0OLD\0");
+        bytes.extend(b"\nUTC0\n");
+        let zone = decode(&bytes);
+        assert!(zone.times.is_empty());
+        assert_eq!(zone.initial, 3600);
+        assert_eq!(zone.forced_seconds, vec![i64::MIN]);
+        assert_eq!(zone.forced_types, vec![1]);
+        assert_eq!(zone.initial_type, 0);
     }
 
     #[test]

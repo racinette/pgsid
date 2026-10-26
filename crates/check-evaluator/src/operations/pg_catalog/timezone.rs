@@ -149,86 +149,222 @@ fn timezone_fixed_offset(name: &str) -> Int4Value {
     Int4Value::Value(sign * (hour.value * 3600 + minute * 60 + second))
 }
 
-fn timezone_offset(name: &str, microseconds: i64, local: bool) -> Int4Value {
-    let fixed = timezone_fixed_offset(name);
-    if let Int4Value::Value(west) = fixed {
-        return make_int4_value(0 - west);
-    }
-    if fixed != Int4Value::Unknown {
-        return fixed;
-    }
-    let zone = find_named_zone(name);
-    if zone < ZONE_NAMES.len() {
-        return named_zone_offset(zone, microseconds, local);
-    }
-    Int4Value::Unknown
+fn timezone_forced_type(entry: usize, spelling: &str) -> Int4Value {
+    if ZONE_TYPE_VISIBLE[entry] != 0
+        && ZONE_ABBREVIATIONS[ZONE_TYPE_ABBREVIATION_IDS[entry]] == spelling
+    {
+        return make_int4_value(ZONE_TYPE_OFFSET_SECONDS[entry]);
+    };
+    Int4Value::Null
 }
 
-pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -> TimestamptzValue {
+fn timezone_forced_history(zone: usize, spelling: &str, seconds: i64) -> Int4Value {
+    let mut left = ZONE_FORCE_STARTS[zone];
+    let mut step: usize = 0;
+    while step < ZONE_SEARCH_STEPS.len() {
+        let candidate = left + ZONE_SEARCH_STEPS[step];
+        if candidate <= ZONE_FORCE_ENDS[zone] && ZONE_FORCE_SECONDS[candidate - 1] <= seconds {
+            left = candidate;
+        };
+        step += 1;
+    }
+    let cutoff = left;
+    let mut index = cutoff;
+    while index > ZONE_FORCE_STARTS[zone] {
+        index = index - 1;
+        let found = timezone_forced_type(ZONE_FORCE_TYPE_IDS[index] as usize, spelling);
+        if found != Int4Value::Null {
+            return found;
+        };
+    }
+    let initial = timezone_forced_type(ZONE_FORCE_INITIAL_TYPES[zone], spelling);
+    if initial != Int4Value::Null {
+        return initial;
+    };
+    index = cutoff;
+    while index < ZONE_FORCE_ENDS[zone] {
+        let found = timezone_forced_type(ZONE_FORCE_TYPE_IDS[index] as usize, spelling);
+        if found != Int4Value::Null {
+            return found;
+        };
+        index += 1;
+    }
+    if ZONE_RECURRING[zone] != 0 {
+        index = ZONE_TYPE_ENDS[zone] - 2;
+        while index < ZONE_TYPE_ENDS[zone] {
+            let found = timezone_forced_type(index, spelling);
+            if found != Int4Value::Null {
+                return found;
+            };
+            index += 1;
+        }
+    };
+    Int4Value::Null
+}
+
+fn timezone_forced_offset(name: &str, spelling: &str, microseconds: i64, local: bool) -> Int4Value {
+    let zone = find_zone_name(name, false);
+    if zone >= ZONE_NAMES.len() {
+        return Int4Value::Unknown;
+    };
+    let mut probe = microseconds / 1000000i64;
+    let mut fallback: i32 = 0;
+    if local {
+        if microseconds % 1000000i64 < 0i64 {
+            probe = probe - 1i64;
+        };
+        let profile = session_timezone_profile(name, microseconds, true);
+        if profile.valid == false {
+            return Int4Value::Unknown;
+        };
+        fallback = profile.seconds;
+        probe = probe - (fallback as i64);
+    };
+    let upper = timezone_lookup_ascii(spelling, true);
+    let found = timezone_forced_history(zone, upper.as_str(), probe);
+    if found != Int4Value::Null {
+        return found;
+    };
+    if local == false {
+        let profile = session_timezone_profile(name, microseconds, false);
+        if profile.valid == false {
+            return Int4Value::Unknown;
+        };
+        let projected = microseconds + (profile.seconds as i64) * 1000000i64;
+        let adjusted = session_timezone_profile(name, projected, true);
+        if adjusted.valid == false {
+            return Int4Value::Unknown;
+        };
+        fallback = adjusted.seconds;
+    };
+    make_int4_value(fallback)
+}
+
+pub fn sql__pg_catalog__timezone__9nbk(
+    zone: TextValue,
+    value: TimestampValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
+) -> TimestamptzValue {
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
-    }
+    };
     if let TimestampValue::Error(error) = value {
         return TimestamptzValue::Error(error);
-    }
-    if (zone == TextValue::Unknown || zone == TextValue::NonNull)
-        || value == TimestampValue::Unknown
-    {
+    };
+    if zone == TextValue::Unknown || value == TimestampValue::Unknown {
         return TimestamptzValue::Unknown;
-    }
+    };
     if zone == TextValue::Null || value == TimestampValue::Null {
         return TimestamptzValue::Null;
-    }
+    };
     if let TimestampValue::Value(microseconds) = value {
         if microseconds == -9223372036854775808i64 || microseconds == 9223372036854775807i64 {
-            return make_timestamptz_value(microseconds);
-        }
-        if let TextValue::Value(name) = zone {
-            let offset = timezone_offset(name.as_str(), microseconds, true);
-            if let Int4Value::Error(error) = offset {
-                return TimestamptzValue::Error(error);
-            }
-            if let Int4Value::Value(seconds) = offset {
+            return TimestamptzValue::Value(microseconds);
+        };
+        let selected = timezone_lookup_classify(zone, session, limit, utf8, default_profile);
+        let selected_profile = selected.profile;
+        if let TextValue::Error(error) = selected_profile {
+            return TimestamptzValue::Error(error);
+        };
+        if let TextValue::Value(name) = selected_profile {
+            let mut seconds = selected.seconds;
+            if selected.kind != 1 {
                 if microseconds < -211813488000000000i64 {
                     return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
                 };
-                let wide = seconds as i64;
-                return make_timestamptz_value(microseconds - wide * 1000000i64);
-            }
-        }
-    }
+                if selected.kind == 2 {
+                    let forced = timezone_forced_offset(
+                        name.as_str(),
+                        selected.spelling.as_str(),
+                        microseconds,
+                        true,
+                    );
+                    if let Int4Value::Error(error) = forced {
+                        return TimestamptzValue::Error(error);
+                    };
+                    let mut known = false;
+                    if let Int4Value::Value(offset) = forced {
+                        seconds = offset;
+                        known = true;
+                    };
+                    if known == false {
+                        return TimestamptzValue::Unknown;
+                    };
+                } else {
+                    let profile = session_timezone_profile(name.as_str(), microseconds, true);
+                    if profile.valid == false {
+                        return TimestamptzValue::Unknown;
+                    };
+                    seconds = profile.seconds;
+                };
+            };
+            return make_timestamptz_value(microseconds - (seconds as i64) * 1000000i64);
+        };
+    };
     TimestamptzValue::Unknown
 }
 
-pub fn sql__pg_catalog__timezone__blof(zone: TextValue, value: TimestamptzValue) -> TimestampValue {
+pub fn sql__pg_catalog__timezone__blof(
+    zone: TextValue,
+    value: TimestamptzValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
+) -> TimestampValue {
     if let TextValue::Error(error) = zone {
         return TimestampValue::Error(error);
-    }
+    };
     if let TimestamptzValue::Error(error) = value {
         return TimestampValue::Error(error);
-    }
-    if (zone == TextValue::Unknown || zone == TextValue::NonNull)
-        || value == TimestamptzValue::Unknown
-    {
+    };
+    if zone == TextValue::Unknown || value == TimestamptzValue::Unknown {
         return TimestampValue::Unknown;
-    }
+    };
     if zone == TextValue::Null || value == TimestamptzValue::Null {
         return TimestampValue::Null;
-    }
+    };
     if let TimestamptzValue::Value(microseconds) = value {
         if microseconds == -9223372036854775808i64 || microseconds == 9223372036854775807i64 {
-            return make_timestamp_value(microseconds);
-        }
-        if let TextValue::Value(name) = zone {
-            let offset = timezone_offset(name.as_str(), microseconds, false);
-            if let Int4Value::Error(error) = offset {
-                return TimestampValue::Error(error);
-            }
-            if let Int4Value::Value(seconds) = offset {
-                let wide = seconds as i64;
-                return make_timestamp_value(microseconds + wide * 1000000i64);
-            }
-        }
-    }
+            return TimestampValue::Value(microseconds);
+        };
+        let selected = timezone_lookup_classify(zone, session, limit, utf8, default_profile);
+        let selected_profile = selected.profile;
+        if let TextValue::Error(error) = selected_profile {
+            return TimestampValue::Error(error);
+        };
+        if let TextValue::Value(name) = selected_profile {
+            let mut seconds = selected.seconds;
+            if selected.kind == 2 {
+                let forced = timezone_forced_offset(
+                    name.as_str(),
+                    selected.spelling.as_str(),
+                    microseconds,
+                    false,
+                );
+                if let Int4Value::Error(error) = forced {
+                    return TimestampValue::Error(error);
+                };
+                let mut known = false;
+                if let Int4Value::Value(offset) = forced {
+                    seconds = offset;
+                    known = true;
+                };
+                if known == false {
+                    return TimestampValue::Unknown;
+                };
+            } else if selected.kind == 0 {
+                let profile = session_timezone_profile(name.as_str(), microseconds, false);
+                if profile.valid == false {
+                    return TimestampValue::Unknown;
+                };
+                seconds = profile.seconds;
+            };
+            return make_timestamp_value(microseconds + (seconds as i64) * 1000000i64);
+        };
+    };
     TimestampValue::Unknown
 }

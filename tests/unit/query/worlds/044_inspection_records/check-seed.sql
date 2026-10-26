@@ -1704,3 +1704,32 @@ INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_t
 INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2024-03-10 07:30+00','day','America/New_York','2024-03-10 00:00+00',false);
 -- name: ExplicitZoneTruncateSkipped
 INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('infinity','nonsense','',NULL,true);
+
+-- name: ExplicitZoneProjectionUtc
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','UTC','2000-07-01 12:00+00','2000-07-01 12:00',false);
+-- name: ExplicitZoneProjectionFixed
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','EST','2000-07-01 17:00+00','2000-07-01 07:00',false);
+-- name: ExplicitZoneProjectionDaylight
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','America/New_York','2000-07-01 16:00+00','2000-07-01 08:00',false);
+-- name: ExplicitZoneProjectionForced
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','MSK','2000-07-01 09:00+00','2000-07-01 15:00',false);
+-- name: ExplicitZoneProjectionFullZone
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','Europe/Moscow','2000-07-01 08:00+00','2000-07-01 16:00',false);
+-- name: ExplicitZoneProjectionNumeric
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','+02','2000-07-01 14:00+00','2000-07-01 10:00',false);
+-- name: ExplicitZoneProjectionInfinity
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('infinity','-infinity','','infinity','-infinity',false);
+-- name: ExplicitZoneProjectionNull
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES(NULL,NULL,'',NULL,NULL,false);
+-- name: ExplicitZoneProjectionNullName
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-01-01','2000-01-01+00',NULL,NULL,NULL,false);
+-- name: ExplicitZoneProjectionInvalid
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-01-01','2000-01-01+00','+168',NULL,NULL,false);
+-- name: ExplicitZoneProjectionMixedNull
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES(NULL,'2000-01-01+00','',NULL,NULL,false);
+-- name: ExplicitZoneProjectionAttachMismatch
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','EST','2000-07-01 12:00+00','2000-07-01 07:00',false);
+-- name: ExplicitZoneProjectionStampMismatch
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','MSK','2000-07-01 09:00+00','2000-07-01 16:00',false);
+-- name: ExplicitZoneProjectionSkipped
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-01-01','2000-01-01+00','+168',NULL,NULL,true);

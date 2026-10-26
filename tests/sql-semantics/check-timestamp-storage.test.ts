@@ -152,6 +152,8 @@ it('preserves stored timestamps across scalar and container consumers with nativ
           {
             defaultCollation: 'C',
             serverEncoding: 'UTF8',
+            timeZoneAbbreviations: 'Default',
+            maxIdentifierBytes: 63,
             ...(context
               ? { timeZone: 'UTC', dateStyle: { format: 'ISO' as const, order: 'MDY' as const } }
               : {}),
@@ -233,8 +235,11 @@ it('preserves stored timestamps across scalar and container consumers with nativ
                 const missing =
                     profile === 1 &&
                     finite &&
-                    !below &&
-                    ['rendered', 'cells', 'record_text', 'reparsed', 'attach'].includes(operation),
+                    ((!below &&
+                      ['rendered', 'cells', 'record_text', 'reparsed', 'attach'].includes(
+                        operation,
+                      )) ||
+                      ['named_zone', 'numeric_zone'].includes(operation)),
                   expected: Outcome = !bypass && missing ? { kind: 'Unknown' } : reference
                 fixtures.push({
                   name: `p${profile}_${operation}_${origin}`,
