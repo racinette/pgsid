@@ -23,7 +23,8 @@ fn session_timezone_fixed_offset(name: &str) -> Int4Value {
         };
         return make_int4_value(seconds);
     };
-    let rules = parse_recurring_zone(name);
+    let upper_name = timezone_lookup_ascii(name, true);
+    let rules = parse_recurring_zone(upper_name.as_str());
     if rules.valid && rules.standard != rules.daylight {
         return Int4Value::Unknown;
     };

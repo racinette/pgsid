@@ -77,21 +77,21 @@ fn timezone_lookup_candidate(session: &str, zone: usize, index: usize) -> Timezo
         };
         return invalid;
     };
+    let upper_session = timezone_lookup_ascii(session, true);
     let text = ZoneRuleText {
-        chars: session.chars().collect(),
+        chars: upper_session.chars().collect(),
     };
     let start = skip_zone_rule_name(&text, 0);
     let standard = read_zone_rule_clock(&text, start);
     if standard.valid {
         let mut seconds = 0 - standard.value;
         if index == 1 {
-            let rules = parse_recurring_zone(session);
+            let rules = parse_recurring_zone(upper_session.as_str());
             if rules.valid == false {
                 return invalid;
             };
             seconds = 0 - rules.daylight;
         };
-        let upper_session = timezone_lookup_ascii(session, true);
         let label = recurring_zone_abbreviation(upper_session.as_str(), index == 1);
         if let TextValue::Value(value) = label {
             return TimezoneAbbreviation {
@@ -268,13 +268,15 @@ fn timezone_lookup_classify(
             if named < ZONE_NAMES.len() {
                 return timezone_lookup_class(TextValue::Value(name.clone()), 0, 0, name.as_str());
             };
+            let upper_name = timezone_lookup_ascii(name.as_str(), true);
             let text = ZoneRuleText {
-                chars: name.chars().collect(),
+                chars: upper_name.chars().collect(),
             };
             let start = skip_zone_rule_name(&text, 0);
             let standard = read_zone_rule_clock(&text, start);
             if standard.valid
-                && (standard.next == text.chars.len() || parse_recurring_zone(name.as_str()).valid)
+                && (standard.next == text.chars.len()
+                    || parse_recurring_zone(upper_name.as_str()).valid)
             {
                 let profile = session_timezone_profile(name.as_str(), 0i64, false);
                 if profile.valid {
