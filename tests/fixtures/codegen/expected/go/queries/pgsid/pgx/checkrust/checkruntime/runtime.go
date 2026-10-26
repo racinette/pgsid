@@ -2233,6 +2233,9 @@ func MakeLineBits(a int64, b int64, c int64) LineValue {
 	}
 	return LineValue{Kind: LineValueValue, Value: LinePayload{A: a, B: b, C: c, WireKnown: true}}
 }
+func MakeStoredLineBits(a int64, b int64, c int64) LineValue {
+	return LineValue{Kind: LineValueValue, Value: LinePayload{A: a, B: b, C: c, WireKnown: true}}
+}
 func LineIsNull(input LineValue) BoolValue {
 	if input.Kind == LineValueError {
 		error := input.Error
@@ -2406,6 +2409,35 @@ func MakePathValue(payload PathPayload) PathValue {
 	}
 	return PathValue{Kind: PathValueValue, Value: payload}
 }
+func StartStoredPath(closed bool) PathValue {
+	points := []PointPayload{}
+	payload := PathPayload{Closed: closed, Points: points}
+	return PathValue{Kind: PathValueValue, Value: payload}
+}
+func AppendStoredPathPoint(path PathValue, point PointValue) PathValue {
+	path = CopyPathValue(path)
+	if path.Kind == PathValueError {
+		error := path.Error
+		return PathValue{Kind: PathValueError, Error: error}
+	}
+	if point.Kind == PointValueError {
+		error := point.Error
+		return PathValue{Kind: PathValueError, Error: error}
+	}
+	if path.Kind == PathValueValue {
+		payload := CopyPathPayload(path.Value)
+		closed := payload.Closed
+		points := payload.Points
+		if point.Kind == PointValueValue {
+			value := point.Value
+			langruntime.CheckedAdd(len(points), 1)
+			points = append(points, value)
+			updated := PathPayload{Closed: closed, Points: points}
+			return PathValue{Kind: PathValueValue, Value: updated}
+		}
+	}
+	return PathValue{Kind: PathValueUnknown}
+}
 func PathIsNull(input PathValue) BoolValue {
 	input = CopyPathValue(input)
 	if input.Kind == PathValueError {
@@ -2464,6 +2496,35 @@ func CopyPolygonValue(value PolygonValue) PolygonValue {
 		return PolygonValue{Kind: PolygonValueError, Error: value.Error}
 	}
 	panic("unknown enum variant")
+}
+func StartStoredPolygon(bounds BoxValue) PolygonValue {
+	points := []PointPayload{}
+	payload := PolygonPayload{Points: points, Bounds: bounds}
+	return PolygonValue{Kind: PolygonValueValue, Value: payload}
+}
+func AppendStoredPolygonPoint(polygon PolygonValue, point PointValue) PolygonValue {
+	polygon = CopyPolygonValue(polygon)
+	if polygon.Kind == PolygonValueError {
+		error := polygon.Error
+		return PolygonValue{Kind: PolygonValueError, Error: error}
+	}
+	if point.Kind == PointValueError {
+		error := point.Error
+		return PolygonValue{Kind: PolygonValueError, Error: error}
+	}
+	if polygon.Kind == PolygonValueValue {
+		payload := CopyPolygonPayload(polygon.Value)
+		bounds := payload.Bounds
+		points := payload.Points
+		if point.Kind == PointValueValue {
+			value := point.Value
+			langruntime.CheckedAdd(len(points), 1)
+			points = append(points, value)
+			updated := PolygonPayload{Bounds: bounds, Points: points}
+			return PolygonValue{Kind: PolygonValueValue, Value: updated}
+		}
+	}
+	return PolygonValue{Kind: PolygonValueUnknown}
 }
 func polygonCoordinateLess(left int64, right int64) bool {
 	a := Float8Number(left)

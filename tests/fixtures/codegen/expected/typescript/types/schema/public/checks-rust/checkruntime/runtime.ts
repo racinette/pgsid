@@ -2303,6 +2303,12 @@ export function makeLineBits(a: bigint, b: bigint, c: bigint): LineValue {
     }
     return { kind: "Value", value: { a: a, b: b, c: c, wireKnown: true } };
 }
+export function makeStoredLineBits(a: bigint, b: bigint, c: bigint): LineValue {
+    a = langruntime.checkedI64(a);
+    b = langruntime.checkedI64(b);
+    c = langruntime.checkedI64(c);
+    return { kind: "Value", value: { a: a, b: b, c: c, wireKnown: true } };
+}
 export function lineIsNull(input: LineValue): BoolValue {
     if (input.kind === "Error") {
         const error: SqlError = input.value;
@@ -2490,6 +2496,35 @@ export function makePathValue(payload: PathPayload): PathValue {
     }
     return { kind: "Value", value: payload };
 }
+export function startStoredPath(closed: boolean): PathValue {
+    closed = langruntime.checkedBool(closed);
+    const points: PointPayload[] = [];
+    const payload: PathPayload = { closed: closed, points: points };
+    return { kind: "Value", value: payload };
+}
+export function appendStoredPathPoint(path: PathValue, point: PointValue): PathValue {
+    path = copyPathValue(path);
+    if (path.kind === "Error") {
+        const error: SqlError = path.value;
+        return { kind: "Error", value: error };
+    }
+    if (point.kind === "Error") {
+        const error: SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (path.kind === "Value") {
+        const payload: PathPayload = copyPathPayload(path.value);
+        const closed: boolean = payload.closed;
+        let points: PointPayload[] = payload.points;
+        if (point.kind === "Value") {
+            const value: PointPayload = point.value;
+            langruntime.pushStruct(points, value, copyPointPayload);
+            const updated: PathPayload = { closed: closed, points: points };
+            return { kind: "Value", value: updated };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function pathIsNull(input: PathValue): BoolValue {
     input = copyPathValue(input);
     if (input.kind === "Error") {
@@ -2536,6 +2571,34 @@ export function copyPolygonValue(value: PolygonValue): PolygonValue {
         case "Value": return { kind: "Value", value: copyPolygonPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
     }
+}
+export function startStoredPolygon(bounds: BoxValue): PolygonValue {
+    const points: PointPayload[] = [];
+    const payload: PolygonPayload = { points: points, bounds: bounds };
+    return { kind: "Value", value: payload };
+}
+export function appendStoredPolygonPoint(polygon: PolygonValue, point: PointValue): PolygonValue {
+    polygon = copyPolygonValue(polygon);
+    if (polygon.kind === "Error") {
+        const error: SqlError = polygon.value;
+        return { kind: "Error", value: error };
+    }
+    if (point.kind === "Error") {
+        const error: SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (polygon.kind === "Value") {
+        const payload: PolygonPayload = copyPolygonPayload(polygon.value);
+        const bounds: BoxValue = payload.bounds;
+        let points: PointPayload[] = payload.points;
+        if (point.kind === "Value") {
+            const value: PointPayload = point.value;
+            langruntime.pushStruct(points, value, copyPointPayload);
+            const updated: PolygonPayload = { bounds: bounds, points: points };
+            return { kind: "Value", value: updated };
+        }
+    }
+    return { kind: "Unknown" };
 }
 function polygonCoordinateLess(left: bigint, right: bigint): boolean {
     left = langruntime.checkedI64(left);

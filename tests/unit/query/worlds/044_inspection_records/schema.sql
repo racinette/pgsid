@@ -914,3 +914,31 @@ CREATE TABLE inspection_text_like_history (
      THEN 1/divisor ELSE NULL::integer END)::historical_text_like_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_text_like_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_geometry_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_geometry_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_point bytea,
+ expected_path bytea,
+ expected_bounds bytea,
+ expected_fixed bytea,
+ expected_array boolean,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT geometry_history_point CHECK(CASE WHEN bypass THEN true ELSE
+   point_send('(-0,NaN)'::point) IS NOT DISTINCT FROM expected_point END),
+ CONSTRAINT geometry_history_path CHECK(CASE WHEN bypass THEN true ELSE
+   path_send('[(1,2),(3,4)]'::path) IS NOT DISTINCT FROM expected_path END),
+ CONSTRAINT geometry_history_bounds CHECK(CASE WHEN bypass THEN true ELSE
+   box_send(box('((0,0),(-0,-0),(3,4))'::polygon)) IS NOT DISTINCT FROM expected_bounds END),
+ CONSTRAINT geometry_history_fixed CHECK(CASE WHEN bypass THEN true ELSE
+   (line_send('{1,2,-0}'::line)||lseg_send('[(1,2),(3,4)]'::lseg)||circle_send('<(-0,2),3>'::circle))
+     IS NOT DISTINCT FROM expected_fixed END),
+ CONSTRAINT geometry_history_array CHECK(CASE WHEN bypass THEN true ELSE
+   (('[-2:-1]={"(1,2)",NULL}'::point[])[-2] ~= '(1,2)'::point) IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT geometry_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN point_send('(-0,NaN)'::point)=expected_point THEN 1/divisor ELSE NULL::integer END)::historical_geometry_result
+     IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_geometry_result DROP ATTRIBUTE obsolete_result;

@@ -1,4 +1,5 @@
 import { storedTextConstant } from './text-constant-storage.js'
+import { isGeometryConstantType } from './geometry-constant-storage.js'
 import { storedRowExpression, type StoredRowExpressionInput } from './stored-row-expressions.js'
 import { parseTree, tree, scalar, oidList, type Value, type Tree } from './expression-tree.js'
 import { storedOrderingKey } from './stored-row-orderings.js'
@@ -83,12 +84,13 @@ function captureExpressionCoercions(
     ) ||
       /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) ||
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
-  const textLikeConstantType = (id: number): boolean => {
+  const ownedConstantType = (id: number): boolean => {
     const seen = new Set<number>()
     const visit = (id: number): boolean => {
       if (seen.has(id)) return false
       seen.add(id)
       if (
+        isGeometryConstantType(rowExpressions?.types.get(id)) ||
         ['pg_catalog."char"', 'pg_catalog.name', 'pg_catalog.refcursor'].includes(
           rowExpressions?.types.get(id) ?? '',
         )
@@ -104,9 +106,9 @@ function captureExpressionCoercions(
     }
     return visit(id)
   }
-  const textLikeCandidate =
+  const ownedCandidate =
     source !== null &&
-    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => textLikeConstantType(Number(m[1])))
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => ownedConstantType(Number(m[1])))
   if (
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR|ROWCOMPAREEXPR|XMLEXPR)\s/u.test(
@@ -114,7 +116,7 @@ function captureExpressionCoercions(
     ) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
       !xmlCandidate &&
-      !textLikeCandidate &&
+      !ownedCandidate &&
       !arrayCandidate &&
       !tsvectorCandidate &&
       !tsqueryCandidate)
@@ -189,7 +191,7 @@ function captureExpressionCoercions(
       if (
         site !== undefined &&
         node.kind === 'CONST' &&
-        textLikeConstantType(Number(scalar(node, 'consttype')))
+        ownedConstantType(Number(scalar(node, 'consttype')))
       )
         scalarSites.add(site)
       if (site !== undefined && node.kind === 'FUNCEXPR') {

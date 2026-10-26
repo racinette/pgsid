@@ -1899,6 +1899,9 @@ pub fn make_line_bits(a: i64, b: i64, c: i64) -> LineValue {
         wire_known: true,
     })
 }
+pub fn make_stored_line_bits(a: i64, b: i64, c: i64) -> LineValue {
+    LineValue::Value(LinePayload { a, b, c, wire_known: true })
+}
 pub fn line_is_null(input: LineValue) -> BoolValue {
     if let LineValue::Error(error) = input {
         return BoolValue::Error(error);
@@ -2042,6 +2045,25 @@ pub fn make_path_value(payload: PathPayload) -> PathValue {
     };
     PathValue::Value(payload)
 }
+pub fn start_stored_path(closed: bool) -> PathValue {
+    let points: Vec<PointPayload> = Vec::new();
+    let payload = PathPayload { closed, points };
+    PathValue::Value(payload)
+}
+pub fn append_stored_path_point(path: PathValue, point: PointValue) -> PathValue {
+    if let PathValue::Error(error) = path { return PathValue::Error(error); };
+    if let PointValue::Error(error) = point { return PathValue::Error(error); };
+    if let PathValue::Value(payload) = path {
+        let closed = payload.closed;
+        let mut points = payload.points;
+        if let PointValue::Value(value) = point {
+            points.push(value);
+            let updated = PathPayload { closed, points };
+            return PathValue::Value(updated);
+        };
+    };
+    PathValue::Unknown
+}
 pub fn path_is_null(input: PathValue) -> BoolValue {
     if let PathValue::Error(error) = input {
         return BoolValue::Error(error);
@@ -2072,6 +2094,25 @@ pub enum PolygonValue {
     Null,
     Value(PolygonPayload),
     Error(SqlError),
+}
+pub fn start_stored_polygon(bounds: BoxValue) -> PolygonValue {
+    let points: Vec<PointPayload> = Vec::new();
+    let payload = PolygonPayload { points, bounds };
+    PolygonValue::Value(payload)
+}
+pub fn append_stored_polygon_point(polygon: PolygonValue, point: PointValue) -> PolygonValue {
+    if let PolygonValue::Error(error) = polygon { return PolygonValue::Error(error); };
+    if let PointValue::Error(error) = point { return PolygonValue::Error(error); };
+    if let PolygonValue::Value(payload) = polygon {
+        let bounds = payload.bounds;
+        let mut points = payload.points;
+        if let PointValue::Value(value) = point {
+            points.push(value);
+            let updated = PolygonPayload { bounds, points };
+            return PolygonValue::Value(updated);
+        };
+    };
+    PolygonValue::Unknown
 }
 fn polygon_coordinate_less(left: i64, right: i64) -> bool {
     let a = float8_number(left);

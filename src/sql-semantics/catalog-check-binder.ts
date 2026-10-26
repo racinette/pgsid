@@ -1,5 +1,9 @@
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTextLikeConstantStorage } from '../catalog/text-like-constant-storage.js'
+import {
+  isGeometryConstantType,
+  validGeometryConstantStorage,
+} from '../catalog/geometry-constant-storage.js'
 import { restoreStoredTsqueryConstants } from './tsquery-constant-sites.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import { restoreStoredArrayConstants } from './array-constant-sites.js'
@@ -3096,6 +3100,7 @@ export function bindCatalogCheck(
               type,
               operands,
               projectable: operands.map(() => true),
+              wholeRow: true,
             },
           }
         : unknown
@@ -3399,6 +3404,14 @@ export function bindCatalogCheck(
                 ? { kind: 'mac', type, value }
                 : { kind: 'bit', type, value },
         },
+      }
+    }
+    const storedGeometry = wrapper['PgsidStoredGeometry']
+    if (storedGeometry !== undefined) {
+      if (!validGeometryConstantStorage(storedGeometry)) return unknown
+      return {
+        type: storedGeometry.type,
+        value: { kind: 'certain', expression: { ...storedGeometry, kind: 'geometry-storage' } },
       }
     }
     const storedTextLike = wrapper['PgsidStoredTextLike']
@@ -6386,6 +6399,16 @@ export function bindCatalogCheck(
           collation: defaultCollation,
           value: { kind: 'uuid-to-text', type, operand: operand.value },
         }
+      if (isGeometryConstantType(operand.type) && type === 'pg_catalog.text' && operand.value) {
+        const output = builtinTypeIO(operand.type)?.output
+        return output
+          ? {
+              type,
+              collation: defaultCollation,
+              value: { kind: 'io-to-text', type, operand: operand.value, output },
+            }
+          : unknown
+      }
       if (
         type === 'pg_catalog.bytea' &&
         (operand.type === 'pg_catalog.text' ||

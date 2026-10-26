@@ -17683,7 +17683,7 @@ function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: strin
     output = output + ending;
     return { kind: "Value", value: output };
 }
-export function jsonbInputFromPointContext(input: checkruntime.PointValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryPointOutputContext(input: checkruntime.PointValue, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
@@ -17696,11 +17696,11 @@ export function jsonbInputFromPointContext(input: checkruntime.PointValue, extra
     if (input.kind === "Value") {
         const value: checkruntime.PointPayload = input.value;
         const text: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y, extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromLineContext(input: checkruntime.LineValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryLineOutputContext(input: checkruntime.LineValue, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
@@ -17717,11 +17717,11 @@ export function jsonbInputFromLineContext(input: checkruntime.LineValue, extra: 
         langruntime.pushStruct(values, { bits: value.b }, copyJsonbGeometryCoordinate);
         langruntime.pushStruct(values, { bits: value.c }, copyJsonbGeometryCoordinate);
         const text: checkruntime.TextValue = jsonbGeometryValues(values, "{", "}", extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromLsegContext(input: checkruntime.LsegValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryLsegOutputContext(input: checkruntime.LsegValue, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
@@ -17737,11 +17737,11 @@ export function jsonbInputFromLsegContext(input: checkruntime.LsegValue, extra: 
         langruntime.pushStruct(points, { x: value.x1, y: value.y1, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         langruntime.pushStruct(points, { x: value.x2, y: value.y2, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         const text: checkruntime.TextValue = jsonbGeometryPoints(points, "[", "]", extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromBoxContext(input: checkruntime.BoxValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryBoxOutputContext(input: checkruntime.BoxValue, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
@@ -17757,11 +17757,11 @@ export function jsonbInputFromBoxContext(input: checkruntime.BoxValue, extra: nu
         langruntime.pushStruct(points, { x: value.highX, y: value.highY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         langruntime.pushStruct(points, { x: value.lowX, y: value.lowY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
         const text: checkruntime.TextValue = jsonbGeometryPoints(points, "", "", extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromCircleContext(input: checkruntime.CircleValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryCircleOutputContext(input: checkruntime.CircleValue, extra: number, known: boolean): checkruntime.TextValue {
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
     if (input.kind === "Error") {
@@ -17784,13 +17784,13 @@ export function jsonbInputFromCircleContext(input: checkruntime.CircleValue, ext
                 output = output + langruntime.checkedChar(",");
                 output = output + number;
                 output = output + langruntime.checkedChar(">");
-                return { kind: "Text", value: output };
+                return { kind: "Value", value: output };
             }
         }
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromPathContext(input: checkruntime.PathValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryPathOutputContext(input: checkruntime.PathValue, extra: number, known: boolean): checkruntime.TextValue {
     input = checkruntime.copyPathValue(input);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
@@ -17805,14 +17805,14 @@ export function jsonbInputFromPathContext(input: checkruntime.PathValue, extra: 
         const value: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
         if (value.closed) {
             const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")", extra, known);
-            return checkruntime.jsonbInputFromText(text);
+            return text;
         }
         const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "[", "]", extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
 }
-export function jsonbInputFromPolygonContext(input: checkruntime.PolygonValue, extra: number, known: boolean): checkruntime.JsonbInput {
+export function geometryPolygonOutputContext(input: checkruntime.PolygonValue, extra: number, known: boolean): checkruntime.TextValue {
     input = checkruntime.copyPolygonValue(input);
     extra = langruntime.checkedI32(extra);
     known = langruntime.checkedBool(known);
@@ -17826,9 +17826,53 @@ export function jsonbInputFromPolygonContext(input: checkruntime.PolygonValue, e
     if (input.kind === "Value") {
         const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
         const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")", extra, known);
-        return checkruntime.jsonbInputFromText(text);
+        return text;
     }
     return { kind: "Unknown" };
+}
+export function jsonbInputFromPointContext(input: checkruntime.PointValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryPointOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromLineContext(input: checkruntime.LineValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryLineOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromLsegContext(input: checkruntime.LsegValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryLsegOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromBoxContext(input: checkruntime.BoxValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryBoxOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromCircleContext(input: checkruntime.CircleValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryCircleOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromPathContext(input: checkruntime.PathValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    input = checkruntime.copyPathValue(input);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryPathOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromPolygonContext(input: checkruntime.PolygonValue, extra: number, known: boolean): checkruntime.JsonbInput {
+    input = checkruntime.copyPolygonValue(input);
+    extra = langruntime.checkedI32(extra);
+    known = langruntime.checkedBool(known);
+    const text: checkruntime.TextValue = geometryPolygonOutputContext(input, extra, known);
+    return checkruntime.jsonbInputFromText(text);
 }
 export function jsonbInputFromPoint(input: checkruntime.PointValue): checkruntime.JsonbInput {
     return jsonbInputFromPointContext(input, 0, false);

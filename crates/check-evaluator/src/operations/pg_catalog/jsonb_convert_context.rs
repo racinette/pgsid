@@ -177,26 +177,26 @@ fn jsonb_geometry_points(points: Vec<PointPayload>, opening: &str, ending: &str,
     TextValue::Value(output)
 }
 
-pub fn jsonb_input_from_point_context(input: PointValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_point_output_context(input: PointValue, extra: i32, known: bool) -> TextValue {
     if let PointValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if input == PointValue::Null {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let PointValue::Value(value) = input {
         let text = jsonb_geometry_pair(value.x, value.y, extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_line_context(input: LineValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_line_output_context(input: LineValue, extra: i32, known: bool) -> TextValue {
     if let LineValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if input == LineValue::Null {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let LineValue::Value(value) = input {
         let mut values: Vec<JsonbGeometryCoordinate> = Vec::new();
@@ -204,17 +204,17 @@ pub fn jsonb_input_from_line_context(input: LineValue, extra: i32, known: bool) 
         values.push(JsonbGeometryCoordinate { bits: value.b });
         values.push(JsonbGeometryCoordinate { bits: value.c });
         let text = jsonb_geometry_values(values, "{", "}", extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_lseg_context(input: LsegValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_lseg_output_context(input: LsegValue, extra: i32, known: bool) -> TextValue {
     if let LsegValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if input == LsegValue::Null {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let LsegValue::Value(value) = input {
         let mut points: Vec<PointPayload> = Vec::new();
@@ -229,17 +229,17 @@ pub fn jsonb_input_from_lseg_context(input: LsegValue, extra: i32, known: bool) 
             wire_known: value.wire_known,
         });
         let text = jsonb_geometry_points(points, "[", "]", extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_box_context(input: BoxValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_box_output_context(input: BoxValue, extra: i32, known: bool) -> TextValue {
     if let BoxValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if input == BoxValue::Null {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let BoxValue::Value(value) = input {
         let mut points: Vec<PointPayload> = Vec::new();
@@ -254,17 +254,17 @@ pub fn jsonb_input_from_box_context(input: BoxValue, extra: i32, known: bool) ->
             wire_known: value.wire_known,
         });
         let text = jsonb_geometry_points(points, "", "", extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_circle_context(input: CircleValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_circle_output_context(input: CircleValue, extra: i32, known: bool) -> TextValue {
     if let CircleValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if input == CircleValue::Null {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let CircleValue::Value(value) = input {
         let center = jsonb_geometry_pair(value.x, value.y, extra, known);
@@ -276,43 +276,78 @@ pub fn jsonb_input_from_circle_context(input: CircleValue, extra: i32, known: bo
                 output.push(',');
                 output.push_str(number.as_str());
                 output.push('>');
-                return JsonbInput::Text(output);
+                return TextValue::Value(output);
             };
         };
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_path_context(input: PathValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_path_output_context(input: PathValue, extra: i32, known: bool) -> TextValue {
     if let PathValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if let PathValue::Null = input {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let PathValue::Value(value) = input {
         if value.closed {
             let text = jsonb_geometry_points(value.points, "(", ")", extra, known);
-            return jsonb_input_from_text(text);
+            return text;
         };
         let text = jsonb_geometry_points(value.points, "[", "]", extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
 }
 
-pub fn jsonb_input_from_polygon_context(input: PolygonValue, extra: i32, known: bool) -> JsonbInput {
+pub fn geometry_polygon_output_context(input: PolygonValue, extra: i32, known: bool) -> TextValue {
     if let PolygonValue::Error(error) = input {
-        return JsonbInput::Error(error);
+        return TextValue::Error(error);
     };
     if let PolygonValue::Null = input {
-        return JsonbInput::Null;
+        return TextValue::Null;
     };
     if let PolygonValue::Value(value) = input {
         let text = jsonb_geometry_points(value.points, "(", ")", extra, known);
-        return jsonb_input_from_text(text);
+        return text;
     };
-    JsonbInput::Unknown
+    TextValue::Unknown
+}
+
+pub fn jsonb_input_from_point_context(input: PointValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_point_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_line_context(input: LineValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_line_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_lseg_context(input: LsegValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_lseg_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_box_context(input: BoxValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_box_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_circle_context(input: CircleValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_circle_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_path_context(input: PathValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_path_output_context(input, extra, known);
+    jsonb_input_from_text(text)
+}
+
+pub fn jsonb_input_from_polygon_context(input: PolygonValue, extra: i32, known: bool) -> JsonbInput {
+    let text = geometry_polygon_output_context(input, extra, known);
+    jsonb_input_from_text(text)
 }
 
 pub fn jsonb_input_from_point(input: PointValue) -> JsonbInput {

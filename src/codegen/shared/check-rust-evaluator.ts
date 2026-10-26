@@ -1,5 +1,9 @@
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
+import {
+  isGeometryConstantType,
+  validGeometryConstantStorage,
+} from '../../catalog/geometry-constant-storage.js'
 import { moneyTextCLocale, moneyContextFractionDigits } from './check-money-context.js'
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
@@ -392,7 +396,9 @@ const arrayElementOutput = (
     throw new UnsupportedCheckRustExpression('Array output requires its element catalog identity')
   const prefix = rustValuePrefix(rustType(elementType))
   let conversion: string | null = null
-  if (isCatalogVectorType(elementType))
+  if (isGeometryConstantType(elementType))
+    conversion = `geometry_${prefix}_output_context(${scalar},${context.extraFloatDigits ?? 0},${context.extraFloatDigits !== undefined})`
+  else if (isCatalogVectorType(elementType))
     conversion = `catalog_vector_to_text(${scalar},${elementType === 'pg_catalog.oidvector'})`
   else if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
   else if (family === 6) {
@@ -5775,6 +5781,13 @@ export function emitCheckRustEvaluator(
                 : operand.type)
       )
         throw new UnsupportedCheckRustExpression('Unsupported text output function')
+      if (isGeometryConstantType(operand.type))
+        return {
+          type: node.type,
+          name: bind(
+            `geometry_${rustValuePrefix(rustType(operand.type))}_output_context(${ownedOperand(operand)},${executionContext.extraFloatDigits ?? 0},${executionContext.extraFloatDigits !== undefined})`,
+          ),
+        }
       if (isCatalogVectorType(operand.type))
         return {
           name: bind(
@@ -6748,6 +6761,33 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'geometry-storage') {
+        if (!validGeometryConstantStorage(value))
+          throw new UnsupportedCheckRustExpression('Invalid captured geometry payload')
+        const bits = (word: string) => BigInt.asIntN(64, BigInt('0x' + word)).toString() + 'i64',
+          words = value.words.map(bits),
+          type = value.type,
+          prefix = type.slice('pg_catalog.'.length)
+        if (type === 'pg_catalog.path' || type === 'pg_catalog.polygon') {
+          let result: string
+          if (type === 'pg_catalog.path') result = bind(`start_stored_path(${value.closed})`)
+          else {
+            const bounds = bind(`make_box_bits(${value.bounds!.map(bits).join(',')})`)
+            result = bind(`start_stored_polygon(${bounds})`)
+          }
+          for (let i = 0; i < words.length; i += 2) {
+            const point = bind(`make_point_bits(${words[i]},${words[i + 1]})`)
+            result = bind(`append_stored_${prefix}_point(${result},${point})`)
+          }
+          return { type, name: result }
+        }
+        return {
+          type,
+          name: bind(
+            `make_${type === 'pg_catalog.line' ? 'stored_line' : prefix}_bits(${words.join(',')})`,
+          ),
+        }
+      }
       if (value.kind === 'temporal-storage') {
         if (!validTemporalConstantStorage(value))
           throw new UnsupportedCheckRustExpression('Invalid captured temporal payload')
