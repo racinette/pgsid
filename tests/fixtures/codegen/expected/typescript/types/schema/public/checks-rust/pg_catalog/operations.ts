@@ -42548,6 +42548,89 @@ export function hashbpcharextendedCa1t(input: checkruntime.TextValue, seed: chec
     utf8 = langruntime.checkedBool(utf8);
     return textHashExtended(input, seed, true, byteOrder, utf8);
 }
+const textIdentifierAllocationError = 56966976;
+function textIdentifierKeyword(input: string): boolean {
+    input = langruntime.checkedString(input);
+    const keywords: string[] = Array.from("all analyse analyze and any array as asc asymmetric authorization between bigint binary bit boolean both case cast char character check coalesce collate collation column concurrently constraint create cross current_catalog current_date current_role current_schema current_time current_timestamp current_user dec decimal default deferrable desc distinct do else end except exists extract false fetch float for foreign freeze from full grant greatest group grouping having ilike in initially inner inout int integer intersect interval into is isnull join json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_table json_value lateral leading least left like limit localtime localtimestamp merge_action national natural nchar none normalize not notnull null nullif numeric offset on only or order out outer overlaps overlay placing position precision primary real references returning right row select session_user setof similar smallint some substring symmetric system_user table tablesample then time timestamp to trailing treat trim true union unique user using values varchar variadic verbose when where window with xmlattributes xmlconcat xmlelement xmlexists xmlforest xmlnamespaces xmlparse xmlpi xmlroot xmlserialize xmltable");
+    let word: string = "";
+    let index: number = 0;
+    while (index <= keywords.length) {
+        if (index === keywords.length || langruntime.indexChar(keywords, langruntime.checkedIndex(index)) === " ") {
+            if (word === input) {
+                return true;
+            }
+            word = langruntime.checkedString("");
+        }
+        else {
+            word = word + langruntime.checkedChar(langruntime.indexChar(keywords, langruntime.checkedIndex(index)));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return false;
+}
+export function quoteIdentContext(input: checkruntime.TextValue, quoteAll: number): checkruntime.TextValue {
+    quoteAll = langruntime.checkedI32(quoteAll);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        let safe: boolean = characters.length > 0;
+        let quotes: bigint = 0n;
+        let index: number = 0;
+        while (index < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+            if ((code < 97 || code > 122) && !(character === "_") && (index === 0 || code < 48 || code > 57)) {
+                safe = langruntime.checkedBool(false);
+            }
+            if (character === "\"") {
+                quotes = langruntime.checkedI64(langruntime.checkedI64Add(quotes, 1n));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (safe && textIdentifierKeyword(text)) {
+            safe = langruntime.checkedBool(false);
+        }
+        if (quoteAll === 1) {
+            safe = langruntime.checkedBool(false);
+        }
+        if (safe) {
+            if (!(quoteAll === 0)) {
+                if (textBuildOctets(text) <= 1073741817n) {
+                    return { kind: "NonNull" };
+                }
+                return { kind: "Unknown" };
+            }
+            return { kind: "Value", value: text };
+        }
+        if (langruntime.checkedI64Add(langruntime.checkedI64Add(textBuildOctets(text), quotes), 2n) > 1073741819n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(textIdentifierAllocationError) };
+        }
+        let output: string = "";
+        output = output + langruntime.checkedChar("\"");
+        index = langruntime.checkedIndex(0);
+        while (index < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (character === "\"") {
+                output = output + langruntime.checkedChar("\"");
+            }
+            output = output + langruntime.checkedChar(character);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        output = output + langruntime.checkedChar("\"");
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function quoteIdentDyzt(input: checkruntime.TextValue): checkruntime.TextValue {
+    return quoteIdentContext(input, langruntime.checkedSignedNegate(1));
+}
 export function ginCmpTslexeme1b7b(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
     return textBinaryCompare(left, right, false);
 }

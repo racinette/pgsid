@@ -17,6 +17,7 @@ import {
   jsonValueRequirements,
   hashValueRequirements,
   characterValueRequirements,
+  identifierQuoteRequirements,
   rangeValueRequirements,
   trigonometryValueRequirements,
   xmlValueRequirements,
@@ -123,6 +124,7 @@ export async function measureSurface(pg: PGlite) {
         rangeValueRequirements(implementation) ??
         hashValueRequirements(implementation) ??
         characterValueRequirements(implementation) ??
+        identifierQuoteRequirements(implementation) ??
         textSearchValueRequirements(implementation) ??
         jsonValueRequirements(implementation) ??
         xmlValueRequirements(implementation) ??

@@ -1,3 +1,4 @@
+import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import {
   arrayElementBaseType,
   arrayLikeElementType,
@@ -10,6 +11,16 @@ import type { CheckExecutionContext } from './check-rust-evaluator.js'
 import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
+
+const identifierQuotes = new Set(builtinCallables().filter(isIdentifierQuote).map(callableIdentity))
+function needsIdentifierQuote(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, item]) =>
+      (key === 'signature' && typeof item === 'string' && identifierQuotes.has(item)) ||
+      needsIdentifierQuote(item),
+  )
+}
 
 const trigonometry = new Set(
   builtinCallables().filter(circlePolygonTrigonometry).map(callableIdentity),
@@ -105,6 +116,9 @@ export function checkUnknownMessage(
   if (reason) return `Local evaluation is incomplete: ${reason}`
   let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
+  if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
+    message +=
+      ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'
   if (needsAclRoleCatalog(expression))
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)

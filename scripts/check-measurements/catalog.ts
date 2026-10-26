@@ -1,3 +1,4 @@
+import { isIdentifierQuote } from '../../src/sql-semantics/identifier-quote.js'
 import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callables.js'
 import {
   isArrayHash,
@@ -908,6 +909,20 @@ export function xmlValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function identifierQuoteRequirements(item: BuiltinCallable) {
+  return isIdentifierQuote(item)
+    ? [
+        {
+          kind: 'session',
+          setting: 'quote_all_identifiers',
+          requirement:
+            'Identifier output uses the declared quoteAllIdentifiers setting. Names requiring quotes in both modes remain available without it; safe non-keyword names defer. PostgreSQL keyword categories determine which lowercase words require quotes.',
+          owner: 'tests/sql-semantics/check-quote-ident.test.ts',
+        },
+      ]
+    : null
+}
+
 export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet<string>) {
   const categories: string[] = []
   const types = [...item.args, item.result]
@@ -966,8 +981,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     ['pg_current_snapshot', 'txid_current_snapshot'].includes(item.name)
   )
     categories.push('transaction-state:snapshot')
-  if (item.schema === 'pg_catalog' && item.name === 'quote_ident')
-    categories.push('session-setting:quote_all_identifiers')
+  if (isIdentifierQuote(item)) categories.push('session-setting:quote_all_identifiers')
   const geometricOutput =
     item.kind === 'function' &&
     item.args.length === 1 &&

@@ -322,6 +322,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_search.rs");
     include!("operations/pg_catalog/text_width.rs");
     include!("operations/pg_catalog/text_quote.rs");
+    include!("operations/pg_catalog/text_identifier.rs");
     include!("operations/pg_catalog/text_similar.rs");
     include!("operations/pg_catalog/text_size_bytes.rs");
     include!("operations/pg_catalog/text_like.rs");

@@ -1123,3 +1123,29 @@ CREATE TABLE inspection_acl_history (
    aclinsert('{=r/postgres}'::aclitem[],makeaclitem(score::oid,score::oid,'SELECT',false)) IS NULL END)
 );
 ALTER TYPE historical_acl_result DROP ATTRIBUTE obsolete_acl;
+
+CREATE TABLE inspection_quoted_identifiers (
+ label text COLLATE "C",
+ expected_text text COLLATE "C",
+ expected_present boolean,
+ expected_selected text COLLATE "C",
+ choose_label boolean NOT NULL,
+ divisor integer NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT identifier_quoted_text CHECK(CASE WHEN bypass THEN true ELSE
+   quote_ident(label) COLLATE "C" IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT identifier_quoted_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (quote_ident(label) IS NOT NULL) IS NOT DISTINCT FROM expected_present END),
+ CONSTRAINT identifier_quoted_selection CHECK(CASE WHEN bypass THEN true ELSE
+   quote_ident(CASE WHEN choose_label THEN label ELSE NULL::text END) COLLATE "C"
+     IS NOT DISTINCT FROM expected_selected END),
+ CONSTRAINT identifier_quoted_child_error CHECK(CASE WHEN bypass THEN true ELSE
+   (quote_ident(label||(1/divisor)::text) IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);
+CREATE TABLE inspection_identifier_presence (
+ label text,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT identifier_context_free_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (quote_ident(label) IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);
