@@ -267,3 +267,16 @@ export function isTemporalTimestampFormatting(item: BuiltinCallable): boolean {
     ['pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(item.args[0]!)
   )
 }
+
+export function isTemporalTemplateParsing(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.volatility === 's' &&
+    item.strict &&
+    !item.returnsSet &&
+    item.args.join(',') === 'pg_catalog.text,pg_catalog.text' &&
+    ((item.name === 'to_date' && item.result === 'pg_catalog.date') ||
+      (item.name === 'to_timestamp' && item.result === 'pg_catalog.timestamptz'))
+  )
+}

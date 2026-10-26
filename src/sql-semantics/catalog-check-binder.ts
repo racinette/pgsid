@@ -15,7 +15,11 @@ import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { isMoneyNumericConversion } from './money-callables.js'
-import { isTemporalContextCast, isTemporalTimestampFormatting } from './temporal-casts.js'
+import {
+  isTemporalContextCast,
+  isTemporalTimestampFormatting,
+  isTemporalTemplateParsing,
+} from './temporal-casts.js'
 import {
   rangeSubtypeCarrierIdentity,
   rangeSubtypeIsDomain,
@@ -2114,7 +2118,8 @@ const callDefaultCollation = (
     (metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray') ||
       isRegexArrayCallable(signature) ||
-      isTemporalTimestampFormatting(metadata))
+      isTemporalTimestampFormatting(metadata) ||
+      isTemporalTemplateParsing(metadata))
     ? { collationDefault: true }
     : {}
 }

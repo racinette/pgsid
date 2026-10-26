@@ -8,6 +8,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalTimestampFormatting,
+  isTemporalTemplateParsing,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -753,6 +754,30 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalTemplateParsing(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone / timezone_abbreviations',
+        requirement:
+          'Named TZ fields use session abbreviation prefixes before the declared registry. Instant results without explicit offsets require session timezone. Date results discard validated offsets; numeric date fields retain independent results.',
+        owner: 'tests/sql-semantics/check-datetime-templates.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'lc_time / input collation / server_encoding',
+        requirement:
+          'Translated TM month/day names require declared locale and casing. Fixed-width parsing counts encoded bytes; ordinary ASCII fields and English names retain independent results.',
+        owner: 'tests/sql-semantics/check-datetime-templates.test.ts',
+      },
+      {
+        kind: 'platform-input',
+        requirement:
+          'An overflowing first Y,YYY scanf integer requires a C conversion contract; bounded year groups and checked calendar arithmetic remain portable.',
+        owner: 'tests/sql-semantics/check-datetime-templates.test.ts',
+      },
+    ]
+
   if (isTemporalTimestampFormatting(item))
     return [
       ...(item.args[0] === 'pg_catalog.timestamptz'
