@@ -1683,3 +1683,24 @@ INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_ad
 INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','America/New_York','2024-03-10 16:00+00','2024-03-08 16:00+00',false);
 -- name: ExplicitZoneSkipped
 INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('infinity','-9223372036854.775808 seconds','',NULL,NULL,true);
+
+-- name: ExplicitZoneTruncateDay
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2024-03-10 07:30+00','day','America/New_York','2024-03-10 05:00+00',false);
+-- name: ExplicitZoneTruncateHour
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2024-03-10 07:30+00','hour','America/New_York','2024-03-10 07:00+00',false);
+-- name: ExplicitZoneTruncateUtc
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2015-07-01 12:34:56+00','day','UTC','2015-07-01 00:00+00',false);
+-- name: ExplicitZoneTruncateAbbreviation
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2015-07-01 12:34:56+00','day','EST','2015-07-01 05:00+00',false);
+-- name: ExplicitZoneTruncateDynamic
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2000-07-01 12:34:56+00','day','MSK','2000-06-30 20:00+00',false);
+-- name: ExplicitZoneTruncateNull
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES(NULL,'day','',NULL,false);
+-- name: ExplicitZoneTruncateMissingName
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2000-01-01','nonsense',NULL,NULL,false);
+-- name: ExplicitZoneTruncateInvalidBeforeInfinity
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('infinity','nonsense','',NULL,false);
+-- name: ExplicitZoneTruncateMismatch
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2024-03-10 07:30+00','day','America/New_York','2024-03-10 00:00+00',false);
+-- name: ExplicitZoneTruncateSkipped
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('infinity','nonsense','',NULL,true);

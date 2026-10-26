@@ -40,6 +40,12 @@ fn timezone_lookup_ascii(value: &str, upper: bool) -> String {
 }
 
 fn timezone_lookup_fixed(seconds: i32) -> TextValue {
+    if seconds == -604800 {
+        return TextValue::Value("UTC+167:59:60".to_owned());
+    };
+    if seconds == 604800 {
+        return TextValue::Value("UTC-167:59:60".to_owned());
+    };
     let mut result = "UTC".to_owned();
     result.push_str(timezone_output_offset(0 - seconds, true).as_str());
     TextValue::Value(result)

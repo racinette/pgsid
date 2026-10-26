@@ -84,7 +84,8 @@ recalculating its offset after each step, then adds elapsed microseconds. This
 preserves the difference between a calendar day and elapsed hours across DST.
 Pure elapsed-time arithmetic, NULLs and infinities do not need timezone context.
 
-Explicit timezone names consult the session's abbreviations before the registry
+Explicit calendar arithmetic and truncation consult the session's timezone
+abbreviations before the registry
 and named timezone data. `timeZoneAbbreviations: Default` declares the bundled
 PostgreSQL Default definitions; deployments must supply matching definitions.
 Lookup also uses `maxIdentifierBytes` for abbreviation truncation. A missing

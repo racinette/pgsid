@@ -15,7 +15,7 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
-  isTemporalExplicitZoneArithmetic,
+  isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 
 const temporalCasts = new Set(
@@ -24,12 +24,12 @@ const temporalCasts = new Set(
       (item) =>
         isTemporalContextCast(item) ||
         isTemporalContextArithmetic(item) ||
-        isTemporalExplicitZoneArithmetic(item),
+        isTemporalExplicitZoneLookup(item),
     )
     .map(callableIdentity),
 )
 const temporalExplicitZones = new Set(
-  builtinCallables().filter(isTemporalExplicitZoneArithmetic).map(callableIdentity),
+  builtinCallables().filter(isTemporalExplicitZoneLookup).map(callableIdentity),
 )
 const clockTimezoneCasts = new Set(
   builtinCallables()

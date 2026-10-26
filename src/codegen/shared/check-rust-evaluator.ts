@@ -14,7 +14,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
-  isTemporalExplicitZoneArithmetic,
+  isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
 import {
@@ -5348,7 +5348,7 @@ export function emitCheckRustEvaluator(
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation))
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
-      if (isTemporalExplicitZoneArithmetic(implementation))
+      if (isTemporalExplicitZoneLookup(implementation))
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
           String(executionContext.maxIdentifierBytes ?? -1),

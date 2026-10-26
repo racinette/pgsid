@@ -63,3 +63,20 @@ export function isTemporalExplicitZoneArithmetic(item: BuiltinCallable): boolean
     item.args[2] === 'pg_catalog.text'
   )
 }
+
+export function isTemporalExplicitZoneLookup(item: BuiltinCallable): boolean {
+  return (
+    isTemporalExplicitZoneArithmetic(item) ||
+    (item.kind === 'function' &&
+      item.schema === 'pg_catalog' &&
+      item.strict &&
+      item.volatility === 'i' &&
+      !item.returnsSet &&
+      item.name === 'date_trunc' &&
+      item.result === 'pg_catalog.timestamptz' &&
+      item.args.length === 3 &&
+      item.args[0] === 'pg_catalog.text' &&
+      item.args[1] === 'pg_catalog.timestamptz' &&
+      item.args[2] === 'pg_catalog.text')
+  )
+}
