@@ -15,6 +15,7 @@ import { callableIdentity } from '../../../src/postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalSessionTruncation,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneArithmetic,
   isTemporalExplicitZoneLookup,
@@ -222,4 +223,45 @@ it('admits the selected stable text/timetz conversion while retaining the transa
   })
   expect(message).toContain('transaction start instant')
   expect(message).not.toContain('sql.codegen.checks.')
+})
+
+it('admits only session timestamptz truncation with unit-build and conditional timezone facts', () => {
+  const items = builtinCallables().filter(isTemporalSessionTruncation)
+  expect(items).toHaveLength(1)
+  const item = items[0]!
+  expect(isTemporalExplicitZoneLookup(item)).toBe(false)
+  for (const changed of [
+    { schema: 'other' },
+    { volatility: 'i' as const },
+    { strict: false },
+    { args: ['pg_catalog.text', 'pg_catalog."timestamp"'] },
+    { result: 'pg_catalog."timestamp"' },
+  ])
+    expect(isTemporalSessionTruncation({ ...item, ...changed })).toBe(false)
+  expect(temporalArithmeticRequirements(item)?.map((r) => r.setting)).toEqual([
+    'TimeZone',
+    'maxIdentifierBytes',
+  ])
+  expect(
+    temporalArithmeticRequirements(item)?.every(
+      (r) => r.owner === 'tests/sql-semantics/check-session-trunc.test.ts',
+    ),
+  ).toBe(true)
+  const probe = bindProbe('date_trunc(unit,v) IS NOT NULL', [
+    { name: 'unit', typeName: 'pg_catalog.text' },
+    { name: 'v', typeName: 'pg_catalog.timestamptz' },
+  ])
+  expect(probe.fullyBound).toBe(true)
+  expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+  expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+  const message = checkUnknownMessage(probe.expression)
+  expect(message).toContain('sql.codegen.checks.timeZone')
+  expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
+  expect(message).not.toContain('timeZoneAbbreviations')
+  expect(
+    checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC', maxIdentifierBytes: 63 }),
+  ).not.toContain('sql.codegen.checks.')
+  const literal = bindProbe("date_trunc('day',timestamptz '2000-01-01 00:00+00') IS NOT NULL", [])
+  expect(literal.fullyBound).toBe(true)
+  expect(constantCheckExpression(literal.expression)).toBe(false)
 })

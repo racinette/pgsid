@@ -4,10 +4,11 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import { callableIdentity } from '../../src/postgres/builtins/catalog.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { isTemporalSessionTruncation } from '../../src/sql-semantics/temporal-casts.js'
 import { supportsTextCallableCollation } from '../../src/sql-semantics/collation.js'
 
 describe('temporal field collation', () => {
-  it('limits collation-independent field decoding to the represented immutable overloads', () => {
+  it('limits collation-independent field decoding to the represented temporal overloads', () => {
     const callables = builtinCallables().filter(
       (item) =>
         item.kind === 'function' &&
@@ -16,13 +17,13 @@ describe('temporal field collation', () => {
     const supported = callables.filter((item) =>
       supportsTextCallableCollation(callableIdentity(item), 'other'),
     )
-    expect(supported).toHaveLength(14)
+    expect(supported).toHaveLength(15)
     for (const item of supported) {
       expect(item).toMatchObject({
         kind: 'function',
         schema: 'pg_catalog',
         strict: true,
-        volatility: 'i',
+        volatility: isTemporalSessionTruncation(item) ? 's' : 'i',
         returnsSet: false,
       })
       for (const collation of [undefined, 'C', 'deterministic', 'other'])
@@ -47,6 +48,8 @@ describe('temporal field collation', () => {
         ' COLLATE public.other_collation',
       ]
       const expressions = {
+        truncate_session:
+          "pg_catalog.date_trunc(unit_name, absolute_time) = timestamptz '2000-01-01 00:00:00+00'",
         truncate_local: "pg_catalog.date_trunc(unit_name, local_time) = timestamp '2000-01-01'",
         truncate_zone:
           "pg_catalog.date_trunc(unit_name, absolute_time, zone_name) = timestamptz '2000-01-01 00:00:00+00'",

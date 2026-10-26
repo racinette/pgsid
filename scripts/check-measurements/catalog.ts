@@ -3,6 +3,7 @@ import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callable
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalSessionTruncation,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../src/sql-semantics/temporal-casts.js'
@@ -746,6 +747,23 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalSessionTruncation(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Session timestamptz truncation projects into the declared timezone and resolves offsets again for calendar units. Unit errors, infinities, NULLs and fine-grained truncation within offset-independent bounds retain definite results without timezone context.',
+        owner: 'tests/sql-semantics/check-session-trunc.test.ts',
+      },
+      {
+        kind: 'build',
+        setting: 'maxIdentifierBytes',
+        requirement:
+          'Temporal unit identifiers are truncated to the deployment byte limit before native token decoding.',
+        owner: 'tests/sql-semantics/check-session-trunc.test.ts',
+      },
+    ]
   if (isTemporalExplicitZoneLookup(item)) {
     const owner = isTemporalClockZoneLookup(item)
       ? 'tests/sql-semantics/check-timetz-zone.test.ts'

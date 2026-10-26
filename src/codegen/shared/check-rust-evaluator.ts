@@ -14,6 +14,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalSessionTruncation,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
@@ -3123,6 +3124,7 @@ export function emitCheckRustEvaluator(
           !isTemporalContextCast(implementation) &&
           !isTemporalContextArithmetic(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
+          !isTemporalSessionTruncation(implementation) &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -5349,6 +5351,12 @@ export function emitCheckRustEvaluator(
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation))
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
+      if (isTemporalSessionTruncation(implementation))
+        arguments_.push(
+          rustStringLiteral(executionContext.timeZone ?? ''),
+          String(executionContext.maxIdentifierBytes ?? -1),
+          String(executionContext.serverEncoding === 'UTF8'),
+        )
       if (isTemporalExplicitZoneLookup(implementation))
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),

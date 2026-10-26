@@ -1403,3 +1403,14 @@ CREATE TABLE inspection_clock_zones (
  CONSTRAINT clock_zone_array CHECK(CASE WHEN bypass THEN true ELSE
    timetz_send((ARRAY[timezone(target_zone,recorded_clock),NULL::timetz])[1]) IS NOT DISTINCT FROM timetz_send(expected_clock) END)
 );
+
+CREATE TABLE inspection_session_buckets (
+ instant_at timestamptz,
+ unit_name text,
+ expected_bucket timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT session_bucket_value CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(date_trunc(unit_name,instant_at)) IS NOT DISTINCT FROM timestamptz_send(expected_bucket) END),
+ CONSTRAINT session_bucket_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send((ARRAY[date_trunc(unit_name,instant_at),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_bucket) END)
+);
