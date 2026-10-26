@@ -1,3 +1,4 @@
+import { isIdentifierQuote } from './identifier-quote.js'
 import {
   isXmlOptionPredicate,
   isXmlValidationCallable,
@@ -430,6 +431,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       metadata.volatility === 'i' &&
       !metadata.returnsSet) ||
     isIdentifierParseCallable(signature) ||
+    isIdentifierQuote(metadata) ||
     isBuiltinRangeConstructor(implementation) ||
     (implementation.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&

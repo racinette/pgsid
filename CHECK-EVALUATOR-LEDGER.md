@@ -88,7 +88,7 @@ Do not use target-native date or numeric parsers to supply SQL behavior.
 - [x] Establish client-encoding requirements for text, varchar, bpchar and name binary output, retaining portable ASCII bytes.
 - [x] Declare database encoding for character codes and construction; defer dependent non-ASCII results without UTF8.
 - [ ] Design a portable context boundary before implementing those operations.
-- [ ] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior.
+- [x] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior, keyword categories, quote escaping and invariant output or known nullness without context; preserve scoped catalog identifier rendering and caller settings.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
 - [ ] Assess locale-sensitive ordering, casing, and nondeterministic collations.
 

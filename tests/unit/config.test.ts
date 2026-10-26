@@ -24,6 +24,12 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { moneyFractionDigits: ${moneyFractionDigits} }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ moneyFractionDigits })
+    for (const quoteAllIdentifiers of [false, true])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { quoteAllIdentifiers: ${quoteAllIdentifiers} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ quoteAllIdentifiers })
     for (const extraFloatDigits of [-15, -1, 0, 1, 3])
       expect(
         parseConfigString(
@@ -65,6 +71,8 @@ describe('config schema', () => {
       '{ unknown: C }',
       '{ arrayNulls: on }',
       '{ arrayNulls: unknown }',
+      '{ quoteAllIdentifiers: 0 }',
+      '{ quoteAllIdentifiers: \"false\" }',
       '{ maxIdentifierBytes: -1 }',
       '{ maxIdentifierBytes: 1.5 }',
       '{ maxIdentifierBytes: 2147483648 }',

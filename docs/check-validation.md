@@ -44,6 +44,13 @@ independently of the math library on the client machine. Without a declared
 profile, reached coordinate generation stays uncertain; context-independent
 NULL results, input errors and skipped branches remain available.
 
+Identifier quoting uses `quoteAllIdentifiers: true` or `false` to match the
+target session's `quote_all_identifiers` setting. Forced quoting escapes every
+name; minimal quoting follows PostgreSQL's identifier syntax and keyword
+categories. When the setting is omitted, names requiring quotes in both modes
+still have definite output. Safe bare names retain known nullness while their
+text stays uncertain.
+
 ## Row-rewriting triggers
 
 PostgreSQL applies row-level BEFORE triggers before testing the resulting row

@@ -1326,3 +1326,48 @@ INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count
 
 -- name: HistoricalAclBypassedErrors
 INSERT INTO inspection_acl_history(score,divisor,expected_nonnull,expected_count,expected_equal,expected_present,obsolete_call,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,true,true);
+
+-- name: QuotedIdentifierKeyword
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','"select"',true,'"select"',true,1,false);
+
+-- name: QuotedIdentifierCase
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('MixedCase','"MixedCase"',true,'"MixedCase"',true,1,false);
+
+-- name: QuotedIdentifierQuote
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('a"b','"a""b"',true,'"a""b"',true,1,false);
+
+-- name: QuotedIdentifierUnicode
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('é😀','"é😀"',true,'"é😀"',true,1,false);
+
+-- name: QuotedIdentifierNull
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES(NULL,NULL,false,NULL,true,1,false);
+
+-- name: QuotedIdentifierSkippedLabel
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','"select"',true,NULL,false,1,false);
+
+-- name: QuotedIdentifierWrongText
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','select',true,'"select"',true,1,false);
+
+-- name: QuotedIdentifierWrongPresence
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','"select"',false,'"select"',true,1,false);
+
+-- name: QuotedIdentifierWrongSelection
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','"select"',true,NULL,true,1,false);
+
+-- name: QuotedIdentifierReachedError
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('select','"select"',true,'"select"',true,0,false);
+
+-- name: QuotedIdentifierBypassedError
+INSERT INTO inspection_quoted_identifiers(label,expected_text,expected_present,expected_selected,choose_label,divisor,bypass) VALUES('plain',NULL,NULL,NULL,true,0,true);
+
+-- name: IdentifierPresenceWithoutSetting
+INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES('plain',true,false);
+
+-- name: IdentifierPresenceNull
+INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES(NULL,false,false);
+
+-- name: IdentifierPresenceRejected
+INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES('plain',false,false);
+
+-- name: IdentifierPresenceBypassed
+INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES('plain',NULL,true);

@@ -18,6 +18,7 @@ import {
   jsonValueRequirements,
   hashValueRequirements,
   characterValueRequirements,
+  identifierQuoteRequirements,
   xmlValueRequirements,
   moneyValueRequirements,
   aclitemValueRequirements,
@@ -140,6 +141,15 @@ describe('CHECK measurement boundaries', () => {
       missingTypes: [],
     })
     const quoteIdent = builtinMetadata('function:["pg_catalog","quote_ident"](pg_catalog.text)')
+    expect(identifierQuoteRequirements(quoteIdent)).toEqual([
+      {
+        kind: 'session',
+        setting: 'quote_all_identifiers',
+        requirement: expect.stringContaining('quoteAllIdentifiers'),
+        owner: 'tests/sql-semantics/check-quote-ident.test.ts',
+      },
+    ])
+    expect(identifierQuoteRequirements({ ...quoteIdent, schema: 'custom' })).toBeNull()
     expect(quoteIdent.volatility).toBe('i')
     expect(callableBoundary(quoteIdent, represented).categories).toContain(
       'session-setting:quote_all_identifiers',

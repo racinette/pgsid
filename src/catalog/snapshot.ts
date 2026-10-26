@@ -555,7 +555,7 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
 }
 
 /**
- * Render constants with ISO dates/intervals, UTC, lossless floats and C monetary formatting.
+ * Render constants and identifiers with ISO dates/intervals, UTC, lossless floats, C money and minimal identifier quoting.
  * Restore the caller's settings after the read; these settings affect literal
  * values embedded in constraint and default expressions.
  */
@@ -572,23 +572,24 @@ async function withCatalogRendering<T>(
       interval_style: string
       monetary_locale: string
       array_nulls: string
+      quote_all_identifiers: string
       server_encoding: string
     }>(
       `SELECT current_setting('search_path') AS search_path,
       current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
-      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale, current_setting('array_nulls') AS array_nulls, current_setting('server_encoding') AS server_encoding`,
+      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale, current_setting('array_nulls') AS array_nulls, current_setting('quote_all_identifiers') AS quote_all_identifiers, current_setting('server_encoding') AS server_encoding`,
     )
   ).rows[0]!
   await pg.query(`SELECT set_config('search_path','',false),
     set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
-    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false), set_config('array_nulls','on',false)`)
+    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false), set_config('array_nulls','on',false), set_config('quote_all_identifiers','off',false)`)
   try {
     return await read(saved.server_encoding === 'UTF8')
   } finally {
     await pg.query(
       `SELECT set_config('search_path',$1,false),
       set_config('DateStyle',$2,false),set_config('TimeZone',$3,false),
-      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false), set_config('lc_monetary',$6,false), set_config('array_nulls',$7,false)`,
+      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false), set_config('lc_monetary',$6,false), set_config('array_nulls',$7,false), set_config('quote_all_identifiers',$8,false)`,
       [
         saved.search_path,
         saved.date_style,
@@ -597,6 +598,7 @@ async function withCatalogRendering<T>(
         saved.interval_style,
         saved.monetary_locale,
         saved.array_nulls,
+        saved.quote_all_identifiers,
       ],
     )
   }

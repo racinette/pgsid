@@ -1,3 +1,4 @@
+import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validStoredTsvectorValue } from '../../catalog/tsvector-constant-storage.js'
@@ -746,6 +747,7 @@ export type CheckExecutionContext = {
   maxIdentifierBytes?: number
   trigonometry?: 'fdlibm'
   arrayNulls?: boolean
+  quoteAllIdentifiers?: boolean
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
   moneyLocale?: 'C'
@@ -5194,20 +5196,33 @@ export function emitCheckRustEvaluator(
               bpcharsend: 'pg_catalog.bpchar',
             } as Record<string, string>
           )[implementation.name]
-      const callable = textSend
-        ? 'text_wire_context'
-        : characterContext
-          ? characterContext + '_context'
-          : jsonSend
-            ? 'json_send_context'
-            : jsonbSend
-              ? 'jsonb_send_context'
-              : jsonExtraction
-                ? implementation.name + '_context'
-                : jsonpathExecution
-                  ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
-                  : implementation.rustName
+      const identifierQuote = isIdentifierQuote(implementation)
+      const callable = identifierQuote
+        ? 'quote_ident_context'
+        : textSend
+          ? 'text_wire_context'
+          : characterContext
+            ? characterContext + '_context'
+            : jsonSend
+              ? 'json_send_context'
+              : jsonbSend
+                ? 'jsonb_send_context'
+                : jsonExtraction
+                  ? implementation.name + '_context'
+                  : jsonpathExecution
+                    ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+                    : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (identifierQuote)
+        arguments_.push(
+          String(
+            executionContext.quoteAllIdentifiers === undefined
+              ? -1
+              : executionContext.quoteAllIdentifiers
+                ? 1
+                : 0,
+          ),
+        )
       if (textSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (jsonExtraction) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (circlePolygonTrigonometry(implementation))

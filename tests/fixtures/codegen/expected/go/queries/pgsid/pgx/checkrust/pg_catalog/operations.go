@@ -42288,6 +42288,90 @@ func HashbpcharextendedCa1t(input checkruntime.TextValue, seed checkruntime.Int8
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	return textHashExtended(input, seed, true, byteOrder, utf8)
 }
+
+const textIdentifierAllocationError = 56966976
+
+func textIdentifierKeyword(input string) bool {
+	input = langruntime.CheckedString(input)
+	keywords := []rune("all analyse analyze and any array as asc asymmetric authorization between bigint binary bit boolean both case cast char character check coalesce collate collation column concurrently constraint create cross current_catalog current_date current_role current_schema current_time current_timestamp current_user dec decimal default deferrable desc distinct do else end except exists extract false fetch float for foreign freeze from full grant greatest group grouping having ilike in initially inner inout int integer intersect interval into is isnull join json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_table json_value lateral leading least left like limit localtime localtimestamp merge_action national natural nchar none normalize not notnull null nullif numeric offset on only or order out outer overlaps overlay placing position precision primary real references returning right row select session_user setof similar smallint some substring symmetric system_user table tablesample then time timestamp to trailing treat trim true union unique user using values varchar variadic verbose when where window with xmlattributes xmlconcat xmlelement xmlexists xmlforest xmlnamespaces xmlparse xmlpi xmlroot xmlserialize xmltable")
+	word := langruntime.NewTextBuffer("")
+	index := 0
+	for index <= len(keywords) {
+		if index == len(keywords) || keywords[index] == ' ' {
+			if string(word) == input {
+				return true
+			}
+			word = langruntime.NewTextBuffer("")
+		} else {
+			word = append(word, string(langruntime.CheckedChar(keywords[index]))...)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return false
+}
+func QuoteIdentContext(input checkruntime.TextValue, quoteAll int) checkruntime.TextValue {
+	quoteAll = langruntime.CheckedI32(quoteAll)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		safe := len(characters) > 0
+		quotes := int64(0)
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			code := int(langruntime.CheckedChar(character))
+			if (code < 97 || code > 122) && character != '_' && (index == 0 || code < 48 || code > 57) {
+				safe = false
+			}
+			if character == '"' {
+				quotes = langruntime.CheckedI64Add(quotes, int64(1))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if safe && textIdentifierKeyword(text) {
+			safe = false
+		}
+		if quoteAll == 1 {
+			safe = false
+		}
+		if safe {
+			if quoteAll != 0 {
+				if textBuildOctets(text) <= int64(1073741817) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+		}
+		if langruntime.CheckedI64Add(langruntime.CheckedI64Add(textBuildOctets(text), quotes), int64(2)) > int64(1073741819) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textIdentifierAllocationError)}
+		}
+		output := langruntime.NewTextBuffer("")
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+		index = langruntime.CheckedIndex(0)
+		for index < len(characters) {
+			character := characters[index]
+			if character == '"' {
+				output = append(output, string(langruntime.CheckedChar('"'))...)
+			}
+			output = append(output, string(langruntime.CheckedChar(character))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func QuoteIdentDyzt(input checkruntime.TextValue) checkruntime.TextValue {
+	return QuoteIdentContext(input, langruntime.CheckedSignedNegate(1))
+}
 func GinCmpTslexeme1b7b(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
 	return textBinaryCompare(left, right, false)
 }
