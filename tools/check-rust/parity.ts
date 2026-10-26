@@ -97,6 +97,7 @@ export async function runCheckParity(
   assert.ok(group.source && group.evaluatorSource)
   await writeFile(join(directory, 'evaluators.rs'), group.evaluatorSource)
   writeCheckRustSources(join(directory, 'checks.rs'), group.source)
+  const split = transpileCheckRustFiles(group.source, `${moduleName}/pg_catalog`)
   await run('cargo', [
     'run',
     '--quiet',
@@ -600,7 +601,6 @@ export async function runCheckParity(
   await run(join(directory, 'rust-test'), []).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })
-  const split = transpileCheckRustFiles(group.source, `${moduleName}/pg_catalog`)
   for (const [name, source] of Object.entries(split.go)) {
     if (!source) continue
     const path = join(
@@ -620,7 +620,7 @@ export async function runCheckParity(
     await writeFile(path, source)
   }
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
-  await run('go', ['test', '-p', '1', './...'], {
+  await run('go', ['test', '-trimpath', '-p', '1', './...'], {
     cwd: join(directory, 'go'),
     env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
   })
