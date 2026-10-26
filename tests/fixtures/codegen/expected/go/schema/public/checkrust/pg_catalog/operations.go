@@ -46536,6 +46536,68 @@ func TimestampNeQsye(left checkruntime.TimestampValue, right checkruntime.Timest
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func MakeTimestampN30u(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value, hour checkruntime.Int4Value, minute checkruntime.Int4Value, second checkruntime.Float8Value) checkruntime.TimestampValue {
+	if year.Kind == checkruntime.Int4ValueError {
+		error := year.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if month.Kind == checkruntime.Int4ValueError {
+		error := month.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if day.Kind == checkruntime.Int4ValueError {
+		error := day.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if hour.Kind == checkruntime.Int4ValueError {
+		error := hour.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if minute.Kind == checkruntime.Int4ValueError {
+		error := minute.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if year == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || month == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || day == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || hour == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || minute == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if year == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || month == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || day == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || hour == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || minute == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if year.Kind == checkruntime.Int4ValueValue {
+		y := langruntime.CheckedI32(year.Value)
+		if month.Kind == checkruntime.Int4ValueValue {
+			m := langruntime.CheckedI32(month.Value)
+			if day.Kind == checkruntime.Int4ValueValue {
+				d := langruntime.CheckedI32(day.Value)
+				if y == 0 || y < langruntime.CheckedSignedNegate(4714) || y > 294276 || m < 1 || m > 12 || d < 1 {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				calendarYear := y
+				if y < 0 {
+					calendarYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(calendarYear, 1))
+				}
+				if d > intervalAgeMonthDays(temporalCalendarFields{year: calendarYear, month: m, day: d}) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				days := langruntime.CheckedI64Subtract(temporalJulianFromCalendar(calendarYear, m, d), int64(2451545))
+				clock := MakeTime6c3q(hour, minute, second)
+				if clock.Kind == checkruntime.TimeValueError {
+					error := clock.Error
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+				}
+				if clock.Kind == checkruntime.TimeValueValue {
+					time := clock.Value
+					return checkruntime.MakeTimestampValue(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(days, int64(86400000000)), time))
+				}
+			}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
 func TimestamptzEqK4n3(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error

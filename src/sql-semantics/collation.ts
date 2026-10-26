@@ -1,5 +1,6 @@
 import {
   isTemporalClockZoneLookup,
+  isTemporalInstantConstructor,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
 } from './temporal-casts.js'
@@ -428,6 +429,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.volatility === 's'))
   return (
     isTemporalClockZoneLookup(metadata) ||
+    (isTemporalInstantConstructor(metadata) && metadata.args.length === 7) ||
     isTemporalSessionTruncation(metadata) ||
     isTemporalSessionExtraction(metadata) ||
     (metadata.kind === 'function' &&

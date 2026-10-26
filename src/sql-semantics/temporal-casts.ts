@@ -80,7 +80,11 @@ export function isTemporalClockZoneLookup(item: BuiltinCallable): boolean {
 }
 
 export function isTemporalExplicitZoneLookup(item: BuiltinCallable): boolean {
-  if (isTemporalClockZoneLookup(item)) return true
+  if (
+    isTemporalClockZoneLookup(item) ||
+    (isTemporalInstantConstructor(item) && item.args.length === 7)
+  )
+    return true
   return (
     isTemporalExplicitZoneArithmetic(item) ||
     (item.kind === 'function' &&
@@ -177,5 +181,30 @@ export function isTemporalLocalTimezone(item: BuiltinCallable): boolean {
     ((item.args[0] === 'pg_catalog."timestamp"' && item.result === 'pg_catalog.timestamptz') ||
       (item.args[0] === 'pg_catalog.timestamptz' && item.result === 'pg_catalog."timestamp"') ||
       (item.args[0] === 'pg_catalog.timetz' && item.result === 'pg_catalog.timetz'))
+  )
+}
+
+export function isTemporalInstantConstructor(item: BuiltinCallable): boolean {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 's' ||
+    item.returnsSet ||
+    item.result !== 'pg_catalog.timestamptz'
+  )
+    return false
+  if (item.name === 'timestamptz')
+    return (
+      item.args.length === 2 &&
+      item.args[0] === 'pg_catalog.date' &&
+      item.args[1] === 'pg_catalog."time"'
+    )
+  return (
+    item.name === 'make_timestamptz' &&
+    [6, 7].includes(item.args.length) &&
+    item.args.slice(0, 5).every((type) => type === 'pg_catalog.int4') &&
+    item.args[5] === 'pg_catalog.float8' &&
+    (item.args.length === 6 || item.args[6] === 'pg_catalog.text')
   )
 }

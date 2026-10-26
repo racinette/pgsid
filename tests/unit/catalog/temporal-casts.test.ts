@@ -17,6 +17,7 @@ import {
   isTemporalContextCast,
   isTemporalContextComparison,
   isTemporalLocalTimezone,
+  isTemporalInstantConstructor,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -132,7 +133,7 @@ it('keeps explicit-zone arithmetic tied to the native overload and exposes order
 
 it('classifies explicit timezone truncation with native lookup requirements independently of arithmetic', () => {
   const operations = builtinCallables().filter(isTemporalExplicitZoneLookup)
-  expect(operations).toHaveLength(6)
+  expect(operations).toHaveLength(7)
   const item = operations.find((item) => item.name === 'date_trunc')!
   expect(isTemporalExplicitZoneArithmetic(item)).toBe(false)
   expect(
@@ -379,4 +380,53 @@ it('admits the three native local timezone aliases and keeps the timetz name loo
       expect(message.includes('sql.codegen.checks.timeZoneAbbreviations')).toBe(clock)
     }
   }
+})
+
+it('admits only selected instant constructors with validation-first timezone and explicit numeric-offset requirements', () => {
+  const items = builtinCallables().filter(isTemporalInstantConstructor)
+  expect(items).toHaveLength(3)
+  for (const item of items) {
+    expect(isTemporalInstantConstructor({ ...item, schema: 'other' })).toBe(false)
+    expect(isTemporalInstantConstructor({ ...item, volatility: 'i' })).toBe(false)
+    const explicit = item.args.length === 7
+    const requirements = temporalArithmeticRequirements(item)!
+    expect(
+      requirements.every(
+        (r) => r.owner === 'tests/sql-semantics/check-instant-constructors.test.ts',
+      ),
+    ).toBe(true)
+    expect(requirements.map((r) => r.setting).sort()).toEqual(
+      explicit
+        ? [
+            'TimeZone',
+            'server_encoding',
+            'timezone_abbreviations',
+            'maxIdentifierBytes',
+            'timezone_abbreviation_cache',
+          ].sort()
+        : ['TimeZone'],
+    )
+    const probe = bindProbe(
+      `pg_catalog.${item.name}(${item.args.map((_, i) => 'v' + i).join(',')}) IS NOT NULL`,
+      item.args.map((typeName, i) => ({ name: 'v' + i, typeName })),
+    )
+    expect(probe.fullyBound, callableIdentity(item)).toBe(true)
+    expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    const message = checkUnknownMessage(probe.expression)
+    expect(message).toContain('sql.codegen.checks.timeZone')
+    expect(message.includes('sql.codegen.checks.timeZoneAbbreviations')).toBe(explicit)
+    expect(message.includes('transaction start instant')).toBe(false)
+    expect(message.includes('sql.codegen.checks.serverEncoding')).toBe(explicit)
+  }
+  const immutable = bindProbe('pg_catalog.make_timestamp(y,m,d,h,n,s) IS NOT NULL', [
+    ...['y', 'm', 'd', 'h', 'n'].map((name) => ({ name, typeName: 'pg_catalog.int4' })),
+    { name: 's', typeName: 'pg_catalog.float8' },
+  ])
+  expect(immutable.fullyBound).toBe(true)
+  expect(immutable.preparation.kind).toBe('supported')
+  const literal = bindProbe('pg_catalog.make_timestamptz(2000,1,1,0,0,0::float8) IS NOT NULL', [])
+  expect(literal.fullyBound).toBe(true)
+  expect(constantCheckExpression(literal.expression)).toBe(false)
 })

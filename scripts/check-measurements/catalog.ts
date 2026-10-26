@@ -5,6 +5,7 @@ import {
   isTemporalContextCast,
   isTemporalContextComparison,
   isTemporalLocalTimezone,
+  isTemporalInstantConstructor,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -750,6 +751,17 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalInstantConstructor(item) && item.args.length !== 7)
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Date-plus-clock and calendar field instant constructors validate their native local timestamp before timezone conversion. NULLs, infinities and local construction errors retain independent results without timezone context.',
+        owner: 'tests/sql-semantics/check-instant-constructors.test.ts',
+      },
+    ]
+
   if (isTemporalLocalTimezone(item) && item.args[0] !== 'pg_catalog.timetz')
     return [
       {
@@ -807,16 +819,29 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
     ]
   const localClock = isTemporalLocalTimezone(item) && item.args[0] === 'pg_catalog.timetz'
   if (isTemporalExplicitZoneLookup(item) || localClock) {
-    const owner = localClock
-      ? 'tests/sql-semantics/check-local-timezone.test.ts'
-      : isTemporalClockZoneLookup(item)
-        ? 'tests/sql-semantics/check-timetz-zone.test.ts'
-        : item.name === 'timezone'
-          ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-          : item.name === 'date_trunc'
-            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts'
+    const owner = isTemporalInstantConstructor(item)
+      ? 'tests/sql-semantics/check-instant-constructors.test.ts'
+      : localClock
+        ? 'tests/sql-semantics/check-local-timezone.test.ts'
+        : isTemporalClockZoneLookup(item)
+          ? 'tests/sql-semantics/check-timetz-zone.test.ts'
+          : item.name === 'timezone'
+            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+            : item.name === 'date_trunc'
+              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts'
     return [
+      ...(isTemporalInstantConstructor(item)
+        ? [
+            {
+              kind: 'database',
+              setting: 'server_encoding',
+              requirement:
+                'Non-ASCII constructor timezone text clipping requires declared UTF8. ASCII numeric offsets and early calendar errors retain independent results.',
+              owner,
+            },
+          ]
+        : []),
       ...(isTemporalClockZoneLookup(item) || localClock
         ? [
             {
@@ -832,7 +857,7 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'TimeZone',
         requirement:
-          'Timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb, including the native local-timetz alias lookup of the session zone name.',
+          'Reached timezone-name lookup consults session abbreviation definitions before the registry and tzdb, including the local-timetz alias. Explicit instant constructors decode signed ISO numeric offsets before name lookup.',
         owner,
       },
       {
