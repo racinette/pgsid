@@ -1260,3 +1260,36 @@ INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected
 
 -- name: HistoricalFulltextBypassedDivision
 INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,0,NULL,NULL,false,NULL,NULL,false,true);
+
+-- name: HistoricalAliasValues
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000000','["-",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasNullScore
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(NULL,1,NULL,NULL,'["-",null]','{"current_object":"-","roles":["-",null]}',false,false);
+
+-- name: HistoricalAliasNegativeScore
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(-1,1,NULL,NULL,'["-",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasWrongText
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'0','\x00000000','["-",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasWrongWire
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000001','["-",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasWrongRoles
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000000','["0",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasWrongRecord
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000000','["-",null]','{}',true,false);
+
+-- name: HistoricalAliasWrongPresence
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000000','["-",null]','{"current_object":"-","roles":["-",null]}',false,false);
+
+-- name: HistoricalAliasNullPresence
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,1,'-','\x00000000','["-",null]','{"current_object":"-","roles":["-",null]}',NULL,false);
+
+-- name: HistoricalAliasReachedDivision
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,0,'-','\x00000000','["-",null]','{"current_object":"-","roles":["-",null]}',true,false);
+
+-- name: HistoricalAliasBypassedDivision
+INSERT INTO inspection_alias_history(score,divisor,expected_text,expected_wire,expected_roles,expected_record,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,NULL,true);

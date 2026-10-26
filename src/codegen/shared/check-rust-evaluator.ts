@@ -7083,6 +7083,11 @@ export function emitCheckRustEvaluator(
         return { name: bind(`json_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'oid') {
+        if (value.stored) {
+          if (!isOidAliasType(value.type) || value.value !== '0')
+            throw new UnsupportedCheckRustExpression('Invalid stored OID alias sentinel')
+          return { type: value.type, name: bind('make_oid_value(0i64)') }
+        }
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(value.type)

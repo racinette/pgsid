@@ -1,3 +1,4 @@
+import { isOidAliasType, storedOidAliasZero } from './oid-alias-constant-storage.js'
 import { builtinCast } from '../postgres/builtins/inventory.js'
 import { parseSync } from 'libpg-query'
 import { tree, scalar, oidList, type Tree, type Value } from './expression-tree.js'
@@ -421,6 +422,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         (bytes, type) => {
           const byval =
               type.kind === 'e' ||
+              isOidAliasType(type.identity) ||
               [
                 'pg_catalog.bool',
                 'pg_catalog."char"',
@@ -492,6 +494,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     ) {
       const storage = storedTextLikeConstant(node, type, input.byteOrder, input.utf8 === true)
       return storage ? collated({ PgsidStoredTextLike: storage }, 'constcollid') : undefined
+    } else if (isOidAliasType(type)) {
+      const zero = storedOidAliasZero(node, type, input.byteOrder)
+      return zero ? { PgsidStoredOidAliasZero: zero } : undefined
     } else if (isSystemConstantType(type)) {
       const storage = storedSystemConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredSystem: storage } : undefined

@@ -3501,6 +3501,17 @@ export function bindCatalogCheck(
         value: { kind: 'certain', expression: { ...storedSnapshot, kind: 'snapshot-storage' } },
       }
     }
+    const storedAliasZero = wrapper['PgsidStoredOidAliasZero']
+    if (storedAliasZero !== undefined) {
+      if (typeof storedAliasZero !== 'string' || !isOidAliasType(storedAliasZero)) return unknown
+      return {
+        type: storedAliasZero,
+        value: {
+          kind: 'certain',
+          expression: { kind: 'oid', type: storedAliasZero, value: '0', stored: true },
+        },
+      }
+    }
     const storedSystem = wrapper['PgsidStoredSystem']
     if (storedSystem !== undefined) {
       if (!validSystemConstantStorage(storedSystem)) return unknown

@@ -1,3 +1,4 @@
+import { oidAliasTypes } from '../../src/catalog/oid-alias-constant-storage.js'
 import { jsonInputForms, invalidJsonInputForms } from './check-json-input-forms.js'
 import {
   jsonbInputForms,
@@ -1318,6 +1319,10 @@ describe('CHECK measurement boundaries', () => {
         'pg_catalog.tsvector:array',
         'pg_catalog.tsquery:scalar',
         'pg_catalog.tsquery:array',
+        ...oidAliasTypes.flatMap((type) => [
+          ...(type === 'pg_catalog.regrole' ? [] : [type + ':scalar']),
+          type + ':array',
+        ]),
         'pg_catalog.aclitem:scalar',
         'boolean_test',
         'scalar_array',
@@ -1361,6 +1366,10 @@ describe('CHECK measurement boundaries', () => {
     expect(report.summary.cases).toBe(selected.length)
     expect(new Set(report.cases.map((c) => c.name)).size).toBe(selected.length)
     for (const name of [
+      ...oidAliasTypes.flatMap((type) => [
+        ...(type === 'pg_catalog.regrole' ? [] : [type + ':scalar']),
+        type + ':array',
+      ]),
       'pg_catalog.int4:scalar',
       'pg_catalog.int4:null',
       'pg_catalog.int4:array',

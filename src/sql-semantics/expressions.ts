@@ -1,3 +1,9 @@
+import { isOidAliasType, type OidAliasType } from '../catalog/oid-alias-constant-storage.js'
+export {
+  isOidAliasType,
+  oidAliasTypes,
+  type OidAliasType,
+} from '../catalog/oid-alias-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import type { TemporalConstantStorage } from '../catalog/temporal-constant-storage.js'
 import type { GeometryConstantStorage } from '../catalog/geometry-constant-storage.js'
@@ -184,23 +190,7 @@ export const isRangeType = (type: string | null | undefined): type is RangeType 
   typeof type === 'string' && (builtinRangeType(type) !== null || isCapturedRangeType(type))
 export const isSnapshotType = (type: string | null | undefined): type is SnapshotType =>
   type === 'pg_catalog.pg_snapshot' || type === 'pg_catalog.txid_snapshot'
-export const oidAliasTypes = [
-  'pg_catalog.regclass',
-  'pg_catalog.regcollation',
-  'pg_catalog.regconfig',
-  'pg_catalog.regdictionary',
-  'pg_catalog.regnamespace',
-  'pg_catalog.regoper',
-  'pg_catalog.regoperator',
-  'pg_catalog.regproc',
-  'pg_catalog.regprocedure',
-  'pg_catalog.regrole',
-  'pg_catalog.regtype',
-] as const
-export type OidAliasType = (typeof oidAliasTypes)[number]
 export type OidType = 'pg_catalog.oid' | OidAliasType
-export const isOidAliasType = (type: string | null | undefined): type is OidAliasType =>
-  oidAliasTypes.some((candidate) => candidate === type)
 export const isOidType = (type: string | null | undefined): type is OidType =>
   type === 'pg_catalog.oid' || isOidAliasType(type)
 export type PolygonType = 'pg_catalog.polygon'
@@ -642,7 +632,7 @@ export type SqlExpression =
       tsvectorStorage?: readonly TsvectorConstantStorage[]
       tsqueryStorage?: readonly TsqueryConstantStorage[]
     }
-  | { kind: 'oid'; type: OidType; value: string | null }
+  | { kind: 'oid'; type: OidType; value: string | null; stored?: true }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
   | { kind: 'path'; type: PathType; value: string | null }
   | { kind: 'circle'; type: CircleType; value: string | null }
