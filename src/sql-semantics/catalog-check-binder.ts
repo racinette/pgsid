@@ -6262,6 +6262,7 @@ export function bindCatalogCheck(
           source === 'pg_catalog."interval"' ||
           source === 'pg_catalog.date' ||
           source === 'pg_catalog."timestamp"' ||
+          source === 'pg_catalog.timestamptz' ||
           source === 'pg_catalog."numeric"' ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||
@@ -6315,6 +6316,7 @@ export function bindCatalogCheck(
             source !== 'pg_catalog."interval"' &&
             source !== 'pg_catalog.date' &&
             source !== 'pg_catalog."timestamp"' &&
+            source !== 'pg_catalog.timestamptz' &&
             source !== 'pg_catalog.aclitem')
         )
           return unknown

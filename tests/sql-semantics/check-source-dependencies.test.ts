@@ -83,6 +83,17 @@ function fixture(): CheckRustSource {
 }
 
 describe('CHECK operation source dependencies', () => {
+  it('retains timezone helpers and facts for contextual SQL and JSON output expressions', () => {
+    for (const source of [
+      'timestamptz_output_context(value,1,"UTC",false)',
+      'jsonb_input_from_timestamptz_context(value,"UTC")',
+    ]) {
+      const selected = assembleCheckRust({ source, callables: [] })
+      const files = selected.modules.find((m) => m.name === 'pg_catalog')!.files
+      expect(files.some((f) => f.path.endsWith('/timezone_named.rs'))).toBe(true)
+      expect(files.some((f) => f.path.endsWith('/timezone_tables.rs'))).toBe(true)
+    }
+  })
   it('retains the timezone group for every callable declared there, regardless of its SQL name', () => {
     const source = fixture()
     const timezoneFiles = source.modules[2]!.files.filter((file) => file.path.includes('/timezone'))

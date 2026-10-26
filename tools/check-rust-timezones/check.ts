@@ -38,6 +38,18 @@ const data = JSON.parse(await readFile(join(directory, 'tables.fixtures.json'), 
   ids: number[]
   zones: { times: string[]; offsets: number[]; initial: number; future: string }[]
 }
+const selectedZones = process.env['PGSID_CHECK_TIMEZONE_ZONES']?.split(',')
+if (
+  selectedZones &&
+  (new Set(selectedZones).size !== selectedZones.length ||
+    selectedZones.some((name) => !name.includes('/') || !data.names.includes(name)))
+)
+  throw new Error(
+    'PGSID_CHECK_TIMEZONE_ZONES must name distinct known qualified zones, separated by commas',
+  )
+const scope = selectedZones
+  ? { kind: 'selected-zones', zones: selectedZones }
+  : { kind: 'all-qualified-zones' }
 const statistics = JSON.parse(
   await readFile(join(directory, 'tables.stats.json'), 'utf8'),
 ) as Record<string, number>
@@ -219,7 +231,7 @@ try {
   const futureRules = new Set<string>()
   let futureTransitions = 0
   for (const [index, zone] of data.names.entries()) {
-    if (!zone.includes('/')) continue
+    if (!zone.includes('/') || (selectedZones && !selectedZones.includes(zone))) continue
     const info = data.zones[data.ids[index]!]!
     const times = info.times.map(BigInt)
     const samples = new Set<bigint>([
@@ -265,7 +277,15 @@ try {
   statistics['futureTransitionsTested'] = futureTransitions
   assert.equal(
     futureRules.size,
-    new Set(data.zones.map((zone) => zone.future).filter((rule) => /[,;]/u.test(rule))).size,
+    new Set(
+      data.names
+        .flatMap((name, index) =>
+          name.includes('/') && (!selectedZones || selectedZones.includes(name))
+            ? [data.zones[data.ids[index]!]!.future]
+            : [],
+        )
+        .filter((rule) => /[,;]/u.test(rule)),
+    ).size,
   )
   for (const [zone, oracleZone] of [
     ['Test/Julian', 'STD0DST,J60/0,J300/0'],
@@ -367,8 +387,8 @@ for (const language of ['go', 'typescript']) {
 }
 await writeFile(
   join(directory, 'results.json'),
-  JSON.stringify({ statistics, counts, parityFixtures: fixtures.length }, null, 2) + '\n',
+  JSON.stringify({ scope, statistics, counts, parityFixtures: fixtures.length }, null, 2) + '\n',
 )
 process.stdout.write(
-  JSON.stringify({ statistics, counts, parityFixtures: fixtures.length }, null, 2) + '\n',
+  JSON.stringify({ scope, statistics, counts, parityFixtures: fixtures.length }, null, 2) + '\n',
 )

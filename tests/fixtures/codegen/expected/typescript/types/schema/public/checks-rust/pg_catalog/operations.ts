@@ -9445,7 +9445,7 @@ export function timestampOutputContext(input: checkruntime.TimestampValue, style
         const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
         let output: string = "";
         if (style === 4 || style === 5) {
-            const weekday: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 1n)), 7n)))));
+            const weekday: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 1n)), 7n), 7n)), 7n)))));
             output = output + calendarOutputLabel(weekday, "SunMonTueWedThuFriSat");
             output = output + langruntime.checkedChar(" ");
             if (style === 5) {
@@ -9472,6 +9472,26 @@ export function timestampOutputContext(input: checkruntime.TimestampValue, style
             output = output + " BC";
         }
         return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function timestamptzOutputWithoutContext(input: checkruntime.TimestamptzValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return checkruntime.makeTextValue("-infinity");
+        }
+        if (value === 9223372036854775807n) {
+            return checkruntime.makeTextValue("infinity");
+        }
+        return { kind: "NonNull" };
     }
     return { kind: "Unknown" };
 }

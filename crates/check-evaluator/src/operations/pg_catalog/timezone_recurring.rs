@@ -301,8 +301,7 @@ fn zone_rule_month_days(year: i32, month: i32) -> i32 {
 }
 
 fn zone_rule_year_days(year: i32) -> i32 {
-    let previous = year - 1;
-    previous * 365 + previous / 4 - previous / 100 + previous / 400 - 730119
+    (temporal_julian_from_calendar(year, 1, 1) - 2451545i64) as i32
 }
 
 fn zone_rule_year_seconds(year: i32) -> i64 {
@@ -349,18 +348,9 @@ fn zone_rule_boundary_microseconds(seconds: i64) -> i64 {
 }
 
 fn zone_rule_year_at(microseconds: i64) -> i32 {
-    let mut low: i32 = 1;
-    let mut high: i32 = 294278;
-    while low + 1 < high {
-        let middle = low + (high - low) / 2;
-        let boundary = zone_rule_boundary_microseconds(zone_rule_year_seconds(middle));
-        if boundary <= microseconds {
-            low = middle;
-        } else {
-            high = middle;
-        };
-    }
-    low
+    let mut day = microseconds / 86400000000i64;
+    if microseconds % 86400000000i64 < 0i64 { day = day - 1i64; };
+    temporal_calendar_from_julian(day + 2451545i64).year
 }
 
 struct RecurringBoundary {
@@ -368,6 +358,7 @@ struct RecurringBoundary {
     boundary: i64,
     before: i32,
     after: i32,
+    before_daylight: bool,
 }
 
 fn next_recurring_boundary(
@@ -382,6 +373,7 @@ fn next_recurring_boundary(
             boundary: 0i64,
             before: 0,
             after: 0,
+            before_daylight: false,
         };
     }
     let current_year = zone_rule_year_at(probe);
@@ -391,6 +383,8 @@ fn next_recurring_boundary(
     let mut preceding = initial;
     let mut before = initial;
     let mut after = initial;
+    let mut before_daylight = false;
+    let mut preceding_daylight = false;
     while year <= current_year + 1 {
         let mut part: i32 = 0;
         while part < 2 {
@@ -407,11 +401,13 @@ fn next_recurring_boundary(
                 if boundary <= probe && boundary > latest {
                     latest = boundary;
                     preceding = following;
+                    preceding_daylight = part == 0;
                 }
                 if boundary > probe && boundary < next {
                     next = boundary;
                     before = 0 - west;
                     after = following;
+                    before_daylight = part == 1;
                 }
             }
             part = part + 1;
@@ -421,11 +417,33 @@ fn next_recurring_boundary(
     if next == 9223372036854775807i64 {
         before = preceding;
         after = preceding;
+        before_daylight = preceding_daylight;
     }
     RecurringBoundary {
         valid: true,
         boundary: next,
         before: before,
         after: after,
+        before_daylight: before_daylight,
     }
+}
+
+fn recurring_zone_abbreviation(value: &str, daylight: bool) -> TextValue {
+    let text = ZoneRuleText { chars: value.chars().collect() };
+    let mut start: usize = 0;
+    let mut end = skip_zone_rule_name(&text, start);
+    if daylight {
+        let standard = read_zone_rule_clock(&text, end);
+        if standard.valid == false { return TextValue::Unknown; };
+        start = standard.next;
+        end = skip_zone_rule_name(&text, start);
+    };
+    if end > text.chars.len() || end == start { return TextValue::Unknown; };
+    if text.chars[start] == '<' { start += 1; end = end - 1; };
+    let mut result = String::new();
+    while start < end {
+        result.push(text.chars[start]);
+        start += 1;
+    }
+    TextValue::Value(result)
 }

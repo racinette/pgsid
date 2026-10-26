@@ -46,6 +46,7 @@ export default tseslint.config(
       'scripts/capture-check-unicode-profile.ts',
       'scripts/report-sql-semantics-coverage.ts',
       'scripts/check-measurements/**/*.ts',
+      'tools/check-rust-timezones/**/*.ts',
     ],
     extends: [tseslint.configs.base],
     languageOptions: {

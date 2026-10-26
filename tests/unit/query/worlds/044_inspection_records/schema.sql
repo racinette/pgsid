@@ -1270,3 +1270,26 @@ CREATE TABLE inspection_interval_input (
  CONSTRAINT interval_input_roundtrip CHECK(CASE WHEN bypass THEN true ELSE
    interval_send((source::interval::text)::interval) IS NOT DISTINCT FROM interval_send(expected) END)
 );
+
+CREATE TABLE inspection_instant_text (
+ instant_at timestamptz,
+ expected_text text COLLATE "C",
+ expected_short text COLLATE "C",
+ expected_array text COLLATE "C",
+ expected_range text COLLATE "C",
+ expected_document jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT instant_cast_text CHECK(CASE WHEN bypass THEN true ELSE
+   instant_at::text COLLATE "C" IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT instant_cast_width CHECK(CASE WHEN bypass THEN true ELSE
+   instant_at::varchar(13)::text COLLATE "C" IS NOT DISTINCT FROM expected_short END),
+ CONSTRAINT instant_cast_array CHECK(CASE WHEN bypass THEN true ELSE
+   ARRAY[instant_at,NULL::timestamptz]::text COLLATE "C" IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT instant_cast_range CHECK(CASE WHEN bypass THEN true ELSE
+   tstzrange(instant_at,instant_at,'[]')::text COLLATE "C" IS NOT DISTINCT FROM expected_range END),
+ CONSTRAINT instant_cast_json CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb(instant_at) IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT instant_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (instant_at::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);

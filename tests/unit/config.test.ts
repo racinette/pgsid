@@ -37,6 +37,12 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { intervalStyle: ${intervalStyle} }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ intervalStyle })
+    for (const timeZone of ['UTC', 'America/New_York', '<+02>-02'])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { timeZone: '${timeZone}' }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ timeZone })
     for (const byteaOutput of ['hex', 'escape'])
       expect(
         parseConfigString(
@@ -93,6 +99,9 @@ describe('config schema', () => {
       '{ quoteAllIdentifiers: 0 }',
       '{ byteaOutput: base64 }',
       '{ dateStyle: ISO }',
+      '{ timeZone: "" }',
+      '{ timeZone: 0 }',
+      '{ timeZone: true }',
       '{ intervalStyle: default }',
       '{ intervalStyle: POSTGRES }',
       '{ intervalStyle: 0 }',

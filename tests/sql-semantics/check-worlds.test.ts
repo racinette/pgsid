@@ -507,6 +507,8 @@ describe('world CHECK INSERT parity', () => {
     )
       throw new Error('Unsupported oracle interval style')
     executionContext = {
+      timeZone: (await pg.query<{ value: string }>("SELECT current_setting('TimeZone') value"))
+        .rows[0]!.value,
       intervalStyle,
       dateStyle: { format: dateFormat, order: dateOrder },
       byteaOutput,

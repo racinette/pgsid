@@ -337,6 +337,12 @@ export const codegenSchema = z
         arrayNulls: z.boolean().optional(),
         quoteAllIdentifiers: z.boolean().optional(),
         byteaOutput: z.enum(['hex', 'escape']).optional(),
+        timeZone: z
+          .string()
+          .min(1)
+          .max(255)
+          .refine((value) => !value.includes('\0'))
+          .optional(),
         intervalStyle: z
           .enum(['postgres', 'postgres_verbose', 'sql_standard', 'iso_8601'])
           .optional(),
