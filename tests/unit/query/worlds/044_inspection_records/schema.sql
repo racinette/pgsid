@@ -1216,3 +1216,21 @@ CREATE TABLE inspection_binary_text (
  CONSTRAINT binary_cast_child_error CHECK(CASE WHEN bypass THEN true ELSE
    (set_byte(payload,1/divisor,1)::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
 );
+
+CREATE TABLE inspection_calendar_text (
+ day_value date,
+ stamp_value timestamp,
+ expected_day text COLLATE "C",
+ expected_stamp text COLLATE "C",
+ expected_array text COLLATE "C",
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT calendar_cast_day CHECK(CASE WHEN bypass THEN true ELSE
+   day_value::text COLLATE "C" IS NOT DISTINCT FROM expected_day END),
+ CONSTRAINT calendar_cast_stamp CHECK(CASE WHEN bypass THEN true ELSE
+   stamp_value::text COLLATE "C" IS NOT DISTINCT FROM expected_stamp END),
+ CONSTRAINT calendar_cast_array CHECK(CASE WHEN bypass THEN true ELSE
+   ARRAY[day_value,NULL::date]::text COLLATE "C" IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT calendar_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (stamp_value::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);

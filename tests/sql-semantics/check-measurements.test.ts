@@ -1188,6 +1188,23 @@ describe('CHECK measurement boundaries', () => {
       platformDependent: expect.arrayContaining(['(0x1p0,0)', '(NaN(1),0)']),
     })
     expect(pointForms.handled).toEqual(expect.arrayContaining(['1,2', '(-0,-0)', '(NaN,NaN)']))
+    for (const type of ['pg_catalog.date', 'pg_catalog."timestamp"']) {
+      const output = report.textOutput.find((e) => e.type === type)!
+      expect(output.probe.raw.fullyBound).toBe(true)
+      expect(output.probe.stored!.fullyBound).toBe(true)
+      expect(output.probe.raw.preparation.kind).toBe('supported')
+      expect(output.probe.stored!.preparation.kind).toBe('supported')
+      expect(output.valueRequirements).toMatchObject([
+        {
+          kind: 'session',
+          setting: 'DateStyle',
+          owner: 'tests/sql-semantics/check-calendar-output.test.ts',
+        },
+      ])
+      expect(
+        callableBoundary(builtinMetadata(output.output!), new Set([type])).categories,
+      ).toContain('session-setting:DateStyle')
+    }
     const byteaOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.bytea')!
     expect(byteaOutput.probe.raw.fullyBound).toBe(true)
     expect(byteaOutput.probe.stored!.fullyBound).toBe(true)

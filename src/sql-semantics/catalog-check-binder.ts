@@ -6259,6 +6259,8 @@ export function bindCatalogCheck(
           source === 'pg_catalog.float4' ||
           source === 'pg_catalog.float8' ||
           source === 'pg_catalog.bytea' ||
+          source === 'pg_catalog.date' ||
+          source === 'pg_catalog."timestamp"' ||
           source === 'pg_catalog."numeric"' ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||
@@ -6309,6 +6311,8 @@ export function bindCatalogCheck(
             !isRangeType(source) &&
             !isMultirangeType(source) &&
             source !== 'pg_catalog.money' &&
+            source !== 'pg_catalog.date' &&
+            source !== 'pg_catalog."timestamp"' &&
             source !== 'pg_catalog.aclitem')
         )
           return unknown

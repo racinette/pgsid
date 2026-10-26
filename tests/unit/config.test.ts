@@ -24,6 +24,13 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { moneyFractionDigits: ${moneyFractionDigits} }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ moneyFractionDigits })
+    for (const format of ['ISO', 'SQL', 'Postgres', 'German'])
+      for (const order of ['MDY', 'DMY', 'YMD'])
+        expect(
+          parseConfigString(
+            `schema: schema.sql\nsql:\n  codegen:\n    checks: { dateStyle: { format: ${format}, order: ${order} } }\n`,
+          ).sql.codegen?.checks,
+        ).toEqual({ dateStyle: { format, order } })
     for (const byteaOutput of ['hex', 'escape'])
       expect(
         parseConfigString(
@@ -79,6 +86,10 @@ describe('config schema', () => {
       '{ arrayNulls: unknown }',
       '{ quoteAllIdentifiers: 0 }',
       '{ byteaOutput: base64 }',
+      '{ dateStyle: ISO }',
+      '{ dateStyle: { format: ISO } }',
+      '{ dateStyle: { format: iso, order: MDY } }',
+      '{ dateStyle: { format: ISO, order: default } }',
       '{ byteaOutput: true }',
       '{ byteaOutput: HEX }',
       '{ quoteAllIdentifiers: \"false\" }',

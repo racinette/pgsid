@@ -1470,3 +1470,30 @@ INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected
 
 -- name: BinaryCastBypassed
 INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','wrong','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,0,true);
+
+-- name: CalendarCastOrdinary
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03 01:02:03.000004','2001-02-03','2001-02-03 01:02:03.000004','{2001-02-03,NULL}',true,false);
+
+-- name: CalendarCastBc
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('0001-02-03 BC','0001-02-03 01:02:03.000004 BC','0001-02-03 BC','0001-02-03 01:02:03.000004 BC','{"0001-02-03 BC",NULL}',true,false);
+
+-- name: CalendarCastNull
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES(NULL,NULL,NULL,NULL,'{NULL,NULL}',false,false);
+
+-- name: CalendarCastInfinity
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('infinity','-infinity','infinity','-infinity','{infinity,NULL}',true,false);
+
+-- name: CalendarCastWrongDay
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','wrong','2001-02-03 00:00:00','{2001-02-03,NULL}',true,false);
+
+-- name: CalendarCastWrongStamp
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','2001-02-03','wrong','{2001-02-03,NULL}',true,false);
+
+-- name: CalendarCastWrongArray
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','2001-02-03','2001-02-03 00:00:00','wrong',true,false);
+
+-- name: CalendarCastWrongPresence
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','2001-02-03','2001-02-03 00:00:00','{2001-02-03,NULL}',false,false);
+
+-- name: CalendarCastBypassed
+INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','wrong','wrong','wrong',false,true);
