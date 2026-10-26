@@ -1041,3 +1041,39 @@ INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expect
 
 -- name: HistoricalXmlExpressionsBypassedErrors
 INSERT INTO inspection_xml_expression_history(score,divisor,label,missing,expected_xml,expected_parse,expected_document,expected_present,bypass) VALUES(1,0,'<bad>',false,NULL,NULL,false,false,true);
+
+-- name: HistoricalTextLikeValues
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail ','cursor é😊',true,false);
+
+-- name: HistoricalTextLikeNullScore
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(NULL,1,'\xff','tail ','cursor é😊',false,false);
+
+-- name: HistoricalTextLikeWrongChar
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\x80','tail ','cursor é😊',false,false);
+
+-- name: HistoricalTextLikeWrongName
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail','cursor é😊',false,false);
+
+-- name: HistoricalTextLikeWrongCursor
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail ','cursor',true,false);
+
+-- name: HistoricalTextLikeWrongPresence
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail ','cursor é😊',false,false);
+
+-- name: HistoricalTextLikeNullChar
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,0,NULL,'tail ','cursor é😊',false,false);
+
+-- name: HistoricalTextLikeNullName
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,0,'\xff',NULL,'cursor é😊',false,false);
+
+-- name: HistoricalTextLikeNullCursor
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail ',NULL,true,false);
+
+-- name: HistoricalTextLikeNullPresence
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,1,'\xff','tail ','cursor é😊',NULL,false);
+
+-- name: HistoricalTextLikeReachedDivision
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,0,'\xff','tail ','cursor é😊',true,false);
+
+-- name: HistoricalTextLikeBypassedDivision
+INSERT INTO inspection_text_like_history(score,divisor,expected_octet,expected_name,expected_cursor,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,false,true);

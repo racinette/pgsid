@@ -5171,18 +5171,34 @@ export function emitCheckRustEvaluator(
           ].includes(implementation.name))
       const characterContext = characterEncodingContext(implementation)
       const jsonExtraction = jsonScalarExtractionContext(implementation)
-      const callable = characterContext
-        ? characterContext + '_context'
-        : jsonSend
-          ? 'json_send_context'
-          : jsonbSend
-            ? 'jsonb_send_context'
-            : jsonExtraction
-              ? implementation.name + '_context'
-              : jsonpathExecution
-                ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
-                : implementation.rustName
+      const textSend =
+        implementation.schema === 'pg_catalog' &&
+        implementation.result === 'pg_catalog.bytea' &&
+        implementation.args.length === 1 &&
+        implementation.args[0] ===
+          (
+            {
+              namesend: 'pg_catalog.name',
+              textsend: 'pg_catalog.text',
+              varcharsend: 'pg_catalog."varchar"',
+              bpcharsend: 'pg_catalog.bpchar',
+            } as Record<string, string>
+          )[implementation.name]
+      const callable = textSend
+        ? 'text_wire_context'
+        : characterContext
+          ? characterContext + '_context'
+          : jsonSend
+            ? 'json_send_context'
+            : jsonbSend
+              ? 'jsonb_send_context'
+              : jsonExtraction
+                ? implementation.name + '_context'
+                : jsonpathExecution
+                  ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+                  : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (textSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (jsonExtraction) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (circlePolygonTrigonometry(implementation))
         arguments_.push(String(executionContext.trigonometry === 'fdlibm'))
@@ -6925,6 +6941,7 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'name') {
         if (value.value === null) return { name: bind('text_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        if (value.stored) return { name: text, type: value.type }
         return {
           name: bind(
             `name_from_text_context(${text},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
@@ -6933,6 +6950,11 @@ export function emitCheckRustEvaluator(
         }
       }
       if (value.kind === 'internal-char') {
+        if (value.byte !== undefined) {
+          if (!Number.isInteger(value.byte) || value.byte < 0 || value.byte > 255)
+            throw new UnsupportedCheckRustExpression('Invalid stored PostgreSQL char byte')
+          return { name: bind(`make_internal_char_value(${value.byte})`), type: value.type }
+        }
         if (value.value === null) return { name: bind('internal_char_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`internal_char_from_text(${text})`), type: value.type }

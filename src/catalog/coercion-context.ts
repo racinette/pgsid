@@ -83,6 +83,30 @@ function captureExpressionCoercions(
     ) ||
       /\{XMLEXPR\b[^{}]*:name\s+(?!<>)(\S+)/u.test(source) ||
       (/\{XMLEXPR\b/u.test(source) && /:arg_names\s+\(/u.test(source)))
+  const textLikeConstantType = (id: number): boolean => {
+    const seen = new Set<number>()
+    const visit = (id: number): boolean => {
+      if (seen.has(id)) return false
+      seen.add(id)
+      if (
+        ['pg_catalog."char"', 'pg_catalog.name', 'pg_catalog.refcursor'].includes(
+          rowExpressions?.types.get(id) ?? '',
+        )
+      )
+        return true
+      const storage = rowExpressions?.storageTypes?.get(id),
+        nested = storage?.kind === 'd' ? storage.base : rowExpressions?.arrayElements?.get(id)
+      if (nested !== undefined && visit(nested)) return true
+      if (storage?.kind === 'c') return storage.attributes.some((a) => !a.dropped && visit(a.type))
+      if (storage?.kind === 'r' && storage.rangeSubtype) return visit(storage.rangeSubtype)
+      if (storage?.kind === 'm' && storage.rangeType) return visit(storage.rangeType)
+      return false
+    }
+    return visit(id)
+  }
+  const textLikeCandidate =
+    source !== null &&
+    [...source.matchAll(/:consttype\s+(\d+)/gu)].some((m) => textLikeConstantType(Number(m[1])))
   if (
     !source ||
     (!/\{(?:COERCEVIAIO|CONVERTROWTYPEEXPR|FUNCEXPR|ARRAYCOERCEEXPR|ROWEXPR|ROWCOMPAREEXPR|XMLEXPR)\s/u.test(
@@ -90,6 +114,7 @@ function captureExpressionCoercions(
     ) &&
       !(arrayIdentities.size && /\{ARRAYEXPR\s/u.test(source)) &&
       !xmlCandidate &&
+      !textLikeCandidate &&
       !arrayCandidate &&
       !tsvectorCandidate &&
       !tsqueryCandidate)
@@ -161,6 +186,12 @@ function captureExpressionCoercions(
       if (!node) return
       if (site !== undefined && !scalarRoots.has(site)) scalarRoots.set(site, node)
       if (site !== undefined && node.kind === 'COERCETODOMAIN') domainSites.add(site)
+      if (
+        site !== undefined &&
+        node.kind === 'CONST' &&
+        textLikeConstantType(Number(scalar(node, 'consttype')))
+      )
+        scalarSites.add(site)
       if (site !== undefined && node.kind === 'FUNCEXPR') {
         const id = Number(scalar(node, 'funcid'))
         if (rowExpressions?.unavailableVariadics?.has(id)) omittedComplete = false

@@ -594,8 +594,8 @@ export type SqlExpression =
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: TextType; value: string | null }
   | { kind: 'refcursor'; type: RefcursorType; value: string | null }
-  | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
-  | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null }
+  | { kind: 'name'; type: 'pg_catalog.name'; value: string | null; stored?: true }
+  | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null; byte?: number }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
   | { kind: 'point'; type: PointType; value: string | null }
@@ -1247,11 +1247,24 @@ export function emitSqlExpression<Ast>(
         if (node.type !== 'pg_catalog.name') throw new Error('Invalid name literal')
         if (node.value !== null && invalidUtf8(node.value))
           throw new Error('Invalid PostgreSQL UTF8 name literal')
+        if (node.stored) {
+          helpers.add('textInput')
+          return { type: node.type, expression: backend.text(node.value) }
+        }
         helpers.add('nameInput')
         return { type: node.type, expression: backend.name(node.value) }
       }
       if (node.kind === 'internal-char') {
         if (node.type !== 'pg_catalog."char"') throw new Error('Invalid internal char literal')
+        if (node.byte !== undefined) {
+          if (!Number.isInteger(node.byte) || node.byte < 0 || node.byte > 255)
+            throw new Error('Invalid stored PostgreSQL char byte')
+          helpers.add('int4Input')
+          return {
+            type: node.type,
+            expression: backend.integer('pg_catalog.int4', String(node.byte)),
+          }
+        }
         if (node.value !== null && invalidUtf8(node.value))
           throw new Error('Invalid PostgreSQL UTF8 internal char literal')
         helpers.add('charInput')

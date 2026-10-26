@@ -7,6 +7,7 @@ import { storedReferenceBytes } from './constant-storage-bytes.js'
 import { storedNumericConstant } from './numeric-constant-storage.js'
 import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
+import { storedTextLikeConstant } from './text-like-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedContainerConstant } from './container-value-constant-storage.js'
@@ -406,6 +407,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
               type.kind === 'e' ||
               [
                 'pg_catalog.bool',
+                'pg_catalog."char"',
                 'pg_catalog.int2',
                 'pg_catalog.int4',
                 'pg_catalog.int8',
@@ -462,6 +464,13 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       return text === undefined || text === null
         ? undefined
         : collated(typedExpression({ A_Const: { sval: { sval: text } } }, type), 'constcollid')
+    } else if (
+      type === 'pg_catalog."char"' ||
+      type === 'pg_catalog.name' ||
+      type === 'pg_catalog.refcursor'
+    ) {
+      const storage = storedTextLikeConstant(node, type, input.byteOrder, input.utf8 === true)
+      return storage ? collated({ PgsidStoredTextLike: storage }, 'constcollid') : undefined
     } else if (type === 'pg_catalog.xml') {
       const text = storedTextConstant(node, input.utf8 === true, input.byteOrder)
       return typeof text === 'string' ? { PgsidStoredXml: text } : undefined

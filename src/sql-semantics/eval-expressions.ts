@@ -615,8 +615,8 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'cid' ||
           node.expression.kind === 'pg_lsn' ||
           node.expression.kind === 'tid' ||
-          node.expression.kind === 'name' ||
-          node.expression.kind === 'internal-char' ||
+          (node.expression.kind === 'name' && !node.expression.stored) ||
+          (node.expression.kind === 'internal-char' && node.expression.byte === undefined) ||
           node.expression.kind === 'xid8' ||
           node.expression.kind === 'snapshot' ||
           node.expression.kind === 'json' ||

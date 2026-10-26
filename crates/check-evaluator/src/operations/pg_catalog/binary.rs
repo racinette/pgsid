@@ -56,7 +56,7 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
     BoolValue::Unknown
 }
 
-fn text_wire_without_context(input: TextValue) -> ByteaValue {
+pub fn text_wire_context(input: TextValue, utf8: bool) -> ByteaValue {
     if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
     if input == TextValue::Null { return ByteaValue::Null; };
     if let TextValue::Value(value) = input {
@@ -64,12 +64,16 @@ fn text_wire_without_context(input: TextValue) -> ByteaValue {
         let mut index: usize = 0;
         while index < chars.len() {
             let code = chars[index] as i32;
-            if code == 0 || code > 127 { return ByteaValue::Unknown; };
+            if code == 0 || (utf8 == false && code > 127) { return ByteaValue::Unknown; };
             index += 1;
         }
         return ByteaValue::Value(text_binary_hex(value.as_str(), false));
     };
     ByteaValue::Unknown
+}
+
+fn text_wire_without_context(input: TextValue) -> ByteaValue {
+    text_wire_context(input, false)
 }
 
 pub fn sql__pg_catalog__textsend__mgfj(input: TextValue) -> ByteaValue {
