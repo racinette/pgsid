@@ -3,6 +3,7 @@ import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callable
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalExplicitZoneArithmetic,
 } from '../../src/sql-semantics/temporal-casts.js'
 import {
   isArrayHash,
@@ -744,6 +745,37 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalExplicitZoneArithmetic(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Explicit timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb.',
+        owner: 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'timezone_abbreviations',
+        requirement:
+          'The declared Default profile supplies matching fixed and dynamic abbreviation definitions; absent registry facts defer reached lookup.',
+        owner: 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+      },
+      {
+        kind: 'build',
+        setting: 'maxIdentifierBytes',
+        requirement:
+          'Abbreviation lookup truncates identifiers using the deployment byte limit before case conversion; full timezone fallback retains the clipped original name.',
+        owner: 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'timezone_abbreviation_cache',
+        requirement:
+          'Distinct long session abbreviation names sharing the native cache prefix can depend on earlier lookups. Implicit POSIX rules and uncaptured timezone definitions remain separate boundaries.',
+        owner: 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+      },
+    ]
   if (!isTemporalContextArithmetic(item)) return null
   return [
     {
@@ -1125,7 +1157,8 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (calendarOutputRequirements(item)?.some((r) => r.setting === 'TimeZone'))
     categories.push('session-setting:TimeZone')
   if (temporalCastRequirements(item)) categories.push('session-setting:TimeZone')
-  if (temporalArithmeticRequirements(item)) categories.push('session-setting:TimeZone')
+  for (const requirement of temporalArithmeticRequirements(item) ?? [])
+    categories.push(`${requirement.kind}-setting:${requirement.setting}`)
   if (temporalCastRequirements(item)?.some((r) => r.kind === 'transaction'))
     categories.push('transaction-state:local_date')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')

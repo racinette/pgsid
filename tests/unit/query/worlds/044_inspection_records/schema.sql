@@ -1350,3 +1350,18 @@ CREATE TABLE inspection_rounded_clocks (
  CONSTRAINT rounded_literal CHECK(CASE WHEN bypass THEN true ELSE
    encode(timestamp_send(TIMESTAMP(0) '294276-12-31 23:59:59.999999'),'hex') = '7fffff5bb3b2a000' END)
 );
+
+CREATE TABLE inspection_zone_arithmetic (
+ instant_at timestamptz,
+ duration interval,
+ zone_name text,
+ expected_add timestamptz,
+ expected_subtract timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT explicit_zone_add CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(date_add(instant_at,duration,zone_name)) IS NOT DISTINCT FROM timestamptz_send(expected_add) END),
+ CONSTRAINT explicit_zone_subtract CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(date_subtract(instant_at,duration,zone_name)) IS NOT DISTINCT FROM timestamptz_send(expected_subtract) END),
+ CONSTRAINT explicit_zone_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send((ARRAY[date_add(instant_at,duration,zone_name),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_add) END)
+);

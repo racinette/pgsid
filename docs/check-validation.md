@@ -84,6 +84,14 @@ recalculating its offset after each step, then adds elapsed microseconds. This
 preserves the difference between a calendar day and elapsed hours across DST.
 Pure elapsed-time arithmetic, NULLs and infinities do not need timezone context.
 
+Explicit timezone names consult the session's abbreviations before the registry
+and named timezone data. `timeZoneAbbreviations: Default` declares the bundled
+PostgreSQL Default definitions; deployments must supply matching definitions.
+Lookup also uses `maxIdentifierBytes` for abbreviation truncation. A missing
+profile defers reached lookup, including calls with otherwise trivial arithmetic.
+Long custom abbreviation collisions and empty labels can depend on native lookup
+history, which is unavailable to local validators.
+
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and
 record fields, and JSON values and keys. Without the setting, output bytes stay

@@ -506,7 +506,19 @@ describe('world CHECK INSERT parity', () => {
       intervalStyle !== 'iso_8601'
     )
       throw new Error('Unsupported oracle interval style')
+    expect(
+      (await pg.query<{ value: string }>("SELECT current_setting('timezone_abbreviations') value"))
+        .rows[0]!.value,
+    ).toBe('Default')
+    expect(
+      (
+        await pg.query<{ contents: string }>(
+          "SELECT pg_read_file('/pglite/share/postgresql/timezonesets/Default') contents",
+        )
+      ).rows[0]!.contents,
+    ).toBe(await readFile('vendor/postgresql-timezone/Default', 'utf8'))
     executionContext = {
+      timeZoneAbbreviations: 'Default',
       timeZone: (await pg.query<{ value: string }>("SELECT current_setting('TimeZone') value"))
         .rows[0]!.value,
       intervalStyle,

@@ -16,6 +16,7 @@ struct Zone {
     initial: i32,
     initial_abbreviation: String,
     future: String,
+    types: Vec<(String, i32, i32, bool)>,
 }
 
 fn u32_at(bytes: &[u8], index: usize) -> usize {
@@ -75,6 +76,31 @@ fn decode(bytes: &[u8]) -> Zone {
     assert!(offsets.iter().all(|offset| offset.abs() < 86400));
     let indexes = &bytes[types_start..types_start + transitions];
     assert!(indexes.iter().all(|index| (*index as usize) < types));
+    let mut all_types: Vec<(String, i32, i32, bool)> = (0..types)
+        .map(|index| {
+            let raw_index = usize::from(bytes[offset_start + index * 6 + 5]);
+            let mut first = 0;
+            while first < abbreviation_end - abbreviation_start {
+                let end = bytes[abbreviation_start + first..abbreviation_end]
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap()
+                    + first;
+                if &bytes[abbreviation_start + first..abbreviation_start + end]
+                    == abbreviations[index].as_bytes()
+                {
+                    break;
+                }
+                first = end + 1;
+            }
+            (
+                abbreviations[index].clone(),
+                offsets[index],
+                i32::from(bytes[offset_start + index * 6 + 4]),
+                first == raw_index,
+            )
+        })
+        .collect();
     let mut default_type = if indexes.contains(&0) { None } else { Some(0) };
     if default_type.is_none()
         && transitions > 0
@@ -119,6 +145,32 @@ fn decode(bytes: &[u8]) -> Zone {
         .unwrap()
         .trim_matches('\n')
         .to_string();
+    let mut characters = bytes[abbreviation_start..abbreviation_end].to_vec();
+    for (label, seconds, daylight) in footer_types(&future) {
+        let mut terminated = label.as_bytes().to_vec();
+        terminated.push(0);
+        let slot = characters
+            .windows(terminated.len())
+            .position(|window| window == terminated);
+        let slot = slot.unwrap_or_else(|| {
+            let start = characters.len();
+            characters.extend(&terminated);
+            start
+        });
+        let mut visible = 0;
+        while visible < characters.len() {
+            let end = characters[visible..]
+                .iter()
+                .position(|byte| *byte == 0)
+                .unwrap()
+                + visible;
+            if characters[visible..=end] == terminated {
+                break;
+            }
+            visible = end + 1;
+        }
+        all_types.push((label, seconds, daylight, visible == slot));
+    }
     Zone {
         times,
         offsets: changes,
@@ -126,7 +178,69 @@ fn decode(bytes: &[u8]) -> Zone {
         initial,
         initial_abbreviation,
         future,
+        types: all_types,
     }
+}
+
+fn footer_types(source: &str) -> Vec<(String, i32, i32)> {
+    fn label<'a>(source: &mut &'a str) -> &'a str {
+        if source.starts_with('<') {
+            let end = source.find('>').unwrap();
+            let value = &source[1..end];
+            *source = &source[end + 1..];
+            value
+        } else {
+            let end = source
+                .find(|c: char| c.is_ascii_digit() || c == '+' || c == '-' || c == ',' || c == ';')
+                .unwrap_or(source.len());
+            let value = &source[..end];
+            *source = &source[end..];
+            value
+        }
+    }
+    fn clock(source: &mut &str) -> i32 {
+        let mut sign = 1;
+        if source.starts_with('-') {
+            sign = -1;
+            *source = &source[1..];
+        } else if source.starts_with('+') {
+            *source = &source[1..];
+        }
+        let mut value = 0;
+        for index in 0..3 {
+            let end = source
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(source.len());
+            assert!(end > 0);
+            value = value * 60 + source[..end].parse::<i32>().unwrap();
+            *source = &source[end..];
+            if !source.starts_with(':') {
+                return sign * value * 60i32.pow(2 - index);
+            }
+            assert!(index < 2);
+            *source = &source[1..];
+        }
+        unreachable!()
+    }
+    if source.is_empty() {
+        return Vec::new();
+    }
+    let mut rest = source;
+    let standard = label(&mut rest).to_string();
+    let seconds = -clock(&mut rest);
+    let mut types = vec![(standard, seconds, 0)];
+    if !rest.is_empty() {
+        let daylight = label(&mut rest).to_string();
+        assert!(!daylight.is_empty());
+        let seconds = if rest.starts_with(',') || rest.starts_with(';') {
+            seconds + 3600
+        } else {
+            -clock(&mut rest)
+        };
+        assert!(rest.starts_with(',') || rest.starts_with(';'));
+        types.push((daylight, seconds, 1));
+    }
+    types
 }
 
 fn collect(directory: &Path, root: &Path, files: &mut BTreeMap<String, Vec<u8>>) {
@@ -159,6 +273,33 @@ fn integer(value: i64, wide: bool) -> Expr {
     } else {
         parse_quote!(#digits)
     }
+}
+
+fn parse_default_abbreviations(source: &str) -> BTreeMap<String, (i32, String)> {
+    let mut entries = BTreeMap::new();
+    for line in source.lines() {
+        let fields: Vec<_> = line.split('#').next().unwrap().split_whitespace().collect();
+        if fields.is_empty() {
+            continue;
+        }
+        assert!((2..=3).contains(&fields.len()));
+        assert!(fields[0].is_ascii() && fields[0].len() <= 10);
+        let value = if let Ok(seconds) = fields[1].parse::<i32>() {
+            assert!((-50400..=50400).contains(&seconds));
+            if fields.len() == 3 {
+                assert_eq!(fields[2], "D");
+            }
+            (seconds, String::new())
+        } else {
+            assert_eq!(fields.len(), 2);
+            assert!(fields[1].contains('/'));
+            (0, fields[1].to_owned())
+        };
+        assert!(entries
+            .insert(fields[0].to_ascii_lowercase(), value)
+            .is_none());
+    }
+    entries
 }
 
 pub fn generate(root: &Path, output: &Path) {
@@ -202,15 +343,36 @@ pub fn generate(root: &Path, output: &Path) {
     let mut recurring = Vec::new();
     let abbreviations: Vec<String> = zones
         .iter()
-        .flat_map(|zone| std::iter::once(&zone.initial_abbreviation).chain(&zone.abbreviations))
+        .flat_map(|zone| {
+            std::iter::once(&zone.initial_abbreviation)
+                .chain(&zone.abbreviations)
+                .chain(zone.types.iter().map(|(label, _, _, _)| label))
+        })
         .cloned()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
     assert!(abbreviations.len() <= usize::from(u16::MAX) + 1);
+    let mut type_starts = Vec::new();
+    let mut type_ends = Vec::new();
+    let mut type_abbreviation_ids = Vec::new();
+    let mut type_offsets = Vec::new();
+    let mut type_daylight = Vec::new();
+    let mut type_visible = Vec::new();
     let mut abbreviation_ids = Vec::new();
     let mut initial_abbreviation_ids = Vec::new();
     for zone in &zones {
+        type_starts.push(integer(type_offsets.len() as i64, false));
+        for (label, seconds, daylight, visible) in &zone.types {
+            type_abbreviation_ids.push(integer(
+                abbreviations.binary_search(label).unwrap() as i64,
+                false,
+            ));
+            type_offsets.push(integer(i64::from(*seconds), false));
+            type_daylight.push(integer(i64::from(*daylight), false));
+            type_visible.push(integer(i64::from(*visible), false));
+        }
+        type_ends.push(integer(type_offsets.len() as i64, false));
         assert_eq!(zone.times.len(), zone.abbreviations.len());
         initial_abbreviation_ids.push(
             abbreviations
@@ -292,11 +454,25 @@ pub fn generate(root: &Path, output: &Path) {
             assert_eq!(seconds * 1_000_000, times[index]);
         }
     }
+    let default_abbreviations =
+        parse_default_abbreviations(include_str!("../../../vendor/postgresql-timezone/Default"));
+    let default_names: Vec<_> = default_abbreviations.keys().cloned().collect();
+    let default_seconds: Vec<_> = default_abbreviations
+        .values()
+        .map(|(seconds, _)| integer(i64::from(*seconds), false))
+        .collect();
+    let default_zones: Vec<_> = default_abbreviations
+        .values()
+        .map(|(_, zone)| zone.clone())
+        .collect();
     let numeric_table_bytes = (checkpoint_seconds.len() + delta_seconds.len()) * 8
         + delta_ids.len() * size_of::<u16>()
         + abbreviation_ids.len() * size_of::<u16>()
         + initial_abbreviation_ids.len() * size_of::<usize>()
         + offsets.len() * 4
+        + type_starts.len() * 2 * size_of::<usize>()
+        + type_offsets.len() * (size_of::<usize>() + 12)
+        + default_seconds.len() * 4
         + (indexes.len() + zones.len() * 7 + checkpoint_seconds.len() * 3 + offset_ids.len())
             * size_of::<usize>();
     let offset_dictionary_entries = offsets.len();
@@ -387,6 +563,15 @@ pub fn generate(root: &Path, output: &Path) {
         const ZONE_OFFSET_STARTS: &[usize] = &[#(#offset_starts),*];
         const ZONE_OFFSET_IDS: &[usize] = &[#(#offset_ids),*];
         const ZONE_OFFSET_SECONDS: &[i32] = &[#(#offsets),*];
+        const ZONE_TYPE_STARTS: &[usize] = &[#(#type_starts),*];
+        const ZONE_TYPE_ENDS: &[usize] = &[#(#type_ends),*];
+        const ZONE_TYPE_ABBREVIATION_IDS: &[usize] = &[#(#type_abbreviation_ids),*];
+        const ZONE_TYPE_OFFSET_SECONDS: &[i32] = &[#(#type_offsets),*];
+        const ZONE_TYPE_DAYLIGHT: &[i32] = &[#(#type_daylight),*];
+        const ZONE_TYPE_VISIBLE: &[i32] = &[#(#type_visible),*];
+        const ZONE_DEFAULT_ABBREVIATION_NAMES: &[&str] = &[#(#default_names),*];
+        const ZONE_DEFAULT_ABBREVIATION_SECONDS: &[i32] = &[#(#default_seconds),*];
+        const ZONE_DEFAULT_ABBREVIATION_ZONES: &[&str] = &[#(#default_zones),*];
         const ZONE_ABBREVIATIONS: &[&str] = &[#(#abbreviations),*];
         const ZONE_INITIAL_ABBREVIATION_IDS: &[usize] = &[#(#initial_abbreviation_ids),*];
         const ZONE_ABBREVIATION_IDS: &[u16] = &[#(#abbreviation_ids),*];
@@ -409,12 +594,15 @@ pub fn generate(root: &Path, output: &Path) {
         "transitionIndexBytes": size_of::<u16>(),
         "offsetDictionaryEntries": offset_dictionary_entries,
         "distinctAbbreviations": abbreviations.len(),
+        "timezoneTypeRecords": type_offsets.len(),
+        "defaultAbbreviations": default_abbreviations.len(),
         "transitionAbbreviationIndexBytes": size_of::<u16>(),
         "transitionOffsetIndexBytes": size_of::<usize>(),
         "numericTableBytes": numeric_table_bytes + steps.len() * size_of::<usize>(),
         "utf8TableBytes": names.iter().map(String::len).sum::<usize>()
             + future.iter().map(|rule| rule.len()).sum::<usize>()
-            + abbreviations.iter().map(String::len).sum::<usize>(),
+            + abbreviations.iter().map(String::len).sum::<usize>()
+            + default_names.iter().map(String::len).sum::<usize>() + default_zones.iter().map(String::len).sum::<usize>(),
         "rustSourceBytes": fs::metadata(output).unwrap().len(),
     });
     fs::write(
@@ -440,6 +628,63 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn preserves_unused_type_records_and_native_abbreviation_string_slots() {
+        let mut header = vec![0u8; 44];
+        header[..5].copy_from_slice(b"TZif2");
+        let mut second = header.clone();
+        second[36..40].copy_from_slice(&3u32.to_be_bytes());
+        second[40..44].copy_from_slice(&8u32.to_be_bytes());
+        let mut bytes = header;
+        bytes.extend(second);
+        for (seconds, daylight, label) in [(0i32, 0, 0), (7200, 1, 4), (3600, 0, 5)] {
+            bytes.extend(seconds.to_be_bytes());
+            bytes.push(daylight);
+            bytes.push(label);
+        }
+        bytes.extend(b"UTC\0ABC\0");
+        bytes.extend(b"\nUTC0\n");
+        let zone = decode(&bytes);
+        assert!(zone.times.is_empty());
+        assert_eq!(
+            zone.types,
+            vec![
+                ("UTC".into(), 0, 0, true),
+                ("ABC".into(), 7200, 1, true),
+                ("BC".into(), 3600, 0, false),
+                ("UTC".into(), 0, 0, true)
+            ]
+        );
+    }
+
+    #[test]
+    fn extends_the_native_abbreviation_roster_with_footer_types() {
+        assert_eq!(
+            footer_types("IST-1GMT0,M10.5.0,M3.5.0/1"),
+            vec![("IST".into(), 3600, 0), ("GMT".into(), 0, 1)]
+        );
+        assert_eq!(
+            footer_types("<+0545>-5:45"),
+            vec![("+0545".into(), 20700, 0)]
+        );
+        assert_eq!(
+            footer_types("STD0DST,M3.2.0,M11.1.0"),
+            vec![("STD".into(), 0, 0), ("DST".into(), 3600, 1)]
+        );
+    }
+
+    #[test]
+    fn parses_the_released_default_abbreviation_profile() {
+        let profile = parse_default_abbreviations(include_str!(
+            "../../../vendor/postgresql-timezone/Default"
+        ));
+        assert_eq!(profile.len(), 195);
+        assert_eq!(profile["utc"], (0, String::new()));
+        assert_eq!(profile["est"], (-18000, String::new()));
+        assert_eq!(profile["msk"], (0, "Europe/Moscow".into()));
+        assert!(profile.keys().all(|key| key.len() < 10));
     }
 
     #[test]

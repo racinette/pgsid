@@ -337,6 +337,7 @@ export const codegenSchema = z
         arrayNulls: z.boolean().optional(),
         quoteAllIdentifiers: z.boolean().optional(),
         byteaOutput: z.enum(['hex', 'escape']).optional(),
+        timeZoneAbbreviations: z.literal('Default').optional(),
         timeZone: z
           .string()
           .min(1)

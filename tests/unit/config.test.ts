@@ -43,6 +43,11 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { timeZone: '${timeZone}' }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ timeZone })
+    expect(
+      parseConfigString(
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { timeZoneAbbreviations: Default }\n',
+      ).sql.codegen?.checks,
+    ).toEqual({ timeZoneAbbreviations: 'Default' })
     for (const byteaOutput of ['hex', 'escape'])
       expect(
         parseConfigString(
@@ -102,6 +107,8 @@ describe('config schema', () => {
       '{ timeZone: "" }',
       '{ timeZone: 0 }',
       '{ timeZone: true }',
+      '{ timeZoneAbbreviations: Australia }',
+      '{ timeZoneAbbreviations: true }',
       '{ intervalStyle: default }',
       '{ intervalStyle: POSTGRES }',
       '{ intervalStyle: 0 }',

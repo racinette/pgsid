@@ -32,3 +32,13 @@ const ZONE_OFFSET_SECONDS: &[i32] = &[0, 0, 0, 1860, 0];
 const ZONE_ABBREVIATIONS: &[&str] = &["STD"];
 const ZONE_INITIAL_ABBREVIATION_IDS: &[usize] = &[0, 0, 0, 0, 0];
 const ZONE_ABBREVIATION_IDS: &[u16] = &[0, 0, 0, 0, 0];
+
+const ZONE_TYPE_STARTS: &[usize] = &[0, 1, 2, 3, 4];
+const ZONE_TYPE_ENDS: &[usize] = &[1, 2, 3, 4, 5];
+const ZONE_TYPE_ABBREVIATION_IDS: &[usize] = &[0, 0, 0, 0, 0];
+const ZONE_TYPE_OFFSET_SECONDS: &[i32] = &[0, 0, 0, 1860, 0];
+const ZONE_TYPE_DAYLIGHT: &[i32] = &[0, 0, 0, 0, 0];
+const ZONE_TYPE_VISIBLE: &[i32] = &[1, 1, 1, 1, 1];
+const ZONE_DEFAULT_ABBREVIATION_NAMES: &[&str] = &[];
+const ZONE_DEFAULT_ABBREVIATION_SECONDS: &[i32] = &[];
+const ZONE_DEFAULT_ABBREVIATION_ZONES: &[&str] = &[];

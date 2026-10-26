@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
+import { selectCheckFunctions } from './check-function-selection.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -184,11 +186,15 @@ describe('explicit-zone calendar arithmetic and non-strict temporal overlaps', (
         ),
       )
     ).join('\n')
-    const functions = builtinCallables().filter(
+    const available = builtinCallables().filter(
       (fn): fn is FunctionMetadata =>
         fn.kind === 'function' && source.includes(`pub fn ${fn.rustName}(`),
     )
-    expect(functions).toHaveLength(12)
+    expect(available).toHaveLength(12)
+    const { functions, scope } = selectCheckFunctions(
+      available,
+      process.env['PGSID_CHECK_TEMPORAL_PERIOD_FUNCTIONS'],
+    )
     const columns: Record<string, string> = { expected: 'bytea', skip: 'bool' }
     const expressions: Record<string, string> = {}
     for (const fn of functions) {
@@ -200,7 +206,7 @@ describe('explicit-zone calendar arithmetic and non-strict temporal overlaps', (
       expressions[fn.rustName + '_lazy'] =
         `CASE WHEN skip THEN true ELSE ${expressions[fn.rustName]} END`
     }
-    expect(functions.filter((fn) => !fn.strict)).toHaveLength(10)
+    expect(available.filter((fn) => !fn.strict)).toHaveLength(10)
     expect(functions.every((fn) => fn.volatility === 'i')).toBe(true)
     const literalCases: Record<string, { sql: string; expected: Outcome }> = {
       literal_known_overlap: {
@@ -277,6 +283,12 @@ describe('explicit-zone calendar arithmetic and non-strict temporal overlaps', (
           constraint: constraint.name,
         },
       })),
+      {
+        timeZone: 'UTC',
+        timeZoneAbbreviations: 'Default',
+        maxIdentifierBytes: 63,
+        serverEncoding: 'UTF8',
+      },
     )
     for (const [index, check] of group.checks.entries())
       expect(check.kind, constraints[index]!.name).toBe('supported')
@@ -399,6 +411,31 @@ describe('explicit-zone calendar arithmetic and non-strict temporal overlaps', (
       group,
       constraints.map((constraint) => constraint.name),
       fixtures,
+    )
+    const report =
+      'artifacts/check-temporal-periods/' +
+      (scope.kind === 'all-functions'
+        ? 'all'
+        : 'selected-' +
+          createHash('sha256').update(JSON.stringify(scope.identities)).digest('hex').slice(0, 16))
+    await mkdir(report, { recursive: true })
+    await writeFile(
+      join(report, 'report.json'),
+      JSON.stringify(
+        {
+          scope,
+          functions: functions.map(callableIdentity),
+          checks: constraints.length,
+          fixtures: fixtures.length,
+          sourceSha256: createHash('sha256').update(JSON.stringify(group.source)).digest('hex'),
+          fixturesSha256: createHash('sha256')
+            .update(JSON.stringify(fixtures, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)))
+            .digest('hex'),
+          targets: ['Rust', 'Go', 'TypeScript'],
+        },
+        null,
+        2,
+      ) + '\n',
     )
   }, 900_000)
 })

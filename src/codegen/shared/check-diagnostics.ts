@@ -15,12 +15,21 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalExplicitZoneArithmetic,
 } from '../../sql-semantics/temporal-casts.js'
 
 const temporalCasts = new Set(
   builtinCallables()
-    .filter((item) => isTemporalContextCast(item) || isTemporalContextArithmetic(item))
+    .filter(
+      (item) =>
+        isTemporalContextCast(item) ||
+        isTemporalContextArithmetic(item) ||
+        isTemporalExplicitZoneArithmetic(item),
+    )
     .map(callableIdentity),
+)
+const temporalExplicitZones = new Set(
+  builtinCallables().filter(isTemporalExplicitZoneArithmetic).map(callableIdentity),
 )
 const clockTimezoneCasts = new Set(
   builtinCallables()
@@ -278,6 +287,15 @@ export function checkUnknownMessage(
   )
     message +=
       ' Temporal casts, calendar arithmetic and timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
+  if (containsSignature(expression, temporalExplicitZones)) {
+    if (context.timeZoneAbbreviations === undefined)
+      message +=
+        ' Explicit timezone-name lookup can require sql.codegen.checks.timeZoneAbbreviations with matching abbreviation definitions.'
+    if (context.maxIdentifierBytes === undefined)
+      message += ' Explicit timezone-name lookup can require sql.codegen.checks.maxIdentifierBytes.'
+    message +=
+      ' Unavailable timezone data, implicit POSIX rules and abbreviation-cache collisions can also defer lookup.'
+  }
   if (containsSignature(expression, clockTimezoneCasts))
     message +=
       ' Time-to-timetz conversion in a variable-offset zone can also require the transaction local date.'
