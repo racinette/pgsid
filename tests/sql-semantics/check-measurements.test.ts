@@ -1281,6 +1281,20 @@ describe('CHECK measurement boundaries', () => {
         'pg_catalog.refcursor:scalar',
         'pg_catalog.refcursor:array',
         'pg_catalog.point:scalar',
+        'pg_catalog.point:array',
+        'pg_catalog.line:scalar',
+        'pg_catalog.line:array',
+        'pg_catalog.lseg:scalar',
+        'pg_catalog.lseg:array',
+        'pg_catalog.box:scalar',
+        'pg_catalog.box:array',
+        'pg_catalog.circle:scalar',
+        'pg_catalog.circle:array',
+        'pg_catalog.path:scalar',
+        'pg_catalog.path:array',
+        'pg_catalog.polygon:scalar',
+        'pg_catalog.polygon:array',
+        'pg_catalog.pg_lsn:scalar',
         'boolean_test',
         'scalar_array',
         'domain_coercion',
@@ -1326,6 +1340,20 @@ describe('CHECK measurement boundaries', () => {
       'pg_catalog.int4:scalar',
       'pg_catalog.int4:null',
       'pg_catalog.int4:array',
+      'pg_catalog.point:scalar',
+      'pg_catalog.point:array',
+      'pg_catalog.line:scalar',
+      'pg_catalog.line:array',
+      'pg_catalog.lseg:scalar',
+      'pg_catalog.lseg:array',
+      'pg_catalog.box:scalar',
+      'pg_catalog.box:array',
+      'pg_catalog.circle:scalar',
+      'pg_catalog.circle:array',
+      'pg_catalog.path:scalar',
+      'pg_catalog.path:array',
+      'pg_catalog.polygon:scalar',
+      'pg_catalog.polygon:array',
       'pg_catalog."char":scalar',
       'pg_catalog."char":array',
       'pg_catalog.name:scalar',
@@ -1361,7 +1389,7 @@ describe('CHECK measurement boundaries', () => {
       'xml_char',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
-    for (const name of ['pg_catalog.point:scalar'])
+    for (const name of ['pg_catalog.pg_lsn:scalar'])
       expect(inventory.get(name)?.classification, name).toBe('implementation-gap')
     expect(inventory.get('current_date')?.classification).toBe('requires-session')
     expect(inventory.get('custom_call')?.classification).toBe('requires-database-callback')
