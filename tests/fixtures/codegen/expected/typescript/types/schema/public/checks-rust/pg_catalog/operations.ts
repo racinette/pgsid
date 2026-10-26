@@ -46877,6 +46877,68 @@ export function timestampNeQsye(left: checkruntime.TimestampValue, right: checkr
     }
     return { kind: "Unknown" };
 }
+export function makeTimestampN30u(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value, hour: checkruntime.Int4Value, minute: checkruntime.Int4Value, second: checkruntime.Float8Value): checkruntime.TimestampValue {
+    if (year.kind === "Error") {
+        const error: checkruntime.SqlError = year.value;
+        return { kind: "Error", value: error };
+    }
+    if (month.kind === "Error") {
+        const error: checkruntime.SqlError = month.value;
+        return { kind: "Error", value: error };
+    }
+    if (day.kind === "Error") {
+        const error: checkruntime.SqlError = day.value;
+        return { kind: "Error", value: error };
+    }
+    if (hour.kind === "Error") {
+        const error: checkruntime.SqlError = hour.value;
+        return { kind: "Error", value: error };
+    }
+    if (minute.kind === "Error") {
+        const error: checkruntime.SqlError = minute.value;
+        return { kind: "Error", value: error };
+    }
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(year, { kind: "Unknown" }) || checkruntime.equalInt4Value(month, { kind: "Unknown" }) || checkruntime.equalInt4Value(day, { kind: "Unknown" }) || checkruntime.equalInt4Value(hour, { kind: "Unknown" }) || checkruntime.equalInt4Value(minute, { kind: "Unknown" }) || checkruntime.equalFloat8Value(second, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(year, { kind: "Null" }) || checkruntime.equalInt4Value(month, { kind: "Null" }) || checkruntime.equalInt4Value(day, { kind: "Null" }) || checkruntime.equalInt4Value(hour, { kind: "Null" }) || checkruntime.equalInt4Value(minute, { kind: "Null" }) || checkruntime.equalFloat8Value(second, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (year.kind === "Value") {
+        const y: number = langruntime.checkedI32(year.value);
+        if (month.kind === "Value") {
+            const m: number = langruntime.checkedI32(month.value);
+            if (day.kind === "Value") {
+                const d: number = langruntime.checkedI32(day.value);
+                if (y === 0 || y < langruntime.checkedSignedNegate(4714) || y > 294276 || m < 1 || m > 12 || d < 1) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                let calendarYear: number = y;
+                if (y < 0) {
+                    calendarYear = langruntime.checkedI32(langruntime.checkedSignedAdd(calendarYear, 1));
+                }
+                if (d > intervalAgeMonthDays({ year: calendarYear, month: m, day: d })) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                const days: bigint = langruntime.checkedI64Subtract(temporalJulianFromCalendar(calendarYear, m, d), 2451545n);
+                const clock: checkruntime.TimeValue = makeTime6c3q(hour, minute, second);
+                if (clock.kind === "Error") {
+                    const error: checkruntime.SqlError = clock.value;
+                    return { kind: "Error", value: error };
+                }
+                if (clock.kind === "Value") {
+                    const time: bigint = langruntime.checkedI64(clock.value);
+                    return checkruntime.makeTimestampValue(langruntime.checkedI64Add(langruntime.checkedI64Multiply(days, 86400000000n), time));
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function timestamptzEqK4n3(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

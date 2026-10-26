@@ -26,7 +26,17 @@ fn compare_zone_name(name: &ZoneName, index: usize) -> i32 {
 }
 
 fn find_zone_name(name: &str, qualified: bool) -> usize {
-    let chars: Vec<char> = name.chars().collect();
+    let original: Vec<char> = name.chars().collect();
+    let colon = original.len() > 0 && original[0] == ':';
+    let mut chars: Vec<char> = Vec::new();
+    let mut offset: usize = 0;
+    if colon {
+        offset = 1;
+    };
+    while offset < original.len() {
+        chars.push(original[offset]);
+        offset += 1;
+    }
     let mut slash = false;
     let mut cursor = 0;
     while cursor < chars.len() {
@@ -36,7 +46,7 @@ fn find_zone_name(name: &str, qualified: bool) -> usize {
         cursor += 1;
     }
     // Bare names can resolve through the session's abbreviation table first.
-    if slash == false && qualified {
+    if slash == false && qualified && colon == false {
         return ZONE_NAMES.len();
     }
     let input = ZoneName { chars: chars };
@@ -69,7 +79,9 @@ fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
     if next == ZONE_ENDS[zone] && ZONE_RECURRING[zone] != 0 {
         let rules = parse_recurring_zone(ZONE_FUTURE_RULES[zone]);
         let mut cutoff = -211813488000000000i64;
-        if next > ZONE_STARTS[zone] { cutoff = transition.boundary; };
+        if next > ZONE_STARTS[zone] {
+            cutoff = transition.boundary;
+        };
         if microseconds > cutoff {
             let offset_start = ZONE_OFFSET_STARTS[zone];
             let mut before = ZONE_OFFSET_SECONDS[offset_start + ZONE_INITIAL_OFFSET_IDS[zone]];
@@ -77,7 +89,9 @@ fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
                 before = ZONE_OFFSET_SECONDS[offset_start + ZONE_OFFSET_IDS[next - 1]];
             };
             let recurring = next_recurring_boundary(rules, microseconds, cutoff, before);
-            if recurring.valid == false { return TextValue::Unknown; };
+            if recurring.valid == false {
+                return TextValue::Unknown;
+            };
             return recurring_zone_abbreviation(ZONE_FUTURE_RULES[zone], recurring.before_daylight);
         };
     };

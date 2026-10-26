@@ -17,6 +17,7 @@ import {
   isTemporalContextCast,
   isTemporalContextComparison,
   isTemporalLocalTimezone,
+  isTemporalInstantConstructor,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -30,6 +31,7 @@ const temporalCasts = new Set(
         isTemporalContextCast(item) ||
         isTemporalContextComparison(item) ||
         isTemporalLocalTimezone(item) ||
+        isTemporalInstantConstructor(item) ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
         isTemporalSessionExtraction(item) ||
@@ -49,6 +51,11 @@ const temporalExplicitZones = new Set(
 const temporalSessionUnits = new Set(
   builtinCallables()
     .filter((item) => isTemporalSessionTruncation(item) || isTemporalSessionExtraction(item))
+    .map(callableIdentity),
+)
+const instantConstructorZones = new Set(
+  builtinCallables()
+    .filter((item) => isTemporalInstantConstructor(item) && item.args.length === 7)
     .map(callableIdentity),
 )
 const clockZoneLookups = new Set(
@@ -325,6 +332,12 @@ export function checkUnknownMessage(
     message +=
       ' Unavailable timezone data, implicit POSIX rules and abbreviation-cache collisions can also defer lookup.'
   }
+  if (
+    context.serverEncoding === undefined &&
+    containsSignature(expression, instantConstructorZones)
+  )
+    message +=
+      ' Non-ASCII constructor timezone names can require sql.codegen.checks.serverEncoding.'
   if (
     context.maxIdentifierBytes === undefined &&
     containsSignature(expression, temporalSessionUnits)

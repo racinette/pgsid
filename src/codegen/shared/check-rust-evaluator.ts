@@ -16,6 +16,7 @@ import {
   isTemporalContextCast,
   isTemporalContextComparison,
   isTemporalLocalTimezone,
+  isTemporalInstantConstructor,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -3128,6 +3129,7 @@ export function emitCheckRustEvaluator(
           !isTemporalContextArithmetic(implementation) &&
           !isTemporalContextComparison(implementation) &&
           !isTemporalLocalTimezone(implementation) &&
+          !isTemporalInstantConstructor(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&
@@ -5359,7 +5361,9 @@ export function emitCheckRustEvaluator(
         isTemporalContextCast(implementation) ||
         isTemporalContextArithmetic(implementation) ||
         isTemporalContextComparison(implementation) ||
-        (isTemporalLocalTimezone(implementation) && implementation.args[0] !== 'pg_catalog.timetz')
+        (isTemporalLocalTimezone(implementation) &&
+          implementation.args[0] !== 'pg_catalog.timetz') ||
+        (isTemporalInstantConstructor(implementation) && implementation.args.length !== 7)
       )
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
       if (

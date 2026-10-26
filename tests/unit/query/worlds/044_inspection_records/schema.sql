@@ -1461,3 +1461,36 @@ CREATE TABLE inspection_local_times (
  CONSTRAINT local_time_array CHECK(CASE WHEN bypass THEN true ELSE
    timetz_send((ARRAY[timezone(recorded_clock),NULL::timetz])[1]) IS NOT DISTINCT FROM timetz_send(expected_clock) END)
 );
+
+CREATE TABLE inspection_calendar_instants (
+ inspection_year integer,
+ inspection_month integer,
+ inspection_day integer,
+ hour_of_day integer,
+ minute_of_hour integer,
+ second_of_minute float8,
+ zone_name text,
+ expected_local timestamp,
+ expected_session timestamptz,
+ expected_zoned timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT calendar_constructor_local CHECK(CASE WHEN bypass THEN true ELSE
+   timestamp_send(make_timestamp(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute)) IS NOT DISTINCT FROM timestamp_send(expected_local) END),
+ CONSTRAINT calendar_constructor_session CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(make_timestamptz(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute)) IS NOT DISTINCT FROM timestamptz_send(expected_session) END),
+ CONSTRAINT calendar_constructor_zone CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(make_timestamptz(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name)) IS NOT DISTINCT FROM timestamptz_send(expected_zoned) END),
+ CONSTRAINT calendar_constructor_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send((ARRAY[make_timestamptz(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_zoned) END)
+);
+
+CREATE TABLE inspection_date_clocks (
+ inspection_day date,
+ inspection_clock time,
+ expected_instant timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT date_clock_constructor CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(pg_catalog.timestamptz(inspection_day,inspection_clock)) IS NOT DISTINCT FROM timestamptz_send(expected_instant) END),
+ CONSTRAINT date_clock_constructor_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send((ARRAY[pg_catalog.timestamptz(inspection_day,inspection_clock),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_instant) END)
+);

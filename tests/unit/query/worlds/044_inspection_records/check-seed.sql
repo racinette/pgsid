@@ -1895,3 +1895,63 @@ INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expecte
 INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(NULL,NULL,'12:00+00',NULL,NULL,'13:00+01',false);
 -- name: LocalTimeSkipped
 INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0),('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),'24:00+00',NULL,NULL,NULL,true);
+
+-- name: CalendarConstructorLeap
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,2,29,12,34,56.123456,'UTC','2000-02-29 12:34:56.123456','2000-02-29 12:34:56.123456+00','2000-02-29 12:34:56.123456+00',false);
+-- name: CalendarConstructorIsoOffset
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'+02','2000-01-01','2000-01-01+00','1999-12-31 22:00+00',false);
+-- name: CalendarConstructorPosixOffset
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'UTC+02','2000-01-01','2000-01-01+00','2000-01-01 02:00+00',false);
+-- name: CalendarConstructorCompactOffset
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'+0001','2000-01-01','2000-01-01+00','1999-12-31 23:59+00',false);
+-- name: CalendarConstructorColonZone
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2021,3,14,2,30,0,':America/New_York','2021-03-14 02:30','2021-03-14 02:30+00','2021-03-14 07:30+00',false);
+-- name: CalendarConstructorEndOfDay
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,24,0,0,'UTC','2000-01-02','2000-01-02+00','2000-01-02+00',false);
+-- name: CalendarConstructorLeapSecond
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,23,59,60,'UTC','2000-01-02','2000-01-02+00','2000-01-02+00',false);
+-- name: CalendarConstructorLowerCarry
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(-4714,11,23,24,0,0,'+00','4714-11-24 BC','4714-11-24 00:00+00 BC','4714-11-24 00:00+00 BC',false);
+-- name: CalendarConstructorNegativeFraction
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,-0.0000004,'UTC','2000-01-01','2000-01-01+00','2000-01-01+00',false);
+-- name: CalendarConstructorNullField
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(NULL,13,1,0,0,0,'UTC',NULL,NULL,NULL,false);
+-- name: CalendarConstructorNullZone
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,NULL,'2000-01-01','2000-01-01+00',NULL,false);
+-- name: CalendarConstructorInvalidDateBeforeZone
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,13,1,0,0,0,'16',NULL,NULL,NULL,false);
+-- name: CalendarConstructorInvalidNumericZone
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'16','2000-01-01','2000-01-01+00',NULL,false);
+-- name: CalendarConstructorInvalidHour
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,25,0,0,'UTC',NULL,NULL,NULL,false);
+-- name: CalendarConstructorNaN
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,'NaN','UTC',NULL,NULL,NULL,false);
+-- name: CalendarConstructorWrongLocal
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'UTC','2000-01-02','2000-01-01+00','2000-01-01+00',false);
+-- name: CalendarConstructorWrongSession
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'UTC','2000-01-01','2000-01-02+00','2000-01-01+00',false);
+-- name: CalendarConstructorWrongZoned
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,1,1,0,0,0,'+02','2000-01-01','2000-01-01+00','2000-01-01 02:00+00',false);
+-- name: CalendarConstructorSkipped
+INSERT INTO inspection_calendar_instants(inspection_year,inspection_month,inspection_day,hour_of_day,minute_of_hour,second_of_minute,zone_name,expected_local,expected_session,expected_zoned,bypass) VALUES(2000,13,1,25,0,'NaN','16',NULL,NULL,NULL,true);
+
+-- name: DateClockConstructorOrdinary
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('2000-01-01','12:34:56.123456','2000-01-01 12:34:56.123456+00',false);
+-- name: DateClockConstructorEndOfDay
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('2000-01-01','24:00','2000-01-02+00',false);
+-- name: DateClockConstructorInfinity
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('infinity','24:00','infinity',false);
+-- name: DateClockConstructorNegativeInfinity
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('-infinity','00:00','-infinity',false);
+-- name: DateClockConstructorNullClock
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('infinity',NULL,NULL,false);
+-- name: DateClockConstructorNullDay
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES(NULL,'00:00',NULL,false);
+-- name: DateClockConstructorUpperOverflow
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('294276-12-31','24:00',NULL,false);
+-- name: DateClockConstructorLargeDay
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('294277-01-01','00:00',NULL,false);
+-- name: DateClockConstructorMismatch
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('2000-01-01','00:00','2000-01-02+00',false);
+-- name: DateClockConstructorSkipped
+INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('294277-01-01','24:00',NULL,true);
