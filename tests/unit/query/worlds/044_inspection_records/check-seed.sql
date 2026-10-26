@@ -1371,3 +1371,39 @@ INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES
 
 -- name: IdentifierPresenceBypassed
 INSERT INTO inspection_identifier_presence(label,expected_present,bypass) VALUES('plain',NULL,true);
+
+-- name: NameCastEqual
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','alpha',true,true,false,true,true,false);
+
+-- name: NameCastIncreasing
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','beta',false,false,true,false,false,false);
+
+-- name: NameCastDecreasing
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('beta','beta','beta','alpha',false,false,false,false,false,false);
+
+-- name: NameCastPaddedTrimming
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('a   ','a   ','a   ','a',false,true,false,false,false,false);
+
+-- name: NameCastNullPair
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,true,true,false);
+
+-- name: NameCastNullSource
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES(NULL,NULL,NULL,'a',NULL,NULL,NULL,true,false,false);
+
+-- name: NameCastNullReference
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('a','a','a',NULL,NULL,NULL,NULL,false,false,false);
+
+-- name: NameCastWrongEquality
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','alpha',false,true,false,true,true,false);
+
+-- name: NameCastWrongOrdering
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','beta',false,false,false,false,false,false);
+
+-- name: NameCastWrongArray
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','alpha',true,true,false,true,false,false);
+
+-- name: NameCastWrongNullif
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('alpha','alpha','alpha','beta',false,false,true,true,false,false);
+
+-- name: NameCastBypassed
+INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('arbitrary','arbitrary','arbitrary','other',NULL,NULL,NULL,NULL,NULL,true);

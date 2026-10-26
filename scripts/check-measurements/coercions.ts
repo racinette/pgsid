@@ -80,7 +80,12 @@ import {
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
-import { verifiedCatalog, trigonometryValueRequirements, xmlValueRequirements } from './catalog.js'
+import {
+  verifiedCatalog,
+  trigonometryValueRequirements,
+  xmlValueRequirements,
+  nameValueRequirements,
+} from './catalog.js'
 import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
@@ -677,7 +682,9 @@ export async function measureCoercions(pg: PGlite) {
           ? 'poly_send'
           : target === 'pg_catalog.refcursor'
             ? 'textsend'
-            : null
+            : target === 'pg_catalog.xml'
+              ? 'xml_send'
+              : null
     const sql = isRangeType(target)
       ? `isempty(${cast}) IS NOT DISTINCT FROM isempty(${cast})`
       : arrayElements
@@ -762,7 +769,9 @@ export async function measureCoercions(pg: PGlite) {
       implementationPresent,
       implementationBoundary,
       valueRequirements: implementation
-        ? (trigonometryValueRequirements(implementation) ?? xmlValueRequirements(implementation))
+        ? (trigonometryValueRequirements(implementation) ??
+          xmlValueRequirements(implementation) ??
+          nameValueRequirements(implementation))
         : null,
       probe: missingTypes.length ? null : await probe(cast.source, cast.target),
     })
@@ -790,7 +799,9 @@ export async function measureCoercions(pg: PGlite) {
       sourceArray,
       targetArray,
       valueRequirements: cast.implementation
-        ? trigonometryValueRequirements(builtinMetadata(cast.implementation))
+        ? (trigonometryValueRequirements(builtinMetadata(cast.implementation)) ??
+          xmlValueRequirements(builtinMetadata(cast.implementation)) ??
+          nameValueRequirements(builtinMetadata(cast.implementation)))
         : null,
       probe: await probe(sourceArray, targetArray, true),
     })
@@ -802,6 +813,7 @@ export async function measureCoercions(pg: PGlite) {
     textInput.push({
       type,
       input: io.input,
+      valueRequirements: io.input ? nameValueRequirements(builtinMetadata(io.input)) : null,
       cast:
         catalog.casts.find((cast) => cast.source === 'pg_catalog.text' && cast.target === type) ??
         null,

@@ -172,7 +172,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
 - [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion, portable hashes and explicit native-layout and heap-state requirements.
 - [x] Establish catalog OID aliases with nominal SQL identity, numeric operations, catalog-resolved casts and explicit deferral without deployment catalog access.
-- [x] Establish name values, C relations, hashes, conversions, SQL-coerced public inputs, declared identifier-byte limits for literals/scalar overloads/arrays and UTF8 boundary clipping.
+- [x] Establish name values, C relations, hashes, conversions, SQL-coerced public inputs, declared identifier-byte limits for literals/scalar overloads/arrays and UTF8 boundary clipping. Preserve inherited collation on functional casts through comparisons and composition; retain non-C and conflict requirements independently of identifier width.
 - [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals, composition and SQL-coerced public inputs; retain session requirements for portals.
 - [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds, visibility, domains, literals, composition and SQL-coerced public inputs; retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.

@@ -795,6 +795,31 @@ describe('CHECK measurement boundaries', () => {
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
     const report = await measureCoercions(pg)
+    for (const source of ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar']) {
+      const nameCast = report.casts.find(
+        (c) => c.source === source && c.target === 'pg_catalog.name',
+      )!
+      expect(nameCast.probe?.raw.fullyBound).toBe(true)
+      expect(nameCast.probe?.stored?.fullyBound).toBe(true)
+      expect(nameCast.valueRequirements).toMatchObject([
+        { setting: 'maxIdentifierBytes' },
+        { setting: 'server_encoding' },
+      ])
+      expect(
+        report.arrayElementCasts.find((c) => c.source === source && c.target === 'pg_catalog.name')
+          ?.valueRequirements,
+      ).toEqual(nameCast.valueRequirements)
+      expect(report.textInput.find((c) => c.type === 'pg_catalog.name')?.valueRequirements).toEqual(
+        nameCast.valueRequirements,
+      )
+      const xmlCast = report.casts.find(
+        (c) => c.source === source && c.target === 'pg_catalog.xml',
+      )!
+      expect(xmlCast.probe?.sql).toContain('xml_send(')
+      expect(xmlCast.probe?.postgres.accepted).toBe(true)
+      expect(xmlCast.probe?.raw.fullyBound).toBe(true)
+      expect(xmlCast.probe?.stored?.fullyBound).toBe(true)
+    }
     const circleCast = report.casts.find(
       (c) => c.source === 'pg_catalog.circle' && c.target === 'pg_catalog.polygon',
     )!

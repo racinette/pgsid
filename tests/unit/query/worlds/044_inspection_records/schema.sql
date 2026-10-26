@@ -1149,3 +1149,28 @@ CREATE TABLE inspection_identifier_presence (
  CONSTRAINT identifier_context_free_presence CHECK(CASE WHEN bypass THEN true ELSE
    (quote_ident(label) IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
 );
+
+CREATE TABLE inspection_name_casts (
+ source text COLLATE "C",
+ varying_value varchar COLLATE "C",
+ padded bpchar COLLATE "C",
+ reference name COLLATE "C",
+ expected_equal boolean,
+ expected_padded boolean,
+ expected_less boolean,
+ expected_nulled boolean,
+ expected_array boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT name_cast_text_equal CHECK(CASE WHEN bypass THEN true ELSE
+   (source::name=reference) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT name_cast_varying_equal CHECK(CASE WHEN bypass THEN true ELSE
+   (varying_value::name=reference) IS NOT DISTINCT FROM expected_equal END),
+ CONSTRAINT name_cast_padded_equal CHECK(CASE WHEN bypass THEN true ELSE
+   (padded::name=reference) IS NOT DISTINCT FROM expected_padded END),
+ CONSTRAINT name_cast_order CHECK(CASE WHEN bypass THEN true ELSE
+   (source::name<reference) IS NOT DISTINCT FROM expected_less END),
+ CONSTRAINT name_cast_nullif CHECK(CASE WHEN bypass THEN true ELSE
+   (NULLIF(source::name,reference) IS NULL) IS NOT DISTINCT FROM expected_nulled END),
+ CONSTRAINT name_cast_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[source::name]=ARRAY[reference]) IS NOT DISTINCT FROM expected_array END)
+);
