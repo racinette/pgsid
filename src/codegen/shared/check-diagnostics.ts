@@ -19,6 +19,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalInstantAge,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
@@ -36,6 +37,7 @@ const temporalCasts = new Set(
         isTemporalLocalTimezone(item) ||
         isTemporalInstantConstructor(item) ||
         isTemporalInstantPeriod(item) ||
+        isTemporalInstantAge(item) ||
         isTemporalTemplateParsing(item) ||
         (isTemporalTimestampFormatting(item) && item.args[0] === 'pg_catalog.timestamptz') ||
         isTemporalContextArithmetic(item) ||

@@ -2120,3 +2120,36 @@ INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day
 INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29','YYYY-MM-DD','2024-02-29','2024-03-01+00',false);
 -- name: ImportedDatetimeSkipped
 INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('bad','YYYY-MM-DD',NULL,NULL,true);
+
+-- name: CalendarElapsedMonthBorrow
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-31 12:00+00','2000-02-29 12:00+00','29 days',false);
+-- name: CalendarElapsedWholeMonths
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-31 12:00+00','2000-03-31 12:00+00','2 months',false);
+-- name: CalendarElapsedFractionBorrow
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-31 12:00+00','2000-02-29 11:59:59.999999+00','28 days 23:59:59.999999',false);
+-- name: CalendarElapsedLeapYearBorrow
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-02-29 12:00+00','2001-02-28 12:00+00','11 months 28 days',false);
+-- name: CalendarElapsedReverse
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-02-29 11:59:59.999999+00','2000-01-31 12:00+00','-28 days -23:59:59.999999',false);
+-- name: CalendarElapsedEra
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('0001-01-01+00 BC','0001-01-01+00','1 year',false);
+-- name: CalendarElapsedSameInstant
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2024-11-03 01:30-04','2024-11-03 05:30+00','0',false);
+-- name: CalendarElapsedRoundedUpper
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('294276-12-31 23:59:59.999999+00',(timestamptz '294276-12-31 23:59:59.999999+00')::timestamptz(0),'0.000001 seconds',false);
+-- name: CalendarElapsedFutureInfinity
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-01+00','infinity','infinity',false);
+-- name: CalendarElapsedPastInfinity
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-01+00','-infinity','-infinity',false);
+-- name: CalendarElapsedOppositeInfinities
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('-infinity','infinity','infinity',false);
+-- name: CalendarElapsedIndeterminateInfinities
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('infinity','infinity',NULL,false);
+-- name: CalendarElapsedNullStart
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES (NULL,'2000-01-01+00',NULL,false);
+-- name: CalendarElapsedNullEnd
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-01+00',NULL,NULL,false);
+-- name: CalendarElapsedWrongValue
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-31 12:00+00','2000-02-29 12:00+00','1 month',false);
+-- name: CalendarElapsedSkippedError
+INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('infinity','infinity',NULL,true);

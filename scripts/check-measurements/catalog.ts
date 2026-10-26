@@ -7,6 +7,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalInstantAge,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
@@ -754,6 +755,17 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalInstantAge(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Instant calendar age decomposes both instants in the session timezone, borrows from the local month of the earlier instant and preserves UTC operand ordering across local folds. Equal finite instants, infinities, strict NULLs and input errors retain independent results.',
+        owner: 'tests/sql-semantics/check-instant-age.test.ts',
+      },
+    ]
+
   if (isTemporalTemplateParsing(item))
     return [
       {
@@ -1356,13 +1368,6 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('session-setting:lc_monetary')
   if (item.schema === 'pg_catalog' && ['interval_in', 'interval_out'].includes(item.name))
     categories.push('session-setting:IntervalStyle')
-  if (
-    item.schema === 'pg_catalog' &&
-    item.name === 'age' &&
-    item.args.length === 2 &&
-    item.args.every((type) => type === 'pg_catalog.timestamptz')
-  )
-    categories.push('session-setting:TimeZone')
   const missingTypes = [...new Set(types.filter((type) => !represented.has(type)))].sort()
   if (missingTypes.length) categories.push('new-representation')
   if (!categories.length) categories.push('pure-callable-candidate')
