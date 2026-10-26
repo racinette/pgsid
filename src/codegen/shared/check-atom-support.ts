@@ -3,6 +3,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalSessionTruncation,
+  isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 import { isXmlOptionPredicate } from '../../sql-semantics/xml-callables.js'
@@ -104,7 +105,8 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         (isTemporalContextCast(implementation) ||
           isTemporalContextArithmetic(implementation) ||
           isTemporalExplicitZoneLookup(implementation) ||
-          isTemporalSessionTruncation(implementation)) &&
+          isTemporalSessionTruncation(implementation) ||
+          isTemporalSessionExtraction(implementation)) &&
         rustNames.has(implementation.rustName)) ||
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&

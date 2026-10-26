@@ -4,6 +4,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalSessionTruncation,
+  isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../src/sql-semantics/temporal-casts.js'
@@ -747,6 +748,23 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalSessionExtraction(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Finite calendar and offset fields project the instant into the declared session timezone. UTC epoch, infinities, strict NULL and unit errors retain independent results without timezone context.',
+        owner: 'tests/sql-semantics/check-timestamptz-extract.test.ts',
+      },
+      {
+        kind: 'build',
+        setting: 'maxIdentifierBytes',
+        requirement:
+          'Extraction unit identifiers are truncated using the deployment byte limit before native field decoding.',
+        owner: 'tests/sql-semantics/check-timestamptz-extract.test.ts',
+      },
+    ]
   if (isTemporalSessionTruncation(item))
     return [
       {

@@ -16,6 +16,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalSessionTruncation,
+  isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneArithmetic,
   isTemporalExplicitZoneLookup,
@@ -264,4 +265,43 @@ it('admits only session timestamptz truncation with unit-build and conditional t
   const literal = bindProbe("date_trunc('day',timestamptz '2000-01-01 00:00+00') IS NOT NULL", [])
   expect(literal.fullyBound).toBe(true)
   expect(constantCheckExpression(literal.expression)).toBe(false)
+})
+
+it('admits only selected session timestamptz field overloads with conditional timezone and unit-build facts', () => {
+  const items = builtinCallables().filter(isTemporalSessionExtraction)
+  expect(items).toHaveLength(2)
+  for (const item of items) {
+    for (const changed of [
+      { schema: 'other' },
+      { volatility: 'i' as const },
+      { strict: false },
+      { args: ['pg_catalog.text', 'pg_catalog."timestamp"'] },
+      { result: 'pg_catalog.bool' },
+    ])
+      expect(isTemporalSessionExtraction({ ...item, ...changed })).toBe(false)
+    expect(temporalArithmeticRequirements(item)?.map((r) => r.setting)).toEqual([
+      'TimeZone',
+      'maxIdentifierBytes',
+    ])
+    const probe = bindProbe(`pg_catalog.${item.name}(unit,v) IS NOT NULL`, [
+      { name: 'unit', typeName: 'pg_catalog.text' },
+      { name: 'v', typeName: 'pg_catalog.timestamptz' },
+    ])
+    expect(probe.fullyBound).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    const message = checkUnknownMessage(probe.expression)
+    expect(message).toContain('sql.codegen.checks.timeZone')
+    expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
+    expect(message).not.toContain('timeZoneAbbreviations')
+    expect(
+      checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC', maxIdentifierBytes: 63 }),
+    ).not.toContain('sql.codegen.checks.')
+    const literal = bindProbe(
+      `pg_catalog.${item.name}('epoch',timestamptz '2000-01-01 00:00+00') IS NOT NULL`,
+      [],
+    )
+    expect(literal.fullyBound).toBe(true)
+    expect(constantCheckExpression(literal.expression)).toBe(false)
+  }
 })

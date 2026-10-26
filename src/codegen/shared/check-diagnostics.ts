@@ -16,6 +16,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalSessionTruncation,
+  isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
@@ -27,6 +28,7 @@ const temporalCasts = new Set(
         isTemporalContextCast(item) ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
+        isTemporalSessionExtraction(item) ||
         isTemporalExplicitZoneLookup(item),
     )
     .map(callableIdentity),
@@ -34,8 +36,10 @@ const temporalCasts = new Set(
 const temporalExplicitZones = new Set(
   builtinCallables().filter(isTemporalExplicitZoneLookup).map(callableIdentity),
 )
-const temporalSessionTruncations = new Set(
-  builtinCallables().filter(isTemporalSessionTruncation).map(callableIdentity),
+const temporalSessionUnits = new Set(
+  builtinCallables()
+    .filter((item) => isTemporalSessionTruncation(item) || isTemporalSessionExtraction(item))
+    .map(callableIdentity),
 )
 const clockZoneLookups = new Set(
   builtinCallables().filter(isTemporalClockZoneLookup).map(callableIdentity),
@@ -307,7 +311,7 @@ export function checkUnknownMessage(
   }
   if (
     context.maxIdentifierBytes === undefined &&
-    containsSignature(expression, temporalSessionTruncations)
+    containsSignature(expression, temporalSessionUnits)
   )
     message += ' Temporal unit decoding can require sql.codegen.checks.maxIdentifierBytes.'
   if (containsSignature(expression, clockZoneLookups))

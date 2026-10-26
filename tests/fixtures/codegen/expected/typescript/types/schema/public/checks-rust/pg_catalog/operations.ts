@@ -40995,7 +40995,11 @@ function temporalExtractDate(value: number, code: number): checkruntime.NumericV
         }
     }
     if (code === 7 || code === 15) {
-        const thursday: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(julian, 3n), langruntime.checkedI64Remainder(julian, 7n));
+        let weekday: bigint = langruntime.checkedI64Remainder(julian, 7n);
+        if (weekday < 0n) {
+            weekday = langruntime.checkedI64(langruntime.checkedI64Add(weekday, 7n));
+        }
+        const thursday: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(julian, 3n), weekday);
         const iso: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(thursday));
         if (code === 7) {
             result = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(thursday, temporalJulianFromCalendar(iso.year, 1, 1))), 7n), 1n));
@@ -41009,6 +41013,9 @@ function temporalExtractDate(value: number, code: number): checkruntime.NumericV
     }
     if (code === 16 || code === 17) {
         result = langruntime.checkedI64(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 1n)), 7n));
+        if (result < 0n) {
+            result = langruntime.checkedI64(langruntime.checkedI64Add(result, 7n));
+        }
         if (code === 17 && result === 0n) {
             result = langruntime.checkedI64(7n);
         }
@@ -42566,17 +42573,29 @@ function temporalTimestampJulian(julian: bigint, clock: bigint): checkruntime.Nu
         whole = langruntime.checkedI64(langruntime.checkedI64Add(whole, 1n));
     }
     let output: string = checkruntime.textSignedNumber(whole);
+    if (whole < 0n) {
+        output = langruntime.checkedString("0");
+    }
     output = output + langruntime.checkedChar(".");
     cursor = langruntime.checkedIndex(0);
     while (cursor < fraction.length) {
         output = output + langruntime.checkedChar(langruntime.indexChar(fraction, langruntime.checkedIndex(cursor)));
         cursor = langruntime.checkedAdd(cursor, 1);
     }
+    if (whole < 0n) {
+        return numericAddO3d7({ kind: "Value", value: checkruntime.textSignedNumber(whole) }, { kind: "Value", value: output });
+    }
     return { kind: "Value", value: output };
 }
 function temporalExtractTimestamp(value: bigint, unit: string): checkruntime.NumericValue {
     value = langruntime.checkedI64(value);
     unit = langruntime.checkedString(unit);
+    return temporalExtractTimestampValue(value, unit, false);
+}
+function temporalExtractTimestampValue(value: bigint, unit: string, projected: boolean): checkruntime.NumericValue {
+    value = langruntime.checkedI64(value);
+    unit = langruntime.checkedString(unit);
+    projected = langruntime.checkedBool(projected);
     const code: number = temporalExtractCode(unit);
     if (code === 0 || code === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
@@ -42593,7 +42612,7 @@ function temporalExtractTimestamp(value: bigint, unit: string): checkruntime.Num
         }
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
     }
-    if (!(code === 19) && value < -211813488000000000n) {
+    if (projected === false && !(code === 19) && value < -211813488000000000n) {
         return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
     }
     if (code === langruntime.checkedSignedNegate(1)) {
@@ -42652,8 +42671,9 @@ export function extractF4l3(units: checkruntime.TextValue, input: checkruntime.T
     }
     return { kind: "Unknown" };
 }
-export function datePartNzwd(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.Float8Value {
-    const number: checkruntime.NumericValue = extractF4l3(units, input);
+function temporalTimestampLegacyValue(number: checkruntime.NumericValue, unit: string, time: bigint): checkruntime.Float8Value {
+    unit = langruntime.checkedString(unit);
+    time = langruntime.checkedI64(time);
     if (number.kind === "Error") {
         const error: checkruntime.SqlError = number.value;
         return { kind: "Error", value: error };
@@ -42664,39 +42684,44 @@ export function datePartNzwd(units: checkruntime.TextValue, input: checkruntime.
     if (checkruntime.equalNumericValue(number, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    if (!(time === (-9223372036854775808n)) && !(time === 9223372036854775807n)) {
+        const code: number = temporalExtractCode(unit);
+        let day: bigint = langruntime.checkedI64Divide(time, 86400000000n);
+        let clock: bigint = langruntime.checkedI64Remainder(time, 86400000000n);
+        if (clock < 0n) {
+            day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+            clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+        }
+        const seconds: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Divide(clock, 1000000n)), 60n)))));
+        const fraction: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(clock, 1000000n)))));
+        if (code === 2) {
+            return checkruntime.makeFloat8Value(langruntime.f64Add(langruntime.f64Multiply((Number(langruntime.checkedI32(seconds))), 1000.0), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000.0)));
+        }
+        if (code === 3) {
+            return checkruntime.makeFloat8Value(langruntime.f64Add((Number(langruntime.checkedI32(seconds))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0)));
+        }
+        if (code === 14) {
+            const elapsed: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(clock, 1000000n)))));
+            const julian: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(day, 2451545n)))));
+            const result: number = langruntime.f64Add((Number(langruntime.checkedI32(julian))), langruntime.f64Divide((langruntime.f64Add((Number(langruntime.checkedI32(elapsed))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0))), 86400.0));
+            return checkruntime.makeFloat8Value(result);
+        }
+        if (code === 19) {
+            if (time < 9222425352054775807n) {
+                return checkruntime.makeFloat8Value(langruntime.f64Divide(intervalMathFloat(langruntime.checkedI64Add(time, 946684800000000n)), 1000000.0));
+            }
+            return checkruntime.makeFloat8Value(langruntime.f64Divide((langruntime.f64Add(intervalMathFloat(time), 946684800000000.0)), 1000000.0));
+        }
+    }
+    return float8Bkfn(number);
+}
+export function datePartNzwd(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.Float8Value {
+    const number: checkruntime.NumericValue = extractF4l3(units, input);
     if (units.kind === "Value") {
         const unit: string = langruntime.checkedString(units.value);
         if (input.kind === "Value") {
             const time: bigint = langruntime.checkedI64(input.value);
-            if (!(time === (-9223372036854775808n)) && !(time === 9223372036854775807n)) {
-                const code: number = temporalExtractCode(unit);
-                let day: bigint = langruntime.checkedI64Divide(time, 86400000000n);
-                let clock: bigint = langruntime.checkedI64Remainder(time, 86400000000n);
-                if (clock < 0n) {
-                    day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
-                    clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
-                }
-                const seconds: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Divide(clock, 1000000n)), 60n)))));
-                const fraction: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(clock, 1000000n)))));
-                if (code === 2) {
-                    return checkruntime.makeFloat8Value(langruntime.f64Add(langruntime.f64Multiply((Number(langruntime.checkedI32(seconds))), 1000.0), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000.0)));
-                }
-                if (code === 3) {
-                    return checkruntime.makeFloat8Value(langruntime.f64Add((Number(langruntime.checkedI32(seconds))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0)));
-                }
-                if (code === 14) {
-                    const elapsed: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(clock, 1000000n)))));
-                    const julian: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(day, 2451545n)))));
-                    const result: number = langruntime.f64Add((Number(langruntime.checkedI32(julian))), langruntime.f64Divide((langruntime.f64Add((Number(langruntime.checkedI32(elapsed))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0))), 86400.0));
-                    return checkruntime.makeFloat8Value(result);
-                }
-                if (code === 19) {
-                    if (time < 9222425352054775807n) {
-                        return checkruntime.makeFloat8Value(langruntime.f64Divide(intervalMathFloat(langruntime.checkedI64Add(time, 946684800000000n)), 1000000.0));
-                    }
-                    return checkruntime.makeFloat8Value(langruntime.f64Divide((langruntime.f64Add(intervalMathFloat(time), 946684800000000.0)), 1000000.0));
-                }
-            }
+            return temporalTimestampLegacyValue(number, unit, time);
         }
     }
     return float8Bkfn(number);

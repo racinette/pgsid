@@ -15,6 +15,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalSessionTruncation,
+  isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
@@ -3125,6 +3126,7 @@ export function emitCheckRustEvaluator(
           !isTemporalContextArithmetic(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
+          !isTemporalSessionExtraction(implementation) &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -5351,7 +5353,10 @@ export function emitCheckRustEvaluator(
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation))
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
-      if (isTemporalSessionTruncation(implementation))
+      if (
+        isTemporalSessionTruncation(implementation) ||
+        isTemporalSessionExtraction(implementation)
+      )
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
           String(executionContext.maxIdentifierBytes ?? -1),
