@@ -47,3 +47,19 @@ export function isTemporalContextArithmetic(item: BuiltinCallable): boolean {
         item.args[0] === 'pg_catalog.timestamptz' &&
         item.args[1] === 'pg_catalog."interval"'
 }
+
+export function isTemporalExplicitZoneArithmetic(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    ['date_add', 'date_subtract'].includes(item.name) &&
+    item.result === 'pg_catalog.timestamptz' &&
+    item.args.length === 3 &&
+    item.args[0] === 'pg_catalog.timestamptz' &&
+    item.args[1] === 'pg_catalog."interval"' &&
+    item.args[2] === 'pg_catalog.text'
+  )
+}

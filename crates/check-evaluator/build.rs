@@ -3,6 +3,7 @@ use std::{env, path::PathBuf, process::Command};
 fn main() {
     println!("cargo:rerun-if-changed=../../vendor/postgresql-timezone/tzdata.zi");
     println!("cargo:rerun-if-env-changed=ZIC");
+    println!("cargo:rerun-if-changed=../../vendor/postgresql-timezone/Default");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../..");
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     println!("cargo:rerun-if-changed=../../vendor/postgresql-unicode");

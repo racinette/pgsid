@@ -1,96 +1,241 @@
-fn timezone_calendar_resolve(day: i64, clock: i64, zone: &str) -> TimestamptzValue {
-    if day < (-106751991i64) || day > 106751991i64 {
-        return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-    };
-    let midnight = day * 86400000000i64;
-    if midnight > 9223372036854775807i64 - clock {
-        return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-    };
-    let local = midnight + clock;
-    let offset = timezone_offset(zone, local, true);
-    if let Int4Value::Error(error) = offset {
-        return TimestamptzValue::Error(error);
-    };
-    if let Int4Value::Value(seconds) = offset {
-        let wide = (seconds as i64) * 1000000i64;
-        if (wide > 0i64 && local < (-9223372036854775808i64) + wide)
-            || (wide < 0i64 && local > 9223372036854775807i64 + wide)
-        {
-            return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
+fn timezone_lookup_length(value: &str) -> usize {
+    let chars: Vec<char> = value.chars().collect();
+    let mut index: usize = 0;
+    let mut bytes: usize = 0;
+    while index < chars.len() {
+        let code = chars[index] as i32;
+        let mut width: usize = 1;
+        if code >= 65536 {
+            width = 4;
+        } else if code >= 2048 {
+            width = 3;
+        } else if code >= 128 {
+            width = 2;
         };
-        let result = local - wide;
-        if result == (-9223372036854775808i64) || result == 9223372036854775807i64 {
-            return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-        };
-        return make_timestamptz_value(result);
-    };
-    TimestamptzValue::Unknown
+        bytes = bytes + width;
+        index += 1;
+    }
+    bytes
 }
-fn timezone_calendar_step(input: i64, months: i32, days: i32, zone: &str) -> TimestamptzValue {
-    let offset = timezone_offset(zone, input, false);
-    if let Int4Value::Error(error) = offset {
-        return TimestamptzValue::Error(error);
-    };
-    if let Int4Value::Value(seconds) = offset {
-        let local = input + (seconds as i64) * 1000000i64;
-        let mut day = local / 86400000000i64;
-        let mut clock = local % 86400000000i64;
-        if clock < 0i64 {
-            day = day - 1i64;
-            clock = clock + 86400000000i64;
+
+fn timezone_lookup_ascii(value: &str, upper: bool) -> String {
+    let mut result = String::new();
+    let chars: Vec<char> = value.chars().collect();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let original = chars[index];
+        let mut character = original.to_ascii_lowercase();
+        if upper {
+            character = original;
+            let code = original as i32;
+            if code >= 97 && code <= 122 {
+                let upper_code = code - 32;
+                character = char::from_u32(upper_code as u32).unwrap_or(original);
+            };
         };
-        if months != 0 {
-            let calendar = temporal_calendar_from_julian(day + 2451545i64);
-            let mut month = (calendar.month as i64) + (months as i64);
-            if month < (-2147483648i64) || month > 2147483647i64 {
-                return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
+        result.push(character);
+        index += 1;
+    }
+    result
+}
+
+fn timezone_lookup_fixed(seconds: i32) -> TextValue {
+    let mut result = "UTC".to_owned();
+    result.push_str(timezone_output_offset(0 - seconds, true).as_str());
+    TextValue::Value(result)
+}
+
+struct TimezoneAbbreviation {
+    label: String,
+    seconds: i32,
+    daylight: i32,
+    valid: bool,
+}
+
+fn timezone_lookup_candidate(session: &str, zone: usize, index: usize) -> TimezoneAbbreviation {
+    let invalid = TimezoneAbbreviation {
+        label: String::new(),
+        seconds: 0,
+        daylight: 0,
+        valid: false,
+    };
+    if zone < ZONE_NAMES.len() {
+        let entry = ZONE_TYPE_STARTS[zone] + index;
+        if entry < ZONE_TYPE_ENDS[zone] && ZONE_TYPE_VISIBLE[entry] != 0 {
+            return TimezoneAbbreviation {
+                label: ZONE_ABBREVIATIONS[ZONE_TYPE_ABBREVIATION_IDS[entry]].to_owned(),
+                seconds: ZONE_TYPE_OFFSET_SECONDS[entry],
+                daylight: ZONE_TYPE_DAYLIGHT[entry],
+                valid: true,
             };
-            let mut year = calendar.year as i64;
-            if month > 12i64 {
-                year = year + (month - 1i64) / 12i64;
-                month = (month - 1i64) % 12i64 + 1i64;
+        };
+        return invalid;
+    };
+    let text = ZoneRuleText {
+        chars: session.chars().collect(),
+    };
+    let start = skip_zone_rule_name(&text, 0);
+    let standard = read_zone_rule_clock(&text, start);
+    if standard.valid {
+        let mut seconds = 0 - standard.value;
+        if index == 1 {
+            let rules = parse_recurring_zone(session);
+            if rules.valid == false {
+                return invalid;
             };
-            if month < 1i64 {
-                year = year + month / 12i64 - 1i64;
-                month = month % 12i64 + 12i64;
+            seconds = 0 - rules.daylight;
+        };
+        let label = recurring_zone_abbreviation(session, index == 1);
+        if let TextValue::Value(value) = label {
+            return TimezoneAbbreviation {
+                label: timezone_lookup_ascii(value.as_str(), true),
+                seconds: seconds,
+                daylight: index as i32,
+                valid: true,
             };
-            if year < (-4713i64)
-                || (year == (-4713i64) && month < 11i64)
-                || year > 5874898i64
-                || (year == 5874898i64 && month >= 6i64)
+        };
+        return invalid;
+    };
+    if index == 0 {
+        let profile = session_timezone_profile(session, 0i64, false);
+        return TimezoneAbbreviation {
+            label: profile.label,
+            seconds: profile.seconds,
+            daylight: 0,
+            valid: profile.valid,
+        };
+    };
+    invalid
+}
+
+fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> TextValue {
+    let zone = find_zone_name(session, false);
+    let mut count: usize = 2;
+    if zone < ZONE_NAMES.len() {
+        count = ZONE_TYPE_ENDS[zone] - ZONE_TYPE_STARTS[zone];
+    } else {
+        let profile = session_timezone_profile(session, 0i64, false);
+        if profile.valid == false {
+            return TextValue::Unknown;
+        };
+    };
+    let requested = timezone_lookup_ascii(key, true);
+    let prefix = name_from_text_context(TextValue::Value(requested.clone()), 10, true);
+    let mut found = false;
+    let mut seconds: i32 = 0;
+    let mut daylight: i32 = 0;
+    let mut dynamic = false;
+    let mut cursor: usize = 0;
+    while cursor < count {
+        let abbreviation = timezone_lookup_candidate(session, zone, cursor);
+        if abbreviation.valid {
+            let label = abbreviation.label;
+            let abbreviation_seconds = abbreviation.seconds;
+            let abbreviation_daylight = abbreviation.daylight;
+            if label == requested {
+                if timezone_lookup_length(requested.as_str()) == 0
+                    || (timezone_lookup_length(requested.as_str()) >= 10
+                        && default_profile == false)
+                {
+                    return TextValue::Unknown;
+                };
+                if found && (seconds != abbreviation_seconds || daylight != abbreviation_daylight) {
+                    dynamic = true;
+                };
+                if found == false {
+                    seconds = abbreviation_seconds;
+                    daylight = abbreviation_daylight;
+                    found = true;
+                };
+            } else if timezone_lookup_length(label.as_str()) >= 10
+                && name_from_text_context(TextValue::Value(label), 10, true) == prefix
             {
-                return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
+                return TextValue::Unknown;
             };
-            let mut limit: i32 = 31;
-            if month == 4i64 || month == 6i64 || month == 9i64 || month == 11i64 {
-                limit = 30;
+        };
+        cursor += 1;
+    }
+
+    if found {
+        if dynamic {
+            return TextValue::Value(session.to_owned());
+        };
+        return timezone_lookup_fixed(seconds);
+    };
+    TextValue::Null
+}
+
+fn timezone_lookup_name(
+    input: TextValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
+) -> TextValue {
+    let clipped = name_from_text_context(input, 255, utf8);
+    if let TextValue::Value(name) = clipped {
+        let key = name_from_text_context(TextValue::Value(name.clone()), limit, utf8);
+        if let TextValue::Value(value) = key {
+            let selected = timezone_lookup_session(value.as_str(), session, default_profile);
+            if selected != TextValue::Null {
+                return selected;
             };
-            if month == 2i64 {
-                limit = 28;
-                if year % 4i64 == 0i64 && (year % 100i64 != 0i64 || year % 400i64 == 0i64) {
-                    limit = 29;
+            if default_profile == false {
+                return TextValue::Unknown;
+            };
+            let lower = timezone_lookup_ascii(value.as_str(), false);
+            let mut index: usize = 0;
+            while index < ZONE_DEFAULT_ABBREVIATION_NAMES.len() {
+                if lower == ZONE_DEFAULT_ABBREVIATION_NAMES[index] {
+                    if timezone_lookup_length(ZONE_DEFAULT_ABBREVIATION_ZONES[index]) > 0 {
+                        return TextValue::Value(ZONE_DEFAULT_ABBREVIATION_ZONES[index].to_owned());
+                    };
+                    return timezone_lookup_fixed(ZONE_DEFAULT_ABBREVIATION_SECONDS[index]);
+                };
+                index += 1;
+            }
+            if timezone_lookup_length(name.as_str()) == 0 {
+                return TextValue::Error(make_sql_error(INVALID_TIMEZONE_NAME));
+            };
+            let fixed = timezone_fixed_offset(name.as_str());
+            if let Int4Value::Value(west) = fixed {
+                return timezone_lookup_fixed(0 - west);
+            };
+            if let Int4Value::Error(error) = fixed {
+                return TextValue::Error(error);
+            };
+            let named = find_zone_name(name.as_str(), false);
+            if named < ZONE_NAMES.len() {
+                return TextValue::Value(name);
+            };
+            let text = ZoneRuleText {
+                chars: name.chars().collect(),
+            };
+            let start = skip_zone_rule_name(&text, 0);
+            let standard = read_zone_rule_clock(&text, start);
+            if standard.valid
+                && (standard.next == text.chars.len() || parse_recurring_zone(name.as_str()).valid)
+            {
+                let profile = session_timezone_profile(name.as_str(), 0i64, false);
+                if profile.valid {
+                    return TextValue::Value(name);
                 };
             };
-            let mut date = calendar.day;
-            if date > limit {
-                date = limit;
-            };
-            day = temporal_julian_from_calendar(year as i32, month as i32, date) - 2451545i64;
-        } else {
-            let julian = day + 2451545i64 + (days as i64);
-            if julian < (-1i64) || julian > 2147483647i64 {
-                return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-            };
-            day = julian - 2451545i64;
+            return TextValue::Unknown;
         };
-        return timezone_calendar_resolve(day, clock, zone);
+        return TextValue::Unknown;
     };
-    TimestamptzValue::Unknown
+    clipped
 }
-fn timezone_calendar_add(
+
+fn timezone_explicit_interval(
     input: TimestamptzValue,
     amount: IntervalValue,
     zone: TextValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
     subtract: bool,
 ) -> TimestamptzValue {
     if let TimestamptzValue::Error(error) = input {
@@ -104,85 +249,61 @@ fn timezone_calendar_add(
     };
     if input == TimestamptzValue::Unknown
         || amount == IntervalValue::Unknown
-        || (zone == TextValue::Unknown || zone == TextValue::NonNull)
+        || zone == TextValue::Unknown
+        || zone == TextValue::NonNull
     {
         return TimestamptzValue::Unknown;
     };
     if input == TimestamptzValue::Null || amount == IntervalValue::Null || zone == TextValue::Null {
         return TimestamptzValue::Null;
     };
-    if let TextValue::Value(name) = zone {
-        let lookup = timezone_offset(name.as_str(), 0i64, false);
-        if let Int4Value::Error(error) = lookup {
-            return TimestamptzValue::Error(error);
-        };
-        if lookup == Int4Value::Unknown {
-            return TimestamptzValue::Unknown;
-        };
-        let mut adjusted = amount;
-        if subtract {
-            adjusted = sql__pg_catalog__interval_um__k6pj(amount);
-        };
-        if let IntervalValue::Error(error) = adjusted {
-            return TimestamptzValue::Error(error);
-        };
-        if let IntervalValue::Value(span) = adjusted {
-            if let TimestamptzValue::Value(timestamp) = input {
-                let special = interval_special(span);
-                if special != 0 {
-                    if (special < 0 && timestamp == 9223372036854775807i64)
-                        || (special > 0 && timestamp == (-9223372036854775808i64))
-                    {
-                        return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-                    };
-                    if special < 0 {
-                        return make_timestamptz_value(-9223372036854775808i64);
-                    };
-                    return make_timestamptz_value(9223372036854775807i64);
-                };
-                if timestamp == (-9223372036854775808i64) || timestamp == 9223372036854775807i64 {
-                    return input;
-                };
-                let mut result = input;
-                if span.months != 0 {
-                    result = timezone_calendar_step(timestamp, span.months, 0, name.as_str());
-                };
-                if let TimestamptzValue::Value(after_month) = result {
-                    if span.days != 0 {
-                        result = timezone_calendar_step(after_month, 0, span.days, name.as_str());
-                    };
-                };
-                if let TimestamptzValue::Value(after_day) = result {
-                    if (span.time > 0i64 && after_day > 9223372036854775807i64 - span.time)
-                        || (span.time < 0i64 && after_day < (-9223372036854775808i64) - span.time)
-                    {
-                        return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-                    };
-                    let final_time = after_day + span.time;
-                    if final_time == (-9223372036854775808i64)
-                        || final_time == 9223372036854775807i64
-                    {
-                        return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
-                    };
-                    return make_timestamptz_value(final_time);
-                };
-                return result;
-            };
-        };
+    let selected = timezone_lookup_name(zone, session, limit, utf8, default_profile);
+    if let TextValue::Error(error) = selected {
+        return TimestamptzValue::Error(error);
+    };
+    if let TextValue::Value(name) = selected {
+        return timezone_interval_add(input, amount, name.as_str(), subtract);
     };
     TimestamptzValue::Unknown
 }
+
 pub fn sql__pg_catalog__date_add__kklw(
     input: TimestamptzValue,
     amount: IntervalValue,
     zone: TextValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
 ) -> TimestamptzValue {
-    timezone_calendar_add(input, amount, zone, false)
+    timezone_explicit_interval(
+        input,
+        amount,
+        zone,
+        session,
+        limit,
+        utf8,
+        default_profile,
+        false,
+    )
 }
 pub fn sql__pg_catalog__date_subtract__kpni(
     input: TimestamptzValue,
     amount: IntervalValue,
     zone: TextValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
 ) -> TimestamptzValue {
-    timezone_calendar_add(input, amount, zone, true)
+    timezone_explicit_interval(
+        input,
+        amount,
+        zone,
+        session,
+        limit,
+        utf8,
+        default_profile,
+        true,
+    )
 }

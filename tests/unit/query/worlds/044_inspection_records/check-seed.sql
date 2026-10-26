@@ -1662,3 +1662,24 @@ INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expe
 
 -- name: RoundedClockSkipped
 INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','wrong','wrong','wrong','wrong',true);
+
+-- name: ExplicitZoneCalendarDay
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','America/New_York','2024-03-10 16:00+00','2024-03-08 17:00+00',false);
+-- name: ExplicitZoneElapsedDay
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','24 hours','America/New_York','2024-03-10 17:00+00','2024-03-08 17:00+00',false);
+-- name: ExplicitZoneMonthClip
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2001-01-31 23:00+00','1 month','UTC','2001-02-28 23:00+00','2000-12-31 23:00+00',false);
+-- name: ExplicitZoneFixedAbbreviation
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','EST','2024-03-10 17:00+00','2024-03-08 17:00+00',false);
+-- name: ExplicitZoneNull
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES(NULL,'1 day','',NULL,NULL,false);
+-- name: ExplicitZoneMissingName
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2001-01-01','1 day',NULL,NULL,NULL,false);
+-- name: ExplicitZoneInvalidBeforeInfinity
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('infinity','0','',NULL,NULL,false);
+-- name: ExplicitZoneAddMismatch
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','America/New_York','2024-03-10 17:00+00','2024-03-08 17:00+00',false);
+-- name: ExplicitZoneSubtractMismatch
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','America/New_York','2024-03-10 16:00+00','2024-03-08 16:00+00',false);
+-- name: ExplicitZoneSkipped
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('infinity','-9223372036854.775808 seconds','',NULL,NULL,true);

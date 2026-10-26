@@ -15,6 +15,7 @@ import { callableIdentity } from '../../../src/postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalExplicitZoneArithmetic,
 } from '../../../src/sql-semantics/temporal-casts.js'
 import { constantCheckExpression } from '../../../src/codegen/shared/check-rust-constants.js'
 import { portableCheckAtoms } from '../../../src/codegen/shared/check-atom-support.js'
@@ -79,5 +80,46 @@ it('admits selected stable instant arithmetic with explicit conditional calendar
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
     expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
     expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
+  }
+})
+
+it('keeps explicit-zone arithmetic tied to the native overload and exposes ordered lookup context', () => {
+  const operations = builtinCallables().filter(isTemporalExplicitZoneArithmetic)
+  expect(operations).toHaveLength(2)
+  for (const item of operations) {
+    expect(isTemporalExplicitZoneArithmetic({ ...item, schema: 'other' })).toBe(false)
+    expect(isTemporalExplicitZoneArithmetic({ ...item, volatility: 's' })).toBe(false)
+    expect(temporalArithmeticRequirements(item)?.map((r) => r.setting)).toEqual([
+      'TimeZone',
+      'timezone_abbreviations',
+      'maxIdentifierBytes',
+      'timezone_abbreviation_cache',
+    ])
+    expect(callableBoundary(item, new Set(item.args)).categories).toEqual(
+      expect.arrayContaining([
+        'session-setting:TimeZone',
+        'session-setting:timezone_abbreviations',
+        'build-setting:maxIdentifierBytes',
+        'session-setting:timezone_abbreviation_cache',
+      ]),
+    )
+    const probe = bindProbe(`pg_catalog.${item.name}(v,span,zone) IS NOT NULL`, [
+      { name: 'v', typeName: 'pg_catalog.timestamptz' },
+      { name: 'span', typeName: 'pg_catalog."interval"' },
+      { name: 'zone', typeName: 'pg_catalog.text' },
+    ])
+    expect(probe.fullyBound).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    const message = checkUnknownMessage(probe.expression)
+    expect(message).toContain('sql.codegen.checks.timeZone')
+    expect(message).toContain('sql.codegen.checks.timeZoneAbbreviations')
+    expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
+    expect(
+      checkUnknownMessage(probe.expression, undefined, {
+        timeZone: 'UTC',
+        timeZoneAbbreviations: 'Default',
+        maxIdentifierBytes: 63,
+      }),
+    ).not.toContain('sql.codegen.checks.')
   }
 })

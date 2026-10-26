@@ -14,6 +14,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalExplicitZoneArithmetic,
 } from '../../sql-semantics/temporal-casts.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
 import {
@@ -789,6 +790,7 @@ export type CheckExecutionContext = {
   quoteAllIdentifiers?: boolean
   byteaOutput?: 'hex' | 'escape'
   timeZone?: string
+  timeZoneAbbreviations?: 'Default'
   intervalStyle?: 'postgres' | 'postgres_verbose' | 'sql_standard' | 'iso_8601'
   dateStyle?: { format: 'ISO' | 'SQL' | 'Postgres' | 'German'; order: 'MDY' | 'DMY' | 'YMD' }
   xmlOption?: 'document' | 'content'
@@ -5346,6 +5348,13 @@ export function emitCheckRustEvaluator(
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation))
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
+      if (isTemporalExplicitZoneArithmetic(implementation))
+        arguments_.push(
+          rustStringLiteral(executionContext.timeZone ?? ''),
+          String(executionContext.maxIdentifierBytes ?? -1),
+          String(executionContext.serverEncoding === 'UTF8'),
+          String(executionContext.timeZoneAbbreviations === 'Default'),
+        )
       if (xmlCast || xmlPredicate)
         arguments_.push(
           String(
