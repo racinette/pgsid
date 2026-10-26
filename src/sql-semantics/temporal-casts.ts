@@ -64,7 +64,23 @@ export function isTemporalExplicitZoneArithmetic(item: BuiltinCallable): boolean
   )
 }
 
+export function isTemporalClockZoneLookup(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.name === 'timezone' &&
+    item.args.length === 2 &&
+    item.args[0] === 'pg_catalog.text' &&
+    item.args[1] === 'pg_catalog.timetz' &&
+    item.result === 'pg_catalog.timetz'
+  )
+}
+
 export function isTemporalExplicitZoneLookup(item: BuiltinCallable): boolean {
+  if (isTemporalClockZoneLookup(item)) return true
   return (
     isTemporalExplicitZoneArithmetic(item) ||
     (item.kind === 'function' &&

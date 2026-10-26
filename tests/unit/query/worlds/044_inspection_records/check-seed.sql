@@ -1733,3 +1733,32 @@ INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expecte
 INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-07-01 12:00','2000-07-01 12:00+00','MSK','2000-07-01 09:00+00','2000-07-01 16:00',false);
 -- name: ExplicitZoneProjectionSkipped
 INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2000-01-01','2000-01-01+00','+168',NULL,NULL,true);
+
+-- name: ClockZoneUtcEndOfDay
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('24:00+00','UTC','00:00+00',false);
+-- name: ClockZoneFixedAbbreviation
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:34:56.123456+05:30','EST','02:04:56.123456-05',false);
+-- name: ClockZoneRegistryDaylight
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','MSD','16:00+04',false);
+-- name: ClockZoneFixedFullName
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','Etc/UTC','12:00+00',false);
+-- name: ClockZoneNumeric
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','+02','10:00-02',false);
+-- name: ClockZoneWideResult
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','+167:59:60',timezone(interval '-168 hours',timetz '12:00+00'),false);
+-- name: ClockZoneWideStoredInput
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES(timezone(interval '-2147483648 seconds',timetz '00:00+00'),'UTC','17:31:44+00',false);
+-- name: ClockZoneNullInput
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES(NULL,'',NULL,false);
+-- name: ClockZoneNullName
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00',NULL,NULL,false);
+-- name: ClockZoneInvalid
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','',NULL,false);
+-- name: ClockZoneOutOfRange
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','+168',NULL,false);
+-- name: ClockZoneMismatch
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','EST','12:00-05',false);
+-- name: ClockZoneWireMismatch
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','UTC','13:00+01',false);
+-- name: ClockZoneSkippedVariable
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','America/New_York',NULL,true);

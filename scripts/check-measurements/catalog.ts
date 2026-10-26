@@ -3,6 +3,7 @@ import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callable
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../src/sql-semantics/temporal-casts.js'
 import {
@@ -745,57 +746,56 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
-  if (isTemporalExplicitZoneLookup(item))
+  if (isTemporalExplicitZoneLookup(item)) {
+    const owner = isTemporalClockZoneLookup(item)
+      ? 'tests/sql-semantics/check-timetz-zone.test.ts'
+      : item.name === 'timezone'
+        ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+        : item.name === 'date_trunc'
+          ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+          : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts'
     return [
+      ...(isTemporalClockZoneLookup(item)
+        ? [
+            {
+              kind: 'transaction',
+              setting: 'transaction_start',
+              requirement:
+                'Variable full-zone or forced-abbreviation offsets use the transaction start instant. Fixed offsets and constant forced histories remain definite without a client clock.',
+              owner: 'tests/sql-semantics/check-timetz-zone.test.ts',
+            },
+          ]
+        : []),
       {
         kind: 'session',
         setting: 'TimeZone',
         requirement:
           'Explicit timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb.',
-        owner:
-          item.name === 'timezone'
-            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-            : item.name === 'date_trunc'
-              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+        owner,
       },
       {
         kind: 'session',
         setting: 'timezone_abbreviations',
         requirement:
           'The declared Default profile supplies matching fixed and dynamic abbreviation definitions; absent registry facts defer reached lookup.',
-        owner:
-          item.name === 'timezone'
-            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-            : item.name === 'date_trunc'
-              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+        owner,
       },
       {
         kind: 'build',
         setting: 'maxIdentifierBytes',
         requirement:
           'Abbreviation lookup truncates identifiers using the deployment byte limit before case conversion; full timezone fallback retains the clipped original name.',
-        owner:
-          item.name === 'timezone'
-            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-            : item.name === 'date_trunc'
-              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+        owner,
       },
       {
         kind: 'session',
         setting: 'timezone_abbreviation_cache',
         requirement:
           'Distinct long session abbreviation names sharing the native cache prefix can depend on earlier lookups. Implicit POSIX rules and uncaptured timezone definitions remain separate boundaries.',
-        owner:
-          item.name === 'timezone'
-            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-            : item.name === 'date_trunc'
-              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+        owner,
       },
     ]
+  }
   if (!isTemporalContextArithmetic(item)) return null
   return [
     {
@@ -1178,7 +1178,11 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('session-setting:TimeZone')
   if (temporalCastRequirements(item)) categories.push('session-setting:TimeZone')
   for (const requirement of temporalArithmeticRequirements(item) ?? [])
-    categories.push(`${requirement.kind}-setting:${requirement.setting}`)
+    categories.push(
+      requirement.kind === 'transaction'
+        ? `transaction-state:${requirement.setting}`
+        : `${requirement.kind}-setting:${requirement.setting}`,
+    )
   if (temporalCastRequirements(item)?.some((r) => r.kind === 'transaction'))
     categories.push('transaction-state:local_date')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')

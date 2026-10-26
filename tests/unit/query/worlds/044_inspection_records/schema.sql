@@ -1392,3 +1392,14 @@ CREATE TABLE inspection_zone_projections (
  CONSTRAINT explicit_zone_project_record CHECK(CASE WHEN bypass THEN true ELSE
    (ROW(timezone(zone_name,instant_at),timezone(zone_name,local_stamp))::inspection_clock_boundary).local_stamp IS NOT DISTINCT FROM expected_stamp END)
 );
+
+CREATE TABLE inspection_clock_zones (
+ recorded_clock timetz,
+ target_zone text,
+ expected_clock timetz,
+ bypass boolean NOT NULL,
+ CONSTRAINT clock_zone_projection CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send(timezone(target_zone,recorded_clock)) IS NOT DISTINCT FROM timetz_send(expected_clock) END),
+ CONSTRAINT clock_zone_array CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send((ARRAY[timezone(target_zone,recorded_clock),NULL::timetz])[1]) IS NOT DISTINCT FROM timetz_send(expected_clock) END)
+);
