@@ -152,6 +152,9 @@ import them. Keep schema-only helpers with their callables.
   literals prepare before lazy branches; runtime text casts retain branch laziness.
   Catalog reads normalize interval rendering and re-deparse domain defaults from
   stored expressions, restoring caller settings afterward.
+  Interval output uses explicit postgres, postgres_verbose, sql_standard or ISO
+  context across scalar casts, containers and JSON, preserving independent signs.
+  Split clock components before taking absolute values to retain the signed minimum.
   Run the clock/interval suites and shift schedule INSERT world.
 - Float4 and float8 wrappers carry signed IEEE bit words, preserving signed zero
   and NaN payloads through binary send. Computed NaNs with unavailable bit patterns

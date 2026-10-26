@@ -366,8 +366,8 @@ describe('CHECK measurement boundaries', () => {
         kind: 'session',
         setting: 'IntervalStyle',
         requirement:
-          'Finite interval conversion requires IntervalStyle; SQL NULL, errors and both infinities remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Finite interval conversion uses declared IntervalStyle for postgres, postgres_verbose, sql_standard or iso_8601 output, shared with scalar casts and containers. Missing context defers output bytes; SQL NULL, errors and both infinities remain definite.',
+        owner: 'tests/sql-semantics/check-interval-output.test.ts',
       },
       {
         kind: 'session',
@@ -1249,6 +1249,18 @@ describe('CHECK measurement boundaries', () => {
       const forms = report.inputForms.types.find((forms) => forms.type === type)!
       expect(forms).toMatchObject({ unimplementedGrammar: [] })
     }
+    const intervalOutput = report.textOutput.find((e) => e.type === 'pg_catalog."interval"')!
+    expect(intervalOutput.probe.raw.fullyBound).toBe(true)
+    expect(intervalOutput.probe.stored!.fullyBound).toBe(true)
+    expect(intervalOutput.probe.raw.preparation.kind).toBe('supported')
+    expect(intervalOutput.probe.stored!.preparation.kind).toBe('supported')
+    expect(intervalOutput.valueRequirements).toMatchObject([
+      {
+        kind: 'session',
+        setting: 'IntervalStyle',
+        owner: 'tests/sql-semantics/check-interval-output.test.ts',
+      },
+    ])
     const intervalInput = report.textInput.find((entry) => entry.type === 'pg_catalog."interval"')!
     expect(intervalInput.probe.raw.fullyBound).toBe(true)
     expect(intervalInput.probe.stored!.fullyBound).toBe(true)

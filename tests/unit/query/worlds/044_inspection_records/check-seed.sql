@@ -1497,3 +1497,36 @@ INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected
 
 -- name: CalendarCastBypassed
 INSERT INTO inspection_calendar_text(day_value,stamp_value,expected_day,expected_stamp,expected_array,expected_present,bypass) VALUES('2001-02-03','2001-02-03','wrong','wrong','wrong',false,true);
+
+-- name: IntervalCastOrdinary
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','1 year 2 mons 3 days 04:05:06.123456','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,false);
+
+-- name: IntervalCastMixed
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('-1 mons +2 days -3.000004 seconds','-1 mons +2 days -00:00:03.000004','-1 mons +2 days','{"-1 mons +2 days -00:00:03.000004",NULL}','"-1 mons +2 days -00:00:03.000004"'::jsonb,true,false);
+
+-- name: IntervalCastZero
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('PT0S','00:00:00','00:00:00','{00:00:00,NULL}','"00:00:00"'::jsonb,true,false);
+
+-- name: IntervalCastInfinity
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('infinity','infinity','infinity','{infinity,NULL}','"infinity"'::jsonb,true,false);
+
+-- name: IntervalCastNull
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES(NULL,NULL,NULL,'{NULL,NULL}',NULL,false,false);
+
+-- name: IntervalCastWrongText
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','wrong','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,false);
+
+-- name: IntervalCastWrongWidth
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','1 year 2 mons 3 days 04:05:06.123456','wrong','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,false);
+
+-- name: IntervalCastWrongArray
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','1 year 2 mons 3 days 04:05:06.123456','1 year 2 mons 3','wrong','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,false);
+
+-- name: IntervalCastWrongJson
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','1 year 2 mons 3 days 04:05:06.123456','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','null'::jsonb,true,false);
+
+-- name: IntervalCastWrongPresence
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','1 year 2 mons 3 days 04:05:06.123456','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,false,false);
+
+-- name: IntervalCastBypassed
+INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','wrong','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,true);

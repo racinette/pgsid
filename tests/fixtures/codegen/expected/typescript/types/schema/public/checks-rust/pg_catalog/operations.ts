@@ -16157,6 +16157,266 @@ export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkrun
     }
     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
 }
+function intervalOutputAbsolute(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    if (value < 0n) {
+        return langruntime.checkedI64Subtract(0n, value);
+    }
+    return value;
+}
+function intervalOutputSeconds(seconds: bigint, fraction: bigint, padded: boolean): string {
+    seconds = langruntime.checkedI64(seconds);
+    fraction = langruntime.checkedI64(fraction);
+    padded = langruntime.checkedBool(padded);
+    let output: string = checkruntime.textSignedNumber(seconds);
+    if (padded && seconds < 10n) {
+        output = langruntime.checkedString("0");
+        output = output + checkruntime.textSignedNumber(seconds);
+    }
+    if (!(fraction === 0n)) {
+        output = output + langruntime.checkedChar(".");
+        let remaining: bigint = fraction;
+        let divisor: bigint = 100000n;
+        while (remaining > 0n) {
+            output = output + checkruntime.textSignedNumber(langruntime.checkedI64Divide(remaining, divisor));
+            remaining = langruntime.checkedI64(langruntime.checkedI64Remainder(remaining, divisor));
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 10n));
+        }
+    }
+    return output;
+}
+function intervalOutputClock(hour: bigint, minute: bigint, second: bigint, fraction: bigint, padded: boolean): string {
+    hour = langruntime.checkedI64(hour);
+    minute = langruntime.checkedI64(minute);
+    second = langruntime.checkedI64(second);
+    fraction = langruntime.checkedI64(fraction);
+    padded = langruntime.checkedBool(padded);
+    let output: string = checkruntime.textSignedNumber(hour);
+    if (padded && hour < 10n) {
+        output = langruntime.checkedString("0");
+        output = output + checkruntime.textSignedNumber(hour);
+    }
+    output = output + langruntime.checkedChar(":");
+    output = output + clockOutputPair(Number(BigInt.asIntN(32, langruntime.checkedI64(minute))));
+    output = output + langruntime.checkedChar(":");
+    output = output + intervalOutputSeconds(second, fraction, true);
+    return output;
+}
+function intervalOutputUnit(output: string, value: bigint, unit: string, plus: boolean): string {
+    output = langruntime.checkedString(output);
+    value = langruntime.checkedI64(value);
+    unit = langruntime.checkedString(unit);
+    plus = langruntime.checkedBool(plus);
+    let result: string = output;
+    if (value === 0n) {
+        return result;
+    }
+    if (!(result === "")) {
+        result = result + langruntime.checkedChar(" ");
+    }
+    if (plus && value > 0n) {
+        result = result + langruntime.checkedChar("+");
+    }
+    result = result + checkruntime.textSignedNumber(value);
+    result = result + langruntime.checkedChar(" ");
+    result = result + unit;
+    if (!(value === 1n)) {
+        result = result + langruntime.checkedChar("s");
+    }
+    return result;
+}
+function intervalOutputIsoField(output: string, value: bigint, unit: string): string {
+    output = langruntime.checkedString(output);
+    value = langruntime.checkedI64(value);
+    unit = langruntime.checkedChar(unit);
+    let result: string = output;
+    if (!(value === 0n)) {
+        result = result + checkruntime.textSignedNumber(value);
+        result = result + langruntime.checkedChar(unit);
+    }
+    return result;
+}
+export function intervalOutputContext(input: checkruntime.IntervalValue, style: number): checkruntime.TextValue {
+    style = langruntime.checkedI32(style);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.IntervalPayload = input.value;
+        const special: number = intervalSpecial(value);
+        if (special < 0) {
+            return checkruntime.makeTextValue("-infinity");
+        }
+        if (special > 0) {
+            return checkruntime.makeTextValue("infinity");
+        }
+        if (style < 1 || style > 4) {
+            return { kind: "NonNull" };
+        }
+        const year: bigint = BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide(value.months, 12))));
+        const month: bigint = BigInt(langruntime.checkedI32((langruntime.checkedSignedRemainder(value.months, 12))));
+        const day: bigint = BigInt(langruntime.checkedI32(value.days));
+        const hour: bigint = langruntime.checkedI64Divide(value.time, 3600000000n);
+        const minute: bigint = langruntime.checkedI64Remainder(langruntime.checkedI64Divide(value.time, 60000000n), 60n);
+        const second: bigint = langruntime.checkedI64Remainder(langruntime.checkedI64Divide(value.time, 1000000n), 60n);
+        const fraction: bigint = langruntime.checkedI64Remainder(value.time, 1000000n);
+        const negativeTime: boolean = value.time < 0n;
+        const seconds: string = intervalOutputSeconds(intervalOutputAbsolute(second), intervalOutputAbsolute(fraction), false);
+        const clock: string = intervalOutputClock(intervalOutputAbsolute(hour), intervalOutputAbsolute(minute), intervalOutputAbsolute(second), intervalOutputAbsolute(fraction), style === 1);
+        const zero: boolean = value.months === 0 && day === 0n && value.time === 0n;
+        if (style === 4) {
+            if (zero) {
+                return checkruntime.makeTextValue("PT0S");
+            }
+            let output: string = "P";
+            output = langruntime.checkedString(intervalOutputIsoField(output, year, "Y"));
+            output = langruntime.checkedString(intervalOutputIsoField(output, month, "M"));
+            output = langruntime.checkedString(intervalOutputIsoField(output, day, "D"));
+            if (!(value.time === 0n)) {
+                output = output + langruntime.checkedChar("T");
+            }
+            output = langruntime.checkedString(intervalOutputIsoField(output, hour, "H"));
+            output = langruntime.checkedString(intervalOutputIsoField(output, minute, "M"));
+            if (!(second === 0n) || !(fraction === 0n)) {
+                if (negativeTime) {
+                    output = output + langruntime.checkedChar("-");
+                }
+                output = output + seconds;
+                output = output + langruntime.checkedChar("S");
+            }
+            return { kind: "Value", value: output };
+        }
+        if (style === 3) {
+            if (zero) {
+                return checkruntime.makeTextValue("0");
+            }
+            const negative: boolean = value.months < 0 || day < 0n || negativeTime;
+            const positive: boolean = value.months > 0 || day > 0n || value.time > 0n;
+            const mixed: boolean = (negative && positive) || (!(value.months === 0) && (!(day === 0n) || !(value.time === 0n)));
+            let output: string = "";
+            if (mixed || negative) {
+                output = output + langruntime.checkedChar("-");
+                if (value.months >= 0 && mixed) {
+                    output = langruntime.checkedString("+");
+                }
+            }
+            if (mixed || !(value.months === 0)) {
+                output = output + checkruntime.textSignedNumber(intervalOutputAbsolute(year));
+                output = output + langruntime.checkedChar("-");
+                output = output + checkruntime.textSignedNumber(intervalOutputAbsolute(month));
+                if (mixed) {
+                    output = output + langruntime.checkedChar(" ");
+                }
+            }
+            if (mixed || (value.months === 0 && !(day === 0n))) {
+                if (mixed) {
+                    if (day < 0n) {
+                        output = output + langruntime.checkedChar("-");
+                    }
+                    else {
+                        output = output + langruntime.checkedChar("+");
+                    }
+                }
+                output = output + checkruntime.textSignedNumber(intervalOutputAbsolute(day));
+                output = output + langruntime.checkedChar(" ");
+            }
+            if (mixed || value.months === 0) {
+                if (mixed) {
+                    if (negativeTime) {
+                        output = output + langruntime.checkedChar("-");
+                    }
+                    else {
+                        output = output + langruntime.checkedChar("+");
+                    }
+                }
+                output = output + clock;
+            }
+            return { kind: "Value", value: output };
+        }
+        if (style === 1) {
+            let output: string = "";
+            let before: boolean = false;
+            output = langruntime.checkedString(intervalOutputUnit(output, year, "year", before));
+            if (!(year === 0n)) {
+                before = langruntime.checkedBool(year < 0n);
+            }
+            output = langruntime.checkedString(intervalOutputUnit(output, month, "mon", before));
+            if (!(month === 0n)) {
+                before = langruntime.checkedBool(month < 0n);
+            }
+            output = langruntime.checkedString(intervalOutputUnit(output, day, "day", before));
+            if (!(day === 0n)) {
+                before = langruntime.checkedBool(day < 0n);
+            }
+            if (output === "" || !(value.time === 0n)) {
+                if (!(output === "")) {
+                    output = output + langruntime.checkedChar(" ");
+                }
+                if (negativeTime) {
+                    output = output + langruntime.checkedChar("-");
+                }
+                else if (before) {
+                    output = output + langruntime.checkedChar("+");
+                }
+                output = output + clock;
+            }
+            return { kind: "Value", value: output };
+        }
+        let first: bigint = year;
+        if (first === 0n) {
+            first = langruntime.checkedI64(month);
+        }
+        if (first === 0n) {
+            first = langruntime.checkedI64(day);
+        }
+        if (first === 0n) {
+            first = langruntime.checkedI64(hour);
+        }
+        if (first === 0n) {
+            first = langruntime.checkedI64(minute);
+        }
+        if (first === 0n) {
+            first = langruntime.checkedI64(second);
+        }
+        if (first === 0n) {
+            first = langruntime.checkedI64(fraction);
+        }
+        const before: boolean = first < 0n;
+        let sign: bigint = 1n;
+        if (before) {
+            sign = langruntime.checkedI64(-1n);
+        }
+        let output: string = "@";
+        output = langruntime.checkedString(intervalOutputUnit(output, langruntime.checkedI64Multiply(year, sign), "year", false));
+        output = langruntime.checkedString(intervalOutputUnit(output, langruntime.checkedI64Multiply(month, sign), "mon", false));
+        output = langruntime.checkedString(intervalOutputUnit(output, langruntime.checkedI64Multiply(day, sign), "day", false));
+        output = langruntime.checkedString(intervalOutputUnit(output, langruntime.checkedI64Multiply(hour, sign), "hour", false));
+        output = langruntime.checkedString(intervalOutputUnit(output, langruntime.checkedI64Multiply(minute, sign), "min", false));
+        if (!(second === 0n) || !(fraction === 0n)) {
+            output = output + langruntime.checkedChar(" ");
+            if (!(negativeTime === before)) {
+                output = output + langruntime.checkedChar("-");
+            }
+            output = output + seconds;
+            output = output + " sec";
+            if (!(intervalOutputAbsolute(second) === 1n) || !(fraction === 0n)) {
+                output = output + langruntime.checkedChar("s");
+            }
+        }
+        if (zero) {
+            output = output + " 0";
+        }
+        if (before) {
+            output = output + " ago";
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 export function jsonExtractPathAdkn(input: checkruntime.JsonValue, path: checkruntime.ArrayValue, utf8: boolean): checkruntime.JsonValue {
     path = checkruntime.copyArrayValue(path);
     utf8 = langruntime.checkedBool(utf8);
@@ -17785,24 +18045,11 @@ export function jsonbInputFromMoney(input: checkruntime.MoneyValue): checkruntim
     return { kind: "Unknown" };
 }
 export function jsonbInputFromInterval(input: checkruntime.IntervalValue): checkruntime.JsonbInput {
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    if (checkruntime.equalIntervalValue(input, { kind: "Null" })) {
-        return { kind: "Null" };
-    }
-    if (input.kind === "Value") {
-        const value: checkruntime.IntervalPayload = input.value;
-        const special: number = intervalSpecial(value);
-        if (special < 0) {
-            return { kind: "Text", value: "-infinity" };
-        }
-        if (special > 0) {
-            return { kind: "Text", value: "infinity" };
-        }
-    }
-    return { kind: "Unknown" };
+    return jsonbInputFromIntervalContext(input, 0);
+}
+export function jsonbInputFromIntervalContext(input: checkruntime.IntervalValue, style: number): checkruntime.JsonbInput {
+    style = langruntime.checkedI32(style);
+    return checkruntime.jsonbInputFromText(intervalOutputContext(input, style));
 }
 function jsonbFloatOutputInput(input: checkruntime.TextValue): checkruntime.JsonbInput {
     if (input.kind === "Error") {

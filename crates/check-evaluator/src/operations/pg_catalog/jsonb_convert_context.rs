@@ -48,22 +48,11 @@ pub fn jsonb_input_from_money(input: MoneyValue) -> JsonbInput {
 }
 
 pub fn jsonb_input_from_interval(input: IntervalValue) -> JsonbInput {
-    if let IntervalValue::Error(error) = input {
-        return JsonbInput::Error(error);
-    };
-    if input == IntervalValue::Null {
-        return JsonbInput::Null;
-    };
-    if let IntervalValue::Value(value) = input {
-        let special = interval_special(value);
-        if special < 0 {
-            return JsonbInput::Text("-infinity".to_owned());
-        };
-        if special > 0 {
-            return JsonbInput::Text("infinity".to_owned());
-        };
-    };
-    JsonbInput::Unknown
+    jsonb_input_from_interval_context(input,0)
+}
+
+pub fn jsonb_input_from_interval_context(input: IntervalValue, style: i32) -> JsonbInput {
+    jsonb_input_from_text(interval_output_context(input,style))
 }
 
 fn jsonb_float_output_input(input: TextValue) -> JsonbInput {

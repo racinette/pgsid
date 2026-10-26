@@ -157,6 +157,35 @@ function needsCalendarOutput(value: unknown): boolean {
   return Object.values(value).some(needsCalendarOutput)
 }
 
+function needsIntervalOutput(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const node = value as {
+    kind?: string
+    elementType?: string
+    operand?: { type?: string; expression?: { type?: string } }
+    call?: { signature?: string | null }
+    operands?: { type?: string; expression?: { type?: string } }[]
+  }
+  if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
+    const type = node.elementType ?? node.operand?.type ?? node.operand?.expression?.type
+    if (type) {
+      const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
+      if (rendersType(profile?.elementType ?? type, 'pg_catalog."interval"')) return true
+    }
+  }
+  if (
+    node.kind === 'call' &&
+    node.call?.signature &&
+    jsonConversions.has(node.call.signature) &&
+    node.operands?.some((o) => {
+      const type = o.type ?? o.expression?.type
+      return type !== undefined && rendersType(type, 'pg_catalog."interval"')
+    })
+  )
+    return true
+  return Object.values(value).some(needsIntervalOutput)
+}
+
 export function checkUnknownMessage(
   expression: EvalBoolExpression,
   reason?: string,
@@ -170,6 +199,9 @@ export function checkUnknownMessage(
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=
       ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'
+  if (context.intervalStyle === undefined && needsIntervalOutput(expression))
+    message +=
+      ' Interval text output can require an explicit sql.codegen.checks.intervalStyle setting.'
   if (context.dateStyle === undefined && needsCalendarOutput(expression))
     message +=
       ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'

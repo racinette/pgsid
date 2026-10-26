@@ -352,6 +352,12 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
   item.volatility === 'i' &&
   !item.returnsSet
 
+const intervalOutputStyle = (context: Pick<CheckExecutionContext, 'intervalStyle'>): number =>
+  context.intervalStyle === undefined
+    ? 0
+    : ['postgres', 'postgres_verbose', 'sql_standard', 'iso_8601'].indexOf(context.intervalStyle) +
+      1
+
 const calendarOutputStyle = (context: Pick<CheckExecutionContext, 'dateStyle'>): number => {
   const profile = context.dateStyle
   if (!profile) return 0
@@ -368,7 +374,12 @@ const arrayElementOutput = (
   scalar: string,
   context: Pick<
     CheckExecutionContext,
-    'moneyLocale' | 'moneyFractionDigits' | 'extraFloatDigits' | 'byteaOutput' | 'dateStyle'
+    | 'moneyLocale'
+    | 'moneyFractionDigits'
+    | 'extraFloatDigits'
+    | 'byteaOutput'
+    | 'dateStyle'
+    | 'intervalStyle'
   >,
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
   elementType = arrayElementBaseType(elementType)
@@ -430,6 +441,8 @@ const arrayElementOutput = (
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
   else if (family === 4 || family === 7)
     conversion = `${family === 4 ? 'timestamp' : 'date'}_output_context(${scalar},${calendarOutputStyle(context)})`
+  else if (family === 23)
+    conversion = `interval_output_context(${scalar},${intervalOutputStyle(context)})`
   else if (family === 15)
     conversion = `bytea_output_context(${scalar},${context.byteaOutput === 'hex' ? 1 : context.byteaOutput === 'escape' ? 2 : 0},false)`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
@@ -765,6 +778,7 @@ export type CheckExecutionContext = {
   arrayNulls?: boolean
   quoteAllIdentifiers?: boolean
   byteaOutput?: 'hex' | 'escape'
+  intervalStyle?: 'postgres' | 'postgres_verbose' | 'sql_standard' | 'iso_8601'
   dateStyle?: { format: 'ISO' | 'SQL' | 'Postgres' | 'German'; order: 'MDY' | 'DMY' | 'YMD' }
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
@@ -1128,9 +1142,11 @@ export function emitCheckRustEvaluator(
     if (!profile) return false
     return (
       !!profile.subtypeCompositeGraph ||
-      [4, 7, 15].includes(arrayElementFamily(arrayElementBaseType(profile.elementType)) ?? -1) ||
+      [4, 7, 15, 23].includes(
+        arrayElementFamily(arrayElementBaseType(profile.elementType)) ?? -1,
+      ) ||
       (rangeBoundProfiles(profile, executionContext)?.some((node) =>
-        [4, 7, 15].includes(node.kind),
+        [4, 7, 15, 23].includes(node.kind),
       ) ??
         false) ||
       (moneyTextCLocale(executionContext) &&
@@ -4927,11 +4943,13 @@ export function emitCheckRustEvaluator(
                 ? 'jsonb_input_from_money_context'
                 : operand.type === 'pg_catalog.bytea'
                   ? 'jsonb_input_from_bytea_context'
-                  : rawJson && operand.type === 'pg_catalog."numeric"'
-                    ? 'json_input_from_numeric'
-                    : operand.type === 'pg_catalog."json"' && !rawJson
-                      ? 'jsonb_input_from_json_context'
-                      : jsonbConversionHelper(operand.type)
+                  : operand.type === 'pg_catalog."interval"'
+                    ? 'jsonb_input_from_interval_context'
+                    : rawJson && operand.type === 'pg_catalog."numeric"'
+                      ? 'json_input_from_numeric'
+                      : operand.type === 'pg_catalog."json"' && !rawJson
+                        ? 'jsonb_input_from_json_context'
+                        : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
@@ -4940,6 +4958,8 @@ export function emitCheckRustEvaluator(
           const args = [ownedOperand(operand)]
           if (operand.type === 'pg_catalog.money')
             args.push(String(moneyTextCLocale(executionContext)))
+          if (operand.type === 'pg_catalog."interval"')
+            args.push(String(intervalOutputStyle(executionContext)))
           if (operand.type === 'pg_catalog.bytea')
             args.push(
               String(
@@ -5865,6 +5885,13 @@ export function emitCheckRustEvaluator(
           type: node.type,
           name: bind(
             `${operand.type === 'pg_catalog.date' ? 'date' : 'timestamp'}_output_context(${operand.name},${calendarOutputStyle(executionContext)})`,
+          ),
+        }
+      if (operand.type === 'pg_catalog."interval"')
+        return {
+          type: node.type,
+          name: bind(
+            `interval_output_context(${ownedOperand(operand)},${intervalOutputStyle(executionContext)})`,
           ),
         }
       if (operand.type === 'pg_catalog.bytea')

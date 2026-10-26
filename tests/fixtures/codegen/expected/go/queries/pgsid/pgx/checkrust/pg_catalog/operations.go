@@ -16062,6 +16062,251 @@ func MakeIntervalNlc1(years checkruntime.Int4Value, months checkruntime.Int4Valu
 	}
 	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
 }
+func intervalOutputAbsolute(value int64) int64 {
+	if value < int64(0) {
+		return langruntime.CheckedI64Subtract(int64(0), value)
+	}
+	return value
+}
+func intervalOutputSeconds(seconds int64, fraction int64, padded bool) string {
+	output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(seconds))
+	if padded && seconds < int64(10) {
+		output = langruntime.NewTextBuffer("0")
+		output = append(output, checkruntime.TextSignedNumber(seconds)...)
+	}
+	if fraction != int64(0) {
+		output = append(output, string(langruntime.CheckedChar('.'))...)
+		remaining := fraction
+		divisor := int64(100000)
+		for remaining > int64(0) {
+			output = append(output, checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(remaining, divisor))...)
+			remaining = langruntime.CheckedI64Remainder(remaining, divisor)
+			divisor = langruntime.CheckedI64Divide(divisor, int64(10))
+		}
+	}
+	return string(output)
+}
+func intervalOutputClock(hour int64, minute int64, second int64, fraction int64, padded bool) string {
+	output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(hour))
+	if padded && hour < int64(10) {
+		output = langruntime.NewTextBuffer("0")
+		output = append(output, checkruntime.TextSignedNumber(hour)...)
+	}
+	output = append(output, string(langruntime.CheckedChar(':'))...)
+	output = append(output, clockOutputPair(int(int32(minute)))...)
+	output = append(output, string(langruntime.CheckedChar(':'))...)
+	output = append(output, intervalOutputSeconds(second, fraction, true)...)
+	return string(output)
+}
+func intervalOutputUnit(output string, value int64, unit string, plus bool) string {
+	output = langruntime.CheckedString(output)
+	unit = langruntime.CheckedString(unit)
+	result := langruntime.NewTextBuffer(output)
+	if value == int64(0) {
+		return string(result)
+	}
+	if string(result) != "" {
+		result = append(result, string(langruntime.CheckedChar(' '))...)
+	}
+	if plus && value > int64(0) {
+		result = append(result, string(langruntime.CheckedChar('+'))...)
+	}
+	result = append(result, checkruntime.TextSignedNumber(value)...)
+	result = append(result, string(langruntime.CheckedChar(' '))...)
+	result = append(result, unit...)
+	if value != int64(1) {
+		result = append(result, string(langruntime.CheckedChar('s'))...)
+	}
+	return string(result)
+}
+func intervalOutputIsoField(output string, value int64, unit rune) string {
+	output = langruntime.CheckedString(output)
+	unit = langruntime.CheckedChar(unit)
+	result := langruntime.NewTextBuffer(output)
+	if value != int64(0) {
+		result = append(result, checkruntime.TextSignedNumber(value)...)
+		result = append(result, string(langruntime.CheckedChar(unit))...)
+	}
+	return string(result)
+}
+func IntervalOutputContext(input checkruntime.IntervalValue, style int) checkruntime.TextValue {
+	style = langruntime.CheckedI32(style)
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		value := input.Value
+		special := intervalSpecial(value)
+		if special < 0 {
+			return checkruntime.MakeTextValue("-infinity")
+		}
+		if special > 0 {
+			return checkruntime.MakeTextValue("infinity")
+		}
+		if style < 1 || style > 4 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		year := int64(langruntime.CheckedI32((langruntime.CheckedSignedDivide(value.Months, 12))))
+		month := int64(langruntime.CheckedI32((langruntime.CheckedSignedRemainder(value.Months, 12))))
+		day := int64(langruntime.CheckedI32(value.Days))
+		hour := langruntime.CheckedI64Divide(value.Time, int64(3600000000))
+		minute := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(value.Time, int64(60000000)), int64(60))
+		second := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(value.Time, int64(1000000)), int64(60))
+		fraction := langruntime.CheckedI64Remainder(value.Time, int64(1000000))
+		negativeTime := value.Time < int64(0)
+		seconds := intervalOutputSeconds(intervalOutputAbsolute(second), intervalOutputAbsolute(fraction), false)
+		clock := intervalOutputClock(intervalOutputAbsolute(hour), intervalOutputAbsolute(minute), intervalOutputAbsolute(second), intervalOutputAbsolute(fraction), style == 1)
+		zero := value.Months == 0 && day == int64(0) && value.Time == int64(0)
+		if style == 4 {
+			if zero {
+				return checkruntime.MakeTextValue("PT0S")
+			}
+			output := langruntime.NewTextBuffer("P")
+			output = langruntime.NewTextBuffer(intervalOutputIsoField(string(output), year, 'Y'))
+			output = langruntime.NewTextBuffer(intervalOutputIsoField(string(output), month, 'M'))
+			output = langruntime.NewTextBuffer(intervalOutputIsoField(string(output), day, 'D'))
+			if value.Time != int64(0) {
+				output = append(output, string(langruntime.CheckedChar('T'))...)
+			}
+			output = langruntime.NewTextBuffer(intervalOutputIsoField(string(output), hour, 'H'))
+			output = langruntime.NewTextBuffer(intervalOutputIsoField(string(output), minute, 'M'))
+			if second != int64(0) || fraction != int64(0) {
+				if negativeTime {
+					output = append(output, string(langruntime.CheckedChar('-'))...)
+				}
+				output = append(output, seconds...)
+				output = append(output, string(langruntime.CheckedChar('S'))...)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		if style == 3 {
+			if zero {
+				return checkruntime.MakeTextValue("0")
+			}
+			negative := value.Months < 0 || day < int64(0) || negativeTime
+			positive := value.Months > 0 || day > int64(0) || value.Time > int64(0)
+			mixed := (negative && positive) || (value.Months != 0 && (day != int64(0) || value.Time != int64(0)))
+			output := langruntime.NewTextBuffer("")
+			if mixed || negative {
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+				if value.Months >= 0 && mixed {
+					output = langruntime.NewTextBuffer("+")
+				}
+			}
+			if mixed || value.Months != 0 {
+				output = append(output, checkruntime.TextSignedNumber(intervalOutputAbsolute(year))...)
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+				output = append(output, checkruntime.TextSignedNumber(intervalOutputAbsolute(month))...)
+				if mixed {
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+				}
+			}
+			if mixed || (value.Months == 0 && day != int64(0)) {
+				if mixed {
+					if day < int64(0) {
+						output = append(output, string(langruntime.CheckedChar('-'))...)
+					} else {
+						output = append(output, string(langruntime.CheckedChar('+'))...)
+					}
+				}
+				output = append(output, checkruntime.TextSignedNumber(intervalOutputAbsolute(day))...)
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+			if mixed || value.Months == 0 {
+				if mixed {
+					if negativeTime {
+						output = append(output, string(langruntime.CheckedChar('-'))...)
+					} else {
+						output = append(output, string(langruntime.CheckedChar('+'))...)
+					}
+				}
+				output = append(output, clock...)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		if style == 1 {
+			output := langruntime.NewTextBuffer("")
+			before := false
+			output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), year, "year", before))
+			if year != int64(0) {
+				before = year < int64(0)
+			}
+			output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), month, "mon", before))
+			if month != int64(0) {
+				before = month < int64(0)
+			}
+			output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), day, "day", before))
+			if day != int64(0) {
+				before = day < int64(0)
+			}
+			if string(output) == "" || value.Time != int64(0) {
+				if string(output) != "" {
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+				}
+				if negativeTime {
+					output = append(output, string(langruntime.CheckedChar('-'))...)
+				} else if before {
+					output = append(output, string(langruntime.CheckedChar('+'))...)
+				}
+				output = append(output, clock...)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		first := year
+		if first == int64(0) {
+			first = month
+		}
+		if first == int64(0) {
+			first = day
+		}
+		if first == int64(0) {
+			first = hour
+		}
+		if first == int64(0) {
+			first = minute
+		}
+		if first == int64(0) {
+			first = second
+		}
+		if first == int64(0) {
+			first = fraction
+		}
+		before := first < int64(0)
+		sign := int64(1)
+		if before {
+			sign = int64(-1)
+		}
+		output := langruntime.NewTextBuffer("@")
+		output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), langruntime.CheckedI64Multiply(year, sign), "year", false))
+		output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), langruntime.CheckedI64Multiply(month, sign), "mon", false))
+		output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), langruntime.CheckedI64Multiply(day, sign), "day", false))
+		output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), langruntime.CheckedI64Multiply(hour, sign), "hour", false))
+		output = langruntime.NewTextBuffer(intervalOutputUnit(string(output), langruntime.CheckedI64Multiply(minute, sign), "min", false))
+		if second != int64(0) || fraction != int64(0) {
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			if negativeTime != before {
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+			}
+			output = append(output, seconds...)
+			output = append(output, " sec"...)
+			if intervalOutputAbsolute(second) != int64(1) || fraction != int64(0) {
+				output = append(output, string(langruntime.CheckedChar('s'))...)
+			}
+		}
+		if zero {
+			output = append(output, " 0"...)
+		}
+		if before {
+			output = append(output, " ago"...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func JsonExtractPathAdkn(input checkruntime.JsonValue, path checkruntime.ArrayValue, utf8 bool) checkruntime.JsonValue {
 	path = checkruntime.CopyArrayValue(path)
 	selected := checkruntime.JsonReadArrayPath(input, path, false, utf8)
@@ -17675,24 +17920,11 @@ func JsonbInputFromMoney(input checkruntime.MoneyValue) checkruntime.JsonbInput 
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }
 func JsonbInputFromInterval(input checkruntime.IntervalValue) checkruntime.JsonbInput {
-	if input.Kind == checkruntime.IntervalValueError {
-		error := input.Error
-		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
-	}
-	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
-		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
-	}
-	if input.Kind == checkruntime.IntervalValueValue {
-		value := input.Value
-		special := intervalSpecial(value)
-		if special < 0 {
-			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "-infinity"}
-		}
-		if special > 0 {
-			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
-		}
-	}
-	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+	return JsonbInputFromIntervalContext(input, 0)
+}
+func JsonbInputFromIntervalContext(input checkruntime.IntervalValue, style int) checkruntime.JsonbInput {
+	style = langruntime.CheckedI32(style)
+	return checkruntime.JsonbInputFromText(IntervalOutputContext(input, style))
 }
 func jsonbFloatOutputInput(input checkruntime.TextValue) checkruntime.JsonbInput {
 	if input.Kind == checkruntime.TextValueError {

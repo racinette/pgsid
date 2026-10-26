@@ -31,6 +31,12 @@ describe('config schema', () => {
             `schema: schema.sql\nsql:\n  codegen:\n    checks: { dateStyle: { format: ${format}, order: ${order} } }\n`,
           ).sql.codegen?.checks,
         ).toEqual({ dateStyle: { format, order } })
+    for (const intervalStyle of ['postgres', 'postgres_verbose', 'sql_standard', 'iso_8601'])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { intervalStyle: ${intervalStyle} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ intervalStyle })
     for (const byteaOutput of ['hex', 'escape'])
       expect(
         parseConfigString(
@@ -87,6 +93,9 @@ describe('config schema', () => {
       '{ quoteAllIdentifiers: 0 }',
       '{ byteaOutput: base64 }',
       '{ dateStyle: ISO }',
+      '{ intervalStyle: default }',
+      '{ intervalStyle: POSTGRES }',
+      '{ intervalStyle: 0 }',
       '{ dateStyle: { format: ISO } }',
       '{ dateStyle: { format: iso, order: MDY } }',
       '{ dateStyle: { format: ISO, order: default } }',
