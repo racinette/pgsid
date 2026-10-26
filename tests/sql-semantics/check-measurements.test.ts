@@ -1188,12 +1188,24 @@ describe('CHECK measurement boundaries', () => {
       platformDependent: expect.arrayContaining(['(0x1p0,0)', '(NaN(1),0)']),
     })
     expect(pointForms.handled).toEqual(expect.arrayContaining(['1,2', '(-0,-0)', '(NaN,NaN)']))
-    const floatOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.float8')!
-    expect(floatOutput.probe.raw.fullyBound).toBe(false)
-    expect(
-      callableBoundary(builtinMetadata(floatOutput.output!), new Set(['pg_catalog.float8']))
-        .categories,
-    ).toContain('session-setting:extra_float_digits')
+    for (const type of ['pg_catalog.float4', 'pg_catalog.float8']) {
+      const floatOutput = report.textOutput.find((entry) => entry.type === type)!
+      expect(floatOutput.probe.raw.fullyBound).toBe(true)
+      expect(floatOutput.probe.stored!.fullyBound).toBe(true)
+      expect(floatOutput.probe.raw.preparation.kind).toBe('supported')
+      expect(floatOutput.probe.stored!.preparation.kind).toBe('supported')
+      expect(floatOutput.valueRequirements).toEqual([
+        {
+          kind: 'session',
+          setting: 'extra_float_digits',
+          requirement: expect.any(String),
+          owner: 'tests/sql-semantics/check-float-text-casts.test.ts',
+        },
+      ])
+      expect(
+        callableBoundary(builtinMetadata(floatOutput.output!), new Set([type])).categories,
+      ).toContain('session-setting:extra_float_digits')
+    }
     for (const type of ['pg_catalog."time"', 'pg_catalog.timetz']) {
       const input = report.textInput.find((entry) => entry.type === type)!
       expect(input.probe.raw.fullyBound).toBe(true)

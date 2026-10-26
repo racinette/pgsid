@@ -113,7 +113,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 
 - [x] Establish IEEE bit conversion primitives before floating-point values, casts, comparisons, and binary I/O.
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs and defaults, restoring the caller's rendering settings after the read.
-- [x] Floating point (`float4`, `float8`); establish portable shortest and precision-controlled text rendering over exact IEEE carriers, signed zero and semantic NaNs, with explicit extra_float_digits context, including array output, and recovery of setting-invariant output. Public text-cast admission remains in the coercion audit.
+- [x] Floating point (`float4`, `float8`); establish portable shortest and precision-controlled text rendering over exact IEEE carriers, signed zero and semantic NaNs, with explicit extra_float_digits context, including scalar/domain text casts, bounded character casts and array output, and recovery of setting-invariant output. Preserve literal output precision and skipped branches through source/stored CHECKs and INSERT parity.
 - [x] Audit platform-generated NaN binary precision in floating input, literals and geometry; retain known NaN semantics when output bits require platform context.
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic, core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog literals, and explicit IntervalStyle requirements.

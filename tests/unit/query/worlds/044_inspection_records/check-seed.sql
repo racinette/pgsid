@@ -1407,3 +1407,36 @@ INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected
 
 -- name: NameCastBypassed
 INSERT INTO inspection_name_casts(source,varying_value,padded,reference,expected_equal,expected_padded,expected_less,expected_nulled,expected_array,bypass) VALUES('arbitrary','arbitrary','arbitrary','other',NULL,NULL,NULL,NULL,NULL,true);
+
+-- name: FloatCastOne
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'1','1','1','1',1,false);
+
+-- name: FloatCastNegativeZero
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES('-0','-0','-0','-0','-0','-0',1,false);
+
+-- name: FloatCastSpecial
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES('NaN','Infinity','NaN','Infinity','Infini','Infinity',1,false);
+
+-- name: FloatCastNull
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,1,false);
+
+-- name: FloatCastPrecision
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1.23456789,1.2345678901234567,'1.2345679','1.2345678901234567','1.2345','1.2345678901234567',1,false);
+
+-- name: FloatCastWrongSingle
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'wrong','1','1','1',1,false);
+
+-- name: FloatCastWrongDouble
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'1','wrong','1','1',1,false);
+
+-- name: FloatCastWrongWidth
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'1','1','wrong','1',1,false);
+
+-- name: FloatCastWrongQuotient
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'1','1','1','wrong',1,false);
+
+-- name: FloatCastDivisionError
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'1','1','1','1',0,false);
+
+-- name: FloatCastBypassed
+INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'wrong','wrong','wrong','wrong',0,true);
