@@ -15,7 +15,7 @@ import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { isMoneyNumericConversion } from './money-callables.js'
-import { isTemporalContextCast } from './temporal-casts.js'
+import { isTemporalContextCast, isTemporalTimestampFormatting } from './temporal-casts.js'
 import {
   rangeSubtypeCarrierIdentity,
   rangeSubtypeIsDomain,
@@ -2105,7 +2105,7 @@ const comparisonCandidate = (
     : null
 }
 
-const arrayDefaultCollation = (
+const callDefaultCollation = (
   signature: string,
   collation?: BoundCollation,
 ): { collationDefault?: true } => {
@@ -2113,7 +2113,8 @@ const arrayDefaultCollation = (
   return collation?.default &&
     (metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray') ||
-      isRegexArrayCallable(signature))
+      isRegexArrayCallable(signature) ||
+      isTemporalTimestampFormatting(metadata))
     ? { collationDefault: true }
     : {}
 }
@@ -3957,7 +3958,7 @@ export function bindCatalogCheck(
                 }
               : {}),
             collation: collation?.kind,
-            ...arrayDefaultCollation(selected.signature, collation ?? undefined),
+            ...callDefaultCollation(selected.signature, collation ?? undefined),
             ...((resolved?.enum ?? carrier?.enum) ? { enum: resolved?.enum ?? carrier?.enum } : {}),
           },
           operands: args.map((arg) => arg.value!),
@@ -4500,7 +4501,7 @@ export function bindCatalogCheck(
                 signature: resolved.signature,
                 type: 'pg_catalog.bool',
                 collation: resolved.collation?.kind,
-                ...arrayDefaultCollation(resolved.signature, resolved.collation),
+                ...callDefaultCollation(resolved.signature, resolved.collation),
               },
             },
       }
@@ -4703,7 +4704,7 @@ export function bindCatalogCheck(
           signature: match!.signature,
           type: 'pg_catalog.bool',
           collation: match!.collation?.kind,
-          ...arrayDefaultCollation(match!.signature, match!.collation),
+          ...callDefaultCollation(match!.signature, match!.collation),
         }))
         conditions = resolved.map((match) => match!.operands[1]!)
       } else {
@@ -7325,7 +7326,7 @@ export function bindCatalogCheck(
                     signature: pair!.signature,
                     type: 'pg_catalog.bool',
                     collation: pair!.collation?.kind,
-                    ...arrayDefaultCollation(pair!.signature, pair!.collation),
+                    ...callDefaultCollation(pair!.signature, pair!.collation),
                   },
                   operands: pair!.operands,
                   strictNull: true,
@@ -7384,7 +7385,7 @@ export function bindCatalogCheck(
               signature: entry.comparator!,
               type: 'pg_catalog.int4',
               collation: pair!.collation?.kind,
-              ...arrayDefaultCollation(pair!.signature, pair!.collation),
+              ...callDefaultCollation(pair!.signature, pair!.collation),
             },
           })
         }
@@ -7583,7 +7584,7 @@ export function bindCatalogCheck(
             signature: first.signature,
             type: 'pg_catalog.bool',
             collation: collation?.kind,
-            ...arrayDefaultCollation(first.signature, collation),
+            ...callDefaultCollation(first.signature, collation),
           },
         },
       }
@@ -7629,7 +7630,7 @@ export function bindCatalogCheck(
         signature: resolved.signature,
         type: 'pg_catalog.bool' as const,
         collation: resolved.collation?.kind,
-        ...arrayDefaultCollation(resolved.signature, resolved.collation),
+        ...callDefaultCollation(resolved.signature, resolved.collation),
       }
       if (operator['kind'] === 'AEXPR_NULLIF') {
         const type =
@@ -8475,7 +8476,7 @@ export function bindCatalogCheck(
           ...(outputEnum ? { enum: outputEnum } : {}),
           ...(inputEnums.length ? { inputEnums } : {}),
           collation: collation?.kind,
-          ...arrayDefaultCollation(resolved.signature, collation),
+          ...callDefaultCollation(resolved.signature, collation),
         },
         operands: resolved.operands,
       },

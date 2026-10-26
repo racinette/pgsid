@@ -252,3 +252,18 @@ export function isTemporalIntervalFormatting(item: BuiltinCallable): boolean {
     item.args.join(',') === 'pg_catalog."interval",pg_catalog.text'
   )
 }
+
+export function isTemporalTimestampFormatting(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'to_char' &&
+    item.volatility === 's' &&
+    item.strict &&
+    !item.returnsSet &&
+    item.result === 'pg_catalog.text' &&
+    item.args.length === 2 &&
+    item.args[1] === 'pg_catalog.text' &&
+    ['pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(item.args[0]!)
+  )
+}

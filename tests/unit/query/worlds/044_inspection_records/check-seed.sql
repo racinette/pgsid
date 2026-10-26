@@ -2050,3 +2050,34 @@ INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypa
 INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','MONTH',NULL,true);
 -- name: DurationLabelWrong
 INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('25 hours','HH24','01',false);
+
+-- name: CalendarLabelOffset
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('1999-12-31 23:59:59.123456','2000-01-01 01:59:59.123456+02','YYYY-MM-DD HH24:MI:SS.US','1999-12-31 23:59:59.123456','1999-12-31 23:59:59.123456',false);
+-- name: CalendarLabelMonth
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2024-07-04','2024-07-04+00','FMMonth DD, YYYY','July 04, 2024','July 04, 2024',false);
+-- name: CalendarLabelLocalized
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','TMDAY TMMonth','SATURDAY January','SATURDAY January',false);
+-- name: CalendarLabelEra
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('0001-01-01 BC','0001-01-01+00 BC','YYYY BC CC','0001 BC -01','0001 BC -01',false);
+-- name: CalendarLabelIsoWeek
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','IYYY-IW-ID IDDD DDD','1999-52-6 363 001','1999-52-6 363 001',false);
+-- name: CalendarLabelTimezone
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','"["TZ"]" TZH:TZM OF','[] +00:00 +00','[UTC] +00:00 +00',false);
+-- name: CalendarLabelFractionFill
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01 00:00:00.000001','2000-01-01 00:00:00.000001+00','FMUS FF6','000001 000001','000001 000001',false);
+-- name: CalendarLabelEmptyPattern
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','',NULL,NULL,false);
+-- name: CalendarLabelQuotedEmpty
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','""','','',false);
+-- name: CalendarLabelNull
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES (NULL,NULL,'YYYY',NULL,NULL,false);
+-- name: CalendarLabelInfinity
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('infinity','-infinity','MONTH',NULL,NULL,false);
+-- name: CalendarLabelRoundedUpper
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ((timestamp '294276-12-31 23:59:59.999999')::timestamp(0),(timestamptz '294276-12-31 23:59:59.999999+00')::timestamptz(0),'YYYY-MM-DD','294277-01-01','294277-01-01',false);
+-- name: CalendarLabelWrongLocal
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','YYYY','1999','2000',false);
+-- name: CalendarLabelWrongInstant
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','YYYY','2000','1999',false);
+-- name: CalendarLabelSkipped
+INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','YYYY','1999','1999',true);

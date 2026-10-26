@@ -1,3 +1,4 @@
+import { assembleCheckRust } from '../../../src/codegen/shared/check-rust-source.js'
 import type { FunctionMetadata } from '../../../src/postgres/builtins/catalog.js'
 import { expect, it } from 'vitest'
 import { bindProbe } from '../../../scripts/check-measurements/probes.js'
@@ -21,6 +22,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalIntervalFormatting,
+  isTemporalTimestampFormatting,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -488,5 +490,57 @@ it('admits the native interval formatter independently of input collation and se
     expect(probe.fullyBound).toBe(true)
     expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
     expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+  }
+})
+
+it('admits timestamp template overloads with conditional locale/casing and instant timezone requirements', () => {
+  const items = builtinCallables().filter(
+    (f): f is FunctionMetadata => f.kind === 'function' && isTemporalTimestampFormatting(f),
+  )
+  expect(items.map((f) => f.rustName).sort()).toEqual([
+    'sql__pg_catalog__to_char__ly1v',
+    'sql__pg_catalog__to_char__m86d',
+  ])
+  for (const item of items) {
+    for (const changed of [
+      { schema: 'other' },
+      { strict: false },
+      { volatility: 'i' as const },
+      { returnsSet: true },
+      { args: ['pg_catalog."interval"', 'pg_catalog.text'] },
+    ])
+      expect(isTemporalTimestampFormatting({ ...item, ...changed })).toBe(false)
+    const probe = bindProbe('pg_catalog.to_char(stamp,picture) IS NOT NULL', [
+      { name: 'stamp', typeName: item.args[0]! },
+      { name: 'picture', typeName: 'pg_catalog.text' },
+    ])
+    expect(probe.fullyBound).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeLocale')
+    expect(
+      checkUnknownMessage(probe.expression, undefined, {
+        timeZone: 'UTC',
+        timeLocale: 'C',
+        defaultCollation: 'C',
+      }),
+    ).not.toContain('sql.codegen.checks.')
+    expect(temporalArithmeticRequirements(item)?.some((r) => r.setting === 'lc_time')).toBe(true)
+  }
+})
+
+it('assembles plain timestamp templates without timezone support and includes it for instant templates', () => {
+  for (const [name, needsTimezone] of [
+    ['sql__pg_catalog__to_char__m86d', false],
+    ['sql__pg_catalog__to_char__ly1v', true],
+  ] as const) {
+    const files = assembleCheckRust({ source: '', callables: [name] }).modules.flatMap((m) =>
+      m.files.map((f) => f.path),
+    )
+    expect(files).toContain('crates/check-evaluator/src/operations/pg_catalog/timestamp_format.rs')
+    expect(
+      files.includes('crates/check-evaluator/src/operations/pg_catalog/timezone_format.rs'),
+    ).toBe(needsTimezone)
+    expect(files.includes('generated/timezone_tables.rs')).toBe(needsTimezone)
   }
 })

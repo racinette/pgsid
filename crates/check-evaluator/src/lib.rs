@@ -173,6 +173,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/interval_calendar.rs");
     include!("operations/pg_catalog/time_output.rs");
     include!("operations/pg_catalog/interval_format.rs");
+    include!("operations/pg_catalog/timestamp_format.rs");
+    include!("operations/pg_catalog/timezone_format.rs");
     include!("operations/pg_catalog/temporal_hash.rs");
     include!("operations/pg_catalog/clock_extract.rs");
     include!("operations/pg_catalog/temporal_bins.rs");

@@ -356,6 +356,7 @@ export const codegenSchema = z
           .optional(),
         xmlOption: z.enum(['document', 'content']).optional(),
         xmlBinary: z.enum(['base64', 'hex']).optional(),
+        timeLocale: z.literal('C').optional(),
         moneyLocale: z.literal('C').optional(),
         moneyFractionDigits: z.number().int().min(0).max(10).optional(),
         extraFloatDigits: z.number().int().min(-15).max(3).optional(),

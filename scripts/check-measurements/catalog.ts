@@ -7,6 +7,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalTimestampFormatting,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -752,6 +753,39 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalTimestampFormatting(item))
+    return [
+      ...(item.args[0] === 'pg_catalog.timestamptz'
+        ? [
+            {
+              kind: 'session',
+              setting: 'TimeZone',
+              requirement:
+                'Instant template fields require session timezone; fractions, literal-only templates, NULLs and infinities retain independent results.',
+              owner: 'tests/sql-semantics/check-timestamp-format.test.ts',
+            },
+          ]
+        : []),
+      ...(item.args[0] === 'pg_catalog.timestamptz'
+        ? [
+            {
+              kind: 'platform',
+              setting: 'weekday-name-table-layout',
+              requirement:
+                'Before Julian zero, native timestamp template weekdays can be negative and index outside the weekday-name table. Retain numeric weekday arithmetic and defer those reached name lookups rather than reproducing build-specific adjacent strings.',
+              owner: 'tests/sql-semantics/check-timestamp-format.test.ts',
+            },
+          ]
+        : []),
+      {
+        kind: 'session',
+        setting: 'lc_time',
+        requirement:
+          'Only localized TM month/day names require locale and collation casing. Numeric fields and ordinary English names retain independent results. The declared C time locale provides portable English localized names.',
+        owner: 'tests/sql-semantics/check-timestamp-format.test.ts',
+      },
+    ]
+
   if (isTemporalInstantPeriod(item))
     return [
       {

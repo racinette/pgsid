@@ -1540,3 +1540,16 @@ CREATE TABLE inspection_duration_labels (
  CONSTRAINT duration_label_array CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[pg_catalog.to_char(elapsed,label_pattern),NULL::text])[1] IS NOT DISTINCT FROM expected_label END)
 );
+
+CREATE TABLE inspection_calendar_labels (
+ reported_at timestamp,
+ recorded_at timestamptz,
+ label_pattern text,
+ expected_local_label text,
+ expected_instant_label text,
+ bypass boolean NOT NULL,
+ CONSTRAINT calendar_label_local CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.to_char(reported_at,label_pattern) IS NOT DISTINCT FROM expected_local_label END),
+ CONSTRAINT calendar_label_instant CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.to_char(recorded_at,label_pattern COLLATE "C"),NULL::text])[1] IS NOT DISTINCT FROM expected_instant_label END)
+);
