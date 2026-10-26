@@ -2,6 +2,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 import { isXmlOptionPredicate } from '../../sql-semantics/xml-callables.js'
 import { capturedEnumSupport, isOidAliasType } from '../../sql-semantics/expressions.js'
@@ -99,7 +100,9 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
-        (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation)) &&
+        (isTemporalContextCast(implementation) ||
+          isTemporalContextArithmetic(implementation) ||
+          isTemporalExplicitZoneLookup(implementation)) &&
         rustNames.has(implementation.rustName)) ||
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&

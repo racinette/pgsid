@@ -368,3 +368,86 @@ pub fn sql__pg_catalog__timezone__blof(
     };
     TimestampValue::Unknown
 }
+
+fn timezone_forced_fixed_offset(name: &str, spelling: &str) -> Int4Value {
+    let zone = find_zone_name(name, false);
+    if zone >= ZONE_NAMES.len() {
+        return Int4Value::Unknown;
+    };
+    let upper = timezone_lookup_ascii(spelling, true);
+    let mut fixed = timezone_forced_type(ZONE_FORCE_INITIAL_TYPES[zone], upper.as_str());
+    let mut index = ZONE_FORCE_STARTS[zone];
+    while index < ZONE_FORCE_ENDS[zone] {
+        let found = timezone_forced_type(ZONE_FORCE_TYPE_IDS[index] as usize, upper.as_str());
+        if found != Int4Value::Null {
+            if fixed != Int4Value::Null && fixed != found {
+                return Int4Value::Unknown;
+            };
+            fixed = found;
+        };
+        index += 1;
+    }
+    if ZONE_RECURRING[zone] != 0 {
+        index = ZONE_TYPE_ENDS[zone] - 2;
+        while index < ZONE_TYPE_ENDS[zone] {
+            let found = timezone_forced_type(index, upper.as_str());
+            if found != Int4Value::Null {
+                if fixed != Int4Value::Null && fixed != found {
+                    return Int4Value::Unknown;
+                };
+                fixed = found;
+            };
+            index += 1;
+        }
+    };
+    if fixed == Int4Value::Null {
+        return session_timezone_fixed_offset(name);
+    };
+    fixed
+}
+
+pub fn sql__pg_catalog__timezone__nsm6(
+    zone: TextValue,
+    value: TimetzValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
+) -> TimetzValue {
+    if let TextValue::Error(error) = zone {
+        return TimetzValue::Error(error);
+    };
+    if let TimetzValue::Error(error) = value {
+        return TimetzValue::Error(error);
+    };
+    if zone == TextValue::Unknown || value == TimetzValue::Unknown {
+        return TimetzValue::Unknown;
+    };
+    if zone == TextValue::Null || value == TimetzValue::Null {
+        return TimetzValue::Null;
+    };
+    let selected = timezone_lookup_classify(zone, session, limit, utf8, default_profile);
+    let selected_profile = selected.profile;
+    if let TextValue::Error(error) = selected_profile {
+        return TimetzValue::Error(error);
+    };
+    if let TextValue::Value(name) = selected_profile {
+        let mut offset = make_int4_value(selected.seconds);
+        if selected.kind == 2 {
+            offset = timezone_forced_fixed_offset(name.as_str(), selected.spelling.as_str());
+        } else if selected.kind == 0 {
+            offset = session_timezone_fixed_offset(name.as_str());
+        };
+        if let Int4Value::Value(seconds) = offset {
+            return sql__pg_catalog__timezone__5q6e(
+                IntervalValue::Value(IntervalPayload {
+                    months: 0,
+                    days: 0,
+                    time: (seconds as i64) * 1000000i64,
+                }),
+                value,
+            );
+        };
+    };
+    TimetzValue::Unknown
+}

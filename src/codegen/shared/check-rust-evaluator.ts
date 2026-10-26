@@ -3122,6 +3122,7 @@ export function emitCheckRustEvaluator(
           !isMoneyNumericConversion(implementation) &&
           !isTemporalContextCast(implementation) &&
           !isTemporalContextArithmetic(implementation) &&
+          !isTemporalExplicitZoneLookup(implementation) &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&

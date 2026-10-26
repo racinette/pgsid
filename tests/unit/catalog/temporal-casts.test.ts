@@ -15,6 +15,7 @@ import { callableIdentity } from '../../../src/postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalClockZoneLookup,
   isTemporalExplicitZoneArithmetic,
   isTemporalExplicitZoneLookup,
 } from '../../../src/sql-semantics/temporal-casts.js'
@@ -127,7 +128,7 @@ it('keeps explicit-zone arithmetic tied to the native overload and exposes order
 
 it('classifies explicit timezone truncation with native lookup requirements independently of arithmetic', () => {
   const operations = builtinCallables().filter(isTemporalExplicitZoneLookup)
-  expect(operations).toHaveLength(5)
+  expect(operations).toHaveLength(6)
   const item = operations.find((item) => item.name === 'date_trunc')!
   expect(isTemporalExplicitZoneArithmetic(item)).toBe(false)
   expect(
@@ -150,7 +151,10 @@ it('classifies explicit timezone truncation with native lookup requirements inde
 
 it('classifies only text timestamp timezone conversions for ordered native lookup context', () => {
   const items = builtinCallables().filter(
-    (item) => isTemporalExplicitZoneLookup(item) && item.name === 'timezone',
+    (item) =>
+      isTemporalExplicitZoneLookup(item) &&
+      item.name === 'timezone' &&
+      !isTemporalClockZoneLookup(item),
   )
   expect(items).toHaveLength(2)
   for (const item of items) {
@@ -170,4 +174,52 @@ it('classifies only text timestamp timezone conversions for ordered native looku
       'sql.codegen.checks.timeZoneAbbreviations',
     )
   }
+})
+
+it('admits the selected stable text/timetz conversion while retaining the transaction-instant requirement', () => {
+  const items = builtinCallables().filter(isTemporalClockZoneLookup)
+  expect(items).toHaveLength(1)
+  const item = items[0]!
+  expect(isTemporalExplicitZoneLookup(item)).toBe(true)
+  for (const changed of [
+    { schema: 'other' },
+    { volatility: 'i' as const },
+    { strict: false },
+    { args: ['pg_catalog.text', 'pg_catalog."time"'] },
+    { result: 'pg_catalog."time"' },
+  ])
+    expect(isTemporalClockZoneLookup({ ...item, ...changed })).toBe(false)
+  expect(temporalArithmeticRequirements(item)?.[0]?.kind).toBe('transaction')
+  expect(callableBoundary(item, new Set(item.args)).categories).toContain(
+    'transaction-state:transaction_start',
+  )
+  expect(temporalArithmeticRequirements(item)?.map((r) => r.setting)).toEqual([
+    'transaction_start',
+    'TimeZone',
+    'timezone_abbreviations',
+    'maxIdentifierBytes',
+    'timezone_abbreviation_cache',
+  ])
+  expect(
+    temporalArithmeticRequirements(item)?.every(
+      (r) => r.owner === 'tests/sql-semantics/check-timetz-zone.test.ts',
+    ),
+  ).toBe(true)
+  const probe = bindProbe('timezone(zone,v) IS NOT NULL', [
+    { name: 'zone', typeName: 'pg_catalog.text' },
+    { name: 'v', typeName: 'pg_catalog.timetz' },
+  ])
+  expect(probe.fullyBound).toBe(true)
+  expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+  expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+  const literal = bindProbe("timezone('UTC',timetz '24:00+00') IS NOT NULL", [])
+  expect(literal.fullyBound).toBe(true)
+  expect(constantCheckExpression(literal.expression)).toBe(false)
+  const message = checkUnknownMessage(probe.expression, undefined, {
+    timeZone: 'UTC',
+    timeZoneAbbreviations: 'Default',
+    maxIdentifierBytes: 63,
+  })
+  expect(message).toContain('transaction start instant')
+  expect(message).not.toContain('sql.codegen.checks.')
 })

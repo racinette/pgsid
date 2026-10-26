@@ -1,3 +1,4 @@
+import { isTemporalClockZoneLookup } from './temporal-casts.js'
 import { isIdentifierQuote } from './identifier-quote.js'
 import {
   isXmlOptionPredicate,
@@ -422,6 +423,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.strict === (implementation.args.length === 2) &&
         implementation.volatility === 's'))
   return (
+    isTemporalClockZoneLookup(metadata) ||
     (metadata.kind === 'function' &&
       metadata.schema === 'pg_catalog' &&
       metadata.name === 'ts_delete' &&

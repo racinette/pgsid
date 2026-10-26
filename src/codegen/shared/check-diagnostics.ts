@@ -15,6 +15,7 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
 
@@ -30,6 +31,9 @@ const temporalCasts = new Set(
 )
 const temporalExplicitZones = new Set(
   builtinCallables().filter(isTemporalExplicitZoneLookup).map(callableIdentity),
+)
+const clockZoneLookups = new Set(
+  builtinCallables().filter(isTemporalClockZoneLookup).map(callableIdentity),
 )
 const clockTimezoneCasts = new Set(
   builtinCallables()
@@ -296,6 +300,9 @@ export function checkUnknownMessage(
     message +=
       ' Unavailable timezone data, implicit POSIX rules and abbreviation-cache collisions can also defer lookup.'
   }
+  if (containsSignature(expression, clockZoneLookups))
+    message +=
+      ' Timezone conversion of timetz with a variable offset can require the transaction start instant.'
   if (containsSignature(expression, clockTimezoneCasts))
     message +=
       ' Time-to-timetz conversion in a variable-offset zone can also require the transaction local date.'
