@@ -890,3 +890,27 @@ CREATE TABLE inspection_xml_expression_history (
      IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_xml_expression_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_text_like_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_text_like_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_octet bytea,
+ expected_name text COLLATE "C",
+ expected_cursor text COLLATE "C",
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT text_like_char CHECK(CASE WHEN bypass THEN true ELSE
+   charsend('\377'::"char") IS NOT DISTINCT FROM expected_octet END),
+ CONSTRAINT text_like_name CHECK(CASE WHEN bypass THEN true ELSE
+   ('tail '::name)::text COLLATE "C" IS NOT DISTINCT FROM expected_name END),
+ CONSTRAINT text_like_cursor CHECK(CASE WHEN bypass THEN true ELSE
+   ('cursor é😊'::refcursor)::text COLLATE "C" IS NOT DISTINCT FROM expected_cursor END),
+ CONSTRAINT text_like_array CHECK(CASE WHEN bypass THEN true ELSE
+   (('[-1:1]={alpha,NULL,"tail "}'::name[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_name END),
+ CONSTRAINT text_like_history CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN charsend('\377'::"char")=expected_octet AND
+     (('[-1:1]={alpha,NULL,"tail "}'::name[])[1])::text COLLATE "C"=expected_name
+     THEN 1/divisor ELSE NULL::integer END)::historical_text_like_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_text_like_result DROP ATTRIBUTE obsolete_result;

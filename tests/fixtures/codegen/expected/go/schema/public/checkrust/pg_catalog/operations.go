@@ -4491,7 +4491,7 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
-func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValue {
+func TextWireContext(input checkruntime.TextValue, utf8 bool) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
@@ -4505,7 +4505,7 @@ func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValu
 		index := 0
 		for index < len(chars) {
 			code := int(langruntime.CheckedChar(chars[index]))
-			if code == 0 || code > 127 {
+			if code == 0 || (utf8 == false && code > 127) {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 			}
 			index = langruntime.CheckedAdd(index, 1)
@@ -4513,6 +4513,9 @@ func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValu
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: textBinaryHex(value, false)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValue {
+	return TextWireContext(input, false)
 }
 func TextsendMgfj(input checkruntime.TextValue) checkruntime.ByteaValue {
 	return textWireWithoutContext(input)

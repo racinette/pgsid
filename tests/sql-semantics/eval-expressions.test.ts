@@ -30,6 +30,23 @@ for (const fixture of [...scalarSpecs, ...numericSpecs, ...integerOperationCases
 }
 
 describe('typed partial SQL expression emission', () => {
+  it('emits stored name values and char bytes directly in both targets', () => {
+    for (const expression of [
+      { kind: 'name', type: 'pg_catalog.name', value: 'é😊'.repeat(40), stored: true },
+      { kind: 'internal-char', type: 'pg_catalog."char"', value: '\\377', byte: 255 },
+      { kind: 'internal-char', type: 'pg_catalog."char"', value: '\\000', byte: 0 },
+    ] as const) {
+      const node: EvalExpression = { kind: 'certain', expression }
+      const typescript = emitEvalExpression(node, typescriptSqlBackend, typescriptEvalBackend),
+        go = emitEvalExpression(node, goSqlBackend, goEvalBackend)
+      expect(typescript.helpers).toContain('evalValueCertain')
+      for (const result of [typescript, go]) {
+        expect(result.helpers).toContain(expression.kind === 'name' ? 'textInput' : 'int4Input')
+        expect(result.helpers).not.toContain('nameInput')
+        expect(result.helpers).not.toContain('charInput')
+      }
+    }
+  })
   it('shares lexical CASE operands through nested scalar and Boolean emission without external inputs', () => {
     const integer = (value: string): EvalExpression => ({
         kind: 'certain',

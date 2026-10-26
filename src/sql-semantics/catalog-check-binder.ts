@@ -1,4 +1,5 @@
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
+import { validTextLikeConstantStorage } from '../catalog/text-like-constant-storage.js'
 import { restoreStoredTsqueryConstants } from './tsquery-constant-sites.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import { restoreStoredArrayConstants } from './array-constant-sites.js'
@@ -3397,6 +3398,33 @@ export function bindCatalogCheck(
               : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
                 ? { kind: 'mac', type, value }
                 : { kind: 'bit', type, value },
+        },
+      }
+    }
+    const storedTextLike = wrapper['PgsidStoredTextLike']
+    if (storedTextLike !== undefined) {
+      if (!validTextLikeConstantStorage(storedTextLike)) return unknown
+      const type = storedTextLike.type
+      return {
+        type,
+        value: {
+          kind: 'certain',
+          expression:
+            storedTextLike.type === 'pg_catalog."char"'
+              ? {
+                  kind: 'internal-char',
+                  type: storedTextLike.type,
+                  value: '\\' + storedTextLike.value.toString(8).padStart(3, '0'),
+                  byte: storedTextLike.value,
+                }
+              : storedTextLike.type === 'pg_catalog.name'
+                ? {
+                    kind: 'name',
+                    type: storedTextLike.type,
+                    value: storedTextLike.value,
+                    stored: true,
+                  }
+                : { kind: 'refcursor', type: storedTextLike.type, value: storedTextLike.value },
         },
       }
     }

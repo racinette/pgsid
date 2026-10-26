@@ -4489,7 +4489,8 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     }
     return { kind: "Unknown" };
 }
-function textWireWithoutContext(input: checkruntime.TextValue): checkruntime.ByteaValue {
+export function textWireContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.ByteaValue {
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -4503,7 +4504,7 @@ function textWireWithoutContext(input: checkruntime.TextValue): checkruntime.Byt
         let index: number = 0;
         while (index < chars.length) {
             const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
-            if (code === 0 || code > 127) {
+            if (code === 0 || (utf8 === false && code > 127)) {
                 return { kind: "Unknown" };
             }
             index = langruntime.checkedAdd(index, 1);
@@ -4511,6 +4512,9 @@ function textWireWithoutContext(input: checkruntime.TextValue): checkruntime.Byt
         return { kind: "Value", value: textBinaryHex(value, false) };
     }
     return { kind: "Unknown" };
+}
+function textWireWithoutContext(input: checkruntime.TextValue): checkruntime.ByteaValue {
+    return textWireContext(input, false);
 }
 export function textsendMgfj(input: checkruntime.TextValue): checkruntime.ByteaValue {
     return textWireWithoutContext(input);

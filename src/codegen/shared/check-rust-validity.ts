@@ -523,7 +523,11 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
           callable.result === 'pg_catalog.tsvector' &&
           weight?.kind === 'certain' &&
           weight.expression.kind === 'internal-char' &&
-          ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'].includes(weight.expression.value ?? '')
+          ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd'].includes(
+            weight.expression.byte === undefined
+              ? (weight.expression.value ?? '')
+              : String.fromCharCode(weight.expression.byte),
+          )
         )
           return false
       }
