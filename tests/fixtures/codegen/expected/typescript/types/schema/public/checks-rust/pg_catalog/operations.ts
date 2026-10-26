@@ -15780,6 +15780,18 @@ export function timestamptzMiAv9n(left: checkruntime.TimestamptzValue, right: ch
     return timestampMiSntt(a, b);
 }
 const intervalMathDivisionZero = 3452582;
+export function intervalTextPrecisionContext(input: checkruntime.TextValue, fields: checkruntime.Int4Value, modifier: checkruntime.Int4Value, style: number): checkruntime.IntervalValue {
+    style = langruntime.checkedI32(style);
+    if (style >= 1 && style <= 4) {
+        const parsed: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(input, fields, style);
+        return intervalDrcl(parsed, modifier);
+    }
+    const ordinary: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(input, fields, 1);
+    const standard: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(input, fields, 3);
+    const first: checkruntime.IntervalValue = intervalDrcl(ordinary, modifier);
+    const second: checkruntime.IntervalValue = intervalDrcl(standard, modifier);
+    return checkruntime.intervalInputAgreement(first, second);
+}
 function intervalMathFloat(value: bigint): number {
     value = langruntime.checkedI64(value);
     const text: string = checkruntime.textSignedNumber(value);
@@ -16233,6 +16245,29 @@ function intervalOutputIsoField(output: string, value: bigint, unit: string): st
     if (!(value === 0n)) {
         result = result + checkruntime.textSignedNumber(value);
         result = result + langruntime.checkedChar(unit);
+    }
+    return result;
+}
+export function intervalTextRoundtripContext(input: checkruntime.TextValue, firstFields: checkruntime.Int4Value, lastFields: checkruntime.Int4Value, style: number): checkruntime.IntervalValue {
+    style = langruntime.checkedI32(style);
+    if (style >= 1 && style <= 4) {
+        const parsed: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(input, firstFields, style);
+        const rendered: checkruntime.TextValue = intervalOutputContext(parsed, style);
+        return checkruntime.intervalFromTextFieldsContext(rendered, lastFields, style);
+    }
+    let profile: number = 1;
+    let result: checkruntime.IntervalValue = { kind: "Unknown" };
+    while (profile <= 4) {
+        const parsed: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(input, firstFields, profile);
+        const rendered: checkruntime.TextValue = intervalOutputContext(parsed, profile);
+        const value: checkruntime.IntervalValue = checkruntime.intervalFromTextFieldsContext(rendered, lastFields, profile);
+        if (profile === 1) {
+            result = value;
+        }
+        else {
+            result = checkruntime.intervalInputAgreement(result, value);
+        }
+        profile = langruntime.checkedI32(langruntime.checkedSignedAdd(profile, 1));
     }
     return result;
 }

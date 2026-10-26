@@ -40,6 +40,33 @@ fn interval_output_iso_field(output: String, value: i64, unit: char) -> String {
     result
 }
 
+pub fn interval_text_roundtrip_context(
+    input: TextValue,
+    first_fields: Int4Value,
+    last_fields: Int4Value,
+    style: i32,
+) -> IntervalValue {
+    if style >= 1 && style <= 4 {
+        let parsed = interval_from_text_fields_context(input, first_fields, style);
+        let rendered = interval_output_context(parsed, style);
+        return interval_from_text_fields_context(rendered, last_fields, style);
+    };
+    let mut profile: i32 = 1;
+    let mut result = IntervalValue::Unknown;
+    while profile <= 4 {
+        let parsed = interval_from_text_fields_context(input.clone(), first_fields, profile);
+        let rendered = interval_output_context(parsed, profile);
+        let value = interval_from_text_fields_context(rendered, last_fields, profile);
+        if profile == 1 {
+            result = value;
+        } else {
+            result = interval_input_agreement(result, value);
+        };
+        profile = profile + 1;
+    }
+    result
+}
+
 pub fn interval_output_context(input: IntervalValue, style: i32) -> TextValue {
     if let IntervalValue::Error(error) = input { return TextValue::Error(error); };
     if input == IntervalValue::Null { return TextValue::Null; };

@@ -16647,15 +16647,6 @@ function intervalInputAdd(input: IntervalInputAcc, whole: bigint, fraction: numb
     if (unit === 2 && !(fraction === 0.0)) {
         mask = langruntime.checkedI32(7);
     }
-    let check: number = mask;
-    let stored: number = input.mask;
-    while (check > 0) {
-        if (!(langruntime.checkedSignedRemainder(check, 2) === 0) && !(langruntime.checkedSignedRemainder(stored, 2) === 0)) {
-            return intervalInputFail(input, intervalInputSyntax);
-        }
-        check = langruntime.checkedI32(langruntime.checkedSignedDivide(check, 2));
-        stored = langruntime.checkedI32(langruntime.checkedSignedDivide(stored, 2));
-    }
     let years: bigint = BigInt(langruntime.checkedI32(input.years));
     let months: bigint = BigInt(langruntime.checkedI32(input.months));
     let days: bigint = BigInt(langruntime.checkedI32(input.days));
@@ -16744,10 +16735,20 @@ function intervalInputAdd(input: IntervalInputAcc, whole: bigint, fraction: numb
     if (years < (-2147483648n) || years > 2147483647n || months < (-2147483648n) || months > 2147483647n || days < (-2147483648n) || days > 2147483647n) {
         return intervalInputFail(input, intervalInputRange);
     }
+    let check: number = mask;
+    let stored: number = input.mask;
+    while (check > 0) {
+        if (!(langruntime.checkedSignedRemainder(check, 2) === 0) && !(langruntime.checkedSignedRemainder(stored, 2) === 0)) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        check = langruntime.checkedI32(langruntime.checkedSignedDivide(check, 2));
+        stored = langruntime.checkedI32(langruntime.checkedSignedDivide(stored, 2));
+    }
     return { years: Number(BigInt.asIntN(32, langruntime.checkedI64(years))), months: Number(BigInt.asIntN(32, langruntime.checkedI64(months))), days: Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time: micros, mask: langruntime.checkedSignedAdd(input.mask, mask), error: 0 };
 }
-function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalValue {
+function intervalUnitsFromText(input: TextValue, fieldMask: number, style: number): IntervalValue {
     fieldMask = langruntime.checkedI32(fieldMask);
+    style = langruntime.checkedI32(style);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -16801,6 +16802,21 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalVal
         if (firstToken === "@") {
             start = langruntime.checkedIndex(1);
         }
+        let forceNegative: boolean = false;
+        if (style === 3 && start < end) {
+            const first: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(start), copyIntervalInputToken));
+            const leading: string[] = Array.from(first);
+            forceNegative = langruntime.checkedBool(leading.length > 0 && langruntime.indexChar(leading, langruntime.checkedIndex(0)) === "-");
+            let scan: number = langruntime.checkedAdd(start, 1);
+            while (scan < end) {
+                const next: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(scan), copyIntervalInputToken));
+                const characters: string[] = Array.from(next);
+                if (characters.length > 0 && (langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "+" || langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "-")) {
+                    forceNegative = langruntime.checkedBool(false);
+                }
+                scan = langruntime.checkedAdd(scan, 1);
+            }
+        }
         let unit: number = langruntime.checkedSignedNegate(1);
         let pending: boolean = false;
         let implicitUnit: number = 2;
@@ -16820,7 +16836,6 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalVal
             implicitUnit = langruntime.checkedI32(3);
         }
         let numbers: number = 0;
-        let additionalSign: boolean = false;
         while (end > start) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
             const token: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(end), copyIntervalInputToken));
@@ -16842,10 +16857,10 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalVal
                 if (!(acc.error === 0)) {
                     return { kind: "Error", value: makeSqlError(acc.error) };
                 }
-                numbers = langruntime.checkedI32(langruntime.checkedSignedAdd(numbers, 1));
-                if (end > start && tokenChars.length > 0 && (langruntime.indexChar(tokenChars, langruntime.checkedIndex(0)) === "-" || langruntime.indexChar(tokenChars, langruntime.checkedIndex(0)) === "+")) {
-                    additionalSign = langruntime.checkedBool(true);
+                if (forceNegative && acc.time > 0n) {
+                    acc = copyIntervalInputAcc({ years: acc.years, months: acc.months, days: acc.days, time: langruntime.checkedI64Subtract(0n, acc.time), mask: acc.mask, error: acc.error });
                 }
+                numbers = langruntime.checkedI32(langruntime.checkedSignedAdd(numbers, 1));
                 implicitUnit = langruntime.checkedI32(5);
             }
             else if (found >= 0) {
@@ -16877,11 +16892,20 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalVal
                 }
                 if (whole.kind === "Value") {
                     const number: bigint = langruntime.checkedI64(whole.value);
-                    const fraction: number = intervalInputFraction(token);
+                    let value: bigint = number;
+                    let fraction: number = intervalInputFraction(token);
+                    if (forceNegative) {
+                        if (value > 0n) {
+                            value = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, value));
+                        }
+                        if (fraction > 0.0) {
+                            fraction = langruntime.checkedF64(langruntime.f64Subtract(0.0, fraction));
+                        }
+                    }
                     if (unit < 0) {
                         unit = langruntime.checkedI32(implicitUnit);
                     }
-                    acc = copyIntervalInputAcc(intervalInputAdd(acc, number, fraction, unit));
+                    acc = copyIntervalInputAcc(intervalInputAdd(acc, value, fraction, unit));
                     if (!(acc.error === 0)) {
                         return { kind: "Error", value: makeSqlError(acc.error) };
                     }
@@ -16892,20 +16916,11 @@ function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalVal
                     unit = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
                     pending = langruntime.checkedBool(false);
                     numbers = langruntime.checkedI32(langruntime.checkedSignedAdd(numbers, 1));
-                    const numberChars: string[] = Array.from(token);
-                    if (end > start && numberChars.length > 0 && (langruntime.indexChar(numberChars, langruntime.checkedIndex(0)) === "-" || langruntime.indexChar(numberChars, langruntime.checkedIndex(0)) === "+")) {
-                        additionalSign = langruntime.checkedBool(true);
-                    }
                 }
             }
         }
         if (pending || numbers === 0) {
             return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
-        }
-        const firstNumber: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(start), copyIntervalInputToken));
-        const first: string[] = Array.from(firstNumber);
-        if (numbers > 1 && first.length > 0 && langruntime.indexChar(first, langruntime.checkedIndex(0)) === "-" && additionalSign === false) {
-            return { kind: "Unknown" };
         }
         const months: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(acc.years))), 12n), (BigInt(langruntime.checkedI32(acc.months))));
         if (months < (-2147483648n) || months > 2147483647n) {
@@ -17354,7 +17369,8 @@ function intervalInputIso(text: string): IntervalValue {
     }
     return intervalIsoFinish(acc);
 }
-export function intervalFromTextFields(input: TextValue, fields: Int4Value): IntervalValue {
+export function intervalFromTextFieldsContext(input: TextValue, fields: Int4Value, style: number): IntervalValue {
+    style = langruntime.checkedI32(style);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17387,9 +17403,27 @@ export function intervalFromTextFields(input: TextValue, fields: Int4Value): Int
             }
             return intervalInputIso(text);
         }
-        return intervalUnitsFromText({ kind: "Value", value: text }, fieldMask);
+        if (style < 1 || style > 4) {
+            const ordinary: IntervalValue = intervalUnitsFromText({ kind: "Value", value: langruntime.checkedString(text) }, fieldMask, 1);
+            const standard: IntervalValue = intervalUnitsFromText({ kind: "Value", value: text }, fieldMask, 3);
+            return intervalInputAgreement(ordinary, standard);
+        }
+        return intervalUnitsFromText({ kind: "Value", value: text }, fieldMask, style);
     }
-    return intervalUnitsFromText(input, fieldMask);
+    return intervalUnitsFromText(input, fieldMask, style);
+}
+export function intervalInputAgreement(left: IntervalValue, right: IntervalValue): IntervalValue {
+    if (equalIntervalValue(left, right)) {
+        return left;
+    }
+    return { kind: "Unknown" };
+}
+export function intervalFromTextFields(input: TextValue, fields: Int4Value): IntervalValue {
+    return intervalFromTextFieldsContext(input, fields, 0);
+}
+export function intervalFromTextContext(input: TextValue, style: number): IntervalValue {
+    style = langruntime.checkedI32(style);
+    return intervalFromTextFieldsContext(input, makeInt4Value(32767), style);
 }
 function intervalInputAlpha(character: string): boolean {
     character = langruntime.checkedChar(character);

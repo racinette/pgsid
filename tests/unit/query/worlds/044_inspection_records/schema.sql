@@ -1254,3 +1254,19 @@ CREATE TABLE inspection_interval_text (
  CONSTRAINT interval_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
    (duration::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
 );
+
+CREATE TABLE inspection_interval_input (
+ source text,
+ array_source text,
+ expected interval,
+ rounded interval,
+ bypass boolean NOT NULL,
+ CONSTRAINT interval_input_scalar CHECK(CASE WHEN bypass THEN true ELSE
+   interval_send(source::interval) IS NOT DISTINCT FROM interval_send(expected) END),
+ CONSTRAINT interval_input_precision CHECK(CASE WHEN bypass THEN true ELSE
+   interval_send(source::interval day to second(3)) IS NOT DISTINCT FROM interval_send(rounded) END),
+ CONSTRAINT interval_input_array CHECK(CASE WHEN bypass THEN true ELSE
+   interval_send((array_source::interval[])[1]) IS NOT DISTINCT FROM interval_send(expected) END),
+ CONSTRAINT interval_input_roundtrip CHECK(CASE WHEN bypass THEN true ELSE
+   interval_send((source::interval::text)::interval) IS NOT DISTINCT FROM interval_send(expected) END)
+);

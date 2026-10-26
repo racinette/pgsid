@@ -16712,15 +16712,6 @@ func intervalInputAdd(input intervalInputAcc, whole int64, fraction float64, uni
 	if unit == 2 && fraction != float64(0.0) {
 		mask = langruntime.CheckedI32(7)
 	}
-	check := mask
-	stored := input.mask
-	for check > 0 {
-		if langruntime.CheckedSignedRemainder(check, 2) != 0 && langruntime.CheckedSignedRemainder(stored, 2) != 0 {
-			return intervalInputFail(input, intervalInputSyntax)
-		}
-		check = langruntime.CheckedI32(langruntime.CheckedSignedDivide(check, 2))
-		stored = langruntime.CheckedI32(langruntime.CheckedSignedDivide(stored, 2))
-	}
 	years := int64(langruntime.CheckedI32(input.years))
 	months := int64(langruntime.CheckedI32(input.months))
 	days := int64(langruntime.CheckedI32(input.days))
@@ -16806,10 +16797,20 @@ func intervalInputAdd(input intervalInputAcc, whole int64, fraction float64, uni
 	if years < (int64(-2147483648)) || years > int64(2147483647) || months < (int64(-2147483648)) || months > int64(2147483647) || days < (int64(-2147483648)) || days > int64(2147483647) {
 		return intervalInputFail(input, intervalInputRange)
 	}
+	check := mask
+	stored := input.mask
+	for check > 0 {
+		if langruntime.CheckedSignedRemainder(check, 2) != 0 && langruntime.CheckedSignedRemainder(stored, 2) != 0 {
+			return intervalInputFail(input, intervalInputSyntax)
+		}
+		check = langruntime.CheckedI32(langruntime.CheckedSignedDivide(check, 2))
+		stored = langruntime.CheckedI32(langruntime.CheckedSignedDivide(stored, 2))
+	}
 	return intervalInputAcc{years: int(int32(years)), months: int(int32(months)), days: int(int32(days)), time: micros, mask: langruntime.CheckedSignedAdd(input.mask, mask), error: 0}
 }
-func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
+func intervalUnitsFromText(input TextValue, fieldMask int, style int) IntervalValue {
 	fieldMask = langruntime.CheckedI32(fieldMask)
+	style = langruntime.CheckedI32(style)
 	if input.Kind == TextValueError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -16865,6 +16866,21 @@ func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
 		if firstToken == "@" {
 			start = langruntime.CheckedIndex(1)
 		}
+		forceNegative := false
+		if style == 3 && start < end {
+			first := intervalTokenText(&buffer, tokens[start])
+			leading := []rune(first)
+			forceNegative = len(leading) > 0 && leading[0] == '-'
+			scan := langruntime.CheckedAdd(start, 1)
+			for scan < end {
+				next := intervalTokenText(&buffer, tokens[scan])
+				characters := []rune(next)
+				if len(characters) > 0 && (characters[0] == '+' || characters[0] == '-') {
+					forceNegative = false
+				}
+				scan = langruntime.CheckedAdd(scan, 1)
+			}
+		}
 		unit := langruntime.CheckedSignedNegate(1)
 		pending := false
 		implicitUnit := 2
@@ -16884,7 +16900,6 @@ func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
 			implicitUnit = langruntime.CheckedI32(3)
 		}
 		numbers := 0
-		additionalSign := false
 		for end > start {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 			token := intervalTokenText(&buffer, tokens[end])
@@ -16906,10 +16921,10 @@ func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
 				if acc.error != 0 {
 					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(acc.error)}
 				}
-				numbers = langruntime.CheckedI32(langruntime.CheckedSignedAdd(numbers, 1))
-				if end > start && len(tokenChars) > 0 && (tokenChars[0] == '-' || tokenChars[0] == '+') {
-					additionalSign = true
+				if forceNegative && acc.time > int64(0) {
+					acc = copyintervalInputAcc(intervalInputAcc{years: acc.years, months: acc.months, days: acc.days, time: langruntime.CheckedI64Subtract(int64(0), acc.time), mask: acc.mask, error: acc.error})
 				}
+				numbers = langruntime.CheckedI32(langruntime.CheckedSignedAdd(numbers, 1))
 				implicitUnit = langruntime.CheckedI32(5)
 			} else if found >= 0 {
 				if pending {
@@ -16939,11 +16954,20 @@ func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
 				}
 				if whole.Kind == Int8ValueValue {
 					number := whole.Value
+					value := number
 					fraction := intervalInputFraction(token)
+					if forceNegative {
+						if value > int64(0) {
+							value = langruntime.CheckedI64Subtract(int64(0), value)
+						}
+						if fraction > float64(0.0) {
+							fraction = langruntime.F64Subtract(float64(0.0), fraction)
+						}
+					}
 					if unit < 0 {
 						unit = langruntime.CheckedI32(implicitUnit)
 					}
-					acc = copyintervalInputAcc(intervalInputAdd(acc, number, fraction, unit))
+					acc = copyintervalInputAcc(intervalInputAdd(acc, value, fraction, unit))
 					if acc.error != 0 {
 						return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(acc.error)}
 					}
@@ -16954,20 +16978,11 @@ func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
 					unit = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
 					pending = false
 					numbers = langruntime.CheckedI32(langruntime.CheckedSignedAdd(numbers, 1))
-					numberChars := []rune(token)
-					if end > start && len(numberChars) > 0 && (numberChars[0] == '-' || numberChars[0] == '+') {
-						additionalSign = true
-					}
 				}
 			}
 		}
 		if pending || numbers == 0 {
 			return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
-		}
-		firstNumber := intervalTokenText(&buffer, tokens[start])
-		first := []rune(firstNumber)
-		if numbers > 1 && len(first) > 0 && first[0] == '-' && additionalSign == false {
-			return IntervalValue{Kind: IntervalValueUnknown}
 		}
 		months := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(acc.years))), int64(12)), (int64(langruntime.CheckedI32(acc.months))))
 		if months < (int64(-2147483648)) || months > int64(2147483647) {
@@ -17411,7 +17426,8 @@ func intervalInputIso(text string) IntervalValue {
 	}
 	return intervalIsoFinish(acc)
 }
-func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
+func IntervalFromTextFieldsContext(input TextValue, fields Int4Value, style int) IntervalValue {
+	style = langruntime.CheckedI32(style)
 	if input.Kind == TextValueError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -17444,9 +17460,27 @@ func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
 			}
 			return intervalInputIso(text)
 		}
-		return intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text}, fieldMask)
+		if style < 1 || style > 4 {
+			ordinary := intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)}, fieldMask, 1)
+			standard := intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text}, fieldMask, 3)
+			return IntervalInputAgreement(ordinary, standard)
+		}
+		return intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text}, fieldMask, style)
 	}
-	return intervalUnitsFromText(input, fieldMask)
+	return intervalUnitsFromText(input, fieldMask, style)
+}
+func IntervalInputAgreement(left IntervalValue, right IntervalValue) IntervalValue {
+	if left == right {
+		return left
+	}
+	return IntervalValue{Kind: IntervalValueUnknown}
+}
+func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
+	return IntervalFromTextFieldsContext(input, fields, 0)
+}
+func IntervalFromTextContext(input TextValue, style int) IntervalValue {
+	style = langruntime.CheckedI32(style)
+	return IntervalFromTextFieldsContext(input, MakeInt4Value(32767), style)
 }
 func intervalInputAlpha(character rune) bool {
 	character = langruntime.CheckedChar(character)

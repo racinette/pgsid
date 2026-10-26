@@ -352,7 +352,7 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
   item.volatility === 'i' &&
   !item.returnsSet
 
-const intervalOutputStyle = (context: Pick<CheckExecutionContext, 'intervalStyle'>): number =>
+const intervalStyleCode = (context: Pick<CheckExecutionContext, 'intervalStyle'>): number =>
   context.intervalStyle === undefined
     ? 0
     : ['postgres', 'postgres_verbose', 'sql_standard', 'iso_8601'].indexOf(context.intervalStyle) +
@@ -442,7 +442,7 @@ const arrayElementOutput = (
   else if (family === 4 || family === 7)
     conversion = `${family === 4 ? 'timestamp' : 'date'}_output_context(${scalar},${calendarOutputStyle(context)})`
   else if (family === 23)
-    conversion = `interval_output_context(${scalar},${intervalOutputStyle(context)})`
+    conversion = `interval_output_context(${scalar},${intervalStyleCode(context)})`
   else if (family === 15)
     conversion = `bytea_output_context(${scalar},${context.byteaOutput === 'hex' ? 1 : context.byteaOutput === 'escape' ? 2 : 0},false)`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
@@ -1681,6 +1681,8 @@ export function emitCheckRustEvaluator(
           : stored
             ? `xml_from_rendered_text(${event})`
             : `xml_from_text_context(${event},${executionContext.xmlOption === 'document' ? 1 : executionContext.xmlOption === 'content' ? 2 : 0},${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 23) {
+      scalar = `interval_from_text_context(${event},${stored ? 0 : intervalStyleCode(executionContext)})`
     } else if (family === 43) {
       const multi = builtinMultirangeType(arrayElementBaseType(elementType))!
       scalar = `multirange_from_text(${event}, ${rustStringLiteral(multi.multirange)}, ${rustStringLiteral(multi.identity)}, ${rustStringLiteral(multi.subtype)}, ${arrayElementFamily(multi.subtype)})`
@@ -4959,7 +4961,7 @@ export function emitCheckRustEvaluator(
           if (operand.type === 'pg_catalog.money')
             args.push(String(moneyTextCLocale(executionContext)))
           if (operand.type === 'pg_catalog."interval"')
-            args.push(String(intervalOutputStyle(executionContext)))
+            args.push(String(intervalStyleCode(executionContext)))
           if (operand.type === 'pg_catalog.bytea')
             args.push(
               String(
@@ -5891,7 +5893,7 @@ export function emitCheckRustEvaluator(
         return {
           type: node.type,
           name: bind(
-            `interval_output_context(${ownedOperand(operand)},${intervalOutputStyle(executionContext)})`,
+            `interval_output_context(${ownedOperand(operand)},${intervalStyleCode(executionContext)})`,
           ),
         }
       if (operand.type === 'pg_catalog.bytea')
@@ -6833,6 +6835,39 @@ export function emitCheckRustEvaluator(
       node.kind === 'text-to-uuid' ||
       node.kind === 'text-to-bytea'
     ) {
+      let intervalOutput = node.operand
+      while (
+        intervalOutput.kind === 'call' &&
+        intervalOutput.call.kind === 'cast' &&
+        intervalOutput.call.signature === null &&
+        intervalOutput.call.type === 'pg_catalog.text' &&
+        intervalOutput.operands.length === 1 &&
+        scalarType(intervalOutput.operands[0]!) === 'pg_catalog.text'
+      )
+        intervalOutput = intervalOutput.operands[0]!
+      if (
+        node.kind === 'text-to-interval' &&
+        intervalOutput.kind === 'io-to-text' &&
+        intervalOutput.operand.kind === 'text-to-interval' &&
+        intervalOutput.output === builtinTypeIO('pg_catalog."interval"')?.output
+      ) {
+        const original = intervalOutput.operand,
+          operand = emitScalar(original.operand, bindings, used)
+        if (operand.type !== 'pg_catalog.text')
+          throw new UnsupportedCheckRustExpression('An interval round trip requires text')
+        const firstFields = bind(
+            `make_int4_value(${Math.floor((original.inputModifier ?? 32767 * 65536 + 65535) / 65536)})`,
+          ),
+          lastFields = bind(
+            `make_int4_value(${Math.floor((node.inputModifier ?? 32767 * 65536 + 65535) / 65536)})`,
+          )
+        return {
+          name: bind(
+            `interval_text_roundtrip_context(${ownedOperand(operand)},${firstFields},${lastFields},${storedArrayInputScope ? 0 : intervalStyleCode(executionContext)})`,
+          ),
+          type: node.type,
+        }
+      }
       const operand = emitScalar(node.operand, bindings, used)
       if (
         operand.type !== 'pg_catalog.text' &&
@@ -6863,10 +6898,14 @@ export function emitCheckRustEvaluator(
                         : node.type === 'pg_catalog.cidr'
                           ? 'cidr_from_text'
                           : 'network_from_text'
-      if (node.kind === 'text-to-interval' && node.inputModifier !== undefined) {
-        const fields = bind(`make_int4_value(${Math.floor(node.inputModifier / 65536)})`)
+      if (node.kind === 'text-to-interval') {
+        const fields = bind(
+          `make_int4_value(${Math.floor((node.inputModifier ?? 32767 * 65536 + 65535) / 65536)})`,
+        )
         return {
-          name: bind(`interval_from_text_fields(${ownedOperand(operand)},${fields})`),
+          name: bind(
+            `interval_from_text_fields_context(${ownedOperand(operand)},${fields},${storedArrayInputScope ? 0 : intervalStyleCode(executionContext)})`,
+          ),
           type: node.type,
         }
       }
@@ -7927,6 +7966,31 @@ export function emitCheckRustEvaluator(
           bindings,
           folded,
         )
+      }
+      if (
+        node.call.signature ===
+          builtinCast('pg_catalog."interval"', 'pg_catalog."interval"')?.implementation &&
+        node.operands.length === 2 &&
+        node.operands[0]?.kind === 'text-to-interval'
+      ) {
+        const original = node.operands[0],
+          operand = emitScalar(original.operand, bindings, used),
+          modifier = emitScalar(node.operands[1]!, bindings, used)
+        if (operand.type !== 'pg_catalog.text' || modifier.type !== 'pg_catalog.int4')
+          throw new UnsupportedCheckRustExpression('Interval precision requires text and int4')
+        const fields = bind(
+          `make_int4_value(${Math.floor((original.inputModifier ?? 32767 * 65536 + 65535) / 65536)})`,
+        )
+        const selected = builtinMetadata(node.call.signature!)
+        if (selected.kind !== 'function')
+          throw new UnsupportedCheckRustExpression('Interval precision requires its function')
+        callables.add(selected.rustName)
+        return {
+          name: bind(
+            `interval_text_precision_context(${ownedOperand(operand)},${fields},${modifier.name},${storedArrayInputScope ? 0 : intervalStyleCode(executionContext)})`,
+          ),
+          type: 'pg_catalog."interval"',
+        }
       }
       if (
         preparationDepth === 0 &&

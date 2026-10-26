@@ -1,4 +1,21 @@
 const INTERVAL_MATH_DIVISION_ZERO: u32 = 3452582;
+pub fn interval_text_precision_context(
+    input: TextValue,
+    fields: Int4Value,
+    modifier: Int4Value,
+    style: i32,
+) -> IntervalValue {
+    if style >= 1 && style <= 4 {
+        let parsed = interval_from_text_fields_context(input, fields, style);
+        return sql__pg_catalog__interval__drcl(parsed, modifier);
+    };
+    let ordinary = interval_from_text_fields_context(input.clone(), fields, 1);
+    let standard = interval_from_text_fields_context(input, fields, 3);
+    let first = sql__pg_catalog__interval__drcl(ordinary, modifier);
+    let second = sql__pg_catalog__interval__drcl(standard, modifier);
+    interval_input_agreement(first, second)
+}
+
 fn interval_math_float(value: i64) -> f64 {
     let text = text_signed_number(value);
     text.as_str().parse::<f64>().unwrap_or(0.0f64)

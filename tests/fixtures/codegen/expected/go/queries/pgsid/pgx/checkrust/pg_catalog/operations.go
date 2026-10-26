@@ -15693,6 +15693,18 @@ func TimestamptzMiAv9n(left checkruntime.TimestamptzValue, right checkruntime.Ti
 
 const intervalMathDivisionZero = 3452582
 
+func IntervalTextPrecisionContext(input checkruntime.TextValue, fields checkruntime.Int4Value, modifier checkruntime.Int4Value, style int) checkruntime.IntervalValue {
+	style = langruntime.CheckedI32(style)
+	if style >= 1 && style <= 4 {
+		parsed := checkruntime.IntervalFromTextFieldsContext(input, fields, style)
+		return IntervalDrcl(parsed, modifier)
+	}
+	ordinary := checkruntime.IntervalFromTextFieldsContext(input, fields, 1)
+	standard := checkruntime.IntervalFromTextFieldsContext(input, fields, 3)
+	first := IntervalDrcl(ordinary, modifier)
+	second := IntervalDrcl(standard, modifier)
+	return checkruntime.IntervalInputAgreement(first, second)
+}
 func intervalMathFloat(value int64) float64 {
 	text := checkruntime.TextSignedNumber(value)
 	return langruntime.F64FromText(text, float64(0.0))
@@ -16128,6 +16140,28 @@ func intervalOutputIsoField(output string, value int64, unit rune) string {
 		result = append(result, string(langruntime.CheckedChar(unit))...)
 	}
 	return string(result)
+}
+func IntervalTextRoundtripContext(input checkruntime.TextValue, firstFields checkruntime.Int4Value, lastFields checkruntime.Int4Value, style int) checkruntime.IntervalValue {
+	style = langruntime.CheckedI32(style)
+	if style >= 1 && style <= 4 {
+		parsed := checkruntime.IntervalFromTextFieldsContext(input, firstFields, style)
+		rendered := IntervalOutputContext(parsed, style)
+		return checkruntime.IntervalFromTextFieldsContext(rendered, lastFields, style)
+	}
+	profile := 1
+	result := checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	for profile <= 4 {
+		parsed := checkruntime.IntervalFromTextFieldsContext(input, firstFields, profile)
+		rendered := IntervalOutputContext(parsed, profile)
+		value := checkruntime.IntervalFromTextFieldsContext(rendered, lastFields, profile)
+		if profile == 1 {
+			result = value
+		} else {
+			result = checkruntime.IntervalInputAgreement(result, value)
+		}
+		profile = langruntime.CheckedI32(langruntime.CheckedSignedAdd(profile, 1))
+	}
+	return result
 }
 func IntervalOutputContext(input checkruntime.IntervalValue, style int) checkruntime.TextValue {
 	style = langruntime.CheckedI32(style)
