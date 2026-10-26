@@ -15,6 +15,7 @@ import { restoreStoredArrayConstants } from './array-constant-sites.js'
 import type { TsvectorConstantStorage } from '../catalog/tsvector-constant-storage.js'
 import { restoreStoredTsvectorConstants } from './tsvector-constant-sites.js'
 import { isMoneyNumericConversion } from './money-callables.js'
+import { isTemporalContextCast } from './temporal-casts.js'
 import {
   rangeSubtypeCarrierIdentity,
   rangeSubtypeIsDomain,
@@ -6988,7 +6989,8 @@ export function bindCatalogCheck(
             implementation.args.length !== 1 ||
             (implementation.volatility !== 'i' &&
               !isOidAliasType(result) &&
-              !isMoneyNumericConversion(implementation)) ||
+              !isMoneyNumericConversion(implementation) &&
+              !isTemporalContextCast(implementation)) ||
             !result
           )
             return unknown

@@ -1,0 +1,193 @@
+const TEMPORAL_CAST_RANGE: u32 = 3452552;
+
+fn session_timezone_fixed_offset(name: &str) -> Int4Value {
+    let zone = find_zone_name(name, false);
+    if zone < ZONE_NAMES.len() {
+        let start = ZONE_OFFSET_STARTS[zone];
+        let seconds = ZONE_OFFSET_SECONDS[start + ZONE_INITIAL_OFFSET_IDS[zone]];
+        let mut index = ZONE_STARTS[zone];
+        while index < ZONE_ENDS[zone] {
+            if ZONE_OFFSET_SECONDS[start + ZONE_OFFSET_IDS[index]] != seconds {
+                return Int4Value::Unknown;
+            };
+            index += 1;
+        }
+        if ZONE_RECURRING[zone] != 0 {
+            let rules = parse_recurring_zone(ZONE_FUTURE_RULES[zone]);
+            if rules.valid == false
+                || rules.standard != rules.daylight
+                || 0 - rules.standard != seconds
+            {
+                return Int4Value::Unknown;
+            };
+        };
+        return make_int4_value(seconds);
+    };
+    let rules = parse_recurring_zone(name);
+    if rules.valid && rules.standard != rules.daylight {
+        return Int4Value::Unknown;
+    };
+    let profile = session_timezone_profile(name, 0i64, false);
+    if profile.valid {
+        return make_int4_value(profile.seconds);
+    };
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__timetz__qcb2(input: TimeValue, zone: &str) -> TimetzValue {
+    if let TimeValue::Error(error) = input {
+        return TimetzValue::Error(error);
+    };
+    if input == TimeValue::Null {
+        return TimetzValue::Null;
+    };
+    if let TimeValue::Value(clock) = input {
+        let offset = session_timezone_fixed_offset(zone);
+        if let Int4Value::Value(seconds) = offset {
+            return make_timetz_value(clock, 0 - seconds);
+        };
+    };
+    TimetzValue::Unknown
+}
+
+pub fn sql__pg_catalog__timestamptz__m17a(input: TimestampValue, zone: &str) -> TimestamptzValue {
+    if let TimestampValue::Error(error) = input {
+        return TimestamptzValue::Error(error);
+    };
+    if input == TimestampValue::Null {
+        return TimestamptzValue::Null;
+    };
+    if let TimestampValue::Value(value) = input {
+        if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
+            return TimestamptzValue::Value(value);
+        };
+        if value < -211813488000000000i64 {
+            return TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE));
+        };
+        let profile = session_timezone_profile(zone, value, true);
+        if profile.valid {
+            return make_timestamptz_value(value - (profile.seconds as i64) * 1000000i64);
+        };
+    };
+    TimestamptzValue::Unknown
+}
+
+pub fn sql__pg_catalog__timestamptz__6zge(input: DateValue, zone: &str) -> TimestamptzValue {
+    if let DateValue::Error(error) = input {
+        return TimestamptzValue::Error(error);
+    };
+    if input == DateValue::Null {
+        return TimestamptzValue::Null;
+    };
+    if let DateValue::Value(day) = input {
+        if day == (-2147483647 - 1) {
+            return TimestamptzValue::Value(-9223372036854775808i64);
+        };
+        if day == 2147483647 {
+            return TimestamptzValue::Value(9223372036854775807i64);
+        };
+        if day >= 106751983 {
+            return TimestamptzValue::Error(make_sql_error(TEMPORAL_CAST_RANGE));
+        };
+        let local = (day as i64) * 86400000000i64;
+        let profile = session_timezone_profile(zone, local, true);
+        if profile.valid {
+            return make_timestamptz_value(local - (profile.seconds as i64) * 1000000i64);
+        };
+    };
+    TimestamptzValue::Unknown
+}
+
+pub fn sql__pg_catalog__timestamp__i0gp(input: TimestamptzValue, zone: &str) -> TimestampValue {
+    if let TimestamptzValue::Error(error) = input {
+        return TimestampValue::Error(error);
+    };
+    if input == TimestamptzValue::Null {
+        return TimestampValue::Null;
+    };
+    if let TimestamptzValue::Value(value) = input {
+        if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
+            return TimestampValue::Value(value);
+        };
+        let profile = session_timezone_profile(zone, value, false);
+        if profile.valid {
+            return make_timestamp_value(value + (profile.seconds as i64) * 1000000i64);
+        };
+    };
+    TimestampValue::Unknown
+}
+
+pub fn sql__pg_catalog__date__h28y(input: TimestamptzValue, zone: &str) -> DateValue {
+    if let TimestamptzValue::Error(error) = input {
+        return DateValue::Error(error);
+    };
+    if input == TimestamptzValue::Null {
+        return DateValue::Null;
+    };
+    if let TimestamptzValue::Value(value) = input {
+        if value == -9223372036854775808i64 {
+            return DateValue::Value(-2147483647 - 1);
+        };
+        if value == 9223372036854775807i64 {
+            return DateValue::Value(2147483647);
+        };
+        let profile = session_timezone_profile(zone, value, false);
+        if profile.valid {
+            let local = value + (profile.seconds as i64) * 1000000i64;
+            let mut day = local / 86400000000i64;
+            if local % 86400000000i64 < 0i64 {
+                day = day - 1i64;
+            };
+            return DateValue::Value(day as i32);
+        };
+    };
+    DateValue::Unknown
+}
+
+pub fn sql__pg_catalog__time__az0x(input: TimestamptzValue, zone: &str) -> TimeValue {
+    if let TimestamptzValue::Error(error) = input {
+        return TimeValue::Error(error);
+    };
+    if input == TimestamptzValue::Null {
+        return TimeValue::Null;
+    };
+    if let TimestamptzValue::Value(value) = input {
+        if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
+            return TimeValue::Null;
+        };
+        let profile = session_timezone_profile(zone, value, false);
+        if profile.valid {
+            let local = value + (profile.seconds as i64) * 1000000i64;
+            let mut clock = local % 86400000000i64;
+            if clock < 0i64 {
+                clock = clock + 86400000000i64;
+            };
+            return make_time_value(clock);
+        };
+    };
+    TimeValue::Unknown
+}
+
+pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> TimetzValue {
+    if let TimestamptzValue::Error(error) = input {
+        return TimetzValue::Error(error);
+    };
+    if input == TimestamptzValue::Null {
+        return TimetzValue::Null;
+    };
+    if let TimestamptzValue::Value(value) = input {
+        if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
+            return TimetzValue::Null;
+        };
+        let profile = session_timezone_profile(zone, value, false);
+        if profile.valid {
+            let local = value + (profile.seconds as i64) * 1000000i64;
+            let mut clock = local % 86400000000i64;
+            if clock < 0i64 {
+                clock = clock + 86400000000i64;
+            };
+            return make_timetz_value(clock, 0 - profile.seconds);
+        };
+    };
+    TimetzValue::Unknown
+}

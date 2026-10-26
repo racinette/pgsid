@@ -795,6 +795,24 @@ describe('CHECK measurement boundaries', () => {
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
     const report = await measureCoercions(pg)
+    const temporalCasts = report.casts.filter((cast) =>
+      cast.valueRequirements?.some(
+        (requirement) => 'setting' in requirement && requirement.setting === 'TimeZone',
+      ),
+    )
+    expect(temporalCasts).toHaveLength(7)
+    for (const cast of temporalCasts) {
+      expect(cast.implementationPresent).toBe(true)
+      expect(cast.probe?.raw.fullyBound).toBe(true)
+      expect(cast.probe?.stored?.fullyBound).toBe(true)
+      expect(cast.probe?.raw.preparation.kind).toBe('supported')
+      expect(cast.probe?.stored?.preparation.kind).toBe('supported')
+      expect(
+        report.arrayElementCasts.find(
+          (array) => array.source === cast.source && array.target === cast.target,
+        )?.valueRequirements,
+      ).toEqual(cast.valueRequirements)
+    }
     for (const source of ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar']) {
       const nameCast = report.casts.find(
         (c) => c.source === source && c.target === 'pg_catalog.name',

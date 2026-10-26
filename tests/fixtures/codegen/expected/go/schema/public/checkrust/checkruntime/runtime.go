@@ -286,6 +286,13 @@ func MakeDateValue(value int) DateValue {
 	}
 	return DateValue{Kind: DateValueValue, Value: value}
 }
+func MakeStoredDateValue(value int) DateValue {
+	value = langruntime.CheckedI32(value)
+	if value >= langruntime.CheckedSignedNegate(2451552) && value < langruntime.CheckedSignedNegate(2451545) {
+		return DateValue{Kind: DateValueValue, Value: value}
+	}
+	return MakeDateValue(value)
+}
 func DateIsNull(value DateValue) BoolValue {
 	if value.Kind == DateValueError {
 		error := value.Error
@@ -9967,7 +9974,7 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	}
 	if checked.Kind == ArrayElementDate {
 		value := langruntime.CheckedI32(checked.Date)
-		return ArrayElementFromDate(MakeDateValue(value))
+		return ArrayElementFromDate(MakeStoredDateValue(value))
 	}
 	if checked.Kind == ArrayElementTimestamp {
 		value := checked.Timestamp

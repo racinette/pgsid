@@ -655,7 +655,7 @@ export function renderGoCheckTests(
         let dateValue: GoExpression
         if (value === null) dateValue = go.call(go.selector(go.ident('checkruntime'), 'DateNull'))
         else if (typeof value === 'number')
-          dateValue = go.call(go.selector(go.ident('checkruntime'), 'MakeDateValue'), [
+          dateValue = go.call(go.selector(go.ident('checkruntime'), 'MakeStoredDateValue'), [
             go.number(value),
           ])
         else {

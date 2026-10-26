@@ -253,6 +253,13 @@ pub fn make_date_value(value: i32) -> DateValue {
     DateValue::Value(value)
 }
 
+pub fn make_stored_date_value(value: i32) -> DateValue {
+    if value >= -2451552 && value < -2451545 {
+        return DateValue::Value(value);
+    };
+    make_date_value(value)
+}
+
 pub fn date_is_null(value: DateValue) -> BoolValue {
     if let DateValue::Error(error) = value {
         return BoolValue::Error(error);

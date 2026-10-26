@@ -1735,7 +1735,10 @@ func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
 func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
   if !field.Set { return checkruntime.DateUnknown() }
   if field.Null { return checkruntime.DateNull() }
-  if value, ok := any(field.V).(checkruntime.DateValue); ok { return value }
+  if value, ok := any(field.V).(checkruntime.DateValue); ok {
+    if value.Kind == checkruntime.DateValueValue { return checkruntime.MakeStoredDateValue(value.Value) }
+    return value
+  }
   return checkruntime.DateUnknown()
 }
 func checkRustInt2[T any](field CheckOptional[T]) checkruntime.Int2Value {

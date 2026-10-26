@@ -1293,3 +1293,31 @@ CREATE TABLE inspection_instant_text (
  CONSTRAINT instant_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
    (instant_at::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
 );
+
+CREATE TABLE inspection_clock_projections (
+ local_date date,
+ local_clock time,
+ local_stamp timestamp,
+ instant_at timestamptz,
+ expected_local_date date,
+ expected_local_stamp timestamp,
+ expected_local_clock time,
+ expected_local_zone timetz,
+ expected_date_instant timestamptz,
+ expected_clock_zone timetz,
+ bypass boolean NOT NULL,
+ CONSTRAINT clock_attach_date CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(local_date::timestamptz) IS NOT DISTINCT FROM timestamptz_send(expected_date_instant) END),
+ CONSTRAINT clock_attach_stamp CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(local_stamp::timestamptz) IS NOT DISTINCT FROM timestamptz_send(instant_at) END),
+ CONSTRAINT clock_attach_time CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send(local_clock::timetz) IS NOT DISTINCT FROM timetz_send(expected_clock_zone) END),
+ CONSTRAINT clock_project_date CHECK(CASE WHEN bypass THEN true ELSE
+   date_send(instant_at::date) IS NOT DISTINCT FROM date_send(expected_local_date) END),
+ CONSTRAINT clock_project_stamp CHECK(CASE WHEN bypass THEN true ELSE
+   timestamp_send(instant_at::timestamp) IS NOT DISTINCT FROM timestamp_send(expected_local_stamp) END),
+ CONSTRAINT clock_project_time CHECK(CASE WHEN bypass THEN true ELSE
+   time_send(instant_at::time) IS NOT DISTINCT FROM time_send(expected_local_clock) END),
+ CONSTRAINT clock_project_zone CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send(instant_at::timetz) IS NOT DISTINCT FROM timetz_send(expected_local_zone) END)
+);

@@ -279,7 +279,7 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
         return array_element_from_enum(make_enum_value(payload.ordinal));
     };
     if let ArrayElement::Date(value) = checked {
-        return array_element_from_date(make_date_value(value));
+        return array_element_from_date(make_stored_date_value(value));
     };
     if let ArrayElement::Timestamp(value) = checked {
         return array_element_from_timestamp(make_timestamp_value(value));

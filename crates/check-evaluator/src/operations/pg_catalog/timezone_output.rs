@@ -27,7 +27,7 @@ fn timezone_output_offset(seconds: i32, json: bool) -> String {
     result
 }
 
-fn session_timezone_profile(name: &str, microseconds: i64) -> SessionTimezone {
+fn session_timezone_profile(name: &str, microseconds: i64, local: bool) -> SessionTimezone {
     let invalid = SessionTimezone {
         seconds: 0,
         label: String::new(),
@@ -35,9 +35,13 @@ fn session_timezone_profile(name: &str, microseconds: i64) -> SessionTimezone {
     };
     let zone = find_zone_name(name, false);
     if zone < ZONE_NAMES.len() {
-        let offset = named_zone_offset(zone, microseconds, false);
-        let abbreviation = named_zone_abbreviation(zone, microseconds);
+        let offset = named_zone_offset(zone, microseconds, local);
         if let Int4Value::Value(seconds) = offset {
+            let mut instant = microseconds;
+            if local {
+                instant = microseconds - (seconds as i64) * 1000000i64;
+            };
+            let abbreviation = named_zone_abbreviation(zone, instant);
             if let TextValue::Value(label) = abbreviation {
                 return SessionTimezone {
                     seconds: seconds,
@@ -101,13 +105,40 @@ fn session_timezone_profile(name: &str, microseconds: i64) -> SessionTimezone {
     let mut daylight = false;
     if standard.next != text.chars.len() {
         let rules = parse_recurring_zone(name);
-        let boundary =
-            next_recurring_boundary(rules, microseconds, -9223372036854775808i64, seconds);
+        let mut probe = microseconds;
+        if local {
+            probe = microseconds - 86400000000i64;
+        };
+        let boundary = next_recurring_boundary(rules, probe, -9223372036854775808i64, seconds);
         if boundary.valid == false {
             return invalid;
         };
-        seconds = boundary.before;
-        daylight = boundary.before_daylight;
+        let resolved = resolve_zone_boundary(
+            microseconds,
+            local,
+            boundary.before,
+            boundary.after,
+            boundary.boundary,
+        );
+        let mut resolved_known = false;
+        if let Int4Value::Value(value) = resolved {
+            resolved_known = true;
+            seconds = value;
+            daylight = boundary.before_daylight;
+            if local {
+                let instant = microseconds - (seconds as i64) * 1000000i64;
+                let actual = next_recurring_boundary(
+                    parse_recurring_zone(name),
+                    instant,
+                    -9223372036854775808i64,
+                    seconds,
+                );
+                daylight = actual.before_daylight;
+            };
+        };
+        if resolved_known == false {
+            return invalid;
+        };
     };
     let label = recurring_zone_abbreviation(name, daylight);
     if let TextValue::Value(value) = label {
@@ -134,7 +165,7 @@ pub fn timestamptz_output_context(
         return TextValue::NonNull;
     };
     if let TimestamptzValue::Value(value) = input {
-        let profile = session_timezone_profile(zone, value);
+        let profile = session_timezone_profile(zone, value, false);
         if profile.valid == false {
             return TextValue::Unknown;
         };

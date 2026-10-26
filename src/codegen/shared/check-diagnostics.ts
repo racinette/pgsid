@@ -12,6 +12,24 @@ import type { CheckExecutionContext } from './check-rust-evaluator.js'
 import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
+import { isTemporalContextCast } from '../../sql-semantics/temporal-casts.js'
+
+const temporalCasts = new Set(
+  builtinCallables().filter(isTemporalContextCast).map(callableIdentity),
+)
+const clockTimezoneCasts = new Set(
+  builtinCallables()
+    .filter((item) => isTemporalContextCast(item) && item.args[0] === 'pg_catalog."time"')
+    .map(callableIdentity),
+)
+function containsSignature(value: unknown, signatures: ReadonlySet<string>): boolean {
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, item]) =>
+      (key === 'signature' && typeof item === 'string' && signatures.has(item)) ||
+      containsSignature(item, signatures),
+  )
+}
 
 const identifierQuotes = new Set(builtinCallables().filter(isIdentifierQuote).map(callableIdentity))
 function needsIdentifierQuote(value: unknown): boolean {
@@ -249,9 +267,15 @@ export function checkUnknownMessage(
   if (context.dateStyle === undefined && needsCalendarOutput(expression))
     message +=
       ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'
-  if (context.timeZone === undefined && needsSessionTimezone(expression))
+  if (
+    context.timeZone === undefined &&
+    (needsSessionTimezone(expression) || containsSignature(expression, temporalCasts))
+  )
     message +=
-      ' Timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
+      ' Temporal casts and timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
+  if (containsSignature(expression, clockTimezoneCasts))
+    message +=
+      ' Time-to-timetz conversion in a variable-offset zone can also require the transaction local date.'
   if (context.byteaOutput === undefined && needsByteaOutput(expression))
     message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))

@@ -320,6 +320,13 @@ export function makeDateValue(value: number): DateValue {
     }
     return { kind: "Value", value: value };
 }
+export function makeStoredDateValue(value: number): DateValue {
+    value = langruntime.checkedI32(value);
+    if (value >= langruntime.checkedSignedNegate(2451552) && value < langruntime.checkedSignedNegate(2451545)) {
+        return { kind: "Value", value: value };
+    }
+    return makeDateValue(value);
+}
 export function dateIsNull(value: DateValue): BoolValue {
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -10068,7 +10075,7 @@ export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement 
     }
     if (checked.kind === "Date") {
         const value: number = langruntime.checkedI32(checked.value);
-        return arrayElementFromDate(makeDateValue(value));
+        return arrayElementFromDate(makeStoredDateValue(value));
     }
     if (checked.kind === "Timestamp") {
         const value: bigint = langruntime.checkedI64(checked.value);

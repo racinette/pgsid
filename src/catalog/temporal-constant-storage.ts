@@ -28,7 +28,7 @@ export function validTemporalConstantStorage(value: unknown): value is TemporalC
       return (
         number === -2147483648n ||
         number === 2147483647n ||
-        (number >= -2451545n && number < 2145031949n)
+        (number >= -2451552n && number < 2145031949n)
       )
     case 'pg_catalog."timestamp"':
     case 'pg_catalog.timestamptz':

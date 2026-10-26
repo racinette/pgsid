@@ -89,11 +89,11 @@ Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, u
 - [x] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior, keyword categories, quote escaping and invariant output or known nullness without context; preserve scoped catalog identifier rendering and caller settings.
 - [x] Admit explicit DateStyle formatting for date/timestamp/timestamptz scalar/domain character casts and containers, with supplied TimeZone, retained TZif labels and recurring rules, direct JSON ISO behavior, special values and missing-context nullness; admit interval text and JSON output in every IntervalStyle across scalar/domain character casts, containers and range bounds, preserving component signs and widths.
 - [x] Admit explicit bytea_output hex/escape formatting through scalar/domain text and character casts, arrays, records, ranges and JSON values/keys; retain bounded non-NULL facts without context and preserve input errors, lazy branches and source/stored INSERT parity.
+- [x] Admit selected catalog date/timestamp/timestamptz/time/timetz casts with declared session TimeZone, native local DST resolution, fixed-offset time attachment and explicit missing transaction-date requirements for variable offsets. Preserve SQL-coerced projected dates across scalar/public/domain/container storage without text-input revalidation; retain native range errors, infinities, NULLs, lazy branches and source/stored INSERT parity.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
 - [ ] Assess locale-sensitive ordering, casing, and nondeterministic collations.
 
-Done when required context is explicit and shared Rust owns behavior across targets. Missing context must produce a diagnostic Unknown.
-A catalog immutable flag alone is insufficient evidence that an implementation is session-free.
+Done when required context is explicit and shared Rust owns behavior across targets. Missing context must produce a diagnostic Unknown. A catalog immutable flag alone is insufficient evidence that an implementation is session-free.
 
 ## Assess excluded callable categories
 

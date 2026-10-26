@@ -141,9 +141,43 @@ it('recovers temporal native payloads without text conversion across endian, Dat
   }
 }, 120_000)
 
+it('admits native date projections outside text input limits across Datum layouts', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec("SET TimeZone='-167.999'")
+    const wire = Buffer.from(
+        (
+          await pg.query<{ wire: string }>(
+            "SELECT encode(date_send(('4714-11-24T00:00:00Z BC'::timestamptz)::date),'hex') wire",
+          )
+        ).rows[0]!.wire,
+        'hex',
+      ),
+      day = wire.readInt32BE(),
+      expected = { type: 'pg_catalog.date', value: String(day) }
+    expect(day).toBe(-2451552)
+    expect(validTemporalConstantStorage(expected)).toBe(true)
+    for (const byteOrder of ['little', 'big'] as const)
+      for (const width of [4, 8]) {
+        const bytes = Buffer.alloc(width)
+        if (byteOrder === 'little') bytes.writeInt32LE(day, 0)
+        else bytes.writeInt32BE(day, width - 4)
+        const node = tree(
+          parseTree(
+            `{CONST :constisnull false :constlen 4 :constbyval true :constvalue 4 [ ${[...bytes].join(' ')} ]}`,
+          ),
+        )!
+        expect(storedTemporalConstant(node, 'pg_catalog.date', byteOrder)).toEqual(expected)
+      }
+    await expect(pg.query("SELECT '4714-11-17 BC'::date")).rejects.toMatchObject({ code: '22008' })
+  } finally {
+    await pg.close()
+  }
+})
+
 it('rejects invalid temporal payloads, malformed storage and incomplete carriers', () => {
   for (const value of [
-    { type: 'pg_catalog.date', value: '-2451546' },
+    { type: 'pg_catalog.date', value: '-2451553' },
     { type: 'pg_catalog.date', value: '2145031949' },
     { type: 'pg_catalog."timestamp"', value: '-211813488000000001' },
     { type: 'pg_catalog.timestamptz', value: '9223371331200000000' },

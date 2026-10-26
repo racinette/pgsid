@@ -1734,7 +1734,7 @@ function checkRustDate(row: object, name: string): _checkRust.DateValue {
   if (value === null) return _checkRust.dateNull()
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.dateUnknown()
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.DateValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number') return _checkRust.makeDateValue(value.value)
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeStoredDateValue(value.value)
   return _checkRust.dateUnknown()
 }
 function checkRustInt2(row: object, name: string): _checkRust.Int2Value {
