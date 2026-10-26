@@ -96,15 +96,19 @@ fn session_timezone_profile(name: &str, microseconds: i64, local: bool) -> Sessi
         };
         return invalid;
     };
-    let start = skip_zone_rule_name(&text, 0);
-    let standard = read_zone_rule_clock(&text, start);
+    let upper_name = timezone_lookup_ascii(name, true);
+    let posix = ZoneRuleText {
+        chars: upper_name.chars().collect(),
+    };
+    let start = skip_zone_rule_name(&posix, 0);
+    let standard = read_zone_rule_clock(&posix, start);
     if standard.valid == false {
         return invalid;
     };
     let mut seconds = 0 - standard.value;
     let mut daylight = false;
-    if standard.next != text.chars.len() {
-        let rules = parse_recurring_zone(name);
+    if standard.next != posix.chars.len() {
+        let rules = parse_recurring_zone(upper_name.as_str());
         let mut probe = microseconds;
         if local {
             probe = microseconds - 86400000000i64;
@@ -128,7 +132,7 @@ fn session_timezone_profile(name: &str, microseconds: i64, local: bool) -> Sessi
             if local {
                 let instant = microseconds - (seconds as i64) * 1000000i64;
                 let actual = next_recurring_boundary(
-                    parse_recurring_zone(name),
+                    parse_recurring_zone(upper_name.as_str()),
                     instant,
                     -9223372036854775808i64,
                     seconds,
@@ -140,7 +144,7 @@ fn session_timezone_profile(name: &str, microseconds: i64, local: bool) -> Sessi
             return invalid;
         };
     };
-    let label = recurring_zone_abbreviation(name, daylight);
+    let label = recurring_zone_abbreviation(upper_name.as_str(), daylight);
     if let TextValue::Value(value) = label {
         return SessionTimezone {
             seconds: seconds,

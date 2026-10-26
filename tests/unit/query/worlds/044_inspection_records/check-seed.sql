@@ -1791,3 +1791,18 @@ INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypa
 INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2024-03-10 07:30+00','hour',NULL,false);
 -- name: SessionBucketSkipped
 INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('infinity','bogus',NULL,true);
+
+-- name: PosixArithmeticLowercaseRule
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','abc3bcd2,m3.2.0,m11.1.0','2024-03-10 16:00+00','2024-03-08 17:00+00',false);
+-- name: PosixTruncateLowercaseRule
+INSERT INTO inspection_zone_truncation(instant_at,unit_name,zone_name,expected_truncated,bypass) VALUES('2024-03-10 07:30+00','day','abc3bcd2,m3.2.0,m11.1.0','2024-03-10 03:00+00',false);
+-- name: PosixProjectionLowercaseRule
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2024-07-01 12:00','2024-07-01 12:00+00','abc3bcd2,m3.2.0,m11.1.0','2024-07-01 14:00+00','2024-07-01 10:00',false);
+-- name: PosixClockEqualOffsets
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','abc3bcd3,m3.2.0,m11.1.0','09:00-03',false);
+-- name: NamedProjectionMixedCase
+INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expected_instant,expected_stamp,bypass) VALUES('2024-07-01 12:00','2024-07-01 12:00+00','pAcIfIc/gUaM','2024-07-01 02:00+00','2024-07-01 22:00',false);
+-- name: PosixArithmeticRuleMismatch
+INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','abc3bcd2,m3.2.0,m11.1.0','2024-03-10 17:00+00','2024-03-08 17:00+00',false);
+-- name: PosixClockMismatch
+INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','abc3bcd3,m3.2.0,m11.1.0','12:00-03',false);
