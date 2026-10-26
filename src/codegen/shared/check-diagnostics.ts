@@ -18,6 +18,7 @@ import {
   isTemporalContextComparison,
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
+  isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -32,6 +33,7 @@ const temporalCasts = new Set(
         isTemporalContextComparison(item) ||
         isTemporalLocalTimezone(item) ||
         isTemporalInstantConstructor(item) ||
+        isTemporalInstantPeriod(item) ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
         isTemporalSessionExtraction(item) ||

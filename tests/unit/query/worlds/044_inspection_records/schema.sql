@@ -1494,3 +1494,38 @@ CREATE TABLE inspection_date_clocks (
  CONSTRAINT date_clock_constructor_array CHECK(CASE WHEN bypass THEN true ELSE
    timestamptz_send((ARRAY[pg_catalog.timestamptz(inspection_day,inspection_clock),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_instant) END)
 );
+
+CREATE TABLE inspection_instant_limits (
+ recorded_at timestamptz,
+ center_at timestamptz,
+ tolerance interval,
+ subtract_offset boolean,
+ compare_before boolean,
+ expected boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT instant_limit_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.in_range(recorded_at,center_at,tolerance,subtract_offset,compare_before) IS NOT DISTINCT FROM expected END),
+ CONSTRAINT instant_limit_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.in_range(recorded_at,center_at,tolerance,subtract_offset,compare_before),NULL::boolean])[1] IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE inspection_duration_periods (
+ first_start timestamptz,
+ first_duration interval,
+ first_end timestamptz,
+ second_start timestamptz,
+ second_duration interval,
+ second_end timestamptz,
+ expected_both boolean,
+ expected_left boolean,
+ expected_right boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT duration_period_both CHECK(CASE WHEN bypass THEN true ELSE
+   ((first_start,first_duration) OVERLAPS (second_start,second_duration)) IS NOT DISTINCT FROM expected_both END),
+ CONSTRAINT duration_period_left CHECK(CASE WHEN bypass THEN true ELSE
+   ((first_start,first_duration) OVERLAPS (second_start,second_end)) IS NOT DISTINCT FROM expected_left END),
+ CONSTRAINT duration_period_right CHECK(CASE WHEN bypass THEN true ELSE
+   ((first_start,first_end) OVERLAPS (second_start,second_duration)) IS NOT DISTINCT FROM expected_right END),
+ CONSTRAINT duration_period_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[((first_start,first_duration) OVERLAPS (second_start,second_duration)),NULL::boolean])[1] IS NOT DISTINCT FROM expected_both END)
+);

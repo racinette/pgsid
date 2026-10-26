@@ -208,3 +208,34 @@ export function isTemporalInstantConstructor(item: BuiltinCallable): boolean {
     (item.args.length === 6 || item.args[6] === 'pg_catalog.text')
   )
 }
+
+export function isTemporalInstantPeriod(item: BuiltinCallable): boolean {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    item.volatility !== 's' ||
+    item.returnsSet ||
+    item.result !== 'pg_catalog.bool'
+  )
+    return false
+  if (item.name === 'in_range')
+    return (
+      item.strict &&
+      item.args.length === 5 &&
+      item.args[0] === 'pg_catalog.timestamptz' &&
+      item.args[1] === 'pg_catalog.timestamptz' &&
+      item.args[2] === 'pg_catalog."interval"' &&
+      item.args[3] === 'pg_catalog.bool' &&
+      item.args[4] === 'pg_catalog.bool'
+    )
+  return (
+    item.name === 'overlaps' &&
+    !item.strict &&
+    item.args.length === 4 &&
+    item.args[0] === 'pg_catalog.timestamptz' &&
+    item.args[2] === 'pg_catalog.timestamptz' &&
+    ['pg_catalog.timestamptz', 'pg_catalog."interval"'].includes(item.args[1]!) &&
+    ['pg_catalog.timestamptz', 'pg_catalog."interval"'].includes(item.args[3]!) &&
+    (item.args[1] === 'pg_catalog."interval"' || item.args[3] === 'pg_catalog."interval"')
+  )
+}
