@@ -143,6 +143,9 @@ fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> 
     if code == 0 || code == -2 {
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNIT_ERROR));
     }
+    if code == -1 && temporal_unit_code(unit) != -1 {
+        return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
+    };
     if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
         if (code >= 1 && code <= 9)
             || code == 16

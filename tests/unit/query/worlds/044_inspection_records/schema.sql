@@ -1576,3 +1576,24 @@ CREATE TABLE inspection_calendar_elapsed (
  CONSTRAINT elapsed_calendar_array CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[pg_catalog.age(ended_at,started_at),NULL::interval])[1] IS NOT DISTINCT FROM expected_elapsed END)
 );
+
+CREATE TABLE inspection_legacy_fields (
+ observed_day date,
+ field_name text,
+ expected_value float8,
+ bypass boolean NOT NULL,
+ CONSTRAINT legacy_field_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.date_part(field_name,observed_day) IS NOT DISTINCT FROM expected_value END),
+ CONSTRAINT legacy_field_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.date_part(field_name,observed_day),NULL::float8])[1] IS NOT DISTINCT FROM expected_value END)
+);
+
+CREATE TABLE inspection_epoch_instants (
+ epoch_seconds float8,
+ expected_instant timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT epoch_instant_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.to_timestamp(epoch_seconds) IS NOT DISTINCT FROM expected_instant END),
+ CONSTRAINT epoch_instant_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.to_timestamp(epoch_seconds),NULL::timestamptz])[1] IS NOT DISTINCT FROM expected_instant END)
+);

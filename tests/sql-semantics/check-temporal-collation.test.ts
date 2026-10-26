@@ -20,7 +20,7 @@ describe('temporal field collation', () => {
     const supported = callables.filter((item) =>
       supportsTextCallableCollation(callableIdentity(item), 'other'),
     )
-    expect(supported).toHaveLength(17)
+    expect(supported).toHaveLength(18)
     for (const item of supported) {
       expect(item).toMatchObject({
         kind: 'function',
@@ -64,6 +64,7 @@ describe('temporal field collation', () => {
         extract_clock: 'pg_catalog.extract(clock_unit, clock_value) = 56.123456::numeric',
         extract_zoned_clock: 'pg_catalog.extract(clock_unit, zoned_clock) = 56.123456::numeric',
         extract_span: 'pg_catalog.extract(unit_name, duration) = 2::numeric',
+        legacy_date: 'pg_catalog.date_part(unit_name, day_value) = 2000::float8',
         legacy_clock: 'pg_catalog.date_part(clock_unit, clock_value) = 56.123456::float8',
         legacy_zoned_clock: 'pg_catalog.date_part(clock_unit, zoned_clock) = 56.123456::float8',
         legacy_span: 'pg_catalog.date_part(unit_name, duration) = 2::float8',

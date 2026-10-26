@@ -20,6 +20,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
+  isTemporalDatePart,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
@@ -63,6 +64,9 @@ const temporalExplicitZones = new Set(
         (isTemporalLocalTimezone(item) && item.args[0] === 'pg_catalog.timetz'),
     )
     .map(callableIdentity),
+)
+const temporalDateParts = new Set(
+  builtinCallables().filter(isTemporalDatePart).map(callableIdentity),
 )
 const temporalSessionUnits = new Set(
   builtinCallables()
@@ -371,9 +375,12 @@ export function checkUnknownMessage(
       ' Non-ASCII constructor timezone names can require sql.codegen.checks.serverEncoding.'
   if (
     context.maxIdentifierBytes === undefined &&
-    containsSignature(expression, temporalSessionUnits)
+    (containsSignature(expression, temporalSessionUnits) ||
+      containsSignature(expression, temporalDateParts))
   )
     message += ' Temporal unit decoding can require sql.codegen.checks.maxIdentifierBytes.'
+  if (context.serverEncoding === undefined && containsSignature(expression, temporalDateParts))
+    message += ' Non-ASCII temporal unit clipping can require sql.codegen.checks.serverEncoding.'
   if (containsSignature(expression, clockZoneLookups))
     message +=
       ' Timezone conversion of timetz with a variable offset can require the transaction start instant.'

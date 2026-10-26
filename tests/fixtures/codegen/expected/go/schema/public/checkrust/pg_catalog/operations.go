@@ -42182,6 +42182,64 @@ func InRange6ce3(value checkruntime.TimetzValue, base checkruntime.TimetzValue, 
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func DatePartG4hw(units checkruntime.TextValue, input checkruntime.DateValue, limit int, utf8 bool) checkruntime.Float8Value {
+	limit = langruntime.CheckedI32(limit)
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	timestamp := TimestampSwxj(input)
+	if timestamp.Kind == checkruntime.TimestampValueError {
+		error := timestamp.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	clipped := NameFromTextContext(units, limit, utf8)
+	return DatePartNzwd(clipped, timestamp)
+}
+func ToTimestampKymq(input checkruntime.Float8Value) checkruntime.TimestamptzValue {
+	if input.Kind == checkruntime.Float8ValueError {
+		error := input.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	semantic := checkruntime.Float8Semantic(input)
+	if semantic.Kind == checkruntime.Float8ValueValue {
+		bits := semantic.Value
+		seconds := checkruntime.Float8Number(bits)
+		if seconds != seconds {
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: checkruntime.MakeSqlError(clockRange)}
+		}
+		infinity := checkruntime.Float8Number(int64(9218868437227405312))
+		if seconds == infinity {
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: int64(9223372036854775807)}
+		}
+		if seconds == langruntime.F64Negate(infinity) {
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: int64(-9223372036854775808)}
+		}
+		if seconds < float64(-210866803200.0) || seconds >= float64(9224318016000.0) {
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: checkruntime.MakeSqlError(clockRange)}
+		}
+		microseconds := langruntime.F64Multiply((langruntime.F64Subtract(seconds, float64(946684800.0))), float64(1000000.0))
+		rounded := float8Integer(checkruntime.MakeFloat8Value(microseconds))
+		if rounded.Kind == checkruntime.Int8ValueValue {
+			value := rounded.Value
+			return checkruntime.MakeTimestamptzValue(value)
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
 func DateCmpU18z(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
@@ -42721,6 +42779,9 @@ func temporalExtractTimestampValue(value int64, unit string, projected bool) che
 	code := temporalExtractCode(unit)
 	if code == 0 || code == langruntime.CheckedSignedNegate(2) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if code == langruntime.CheckedSignedNegate(1) && temporalUnitCode(unit) != langruntime.CheckedSignedNegate(1) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
 	}
 	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
 		if (code >= 1 && code <= 9) || code == 16 || code == 17 || code == 18 || temporalUnitCode(unit) == langruntime.CheckedSignedNegate(1) {

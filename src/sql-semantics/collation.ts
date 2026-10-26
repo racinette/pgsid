@@ -202,6 +202,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
           'pg_catalog.timetz',
           'pg_catalog."interval"',
           'pg_catalog."timestamp"',
+          'pg_catalog.date',
         ].includes(metadata.args[1]!) &&
         metadata.result === 'pg_catalog.float8'))
   const implementation =

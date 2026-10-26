@@ -22,6 +22,7 @@ import {
   isTemporalTemplateParsing,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
+  isTemporalDatePart,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -5367,6 +5368,11 @@ export function emitCheckRustEvaluator(
         )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      if (isTemporalDatePart(implementation))
+        arguments_.push(
+          String(executionContext.maxIdentifierBytes ?? -1),
+          String(executionContext.serverEncoding === 'UTF8'),
+        )
       if (isTemporalTemplateParsing(implementation))
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
