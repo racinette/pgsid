@@ -149,6 +149,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_fields.rs");
     include!("operations/pg_catalog/temporal_extract.rs");
     include!("operations/pg_catalog/temporal_timestamp_extract.rs");
+    include!("operations/pg_catalog/timezone_extract.rs");
     include!("operations/pg_catalog/timezone_trunc.rs");
     include!("operations/pg_catalog/timezone.rs");
     include!("operations/pg_catalog/timezone_named.rs");

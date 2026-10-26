@@ -128,7 +128,11 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
         };
     };
     if code == 7 || code == 15 {
-        let thursday = julian + 3i64 - julian % 7i64;
+        let mut weekday = julian % 7i64;
+        if weekday < 0i64 {
+            weekday = weekday + 7i64;
+        };
+        let thursday = julian + 3i64 - weekday;
         let iso = temporal_calendar_from_julian(thursday);
         if code == 7 {
             result = (thursday - temporal_julian_from_calendar(iso.year, 1, 1)) / 7i64 + 1i64;
@@ -141,6 +145,9 @@ fn temporal_extract_date(value: i32, code: i32) -> NumericValue {
     };
     if code == 16 || code == 17 {
         result = (julian + 1i64) % 7i64;
+        if result < 0i64 {
+            result = result + 7i64;
+        };
         if code == 17 && result == 0i64 {
             result = 7i64;
         };

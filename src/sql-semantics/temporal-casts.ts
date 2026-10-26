@@ -121,3 +121,18 @@ export function isTemporalSessionTruncation(item: BuiltinCallable): boolean {
     item.result === 'pg_catalog.timestamptz'
   )
 }
+
+export function isTemporalSessionExtraction(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.args.length === 2 &&
+    item.args[0] === 'pg_catalog.text' &&
+    item.args[1] === 'pg_catalog.timestamptz' &&
+    ((item.name === 'extract' && item.result === 'pg_catalog."numeric"') ||
+      (item.name === 'date_part' && item.result === 'pg_catalog.float8'))
+  )
+}

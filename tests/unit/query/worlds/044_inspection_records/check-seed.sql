@@ -1806,3 +1806,36 @@ INSERT INTO inspection_zone_projections(local_stamp,instant_at,zone_name,expecte
 INSERT INTO inspection_zone_arithmetic(instant_at,duration,zone_name,expected_add,expected_subtract,bypass) VALUES('2024-03-09 17:00+00','1 day','abc3bcd2,m3.2.0,m11.1.0','2024-03-10 17:00+00','2024-03-08 17:00+00',false);
 -- name: PosixClockMismatch
 INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','abc3bcd3,m3.2.0,m11.1.0','12:00-03',false);
+
+-- name: InstantFieldYear
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-02-29 12:34:56.123456+00','year',2000,2000,false);
+-- name: InstantFieldEpoch
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01 00:00+00','epoch',946684800.000000,946684800,false);
+-- name: InstantFieldNegativeEpoch
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('1969-12-31 23:59:59.999999+00','epoch',-0.000001,-0.000001,false);
+-- name: InstantFieldMilliseconds
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01 12:34:56.123456+00','milliseconds',56123.456,56123.456,false);
+-- name: InstantFieldJulian
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-02-29 12:00+00','julian',2451604.50000000000000000000,2451604.5,false);
+-- name: InstantFieldOffset
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01 00:00+00','timezone',0,0,false);
+-- name: InstantFieldInfinity
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('infinity','year','Infinity','Infinity',false);
+-- name: InstantFieldInfinityOffset
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('-infinity','timezone',NULL,NULL,false);
+-- name: InstantFieldNullInput
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES(NULL,'bogus',NULL,NULL,false);
+-- name: InstantFieldNullUnit
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01+00',NULL,NULL,NULL,false);
+-- name: InstantFieldRoundedUpper
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES(('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),'year',294277,294277,false);
+-- name: InstantFieldInvalidInfinity
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('infinity','bogus',NULL,NULL,false);
+-- name: InstantFieldUnsupportedUnit
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01+00','infinity',NULL,NULL,false);
+-- name: InstantFieldMismatch
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01+00','year',2001,2001,false);
+-- name: InstantFieldNumericScaleMismatch
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01+00','epoch',946684800,946684800,false);
+-- name: InstantFieldSkipped
+INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('infinity','bogus',NULL,NULL,true);

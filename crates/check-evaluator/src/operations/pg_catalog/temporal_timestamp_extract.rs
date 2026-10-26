@@ -116,16 +116,29 @@ fn temporal_timestamp_julian(julian: i64, clock: i64) -> NumericValue {
         whole = whole + 1i64;
     }
     let mut output = text_signed_number(whole);
+    if whole < 0i64 {
+        output = "0".to_owned();
+    };
     output.push('.');
     cursor = 0;
     while cursor < fraction.len() {
         output.push(fraction[cursor]);
         cursor += 1;
     }
+    if whole < 0i64 {
+        return sql__pg_catalog__numeric_add__o3d7(
+            NumericValue::Value(text_signed_number(whole)),
+            NumericValue::Value(output),
+        );
+    };
     NumericValue::Value(output)
 }
 
 fn temporal_extract_timestamp(value: i64, unit: &str) -> NumericValue {
+    temporal_extract_timestamp_value(value, unit, false)
+}
+
+fn temporal_extract_timestamp_value(value: i64, unit: &str, projected: bool) -> NumericValue {
     let code = temporal_extract_code(unit);
     if code == 0 || code == -2 {
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNIT_ERROR));
@@ -147,7 +160,7 @@ fn temporal_extract_timestamp(value: i64, unit: &str) -> NumericValue {
         }
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
     }
-    if code != 19 && value < -211813488000000000i64 {
+    if projected == false && code != 19 && value < -211813488000000000i64 {
         return NumericValue::Error(make_sql_error(CLOCK_RANGE));
     };
     if code == -1 {

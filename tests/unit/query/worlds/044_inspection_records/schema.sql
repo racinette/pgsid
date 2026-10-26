@@ -1414,3 +1414,17 @@ CREATE TABLE inspection_session_buckets (
  CONSTRAINT session_bucket_array CHECK(CASE WHEN bypass THEN true ELSE
    timestamptz_send((ARRAY[date_trunc(unit_name,instant_at),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_bucket) END)
 );
+
+CREATE TABLE inspection_instant_fields (
+ instant_at timestamptz,
+ field_name text,
+ expected_number numeric,
+ expected_float float8,
+ bypass boolean NOT NULL,
+ CONSTRAINT instant_field_numeric CHECK(CASE WHEN bypass THEN true ELSE
+   numeric_send(pg_catalog.extract(field_name,instant_at)) IS NOT DISTINCT FROM numeric_send(expected_number) END),
+ CONSTRAINT instant_field_legacy CHECK(CASE WHEN bypass THEN true ELSE
+   float8send(date_part(field_name,instant_at)) IS NOT DISTINCT FROM float8send(expected_float) END),
+ CONSTRAINT instant_field_array CHECK(CASE WHEN bypass OR field_name IS NULL OR field_name<>'year' THEN true ELSE
+   numeric_send((ARRAY[EXTRACT(YEAR FROM instant_at),NULL::numeric])[1]) IS NOT DISTINCT FROM numeric_send(expected_number) END)
+);

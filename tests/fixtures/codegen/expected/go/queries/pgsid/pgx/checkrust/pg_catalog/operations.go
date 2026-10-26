@@ -40745,7 +40745,11 @@ func temporalExtractDate(value int, code int) checkruntime.NumericValue {
 		}
 	}
 	if code == 7 || code == 15 {
-		thursday := langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(julian, int64(3)), langruntime.CheckedI64Remainder(julian, int64(7)))
+		weekday := langruntime.CheckedI64Remainder(julian, int64(7))
+		if weekday < int64(0) {
+			weekday = langruntime.CheckedI64Add(weekday, int64(7))
+		}
+		thursday := langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(julian, int64(3)), weekday)
 		iso := temporalCalendarFromJulian(thursday)
 		if code == 7 {
 			result = langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(thursday, temporalJulianFromCalendar(iso.year, 1, 1))), int64(7)), int64(1))
@@ -40758,6 +40762,9 @@ func temporalExtractDate(value int, code int) checkruntime.NumericValue {
 	}
 	if code == 16 || code == 17 {
 		result = langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(1))), int64(7))
+		if result < int64(0) {
+			result = langruntime.CheckedI64Add(result, int64(7))
+		}
 		if code == 17 && result == int64(0) {
 			result = int64(7)
 		}
@@ -42291,15 +42298,25 @@ func temporalTimestampJulian(julian int64, clock int64) checkruntime.NumericValu
 		whole = langruntime.CheckedI64Add(whole, int64(1))
 	}
 	output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(whole))
+	if whole < int64(0) {
+		output = langruntime.NewTextBuffer("0")
+	}
 	output = append(output, string(langruntime.CheckedChar('.'))...)
 	cursor = langruntime.CheckedIndex(0)
 	for cursor < len(fraction) {
 		output = append(output, string(langruntime.CheckedChar(fraction[cursor]))...)
 		cursor = langruntime.CheckedAdd(cursor, 1)
 	}
+	if whole < int64(0) {
+		return NumericAddO3d7(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(whole)}, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)})
+	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)}
 }
 func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValue {
+	unit = langruntime.CheckedString(unit)
+	return temporalExtractTimestampValue(value, unit, false)
+}
+func temporalExtractTimestampValue(value int64, unit string, projected bool) checkruntime.NumericValue {
 	unit = langruntime.CheckedString(unit)
 	code := temporalExtractCode(unit)
 	if code == 0 || code == langruntime.CheckedSignedNegate(2) {
@@ -42317,7 +42334,7 @@ func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValu
 		}
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
 	}
-	if code != 19 && value < int64(-211813488000000000) {
+	if projected == false && code != 19 && value < int64(-211813488000000000) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(clockRange)}
 	}
 	if code == langruntime.CheckedSignedNegate(1) {
@@ -42376,8 +42393,8 @@ func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 }
-func DatePartNzwd(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.Float8Value {
-	number := ExtractF4l3(units, input)
+func temporalTimestampLegacyValue(number checkruntime.NumericValue, unit string, time int64) checkruntime.Float8Value {
+	unit = langruntime.CheckedString(unit)
 	if number.Kind == checkruntime.NumericValueError {
 		error := number.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
@@ -42388,39 +42405,44 @@ func DatePartNzwd(units checkruntime.TextValue, input checkruntime.TimestampValu
 	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
+	if time != (int64(-9223372036854775808)) && time != int64(9223372036854775807) {
+		code := temporalExtractCode(unit)
+		day := langruntime.CheckedI64Divide(time, int64(86400000000))
+		clock := langruntime.CheckedI64Remainder(time, int64(86400000000))
+		if clock < int64(0) {
+			day = langruntime.CheckedI64Subtract(day, int64(1))
+			clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+		}
+		seconds := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(clock, int64(1000000))), int64(60)))))
+		fraction := int(int32((langruntime.CheckedI64Remainder(clock, int64(1000000)))))
+		if code == 2 {
+			return checkruntime.MakeFloat8Value(langruntime.F64Add(langruntime.F64Multiply((float64(seconds)), float64(1000.0)), langruntime.F64Divide((float64(fraction)), float64(1000.0))))
+		}
+		if code == 3 {
+			return checkruntime.MakeFloat8Value(langruntime.F64Add((float64(seconds)), langruntime.F64Divide((float64(fraction)), float64(1000000.0))))
+		}
+		if code == 14 {
+			elapsed := int(int32((langruntime.CheckedI64Divide(clock, int64(1000000)))))
+			julian := int(int32((langruntime.CheckedI64Add(day, int64(2451545)))))
+			result := langruntime.F64Add((float64(julian)), langruntime.F64Divide((langruntime.F64Add((float64(elapsed)), langruntime.F64Divide((float64(fraction)), float64(1000000.0)))), float64(86400.0)))
+			return checkruntime.MakeFloat8Value(result)
+		}
+		if code == 19 {
+			if time < int64(9222425352054775807) {
+				return checkruntime.MakeFloat8Value(langruntime.F64Divide(intervalMathFloat(langruntime.CheckedI64Add(time, int64(946684800000000))), float64(1000000.0)))
+			}
+			return checkruntime.MakeFloat8Value(langruntime.F64Divide((langruntime.F64Add(intervalMathFloat(time), float64(946684800000000.0))), float64(1000000.0)))
+		}
+	}
+	return Float8Bkfn(number)
+}
+func DatePartNzwd(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.Float8Value {
+	number := ExtractF4l3(units, input)
 	if units.Kind == checkruntime.TextValueValue {
 		unit := langruntime.CheckedString(units.Value)
 		if input.Kind == checkruntime.TimestampValueValue {
 			time := input.Value
-			if time != (int64(-9223372036854775808)) && time != int64(9223372036854775807) {
-				code := temporalExtractCode(unit)
-				day := langruntime.CheckedI64Divide(time, int64(86400000000))
-				clock := langruntime.CheckedI64Remainder(time, int64(86400000000))
-				if clock < int64(0) {
-					day = langruntime.CheckedI64Subtract(day, int64(1))
-					clock = langruntime.CheckedI64Add(clock, int64(86400000000))
-				}
-				seconds := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(clock, int64(1000000))), int64(60)))))
-				fraction := int(int32((langruntime.CheckedI64Remainder(clock, int64(1000000)))))
-				if code == 2 {
-					return checkruntime.MakeFloat8Value(langruntime.F64Add(langruntime.F64Multiply((float64(seconds)), float64(1000.0)), langruntime.F64Divide((float64(fraction)), float64(1000.0))))
-				}
-				if code == 3 {
-					return checkruntime.MakeFloat8Value(langruntime.F64Add((float64(seconds)), langruntime.F64Divide((float64(fraction)), float64(1000000.0))))
-				}
-				if code == 14 {
-					elapsed := int(int32((langruntime.CheckedI64Divide(clock, int64(1000000)))))
-					julian := int(int32((langruntime.CheckedI64Add(day, int64(2451545)))))
-					result := langruntime.F64Add((float64(julian)), langruntime.F64Divide((langruntime.F64Add((float64(elapsed)), langruntime.F64Divide((float64(fraction)), float64(1000000.0)))), float64(86400.0)))
-					return checkruntime.MakeFloat8Value(result)
-				}
-				if code == 19 {
-					if time < int64(9222425352054775807) {
-						return checkruntime.MakeFloat8Value(langruntime.F64Divide(intervalMathFloat(langruntime.CheckedI64Add(time, int64(946684800000000))), float64(1000000.0)))
-					}
-					return checkruntime.MakeFloat8Value(langruntime.F64Divide((langruntime.F64Add(intervalMathFloat(time), float64(946684800000000.0))), float64(1000000.0)))
-				}
-			}
+			return temporalTimestampLegacyValue(number, unit, time)
 		}
 	}
 	return Float8Bkfn(number)
