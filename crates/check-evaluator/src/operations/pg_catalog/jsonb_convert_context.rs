@@ -18,13 +18,11 @@ pub fn jsonb_input_from_operator_alias(input: OidValue) -> JsonbInput {
 }
 
 pub fn jsonb_input_from_bytea(input: ByteaValue) -> JsonbInput {
-    if let ByteaValue::Error(error) = input {
-        return JsonbInput::Error(error);
-    };
-    if let ByteaValue::Null = input {
-        return JsonbInput::Null;
-    };
-    JsonbInput::Unknown
+    jsonb_input_from_bytea_context(input, 0)
+}
+
+pub fn jsonb_input_from_bytea_context(input: ByteaValue, format: i32) -> JsonbInput {
+    jsonb_input_from_text(bytea_output_context(input, format, false))
 }
 
 pub fn jsonb_input_from_tsvector(input: TsvectorValue) -> JsonbInput {

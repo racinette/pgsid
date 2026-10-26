@@ -24,6 +24,12 @@ describe('config schema', () => {
           `schema: schema.sql\nsql:\n  codegen:\n    checks: { moneyFractionDigits: ${moneyFractionDigits} }\n`,
         ).sql.codegen?.checks,
       ).toEqual({ moneyFractionDigits })
+    for (const byteaOutput of ['hex', 'escape'])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { byteaOutput: ${byteaOutput} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ byteaOutput })
     for (const quoteAllIdentifiers of [false, true])
       expect(
         parseConfigString(
@@ -72,6 +78,9 @@ describe('config schema', () => {
       '{ arrayNulls: on }',
       '{ arrayNulls: unknown }',
       '{ quoteAllIdentifiers: 0 }',
+      '{ byteaOutput: base64 }',
+      '{ byteaOutput: true }',
+      '{ byteaOutput: HEX }',
       '{ quoteAllIdentifiers: \"false\" }',
       '{ maxIdentifierBytes: -1 }',
       '{ maxIdentifierBytes: 1.5 }',

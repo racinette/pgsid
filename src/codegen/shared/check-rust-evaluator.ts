@@ -357,7 +357,12 @@ const arrayElementOutput = (
   definition: EnumDefinition | undefined,
   element: string,
   scalar: string,
-  context: { moneyLocale?: 'C'; moneyFractionDigits?: number; extraFloatDigits?: number },
+  context: {
+    moneyLocale?: 'C'
+    moneyFractionDigits?: number
+    extraFloatDigits?: number
+    byteaOutput?: 'hex' | 'escape'
+  },
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
   elementType = arrayElementBaseType(elementType)
   const family = arrayElementFamily(elementType)
@@ -416,6 +421,8 @@ const arrayElementOutput = (
   else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
+  else if (family === 15)
+    conversion = `bytea_output_context(${scalar},${context.byteaOutput === 'hex' ? 1 : context.byteaOutput === 'escape' ? 2 : 0},false)`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
@@ -748,6 +755,7 @@ export type CheckExecutionContext = {
   trigonometry?: 'fdlibm'
   arrayNulls?: boolean
   quoteAllIdentifiers?: boolean
+  byteaOutput?: 'hex' | 'escape'
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
   moneyLocale?: 'C'
@@ -1110,6 +1118,8 @@ export function emitCheckRustEvaluator(
     if (!profile) return false
     return (
       !!profile.subtypeCompositeGraph ||
+      arrayElementFamily(arrayElementBaseType(profile.elementType)) === 15 ||
+      (rangeBoundProfiles(profile, executionContext)?.some((node) => node.kind === 15) ?? false) ||
       (moneyTextCLocale(executionContext) &&
         (arrayElementFamily(arrayElementBaseType(profile.elementType)) === 31 ||
           (rangeBoundProfiles(profile, executionContext)?.some((node) => node.kind === 31) ??
@@ -4891,11 +4901,13 @@ export function emitCheckRustEvaluator(
               ? jsonbConversionHelper(operand.type) + '_context'
               : operand.type === 'pg_catalog.money'
                 ? 'jsonb_input_from_money_context'
-                : rawJson && operand.type === 'pg_catalog."numeric"'
-                  ? 'json_input_from_numeric'
-                  : operand.type === 'pg_catalog."json"' && !rawJson
-                    ? 'jsonb_input_from_json_context'
-                    : jsonbConversionHelper(operand.type)
+                : operand.type === 'pg_catalog.bytea'
+                  ? 'jsonb_input_from_bytea_context'
+                  : rawJson && operand.type === 'pg_catalog."numeric"'
+                    ? 'json_input_from_numeric'
+                    : operand.type === 'pg_catalog."json"' && !rawJson
+                      ? 'jsonb_input_from_json_context'
+                      : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
@@ -4904,6 +4916,16 @@ export function emitCheckRustEvaluator(
           const args = [ownedOperand(operand)]
           if (operand.type === 'pg_catalog.money')
             args.push(String(moneyTextCLocale(executionContext)))
+          if (operand.type === 'pg_catalog.bytea')
+            args.push(
+              String(
+                executionContext.byteaOutput === 'hex'
+                  ? 1
+                  : executionContext.byteaOutput === 'escape'
+                    ? 2
+                    : 0,
+              ),
+            )
           if (operand.type === 'pg_catalog."json"' && !rawJson)
             args.push(String(executionContext.serverEncoding === 'UTF8'))
           if (floatOutput)
@@ -5812,6 +5834,13 @@ export function emitCheckRustEvaluator(
           type: node.type,
           name: bind(
             `${rustValuePrefix(rustType(operand.type))}_output_context(${operand.name},${executionContext.extraFloatDigits ?? 0},${executionContext.extraFloatDigits !== undefined})`,
+          ),
+        }
+      if (operand.type === 'pg_catalog.bytea')
+        return {
+          type: node.type,
+          name: bind(
+            `bytea_output_context(${ownedOperand(operand)},${executionContext.byteaOutput === 'hex' ? 1 : executionContext.byteaOutput === 'escape' ? 2 : 0},true)`,
           ),
         }
       if (isCatalogVectorType(operand.type))

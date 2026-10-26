@@ -520,7 +520,9 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
       )
     }
     case 'io-to-text':
-      return ['pg_catalog.int2vector', 'pg_catalog.oidvector'].includes(typeOf(node.operand))
+      return ['pg_catalog.int2vector', 'pg_catalog.oidvector', 'pg_catalog.bytea'].includes(
+        typeOf(node.operand),
+      )
     case 'call': {
       if (safePathTranslation(node) || safeFloatEncoding(node)) return false
       if (node.call.signature !== null && node.operands.length === 2) {

@@ -8503,6 +8503,90 @@ export function md5Kt50(input: checkruntime.TextValue): checkruntime.TextValue {
     }
     return { kind: "Unknown" };
 }
+const byteaOutputAllocationError = 56966976;
+const byteaOutputLimitError = 8584704;
+export function byteaOutputContext(input: checkruntime.ByteaValue, format: number, sqlText: boolean): checkruntime.TextValue {
+    format = langruntime.checkedI32(format);
+    sqlText = langruntime.checkedBool(sqlText);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let hexLength: bigint = 2n;
+        let escapeLength: bigint = 0n;
+        let index: number = 0;
+        while (index < characters.length) {
+            const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))), 16), checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))));
+            hexLength = langruntime.checkedI64(langruntime.checkedI64Add(hexLength, 2n));
+            if (byte < 32 || byte > 126) {
+                escapeLength = langruntime.checkedI64(langruntime.checkedI64Add(escapeLength, 4n));
+            }
+            else if (byte === 92) {
+                escapeLength = langruntime.checkedI64(langruntime.checkedI64Add(escapeLength, 2n));
+            }
+            else {
+                escapeLength = langruntime.checkedI64(langruntime.checkedI64Add(escapeLength, 1n));
+            }
+            index = langruntime.checkedAdd(index, 2);
+        }
+        if (!(format === 1) && !(format === 2)) {
+            let maximum: bigint = 1073741822n;
+            if (sqlText) {
+                maximum = langruntime.checkedI64(1073741819n);
+            }
+            if (hexLength <= maximum && escapeLength <= maximum) {
+                return { kind: "NonNull" };
+            }
+            return { kind: "Unknown" };
+        }
+        let length: bigint = hexLength;
+        if (format === 2) {
+            length = langruntime.checkedI64(escapeLength);
+        }
+        if (length > 1073741822n) {
+            if (format === 2) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaOutputLimitError) };
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaOutputAllocationError) };
+        }
+        if (sqlText && length > 1073741819n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaOutputAllocationError) };
+        }
+        let output: string = "";
+        if (format === 1) {
+            output = output + langruntime.checkedChar("\\");
+            output = output + langruntime.checkedChar("x");
+            output = output + value;
+            return { kind: "Value", value: output };
+        }
+        index = langruntime.checkedIndex(0);
+        while (index < characters.length) {
+            const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))), 16), checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))));
+            if (byte < 32 || byte > 126) {
+                output = output + langruntime.checkedChar("\\");
+                output = output + langruntime.checkedChar(byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedDivide(byte, 64), 48)));
+                output = output + langruntime.checkedChar(byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(byte, 8), 8), 48)));
+                output = output + langruntime.checkedChar(byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedRemainder(byte, 8), 48)));
+            }
+            else if (byte === 92) {
+                output = output + langruntime.checkedChar("\\");
+                output = output + langruntime.checkedChar("\\");
+            }
+            else {
+                output = output + langruntime.checkedChar(byteaAsciiCharacter(byte));
+            }
+            index = langruntime.checkedAdd(index, 2);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 function byteaOverlay(input: checkruntime.ByteaValue, replacement: checkruntime.ByteaValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.ByteaValue {
     hasLength = langruntime.checkedBool(hasLength);
     if (input.kind === "Error") {
@@ -17528,14 +17612,11 @@ export function jsonbInputFromOperatorAlias(input: checkruntime.OidValue): check
     return checkruntime.jsonbInputFromText(text);
 }
 export function jsonbInputFromBytea(input: checkruntime.ByteaValue): checkruntime.JsonbInput {
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    if (input.kind === "Null") {
-        return { kind: "Null" };
-    }
-    return { kind: "Unknown" };
+    return jsonbInputFromByteaContext(input, 0);
+}
+export function jsonbInputFromByteaContext(input: checkruntime.ByteaValue, format: number): checkruntime.JsonbInput {
+    format = langruntime.checkedI32(format);
+    return checkruntime.jsonbInputFromText(byteaOutputContext(input, format, false));
 }
 export function jsonbInputFromTsvector(input: checkruntime.TsvectorValue): checkruntime.JsonbInput {
     input = checkruntime.copyTsvectorValue(input);

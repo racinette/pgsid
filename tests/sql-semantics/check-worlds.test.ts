@@ -246,7 +246,6 @@ const declaredValueContextCases = new Map<string, string>([
       ] as const,
   ),
   ...[
-    'bytea',
     'interval',
     'regclass',
     'regcollation',
@@ -481,7 +480,13 @@ describe('world CHECK INSERT parity', () => {
       ).toBe(1)
     }
     await progress('typescript-generation')
+    const byteaOutput = (
+      await pg.query<{ mode: string }>("SELECT current_setting('bytea_output') mode")
+    ).rows[0]!.mode
+    if (byteaOutput !== 'hex' && byteaOutput !== 'escape')
+      throw new Error('Unsupported oracle bytea output')
     executionContext = {
+      byteaOutput,
       defaultCollation: 'C',
       defaultCtype: 'C.UTF-8',
       serverEncoding: 'UTF8',

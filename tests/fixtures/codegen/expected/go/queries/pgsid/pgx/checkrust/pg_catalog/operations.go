@@ -8462,6 +8462,87 @@ func Md5Kt50(input checkruntime.TextValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+const byteaOutputAllocationError = 56966976
+const byteaOutputLimitError = 8584704
+
+func ByteaOutputContext(input checkruntime.ByteaValue, format int, sqlText bool) checkruntime.TextValue {
+	format = langruntime.CheckedI32(format)
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		hexLength := int64(2)
+		escapeLength := int64(0)
+		index := 0
+		for index < len(characters) {
+			byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(checkruntime.HexDigit(characters[index]), 16), checkruntime.HexDigit(characters[langruntime.CheckedAdd(index, 1)]))
+			hexLength = langruntime.CheckedI64Add(hexLength, int64(2))
+			if byte < 32 || byte > 126 {
+				escapeLength = langruntime.CheckedI64Add(escapeLength, int64(4))
+			} else if byte == 92 {
+				escapeLength = langruntime.CheckedI64Add(escapeLength, int64(2))
+			} else {
+				escapeLength = langruntime.CheckedI64Add(escapeLength, int64(1))
+			}
+			index = langruntime.CheckedAdd(index, 2)
+		}
+		if format != 1 && format != 2 {
+			maximum := int64(1073741822)
+			if sqlText {
+				maximum = int64(1073741819)
+			}
+			if hexLength <= maximum && escapeLength <= maximum {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		length := hexLength
+		if format == 2 {
+			length = escapeLength
+		}
+		if length > int64(1073741822) {
+			if format == 2 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaOutputLimitError)}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaOutputAllocationError)}
+		}
+		if sqlText && length > int64(1073741819) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaOutputAllocationError)}
+		}
+		output := langruntime.NewTextBuffer("")
+		if format == 1 {
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
+			output = append(output, string(langruntime.CheckedChar('x'))...)
+			output = append(output, value...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		index = langruntime.CheckedIndex(0)
+		for index < len(characters) {
+			byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(checkruntime.HexDigit(characters[index]), 16), checkruntime.HexDigit(characters[langruntime.CheckedAdd(index, 1)]))
+			if byte < 32 || byte > 126 {
+				output = append(output, string(langruntime.CheckedChar('\\'))...)
+				output = append(output, string(langruntime.CheckedChar(byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(byte, 64), 48))))...)
+				output = append(output, string(langruntime.CheckedChar(byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(byte, 8), 8), 48))))...)
+				output = append(output, string(langruntime.CheckedChar(byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(byte, 8), 48))))...)
+			} else if byte == 92 {
+				output = append(output, string(langruntime.CheckedChar('\\'))...)
+				output = append(output, string(langruntime.CheckedChar('\\'))...)
+			} else {
+				output = append(output, string(langruntime.CheckedChar(byteaAsciiCharacter(byte)))...)
+			}
+			index = langruntime.CheckedAdd(index, 2)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func byteaOverlay(input checkruntime.ByteaValue, replacement checkruntime.ByteaValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.ByteaValueError {
 		error := input.Error
@@ -17424,14 +17505,11 @@ func JsonbInputFromOperatorAlias(input checkruntime.OidValue) checkruntime.Jsonb
 	return checkruntime.JsonbInputFromText(text)
 }
 func JsonbInputFromBytea(input checkruntime.ByteaValue) checkruntime.JsonbInput {
-	if input.Kind == checkruntime.ByteaValueError {
-		error := input.Error
-		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
-	}
-	if input.Kind == checkruntime.ByteaValueNull {
-		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
-	}
-	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+	return JsonbInputFromByteaContext(input, 0)
+}
+func JsonbInputFromByteaContext(input checkruntime.ByteaValue, format int) checkruntime.JsonbInput {
+	format = langruntime.CheckedI32(format)
+	return checkruntime.JsonbInputFromText(ByteaOutputContext(input, format, false))
 }
 func JsonbInputFromTsvector(input checkruntime.TsvectorValue) checkruntime.JsonbInput {
 	input = checkruntime.CopyTsvectorValue(input)

@@ -322,6 +322,9 @@ import them. Keep schema-only helpers with their callables.
   padding and UTF8 decoding; syntax returns 22023 or 22P02, size limits 54000.
   LIKE preserves byte wildcards, reached 22025 escapes, and failed-search aborts.
   Text input shares hex/escape parsing; bpchar I/O retains padding. Concat limits return XX000.
+  Text output uses explicit hex/escape context, shared by scalar casts, containers
+  and JSON. Escape output quotes every control/high byte separately from the encode
+  codec. Missing context preserves bounded scalar non-NULL state and defers bytes.
   Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced

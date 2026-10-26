@@ -44,6 +44,12 @@ independently of the math library on the client machine. Without a declared
 profile, reached coordinate generation stays uncertain; context-independent
 NULL results, input errors and skipped branches remain available.
 
+Binary text output uses `byteaOutput: hex` or `escape` to match the target
+session's `bytea_output`. The same formatter supplies scalar casts, array and
+record fields, and JSON values and keys. Without the setting, output bytes stay
+uncertain; bounded scalar values with known bytes retain known nullness. NULLs, child errors and
+skipped branches remain available.
+
 Identifier quoting uses `quoteAllIdentifiers: true` or `false` to match the
 target session's `quote_all_identifiers` setting. Forced quoting escapes every
 name; minimal quoting follows PostgreSQL's identifier syntax and keyword
