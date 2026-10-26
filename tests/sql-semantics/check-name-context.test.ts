@@ -160,6 +160,7 @@ it.each(['declared', 'width', 'absent'])(
                       ? (sample.source?.replace(/ +$/, '') ?? null)
                       : sample.source,
                 deferred =
+                  !(name === 'literal' && origin === 'stored') &&
                   text !== null &&
                   text !== '' &&
                   (profile.context.maxIdentifierBytes === undefined ||
@@ -191,3 +192,137 @@ it.each(['declared', 'width', 'absent'])(
   },
   600_000,
 )
+
+it('compares C-collated name cast results without losing inherited collation through composition', async () => {
+  const pg = await PGlite.create(),
+    root = await mkdtemp(join(tmpdir(), 'pgsid-name-cast-collation-')),
+    packet = 'artifacts/goal-checks/completion-boundaries-active'
+  try {
+    const maxIdentifierBytes = (
+      await pg.query<{ maxIdentifierBytes: number }>(
+        await readFile('tools/check-rust/identifier-context.sql', 'utf8'),
+      )
+    ).rows[0]!.maxIdentifierBytes
+    await pg.exec('CREATE DOMAIN cast_name AS name COLLATE "C"')
+    const expressions: Record<string, string> = {
+      equal: 'source::name=reference::name',
+      ordered: 'source::name<reference::name',
+      varying_value: 'varying_value::name=reference::name',
+      padded: 'padded::name=reference::name',
+      callable: 'pg_catalog.name(source)=reference::name',
+      nullsafe: 'source::name IS NOT DISTINCT FROM reference::name',
+      nulled: 'NULLIF(source::name,reference::name) IS NULL',
+      selected: '(CASE WHEN choose THEN source::name ELSE reference::name END)>=reference::name',
+      coalesced: 'COALESCE(source::name,reference::name)>=reference::name',
+      greatest: 'GREATEST(source::name,reference::name)=reference::name',
+      array: 'ARRAY[source::name]=ARRAY[reference::name]',
+      array_any: 'source::name=ANY(ARRAY[reference::name,NULL::name])',
+      domain: 'source::cast_name=reference::name',
+      mixed: 'source::name=reference',
+    }
+    for (const [name, sql] of Object.entries(expressions))
+      await pg.exec(
+        `CREATE TABLE name_cast_${name}(source text COLLATE "C",varying_value varchar COLLATE "C",padded bpchar COLLATE "C",reference text COLLATE "C",choose boolean,bypass boolean,CONSTRAINT valid CHECK(CASE WHEN bypass THEN true ELSE ${sql} END))`,
+      )
+    const c = await snapshotCatalog(pg),
+      checks = Object.entries(expressions).flatMap(([name, sql]) => {
+        const t = c.tables.find((t) => t.name === 'name_cast_' + name)!,
+          k = t.constraints[0]!
+        return (['source', 'stored'] as const).map((origin) => ({
+          name: name + '_' + origin,
+          identity: { schema: 'public', kind: 'table' as const, owner: t.name, constraint: origin },
+          expression: lowerTableCheck(
+            t,
+            k,
+            c.enums,
+            c.domains,
+            origin,
+            c.rangeTypes,
+            c.compositeTypeGraph,
+            origin === 'source' ? `CHECK(CASE WHEN bypass THEN true ELSE ${sql} END)` : undefined,
+          )!.expression,
+        }))
+      }),
+      group = prepareCheckRustGroup(checks, {
+        defaultCollation: 'C',
+        serverEncoding: 'UTF8',
+        maxIdentifierBytes,
+      }),
+      fixtures: { name: string; row: Row; expected: Outcome }[] = [],
+      native: unknown[] = []
+    for (const [i, k] of group.checks.entries())
+      expect(k.kind, checks[i]!.name + ('reason' in k ? ': ' + k.reason : '')).toBe('supported')
+    const pairs: [string | null, string | null][] = [
+        [null, null],
+        [null, 'a'],
+        ['a', null],
+        ['alpha', 'alpha'],
+        ['alpha', 'beta'],
+        ['beta', 'alpha'],
+        ['a   ', 'a'],
+        ['A', 'a'],
+        ['é', '😀'],
+        ['é'.repeat(maxIdentifierBytes), 'é'.repeat(Math.floor(maxIdentifierBytes / 2))],
+        ['a'.repeat(maxIdentifierBytes + 1), 'a'.repeat(maxIdentifierBytes)],
+      ],
+      known = (value: string | boolean | null): Input =>
+        value === null ? { kind: 'Null' } : { kind: 'Value', value }
+    for (const [source, reference] of pairs)
+      for (const choose of [false, true])
+        for (const bypass of [false, true])
+          for (const [name, sql] of Object.entries(expressions)) {
+            const params = [source, source, source, reference, choose, bypass],
+              answer = (
+                await pg.query<{ value: boolean | null }>(
+                  `SELECT (CASE WHEN bypass THEN true ELSE ${sql} END) value FROM (SELECT $1::text COLLATE "C" source,$2::varchar COLLATE "C" varying_value,$3::bpchar COLLATE "C" padded,$4::text COLLATE "C" reference,$5::bool choose,$6::bool bypass) q`,
+                  params,
+                )
+              ).rows[0]!.value
+            if (answer === false)
+              await expect(
+                pg.query(`INSERT INTO name_cast_${name} VALUES($1,$2,$3,$4,$5,$6)`, params),
+              ).rejects.toMatchObject({ code: '23514' })
+            else await pg.query(`INSERT INTO name_cast_${name} VALUES($1,$2,$3,$4,$5,$6)`, params)
+            const expected: Outcome = {
+                kind: answer === null ? 'Null' : answer ? 'True' : 'False',
+              },
+              row: Row = {
+                source: known(source),
+                varying_value: known(source),
+                padded: known(source),
+                reference: known(reference),
+                choose: known(choose),
+                bypass: known(bypass),
+              }
+            native.push({ name, row, expected })
+            for (const origin of ['source', 'stored'])
+              fixtures.push({ name: name + '_' + origin, row, expected })
+          }
+    for (const c of checks)
+      fixtures.push({
+        name: c.name,
+        row: {
+          source: { kind: 'Unknown' },
+          varying_value: { kind: 'Unknown' },
+          padded: { kind: 'Unknown' },
+          reference: { kind: 'Unknown' },
+          choose: { kind: 'Unknown' },
+          bypass: known(true),
+        },
+        expected: { kind: 'True' },
+      })
+    await mkdir(packet, { recursive: true })
+    await writeFile(join(packet, 'name-native.json'), JSON.stringify(native, null, 2) + '\n')
+    await writeFile(join(packet, 'name-fixtures.json'), JSON.stringify(fixtures, null, 2) + '\n')
+    await runCheckParity(
+      root,
+      'example.com/name-cast-collation',
+      group,
+      checks.map((k) => k.name),
+      fixtures,
+    )
+  } finally {
+    await pg.close()
+    await rm(root, { recursive: true, force: true })
+  }
+}, 600000)

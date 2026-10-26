@@ -1,3 +1,4 @@
+import type { CheckExecutionContext } from '../../src/codegen/shared/check-rust-evaluator.js'
 import {
   catalogCompositeType,
   compositeContainerProfile,
@@ -340,6 +341,7 @@ describe('world CHECK INSERT parity', () => {
   let pg: PGlite
   let directory: string
   let catalog: CatalogSnapshot
+  let executionContext: CheckExecutionContext
   let generated: Record<string, (row: Record<string, unknown>) => Result[]>
   const collationNames = new Map<number, string>()
   const oracleCollation = (column: Pick<ColumnInfo, 'collationOid'>): string => {
@@ -423,6 +425,12 @@ describe('world CHECK INSERT parity', () => {
     ).toBe(true)
     const moneyLocale = moneyCapture.flatMap((result) => result.rows)[0]!['moneyLocale'] as 'C'
     expect(moneyLocale).toBe('C')
+    const maxIdentifierBytes = (
+      await pg.query<{ maxIdentifierBytes: number }>(
+        await readFile('tools/check-rust/identifier-context.sql', 'utf8'),
+      )
+    ).rows[0]!.maxIdentifierBytes
+    expect(Number.isInteger(maxIdentifierBytes) && maxIdentifierBytes >= 0).toBe(true)
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {
@@ -473,20 +481,22 @@ describe('world CHECK INSERT parity', () => {
       ).toBe(1)
     }
     await progress('typescript-generation')
+    executionContext = {
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+      serverEncoding: 'UTF8',
+      arrayNulls: true,
+      nativeByteOrder: 'little',
+      maxIdentifierBytes,
+      trigonometry: 'fdlibm',
+      extraFloatDigits: 1,
+      moneyFractionDigits,
+      moneyLocale,
+      xpathRecursionLimit: 5000,
+      xpathPowerOfTenBits,
+    }
     const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
-      executionContext: {
-        defaultCollation: 'C',
-        defaultCtype: 'C.UTF-8',
-        serverEncoding: 'UTF8',
-        arrayNulls: true,
-        nativeByteOrder: 'little',
-        trigonometry: 'fdlibm',
-        extraFloatDigits: 1,
-        moneyFractionDigits,
-        moneyLocale,
-        xpathRecursionLimit: 5000,
-        xpathPowerOfTenBits,
-      },
+      executionContext,
       enums: catalog.enums,
       rangeTypes: catalog.rangeTypes,
       compositeTypeGraph: catalog.compositeTypeGraph,
@@ -495,11 +505,7 @@ describe('world CHECK INSERT parity', () => {
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true, nativeByteOrder: little, trigonometry: fdlibm, extraFloatDigits: 1, moneyFractionDigits: ' +
-          moneyFractionDigits +
-          ', moneyLocale: C, xpathRecursionLimit: 5000, xpathPowerOfTenBits: ' +
-          JSON.stringify(xpathPowerOfTenBits) +
-          ' }\n    go:\n      schema: { outDir: schema }\n',
+        `schema: schema.sql\nsql:\n  codegen:\n    checks: ${JSON.stringify(executionContext)}\n    go:\n      schema: { outDir: schema }\n`,
       ),
       {},
       join(directory, 'schema'),
@@ -3420,6 +3426,7 @@ describe('world CHECK INSERT parity', () => {
       JSON.stringify(
         {
           sourceDigest,
+          executionContext,
           scope: selectedWorldNames
             ? { kind: 'selected-worlds', worlds: worlds.map((world) => world.name) }
             : { kind: 'full-corpus' },

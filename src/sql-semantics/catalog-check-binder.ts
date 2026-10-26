@@ -7014,7 +7014,12 @@ export function bindCatalogCheck(
           return {
             type,
             value: converted,
-            ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+            ...([
+              'pg_catalog.name',
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+            ].includes(type)
               ? { collation: operand.collation ?? defaultCollation }
               : {}),
           }
