@@ -2886,6 +2886,25 @@ pub enum TsvectorValue {
 pub fn tsvector_unknown() -> TsvectorValue { TsvectorValue::Unknown }
 pub fn tsvector_null() -> TsvectorValue { TsvectorValue::Null }
 
+pub fn make_stored_tsvector_payload(native_bytes: i32) -> TsvectorPayload {
+    let lexemes: Vec<TsvectorLexeme> = Vec::new();
+    TsvectorPayload { lexemes, native_bytes }
+}
+pub fn make_stored_tsvector_lexeme(text: &str) -> TsvectorLexeme {
+    let positions: Vec<TsvectorPosition> = Vec::new();
+    TsvectorLexeme { text: text.to_owned(), positions }
+}
+pub fn tsvector_append_stored_position(input: TsvectorLexeme, position: i32, weight: i32) -> TsvectorLexeme {
+    let mut positions = input.positions;
+    positions.push(TsvectorPosition { position, weight });
+    TsvectorLexeme { text: input.text, positions }
+}
+pub fn tsvector_append_stored_lexeme(input: TsvectorPayload, lexeme: TsvectorLexeme) -> TsvectorPayload {
+    let mut lexemes = input.lexemes;
+    lexemes.push(lexeme);
+    TsvectorPayload { lexemes, native_bytes: input.native_bytes }
+}
+
 pub fn tsvector_lexeme_bytes(input: &str) -> i32 {
     let chars: Vec<char> = input.chars().collect();
     let mut bytes: i32 = 0;

@@ -3444,6 +3444,33 @@ func TsvectorUnknown() TsvectorValue {
 func TsvectorNull() TsvectorValue {
 	return TsvectorValue{Kind: TsvectorValueNull}
 }
+func MakeStoredTsvectorPayload(nativeBytes int) TsvectorPayload {
+	nativeBytes = langruntime.CheckedI32(nativeBytes)
+	lexemes := []TsvectorLexeme{}
+	return TsvectorPayload{Lexemes: lexemes, NativeBytes: nativeBytes}
+}
+func MakeStoredTsvectorLexeme(text string) TsvectorLexeme {
+	text = langruntime.CheckedString(text)
+	positions := []TsvectorPosition{}
+	return TsvectorLexeme{Text: text, Positions: positions}
+}
+func TsvectorAppendStoredPosition(input TsvectorLexeme, position int, weight int) TsvectorLexeme {
+	input = CopyTsvectorLexeme(input)
+	position = langruntime.CheckedI32(position)
+	weight = langruntime.CheckedI32(weight)
+	positions := input.Positions
+	langruntime.CheckedAdd(len(positions), 1)
+	positions = append(positions, TsvectorPosition{Position: position, Weight: weight})
+	return TsvectorLexeme{Text: input.Text, Positions: positions}
+}
+func TsvectorAppendStoredLexeme(input TsvectorPayload, lexeme TsvectorLexeme) TsvectorPayload {
+	input = CopyTsvectorPayload(input)
+	lexeme = CopyTsvectorLexeme(lexeme)
+	lexemes := input.Lexemes
+	langruntime.CheckedAdd(len(lexemes), 1)
+	lexemes = append(lexemes, CopyTsvectorLexeme(lexeme))
+	return TsvectorPayload{Lexemes: lexemes, NativeBytes: input.NativeBytes}
+}
 func TsvectorLexemeBytes(input string) int {
 	input = langruntime.CheckedString(input)
 	chars := []rune(input)

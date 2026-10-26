@@ -1035,3 +1035,32 @@ CREATE TABLE inspection_snapshot_history (
      THEN score/divisor ELSE NULL::integer END)::historical_snapshot_result IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_snapshot_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_fulltext_value AS(document tsvector,query tsquery,obsolete integer);
+CREATE TYPE historical_fulltext_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_fulltext_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_document text COLLATE "C",
+ expected_query bytea,
+ expected_match boolean,
+ expected_array jsonb,
+ expected_record jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT fulltext_history_document CHECK(CASE WHEN bypass THEN true ELSE
+   ('b:2C a:1A,3B'::tsvector)::text COLLATE "C" IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT fulltext_history_query CHECK(CASE WHEN bypass THEN true ELSE
+   tsquerysend('a & (b | c)'::tsquery) IS NOT DISTINCT FROM expected_query END),
+ CONSTRAINT fulltext_history_match CHECK(CASE WHEN bypass THEN true ELSE
+   ('b:2C a:1A,3B'::tsvector @@ 'a & (b | c)'::tsquery) IS NOT DISTINCT FROM expected_match END),
+ CONSTRAINT fulltext_history_array CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('{a:1A,NULL,b}'::tsvector[]) IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT fulltext_history_record CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('("a:1A","a & (b & c)",1)'::historical_fulltext_value) IS NOT DISTINCT FROM expected_record END),
+ CONSTRAINT fulltext_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN ('b:2C a:1A,3B'::tsvector @@ 'a & (b | c)'::tsquery)=expected_match
+     THEN score/divisor ELSE NULL::integer END)::historical_fulltext_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_fulltext_value DROP ATTRIBUTE obsolete;
+ALTER TYPE historical_fulltext_result DROP ATTRIBUTE obsolete_result;

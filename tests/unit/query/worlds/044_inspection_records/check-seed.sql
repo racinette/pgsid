@@ -1224,3 +1224,39 @@ INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,
 
 -- name: HistoricalSnapshotBypassedErrors
 INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,0,'bad','1',NULL,NULL,NULL,false,NULL,false,true);
+
+-- name: HistoricalFulltextValues
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',true,false);
+
+-- name: HistoricalFulltextNullScore
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(NULL,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',false,false);
+
+-- name: HistoricalFulltextWrongDocument
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'different',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',true,false);
+
+-- name: HistoricalFulltextWrongQuery
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C','\x00',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',true,false);
+
+-- name: HistoricalFulltextWrongMatch
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',false,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',false,false);
+
+-- name: HistoricalFulltextWrongArray
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'[]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',true,false);
+
+-- name: HistoricalFulltextWrongRecord
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{}',true,false);
+
+-- name: HistoricalFulltextWrongPresence
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',false,false);
+
+-- name: HistoricalFulltextNullPresence
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,1,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',NULL,false);
+
+-- name: HistoricalFulltextNullMatch
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,0,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',NULL,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',false,false);
+
+-- name: HistoricalFulltextReachedDivision
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,0,'''a'':1A,3B ''b'':2C',E'\\x0000000502020203010000630001000062000100006100',true,'["''a'':1A", null, "''b''"]','{"query": "''a'' & ''b'' & ''c''", "document": "''a'':1A"}',true,false);
+
+-- name: HistoricalFulltextBypassedDivision
+INSERT INTO inspection_fulltext_history(score,divisor,expected_document,expected_query,expected_match,expected_array,expected_record,expected_present,bypass) VALUES(1,0,NULL,NULL,false,NULL,NULL,false,true);

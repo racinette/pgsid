@@ -1,3 +1,6 @@
+import { scalar, type Tree } from './expression-tree.js'
+import { storedVarlenaBody } from './constant-storage-bytes.js'
+
 export interface TsqueryConstantNode {
   kind: number
   text: string
@@ -14,7 +17,9 @@ export interface TsqueryConstantStorage {
   nativeBytes: number
 }
 
-export function validTsqueryConstantStorage(value: TsqueryConstantStorage): boolean {
+export function validTsqueryConstantStorage(input: unknown): input is TsqueryConstantStorage {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+  const value = input as TsqueryConstantStorage
   if (
     !value ||
     !Array.isArray(value.nodes) ||
@@ -178,4 +183,18 @@ export function tsqueryConstantTypes(
     )
   }
   return new Set([...types.keys()].filter((oid) => scalar(oid)))
+}
+
+export function storedTsqueryValue(
+  node: Tree,
+  byteOrder: 'little' | 'big',
+  utf8: boolean,
+): TsqueryConstantStorage | null | undefined {
+  if (scalar(node, 'constisnull') === 'true') return null
+  const body = storedVarlenaBody(node, byteOrder)
+  if (!body) return undefined
+  const bytes = Buffer.concat([Buffer.alloc(4), body])
+  if (byteOrder === 'little') bytes.writeUInt32LE(bytes.length * 4)
+  else bytes.writeUInt32BE(bytes.length)
+  return tsqueryConstantStorage(bytes, utf8)
 }

@@ -844,6 +844,7 @@ export interface RangeTypeMetadata {
 }
 
 export interface RangeCallInfo {
+  defaultRowCoercionContexts?: readonly (StoredRowCoercionContext | null)[]
   defaultArrayConstants?: readonly (StoredArrayConstantContext | null)[]
   schema: string
   name: string
