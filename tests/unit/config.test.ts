@@ -13,6 +13,10 @@ describe('config schema', () => {
         'schema: schema.sql\nsql:\n  codegen:\n    checks: { trigonometry: fdlibm }\n',
       ).sql.codegen?.checks,
     ).toEqual({ trigonometry: 'fdlibm' })
+    expect(
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: { timeLocale: C }\n').sql
+        .codegen?.checks,
+    ).toEqual({ timeLocale: 'C' })
     for (const checks of ['{ moneyLocale: C }', '{ moneyLocale: C, moneyFractionDigits: 2 }'])
       expect(
         parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n').sql
@@ -126,6 +130,7 @@ describe('config schema', () => {
       '{ nativeByteOrder: LE }',
       '{ trigonometry: native }',
       '{ trigonometry: glibc }',
+      '{ timeLocale: en_US }',
       '{ moneyLocale: en_US }',
       '{ moneyLocale: C, moneyFractionDigits: 0 }',
       '{ moneyLocale: C, moneyFractionDigits: 10 }',

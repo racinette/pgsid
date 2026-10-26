@@ -517,7 +517,13 @@ describe('world CHECK INSERT parity', () => {
         )
       ).rows[0]!.contents,
     ).toBe(await readFile('vendor/postgresql-timezone/Default', 'utf8'))
+    const timeLocale = (
+      await pg.query<{ value: string }>("SELECT current_setting('lc_time') value")
+    ).rows[0]!.value
+    expect(timeLocale).toBe('C')
     executionContext = {
+      timeLocale: 'C',
+
       timeZoneAbbreviations: 'Default',
       timeZone: (await pg.query<{ value: string }>("SELECT current_setting('TimeZone') value"))
         .rows[0]!.value,

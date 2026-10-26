@@ -19,6 +19,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalTimestampFormatting,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -34,12 +35,16 @@ const temporalCasts = new Set(
         isTemporalLocalTimezone(item) ||
         isTemporalInstantConstructor(item) ||
         isTemporalInstantPeriod(item) ||
+        (isTemporalTimestampFormatting(item) && item.args[0] === 'pg_catalog.timestamptz') ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
         isTemporalSessionExtraction(item) ||
         isTemporalExplicitZoneLookup(item),
     )
     .map(callableIdentity),
+)
+const temporalTimestampFormats = new Set(
+  builtinCallables().filter(isTemporalTimestampFormatting).map(callableIdentity),
 )
 const temporalExplicitZones = new Set(
   builtinCallables()
@@ -310,6 +315,13 @@ export function checkUnknownMessage(
   if (reason) return `Local evaluation is incomplete: ${reason}`
   let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
+  if (containsSignature(expression, temporalTimestampFormats)) {
+    if (context.timeLocale === undefined)
+      message += ' Localized temporal template names can require sql.codegen.checks.timeLocale.'
+    if (context.defaultCollation === undefined)
+      message +=
+        ' Localized temporal template casing can require sql.codegen.checks.defaultCollation or an explicit C input collation.'
+  }
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=
       ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'

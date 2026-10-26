@@ -46998,6 +46998,369 @@ func MakeTimestampN30u(year checkruntime.Int4Value, month checkruntime.Int4Value
 	}
 	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
 }
+func timestampFormatAscii(input string, upper bool) string {
+	input = langruntime.CheckedString(input)
+	mode := 0
+	if upper {
+		mode = langruntime.CheckedI32(1)
+	}
+	value := textCaseValue(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: input}, mode)
+	if value.Kind == checkruntime.TextValueValue {
+		output := langruntime.CheckedString(value.Value)
+		return output
+	}
+	return ""
+}
+
+var timestampFormatMonths = []string{"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
+var timestampFormatDays = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+
+type timestampFormatFields struct {
+	calendar   temporalCalendarFields
+	clock      int64
+	julian     int64
+	seconds    int
+	label      string
+	known      bool
+	localeC    bool
+	collationC bool
+}
+
+func copytimestampFormatFields(value timestampFormatFields) timestampFormatFields {
+	return timestampFormatFields{calendar: copytemporalCalendarFields(value.calendar), clock: value.clock, julian: value.julian, seconds: langruntime.CheckedI32(value.seconds), label: langruntime.CheckedString(value.label), known: value.known, localeC: value.localeC, collationC: value.collationC}
+}
+func timestampFormatIso(calendar temporalCalendarFields, julian int64, kind int) int64 {
+	calendar = copytemporalCalendarFields(calendar)
+	kind = langruntime.CheckedI32(kind)
+	year := calendar.year
+	start := temporalFormatWeekStart(year)
+	if julian < start {
+		year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(year, 1))
+		start = temporalFormatWeekStart(year)
+	}
+	next := temporalFormatWeekStart(langruntime.CheckedSignedAdd(year, 1))
+	if julian >= next {
+		year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1))
+		start = next
+	}
+	if kind == 40 {
+		return langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(julian, start)), int64(7)), int64(1))
+	}
+	if kind == 38 {
+		return langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(julian, start), int64(1))
+	}
+	display := int64(langruntime.CheckedI32(year))
+	if display <= int64(0) {
+		display = langruntime.CheckedI64Subtract(int64(1), display)
+	}
+	return display
+}
+func timestampFormatField(fields *timestampFormatFields, kind int, spelling string, fill bool, translated bool) checkruntime.TextValue {
+	kind = langruntime.CheckedI32(kind)
+	spelling = langruntime.CheckedString(spelling)
+	if kind == 23 {
+		return checkruntime.MakeTextValue("")
+	}
+	if fields.known == false && (kind < 10 || kind > 17) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	calendar := fields.calendar
+	span := checkruntime.IntervalPayload{Months: calendar.month, Days: calendar.day, Time: fields.clock}
+	letters := []rune(spelling)
+	lower := letters[0] == langruntime.AsciiLowercase(letters[0])
+	if kind == 5 || kind == 29 {
+		width := 2
+		value := int64(langruntime.CheckedI32(calendar.month))
+		if kind == 29 {
+			width = langruntime.CheckedIndex(0)
+			value = langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(value, int64(1))), int64(3)), int64(1))
+		}
+		if fill {
+			width = langruntime.CheckedIndex(0)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: temporalFormatInteger(value, width)}
+	}
+	if (kind >= 6 && kind <= 18) || kind == 27 || kind == 41 || kind == 42 || kind == 43 || kind == 48 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: intervalFormatField(span, kind, fill, lower)}
+	}
+	if kind >= 19 && kind <= 22 {
+		if kind == 22 {
+			if textBuildOctets(fields.label) > int64(24) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			if lower {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: timestampFormatAscii(fields.label, false)}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(fields.label)}
+		}
+		seconds := int64(langruntime.CheckedI32(fields.seconds))
+		sign := '+'
+		if seconds < int64(0) {
+			seconds = langruntime.CheckedI64Subtract(int64(0), seconds)
+			sign = langruntime.CheckedChar('-')
+		}
+		if kind == 20 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: temporalFormatInteger(langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(seconds, int64(60))), int64(60)), 2)}
+		}
+		width := 2
+		if kind == 21 && fill {
+			width = langruntime.CheckedIndex(0)
+		}
+		output := langruntime.NewTextBuffer("")
+		output = append(output, string(langruntime.CheckedChar(sign))...)
+		output = append(output, temporalFormatInteger(langruntime.CheckedI64Divide(seconds, int64(3600)), width)...)
+		if kind == 21 && langruntime.CheckedI64Remainder(seconds, int64(3600)) != int64(0) {
+			output = append(output, string(langruntime.CheckedChar(':'))...)
+			output = append(output, temporalFormatInteger(langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(seconds, int64(60))), int64(60)), 2)...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	if kind == 31 || kind == 32 {
+		output := langruntime.NewTextBuffer("AD")
+		if kind == 32 {
+			output = langruntime.NewTextBuffer("A.D.")
+		}
+		if calendar.year <= 0 {
+			output = langruntime.NewTextBuffer("BC")
+			if kind == 32 {
+				output = langruntime.NewTextBuffer("B.C.")
+			}
+		}
+		if lower {
+			output = langruntime.NewTextBuffer(timestampFormatAscii(string(output), false))
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	if kind >= 44 && kind <= 47 {
+		if translated && (fields.localeC == false || fields.collationC == false) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		name := langruntime.NewTextBuffer("")
+		if kind == 44 || kind == 45 {
+			name = langruntime.NewTextBuffer(timestampFormatMonths[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(calendar.month, 1), 0)])
+		} else {
+			weekday := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(fields.julian, int64(1))), int64(7)), int64(7))), int64(7))
+			name = langruntime.NewTextBuffer(timestampFormatDays[langruntime.IndexFromI32(int(int32(weekday)), 0)])
+		}
+		if kind == 45 || kind == 47 {
+			characters := []rune(string(name))
+			name = langruntime.NewTextBuffer("")
+			name = append(name, string(langruntime.CheckedChar(characters[0]))...)
+			name = append(name, string(langruntime.CheckedChar(characters[1]))...)
+			name = append(name, string(langruntime.CheckedChar(characters[2]))...)
+		}
+		if spelling == "MONTH" || spelling == "MON" || spelling == "DAY" || spelling == "DY" {
+			name = langruntime.NewTextBuffer(timestampFormatAscii(string(name), true))
+		} else if lower {
+			name = langruntime.NewTextBuffer(timestampFormatAscii(string(name), false))
+		}
+		characters := []rune(string(name))
+		length := len(characters)
+		for translated == false && fill == false && (kind == 44 || kind == 46) && length < 9 {
+			name = append(name, string(langruntime.CheckedChar(' '))...)
+			length = langruntime.CheckedAdd(length, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(name)}
+	}
+	value := int64(0)
+	width := 0
+	if (kind >= 1 && kind <= 4) || kind == 33 || (kind >= 34 && kind <= 37) {
+		value = int64(langruntime.CheckedI32(calendar.year))
+		if value <= int64(0) {
+			value = langruntime.CheckedI64Subtract(int64(1), value)
+		}
+		yearKind := kind
+		if kind >= 34 && kind <= 37 {
+			value = timestampFormatIso(calendar, fields.julian, kind)
+			yearKind = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(kind, 33))
+		}
+		if kind == 33 {
+			output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(value, int64(1000))))
+			output = append(output, string(langruntime.CheckedChar(','))...)
+			output = append(output, temporalFormatInteger(langruntime.CheckedI64Remainder(value, int64(1000)), 3)...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		if yearKind == 2 {
+			value = langruntime.CheckedI64Remainder(value, int64(1000))
+		}
+		if yearKind == 3 {
+			value = langruntime.CheckedI64Remainder(value, int64(100))
+		}
+		if yearKind == 4 {
+			value = langruntime.CheckedI64Remainder(value, int64(10))
+		}
+		width = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(5, yearKind), 0))
+	}
+	if kind == 24 || kind == 26 {
+		value = langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(fields.julian, temporalJulianFromCalendar(calendar.year, 1, 1)), int64(1))
+		width = langruntime.CheckedIndex(3)
+		if kind == 26 {
+			value = langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(value, int64(1))), int64(7)), int64(1))
+			width = langruntime.CheckedIndex(2)
+		}
+	}
+	if kind == 25 || kind == 39 {
+		value = langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(fields.julian, int64(1))), int64(7))
+		if kind == 25 {
+			value = langruntime.CheckedI64Add(value, int64(1))
+		} else if value == int64(0) {
+			value = int64(7)
+		}
+	}
+	if kind == 28 {
+		value = fields.julian
+	}
+	if kind == 30 {
+		value = int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedDivide(calendar.year, 100), 1))))
+		if calendar.year > 0 {
+			value = int64(langruntime.CheckedI32((langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(calendar.year, 1)), 100), 1))))
+		}
+		width = langruntime.CheckedIndex(2)
+		if value < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 38 || kind == 40 {
+		value = timestampFormatIso(calendar, fields.julian, kind)
+		width = langruntime.CheckedIndex(2)
+		if kind == 38 {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if fill {
+		width = langruntime.CheckedIndex(0)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: temporalFormatInteger(value, width)}
+}
+func timestampFormatRender(fields *timestampFormatFields, format string) checkruntime.TextValue {
+	format = langruntime.CheckedString(format)
+	source := jsonpathTemporalSource{characters: []rune(format)}
+	output := langruntime.NewTextBuffer("")
+	unknown := false
+	position := 0
+	for position < len(source.characters) {
+		fill := jsonpathTemplateMatches(&source, position, "FM") || jsonpathTemplateMatches(&source, position, "fm")
+		translated := jsonpathTemplateMatches(&source, position, "TM") || jsonpathTemplateMatches(&source, position, "tm")
+		if fill || translated {
+			position = langruntime.CheckedAdd(position, 2)
+		}
+		key := len(jsonpathTemplateNames)
+		index := 0
+		for index < len(jsonpathTemplateNames) && key == len(jsonpathTemplateNames) {
+			if jsonpathTemplateMatches(&source, position, jsonpathTemplateNames[index]) {
+				key = langruntime.CheckedIndex(index)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if key < len(jsonpathTemplateNames) {
+			name := jsonpathTemplateNames[key]
+			letters := []rune(name)
+			kind := jsonpathTemplateKinds[key]
+			position = langruntime.CheckedAdd(position, len(letters))
+			ordinalUpper := jsonpathTemplateMatches(&source, position, "TH")
+			ordinalLower := jsonpathTemplateMatches(&source, position, "th")
+			if ordinalUpper || ordinalLower || jsonpathTemplateMatches(&source, position, "SP") {
+				position = langruntime.CheckedAdd(position, 2)
+			}
+			if fields.known && (kind == 46 || kind == 47) && langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(fields.julian, int64(1))), int64(7)) < int64(0) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			field := timestampFormatField(fields, kind, name, fill, translated)
+			if field.Kind == checkruntime.TextValueError {
+				error := field.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			fieldKnown := false
+			if field.Kind == checkruntime.TextValueValue {
+				text := langruntime.CheckedString(field.Value)
+				fieldKnown = true
+				rendered := langruntime.NewTextBuffer(text)
+				if (ordinalUpper || ordinalLower) && kind != 23 && kind != 31 && kind != 32 && kind != 42 && kind != 43 && (kind < 19 || kind > 22) && kind < 44 {
+					rendered = langruntime.NewTextBuffer(temporalFormatOrdinal(string(rendered), ordinalLower))
+				}
+				output = append(output, string(rendered)...)
+			}
+			if fieldKnown == false {
+				unknown = true
+			}
+		} else if position < len(source.characters) {
+			character := source.characters[position]
+			position = langruntime.CheckedAdd(position, 1)
+			if character == '"' {
+				quoted := true
+				for position < len(source.characters) && quoted {
+					literal := source.characters[position]
+					position = langruntime.CheckedAdd(position, 1)
+					if literal == '"' {
+						quoted = false
+					} else {
+						if literal == '\\' && position < len(source.characters) {
+							literal = langruntime.CheckedChar(source.characters[position])
+							position = langruntime.CheckedAdd(position, 1)
+						}
+						output = append(output, string(langruntime.CheckedChar(literal))...)
+					}
+				}
+			} else {
+				if character == '\\' && position < len(source.characters) && source.characters[position] == '"' {
+					character = langruntime.CheckedChar('"')
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+		}
+	}
+	if unknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func timestampFormatPayload(value int64, seconds int, label string, known bool, localeC bool, collationC bool) timestampFormatFields {
+	seconds = langruntime.CheckedI32(seconds)
+	label = langruntime.CheckedString(label)
+	local := langruntime.CheckedI64Add(value, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(seconds))), int64(1000000)))
+	day := langruntime.CheckedI64Divide(local, int64(86400000000))
+	clock := langruntime.CheckedI64Remainder(local, int64(86400000000))
+	if clock < int64(0) {
+		day = langruntime.CheckedI64Subtract(day, int64(1))
+		clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+	}
+	return timestampFormatFields{calendar: temporalCalendarFromJulian(langruntime.CheckedI64Add(day, int64(2451545))), clock: clock, julian: langruntime.CheckedI64Add(day, int64(2451545)), seconds: seconds, label: label, known: known, localeC: localeC, collationC: collationC}
+}
+func ToCharM86d(input checkruntime.TimestampValue, template checkruntime.TextValue, localeC bool, collationC bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			if format == "" {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+			}
+			if value < int64(-211813488000000000) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			fields := timestampFormatPayload(value, 0, "", true, localeC, collationC)
+			return timestampFormatRender(&fields, format)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func TimestamptzEqK4n3(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error

@@ -47348,6 +47348,382 @@ export function makeTimestampN30u(year: checkruntime.Int4Value, month: checkrunt
     }
     return { kind: "Unknown" };
 }
+function timestampFormatAscii(input: string, upper: boolean): string {
+    input = langruntime.checkedString(input);
+    upper = langruntime.checkedBool(upper);
+    let mode: number = 0;
+    if (upper) {
+        mode = langruntime.checkedI32(1);
+    }
+    const value: checkruntime.TextValue = textCaseValue({ kind: "Value", value: input }, mode);
+    if (value.kind === "Value") {
+        const output: string = langruntime.checkedString(value.value);
+        return output;
+    }
+    return "";
+}
+const timestampFormatMonths: ReadonlyArray<string> = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const timestampFormatDays: ReadonlyArray<string> = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+interface TimestampFormatFields {
+    calendar: TemporalCalendarFields;
+    clock: bigint;
+    julian: bigint;
+    seconds: number;
+    label: string;
+    known: boolean;
+    localeC: boolean;
+    collationC: boolean;
+}
+function copyTimestampFormatFields(value: TimestampFormatFields): TimestampFormatFields {
+    return { calendar: copyTemporalCalendarFields(value.calendar), clock: langruntime.checkedI64(value.clock), julian: langruntime.checkedI64(value.julian), seconds: langruntime.checkedI32(value.seconds), label: langruntime.checkedString(value.label), known: langruntime.checkedBool(value.known), localeC: langruntime.checkedBool(value.localeC), collationC: langruntime.checkedBool(value.collationC) };
+}
+function timestampFormatIso(calendar: TemporalCalendarFields, julian: bigint, kind: number): bigint {
+    calendar = copyTemporalCalendarFields(calendar);
+    julian = langruntime.checkedI64(julian);
+    kind = langruntime.checkedI32(kind);
+    let year: number = calendar.year;
+    let start: bigint = temporalFormatWeekStart(year);
+    if (julian < start) {
+        year = langruntime.checkedI32(langruntime.checkedSignedSubtract(year, 1));
+        start = langruntime.checkedI64(temporalFormatWeekStart(year));
+    }
+    const next: bigint = temporalFormatWeekStart(langruntime.checkedSignedAdd(year, 1));
+    if (julian >= next) {
+        year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1));
+        start = langruntime.checkedI64(next);
+    }
+    if (kind === 40) {
+        return langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(julian, start)), 7n), 1n);
+    }
+    if (kind === 38) {
+        return langruntime.checkedI64Add(langruntime.checkedI64Subtract(julian, start), 1n);
+    }
+    let display: bigint = BigInt(langruntime.checkedI32(year));
+    if (display <= 0n) {
+        display = langruntime.checkedI64(langruntime.checkedI64Subtract(1n, display));
+    }
+    return display;
+}
+function timestampFormatField(fields: TimestampFormatFields, kind: number, spelling: string, fill: boolean, translated: boolean): checkruntime.TextValue {
+    kind = langruntime.checkedI32(kind);
+    spelling = langruntime.checkedString(spelling);
+    fill = langruntime.checkedBool(fill);
+    translated = langruntime.checkedBool(translated);
+    if (kind === 23) {
+        return checkruntime.makeTextValue("");
+    }
+    if (fields.known === false && (kind < 10 || kind > 17)) {
+        return { kind: "Unknown" };
+    }
+    const calendar: TemporalCalendarFields = copyTemporalCalendarFields(fields.calendar);
+    const span: checkruntime.IntervalPayload = { months: calendar.month, days: calendar.day, time: fields.clock };
+    const letters: string[] = Array.from(spelling);
+    const lower: boolean = langruntime.indexChar(letters, langruntime.checkedIndex(0)) === langruntime.asciiLowercase(langruntime.indexChar(letters, langruntime.checkedIndex(0)));
+    if (kind === 5 || kind === 29) {
+        let width: number = 2;
+        let value: bigint = BigInt(langruntime.checkedI32(calendar.month));
+        if (kind === 29) {
+            width = langruntime.checkedIndex(0);
+            value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(value, 1n)), 3n), 1n));
+        }
+        if (fill) {
+            width = langruntime.checkedIndex(0);
+        }
+        return { kind: "Value", value: temporalFormatInteger(value, width) };
+    }
+    if ((kind >= 6 && kind <= 18) || kind === 27 || kind === 41 || kind === 42 || kind === 43 || kind === 48) {
+        return { kind: "Value", value: intervalFormatField(span, kind, fill, lower) };
+    }
+    if (kind >= 19 && kind <= 22) {
+        if (kind === 22) {
+            if (textBuildOctets(fields.label) > 24n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            if (lower) {
+                return { kind: "Value", value: timestampFormatAscii(fields.label, false) };
+            }
+            return { kind: "Value", value: langruntime.checkedString(fields.label) };
+        }
+        let seconds: bigint = BigInt(langruntime.checkedI32(fields.seconds));
+        let sign: string = "+";
+        if (seconds < 0n) {
+            seconds = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, seconds));
+            sign = langruntime.checkedChar("-");
+        }
+        if (kind === 20) {
+            return { kind: "Value", value: temporalFormatInteger(langruntime.checkedI64Remainder((langruntime.checkedI64Divide(seconds, 60n)), 60n), 2) };
+        }
+        let width: number = 2;
+        if (kind === 21 && fill) {
+            width = langruntime.checkedIndex(0);
+        }
+        let output: string = "";
+        output = output + langruntime.checkedChar(sign);
+        output = output + temporalFormatInteger(langruntime.checkedI64Divide(seconds, 3600n), width);
+        if (kind === 21 && !(langruntime.checkedI64Remainder(seconds, 3600n) === 0n)) {
+            output = output + langruntime.checkedChar(":");
+            output = output + temporalFormatInteger(langruntime.checkedI64Remainder((langruntime.checkedI64Divide(seconds, 60n)), 60n), 2);
+        }
+        return { kind: "Value", value: output };
+    }
+    if (kind === 31 || kind === 32) {
+        let output: string = "AD";
+        if (kind === 32) {
+            output = langruntime.checkedString("A.D.");
+        }
+        if (calendar.year <= 0) {
+            output = langruntime.checkedString("BC");
+            if (kind === 32) {
+                output = langruntime.checkedString("B.C.");
+            }
+        }
+        if (lower) {
+            output = langruntime.checkedString(timestampFormatAscii(output, false));
+        }
+        return { kind: "Value", value: output };
+    }
+    if (kind >= 44 && kind <= 47) {
+        if (translated && (fields.localeC === false || fields.collationC === false)) {
+            return { kind: "Unknown" };
+        }
+        let name: string = "";
+        if (kind === 44 || kind === 45) {
+            name = langruntime.checkedString(langruntime.indexStatic(timestampFormatMonths, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(calendar.month, 1), 0))));
+        }
+        else {
+            const weekday: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(fields.julian, 1n)), 7n), 7n)), 7n);
+            name = langruntime.checkedString(langruntime.indexStatic(timestampFormatDays, langruntime.checkedIndex(langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64(weekday))), 0))));
+        }
+        if (kind === 45 || kind === 47) {
+            const characters: string[] = Array.from(name);
+            name = langruntime.checkedString("");
+            name = name + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(0)));
+            name = name + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(1)));
+            name = name + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(2)));
+        }
+        if (spelling === "MONTH" || spelling === "MON" || spelling === "DAY" || spelling === "DY") {
+            name = langruntime.checkedString(timestampFormatAscii(name, true));
+        }
+        else if (lower) {
+            name = langruntime.checkedString(timestampFormatAscii(name, false));
+        }
+        const characters: string[] = Array.from(name);
+        let length: number = characters.length;
+        while (translated === false && fill === false && (kind === 44 || kind === 46) && length < 9) {
+            name = name + langruntime.checkedChar(" ");
+            length = langruntime.checkedAdd(length, 1);
+        }
+        return { kind: "Value", value: name };
+    }
+    let value: bigint = 0n;
+    let width: number = 0;
+    if ((kind >= 1 && kind <= 4) || kind === 33 || (kind >= 34 && kind <= 37)) {
+        value = langruntime.checkedI64(BigInt(langruntime.checkedI32(calendar.year)));
+        if (value <= 0n) {
+            value = langruntime.checkedI64(langruntime.checkedI64Subtract(1n, value));
+        }
+        let yearKind: number = kind;
+        if (kind >= 34 && kind <= 37) {
+            value = langruntime.checkedI64(timestampFormatIso(calendar, fields.julian, kind));
+            yearKind = langruntime.checkedI32(langruntime.checkedSignedSubtract(kind, 33));
+        }
+        if (kind === 33) {
+            let output: string = checkruntime.textSignedNumber(langruntime.checkedI64Divide(value, 1000n));
+            output = output + langruntime.checkedChar(",");
+            output = output + temporalFormatInteger(langruntime.checkedI64Remainder(value, 1000n), 3);
+            return { kind: "Value", value: output };
+        }
+        if (yearKind === 2) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 1000n));
+        }
+        if (yearKind === 3) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 100n));
+        }
+        if (yearKind === 4) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 10n));
+        }
+        width = langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(5, yearKind), 0));
+    }
+    if (kind === 24 || kind === 26) {
+        value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Subtract(fields.julian, temporalJulianFromCalendar(calendar.year, 1, 1)), 1n));
+        width = langruntime.checkedIndex(3);
+        if (kind === 26) {
+            value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(value, 1n)), 7n), 1n));
+            width = langruntime.checkedIndex(2);
+        }
+    }
+    if (kind === 25 || kind === 39) {
+        value = langruntime.checkedI64(langruntime.checkedI64Remainder((langruntime.checkedI64Add(fields.julian, 1n)), 7n));
+        if (kind === 25) {
+            value = langruntime.checkedI64(langruntime.checkedI64Add(value, 1n));
+        }
+        else if (value === 0n) {
+            value = langruntime.checkedI64(7n);
+        }
+    }
+    if (kind === 28) {
+        value = langruntime.checkedI64(fields.julian);
+    }
+    if (kind === 30) {
+        value = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(langruntime.checkedSignedDivide(calendar.year, 100), 1)))));
+        if (calendar.year > 0) {
+            value = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedAdd(langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(calendar.year, 1)), 100), 1)))));
+        }
+        width = langruntime.checkedIndex(2);
+        if (value < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 38 || kind === 40) {
+        value = langruntime.checkedI64(timestampFormatIso(calendar, fields.julian, kind));
+        width = langruntime.checkedIndex(2);
+        if (kind === 38) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (fill) {
+        width = langruntime.checkedIndex(0);
+    }
+    return { kind: "Value", value: temporalFormatInteger(value, width) };
+}
+function timestampFormatRender(fields: TimestampFormatFields, format: string): checkruntime.TextValue {
+    format = langruntime.checkedString(format);
+    const source: JsonpathTemporalSource = { characters: Array.from(format) };
+    let output: string = "";
+    let unknown: boolean = false;
+    let position: number = 0;
+    while (position < source.characters.length) {
+        const fill: boolean = jsonpathTemplateMatches(source, position, "FM") || jsonpathTemplateMatches(source, position, "fm");
+        const translated: boolean = jsonpathTemplateMatches(source, position, "TM") || jsonpathTemplateMatches(source, position, "tm");
+        if (fill || translated) {
+            position = langruntime.checkedAdd(position, 2);
+        }
+        let key: number = jsonpathTemplateNames.length;
+        let index: number = 0;
+        while (index < jsonpathTemplateNames.length && key === jsonpathTemplateNames.length) {
+            if (jsonpathTemplateMatches(source, position, langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(index)))) {
+                key = langruntime.checkedIndex(index);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (key < jsonpathTemplateNames.length) {
+            const name: string = langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(key));
+            const letters: string[] = Array.from(name);
+            const kind: number = langruntime.indexStatic(jsonpathTemplateKinds, langruntime.checkedIndex(key));
+            position = langruntime.checkedAdd(position, letters.length);
+            const ordinalUpper: boolean = jsonpathTemplateMatches(source, position, "TH");
+            const ordinalLower: boolean = jsonpathTemplateMatches(source, position, "th");
+            if (ordinalUpper || ordinalLower || jsonpathTemplateMatches(source, position, "SP")) {
+                position = langruntime.checkedAdd(position, 2);
+            }
+            if (fields.known && (kind === 46 || kind === 47) && langruntime.checkedI64Remainder((langruntime.checkedI64Add(fields.julian, 1n)), 7n) < 0n) {
+                return { kind: "Unknown" };
+            }
+            const field: checkruntime.TextValue = timestampFormatField(fields, kind, name, fill, translated);
+            if (field.kind === "Error") {
+                const error: checkruntime.SqlError = field.value;
+                return { kind: "Error", value: error };
+            }
+            let fieldKnown: boolean = false;
+            if (field.kind === "Value") {
+                const text: string = langruntime.checkedString(field.value);
+                fieldKnown = langruntime.checkedBool(true);
+                let rendered: string = text;
+                if ((ordinalUpper || ordinalLower) && !(kind === 23) && !(kind === 31) && !(kind === 32) && !(kind === 42) && !(kind === 43) && (kind < 19 || kind > 22) && kind < 44) {
+                    rendered = langruntime.checkedString(temporalFormatOrdinal(rendered, ordinalLower));
+                }
+                output = output + rendered;
+            }
+            if (fieldKnown === false) {
+                unknown = langruntime.checkedBool(true);
+            }
+        }
+        else if (position < source.characters.length) {
+            let character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            position = langruntime.checkedAdd(position, 1);
+            if (character === "\"") {
+                let quoted: boolean = true;
+                while (position < source.characters.length && quoted) {
+                    let literal: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                    position = langruntime.checkedAdd(position, 1);
+                    if (literal === "\"") {
+                        quoted = langruntime.checkedBool(false);
+                    }
+                    else {
+                        if (literal === "\\" && position < source.characters.length) {
+                            literal = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        output = output + langruntime.checkedChar(literal);
+                    }
+                }
+            }
+            else {
+                if (character === "\\" && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\"") {
+                    character = langruntime.checkedChar("\"");
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                output = output + langruntime.checkedChar(character);
+            }
+        }
+    }
+    if (unknown) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: output };
+}
+function timestampFormatPayload(value: bigint, seconds: number, label: string, known: boolean, localeC: boolean, collationC: boolean): TimestampFormatFields {
+    value = langruntime.checkedI64(value);
+    seconds = langruntime.checkedI32(seconds);
+    label = langruntime.checkedString(label);
+    known = langruntime.checkedBool(known);
+    localeC = langruntime.checkedBool(localeC);
+    collationC = langruntime.checkedBool(collationC);
+    const local: bigint = langruntime.checkedI64Add(value, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(seconds))), 1000000n));
+    let day: bigint = langruntime.checkedI64Divide(local, 86400000000n);
+    let clock: bigint = langruntime.checkedI64Remainder(local, 86400000000n);
+    if (clock < 0n) {
+        day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+        clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+    }
+    return { calendar: copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(day, 2451545n))), clock: clock, julian: langruntime.checkedI64Add(day, 2451545n), seconds: seconds, label: label, known: known, localeC: localeC, collationC: collationC };
+}
+export function toCharM86d(input: checkruntime.TimestampValue, template: checkruntime.TextValue, localeC: boolean, collationC: boolean): checkruntime.TextValue {
+    localeC = langruntime.checkedBool(localeC);
+    collationC = langruntime.checkedBool(collationC);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n || value === 9223372036854775807n) {
+            return { kind: "Null" };
+        }
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            if (format === "") {
+                return { kind: "Null" };
+            }
+            if (value < -211813488000000000n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const fields: TimestampFormatFields = timestampFormatPayload(value, 0, "", true, localeC, collationC);
+            return timestampFormatRender(fields, format);
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function timestamptzEqK4n3(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

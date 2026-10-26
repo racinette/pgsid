@@ -42,8 +42,11 @@ must fit their PostgreSQL width before entering the Rust representation;
 values outside that width remain unknown locally. The target representation
 of a SQL error carries its SQLSTATE back through the existing validation API.
 
-Text operations in the Rust subset use PostgreSQL's C collation. Constraints
-whose text semantics require another collation stay on the fallback path.
+Collation-dependent text operations require a matching declared execution
+contract. Localized calendar template names also require the declared time
+locale; ordinary English names and numeric fields do not. Instant calendar
+fields use the session timezone, while fractional seconds can remain known
+without it. Missing context leaves the affected result unknown.
 Supported `int4` addition and subtraction return PostgreSQL SQLSTATE `22003`
 when the result is outside the `int4` range. The generated validator reports
 that error through the same SQL error path as other supported operations.

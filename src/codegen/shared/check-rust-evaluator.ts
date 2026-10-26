@@ -18,6 +18,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalIntervalFormatting,
+  isTemporalTimestampFormatting,
   isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -802,6 +803,7 @@ export type CheckExecutionContext = {
   dateStyle?: { format: 'ISO' | 'SQL' | 'Postgres' | 'German'; order: 'MDY' | 'DMY' | 'YMD' }
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
+  timeLocale?: 'C'
   moneyLocale?: 'C'
   moneyFractionDigits?: number
   extraFloatDigits?: number
@@ -3134,6 +3136,7 @@ export function emitCheckRustEvaluator(
           !isTemporalInstantConstructor(implementation) &&
           !isTemporalInstantPeriod(implementation) &&
           !isTemporalIntervalFormatting(implementation) &&
+          !isTemporalTimestampFormatting(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&
@@ -5361,6 +5364,19 @@ export function emitCheckRustEvaluator(
         )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      if (isTemporalTimestampFormatting(implementation)) {
+        if (implementation.args[0] === 'pg_catalog.timestamptz')
+          arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
+        arguments_.push(
+          String(executionContext.timeLocale === 'C'),
+          String(
+            call.kind !== 'cast' &&
+              (call.collation === 'C' ||
+                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+          ),
+        )
+      }
+
       if (
         isTemporalContextCast(implementation) ||
         isTemporalContextArithmetic(implementation) ||
