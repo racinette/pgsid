@@ -15,6 +15,7 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalSessionTruncation,
   isTemporalClockZoneLookup,
   isTemporalExplicitZoneLookup,
 } from '../../sql-semantics/temporal-casts.js'
@@ -25,12 +26,16 @@ const temporalCasts = new Set(
       (item) =>
         isTemporalContextCast(item) ||
         isTemporalContextArithmetic(item) ||
+        isTemporalSessionTruncation(item) ||
         isTemporalExplicitZoneLookup(item),
     )
     .map(callableIdentity),
 )
 const temporalExplicitZones = new Set(
   builtinCallables().filter(isTemporalExplicitZoneLookup).map(callableIdentity),
+)
+const temporalSessionTruncations = new Set(
+  builtinCallables().filter(isTemporalSessionTruncation).map(callableIdentity),
 )
 const clockZoneLookups = new Set(
   builtinCallables().filter(isTemporalClockZoneLookup).map(callableIdentity),
@@ -300,6 +305,11 @@ export function checkUnknownMessage(
     message +=
       ' Unavailable timezone data, implicit POSIX rules and abbreviation-cache collisions can also defer lookup.'
   }
+  if (
+    context.maxIdentifierBytes === undefined &&
+    containsSignature(expression, temporalSessionTruncations)
+  )
+    message += ' Temporal unit decoding can require sql.codegen.checks.maxIdentifierBytes.'
   if (containsSignature(expression, clockZoneLookups))
     message +=
       ' Timezone conversion of timetz with a variable offset can require the transaction start instant.'

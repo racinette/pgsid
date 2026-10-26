@@ -106,3 +106,18 @@ export function isTemporalExplicitZoneLookup(item: BuiltinCallable): boolean {
       item.args[2] === 'pg_catalog.text')
   )
 }
+
+export function isTemporalSessionTruncation(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.name === 'date_trunc' &&
+    item.args.length === 2 &&
+    item.args[0] === 'pg_catalog.text' &&
+    item.args[1] === 'pg_catalog.timestamptz' &&
+    item.result === 'pg_catalog.timestamptz'
+  )
+}

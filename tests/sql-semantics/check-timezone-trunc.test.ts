@@ -19,9 +19,13 @@ const operationSource = readFileSync(
   'crates/check-evaluator/src/operations/pg_catalog/timezone_trunc.rs',
   'utf8',
 )
-const names = [...operationSource.matchAll(/pub fn (sql__[a-z0-9_]+)\(/gu)].map(
-  (match) => match[1]!,
-)
+const names = [...operationSource.matchAll(/pub fn (sql__[a-z0-9_]+)\(/gu)]
+  .map((match) => match[1]!)
+  .filter((name) =>
+    builtinCallables().some(
+      (item) => item.kind === 'function' && item.rustName === name && item.args.length === 3,
+    ),
+  )
 const fn = builtinCallables().find((fn) => fn.kind === 'function' && names.includes(fn.rustName))!
 const expressions = {
   same: 'pg_catalog.date_trunc(unit_name, instant, zone_name) = recorded',

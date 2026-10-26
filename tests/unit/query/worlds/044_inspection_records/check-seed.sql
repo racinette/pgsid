@@ -1762,3 +1762,32 @@ INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,byp
 INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','UTC','13:00+01',false);
 -- name: ClockZoneSkippedVariable
 INSERT INTO inspection_clock_zones(recorded_clock,target_zone,expected_clock,bypass) VALUES('12:00+00','America/New_York',NULL,true);
+
+-- name: SessionBucketDay
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2024-03-10 07:30+00','day','2024-03-10 00:00+00',false);
+-- name: SessionBucketHour
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2024-03-10 07:30+00','hour','2024-03-10 07:00+00',false);
+-- name: SessionBucketWeek
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2000-01-01 12:00+00','week','1999-12-27 00:00+00',false);
+-- name: SessionBucketQuarter
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2000-02-29 12:00+00','quarter','2000-01-01 00:00+00',false);
+-- name: SessionBucketNegativeFraction
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('1999-12-31 23:59:59.999999+00','milliseconds','1999-12-31 23:59:59.999+00',false);
+-- name: SessionBucketInfinity
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('infinity','year','infinity',false);
+-- name: SessionBucketInvalidInfinity
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('infinity','bogus','infinity',false);
+-- name: SessionBucketUnsupportedInfinity
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('-infinity','timezone','-infinity',false);
+-- name: SessionBucketNullInput
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES(NULL,'bogus',NULL,false);
+-- name: SessionBucketNullUnit
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2000-01-01+00',NULL,NULL,false);
+-- name: SessionBucketStoredCentury
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES(('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),'century','294201-01-01+00',false);
+-- name: SessionBucketMismatch
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2024-03-10 07:30+00','day','2024-03-10 07:00+00',false);
+-- name: SessionBucketExpectedNull
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('2024-03-10 07:30+00','hour',NULL,false);
+-- name: SessionBucketSkipped
+INSERT INTO inspection_session_buckets(instant_at,unit_name,expected_bucket,bypass) VALUES('infinity','bogus',NULL,true);
