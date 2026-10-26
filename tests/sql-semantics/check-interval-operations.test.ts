@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { selectCheckFunctions } from './check-function-selection.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
@@ -160,11 +162,15 @@ describe('interval arithmetic, precision and calendar operations', () => {
         ),
       )
     ).join('\n')
-    const functions = builtinCallables().filter(
+    const availableFunctions = builtinCallables().filter(
       (fn): fn is FunctionMetadata =>
         fn.kind === 'function' && source.includes(`pub fn ${fn.rustName}(`),
     )
-    expect(functions).toHaveLength(16)
+    expect(availableFunctions).toHaveLength(16)
+    const { functions, scope } = selectCheckFunctions(
+      availableFunctions,
+      process.env['PGSID_CHECK_INTERVAL_FUNCTIONS'],
+    )
     const columns: Record<string, string> = { expected: 'bytea', skip: 'bool' }
     const expressions: Record<string, string> = {}
     for (const fn of functions) {
@@ -189,12 +195,13 @@ describe('interval arithmetic, precision and calendar operations', () => {
         fn: fn.rustName,
       }
     }
-    const constructor = functions.find((fn) => fn.name === 'make_interval')!
-    aliases.constructor_default = {
-      sql: 'interval_send(make_interval(arg0_int4)) = expected',
-      fn: constructor.rustName,
-      defaults: true,
-    }
+    const constructor = functions.find((fn) => fn.name === 'make_interval')
+    if (constructor)
+      aliases.constructor_default = {
+        sql: 'interval_send(make_interval(arg0_int4)) = expected',
+        fn: constructor.rustName,
+        defaults: true,
+      }
     Object.assign(
       expressions,
       Object.fromEntries(Object.entries(aliases).map(([name, item]) => [name, item.sql])),
@@ -381,6 +388,38 @@ describe('interval arithmetic, precision and calendar operations', () => {
       group,
       constraints.map((constraint) => constraint.name),
       fixtures,
+    )
+    const reportDirectory =
+      'artifacts/check-interval-operations/' +
+      (scope.kind === 'all-functions'
+        ? 'all'
+        : 'selected-' +
+          createHash('sha256')
+            .update(JSON.stringify(functions.map(callableIdentity)))
+            .digest('hex')
+            .slice(0, 16))
+    await mkdir(reportDirectory, { recursive: true })
+    await writeFile(
+      join(reportDirectory, 'report.json'),
+      JSON.stringify(
+        {
+          scope,
+          functions: functions.map(callableIdentity),
+          checks: constraints.length,
+          fixtures: fixtures.length,
+          sourceSha256: createHash('sha256').update(JSON.stringify(group.source)).digest('hex'),
+          fixturesSha256: createHash('sha256')
+            .update(
+              JSON.stringify(fixtures, (_key, value: unknown) =>
+                typeof value === 'bigint' ? String(value) + 'n' : value,
+              ),
+            )
+            .digest('hex'),
+          targets: ['Rust', 'Go', 'TypeScript'],
+        },
+        null,
+        2,
+      ) + '\n',
     )
   }, 360_000)
 })
