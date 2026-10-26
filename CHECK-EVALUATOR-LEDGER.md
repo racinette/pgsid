@@ -74,7 +74,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Admit scalar-domain casts and domain arrays with inherited modifiers, ordered constraints, nominal polymorphic results and original INSERT parity; capture implicit/explicit conversion context during catalog generation and defer missing or ambiguous context.
 - [ ] Inventory unsupported input/output forms, coercions and recoverable value facets for represented types, including unmodeled finite generic array/record binary lengths separately from unavailable deployment header OIDs. Include recoverable container structure when nested rendering requires deployment catalog or session context.
 - [x] Share handled and deferred temporal input-form cases between their parity suites and the coercion report, retaining the executing owner of each list.
-- [x] Expand temporal text parsing in bounded, independently testable slices.
+- [x] Expand temporal text parsing in bounded, independently testable slices, including SQL date/instant templates with permissive separators, partial-input defaults, Gregorian/ISO calendars, precision, abbreviation prefixes and conditional locale/encoding/timezone context; verify `tests/sql-semantics/check-datetime-templates.test.ts`.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter conversion separately from already SQL-coerced row inputs.
 - [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
 

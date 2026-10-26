@@ -19,6 +19,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
+  isTemporalTemplateParsing,
   isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -3137,6 +3138,7 @@ export function emitCheckRustEvaluator(
           !isTemporalInstantPeriod(implementation) &&
           !isTemporalIntervalFormatting(implementation) &&
           !isTemporalTimestampFormatting(implementation) &&
+          !isTemporalTemplateParsing(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&
@@ -5364,6 +5366,18 @@ export function emitCheckRustEvaluator(
         )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      if (isTemporalTemplateParsing(implementation))
+        arguments_.push(
+          rustStringLiteral(executionContext.timeZone ?? ''),
+          String(executionContext.timeLocale === 'C'),
+          String(
+            call.kind !== 'cast' &&
+              (call.collation === 'C' ||
+                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+          ),
+          String(executionContext.serverEncoding === 'UTF8'),
+          String(executionContext.timeZoneAbbreviations === 'Default'),
+        )
       if (isTemporalTimestampFormatting(implementation)) {
         if (implementation.args[0] === 'pg_catalog.timestamptz')
           arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))

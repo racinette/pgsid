@@ -46,7 +46,9 @@ Collation-dependent text operations require a matching declared execution
 contract. Localized calendar template names also require the declared time
 locale; ordinary English names and numeric fields do not. Instant calendar
 fields use the session timezone, while fractional seconds can remain known
-without it. Missing context leaves the affected result unknown.
+without it. Input templates follow PostgreSQL field and separator rules; an
+explicit numeric offset supplies instant interpretation independently of the
+session timezone. Missing context leaves the affected result unknown.
 Supported `int4` addition and subtraction return PostgreSQL SQLSTATE `22003`
 when the result is outside the `int4` range. The generated validator reports
 that error through the same SQL error path as other supported operations.

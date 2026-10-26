@@ -1553,3 +1553,15 @@ CREATE TABLE inspection_calendar_labels (
  CONSTRAINT calendar_label_instant CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[pg_catalog.to_char(recorded_at,label_pattern COLLATE "C"),NULL::text])[1] IS NOT DISTINCT FROM expected_instant_label END)
 );
+
+CREATE TABLE inspection_imported_datetimes (
+ source_text text,
+ input_pattern text,
+ expected_day date,
+ expected_instant timestamptz,
+ bypass boolean NOT NULL,
+ CONSTRAINT imported_day_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.to_date(source_text,input_pattern) IS NOT DISTINCT FROM expected_day END),
+ CONSTRAINT imported_instant_value CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.to_timestamp(source_text,input_pattern COLLATE "C"),NULL::timestamptz])[1] IS NOT DISTINCT FROM expected_instant END)
+);

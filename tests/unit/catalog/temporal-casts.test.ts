@@ -23,6 +23,7 @@ import {
   isTemporalInstantPeriod,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
+  isTemporalTemplateParsing,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -542,5 +543,51 @@ it('assembles plain timestamp templates without timezone support and includes it
       files.includes('crates/check-evaluator/src/operations/pg_catalog/timezone_format.rs'),
     ).toBe(needsTimezone)
     expect(files.includes('generated/timezone_tables.rs')).toBe(needsTimezone)
+  }
+})
+
+it('admits only text-template date/instant parsers with conditional context', () => {
+  const items = builtinCallables().filter(
+    (f): f is FunctionMetadata => f.kind === 'function' && isTemporalTemplateParsing(f),
+  )
+  expect(items.map((f) => f.rustName).sort()).toEqual([
+    'sql__pg_catalog__to_date__643t',
+    'sql__pg_catalog__to_timestamp__xn0m',
+  ])
+  for (const item of items) {
+    for (const changed of [
+      { schema: 'other' },
+      { strict: false },
+      { volatility: 'i' as const },
+      { returnsSet: true },
+      { result: 'pg_catalog.text' },
+      { args: ['pg_catalog.float8'] },
+    ])
+      expect(isTemporalTemplateParsing({ ...item, ...changed })).toBe(false)
+    const probe = bindProbe(`pg_catalog.${item.name}(input,picture) IS NOT NULL`, [
+      { name: 'input', typeName: 'pg_catalog.text' },
+      { name: 'picture', typeName: 'pg_catalog.text' },
+    ])
+    expect(probe.fullyBound).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    const message = checkUnknownMessage(probe.expression)
+    expect(message).toContain('sql.codegen.checks.timeLocale')
+    expect(message).toContain('sql.codegen.checks.timeZoneAbbreviations')
+    expect(message).not.toContain('maxIdentifierBytes')
+    expect(
+      checkUnknownMessage(probe.expression, undefined, {
+        timeZone: 'UTC',
+        timeZoneAbbreviations: 'Default',
+        timeLocale: 'C',
+        defaultCollation: 'C',
+        serverEncoding: 'UTF8',
+      }),
+    ).not.toContain('sql.codegen.checks.')
+    expect(
+      temporalArithmeticRequirements(item)?.every(
+        (r) => r.owner === 'tests/sql-semantics/check-datetime-templates.test.ts',
+      ),
+    ).toBe(true)
   }
 })

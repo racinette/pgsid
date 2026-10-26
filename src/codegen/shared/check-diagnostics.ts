@@ -20,6 +20,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalTimestampFormatting,
+  isTemporalTemplateParsing,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -35,6 +36,7 @@ const temporalCasts = new Set(
         isTemporalLocalTimezone(item) ||
         isTemporalInstantConstructor(item) ||
         isTemporalInstantPeriod(item) ||
+        isTemporalTemplateParsing(item) ||
         (isTemporalTimestampFormatting(item) && item.args[0] === 'pg_catalog.timestamptz') ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
@@ -44,7 +46,12 @@ const temporalCasts = new Set(
     .map(callableIdentity),
 )
 const temporalTimestampFormats = new Set(
-  builtinCallables().filter(isTemporalTimestampFormatting).map(callableIdentity),
+  builtinCallables()
+    .filter((item) => isTemporalTimestampFormatting(item) || isTemporalTemplateParsing(item))
+    .map(callableIdentity),
+)
+const temporalTemplateParsers = new Set(
+  builtinCallables().filter(isTemporalTemplateParsing).map(callableIdentity),
 )
 const temporalExplicitZones = new Set(
   builtinCallables()
@@ -321,6 +328,14 @@ export function checkUnknownMessage(
     if (context.defaultCollation === undefined)
       message +=
         ' Localized temporal template casing can require sql.codegen.checks.defaultCollation or an explicit C input collation.'
+  }
+  if (containsSignature(expression, temporalTemplateParsers)) {
+    if (context.timeZoneAbbreviations === undefined)
+      message +=
+        ' Temporal template abbreviation lookup can require sql.codegen.checks.timeZoneAbbreviations.'
+    if (context.serverEncoding === undefined)
+      message +=
+        ' Fixed-width non-ASCII temporal template input can require sql.codegen.checks.serverEncoding.'
   }
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=

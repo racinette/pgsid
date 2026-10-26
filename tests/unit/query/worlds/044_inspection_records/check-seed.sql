@@ -2081,3 +2081,42 @@ INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,exp
 INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','YYYY','2000','1999',false);
 -- name: CalendarLabelSkipped
 INSERT INTO inspection_calendar_labels(reported_at,recorded_at,label_pattern,expected_local_label,expected_instant_label,bypass) VALUES ('2000-01-01','2000-01-01+00','YYYY','1999','1999',true);
+
+-- name: ImportedDatetimeLeapDay
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29 12:34:56.123456 +02','YYYY-MM-DD HH24:MI:SS.US TZH','2024-02-29','2024-02-29 10:34:56.123456+00',false);
+-- name: ImportedDatetimeIsoWeek
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2020-53-7','IYYY-IW-ID','2021-01-03','2021-01-03+00',false);
+-- name: ImportedDatetimeLocalizedMonth
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('February 29 2024','TMMonth DD YYYY','2024-02-29','2024-02-29+00',false);
+-- name: ImportedDatetimeEra
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('0001-01-01 BC','YYYY-MM-DD BC','0001-01-01 BC','0001-01-01+00 BC',false);
+-- name: ImportedDatetimeFixedSeparators
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024x02y29 trailing','FXYYYY-MM-DD','2024-02-29','2024-02-29+00',false);
+-- name: ImportedDatetimePartialInput
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024','YYYY-MM-DD','2024-01-01','2024-01-01+00',false);
+-- name: ImportedDatetimeEmptyInput
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('','YYYY-MM-DD','0001-01-01 BC','0001-01-01+00 BC',false);
+-- name: ImportedDatetimeAbbreviation
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29 12:00 EST','YYYY-MM-DD HH24:MI TZ','2024-02-29','2024-02-29 17:00+00',false);
+-- name: ImportedDatetimeZonePrefix
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29 UTCsuffix','YYYY-MM-DD TZ','2024-02-29','2024-02-29+00',false);
+-- name: ImportedDatetimeFractionWidth
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('-2147483 -2147483647','FXMS US','0001-01-01 BC','0001-01-01 00:00:00.000649+00 BC',false);
+-- name: ImportedDatetimeUpperOffset
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('294277-01-01 00:00 +01','YYYY-MM-DD HH24:MI TZH','294277-01-01','294276-12-31 23:00+00',false);
+-- name: ImportedDatetimeNullInput
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES (NULL,'YYYY',NULL,NULL,false);
+-- name: ImportedDatetimeNullPattern
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('bad',NULL,NULL,NULL,false);
+-- name: ImportedDatetimeInvalidCalendar
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2023-02-29','YYYY-MM-DD',NULL,NULL,false);
+-- name: ImportedDatetimeInvalidClock
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29 24:00','YYYY-MM-DD HH24:MI',NULL,NULL,false);
+-- name: ImportedDatetimeInvalidOffset
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29 +99','YYYY-MM-DD TZH',NULL,NULL,false);
+-- name: ImportedDatetimeWrongDay
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29','YYYY-MM-DD','2024-02-28','2024-02-29+00',false);
+-- name: ImportedDatetimeWrongInstant
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('2024-02-29','YYYY-MM-DD','2024-02-29','2024-03-01+00',false);
+-- name: ImportedDatetimeSkipped
+INSERT INTO inspection_imported_datetimes(source_text,input_pattern,expected_day,expected_instant,bypass) VALUES ('bad','YYYY-MM-DD',NULL,NULL,true);
