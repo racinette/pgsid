@@ -1,4 +1,5 @@
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
+import { validStoredTsvectorValue } from '../../catalog/tsvector-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
 import { validSystemConstantStorage } from '../../catalog/system-constant-storage.js'
 import { validSnapshotConstantStorage } from '../../catalog/snapshot-constant-storage.js'
@@ -6944,6 +6945,21 @@ export function emitCheckRustEvaluator(
       }
       if (value.kind === 'tsvector') {
         if (value.value === null) return { name: bind('tsvector_null()'), type: value.type }
+        if (value.stored && value.storage?.lexemes !== undefined) {
+          const storage = value.storage
+          if (!validStoredTsvectorValue(storage))
+            throw new UnsupportedCheckRustExpression('Invalid stored tsvector value')
+          let payload = bind(`make_stored_tsvector_payload(${storage.nativeBytes})`)
+          for (const lexeme of storage.lexemes) {
+            let word = bind(`make_stored_tsvector_lexeme(${rustStringLiteral(lexeme.text)})`)
+            for (const position of lexeme.positions)
+              word = bind(
+                `tsvector_append_stored_position(${word},${position.position},${position.weight})`,
+              )
+            payload = bind(`tsvector_append_stored_lexeme(${payload},${word})`)
+          }
+          return { type: value.type, name: bind(`make_tsvector_value(${payload})`) }
+        }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         const storage = value.stored ? value.storage : undefined
         if (

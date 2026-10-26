@@ -326,11 +326,33 @@ it('preserves the actual stored constant size when PostgreSQL renders different 
     expect(diffCatalogs(before, after).modified.map((v) => v.entityId)).toContain(
       'public.stored_document',
     )
+    const logical = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(logical)
+      if (!value || typeof value !== 'object') return value
+      const object = value as Record<string, unknown>
+      if (object['PgsidStoredTsvector']) {
+        const { nativeBytes: _native, ...payload } = object['PgsidStoredTsvector'] as Record<
+          string,
+          unknown
+        >
+        return { PgsidStoredTsvector: payload }
+      }
+      return Object.fromEntries(Object.entries(object).map(([key, child]) => [key, logical(child)]))
+    }
     const strip = (snapshot: typeof before) => ({
       ...snapshot,
       tables: snapshot.tables.map((t) => ({
         ...t,
-        constraints: t.constraints.map(({ tsvectorConstants: _storage, ...c }) => c),
+        constraints: t.constraints.map(({ tsvectorConstants: _storage, ...c }) => ({
+          ...c,
+          rowCoercionContext: c.rowCoercionContext && {
+            ...c.rowCoercionContext,
+            scalars: c.rowCoercionContext.scalars?.map((s) => ({
+              ...s,
+              expression: logical(s.expression),
+            })),
+          },
+        })),
       })),
     })
     expect(diffCatalogs(strip(before), strip(after)).modified).toEqual([])
@@ -390,12 +412,13 @@ it('preserves the actual stored constant size when PostgreSQL renders different 
         expected: { kind: 'True' },
       }),
     )
-    for (const variant of ['missing', 'stale', 'duplicate'] as const) {
+    for (const variant of ['missing', 'stale', 'duplicate', 'owned'] as const) {
       const context = afterCheck.tsvectorConstants!,
         constraint = {
           ...afterCheck,
+          rowCoercionContext: variant === 'owned' ? afterCheck.rowCoercionContext : undefined,
           tsvectorConstants:
-            variant === 'missing'
+            variant === 'missing' || variant === 'owned'
               ? undefined
               : variant === 'stale'
                 ? { ...context, definition: 'CHECK (false)' }
@@ -422,7 +445,7 @@ it('preserves the actual stored constant size when PostgreSQL renders different 
               v.row.bypass.value === bypass,
           )!
           const expected: Outcome =
-            bypass || source === null || actual.expected.kind === 'Error'
+            variant === 'owned' || bypass || source === null || actual.expected.kind === 'Error'
               ? actual.expected
               : { kind: 'Unknown' }
           fixtures.push({ name: variant, row: actual.row, expected })

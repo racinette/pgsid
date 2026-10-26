@@ -14,6 +14,8 @@ import { isSnapshotConstantType, storedSnapshotConstant } from './snapshot-const
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedContainerConstant } from './container-value-constant-storage.js'
+import { storedTsvectorValue } from './tsvector-constant-storage.js'
+import { storedTsqueryValue } from './tsquery-constant-storage.js'
 import { storedEnumConstant } from './enum-constant-storage.js'
 import type { ConstantStorageType } from './container-constant-storage.js'
 import {
@@ -502,6 +504,12 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     } else if (type === 'pg_catalog.xml') {
       const text = storedTextConstant(node, input.utf8 === true, input.byteOrder)
       return typeof text === 'string' ? { PgsidStoredXml: text } : undefined
+    } else if (type === 'pg_catalog.tsvector') {
+      const storage = storedTsvectorValue(node, input.byteOrder, input.utf8 === true)
+      return storage ? { PgsidStoredTsvector: storage } : undefined
+    } else if (type === 'pg_catalog.tsquery') {
+      const storage = storedTsqueryValue(node, input.byteOrder, input.utf8 === true)
+      return storage ? { PgsidStoredTsquery: storage } : undefined
     } else if (type === 'pg_catalog.jsonb') {
       const text = storedJsonbConstant(node, input.byteOrder, input.utf8 === true)
       return text === undefined

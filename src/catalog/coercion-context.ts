@@ -101,6 +101,8 @@ function captureExpressionCoercions(
           'pg_catalog.refcursor',
           'pg_catalog.int2vector',
           'pg_catalog.oidvector',
+          'pg_catalog.tsvector',
+          'pg_catalog.tsquery',
         ].includes(rowExpressions?.types.get(id) ?? '')
       )
         return true
@@ -1052,6 +1054,55 @@ export function captureRowCoercionContext(
   } catch {
     return { definition, complete: false, casts: [], scalars: [] }
   }
+}
+
+export function captureRowDefaultContexts(
+  source: string | null,
+  definitions: readonly (string | null)[],
+  identities: ReadonlyMap<number, RowCoercionIdentity>,
+  expressions: StoredRowExpressionInput,
+): (StoredRowCoercionContext | null)[] {
+  const contexts: (StoredRowCoercionContext | null)[] = definitions.map(() => null)
+  if (!source) return contexts
+  try {
+    const nodes = parseTree(source),
+      slots = definitions.flatMap((definition, index) =>
+        definition === null ? [] : [{ definition, index }],
+      )
+    if (!Array.isArray(nodes) || nodes.length !== slots.length) return contexts
+    const containsRow = (value: Value): boolean =>
+      typeof value === 'string'
+        ? false
+        : Array.isArray(value)
+          ? value.some(containsRow)
+          : value.kind === 'ROWEXPR' ||
+            Object.values(value.fields).some((values) => values.some(containsRow))
+    for (const [index, root] of nodes.entries()) {
+      if (!containsRow(root)) continue
+      const entry = slots[index]!
+      contexts[entry.index] =
+        captureExpressionCoercions(
+          source,
+          entry.definition,
+          identities,
+          new Map(),
+          new Set(),
+          expressions.utf8,
+          new Map(),
+          undefined,
+          new Set(),
+          undefined,
+          root,
+          undefined,
+          new Set(),
+          undefined,
+          expressions,
+        ).row ?? null
+    }
+  } catch {
+    return definitions.map(() => null)
+  }
+  return contexts
 }
 
 export function captureArrayConstructorContext(

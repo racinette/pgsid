@@ -9,6 +9,7 @@ import {
   captureTsvectorDefaultContexts,
   captureTsqueryDefaultContexts,
   captureArrayDefaultContexts,
+  captureRowDefaultContexts,
 } from '../catalog/coercion-context.js'
 import {
   storageRowIdentities,
@@ -189,6 +190,26 @@ async function readRangeCallables(
   const queries = tsqueryConstantTypes(types),
     queryContainers = tsqueryContainerTypes(types, queries)
   for (const { range, defaultsTree, serverUtf8, ...callable } of rows) {
+    const rowContexts = captureRowDefaultContexts(
+      defaultsTree,
+      callable.defaultExprs ?? [],
+      rowIdentities,
+      {
+        types: new Map([...types].map(([id, type]) => [id, type.identity])),
+        storageTypes: types,
+        arrayElements: new Map(
+          [...types.values()].flatMap((type) =>
+            type.element ? [[type.oid, type.element] as const] : [],
+          ),
+        ),
+        functions: new Map(),
+        columns: new Map(),
+        byteOrder: 'little',
+        utf8: serverUtf8,
+      },
+    )
+    if (rowContexts.some((context) => context !== null))
+      callable.defaultRowCoercionContexts = rowContexts
     const queryContexts = captureTsqueryDefaultContexts(
       defaultsTree,
       callable.defaultExprs ?? [],

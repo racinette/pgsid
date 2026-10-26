@@ -84,7 +84,9 @@ it('captures tsvector constants at semantic sites in independent catalogs and re
         expect(prepared.kind, c.name).toBe('supported')
         if (prepared.kind === 'supported')
           expect(prepared.evaluator.source, c.name).toContain(
-            'tsvector_from_stored_text_native_context',
+            c.name === 'checked'
+              ? 'tsvector_from_stored_text_native_context'
+              : 'make_stored_tsvector_payload',
           )
       }
     } finally {

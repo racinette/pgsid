@@ -1,4 +1,6 @@
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
+import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
+import { validStoredTsvectorValue } from '../catalog/tsvector-constant-storage.js'
 import { validTextLikeConstantStorage } from '../catalog/text-like-constant-storage.js'
 import { validSystemConstantStorage } from '../catalog/system-constant-storage.js'
 import { validSnapshotConstantStorage } from '../catalog/snapshot-constant-storage.js'
@@ -51,6 +53,7 @@ import { alignStoredDomainCoercions } from './stored-coercions.js'
 import {
   alignStoredRowCoercions,
   alignStoredRowConstructors,
+  alignStoredRowScalars,
   type RowCoercionSites,
   type RowConstructorBindings,
 } from './row-coercion-sites.js'
@@ -3453,6 +3456,40 @@ export function bindCatalogCheck(
               : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
                 ? { kind: 'mac', type, value }
                 : { kind: 'bit', type, value },
+        },
+      }
+    }
+    const storedVector = wrapper['PgsidStoredTsvector']
+    if (storedVector !== undefined) {
+      if (!validStoredTsvectorValue(storedVector)) return unknown
+      return {
+        type: 'pg_catalog.tsvector',
+        value: {
+          kind: 'certain',
+          expression: {
+            kind: 'tsvector',
+            type: 'pg_catalog.tsvector',
+            value: '',
+            stored: true,
+            storage: storedVector,
+          },
+        },
+      }
+    }
+    const storedQuery = wrapper['PgsidStoredTsquery']
+    if (storedQuery !== undefined) {
+      if (!validTsqueryConstantStorage(storedQuery)) return unknown
+      return {
+        type: 'pg_catalog.tsquery',
+        value: {
+          kind: 'certain',
+          expression: {
+            kind: 'tsquery',
+            type: 'pg_catalog.tsquery',
+            value: '',
+            stored: true,
+            storage: storedQuery,
+          },
         },
       }
     }
@@ -7904,6 +7941,17 @@ export function bindCatalogCheck(
           expression,
           callable.defaultTsqueryConstants?.[position] ?? undefined,
         )
+        const rowContext = callable.defaultRowCoercionContexts?.[position] ?? undefined
+        if (rowContext && (!rowContext.complete || rowContext.definition !== expression))
+          return unavailableDefault
+        const scalarBindings = rowContext
+          ? new Map(
+              [...alignStoredRowScalars(node, rowContext)].map(([node, expression]) => [
+                node,
+                { kind: 'scalar' as const, expression },
+              ]),
+            )
+          : undefined
         const converted = bindCatalogCheck(
           [],
           {
@@ -7925,6 +7973,13 @@ export function bindCatalogCheck(
           undefined,
           rangeTypes,
           compositeGraph,
+          undefined,
+          scalarBindings,
+          rowContext,
+          rowContext ? alignStoredRowCoercions(node, rowContext, compositeGraph) : undefined,
+          undefined,
+          undefined,
+          rowContext ? alignStoredRowConstructors(node, rowContext) : undefined,
         )
         return converted.inputs.length === 0 &&
           converted.expression.kind === 'eval-scalar' &&

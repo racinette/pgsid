@@ -424,7 +424,10 @@ export function lowerTableCheck(
           storedScalarBindings.set(node, { kind: 'call', ...call })
     storedSites = sites
     storedConstructors = constructors
-    if (sourceDefinition !== undefined && literalOrigin === 'source') {
+    if (
+      literalOrigin === 'source' &&
+      (sourceDefinition !== undefined || context?.definition === constraint.definition)
+    ) {
       const sourceScalarBindings = new Map<unknown, RowFieldBinding>()
       const sourceConstructors = new Map<unknown, RowConstructorBinding>()
       const aligned = new Map<unknown, readonly NonNullable<typeof context>['casts'][number][]>()
@@ -455,7 +458,9 @@ export function lowerTableCheck(
           if (sourceRow && constructor)
             sourceConstructors.set(sourceRow, {
               ...constructor,
-              ...(sourceDefinition !== constraint.definition ? { source: true as const } : {}),
+              ...(sourceDefinition !== undefined && sourceDefinition !== constraint.definition
+                ? { source: true as const }
+                : {}),
             })
           const casts = sites?.get(stored)
           if (casts) aligned.set(source, [...new Set([...(aligned.get(source) ?? []), ...casts])])

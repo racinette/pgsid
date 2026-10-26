@@ -3552,6 +3552,31 @@ export function tsvectorUnknown(): TsvectorValue {
 export function tsvectorNull(): TsvectorValue {
     return { kind: "Null" };
 }
+export function makeStoredTsvectorPayload(nativeBytes: number): TsvectorPayload {
+    nativeBytes = langruntime.checkedI32(nativeBytes);
+    const lexemes: TsvectorLexeme[] = [];
+    return { lexemes: lexemes, nativeBytes: nativeBytes };
+}
+export function makeStoredTsvectorLexeme(text: string): TsvectorLexeme {
+    text = langruntime.checkedString(text);
+    const positions: TsvectorPosition[] = [];
+    return { text: text, positions: positions };
+}
+export function tsvectorAppendStoredPosition(input: TsvectorLexeme, position: number, weight: number): TsvectorLexeme {
+    input = copyTsvectorLexeme(input);
+    position = langruntime.checkedI32(position);
+    weight = langruntime.checkedI32(weight);
+    let positions: TsvectorPosition[] = input.positions;
+    langruntime.pushStruct(positions, { position: position, weight: weight }, copyTsvectorPosition);
+    return { text: input.text, positions: positions };
+}
+export function tsvectorAppendStoredLexeme(input: TsvectorPayload, lexeme: TsvectorLexeme): TsvectorPayload {
+    input = copyTsvectorPayload(input);
+    lexeme = copyTsvectorLexeme(lexeme);
+    let lexemes: TsvectorLexeme[] = input.lexemes;
+    langruntime.pushStruct(lexemes, lexeme, copyTsvectorLexeme);
+    return { lexemes: lexemes, nativeBytes: input.nativeBytes };
+}
 export function tsvectorLexemeBytes(input: string): number {
     input = langruntime.checkedString(input);
     const chars: string[] = Array.from(input);
