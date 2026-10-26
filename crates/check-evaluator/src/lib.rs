@@ -153,6 +153,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_local.rs");
     include!("operations/pg_catalog/timestamp_constructor.rs");
     include!("operations/pg_catalog/timezone_constructor.rs");
+    include!("operations/pg_catalog/timezone_periods.rs");
     include!("operations/pg_catalog/timezone_extract.rs");
     include!("operations/pg_catalog/timezone_trunc.rs");
     include!("operations/pg_catalog/timezone.rs");

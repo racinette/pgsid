@@ -18,6 +18,7 @@ import {
   isTemporalContextComparison,
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
+  isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -429,4 +430,34 @@ it('admits only selected instant constructors with validation-first timezone and
   const literal = bindProbe('pg_catalog.make_timestamptz(2000,1,1,0,0,0::float8) IS NOT NULL', [])
   expect(literal.fullyBound).toBe(true)
   expect(constantCheckExpression(literal.expression)).toBe(false)
+})
+
+it('admits only native instant range and duration-overlap signatures with conditional calendar timezone requirements', () => {
+  const items = builtinCallables().filter(isTemporalInstantPeriod)
+  expect(items).toHaveLength(4)
+  expect(items.filter((item) => item.strict)).toHaveLength(1)
+  for (const item of items) {
+    expect(isTemporalInstantPeriod({ ...item, schema: 'other' })).toBe(false)
+    expect(isTemporalInstantPeriod({ ...item, volatility: 'i' })).toBe(false)
+    expect(isTemporalInstantPeriod({ ...item, strict: !item.strict })).toBe(false)
+    expect(
+      temporalArithmeticRequirements(item)?.map((r) => ({ owner: r.owner, setting: r.setting })),
+    ).toEqual([{ owner: 'tests/sql-semantics/check-instant-periods.test.ts', setting: 'TimeZone' }])
+    const columns = item.args.map((typeName, i) => ({ name: 'v' + i, typeName }))
+    const expressions = [
+      `pg_catalog."${item.name}"(${item.args.map((_, i) => 'v' + i).join(',')}) IS NOT NULL`,
+      ...(item.name === 'overlaps' ? ['((v0,v1) OVERLAPS (v2,v3)) IS NOT NULL'] : []),
+    ]
+    for (const sql of expressions) {
+      const probe = bindProbe(sql, columns)
+      expect(probe.fullyBound, callableIdentity(item)).toBe(true)
+      expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
+      expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+      expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+      expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
+      expect(checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC' })).not.toContain(
+        'sql.codegen.checks.',
+      )
+    }
+  }
 })

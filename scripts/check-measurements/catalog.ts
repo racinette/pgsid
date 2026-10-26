@@ -6,6 +6,7 @@ import {
   isTemporalContextComparison,
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
+  isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -751,6 +752,17 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalInstantPeriod(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Instant range checks validate interval sign before boundary arithmetic; duration overlaps evaluate their native endpoint arithmetic before overlap decisions. Calendar interval components require declared timezone. Elapsed clocks, infinities, NULLs and arithmetic/validation errors retain independent results where known.',
+        owner: 'tests/sql-semantics/check-instant-periods.test.ts',
+      },
+    ]
+
   if (isTemporalInstantConstructor(item) && item.args.length !== 7)
     return [
       {

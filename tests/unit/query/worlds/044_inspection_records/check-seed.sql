@@ -1955,3 +1955,65 @@ INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_inst
 INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('2000-01-01','00:00','2000-01-02+00',false);
 -- name: DateClockConstructorSkipped
 INSERT INTO inspection_date_clocks(inspection_day,inspection_clock,expected_instant,bypass) VALUES('294277-01-01','24:00',NULL,true);
+
+-- name: InstantLimitWithin
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01 12:00+00','2000-01-01+00','1 day',false,true,true,false);
+-- name: InstantLimitBeyond
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-02 12:00+00','2000-01-01+00','1 day',false,true,false,false);
+-- name: InstantLimitLowerBoundary
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-02+00','1 day',true,false,true,false);
+-- name: InstantLimitZero
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-01+00','0',false,false,true,false);
+-- name: InstantLimitCalendarZeroSpan
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-30 12:00+00','2000-01-31 12:00+00','1 month -30 days',false,true,true,false);
+-- name: InstantLimitInfiniteAddition
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('infinity','-infinity','infinity',false,false,true,false);
+-- name: InstantLimitInfiniteSubtraction
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('-infinity','infinity','infinity',true,true,true,false);
+-- name: InstantLimitNegativeOffset
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-01+00','-1 day',false,true,NULL,false);
+-- name: InstantLimitNegativeInfinity
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-01+00','-infinity',false,true,NULL,false);
+-- name: InstantLimitNullFlag
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-01+00','-1 day',NULL,true,NULL,false);
+-- name: InstantLimitNullValue
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES(NULL,'infinity','-infinity',false,false,NULL,false);
+-- name: InstantLimitNegationBeforeInfinity
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','infinity','2147483647 days -9223372036854.775808 seconds',true,false,NULL,false);
+-- name: InstantLimitWrongExpected
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-02 12:00+00','2000-01-01+00','1 day',false,true,true,false);
+-- name: InstantLimitSkipped
+INSERT INTO inspection_instant_limits(recorded_at,center_at,tolerance,subtract_offset,compare_before,expected,bypass) VALUES('2000-01-01+00','2000-01-01+00','-infinity',false,true,NULL,true);
+
+-- name: DurationPeriodOverlapping
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01 12:00+00','1 day','2000-01-02 12:00+00','2000-01-02+00','1 day','2000-01-03+00',true,true,true,false);
+-- name: DurationPeriodTouching
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','1 day','2000-01-02+00','2000-01-02+00','1 day','2000-01-03+00',false,false,false,false);
+-- name: DurationPeriodPoints
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','0','2000-01-01+00','2000-01-01+00','0','2000-01-01+00',true,true,true,false);
+-- name: DurationPeriodReversed
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-03+00','-2 days','2000-01-01+00','2000-01-02+00','-1 day','2000-01-01+00',true,true,true,false);
+-- name: DurationPeriodNullFirst
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES(NULL,'1 month',NULL,'2000-01-01+00','0','2000-01-01+00',NULL,NULL,NULL,false);
+-- name: DurationPeriodNullDuration
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00',NULL,'2000-01-01+00','2000-01-01+00','0','2000-01-01+00',NULL,NULL,true,false);
+-- name: DurationPeriodNullDurationKnownOverlap
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-02+00',NULL,'2000-01-03+00','2000-01-01+00','3 days','2000-01-04+00',true,true,true,false);
+-- name: DurationPeriodNullWithError
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES(NULL,'0',NULL,'infinity','-infinity',NULL,NULL,NULL,NULL,false);
+-- name: DurationPeriodFirstError
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('infinity','-infinity',NULL,NULL,'0',NULL,NULL,NULL,NULL,false);
+-- name: DurationPeriodInfinityPoints
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('infinity','0','infinity','infinity','0','infinity',true,true,true,false);
+-- name: DurationPeriodInfiniteEnds
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','infinity','infinity','2000-01-02+00','infinity','infinity',true,true,true,false);
+-- name: DurationPeriodMonthEndTouching
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-31 12:00+00','1 month','2000-02-29 12:00+00','2000-02-29 12:00+00','1 day','2000-03-01 12:00+00',false,false,false,false);
+-- name: DurationPeriodWrongBoth
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','1 day','2000-01-02+00','2000-01-02+00','1 day','2000-01-03+00',true,false,false,false);
+-- name: DurationPeriodWrongLeft
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','1 day','2000-01-02+00','2000-01-02+00','1 day','2000-01-03+00',false,true,false,false);
+-- name: DurationPeriodWrongRight
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','1 day','2000-01-02+00','2000-01-02+00','1 day','2000-01-03+00',false,false,true,false);
+-- name: DurationPeriodSkipped
+INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('infinity','-infinity',NULL,NULL,'0',NULL,NULL,NULL,NULL,true);
