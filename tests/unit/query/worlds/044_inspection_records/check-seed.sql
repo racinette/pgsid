@@ -1530,3 +1530,33 @@ INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expec
 
 -- name: IntervalCastBypassed
 INSERT INTO inspection_interval_text(duration,expected_text,expected_short,expected_array,expected_document,expected_present,bypass) VALUES('P1Y2M3DT4H5M6.123456S','wrong','1 year 2 mons 3','{"1 year 2 mons 3 days 04:05:06.123456",NULL}','"1 year 2 mons 3 days 04:05:06.123456"'::jsonb,true,true);
+
+-- name: IntervalInputMixed
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2 hours 1 microsecond','{"-1 day 2 hours 1 microsecond",NULL}','P-1DT2H0.000001S','P-1DT2H',false);
+
+-- name: IntervalInputSignedZero
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-0 day 2 hours','{"-0 day 2 hours",NULL}','PT2H','PT2H',false);
+
+-- name: IntervalInputNull
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES(NULL,'{NULL,NULL}',NULL,NULL,false);
+
+-- name: IntervalInputInfinity
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('infinity','{infinity,NULL}','infinity','infinity',false);
+
+-- name: IntervalInputWrongValue
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2 hours','{"-1 day 2 hours",NULL}','P-1DT3H','P-1DT2H',false);
+
+-- name: IntervalInputWrongPrecision
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2 hours 1 microsecond','{"-1 day 2 hours 1 microsecond",NULL}','P-1DT2H0.000001S','P-1DT2H0.000001S',false);
+
+-- name: IntervalInputWrongArray
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2 hours','{"-1 day 3 hours",NULL}','P-1DT2H','P-1DT2H',false);
+
+-- name: IntervalInputOverflow
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2147483648 days','{}',NULL,NULL,false);
+
+-- name: IntervalInputDuplicateUnit
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day 2 days','{}',NULL,NULL,false);
+
+-- name: IntervalInputBypassed
+INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day invalid','{"invalid",NULL}',NULL,NULL,true);

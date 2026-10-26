@@ -48,6 +48,11 @@ Interval output uses `intervalStyle: postgres`, `postgres_verbose`,
 `sql_standard` or `iso_8601`. The shared formatter preserves independent signs
 for month, day and time components across casts, containers and JSON. Missing
 context retains known finite scalar nullness while output bytes stay uncertain.
+The same setting controls the leading-negative rule in runtime text input,
+including container elements. Without it, parsing retains only values or errors
+shared by both sign rules. Direct text-input precision and input/output/input
+round trips compare their final values across the applicable styles. Stored constants retain their
+captured components independently of later session changes.
 
 Calendar SQL output uses an explicit `dateStyle: { format: ISO, order: MDY }`
 profile matching the PostgreSQL session. SQL, Postgres and German formats use

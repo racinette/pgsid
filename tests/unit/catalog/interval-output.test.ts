@@ -38,3 +38,19 @@ it('keeps interval output session-stable and reports missing context through SQL
     'sql.codegen.checks.intervalStyle',
   )
 })
+
+it('reports missing interval input context through scalar and array conversions', () => {
+  const columns = [{ name: 'source', typeName: 'pg_catalog.text' }]
+  for (const sql of [
+    'source::interval IS NOT NULL',
+    '(source::interval[])[1] IS NOT NULL',
+    'source::interval day to second(3) IS NOT NULL',
+  ]) {
+    const probe = bindProbe(sql, columns)
+    expect(probe.fullyBound, sql).toBe(true)
+    expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.intervalStyle')
+    expect(
+      checkUnknownMessage(probe.expression, undefined, { intervalStyle: 'sql_standard' }),
+    ).not.toContain('sql.codegen.checks.intervalStyle')
+  }
+})

@@ -157,7 +157,7 @@ function needsCalendarOutput(value: unknown): boolean {
   return Object.values(value).some(needsCalendarOutput)
 }
 
-function needsIntervalOutput(value: unknown): boolean {
+function needsIntervalContext(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const node = value as {
     kind?: string
@@ -166,6 +166,13 @@ function needsIntervalOutput(value: unknown): boolean {
     call?: { signature?: string | null }
     operands?: { type?: string; expression?: { type?: string } }[]
   }
+  if (node.kind === 'text-to-interval' || node.kind === 'interval-literal') return true
+  if (
+    ['text-to-array', 'array-text-literal'].includes(node.kind ?? '') &&
+    node.elementType &&
+    rendersType(node.elementType, 'pg_catalog."interval"')
+  )
+    return true
   if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
     const type = node.elementType ?? node.operand?.type ?? node.operand?.expression?.type
     if (type) {
@@ -183,7 +190,7 @@ function needsIntervalOutput(value: unknown): boolean {
     })
   )
     return true
-  return Object.values(value).some(needsIntervalOutput)
+  return Object.values(value).some(needsIntervalContext)
 }
 
 export function checkUnknownMessage(
@@ -199,9 +206,9 @@ export function checkUnknownMessage(
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=
       ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'
-  if (context.intervalStyle === undefined && needsIntervalOutput(expression))
+  if (context.intervalStyle === undefined && needsIntervalContext(expression))
     message +=
-      ' Interval text output can require an explicit sql.codegen.checks.intervalStyle setting.'
+      ' Interval text input or output can require an explicit sql.codegen.checks.intervalStyle setting.'
   if (context.dateStyle === undefined && needsCalendarOutput(expression))
     message +=
       ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'

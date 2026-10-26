@@ -208,15 +208,6 @@ fn interval_input_add(
     if unit == 2 && fraction != 0.0f64 {
         mask = 7;
     };
-    let mut check = mask;
-    let mut stored = input.mask;
-    while check > 0 {
-        if check % 2 != 0 && stored % 2 != 0 {
-            return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
-        };
-        check = check / 2;
-        stored = stored / 2;
-    }
     let mut years = input.years as i64;
     let mut months = input.months as i64;
     let mut days = input.days as i64;
@@ -314,6 +305,15 @@ fn interval_input_add(
     {
         return interval_input_fail(input, INTERVAL_INPUT_RANGE);
     };
+    let mut check = mask;
+    let mut stored = input.mask;
+    while check > 0 {
+        if check % 2 != 0 && stored % 2 != 0 {
+            return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
+        };
+        check = check / 2;
+        stored = stored / 2;
+    }
     return IntervalInputAcc {
         years: years as i32,
         months: months as i32,
@@ -323,7 +323,7 @@ fn interval_input_add(
         error: 0,
     };
 }
-fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue {
+fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> IntervalValue {
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -394,6 +394,21 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
         if first_token == "@" {
             start = 1;
         };
+        let mut force_negative = false;
+        if style == 3 && start < end {
+            let first = interval_token_text(&buffer, tokens[start]);
+            let leading: Vec<char> = first.chars().collect();
+            force_negative = leading.len() > 0 && leading[0] == '-';
+            let mut scan = start + 1;
+            while scan < end {
+                let next = interval_token_text(&buffer, tokens[scan]);
+                let characters: Vec<char> = next.chars().collect();
+                if characters.len() > 0 && (characters[0] == '+' || characters[0] == '-') {
+                    force_negative = false;
+                };
+                scan += 1;
+            }
+        };
         let mut unit: i32 = -1;
         let mut pending = false;
         let mut implicit_unit: i32 = 2;
@@ -413,7 +428,6 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
             implicit_unit = 3;
         };
         let mut numbers: i32 = 0;
-        let mut additional_sign = false;
         while end > start {
             end = end - 1;
             let token = interval_token_text(&buffer, tokens[end]);
@@ -435,13 +449,17 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                 if acc.error != 0 {
                     return IntervalValue::Error(make_sql_error(acc.error));
                 };
-                numbers = numbers + 1;
-                if end > start
-                    && token_chars.len() > 0
-                    && (token_chars[0] == '-' || token_chars[0] == '+')
-                {
-                    additional_sign = true;
+                if force_negative && acc.time > 0i64 {
+                    acc = IntervalInputAcc {
+                        years: acc.years,
+                        months: acc.months,
+                        days: acc.days,
+                        time: 0i64 - acc.time,
+                        mask: acc.mask,
+                        error: acc.error,
+                    };
                 };
+                numbers = numbers + 1;
                 implicit_unit = 5;
             } else if found >= 0 {
                 if pending {
@@ -469,11 +487,20 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                     return IntervalValue::Unknown;
                 };
                 if let Int8Value::Value(number) = whole {
-                    let fraction = interval_input_fraction(token.as_str());
+                    let mut value = number;
+                    let mut fraction = interval_input_fraction(token.as_str());
+                    if force_negative {
+                        if value > 0i64 {
+                            value = 0i64 - value;
+                        };
+                        if fraction > 0.0f64 {
+                            fraction = 0.0f64 - fraction;
+                        };
+                    };
                     if unit < 0 {
                         unit = implicit_unit;
                     };
-                    acc = interval_input_add(acc, number, fraction, unit);
+                    acc = interval_input_add(acc, value, fraction, unit);
                     if acc.error != 0 {
                         return IntervalValue::Error(make_sql_error(acc.error));
                     };
@@ -484,23 +511,11 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                     unit = -1;
                     pending = false;
                     numbers = numbers + 1;
-                    let number_chars: Vec<char> = token.chars().collect();
-                    if end > start
-                        && number_chars.len() > 0
-                        && (number_chars[0] == '-' || number_chars[0] == '+')
-                    {
-                        additional_sign = true;
-                    };
                 };
             };
         }
         if pending || numbers == 0 {
             return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
-        };
-        let first_number = interval_token_text(&buffer, tokens[start]);
-        let first: Vec<char> = first_number.chars().collect();
-        if numbers > 1 && first.len() > 0 && first[0] == '-' && additional_sign == false {
-            return IntervalValue::Unknown;
         };
         let months = (acc.years as i64) * 12i64 + (acc.months as i64);
         if months < (-2147483648i64) || months > 2147483647i64 {
@@ -1003,7 +1018,11 @@ fn interval_input_iso(text: &str) -> IntervalValue {
     }
     interval_iso_finish(acc)
 }
-pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> IntervalValue {
+pub fn interval_from_text_fields_context(
+    input: TextValue,
+    fields: Int4Value,
+    style: i32,
+) -> IntervalValue {
     if let TextValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
@@ -1032,9 +1051,29 @@ pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> Interva
             };
             return interval_input_iso(text.as_str());
         };
-        return interval_units_from_text(TextValue::Value(text), field_mask);
+        if style < 1 || style > 4 {
+            let ordinary = interval_units_from_text(TextValue::Value(text.clone()), field_mask, 1);
+            let standard = interval_units_from_text(TextValue::Value(text), field_mask, 3);
+            return interval_input_agreement(ordinary, standard);
+        };
+        return interval_units_from_text(TextValue::Value(text), field_mask, style);
     };
-    interval_units_from_text(input, field_mask)
+    interval_units_from_text(input, field_mask, style)
+}
+
+pub fn interval_input_agreement(left: IntervalValue, right: IntervalValue) -> IntervalValue {
+    if left == right {
+        return left;
+    };
+    IntervalValue::Unknown
+}
+
+pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> IntervalValue {
+    interval_from_text_fields_context(input, fields, 0)
+}
+
+pub fn interval_from_text_context(input: TextValue, style: i32) -> IntervalValue {
+    interval_from_text_fields_context(input, make_int4_value(32767), style)
 }
 
 fn interval_input_alpha(character: char) -> bool {

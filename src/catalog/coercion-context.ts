@@ -106,6 +106,7 @@ function captureExpressionCoercions(
           'pg_catalog.tsvector',
           'pg_catalog.tsquery',
           'pg_catalog.aclitem',
+          'pg_catalog."interval"',
         ].includes(rowExpressions?.types.get(id) ?? '')
       )
         return true
