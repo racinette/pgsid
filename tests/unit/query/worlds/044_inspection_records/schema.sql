@@ -1529,3 +1529,14 @@ CREATE TABLE inspection_duration_periods (
  CONSTRAINT duration_period_array CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[((first_start,first_duration) OVERLAPS (second_start,second_duration)),NULL::boolean])[1] IS NOT DISTINCT FROM expected_both END)
 );
+
+CREATE TABLE inspection_duration_labels (
+ elapsed interval,
+ label_pattern text,
+ expected_label text,
+ bypass boolean NOT NULL,
+ CONSTRAINT duration_label_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.to_char(elapsed,label_pattern) IS NOT DISTINCT FROM expected_label END),
+ CONSTRAINT duration_label_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.to_char(elapsed,label_pattern),NULL::text])[1] IS NOT DISTINCT FROM expected_label END)
+);

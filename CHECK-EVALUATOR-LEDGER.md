@@ -117,7 +117,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Audit platform-generated NaN binary precision in floating input, literals and geometry; retain known NaN semantics when output bits require platform context.
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic, core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input and explicit IntervalStyle parsing across scalar/domain/container/range casts; preserve agreement without context, precision and text-roundtrip recovery, native error precedence and captured literal components across session changes.
-- [x] Establish compact interval grammar, clock precision and scalar time constructors.
+- [x] Establish compact interval grammar, clock precision, scalar time constructors and interval template output with signed fields, fractional precision, literal quoting, modifiers, Roman months, calendar token behavior and native format errors.
 - [x] Establish interval scaling, calendar arithmetic, precision-aware literals, and clock input/output.
 - [x] Establish temporal field extraction, hashes, interval truncation, timestamp binning, and local calendar age.
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.

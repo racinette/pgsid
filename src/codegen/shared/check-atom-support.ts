@@ -5,6 +5,7 @@ import {
   isTemporalContextComparison,
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
+  isTemporalIntervalFormatting,
   isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -111,6 +112,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
           isTemporalLocalTimezone(implementation) ||
           isTemporalInstantConstructor(implementation) ||
           isTemporalInstantPeriod(implementation) ||
+          isTemporalIntervalFormatting(implementation) ||
           isTemporalContextArithmetic(implementation) ||
           isTemporalExplicitZoneLookup(implementation) ||
           isTemporalSessionTruncation(implementation) ||

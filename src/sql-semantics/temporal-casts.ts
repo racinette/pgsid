@@ -239,3 +239,16 @@ export function isTemporalInstantPeriod(item: BuiltinCallable): boolean {
     (item.args[1] === 'pg_catalog."interval"' || item.args[3] === 'pg_catalog."interval"')
   )
 }
+
+export function isTemporalIntervalFormatting(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'to_char' &&
+    item.volatility === 's' &&
+    item.strict &&
+    !item.returnsSet &&
+    item.result === 'pg_catalog.text' &&
+    item.args.join(',') === 'pg_catalog."interval",pg_catalog.text'
+  )
+}
