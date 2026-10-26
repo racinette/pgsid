@@ -3057,7 +3057,7 @@ func MakeSnapshotValue(payload SnapshotPayload) SnapshotValue {
 	if SnapshotCountFits(len(payload.Xip)) == false {
 		return SnapshotValue{Kind: SnapshotValueUnknown}
 	}
-	if payload.Xmin == int64(0) || payload.Xmax == int64(0) || SnapshotXidOrder(payload.Xmin, payload.Xmax) > 0 {
+	if langruntime.CheckedI64Remainder(payload.Xmin, int64(4294967296)) == int64(0) || langruntime.CheckedI64Remainder(payload.Xmax, int64(4294967296)) == int64(0) || SnapshotXidOrder(payload.Xmin, payload.Xmax) > 0 {
 		return SnapshotValue{Kind: SnapshotValueUnknown}
 	}
 	index := 0
@@ -3071,6 +3071,23 @@ func MakeSnapshotValue(payload SnapshotPayload) SnapshotValue {
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	return SnapshotValue{Kind: SnapshotValueValue, Value: payload}
+}
+func StartStoredSnapshot(xmin int64, xmax int64) SnapshotValue {
+	xip := []SnapshotXid{}
+	return MakeSnapshotValue(SnapshotPayload{Xmin: xmin, Xmax: xmax, Xip: xip})
+}
+func AppendStoredSnapshot(input SnapshotValue, bits int64) SnapshotValue {
+	input = CopySnapshotValue(input)
+	if input.Kind == SnapshotValueValue {
+		payload := CopySnapshotPayload(input.Value)
+		xmin := payload.Xmin
+		xmax := payload.Xmax
+		xip := payload.Xip
+		langruntime.CheckedAdd(len(xip), 1)
+		xip = append(xip, SnapshotXid{Bits: bits})
+		return SnapshotValue{Kind: SnapshotValueValue, Value: SnapshotPayload{Xmin: xmin, Xmax: xmax, Xip: xip}}
+	}
+	return input
 }
 func SnapshotIsNull(input SnapshotValue) BoolValue {
 	input = CopySnapshotValue(input)

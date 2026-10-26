@@ -1002,3 +1002,36 @@ CREATE TABLE inspection_vector_history (
 );
 ALTER TYPE historical_vector_values DROP ATTRIBUTE old;
 ALTER TYPE historical_vector_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_snapshot_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_snapshot_history (
+ score integer,
+ divisor integer NOT NULL,
+ input_text text COLLATE "C",
+ expected_lower text COLLATE "C",
+ expected_modern bytea,
+ expected_legacy bytea,
+ expected_upper text COLLATE "C",
+ expected_visible boolean,
+ expected_payload jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT snapshot_history_modern CHECK(CASE WHEN bypass THEN true ELSE
+   pg_snapshot_send('1:9:3,3,5'::pg_snapshot) IS NOT DISTINCT FROM expected_modern END),
+ CONSTRAINT snapshot_history_legacy CHECK(CASE WHEN bypass THEN true ELSE
+   txid_snapshot_send('18446744073709551614:18446744073709551615:18446744073709551614'::txid_snapshot)
+     IS NOT DISTINCT FROM expected_legacy END),
+ CONSTRAINT snapshot_history_upper CHECK(CASE WHEN bypass THEN true ELSE
+   txid_snapshot_xmax('18446744073709551614:18446744073709551615:18446744073709551614'::txid_snapshot)::text
+     COLLATE "C" IS NOT DISTINCT FROM expected_upper END),
+ CONSTRAINT snapshot_history_visible CHECK(CASE WHEN bypass THEN true ELSE
+   pg_visible_in_snapshot('4'::xid8,'1:9:3,5'::pg_snapshot) IS NOT DISTINCT FROM expected_visible END),
+ CONSTRAINT snapshot_history_payload CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('{"1:9:3,5",NULL,"1:1:"}'::pg_snapshot[]) IS NOT DISTINCT FROM expected_payload END),
+ CONSTRAINT snapshot_history_input CHECK(CASE WHEN bypass THEN true ELSE
+   pg_snapshot_xmin(input_text::pg_snapshot)::text COLLATE "C"=expected_lower END),
+ CONSTRAINT snapshot_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN pg_visible_in_snapshot('4'::xid8,'1:9:3,5'::pg_snapshot)=expected_visible
+     THEN score/divisor ELSE NULL::integer END)::historical_snapshot_result IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_snapshot_result DROP ATTRIBUTE obsolete_result;

@@ -10,6 +10,7 @@ import { storedBinaryConstant } from './binary-constant-storage.js'
 import { storedTextLikeConstant } from './text-like-constant-storage.js'
 import { isGeometryConstantType, storedGeometryConstant } from './geometry-constant-storage.js'
 import { isSystemConstantType, storedSystemConstant } from './system-constant-storage.js'
+import { isSnapshotConstantType, storedSnapshotConstant } from './snapshot-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedContainerConstant } from './container-value-constant-storage.js'
@@ -492,6 +493,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     } else if (isSystemConstantType(type)) {
       const storage = storedSystemConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredSystem: storage } : undefined
+    } else if (isSnapshotConstantType(type)) {
+      const storage = storedSnapshotConstant(node, type, input.byteOrder)
+      return storage ? { PgsidStoredSnapshot: storage } : undefined
     } else if (isGeometryConstantType(type)) {
       const storage = storedGeometryConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredGeometry: storage } : undefined

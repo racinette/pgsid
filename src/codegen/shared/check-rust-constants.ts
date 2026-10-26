@@ -329,7 +329,11 @@ function prepare(expression: EvalExpression): Preparation | null {
   }
   if (expression.kind === 'certain' && expression.expression.kind === 'float')
     return constant(expression, expression.expression.bits === null)
-  if (expression.kind === 'certain' && expression.expression.kind === 'geometry-storage')
+  if (
+    expression.kind === 'certain' &&
+    (expression.expression.kind === 'geometry-storage' ||
+      expression.expression.kind === 'snapshot-storage')
+  )
     return constant(expression)
   if (
     expression.kind === 'certain' &&

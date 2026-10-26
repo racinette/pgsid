@@ -76,8 +76,8 @@ fn snapshot_parse(value: &str) -> SnapshotValue {
     if xmax.valid == false
         || xmax.end >= source.chars.len()
         || source.chars[xmax.end] != ':'
-        || xmin.bits == 0i64
-        || xmax.bits == 0i64
+        || xmin.bits % 4294967296i64 == 0i64
+        || xmax.bits % 4294967296i64 == 0i64
         || snapshot_xid_order(xmin.bits, xmax.bits) > 0
     {
         return SnapshotValue::Error(make_sql_error(OID_INPUT_INVALID));

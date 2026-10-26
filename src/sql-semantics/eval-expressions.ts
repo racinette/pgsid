@@ -605,7 +605,8 @@ export function emitEvalExpression<Ast>(
     if (node.kind === 'certain') {
       if (
         node.expression.kind === 'geometry-storage' ||
-        node.expression.kind === 'system-storage'
+        node.expression.kind === 'system-storage' ||
+        node.expression.kind === 'snapshot-storage'
       ) {
         const result = backend.uncertain(node.expression.type)
         include(result.helpers)

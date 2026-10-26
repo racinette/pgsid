@@ -3166,7 +3166,7 @@ export function makeSnapshotValue(payload: SnapshotPayload): SnapshotValue {
     if (snapshotCountFits(payload.xip.length) === false) {
         return { kind: "Unknown" };
     }
-    if (payload.xmin === 0n || payload.xmax === 0n || snapshotXidOrder(payload.xmin, payload.xmax) > 0) {
+    if (langruntime.checkedI64Remainder(payload.xmin, 4294967296n) === 0n || langruntime.checkedI64Remainder(payload.xmax, 4294967296n) === 0n || snapshotXidOrder(payload.xmin, payload.xmax) > 0) {
         return { kind: "Unknown" };
     }
     let index: number = 0;
@@ -3180,6 +3180,25 @@ export function makeSnapshotValue(payload: SnapshotPayload): SnapshotValue {
         index = langruntime.checkedAdd(index, 1);
     }
     return { kind: "Value", value: payload };
+}
+export function startStoredSnapshot(xmin: bigint, xmax: bigint): SnapshotValue {
+    xmin = langruntime.checkedI64(xmin);
+    xmax = langruntime.checkedI64(xmax);
+    const xip: SnapshotXid[] = [];
+    return makeSnapshotValue({ xmin: xmin, xmax: xmax, xip: xip });
+}
+export function appendStoredSnapshot(input: SnapshotValue, bits: bigint): SnapshotValue {
+    input = copySnapshotValue(input);
+    bits = langruntime.checkedI64(bits);
+    if (input.kind === "Value") {
+        const payload: SnapshotPayload = copySnapshotPayload(input.value);
+        const xmin: bigint = payload.xmin;
+        const xmax: bigint = payload.xmax;
+        let xip: SnapshotXid[] = payload.xip;
+        langruntime.pushStruct(xip, { bits: bits }, copySnapshotXid);
+        return { kind: "Value", value: { xmin: xmin, xmax: xmax, xip: xip } };
+    }
+    return input;
 }
 export function snapshotIsNull(input: SnapshotValue): BoolValue {
     input = copySnapshotValue(input);

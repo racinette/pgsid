@@ -1,6 +1,7 @@
 import { storedTextConstant } from './text-constant-storage.js'
 import { isGeometryConstantType } from './geometry-constant-storage.js'
 import { isSystemConstantType } from './system-constant-storage.js'
+import { isSnapshotConstantType } from './snapshot-constant-storage.js'
 import { storedRowExpression, type StoredRowExpressionInput } from './stored-row-expressions.js'
 import { parseTree, tree, scalar, oidList, type Value, type Tree } from './expression-tree.js'
 import { storedOrderingKey } from './stored-row-orderings.js'
@@ -93,6 +94,7 @@ function captureExpressionCoercions(
       if (
         isGeometryConstantType(rowExpressions?.types.get(id)) ||
         isSystemConstantType(rowExpressions?.types.get(id)) ||
+        isSnapshotConstantType(rowExpressions?.types.get(id)) ||
         [
           'pg_catalog."char"',
           'pg_catalog.name',

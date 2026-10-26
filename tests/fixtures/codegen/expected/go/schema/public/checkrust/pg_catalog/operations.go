@@ -39001,7 +39001,7 @@ func snapshotParse(value string) checkruntime.SnapshotValue {
 		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
 	}
 	xmax := snapshotReadNumber(&source, langruntime.CheckedAdd(xmin.end, 1))
-	if xmax.valid == false || xmax.end >= len(source.chars) || source.chars[xmax.end] != ':' || xmin.bits == int64(0) || xmax.bits == int64(0) || checkruntime.SnapshotXidOrder(xmin.bits, xmax.bits) > 0 {
+	if xmax.valid == false || xmax.end >= len(source.chars) || source.chars[xmax.end] != ':' || langruntime.CheckedI64Remainder(xmin.bits, int64(4294967296)) == int64(0) || langruntime.CheckedI64Remainder(xmax.bits, int64(4294967296)) == int64(0) || checkruntime.SnapshotXidOrder(xmin.bits, xmax.bits) > 0 {
 		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
 	}
 	index := langruntime.CheckedAdd(xmax.end, 1)
