@@ -44,6 +44,11 @@ independently of the math library on the client machine. Without a declared
 profile, reached coordinate generation stays uncertain; context-independent
 NULL results, input errors and skipped branches remain available.
 
+Calendar SQL output uses an explicit `dateStyle: { format: ISO, order: MDY }`
+profile matching the PostgreSQL session. SQL, Postgres and German formats use
+the same shared calendar formatter. Direct date and timestamp conversion to
+JSON retains ISO rendering independently of that setting.
+
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and
 record fields, and JSON values and keys. Without the setting, output bytes stay

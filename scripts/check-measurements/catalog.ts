@@ -739,6 +739,25 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function calendarOutputRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    !['pg_catalog.date', 'pg_catalog."timestamp"'].some(
+      (type) => builtinTypeIO(type)?.output === callableIdentity(item),
+    )
+  )
+    return null
+  return [
+    {
+      kind: 'session',
+      setting: 'DateStyle',
+      requirement:
+        'Date and timestamp SQL text and nested output use the declared DateStyle format and field order. Finite known values retain non-NULL output without it; NULLs, infinities and child errors remain definite. Direct JSON calendar conversion retains its independent ISO rendering.',
+      owner: 'tests/sql-semantics/check-calendar-output.test.ts',
+    },
+  ]
+}
+
 export function byteaOutputRequirements(item: BuiltinCallable) {
   if (
     item.kind !== 'function' ||
@@ -1029,6 +1048,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (floatOutputRequirements(item) || geometricOutput)
     categories.push('session-setting:extra_float_digits')
   if (byteaOutputRequirements(item)) categories.push('session-setting:bytea_output')
+  if (calendarOutputRequirements(item)) categories.push('session-setting:DateStyle')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
   for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])
     categories.push(

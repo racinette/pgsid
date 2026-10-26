@@ -5,6 +5,7 @@ import {
   isArrayLikeType,
 } from '../../sql-semantics/expressions.js'
 import { anonymousRecordProfile } from '../../sql-semantics/anonymous-records.js'
+import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import { compositeProfile, compositeFieldType } from '../../sql-semantics/composite-profiles.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { CheckExecutionContext } from './check-rust-evaluator.js'
@@ -134,6 +135,28 @@ function needsByteaOutput(value: unknown): boolean {
   return Object.values(value).some(needsByteaOutput)
 }
 
+function needsCalendarOutput(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const node = value as {
+    kind?: string
+    elementType?: string
+    operand?: { type?: string; expression?: { type?: string } }
+  }
+  if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
+    const type = node.elementType ?? node.operand?.type ?? node.operand?.expression?.type
+    if (type) {
+      const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
+      const outputType = profile?.elementType ?? type
+      if (
+        rendersType(outputType, 'pg_catalog.date') ||
+        rendersType(outputType, 'pg_catalog."timestamp"')
+      )
+        return true
+    }
+  }
+  return Object.values(value).some(needsCalendarOutput)
+}
+
 export function checkUnknownMessage(
   expression: EvalBoolExpression,
   reason?: string,
@@ -147,6 +170,9 @@ export function checkUnknownMessage(
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=
       ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'
+  if (context.dateStyle === undefined && needsCalendarOutput(expression))
+    message +=
+      ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'
   if (context.byteaOutput === undefined && needsByteaOutput(expression))
     message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))

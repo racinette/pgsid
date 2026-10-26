@@ -9330,6 +9330,151 @@ function byteaUtf8Character(output: string, character: string): string {
     }
     return result;
 }
+function calendarOutputYear(year: number): string {
+    year = langruntime.checkedI32(year);
+    let display: number = year;
+    if (display <= 0) {
+        display = langruntime.checkedI32(langruntime.checkedSignedSubtract(1, display));
+    }
+    let output: string = "";
+    if (display < 1000) {
+        output = output + langruntime.checkedChar("0");
+    }
+    if (display < 100) {
+        output = output + langruntime.checkedChar("0");
+    }
+    if (display < 10) {
+        output = output + langruntime.checkedChar("0");
+    }
+    output = output + checkruntime.textNumber(display, 10);
+    return output;
+}
+function calendarOutputDate(calendar: TemporalCalendarFields, style: number): string {
+    calendar = copyTemporalCalendarFields(calendar);
+    style = langruntime.checkedI32(style);
+    if (style === 1) {
+        return jsonbCalendarText(calendar);
+    }
+    let delimiter: string = "/";
+    if (style === 4 || style === 5) {
+        delimiter = langruntime.checkedChar("-");
+    }
+    if (style === 6) {
+        delimiter = langruntime.checkedChar(".");
+    }
+    let first: number = calendar.month;
+    let second: number = calendar.day;
+    if (style === 3 || style === 5 || style === 6) {
+        first = langruntime.checkedI32(calendar.day);
+        second = langruntime.checkedI32(calendar.month);
+    }
+    let output: string = clockOutputPair(first);
+    output = output + langruntime.checkedChar(delimiter);
+    output = output + clockOutputPair(second);
+    output = output + langruntime.checkedChar(delimiter);
+    output = output + calendarOutputYear(calendar.year);
+    return output;
+}
+function calendarOutputLabel(index: number, spelling: string): string {
+    index = langruntime.checkedI32(index);
+    spelling = langruntime.checkedString(spelling);
+    const labels: string[] = Array.from(spelling);
+    const start: number = langruntime.indexFromI32(langruntime.checkedSignedMultiply(index, 3), 0);
+    let result: string = "";
+    result = result + langruntime.checkedChar(langruntime.indexChar(labels, langruntime.checkedIndex(start)));
+    result = result + langruntime.checkedChar(langruntime.indexChar(labels, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))));
+    result = result + langruntime.checkedChar(langruntime.indexChar(labels, langruntime.checkedIndex(langruntime.checkedAdd(start, 2))));
+    return result;
+}
+export function dateOutputContext(input: checkruntime.DateValue, style: number): checkruntime.TextValue {
+    style = langruntime.checkedI32(style);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const day: number = langruntime.checkedI32(input.value);
+        if (day === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1))) {
+            return checkruntime.makeTextValue("-infinity");
+        }
+        if (day === 2147483647) {
+            return checkruntime.makeTextValue("infinity");
+        }
+        if (style < 1 || style > 6) {
+            return { kind: "NonNull" };
+        }
+        const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(BigInt(langruntime.checkedI32(day)), 2451545n)));
+        let output: string = calendarOutputDate(calendar, style);
+        if (calendar.year <= 0) {
+            output = output + " BC";
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function timestampOutputContext(input: checkruntime.TimestampValue, style: number): checkruntime.TextValue {
+    style = langruntime.checkedI32(style);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return checkruntime.makeTextValue("-infinity");
+        }
+        if (value === 9223372036854775807n) {
+            return checkruntime.makeTextValue("infinity");
+        }
+        if (style < 1 || style > 6) {
+            return { kind: "NonNull" };
+        }
+        let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
+        let clock: bigint = langruntime.checkedI64Remainder(value, 86400000000n);
+        if (clock < 0n) {
+            day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+            clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+        }
+        const julian: bigint = langruntime.checkedI64Add(day, 2451545n);
+        const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
+        let output: string = "";
+        if (style === 4 || style === 5) {
+            const weekday: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 1n)), 7n)))));
+            output = output + calendarOutputLabel(weekday, "SunMonTueWedThuFriSat");
+            output = output + langruntime.checkedChar(" ");
+            if (style === 5) {
+                output = output + clockOutputPair(calendar.day);
+                output = output + langruntime.checkedChar(" ");
+                output = output + calendarOutputLabel(langruntime.checkedSignedSubtract(calendar.month, 1), "JanFebMarAprMayJunJulAugSepOctNovDec");
+            }
+            else {
+                output = output + calendarOutputLabel(langruntime.checkedSignedSubtract(calendar.month, 1), "JanFebMarAprMayJunJulAugSepOctNovDec");
+                output = output + langruntime.checkedChar(" ");
+                output = output + clockOutputPair(calendar.day);
+            }
+            output = output + langruntime.checkedChar(" ");
+            output = output + clockOutputTime(clock);
+            output = output + langruntime.checkedChar(" ");
+            output = output + calendarOutputYear(calendar.year);
+        }
+        else {
+            output = langruntime.checkedString(calendarOutputDate(calendar, style));
+            output = output + langruntime.checkedChar(" ");
+            output = output + clockOutputTime(clock);
+        }
+        if (calendar.year <= 0) {
+            output = output + " BC";
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 const vectorDatatypeMismatch = 6822148;
 function catalogVectorStatus(value: checkruntime.ArrayPayload, oid: boolean): checkruntime.BoolValue {
     oid = langruntime.checkedBool(oid);

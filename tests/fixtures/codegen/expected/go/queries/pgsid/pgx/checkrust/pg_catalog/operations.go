@@ -9277,6 +9277,149 @@ func byteaUtf8Character(output string, character rune) string {
 	}
 	return string(result)
 }
+func calendarOutputYear(year int) string {
+	year = langruntime.CheckedI32(year)
+	display := year
+	if display <= 0 {
+		display = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(1, display))
+	}
+	output := langruntime.NewTextBuffer("")
+	if display < 1000 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	if display < 100 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	if display < 10 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	output = append(output, checkruntime.TextNumber(display, 10)...)
+	return string(output)
+}
+func calendarOutputDate(calendar temporalCalendarFields, style int) string {
+	calendar = copytemporalCalendarFields(calendar)
+	style = langruntime.CheckedI32(style)
+	if style == 1 {
+		return jsonbCalendarText(calendar)
+	}
+	delimiter := '/'
+	if style == 4 || style == 5 {
+		delimiter = langruntime.CheckedChar('-')
+	}
+	if style == 6 {
+		delimiter = langruntime.CheckedChar('.')
+	}
+	first := calendar.month
+	second := calendar.day
+	if style == 3 || style == 5 || style == 6 {
+		first = langruntime.CheckedI32(calendar.day)
+		second = langruntime.CheckedI32(calendar.month)
+	}
+	output := langruntime.NewTextBuffer(clockOutputPair(first))
+	output = append(output, string(langruntime.CheckedChar(delimiter))...)
+	output = append(output, clockOutputPair(second)...)
+	output = append(output, string(langruntime.CheckedChar(delimiter))...)
+	output = append(output, calendarOutputYear(calendar.year)...)
+	return string(output)
+}
+func calendarOutputLabel(index int, spelling string) string {
+	index = langruntime.CheckedI32(index)
+	spelling = langruntime.CheckedString(spelling)
+	labels := []rune(spelling)
+	start := langruntime.IndexFromI32(langruntime.CheckedSignedMultiply(index, 3), 0)
+	result := langruntime.NewTextBuffer("")
+	result = append(result, string(langruntime.CheckedChar(labels[start]))...)
+	result = append(result, string(langruntime.CheckedChar(labels[langruntime.CheckedAdd(start, 1)]))...)
+	result = append(result, string(langruntime.CheckedChar(labels[langruntime.CheckedAdd(start, 2)]))...)
+	return string(result)
+}
+func DateOutputContext(input checkruntime.DateValue, style int) checkruntime.TextValue {
+	style = langruntime.CheckedI32(style)
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.DateValueValue {
+		day := langruntime.CheckedI32(input.Value)
+		if day == (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) {
+			return checkruntime.MakeTextValue("-infinity")
+		}
+		if day == 2147483647 {
+			return checkruntime.MakeTextValue("infinity")
+		}
+		if style < 1 || style > 6 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		calendar := temporalCalendarFromJulian(langruntime.CheckedI64Add(int64(langruntime.CheckedI32(day)), int64(2451545)))
+		output := langruntime.NewTextBuffer(calendarOutputDate(calendar, style))
+		if calendar.year <= 0 {
+			output = append(output, " BC"...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkruntime.TextValue {
+	style = langruntime.CheckedI32(style)
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return checkruntime.MakeTextValue("-infinity")
+		}
+		if value == int64(9223372036854775807) {
+			return checkruntime.MakeTextValue("infinity")
+		}
+		if style < 1 || style > 6 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		day := langruntime.CheckedI64Divide(value, int64(86400000000))
+		clock := langruntime.CheckedI64Remainder(value, int64(86400000000))
+		if clock < int64(0) {
+			day = langruntime.CheckedI64Subtract(day, int64(1))
+			clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+		}
+		julian := langruntime.CheckedI64Add(day, int64(2451545))
+		calendar := temporalCalendarFromJulian(julian)
+		output := langruntime.NewTextBuffer("")
+		if style == 4 || style == 5 {
+			weekday := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(1))), int64(7)))))
+			output = append(output, calendarOutputLabel(weekday, "SunMonTueWedThuFriSat")...)
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			if style == 5 {
+				output = append(output, clockOutputPair(calendar.day)...)
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+				output = append(output, calendarOutputLabel(langruntime.CheckedSignedSubtract(calendar.month, 1), "JanFebMarAprMayJunJulAugSepOctNovDec")...)
+			} else {
+				output = append(output, calendarOutputLabel(langruntime.CheckedSignedSubtract(calendar.month, 1), "JanFebMarAprMayJunJulAugSepOctNovDec")...)
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+				output = append(output, clockOutputPair(calendar.day)...)
+			}
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			output = append(output, clockOutputTime(clock)...)
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			output = append(output, calendarOutputYear(calendar.year)...)
+		} else {
+			output = langruntime.NewTextBuffer(calendarOutputDate(calendar, style))
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			output = append(output, clockOutputTime(clock)...)
+		}
+		if calendar.year <= 0 {
+			output = append(output, " BC"...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 
 const vectorDatatypeMismatch = 6822148
 

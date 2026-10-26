@@ -337,6 +337,13 @@ export const codegenSchema = z
         arrayNulls: z.boolean().optional(),
         quoteAllIdentifiers: z.boolean().optional(),
         byteaOutput: z.enum(['hex', 'escape']).optional(),
+        dateStyle: z
+          .object({
+            format: z.enum(['ISO', 'SQL', 'Postgres', 'German']),
+            order: z.enum(['MDY', 'DMY', 'YMD']),
+          })
+          .strict()
+          .optional(),
         xmlOption: z.enum(['document', 'content']).optional(),
         xmlBinary: z.enum(['base64', 'hex']).optional(),
         moneyLocale: z.literal('C').optional(),

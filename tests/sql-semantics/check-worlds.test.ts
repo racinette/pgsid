@@ -485,7 +485,20 @@ describe('world CHECK INSERT parity', () => {
     ).rows[0]!.mode
     if (byteaOutput !== 'hex' && byteaOutput !== 'escape')
       throw new Error('Unsupported oracle bytea output')
+    const [dateFormat, dateOrder] = (
+      await pg.query<{ value: string }>("SELECT current_setting('DateStyle') value")
+    ).rows[0]!.value.split(', ')
+    if (
+      dateFormat !== 'ISO' &&
+      dateFormat !== 'SQL' &&
+      dateFormat !== 'Postgres' &&
+      dateFormat !== 'German'
+    )
+      throw new Error('Unsupported oracle date format')
+    if (dateOrder !== 'MDY' && dateOrder !== 'DMY' && dateOrder !== 'YMD')
+      throw new Error('Unsupported oracle date order')
     executionContext = {
+      dateStyle: { format: dateFormat, order: dateOrder },
       byteaOutput,
       defaultCollation: 'C',
       defaultCtype: 'C.UTF-8',

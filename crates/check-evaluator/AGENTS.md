@@ -362,6 +362,10 @@ import them. Keep schema-only helpers with their callables.
   Binary send emits a network-order int4 length and MSB-first bytes with zero padding.
   The `tests/sql-semantics/check-bit*.test.ts` suites and the feature masks
   world cover values, casts, arithmetic, editing, searches, counts, and output.
+- SQL date/timestamp text output uses declared DateStyle format and field order,
+  shared across casts and containers; direct JSON conversion remains ISO. Infinities,
+  NULLs and errors are independent, and finite known values retain non-NULL state
+  without context. Run the calendar-output parity and inspection INSERT world.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

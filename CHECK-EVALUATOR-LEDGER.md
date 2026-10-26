@@ -78,8 +78,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter conversion separately from already SQL-coerced row inputs.
 - [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
 
-Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, unsupported forms remain distinguishable, and the public input contract is explicit.
-Do not use target-native date or numeric parsers to supply SQL behavior.
+Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, unsupported forms remain distinguishable, and the public input contract is explicit. Do not use target-native date or numeric parsers to supply SQL behavior.
 
 ## Model explicit execution context
 
@@ -88,6 +87,7 @@ Do not use target-native date or numeric parsers to supply SQL behavior.
 - [x] Declare database encoding for character codes and construction; defer dependent non-ASCII results without UTF8.
 - [ ] Design a portable context boundary before implementing those operations.
 - [x] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior, keyword categories, quote escaping and invariant output or known nullness without context; preserve scoped catalog identifier rendering and caller settings.
+- [x] Admit explicit DateStyle formatting for date/timestamp scalar/domain character casts and containers, with direct JSON ISO behavior, special values and missing-context nullness.
 - [x] Admit explicit bytea_output hex/escape formatting through scalar/domain text and character casts, arrays, records, ranges and JSON values/keys; retain bounded non-NULL facts without context and preserve input errors, lazy branches and source/stored INSERT parity.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
 - [ ] Assess locale-sensitive ordering, casing, and nondeterministic collations.

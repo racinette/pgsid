@@ -352,17 +352,24 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
   item.volatility === 'i' &&
   !item.returnsSet
 
+const calendarOutputStyle = (context: Pick<CheckExecutionContext, 'dateStyle'>): number => {
+  const profile = context.dateStyle
+  if (!profile) return 0
+  if (profile.format === 'ISO') return 1
+  if (profile.format === 'German') return 6
+  const dayFirst = profile.order === 'DMY'
+  return profile.format === 'SQL' ? (dayFirst ? 3 : 2) : dayFirst ? 5 : 4
+}
+
 const arrayElementOutput = (
   elementType: string,
   definition: EnumDefinition | undefined,
   element: string,
   scalar: string,
-  context: {
-    moneyLocale?: 'C'
-    moneyFractionDigits?: number
-    extraFloatDigits?: number
-    byteaOutput?: 'hex' | 'escape'
-  },
+  context: Pick<
+    CheckExecutionContext,
+    'moneyLocale' | 'moneyFractionDigits' | 'extraFloatDigits' | 'byteaOutput' | 'dateStyle'
+  >,
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
   elementType = arrayElementBaseType(elementType)
   const family = arrayElementFamily(elementType)
@@ -421,6 +428,8 @@ const arrayElementOutput = (
   else if (family === 45) conversion = `xml_to_output_text(${scalar})`
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
+  else if (family === 4 || family === 7)
+    conversion = `${family === 4 ? 'timestamp' : 'date'}_output_context(${scalar},${calendarOutputStyle(context)})`
   else if (family === 15)
     conversion = `bytea_output_context(${scalar},${context.byteaOutput === 'hex' ? 1 : context.byteaOutput === 'escape' ? 2 : 0},false)`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
@@ -756,6 +765,7 @@ export type CheckExecutionContext = {
   arrayNulls?: boolean
   quoteAllIdentifiers?: boolean
   byteaOutput?: 'hex' | 'escape'
+  dateStyle?: { format: 'ISO' | 'SQL' | 'Postgres' | 'German'; order: 'MDY' | 'DMY' | 'YMD' }
   xmlOption?: 'document' | 'content'
   xmlBinary?: 'base64' | 'hex'
   moneyLocale?: 'C'
@@ -1118,8 +1128,11 @@ export function emitCheckRustEvaluator(
     if (!profile) return false
     return (
       !!profile.subtypeCompositeGraph ||
-      arrayElementFamily(arrayElementBaseType(profile.elementType)) === 15 ||
-      (rangeBoundProfiles(profile, executionContext)?.some((node) => node.kind === 15) ?? false) ||
+      [4, 7, 15].includes(arrayElementFamily(arrayElementBaseType(profile.elementType)) ?? -1) ||
+      (rangeBoundProfiles(profile, executionContext)?.some((node) =>
+        [4, 7, 15].includes(node.kind),
+      ) ??
+        false) ||
       (moneyTextCLocale(executionContext) &&
         (arrayElementFamily(arrayElementBaseType(profile.elementType)) === 31 ||
           (rangeBoundProfiles(profile, executionContext)?.some((node) => node.kind === 31) ??
@@ -4767,6 +4780,17 @@ export function emitCheckRustEvaluator(
           const range = rangeTypeProfile(operand.type),
             multirange = multirangeTypeProfile(operand.type),
             profile = range ?? multirange
+          if (profile && !profile.captured && usesTypedRangeOutput(profile)) {
+            if (profile.subtypeOutput !== rangeSubtypeOutput(profile))
+              throw new UnsupportedCheckRustExpression(
+                'JSON range output requires its selected subtype output',
+              )
+            const rendered = renderRangeOutput(operand.name, profile, !!multirange, lines),
+              text = fresh('json_builtin_range_text'),
+              carrier = fresh('json_builtin_range_input')
+            lines.push(`let ${text}=${rendered};`, `let ${carrier}=jsonb_input_from_text(${text});`)
+            return carrier
+          }
           if (profile?.captured) {
             const conversion = range ? profile.jsonConversion : profile.multirangeJsonConversion,
               cast = range ? profile.jsonCast : profile.multirangeJsonCast,
@@ -5834,6 +5858,13 @@ export function emitCheckRustEvaluator(
           type: node.type,
           name: bind(
             `${rustValuePrefix(rustType(operand.type))}_output_context(${operand.name},${executionContext.extraFloatDigits ?? 0},${executionContext.extraFloatDigits !== undefined})`,
+          ),
+        }
+      if (operand.type === 'pg_catalog.date' || operand.type === 'pg_catalog."timestamp"')
+        return {
+          type: node.type,
+          name: bind(
+            `${operand.type === 'pg_catalog.date' ? 'date' : 'timestamp'}_output_context(${operand.name},${calendarOutputStyle(executionContext)})`,
           ),
         }
       if (operand.type === 'pg_catalog.bytea')
