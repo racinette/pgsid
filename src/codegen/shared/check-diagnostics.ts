@@ -16,6 +16,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
+  isTemporalLocalTimezone,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -28,6 +29,7 @@ const temporalCasts = new Set(
       (item) =>
         isTemporalContextCast(item) ||
         isTemporalContextComparison(item) ||
+        isTemporalLocalTimezone(item) ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
         isTemporalSessionExtraction(item) ||
@@ -36,7 +38,13 @@ const temporalCasts = new Set(
     .map(callableIdentity),
 )
 const temporalExplicitZones = new Set(
-  builtinCallables().filter(isTemporalExplicitZoneLookup).map(callableIdentity),
+  builtinCallables()
+    .filter(
+      (item) =>
+        isTemporalExplicitZoneLookup(item) ||
+        (isTemporalLocalTimezone(item) && item.args[0] === 'pg_catalog.timetz'),
+    )
+    .map(callableIdentity),
 )
 const temporalSessionUnits = new Set(
   builtinCallables()
@@ -44,7 +52,13 @@ const temporalSessionUnits = new Set(
     .map(callableIdentity),
 )
 const clockZoneLookups = new Set(
-  builtinCallables().filter(isTemporalClockZoneLookup).map(callableIdentity),
+  builtinCallables()
+    .filter(
+      (item) =>
+        isTemporalClockZoneLookup(item) ||
+        (isTemporalLocalTimezone(item) && item.args[0] === 'pg_catalog.timetz'),
+    )
+    .map(callableIdentity),
 )
 const clockTimezoneCasts = new Set(
   builtinCallables()
@@ -305,9 +319,9 @@ export function checkUnknownMessage(
   if (containsSignature(expression, temporalExplicitZones)) {
     if (context.timeZoneAbbreviations === undefined)
       message +=
-        ' Explicit timezone-name lookup can require sql.codegen.checks.timeZoneAbbreviations with matching abbreviation definitions.'
+        ' Timezone-name lookup can require sql.codegen.checks.timeZoneAbbreviations with matching abbreviation definitions.'
     if (context.maxIdentifierBytes === undefined)
-      message += ' Explicit timezone-name lookup can require sql.codegen.checks.maxIdentifierBytes.'
+      message += ' Timezone-name lookup can require sql.codegen.checks.maxIdentifierBytes.'
     message +=
       ' Unavailable timezone data, implicit POSIX rules and abbreviation-cache collisions can also defer lookup.'
   }

@@ -16,6 +16,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
+  isTemporalLocalTimezone,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -329,6 +330,53 @@ it('admits the selected mixed local/instant comparison callbacks and preserves t
       const bound = bindProbe(`v0 OPERATOR(pg_catalog.${op.name}) v1`, columns)
       expect(bound.fullyBound).toBe(true)
       expect(bound.preparation.kind, callableIdentity(op)).toBe('supported')
+    }
+  }
+})
+
+it('admits the three native local timezone aliases and keeps the timetz name lookup and transaction requirements', () => {
+  const items = builtinCallables().filter(isTemporalLocalTimezone)
+  expect(items).toHaveLength(3)
+  for (const item of items) {
+    for (const changed of [
+      { ...item, schema: 'other' },
+      { ...item, volatility: 'i' as const },
+      { ...item, strict: false },
+      { ...item, returnsSet: true },
+    ])
+      expect(isTemporalLocalTimezone(changed)).toBe(false)
+    const clock = item.args[0] === 'pg_catalog.timetz'
+    expect(
+      temporalArithmeticRequirements(item)?.every(
+        (r) => r.owner === 'tests/sql-semantics/check-local-timezone.test.ts',
+      ),
+    ).toBe(true)
+    expect(
+      temporalArithmeticRequirements(item)
+        ?.map((r) => r.setting)
+        .sort(),
+    ).toEqual(
+      clock
+        ? [
+            'TimeZone',
+            'maxIdentifierBytes',
+            'timezone_abbreviation_cache',
+            'timezone_abbreviations',
+            'transaction_start',
+          ].sort()
+        : ['TimeZone'],
+    )
+    for (const sql of ['pg_catalog.timezone(v) IS NOT NULL', '(v AT LOCAL) IS NOT NULL']) {
+      const probe = bindProbe(sql, [{ name: 'v', typeName: item.args[0]! }])
+      expect(probe.fullyBound, callableIdentity(item)).toBe(true)
+      expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
+      expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+      expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+      const message = checkUnknownMessage(probe.expression)
+      expect(message).toContain('sql.codegen.checks.timeZone')
+      expect(message.includes('transaction start instant')).toBe(clock)
+      expect(message.includes('sql.codegen.checks.maxIdentifierBytes')).toBe(clock)
+      expect(message.includes('sql.codegen.checks.timeZoneAbbreviations')).toBe(clock)
     }
   }
 })

@@ -4,6 +4,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
+  isTemporalLocalTimezone,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -749,6 +750,17 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalLocalTimezone(item) && item.args[0] !== 'pg_catalog.timetz')
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Local timestamp/instant timezone aliases resolve through the selected native cast semantics with the declared session timezone. Preserve NULLs, infinities, stored boundaries and context-independent errors.',
+        owner: 'tests/sql-semantics/check-local-timezone.test.ts',
+      },
+    ]
+
   if (isTemporalContextComparison(item))
     return [
       {
@@ -793,23 +805,26 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         owner: 'tests/sql-semantics/check-session-trunc.test.ts',
       },
     ]
-  if (isTemporalExplicitZoneLookup(item)) {
-    const owner = isTemporalClockZoneLookup(item)
-      ? 'tests/sql-semantics/check-timetz-zone.test.ts'
-      : item.name === 'timezone'
-        ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
-        : item.name === 'date_trunc'
-          ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-          : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts'
+  const localClock = isTemporalLocalTimezone(item) && item.args[0] === 'pg_catalog.timetz'
+  if (isTemporalExplicitZoneLookup(item) || localClock) {
+    const owner = localClock
+      ? 'tests/sql-semantics/check-local-timezone.test.ts'
+      : isTemporalClockZoneLookup(item)
+        ? 'tests/sql-semantics/check-timetz-zone.test.ts'
+        : item.name === 'timezone'
+          ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+          : item.name === 'date_trunc'
+            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts'
     return [
-      ...(isTemporalClockZoneLookup(item)
+      ...(isTemporalClockZoneLookup(item) || localClock
         ? [
             {
               kind: 'transaction',
               setting: 'transaction_start',
               requirement:
                 'Variable full-zone or forced-abbreviation offsets use the transaction start instant. Fixed offsets and constant forced histories remain definite without a client clock.',
-              owner: 'tests/sql-semantics/check-timetz-zone.test.ts',
+              owner,
             },
           ]
         : []),
@@ -817,7 +832,7 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'TimeZone',
         requirement:
-          'Explicit timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb.',
+          'Timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb, including the native local-timetz alias lookup of the session zone name.',
         owner,
       },
       {

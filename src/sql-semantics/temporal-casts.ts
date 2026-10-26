@@ -164,3 +164,18 @@ export function isTemporalContextComparison(item: BuiltinCallable): boolean {
       ))
   )
 }
+
+export function isTemporalLocalTimezone(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'timezone' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.args.length === 1 &&
+    ((item.args[0] === 'pg_catalog."timestamp"' && item.result === 'pg_catalog.timestamptz') ||
+      (item.args[0] === 'pg_catalog.timestamptz' && item.result === 'pg_catalog."timestamp"') ||
+      (item.args[0] === 'pg_catalog.timetz' && item.result === 'pg_catalog.timetz'))
+  )
+}
