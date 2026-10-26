@@ -346,6 +346,9 @@ export function aclitemToText(input: checkruntime.AclitemValue): checkruntime.Te
     if (input.kind === "Value") {
         return { kind: "NonNull" };
     }
+    if (input.kind === "Catalog") {
+        return { kind: "NonNull" };
+    }
     return { kind: "Unknown" };
 }
 function aclitemPrivilege(name: string): bigint {
@@ -491,6 +494,43 @@ export function makeaclitemAb9i(grantee: checkruntime.OidValue, grantor: checkru
     }
     return { kind: "Unknown" };
 }
+function aclitemCatalogFacts(input: checkruntime.AclitemValue): checkruntime.AclitemCatalogPayload {
+    if (input.kind === "Value") {
+        const value: checkruntime.AclitemPayload = input.value;
+        return { privileges: value.privileges, grantOptions: value.grantOptions, publicGrantee: value.grantee === 0n, invalidGrantor: value.grantor === 0n };
+    }
+    if (input.kind === "Catalog") {
+        const value: checkruntime.AclitemCatalogPayload = input.value;
+        return value;
+    }
+    return { privileges: 0n, grantOptions: 0n, publicGrantee: false, invalidGrantor: false };
+}
+function aclitemRoleMatch(left: checkruntime.AclitemValue, right: checkruntime.AclitemValue): checkruntime.BoolValue {
+    const a: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(left);
+    const b: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(right);
+    if (!(a.publicGrantee === b.publicGrantee) || !(a.invalidGrantor === b.invalidGrantor)) {
+        return checkruntime.makeBoolValue(false);
+    }
+    if (left.kind === "Value") {
+        const l: checkruntime.AclitemPayload = left.value;
+        if (right.kind === "Value") {
+            const r: checkruntime.AclitemPayload = right.value;
+            return checkruntime.makeBoolValue(l.grantee === r.grantee && l.grantor === r.grantor);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function aclitemCovers(left: checkruntime.AclitemValue, right: checkruntime.AclitemValue): checkruntime.BoolValue {
+    if (checkruntime.equalAclitemValue(left, { kind: "Unknown" }) || checkruntime.equalAclitemValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    const a: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(left);
+    const b: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(right);
+    if (!(integerBitsCombine(a.privileges, b.privileges, 0) === b.privileges) || !(integerBitsCombine(a.grantOptions, b.grantOptions, 0) === b.grantOptions)) {
+        return checkruntime.makeBoolValue(false);
+    }
+    return aclitemRoleMatch(left, right);
+}
 export function aclitemeqCphl(left: checkruntime.AclitemValue, right: checkruntime.AclitemValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -506,7 +546,12 @@ export function aclitemeqCphl(left: checkruntime.AclitemValue, right: checkrunti
     if (checkruntime.equalAclitemValue(left, { kind: "Null" }) || checkruntime.equalAclitemValue(right, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    return checkruntime.makeBoolValue(checkruntime.equalAclitemValue(left, right));
+    const a: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(left);
+    const b: checkruntime.AclitemCatalogPayload = aclitemCatalogFacts(right);
+    if (!(a.privileges === b.privileges) || !(a.grantOptions === b.grantOptions)) {
+        return checkruntime.makeBoolValue(false);
+    }
+    return aclitemRoleMatch(left, right);
 }
 function aclitemHashSum(input: checkruntime.AclitemValue): checkruntime.Int8Value {
     if (input.kind === "Error") {
@@ -597,28 +642,23 @@ export function aclcontains90xb(input: checkruntime.ArrayValue, item: checkrunti
         if (!(checkruntime.equalBoolValue(array.nullBitmap, { kind: "Value", value: false }))) {
             return { kind: "Unknown" };
         }
-        if (item.kind === "Value") {
-            const requested: checkruntime.AclitemPayload = item.value;
-            let position: number = 0;
-            let unknown: boolean = false;
-            while (position < array.elements.length) {
-                const entry: checkruntime.AclitemValue = checkruntime.arrayElementToAclitem(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
-                if (entry.kind === "Value") {
-                    const value: checkruntime.AclitemPayload = entry.value;
-                    if (value.grantee === requested.grantee && value.grantor === requested.grantor && integerBitsCombine(value.privileges, requested.privileges, 0) === requested.privileges && integerBitsCombine(value.grantOptions, requested.grantOptions, 0) === requested.grantOptions) {
-                        return checkruntime.makeBoolValue(true);
-                    }
-                }
-                if (checkruntime.equalAclitemValue(entry, { kind: "Unknown" })) {
-                    unknown = langruntime.checkedBool(true);
-                }
-                position = langruntime.checkedAdd(position, 1);
+        let position: number = 0;
+        let unknown: boolean = false;
+        while (position < array.elements.length) {
+            const entry: checkruntime.AclitemValue = checkruntime.arrayElementToAclitem(checkruntime.copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
+            const matched: checkruntime.BoolValue = aclitemCovers(entry, item);
+            if (checkruntime.equalBoolValue(matched, { kind: "Value", value: true })) {
+                return checkruntime.makeBoolValue(true);
             }
-            if (unknown) {
-                return { kind: "Unknown" };
+            if (!(checkruntime.equalBoolValue(matched, { kind: "Value", value: false }))) {
+                unknown = langruntime.checkedBool(true);
             }
-            return checkruntime.makeBoolValue(false);
+            position = langruntime.checkedAdd(position, 1);
         }
+        if (unknown) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeBoolValue(false);
     }
     return { kind: "Unknown" };
 }

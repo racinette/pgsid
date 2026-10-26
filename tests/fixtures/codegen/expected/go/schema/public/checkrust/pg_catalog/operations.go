@@ -345,6 +345,9 @@ func AclitemToText(input checkruntime.AclitemValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.AclitemValueValue {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 	}
+	if input.Kind == checkruntime.AclitemValueCatalog {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func aclitemPrivilege(name string) int64 {
@@ -490,6 +493,43 @@ func MakeaclitemAb9i(grantee checkruntime.OidValue, grantor checkruntime.OidValu
 	}
 	return checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}
 }
+func aclitemCatalogFacts(input checkruntime.AclitemValue) checkruntime.AclitemCatalogPayload {
+	if input.Kind == checkruntime.AclitemValueValue {
+		value := input.Value
+		return checkruntime.AclitemCatalogPayload{Privileges: value.Privileges, GrantOptions: value.GrantOptions, PublicGrantee: value.Grantee == int64(0), InvalidGrantor: value.Grantor == int64(0)}
+	}
+	if input.Kind == checkruntime.AclitemValueCatalog {
+		value := input.Catalog
+		return value
+	}
+	return checkruntime.AclitemCatalogPayload{Privileges: int64(0), GrantOptions: int64(0), PublicGrantee: false, InvalidGrantor: false}
+}
+func aclitemRoleMatch(left checkruntime.AclitemValue, right checkruntime.AclitemValue) checkruntime.BoolValue {
+	a := aclitemCatalogFacts(left)
+	b := aclitemCatalogFacts(right)
+	if a.PublicGrantee != b.PublicGrantee || a.InvalidGrantor != b.InvalidGrantor {
+		return checkruntime.MakeBoolValue(false)
+	}
+	if left.Kind == checkruntime.AclitemValueValue {
+		l := left.Value
+		if right.Kind == checkruntime.AclitemValueValue {
+			r := right.Value
+			return checkruntime.MakeBoolValue(l.Grantee == r.Grantee && l.Grantor == r.Grantor)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func aclitemCovers(left checkruntime.AclitemValue, right checkruntime.AclitemValue) checkruntime.BoolValue {
+	if left == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) || right == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	a := aclitemCatalogFacts(left)
+	b := aclitemCatalogFacts(right)
+	if integerBitsCombine(a.Privileges, b.Privileges, 0) != b.Privileges || integerBitsCombine(a.GrantOptions, b.GrantOptions, 0) != b.GrantOptions {
+		return checkruntime.MakeBoolValue(false)
+	}
+	return aclitemRoleMatch(left, right)
+}
 func AclitemeqCphl(left checkruntime.AclitemValue, right checkruntime.AclitemValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.AclitemValueError {
 		error := left.Error
@@ -505,7 +545,12 @@ func AclitemeqCphl(left checkruntime.AclitemValue, right checkruntime.AclitemVal
 	if left == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) || right == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
-	return checkruntime.MakeBoolValue(left == right)
+	a := aclitemCatalogFacts(left)
+	b := aclitemCatalogFacts(right)
+	if a.Privileges != b.Privileges || a.GrantOptions != b.GrantOptions {
+		return checkruntime.MakeBoolValue(false)
+	}
+	return aclitemRoleMatch(left, right)
 }
 func aclitemHashSum(input checkruntime.AclitemValue) checkruntime.Int8Value {
 	if input.Kind == checkruntime.AclitemValueError {
@@ -598,28 +643,23 @@ func Aclcontains90xb(input checkruntime.ArrayValue, item checkruntime.AclitemVal
 		if array.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 		}
-		if item.Kind == checkruntime.AclitemValueValue {
-			requested := item.Value
-			position := 0
-			unknown := false
-			for position < len(array.Elements) {
-				entry := checkruntime.ArrayElementToAclitem(checkruntime.CopyArrayElement(array.Elements[position]))
-				if entry.Kind == checkruntime.AclitemValueValue {
-					value := entry.Value
-					if value.Grantee == requested.Grantee && value.Grantor == requested.Grantor && integerBitsCombine(value.Privileges, requested.Privileges, 0) == requested.Privileges && integerBitsCombine(value.GrantOptions, requested.GrantOptions, 0) == requested.GrantOptions {
-						return checkruntime.MakeBoolValue(true)
-					}
-				}
-				if entry == (checkruntime.AclitemValue{Kind: checkruntime.AclitemValueUnknown}) {
-					unknown = true
-				}
-				position = langruntime.CheckedAdd(position, 1)
+		position := 0
+		unknown := false
+		for position < len(array.Elements) {
+			entry := checkruntime.ArrayElementToAclitem(checkruntime.CopyArrayElement(array.Elements[position]))
+			matched := aclitemCovers(entry, item)
+			if matched == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.MakeBoolValue(true)
 			}
-			if unknown {
-				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			if matched != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				unknown = true
 			}
-			return checkruntime.MakeBoolValue(false)
+			position = langruntime.CheckedAdd(position, 1)
 		}
+		if unknown {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		return checkruntime.MakeBoolValue(false)
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }

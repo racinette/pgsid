@@ -384,7 +384,7 @@ base:=rows[0];for _,v:=range []checkruntime.AclitemValue{{Kind:checkruntime.Acli
   }
 }, 600_000)
 
-it('defers named ACL literal preparation across role recreation and preserves NULL and skipped nullness predicates', async () => {
+it('preserves captured ACL literal facts across role recreation while deferring role-dependent values', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-aclitem-literal-')),
     packet = 'artifacts/goal-checks/aclitem-payload-active'
@@ -439,7 +439,10 @@ it('defers named ACL literal preparation across role recreation and preserves NU
         expected: {
           kind:
             c.identity.constraint.startsWith('absent') ||
-            (bypass && c.identity.constraint.startsWith('present'))
+            c.identity.constraint === 'present_stored' ||
+            (bypass &&
+              (c.identity.constraint.startsWith('present') ||
+                c.identity.constraint.endsWith('_stored')))
               ? 'True'
               : 'Unknown',
         } as Outcome,

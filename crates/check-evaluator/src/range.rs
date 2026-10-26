@@ -763,6 +763,7 @@ fn range_bound_value_valid(input: ArrayElement, cidr: bool) -> bool {
         if let TsvectorValue::Value(_) = checked { return true; };
         return false;
     };
+    if let ArrayElement::AclitemCatalog(value) = input { return make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor) != AclitemValue::Unknown; };
     if let ArrayElement::Aclitem(value) = input { return make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options) != AclitemValue::Unknown; };
     if let ArrayElement::Int2(value) = input {
         return make_int2_value(value) != Int2Value::Unknown;

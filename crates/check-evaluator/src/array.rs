@@ -309,6 +309,7 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
 fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
     if let ArrayElement::Tsquery(value) = element { return array_element_from_tsquery(make_tsquery_value(value)); };
     if let ArrayElement::Tsvector(value) = element { return array_element_from_tsvector(make_tsvector_value(value)); };
+    if let ArrayElement::AclitemCatalog(value) = element { return array_element_from_aclitem(make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor)); };
     if let ArrayElement::Aclitem(value) = element { return array_element_from_aclitem(make_aclitem_value(value.grantee,value.grantor,value.privileges,value.grant_options)); };
     if let ArrayElement::XmlNonNull(value) = element { return array_element_from_xml(make_xml_knowledge(value.document,value.content)); };
     if let ArrayElement::Xml(value) = element { return array_element_from_xml(make_xml_value(value.as_str())); };

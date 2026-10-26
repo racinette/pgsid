@@ -2801,6 +2801,15 @@ export interface AclitemPayload {
 function equalAclitemPayload(left: AclitemPayload, right: AclitemPayload): boolean {
     return left.grantee === right.grantee && left.grantor === right.grantor && left.privileges === right.privileges && left.grantOptions === right.grantOptions;
 }
+export interface AclitemCatalogPayload {
+    readonly privileges: bigint;
+    readonly grantOptions: bigint;
+    readonly publicGrantee: boolean;
+    readonly invalidGrantor: boolean;
+}
+function equalAclitemCatalogPayload(left: AclitemCatalogPayload, right: AclitemCatalogPayload): boolean {
+    return left.privileges === right.privileges && left.grantOptions === right.grantOptions && left.publicGrantee === right.publicGrantee && left.invalidGrantor === right.invalidGrantor;
+}
 export type AclitemValue = {
     readonly kind: "Unknown";
 } | {
@@ -2811,6 +2820,9 @@ export type AclitemValue = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "Catalog";
+    readonly value: AclitemCatalogPayload;
 };
 export function equalAclitemValue(left: AclitemValue, right: AclitemValue): boolean {
     if (left.kind !== right.kind)
@@ -2819,6 +2831,8 @@ export function equalAclitemValue(left: AclitemValue, right: AclitemValue): bool
         return equalAclitemPayload(left.value, right.value);
     if (left.kind === "Error" && right.kind === "Error")
         return equalSqlError(left.value, right.value);
+    if (left.kind === "Catalog" && right.kind === "Catalog")
+        return equalAclitemCatalogPayload(left.value, right.value);
     return true;
 }
 export function aclitemUnknown(): AclitemValue {
@@ -2836,6 +2850,19 @@ export function makeAclitemValue(grantee: bigint, grantor: bigint, privileges: b
         return { kind: "Unknown" };
     }
     return { kind: "Value", value: { grantee: grantee, grantor: grantor, privileges: privileges, grantOptions: grantOptions } };
+}
+export function makeAclitemCatalogValue(privileges: bigint, grantOptions: bigint, publicGrantee: boolean, invalidGrantor: boolean): AclitemValue {
+    privileges = langruntime.checkedI64(privileges);
+    grantOptions = langruntime.checkedI64(grantOptions);
+    publicGrantee = langruntime.checkedBool(publicGrantee);
+    invalidGrantor = langruntime.checkedBool(invalidGrantor);
+    if (privileges < 0n || privileges > 4294967295n || grantOptions < 0n || grantOptions > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    if (publicGrantee && invalidGrantor) {
+        return makeAclitemValue(0n, 0n, privileges, grantOptions);
+    }
+    return { kind: "Catalog", value: { privileges: privileges, grantOptions: grantOptions, publicGrantee: publicGrantee, invalidGrantor: invalidGrantor } };
 }
 export function aclitemIsNull(input: AclitemValue): BoolValue {
     if (input.kind === "Error") {
@@ -7921,6 +7948,9 @@ export type ArrayElement = {
 } | {
     readonly kind: "Tsquery";
     readonly value: TsqueryPayload;
+} | {
+    readonly kind: "AclitemCatalog";
+    readonly value: AclitemCatalogPayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7983,10 +8013,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Aclitem": return { kind: "Aclitem", value: value.value };
         case "Tsvector": return { kind: "Tsvector", value: copyTsvectorPayload(value.value) };
         case "Tsquery": return { kind: "Tsquery", value: copyTsqueryPayload(value.value) };
+        case "AclitemCatalog": return { kind: "AclitemCatalog", value: value.value };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "AclitemCatalog") {
+        return 46;
+    }
     if (input.kind === "Tsquery") {
         return 48;
     }
@@ -9503,6 +9537,10 @@ export function arrayElementToXml(input: ArrayElement): XmlValue {
     return { kind: "Unknown" };
 }
 export function arrayElementFromAclitem(input: AclitemValue): ArrayElement {
+    if (input.kind === "Catalog") {
+        const value: AclitemCatalogPayload = input.value;
+        return { kind: "AclitemCatalog", value: value };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9518,6 +9556,10 @@ export function arrayElementFromAclitem(input: AclitemValue): ArrayElement {
 }
 export function arrayElementToAclitem(input: ArrayElement): AclitemValue {
     input = copyArrayElement(input);
+    if (input.kind === "AclitemCatalog") {
+        const value: AclitemCatalogPayload = input.value;
+        return makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor);
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -10839,6 +10881,10 @@ function rangeBoundValueValid(input: ArrayElement, cidr: boolean): boolean {
         }
         return false;
     }
+    if (input.kind === "AclitemCatalog") {
+        const value: AclitemCatalogPayload = input.value;
+        return !(equalAclitemValue(makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor), { kind: "Unknown" }));
+    }
     if (input.kind === "Aclitem") {
         const value: AclitemPayload = input.value;
         return !(equalAclitemValue(makeAclitemValue(value.grantee, value.grantor, value.privileges, value.grantOptions), { kind: "Unknown" }));
@@ -11970,6 +12016,10 @@ function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
     if (element.kind === "Tsvector") {
         const value: TsvectorPayload = copyTsvectorPayload(element.value);
         return arrayElementFromTsvector(makeTsvectorValue(value));
+    }
+    if (element.kind === "AclitemCatalog") {
+        const value: AclitemCatalogPayload = element.value;
+        return arrayElementFromAclitem(makeAclitemCatalogValue(value.privileges, value.grantOptions, value.publicGrantee, value.invalidGrantor));
     }
     if (element.kind === "Aclitem") {
         const value: AclitemPayload = element.value;

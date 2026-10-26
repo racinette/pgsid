@@ -105,6 +105,7 @@ function captureExpressionCoercions(
           'pg_catalog.oidvector',
           'pg_catalog.tsvector',
           'pg_catalog.tsquery',
+          'pg_catalog.aclitem',
         ].includes(rowExpressions?.types.get(id) ?? '')
       )
         return true

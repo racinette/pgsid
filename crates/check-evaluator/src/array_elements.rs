@@ -59,9 +59,11 @@ pub enum ArrayElement {
     Aclitem(AclitemPayload),
     Tsvector(TsvectorPayload),
     Tsquery(TsqueryPayload),
+    AclitemCatalog(AclitemCatalogPayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::AclitemCatalog(_) = input { return 46; };
     if let ArrayElement::Tsquery(_) = input { return 48; };
     if let ArrayElement::Tsvector(_) = input { return 47; };
     if let ArrayElement::Aclitem(_) = input { return 46; };
@@ -1391,12 +1393,14 @@ pub fn array_element_to_xml(input: ArrayElement) -> XmlValue {
 }
 
 pub fn array_element_from_aclitem(input: AclitemValue) -> ArrayElement {
+    if let AclitemValue::Catalog(value) = input { return ArrayElement::AclitemCatalog(value); };
     if let AclitemValue::Error(error) = input { return ArrayElement::Error(error); };
     if input == AclitemValue::Null { return ArrayElement::Null; };
     if let AclitemValue::Value(value) = input { return ArrayElement::Aclitem(value); };
     ArrayElement::Unknown
 }
 pub fn array_element_to_aclitem(input: ArrayElement) -> AclitemValue {
+    if let ArrayElement::AclitemCatalog(value) = input { return make_aclitem_catalog_value(value.privileges,value.grant_options,value.public_grantee,value.invalid_grantor); };
     if let ArrayElement::Error(error) = input { return AclitemValue::Error(error); };
     if let ArrayElement::Null = input { return AclitemValue::Null; };
     if let ArrayElement::Aclitem(value) = input { return AclitemValue::Value(value); };

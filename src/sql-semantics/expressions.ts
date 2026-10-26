@@ -1,3 +1,4 @@
+import type { AclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isOidAliasType, type OidAliasType } from '../catalog/oid-alias-constant-storage.js'
 export {
   isOidAliasType,
@@ -609,7 +610,7 @@ export type SqlExpression =
       stored?: boolean
       storage?: TsqueryConstantStorage
     }
-  | { kind: 'aclitem'; type: AclitemType; value: string | null }
+  | { kind: 'aclitem'; type: AclitemType; value: string | null; storage?: AclitemConstantKnowledge }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }
   | { kind: 'pg_lsn'; type: PgLsnType; value: string | null }

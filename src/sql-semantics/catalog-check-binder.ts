@@ -1,3 +1,4 @@
+import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validStoredTsvectorValue } from '../catalog/tsvector-constant-storage.js'
@@ -3499,6 +3500,22 @@ export function bindCatalogCheck(
       return {
         type: storedSnapshot.type,
         value: { kind: 'certain', expression: { ...storedSnapshot, kind: 'snapshot-storage' } },
+      }
+    }
+    const storedAclitem = wrapper['PgsidStoredAclitem']
+    if (storedAclitem !== undefined) {
+      if (!validAclitemConstantKnowledge(storedAclitem)) return unknown
+      return {
+        type: 'pg_catalog.aclitem',
+        value: {
+          kind: 'certain',
+          expression: {
+            kind: 'aclitem',
+            type: 'pg_catalog.aclitem',
+            value: '',
+            storage: storedAclitem,
+          },
+        },
       }
     }
     const storedAliasZero = wrapper['PgsidStoredOidAliasZero']
