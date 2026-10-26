@@ -6258,6 +6258,7 @@ export function bindCatalogCheck(
         (isIntegerType(source) ||
           source === 'pg_catalog.float4' ||
           source === 'pg_catalog.float8' ||
+          source === 'pg_catalog.bytea' ||
           source === 'pg_catalog."numeric"' ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||

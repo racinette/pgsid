@@ -359,8 +359,8 @@ describe('CHECK measurement boundaries', () => {
         kind: 'session',
         setting: 'bytea_output',
         requirement:
-          'Bytea conversion requires bytea_output; hex and escape produce different JSON strings even for empty bytea. SQL NULL and errors remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Bytea conversion uses declared bytea_output for scalar, container and JSON output. Hex and escape produce different JSON strings even for empty bytea; missing context defers output bytes. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-bytea-output.test.ts',
       },
       {
         kind: 'session',
@@ -1188,6 +1188,22 @@ describe('CHECK measurement boundaries', () => {
       platformDependent: expect.arrayContaining(['(0x1p0,0)', '(NaN(1),0)']),
     })
     expect(pointForms.handled).toEqual(expect.arrayContaining(['1,2', '(-0,-0)', '(NaN,NaN)']))
+    const byteaOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.bytea')!
+    expect(byteaOutput.probe.raw.fullyBound).toBe(true)
+    expect(byteaOutput.probe.stored!.fullyBound).toBe(true)
+    expect(byteaOutput.probe.raw.preparation.kind).toBe('supported')
+    expect(byteaOutput.probe.stored!.preparation.kind).toBe('supported')
+    expect(byteaOutput.valueRequirements).toMatchObject([
+      {
+        kind: 'session',
+        setting: 'bytea_output',
+        owner: 'tests/sql-semantics/check-bytea-output.test.ts',
+      },
+    ])
+    expect(
+      callableBoundary(builtinMetadata(byteaOutput.output!), new Set(['pg_catalog.bytea']))
+        .categories,
+    ).toContain('session-setting:bytea_output')
     for (const type of ['pg_catalog.float4', 'pg_catalog.float8']) {
       const floatOutput = report.textOutput.find((entry) => entry.type === type)!
       expect(floatOutput.probe.raw.fullyBound).toBe(true)

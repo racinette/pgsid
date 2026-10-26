@@ -55,8 +55,7 @@ Done when each case either evaluates with parity or has an explicit, tested cont
 
 ## Expand world INSERT coverage
 
-- [x] Add named INSERTs for the report's unexercised constraints, starting with
-      constraints already fully bound on represented values.
+- [x] Add named INSERTs for the report's unexercised constraints, starting with constraints already fully bound on represented values.
 - [x] Add passing, rejecting, NULL, boundary, and reached-error cases as relevant;
       include branch cases that demonstrate skipped errors.
 - [ ] Keep new supported expression and callable slices covered by world INSERTs.
@@ -89,6 +88,7 @@ Do not use target-native date or numeric parsers to supply SQL behavior.
 - [x] Declare database encoding for character codes and construction; defer dependent non-ASCII results without UTF8.
 - [ ] Design a portable context boundary before implementing those operations.
 - [x] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior, keyword categories, quote escaping and invariant output or known nullness without context; preserve scoped catalog identifier rendering and caller settings.
+- [x] Admit explicit bytea_output hex/escape formatting through scalar/domain text and character casts, arrays, records, ranges and JSON values/keys; retain bounded non-NULL facts without context and preserve input errors, lazy branches and source/stored INSERT parity.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
 - [ ] Assess locale-sensitive ordering, casing, and nondeterministic collations.
 

@@ -1440,3 +1440,33 @@ INSERT INTO inspection_float_text(single_value,double_value,expected_single,expe
 
 -- name: FloatCastBypassed
 INSERT INTO inspection_float_text(single_value,double_value,expected_single,expected_double,expected_short,expected_quotient,divisor,bypass) VALUES(1,1,'wrong','wrong','wrong','wrong',0,true);
+
+-- name: BinaryCastControl
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,1,false);
+
+-- name: BinaryCastNull
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES(NULL,NULL,NULL,'{NULL,NULL}',NULL,false,1,false);
+
+-- name: BinaryCastAscii
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x616263','\x616263','\x616','{"\\x616263",NULL}','"\\x616263"'::jsonb,true,1,false);
+
+-- name: BinaryCastWrongText
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','wrong','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,1,false);
+
+-- name: BinaryCastWrongWidth
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','wrong','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,1,false);
+
+-- name: BinaryCastWrongArray
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','\x006','wrong','"\\x00615c7fff"'::jsonb,true,1,false);
+
+-- name: BinaryCastWrongJson
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','\x006','{"\\x00615c7fff",NULL}','null'::jsonb,true,1,false);
+
+-- name: BinaryCastWrongPresence
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,false,1,false);
+
+-- name: BinaryCastDivisionError
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','\x00615c7fff','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,0,false);
+
+-- name: BinaryCastBypassed
+INSERT INTO inspection_binary_text(payload,expected_text,expected_short,expected_array,expected_document,expected_present,divisor,bypass) VALUES('\x00615c7fff','wrong','\x006','{"\\x00615c7fff",NULL}','"\\x00615c7fff"'::jsonb,true,0,true);

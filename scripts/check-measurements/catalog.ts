@@ -529,8 +529,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'bytea_output',
         requirement:
-          'Bytea conversion requires bytea_output; hex and escape produce different JSON strings even for empty bytea. SQL NULL and errors remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Bytea conversion uses declared bytea_output for scalar, container and JSON output. Hex and escape produce different JSON strings even for empty bytea; missing context defers output bytes. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-bytea-output.test.ts',
       },
       {
         kind: 'session',
@@ -737,6 +737,23 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
       },
     ]
   return null
+}
+
+export function byteaOutputRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    callableIdentity(item) !== builtinTypeIO('pg_catalog.bytea')?.output
+  )
+    return null
+  return [
+    {
+      kind: 'session',
+      setting: 'bytea_output',
+      requirement:
+        'Bytea text casts and nested output use declared hex or escape formatting. Missing context retains bounded known-byte scalar non-NULL state while differing bytes defer; strict NULLs, child errors and skipped branches remain definite.',
+      owner: 'tests/sql-semantics/check-bytea-output.test.ts',
+    },
+  ]
 }
 
 export function floatOutputRequirements(item: BuiltinCallable) {
@@ -1011,6 +1028,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     builtinTypeIO(item.args[0]!)?.output === callableIdentity(item)
   if (floatOutputRequirements(item) || geometricOutput)
     categories.push('session-setting:extra_float_digits')
+  if (byteaOutputRequirements(item)) categories.push('session-setting:bytea_output')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
   for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])
     categories.push(

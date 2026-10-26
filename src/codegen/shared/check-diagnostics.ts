@@ -53,18 +53,18 @@ const jsonConversions = new Set(
     )
     .map(callableIdentity),
 )
-function jsonRendersAcl(type: string, seen = new Set<string>()): boolean {
+function rendersType(type: string, target: string, seen = new Set<string>()): boolean {
   type = arrayElementBaseType(type)
-  if (type === 'pg_catalog.aclitem') return true
+  if (type === target) return true
   if (seen.has(type)) return false
   seen.add(type)
-  if (isArrayLikeType(type)) return jsonRendersAcl(arrayLikeElementType(type)!, seen)
+  if (isArrayLikeType(type)) return rendersType(arrayLikeElementType(type)!, target, seen)
   const anonymous = anonymousRecordProfile(type)
   if (anonymous)
     return anonymous.some((layout) =>
       layout.namedType
-        ? jsonRendersAcl(layout.namedType, seen)
-        : layout.fields.some((field) => jsonRendersAcl(field.type, seen)),
+        ? rendersType(layout.namedType, target, seen)
+        : layout.fields.some((field) => rendersType(field.type, target, seen)),
     )
   const profile = compositeProfile(type),
     root = profile?.graph.definitions.find((definition) => definition.identity === profile.identity)
@@ -72,7 +72,7 @@ function jsonRendersAcl(type: string, seen = new Set<string>()): boolean {
     profile &&
     root?.fields.some((field) => {
       const type = compositeFieldType(profile, field.type)
-      return type !== null && jsonRendersAcl(type, seen)
+      return type !== null && rendersType(type, target, seen)
     })
   )
 }
@@ -88,7 +88,9 @@ function needsAclRoleCatalog(value: unknown): boolean {
     node.kind === 'call' &&
     node.call?.signature &&
     jsonConversions.has(node.call.signature) &&
-    node.operands?.some((operand) => operand.type !== undefined && jsonRendersAcl(operand.type))
+    node.operands?.some(
+      (operand) => operand.type !== undefined && rendersType(operand.type, 'pg_catalog.aclitem'),
+    )
   )
     return true
   if (
@@ -106,6 +108,32 @@ function needsAclRoleCatalog(value: unknown): boolean {
   return Object.values(value).some(needsAclRoleCatalog)
 }
 
+function needsByteaOutput(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const node = value as {
+    kind?: string
+    operand?: { type?: string; kind?: string; expression?: { type?: string } }
+    elementType?: string
+    call?: { signature?: string | null }
+    operands?: { type?: string; kind?: string; expression?: { type?: string } }[]
+  }
+  if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
+    const type = node.elementType ?? node.operand?.type ?? node.operand?.expression?.type
+    if (type && rendersType(type, 'pg_catalog.bytea')) return true
+  }
+  if (
+    node.kind === 'call' &&
+    node.call?.signature &&
+    jsonConversions.has(node.call.signature) &&
+    node.operands?.some((o) => {
+      const type = o.type ?? o.expression?.type
+      return type !== undefined && rendersType(type, 'pg_catalog.bytea')
+    })
+  )
+    return true
+  return Object.values(value).some(needsByteaOutput)
+}
+
 export function checkUnknownMessage(
   expression: EvalBoolExpression,
   reason?: string,
@@ -119,6 +147,8 @@ export function checkUnknownMessage(
   if (context.quoteAllIdentifiers === undefined && needsIdentifierQuote(expression))
     message +=
       ' Identifier quoting can require an explicit sql.codegen.checks.quoteAllIdentifiers setting.'
+  if (context.byteaOutput === undefined && needsByteaOutput(expression))
+    message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)

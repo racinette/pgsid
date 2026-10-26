@@ -1193,3 +1193,26 @@ CREATE TABLE inspection_float_text (
  CONSTRAINT float_cast_division CHECK(CASE WHEN bypass THEN true ELSE
    (double_value/divisor::float8)::text COLLATE "C" IS NOT DISTINCT FROM expected_quotient END)
 );
+
+CREATE TABLE inspection_binary_text (
+ payload bytea,
+ expected_text text COLLATE "C",
+ expected_short text COLLATE "C",
+ expected_array text COLLATE "C",
+ expected_document jsonb,
+ expected_present boolean,
+ divisor integer NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT binary_cast_text CHECK(CASE WHEN bypass THEN true ELSE
+   payload::text COLLATE "C" IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT binary_cast_width CHECK(CASE WHEN bypass THEN true ELSE
+   payload::varchar(5)::text COLLATE "C" IS NOT DISTINCT FROM expected_short END),
+ CONSTRAINT binary_cast_array CHECK(CASE WHEN bypass THEN true ELSE
+   ARRAY[payload,NULL::bytea]::text COLLATE "C" IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT binary_cast_json CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb(payload) IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT binary_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (payload::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END),
+ CONSTRAINT binary_cast_child_error CHECK(CASE WHEN bypass THEN true ELSE
+   (set_byte(payload,1/divisor,1)::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);
