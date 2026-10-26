@@ -1,3 +1,4 @@
+import { isOidAliasType } from './oid-alias-constant-storage.js'
 import { storedTextConstant } from './text-constant-storage.js'
 import { isGeometryConstantType } from './geometry-constant-storage.js'
 import { isSystemConstantType } from './system-constant-storage.js'
@@ -94,6 +95,7 @@ function captureExpressionCoercions(
       if (
         isGeometryConstantType(rowExpressions?.types.get(id)) ||
         isSystemConstantType(rowExpressions?.types.get(id)) ||
+        isOidAliasType(rowExpressions?.types.get(id)) ||
         isSnapshotConstantType(rowExpressions?.types.get(id)) ||
         [
           'pg_catalog."char"',

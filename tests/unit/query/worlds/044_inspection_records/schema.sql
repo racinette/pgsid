@@ -1064,3 +1064,32 @@ CREATE TABLE inspection_fulltext_history (
 );
 ALTER TYPE historical_fulltext_value DROP ATTRIBUTE obsolete;
 ALTER TYPE historical_fulltext_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_alias_value AS(object regclass,roles regrole[],obsolete integer);
+CREATE TYPE historical_alias_result AS(score integer,obsolete_result regclass[]);
+CREATE TABLE inspection_alias_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_text text COLLATE "C",
+ expected_wire bytea,
+ expected_roles jsonb,
+ expected_record jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT alias_history_text CHECK(CASE WHEN bypass THEN true ELSE
+   (CASE WHEN score>=0 THEN '0'::regclass ELSE NULL::regclass END)::text COLLATE "C"
+     IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT alias_history_wire CHECK(CASE WHEN bypass THEN true ELSE
+   regopersend(CASE WHEN score>=0 THEN '0'::regoper ELSE NULL::regoper END)
+     IS NOT DISTINCT FROM expected_wire END),
+ CONSTRAINT alias_history_roles CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('[0:1]={0,NULL}'::regrole[]) IS NOT DISTINCT FROM expected_roles END),
+ CONSTRAINT alias_history_record CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb('(-,"{0,NULL}",1)'::historical_alias_value) IS NOT DISTINCT FROM expected_record END),
+ CONSTRAINT alias_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score/divisor,'{0,NULL}'::regclass[])::historical_alias_result IS NOT NULL)
+     IS NOT DISTINCT FROM expected_present END)
+);
+ALTER TYPE historical_alias_value DROP ATTRIBUTE obsolete;
+ALTER TYPE historical_alias_value RENAME ATTRIBUTE object TO current_object;
+ALTER TYPE historical_alias_result DROP ATTRIBUTE obsolete_result;
