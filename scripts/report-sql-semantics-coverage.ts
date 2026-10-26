@@ -110,6 +110,7 @@ export function sqlSemanticsCoverage(
     if (
       expression.kind === 'input' ||
       expression.kind === 'geometry-storage' ||
+      expression.kind === 'system-storage' ||
       expression.kind === 'network' ||
       expression.kind === 'xml' ||
       expression.kind === 'tsvector' ||

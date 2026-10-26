@@ -603,7 +603,10 @@ export function emitEvalExpression<Ast>(
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
     if (node.kind === 'certain') {
-      if (node.expression.kind === 'geometry-storage') {
+      if (
+        node.expression.kind === 'geometry-storage' ||
+        node.expression.kind === 'system-storage'
+      ) {
         const result = backend.uncertain(node.expression.type)
         include(result.helpers)
         return { type: node.expression.type, expression: result.expression, effect: 'partial' }

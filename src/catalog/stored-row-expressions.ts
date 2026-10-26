@@ -9,6 +9,7 @@ import { storedTemporalConstant } from './temporal-constant-storage.js'
 import { storedBinaryConstant } from './binary-constant-storage.js'
 import { storedTextLikeConstant } from './text-like-constant-storage.js'
 import { isGeometryConstantType, storedGeometryConstant } from './geometry-constant-storage.js'
+import { isSystemConstantType, storedSystemConstant } from './system-constant-storage.js'
 import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedContainerConstant } from './container-value-constant-storage.js'
@@ -409,6 +410,11 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
               [
                 'pg_catalog.bool',
                 'pg_catalog."char"',
+                'pg_catalog.oid',
+                'pg_catalog.xid',
+                'pg_catalog.cid',
+                'pg_catalog.xid8',
+                'pg_catalog.pg_lsn',
                 'pg_catalog.int2',
                 'pg_catalog.int4',
                 'pg_catalog.int8',
@@ -472,6 +478,9 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
     ) {
       const storage = storedTextLikeConstant(node, type, input.byteOrder, input.utf8 === true)
       return storage ? collated({ PgsidStoredTextLike: storage }, 'constcollid') : undefined
+    } else if (isSystemConstantType(type)) {
+      const storage = storedSystemConstant(node, type, input.byteOrder)
+      return storage ? { PgsidStoredSystem: storage } : undefined
     } else if (isGeometryConstantType(type)) {
       const storage = storedGeometryConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredGeometry: storage } : undefined

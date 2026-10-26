@@ -1113,3 +1113,36 @@ INSERT INTO inspection_geometry_history(score,divisor,expected_point,expected_pa
 
 -- name: HistoricalGeometryBypassedDivision
 INSERT INTO inspection_geometry_history(score,divisor,expected_point,expected_path,expected_bounds,expected_fixed,expected_array,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,false,false,true);
+
+-- name: HistoricalSystemValues
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',true,true,false);
+
+-- name: HistoricalSystemNullScore
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(NULL,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',true,false,false);
+
+-- name: HistoricalSystemWrongWords
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\x00','\xffffffffffffffff8000000000000000','\x123456781234',true,false,false);
+
+-- name: HistoricalSystemWrongWide
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\x00','\x123456781234',true,true,false);
+
+-- name: HistoricalSystemWrongPointer
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x00',true,true,false);
+
+-- name: HistoricalSystemWrongArray
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',false,true,false);
+
+-- name: HistoricalSystemWrongPresence
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',true,false,false);
+
+-- name: HistoricalSystemNullWords
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,0,NULL,'\xffffffffffffffff8000000000000000','\x123456781234',true,false,false);
+
+-- name: HistoricalSystemNullPresence
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,1,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',true,NULL,false);
+
+-- name: HistoricalSystemReachedDivision
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,0,'\xffffffffffffffffffffffff','\xffffffffffffffff8000000000000000','\x123456781234',true,true,false);
+
+-- name: HistoricalSystemBypassedDivision
+INSERT INTO inspection_system_history(score,divisor,expected_words,expected_wide,expected_pointer,expected_array,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,false,false,true);
