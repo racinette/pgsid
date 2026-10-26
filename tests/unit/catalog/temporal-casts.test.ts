@@ -15,6 +15,7 @@ import { callableIdentity } from '../../../src/postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalContextComparison,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -303,5 +304,31 @@ it('admits only selected session timestamptz field overloads with conditional ti
     )
     expect(literal.fullyBound).toBe(true)
     expect(constantCheckExpression(literal.expression)).toBe(false)
+  }
+})
+
+it('admits the selected mixed local/instant comparison callbacks and preserves their native operator identities', () => {
+  const items = builtinCallables().filter(isTemporalContextComparison)
+  expect(items).toHaveLength(28)
+  for (const item of items) {
+    expect(isTemporalContextComparison({ ...item, schema: 'other' })).toBe(false)
+    expect(isTemporalContextComparison({ ...item, volatility: 'i' })).toBe(false)
+    expect(temporalArithmeticRequirements(item)?.map((r) => r.setting)).toEqual(['TimeZone'])
+    const columns = item.args.map((typeName, index) => ({ name: 'v' + index, typeName }))
+    const probe = bindProbe(`pg_catalog.${item.name}(v0,v1) IS NOT NULL`, columns)
+    expect(probe.fullyBound, callableIdentity(item)).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
+    expect(probe.preparation.kind, callableIdentity(item)).toBe('supported')
+    expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
+    const operators = builtinCallables().filter(
+      (op) => op.kind === 'operator' && op.implementation === callableIdentity(item),
+    )
+    expect(operators).toHaveLength(item.result === 'pg_catalog.bool' ? 1 : 0)
+    for (const op of operators) {
+      const bound = bindProbe(`v0 OPERATOR(pg_catalog.${op.name}) v1`, columns)
+      expect(bound.fullyBound).toBe(true)
+      expect(bound.preparation.kind, callableIdentity(op)).toBe('supported')
+    }
   }
 })

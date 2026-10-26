@@ -3,6 +3,7 @@ import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callable
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalContextComparison,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -748,6 +749,16 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalContextComparison(item))
+    return [
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Mixed local date/timestamp and instant comparisons resolve local calendars in the declared session timezone. Preserve optional conversion overflow ordering, true infinities, source-calendar errors and context-independent ordering/equality facts.',
+        owner: 'tests/sql-semantics/check-temporal-context-comparison.test.ts',
+      },
+    ]
   if (isTemporalSessionExtraction(item))
     return [
       {

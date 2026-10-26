@@ -1428,3 +1428,18 @@ CREATE TABLE inspection_instant_fields (
  CONSTRAINT instant_field_array CHECK(CASE WHEN bypass OR field_name IS NULL OR field_name<>'year' THEN true ELSE
    numeric_send((ARRAY[EXTRACT(YEAR FROM instant_at),NULL::numeric])[1]) IS NOT DISTINCT FROM numeric_send(expected_number) END)
 );
+
+CREATE TABLE inspection_time_relations (
+ local_day date,
+ local_stamp timestamp,
+ instant_at timestamptz,
+ expected_day_order integer,
+ expected_stamp_order integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT time_relation_day CHECK(CASE WHEN bypass THEN true ELSE
+   date_cmp_timestamptz(local_day,instant_at) IS NOT DISTINCT FROM expected_day_order END),
+ CONSTRAINT time_relation_stamp CHECK(CASE WHEN bypass THEN true ELSE
+   (local_stamp < instant_at) IS NOT DISTINCT FROM (expected_stamp_order < 0) END),
+ CONSTRAINT time_relation_array CHECK(CASE WHEN bypass THEN true ELSE
+   timestamp_cmp_timestamptz((ARRAY[local_stamp,NULL::timestamp])[1],instant_at) IS NOT DISTINCT FROM expected_stamp_order END)
+);

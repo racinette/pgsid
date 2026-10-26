@@ -2,6 +2,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalContextComparison,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -103,6 +104,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       (rust &&
         implementation.kind === 'function' &&
         (isTemporalContextCast(implementation) ||
+          isTemporalContextComparison(implementation) ||
           isTemporalContextArithmetic(implementation) ||
           isTemporalExplicitZoneLookup(implementation) ||
           isTemporalSessionTruncation(implementation) ||

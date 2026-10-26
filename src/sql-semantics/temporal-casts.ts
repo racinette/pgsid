@@ -136,3 +136,31 @@ export function isTemporalSessionExtraction(item: BuiltinCallable): boolean {
       (item.name === 'date_part' && item.result === 'pg_catalog.float8'))
   )
 }
+
+export function isTemporalContextComparison(item: BuiltinCallable): boolean {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 's' ||
+    item.returnsSet ||
+    item.args.length !== 2
+  )
+    return false
+  const [left, right] = item.args
+  if (!(
+    (left === 'pg_catalog.timestamptz' &&
+      ['pg_catalog.date', 'pg_catalog."timestamp"'].includes(right!)) ||
+    (right === 'pg_catalog.timestamptz' &&
+      ['pg_catalog.date', 'pg_catalog."timestamp"'].includes(left!))
+  ))
+    return false
+  const name = (type: string) => type.slice('pg_catalog.'.length).replaceAll('"', '')
+  return (
+    (item.result === 'pg_catalog.int4' && item.name === `${name(left!)}_cmp_${name(right!)}`) ||
+    (item.result === 'pg_catalog.bool' &&
+      ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].some(
+        (op) => item.name === `${name(left!)}_${op}_${name(right!)}`,
+      ))
+  )
+}

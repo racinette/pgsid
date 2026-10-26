@@ -15,6 +15,7 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalContextComparison,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -26,6 +27,7 @@ const temporalCasts = new Set(
     .filter(
       (item) =>
         isTemporalContextCast(item) ||
+        isTemporalContextComparison(item) ||
         isTemporalContextArithmetic(item) ||
         isTemporalSessionTruncation(item) ||
         isTemporalSessionExtraction(item) ||
