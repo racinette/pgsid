@@ -282,6 +282,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bytea_encoding.rs");
     include!("operations/pg_catalog/bytea_output.rs");
     include!("operations/pg_catalog/calendar_output.rs");
+    include!("operations/pg_catalog/interval_output.rs");
     include!("operations/pg_catalog/bytea_utf8.rs");
     include!("operations/pg_catalog/bytea_ascii.rs");
     include!("operations/pg_catalog/bytea_sha256.rs");

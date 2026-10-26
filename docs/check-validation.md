@@ -44,6 +44,11 @@ independently of the math library on the client machine. Without a declared
 profile, reached coordinate generation stays uncertain; context-independent
 NULL results, input errors and skipped branches remain available.
 
+Interval output uses `intervalStyle: postgres`, `postgres_verbose`,
+`sql_standard` or `iso_8601`. The shared formatter preserves independent signs
+for month, day and time components across casts, containers and JSON. Missing
+context retains known finite scalar nullness while output bytes stay uncertain.
+
 Calendar SQL output uses an explicit `dateStyle: { format: ISO, order: MDY }`
 profile matching the PostgreSQL session. SQL, Postgres and German formats use
 the same shared calendar formatter. Direct date and timestamp conversion to

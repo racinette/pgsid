@@ -246,7 +246,6 @@ const declaredValueContextCases = new Map<string, string>([
       ] as const,
   ),
   ...[
-    'interval',
     'regclass',
     'regcollation',
     'regconfig',
@@ -497,7 +496,18 @@ describe('world CHECK INSERT parity', () => {
       throw new Error('Unsupported oracle date format')
     if (dateOrder !== 'MDY' && dateOrder !== 'DMY' && dateOrder !== 'YMD')
       throw new Error('Unsupported oracle date order')
+    const intervalStyle = (
+      await pg.query<{ style: string }>("SELECT current_setting('IntervalStyle') style")
+    ).rows[0]!.style
+    if (
+      intervalStyle !== 'postgres' &&
+      intervalStyle !== 'postgres_verbose' &&
+      intervalStyle !== 'sql_standard' &&
+      intervalStyle !== 'iso_8601'
+    )
+      throw new Error('Unsupported oracle interval style')
     executionContext = {
+      intervalStyle,
       dateStyle: { format: dateFormat, order: dateOrder },
       byteaOutput,
       defaultCollation: 'C',

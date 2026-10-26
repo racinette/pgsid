@@ -536,8 +536,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'IntervalStyle',
         requirement:
-          'Finite interval conversion requires IntervalStyle; SQL NULL, errors and both infinities remain definite.',
-        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+          'Finite interval conversion uses declared IntervalStyle for postgres, postgres_verbose, sql_standard or iso_8601 output, shared with scalar casts and containers. Missing context defers output bytes; SQL NULL, errors and both infinities remain definite.',
+        owner: 'tests/sql-semantics/check-interval-output.test.ts',
       },
       {
         kind: 'session',
@@ -737,6 +737,23 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
       },
     ]
   return null
+}
+
+export function intervalOutputRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    callableIdentity(item) !== builtinTypeIO('pg_catalog."interval"')?.output
+  )
+    return null
+  return [
+    {
+      kind: 'session',
+      setting: 'IntervalStyle',
+      requirement:
+        'Interval text and nested output use the declared style. Known finite values retain non-NULL output without context; SQL NULLs, infinities, child errors and skipped branches retain ordinary semantics.',
+      owner: 'tests/sql-semantics/check-interval-output.test.ts',
+    },
+  ]
 }
 
 export function calendarOutputRequirements(item: BuiltinCallable) {

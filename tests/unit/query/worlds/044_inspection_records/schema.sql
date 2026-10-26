@@ -1234,3 +1234,23 @@ CREATE TABLE inspection_calendar_text (
  CONSTRAINT calendar_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
    (stamp_value::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
 );
+
+CREATE TABLE inspection_interval_text (
+ duration interval,
+ expected_text text COLLATE "C",
+ expected_short text COLLATE "C",
+ expected_array text COLLATE "C",
+ expected_document jsonb,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT interval_cast_text CHECK(CASE WHEN bypass THEN true ELSE
+   duration::text COLLATE "C" IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT interval_cast_width CHECK(CASE WHEN bypass THEN true ELSE
+   duration::varchar(15)::text COLLATE "C" IS NOT DISTINCT FROM expected_short END),
+ CONSTRAINT interval_cast_array CHECK(CASE WHEN bypass THEN true ELSE
+   ARRAY[duration,NULL::interval]::text COLLATE "C" IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT interval_cast_json CHECK(CASE WHEN bypass THEN true ELSE
+   to_jsonb(duration) IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT interval_cast_presence CHECK(CASE WHEN bypass THEN true ELSE
+   (duration::text IS NOT NULL) IS NOT DISTINCT FROM expected_present END)
+);
