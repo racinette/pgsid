@@ -2153,3 +2153,63 @@ INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,byp
 INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('2000-01-31 12:00+00','2000-02-29 12:00+00','1 month',false);
 -- name: CalendarElapsedSkippedError
 INSERT INTO inspection_calendar_elapsed(started_at,ended_at,expected_elapsed,bypass) VALUES ('infinity','infinity',NULL,true);
+
+-- name: LegacyFieldYear
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2024-02-29','year',2024,false);
+-- name: LegacyFieldDayOfYear
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2024-02-29','doy',60,false);
+-- name: LegacyFieldMidnightClock
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2024-02-29','hour',0,false);
+-- name: LegacyFieldUnixEpoch
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('1970-01-01','epoch',0,false);
+-- name: LegacyFieldJulianDay
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2000-02-29','julian',2451604,false);
+-- name: LegacyFieldInfinityYear
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('infinity','year','Infinity',false);
+-- name: LegacyFieldInfinityClock
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('infinity','second',NULL,false);
+-- name: LegacyFieldNullUnit
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2024-02-29',NULL,NULL,false);
+-- name: LegacyFieldNullDate
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES (NULL,'bad',NULL,false);
+-- name: LegacyFieldLargeDate
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('5874897-12-31','year',NULL,false);
+-- name: LegacyFieldLargeDateNullUnit
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('5874897-12-31',NULL,NULL,false);
+-- name: LegacyFieldLargeDateBadUnit
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('5874897-12-31','bad',NULL,false);
+-- name: LegacyFieldWrongValue
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('2024-02-29','year',2023,false);
+-- name: LegacyFieldSkippedError
+INSERT INTO inspection_legacy_fields(observed_day,field_name,expected_value,bypass) VALUES ('5874897-12-31','bad',NULL,true);
+
+-- name: EpochInstantUnixStart
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (0,'1970-01-01+00',false);
+-- name: EpochInstantPostgresStart
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (946684800,'2000-01-01+00',false);
+-- name: EpochInstantFraction
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (946684800.5,'2000-01-01 00:00:00.5+00',false);
+-- name: EpochInstantNegativeFraction
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (946684799.5,'1999-12-31 23:59:59.5+00',false);
+-- name: EpochInstantRoundDown
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (946684800.0000005,'2000-01-01+00',false);
+-- name: EpochInstantRoundUp
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (946684800.0000015,'2000-01-01 00:00:00.000002+00',false);
+-- name: EpochInstantMinimum
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (-210866803200,'4714-11-24+00 BC',false);
+-- name: EpochInstantBelowMinimum
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (-210866803201,NULL,false);
+-- name: EpochInstantUpperLimit
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (9224318016000,NULL,false);
+-- name: EpochInstantNaN
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES ('NaN',NULL,false);
+-- name: EpochInstantFutureInfinity
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES ('Infinity','infinity',false);
+-- name: EpochInstantPastInfinity
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES ('-Infinity','-infinity',false);
+-- name: EpochInstantNull
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (NULL,NULL,false);
+-- name: EpochInstantWrongValue
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (0,'2000-01-01+00',false);
+-- name: EpochInstantSkippedError
+INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES ('NaN',NULL,true);

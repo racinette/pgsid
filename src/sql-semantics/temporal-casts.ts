@@ -293,3 +293,16 @@ export function isTemporalInstantAge(item: BuiltinCallable): boolean {
     item.result === 'pg_catalog."interval"'
   )
 }
+
+export function isTemporalDatePart(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'date_part' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.join(',') === 'pg_catalog.text,pg_catalog.date' &&
+    item.result === 'pg_catalog.float8'
+  )
+}

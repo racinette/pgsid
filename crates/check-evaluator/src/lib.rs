@@ -185,6 +185,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_calendar.rs");
     include!("operations/pg_catalog/temporal_overlaps.rs");
     include!("operations/pg_catalog/temporal_timestamp_legacy.rs");
+    include!("operations/pg_catalog/temporal_scalar.rs");
     include!("operations/pg_catalog/time_zone.rs");
     include!("operations/pg_catalog/float_core.rs");
     include!("operations/pg_catalog/float_hash.rs");

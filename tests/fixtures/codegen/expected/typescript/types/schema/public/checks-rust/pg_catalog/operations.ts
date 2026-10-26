@@ -42458,6 +42458,65 @@ export function inRange6ce3(value: checkruntime.TimetzValue, base: checkruntime.
     }
     return { kind: "Unknown" };
 }
+export function datePartG4hw(units: checkruntime.TextValue, input: checkruntime.DateValue, limit: number, utf8: boolean): checkruntime.Float8Value {
+    limit = langruntime.checkedI32(limit);
+    utf8 = langruntime.checkedBool(utf8);
+    if (units.kind === "Error") {
+        const error: checkruntime.SqlError = units.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const timestamp: checkruntime.TimestampValue = timestampSwxj(input);
+    if (timestamp.kind === "Error") {
+        const error: checkruntime.SqlError = timestamp.value;
+        return { kind: "Error", value: error };
+    }
+    const clipped: checkruntime.TextValue = nameFromTextContext(units, limit, utf8);
+    return datePartNzwd(clipped, timestamp);
+}
+export function toTimestampKymq(input: checkruntime.Float8Value): checkruntime.TimestamptzValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const semantic: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (semantic.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(semantic.value);
+        const seconds: number = checkruntime.float8Number(bits);
+        if (!(seconds === seconds)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+        }
+        const infinity: number = checkruntime.float8Number(9218868437227405312n);
+        if (seconds === infinity) {
+            return { kind: "Value", value: 9223372036854775807n };
+        }
+        if (seconds === langruntime.f64Negate(infinity)) {
+            return { kind: "Value", value: -9223372036854775808n };
+        }
+        if (seconds < -210866803200.0 || seconds >= 9224318016000.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+        }
+        const microseconds: number = langruntime.f64Multiply((langruntime.f64Subtract(seconds, 946684800.0)), 1000000.0);
+        const rounded: checkruntime.Int8Value = float8Integer(checkruntime.makeFloat8Value(microseconds));
+        if (rounded.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(rounded.value);
+            return checkruntime.makeTimestamptzValue(value);
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function dateCmpU18z(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -43008,6 +43067,9 @@ function temporalExtractTimestampValue(value: bigint, unit: string, projected: b
     const code: number = temporalExtractCode(unit);
     if (code === 0 || code === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
+    }
+    if (code === langruntime.checkedSignedNegate(1) && !(temporalUnitCode(unit) === langruntime.checkedSignedNegate(1))) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
     }
     if (value === -9223372036854775808n || value === 9223372036854775807n) {
         if ((code >= 1 && code <= 9) || code === 16 || code === 17 || code === 18 || temporalUnitCode(unit) === langruntime.checkedSignedNegate(1)) {

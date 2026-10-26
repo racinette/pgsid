@@ -22,6 +22,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
+  isTemporalDatePart,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
@@ -625,4 +626,42 @@ it('threads timezone only into the native two-instant calendar age overload', ()
       owner: 'tests/sql-semantics/check-instant-age.test.ts',
     },
   ])
+})
+
+it('identifies the date legacy-field wrapper and its build/encoding requirements without a timezone dependency', () => {
+  const items = builtinCallables().filter(
+    (f): f is FunctionMetadata => f.kind === 'function' && isTemporalDatePart(f),
+  )
+  expect(items.map((f) => f.rustName)).toEqual(['sql__pg_catalog__date_part__g4hw'])
+  const item = items[0]!
+  for (const changed of [
+    { schema: 'other' },
+    { strict: false },
+    { volatility: 's' as const },
+    { returnsSet: true },
+    { args: ['pg_catalog.text', 'pg_catalog."timestamp"'] },
+    { result: 'pg_catalog."numeric"' },
+  ])
+    expect(isTemporalDatePart({ ...item, ...changed })).toBe(false)
+  const probe = bindProbe('pg_catalog.date_part(unit_name,day_value) IS NOT NULL', [
+    { name: 'unit_name', typeName: 'pg_catalog.text' },
+    { name: 'day_value', typeName: 'pg_catalog.date' },
+  ])
+  expect(probe.fullyBound).toBe(true)
+  expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+  const message = checkUnknownMessage(probe.expression)
+  expect(message).toContain('sql.codegen.checks.maxIdentifierBytes')
+  expect(message).toContain('sql.codegen.checks.serverEncoding')
+  expect(message).not.toContain('sql.codegen.checks.timeZone')
+  expect(
+    checkUnknownMessage(probe.expression, undefined, {
+      maxIdentifierBytes: 63,
+      serverEncoding: 'UTF8',
+    }),
+  ).not.toContain('sql.codegen.checks.')
+  expect(
+    temporalArithmeticRequirements(item)?.every(
+      (r) => r.owner === 'tests/sql-semantics/check-temporal-scalars.test.ts',
+    ),
+  ).toBe(true)
 })

@@ -8,6 +8,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
+  isTemporalDatePart,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
@@ -755,6 +756,24 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
 }
 
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (isTemporalDatePart(item))
+    return [
+      {
+        kind: 'build',
+        setting: 'maxIdentifierBytes',
+        requirement:
+          'The SQL date wrapper inlines column calls, casting the date before the inner callback decodes units or applies its NULL gate. Literal NULL arguments retain native pruning. Unit names use the declared identifier byte limit; no session timezone is read.',
+        owner: 'tests/sql-semantics/check-temporal-scalars.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Non-ASCII temporal unit clipping requires declared UTF8. ASCII unit names and preceding date-cast errors retain independent results.',
+        owner: 'tests/sql-semantics/check-temporal-scalars.test.ts',
+      },
+    ]
+
   if (isTemporalInstantAge(item))
     return [
       {
