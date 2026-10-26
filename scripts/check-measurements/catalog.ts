@@ -739,6 +739,26 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function floatOutputRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    item.args.length !== 1 ||
+    !['pg_catalog.float4', 'pg_catalog.float8'].includes(item.args[0]!) ||
+    builtinTypeIO(item.args[0]!)?.output !== callableIdentity(item)
+  )
+    return null
+  return [
+    {
+      kind: 'session',
+      setting: 'extra_float_digits',
+      requirement:
+        'Scalar float text casts use the declared rendering precision. Without that setting, results invariant across supported settings remain exact; differing output defers. Strict NULLs, child errors and skipped branches retain their ordinary semantics.',
+      owner: 'tests/sql-semantics/check-float-text-casts.test.ts',
+    },
+  ]
+}
+
 export function nameValueRequirements(item: BuiltinCallable) {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
   const input =
@@ -989,10 +1009,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
       (type) => item.args[0] === 'pg_catalog.' + type,
     ) &&
     builtinTypeIO(item.args[0]!)?.output === callableIdentity(item)
-  if (
-    (item.schema === 'pg_catalog' && ['float4out', 'float8out'].includes(item.name)) ||
-    geometricOutput
-  )
+  if (floatOutputRequirements(item) || geometricOutput)
     categories.push('session-setting:extra_float_digits')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
   for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])

@@ -6256,6 +6256,8 @@ export function bindCatalogCheck(
         (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) ||
           (type === 'pg_catalog.name' && isSnapshotType(source))) &&
         (isIntegerType(source) ||
+          source === 'pg_catalog.float4' ||
+          source === 'pg_catalog.float8' ||
           source === 'pg_catalog."numeric"' ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||

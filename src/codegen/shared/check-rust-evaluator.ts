@@ -5807,6 +5807,13 @@ export function emitCheckRustEvaluator(
             `geometry_${rustValuePrefix(rustType(operand.type))}_output_context(${ownedOperand(operand)},${executionContext.extraFloatDigits ?? 0},${executionContext.extraFloatDigits !== undefined})`,
           ),
         }
+      if (operand.type === 'pg_catalog.float4' || operand.type === 'pg_catalog.float8')
+        return {
+          type: node.type,
+          name: bind(
+            `${rustValuePrefix(rustType(operand.type))}_output_context(${operand.name},${executionContext.extraFloatDigits ?? 0},${executionContext.extraFloatDigits !== undefined})`,
+          ),
+        }
       if (isCatalogVectorType(operand.type))
         return {
           name: bind(

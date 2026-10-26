@@ -85,6 +85,7 @@ import {
   trigonometryValueRequirements,
   xmlValueRequirements,
   nameValueRequirements,
+  floatOutputRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
@@ -822,6 +823,7 @@ export async function measureCoercions(pg: PGlite) {
     textOutput.push({
       type,
       output: io.output,
+      valueRequirements: io.output ? floatOutputRequirements(builtinMetadata(io.output)) : null,
       cast:
         catalog.casts.find((cast) => cast.source === type && cast.target === 'pg_catalog.text') ??
         null,

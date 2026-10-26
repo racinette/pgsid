@@ -1174,3 +1174,22 @@ CREATE TABLE inspection_name_casts (
  CONSTRAINT name_cast_array CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[source::name]=ARRAY[reference]) IS NOT DISTINCT FROM expected_array END)
 );
+
+CREATE TABLE inspection_float_text (
+ single_value real,
+ double_value float8,
+ expected_single text COLLATE "C",
+ expected_double text COLLATE "C",
+ expected_short text COLLATE "C",
+ expected_quotient text COLLATE "C",
+ divisor integer NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT float_cast_single CHECK(CASE WHEN bypass THEN true ELSE
+   single_value::text COLLATE "C" IS NOT DISTINCT FROM expected_single END),
+ CONSTRAINT float_cast_double CHECK(CASE WHEN bypass THEN true ELSE
+   double_value::text COLLATE "C" IS NOT DISTINCT FROM expected_double END),
+ CONSTRAINT float_cast_width CHECK(CASE WHEN bypass THEN true ELSE
+   double_value::varchar(6)::text COLLATE "C" IS NOT DISTINCT FROM expected_short END),
+ CONSTRAINT float_cast_division CHECK(CASE WHEN bypass THEN true ELSE
+   (double_value/divisor::float8)::text COLLATE "C" IS NOT DISTINCT FROM expected_quotient END)
+);
