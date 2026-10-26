@@ -22,6 +22,7 @@ import {
   trigonometryValueRequirements,
   xmlValueRequirements,
   moneyValueRequirements,
+  temporalCastRequirements,
   aclitemValueRequirements,
   nameValueRequirements,
   textSearchValueRequirements,
@@ -129,6 +130,7 @@ export async function measureSurface(pg: PGlite) {
         jsonValueRequirements(implementation) ??
         xmlValueRequirements(implementation) ??
         moneyValueRequirements(implementation) ??
+        temporalCastRequirements(implementation) ??
         aclitemValueRequirements(implementation) ??
         nameValueRequirements(implementation) ??
         (implementation.kind === 'function' &&

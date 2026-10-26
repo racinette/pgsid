@@ -1,5 +1,6 @@
 import { isIdentifierQuote } from '../../src/sql-semantics/identifier-quote.js'
 import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callables.js'
+import { isTemporalContextCast } from '../../src/sql-semantics/temporal-casts.js'
 import {
   isArrayHash,
   isRangeHash,
@@ -739,6 +740,28 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function temporalCastRequirements(item: BuiltinCallable) {
+  if (!isTemporalContextCast(item)) return null
+  const requirements = [
+    {
+      kind: 'session',
+      setting: 'TimeZone',
+      requirement:
+        'Finite temporal casts use the declared PostgreSQL session timezone and matching timezone data. NULLs, infinities and context-independent range failures retain native results without the setting.',
+      owner: 'tests/sql-semantics/check-temporal-cast-context.test.ts',
+    },
+  ]
+  if (item.args[0] === 'pg_catalog."time"')
+    requirements.push({
+      kind: 'transaction',
+      setting: 'local_date',
+      requirement:
+        'Time-to-timetz resolves the supplied clock on the transaction local date. Globally constant timezone offsets do not need that date; variable offsets defer when it is unavailable. No client clock is consulted.',
+      owner: 'tests/sql-semantics/check-temporal-cast-context.test.ts',
+    })
+  return requirements
+}
+
 export function intervalOutputRequirements(item: BuiltinCallable) {
   if (
     item.kind !== 'function' ||
@@ -1085,6 +1108,9 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (calendarOutputRequirements(item)) categories.push('session-setting:DateStyle')
   if (calendarOutputRequirements(item)?.some((r) => r.setting === 'TimeZone'))
     categories.push('session-setting:TimeZone')
+  if (temporalCastRequirements(item)) categories.push('session-setting:TimeZone')
+  if (temporalCastRequirements(item)?.some((r) => r.kind === 'transaction'))
+    categories.push('transaction-state:local_date')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
   for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])
     categories.push(

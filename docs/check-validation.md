@@ -67,6 +67,13 @@ Direct JSON values and keys use ISO timestamps with numeric offsets independentl
 of DateStyle. Missing context retains known finite scalar text nullness while
 bytes stay uncertain; NULLs and infinities remain independent of the settings.
 
+The same timezone profile controls conversions between local dates or timestamps
+and absolute timestamps, plus local date and clock projections. Local timestamps
+resolve DST gaps and overlaps using PostgreSQL's choice. Attaching a timezone to
+a clock can require the transaction's local date when offsets vary; those cases
+defer without that date. Globally fixed offsets do not need it. The evaluator
+does not obtain transaction context from a target's wall clock.
+
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and
 record fields, and JSON values and keys. Without the setting, output bytes stay

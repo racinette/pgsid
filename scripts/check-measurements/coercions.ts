@@ -88,6 +88,7 @@ import {
   floatOutputRequirements,
   byteaOutputRequirements,
   calendarOutputRequirements,
+  temporalCastRequirements,
   intervalOutputRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
@@ -773,7 +774,8 @@ export async function measureCoercions(pg: PGlite) {
       implementationPresent,
       implementationBoundary,
       valueRequirements: implementation
-        ? (trigonometryValueRequirements(implementation) ??
+        ? (temporalCastRequirements(implementation) ??
+          trigonometryValueRequirements(implementation) ??
           xmlValueRequirements(implementation) ??
           nameValueRequirements(implementation))
         : null,
@@ -803,7 +805,8 @@ export async function measureCoercions(pg: PGlite) {
       sourceArray,
       targetArray,
       valueRequirements: cast.implementation
-        ? (trigonometryValueRequirements(builtinMetadata(cast.implementation)) ??
+        ? (temporalCastRequirements(builtinMetadata(cast.implementation)) ??
+          trigonometryValueRequirements(builtinMetadata(cast.implementation)) ??
           xmlValueRequirements(builtinMetadata(cast.implementation)) ??
           nameValueRequirements(builtinMetadata(cast.implementation)))
         : null,

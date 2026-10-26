@@ -11,6 +11,7 @@ import {
 } from '../../catalog/geometry-constant-storage.js'
 import { moneyTextCLocale, moneyContextFractionDigits } from './check-money-context.js'
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
+import { isTemporalContextCast } from '../../sql-semantics/temporal-casts.js'
 import { CheckRustDiagnostics } from './check-rust-diagnostics.js'
 import {
   isXmlOptionPredicate,
@@ -3114,6 +3115,7 @@ export function emitCheckRustEvaluator(
           !xmlSend &&
           !xmlPredicate &&
           !isMoneyNumericConversion(implementation) &&
+          !isTemporalContextCast(implementation) &&
           !(
             (['namesend', 'textsend', 'varcharsend', 'bpcharsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -5338,6 +5340,8 @@ export function emitCheckRustEvaluator(
         )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
+      if (isTemporalContextCast(implementation))
+        arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
       if (xmlCast || xmlPredicate)
         arguments_.push(
           String(
@@ -6991,7 +6995,7 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression('Invalid captured temporal payload')
         if (value.type === 'pg_catalog.date') {
           const days = value.value === '-2147483648' ? '-2147483647 - 1' : value.value
-          return { name: bind(`make_date_value(${days})`), type: value.type }
+          return { name: bind(`make_stored_date_value(${days})`), type: value.type }
         }
         if (value.type === 'pg_catalog.timetz') {
           const zone = value.zone === -2147483648 ? '-2147483647 - 1' : String(value.zone)

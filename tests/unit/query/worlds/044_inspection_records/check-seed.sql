@@ -1590,3 +1590,45 @@ INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expe
 
 -- name: InstantCastBypassed
 INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','wrong','wrong','wrong','wrong','null'::jsonb,false,true);
+
+-- name: ClockProjectionExact
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES('2000-01-01','12:34:56.123456','2000-01-01 12:34:56.123456','2000-01-01 12:34:56.123456+00','2000-01-01','2000-01-01 12:34:56.123456','12:34:56.123456','12:34:56.123456+00','2000-01-01 00:00:00+00','12:34:56.123456+00',false);
+
+-- name: ClockProjectionNull
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: ClockProjectionPositiveInfinity
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES('infinity',NULL,'infinity','infinity','infinity','infinity',NULL,NULL,'infinity',NULL,false);
+
+-- name: ClockProjectionNegativeInfinity
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES('-infinity',NULL,'-infinity','-infinity','-infinity','-infinity',NULL,NULL,'-infinity',NULL,false);
+
+-- name: ClockProjectionEndOfDay
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES('2000-01-01','24:00:00','2000-01-02 00:00:00','2000-01-02 00:00:00+00','2000-01-02','2000-01-02 00:00:00','00:00:00','00:00:00+00','2000-01-01 00:00:00+00','24:00:00+00',false);
+
+-- name: ClockAttachDateMismatch
+INSERT INTO inspection_clock_projections(local_date,expected_date_instant,bypass) VALUES('2000-01-01','2000-01-02 00:00:00+00',false);
+
+-- name: ClockAttachStampMismatch
+INSERT INTO inspection_clock_projections(local_stamp,instant_at,bypass) VALUES('2000-01-01 12:00:00',NULL,false);
+
+-- name: ClockAttachTimeMismatch
+INSERT INTO inspection_clock_projections(local_clock,expected_clock_zone,bypass) VALUES('12:00:00','12:00:00+01',false);
+
+-- name: ClockProjectDateMismatch
+INSERT INTO inspection_clock_projections(local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,bypass) VALUES('2000-01-01 12:00:00','2000-01-01 12:00:00+00','2000-01-02','2000-01-01 12:00:00','12:00:00','12:00:00+00',false);
+
+-- name: ClockProjectStampMismatch
+INSERT INTO inspection_clock_projections(local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,bypass) VALUES('2000-01-01 12:00:00','2000-01-01 12:00:00+00','2000-01-01','2000-01-01 13:00:00','12:00:00','12:00:00+00',false);
+
+-- name: ClockProjectTimeMismatch
+INSERT INTO inspection_clock_projections(local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,bypass) VALUES('2000-01-01 12:00:00','2000-01-01 12:00:00+00','2000-01-01','2000-01-01 12:00:00','13:00:00','12:00:00+00',false);
+
+-- name: ClockProjectZoneMismatch
+INSERT INTO inspection_clock_projections(local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,bypass) VALUES('2000-01-01 12:00:00','2000-01-01 12:00:00+00','2000-01-01','2000-01-01 12:00:00','12:00:00','12:00:00+01',false);
+
+-- name: ClockProjectionSkipped
+INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,instant_at,expected_local_date,expected_local_stamp,expected_local_clock,expected_local_zone,expected_date_instant,expected_clock_zone,bypass) VALUES('2000-01-01','12:34:56.123456','2000-01-01 12:34:56.123456','2000-01-01 12:34:56.123456+00','2000-01-02','2000-01-02 12:34:56.123456','13:34:56.123456','12:34:56.123456+01','2000-01-02 00:00:00+00','12:34:56.123456+01',true);
+
+-- name: ClockAttachDateRangeError
+INSERT INTO inspection_clock_projections(local_date,bypass) VALUES('5874897-12-31',false);

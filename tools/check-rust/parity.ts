@@ -308,6 +308,7 @@ export async function runCheckParity(
           ? `${input.value}i64`
           : String(input.value)
     if (prefix === 'pg_lsn') return `make_pg_lsn_bits(${literal})`
+    if (prefix === 'date') return `make_stored_date_value(${literal})`
     if (prefix === 'xid8') return `make_xid8_bits(${literal})`
     return `make_${prefix}_value(${literal})`
   }
@@ -451,7 +452,11 @@ export async function runCheckParity(
           ? go.ident(String(input.value))
           : go.number(input.value)
     return go.call(
-      runtime('Make' + prefix + (prefix === 'Xid8' || prefix === 'PgLsn' ? 'Bits' : 'Value')),
+      runtime(
+        prefix === 'Date'
+          ? 'MakeStoredDateValue'
+          : 'Make' + prefix + (prefix === 'Xid8' || prefix === 'PgLsn' ? 'Bits' : 'Value'),
+      ),
       [value],
     )
   }

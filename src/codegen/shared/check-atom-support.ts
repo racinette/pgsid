@@ -1,4 +1,5 @@
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
+import { isTemporalContextCast } from '../../sql-semantics/temporal-casts.js'
 import { isXmlOptionPredicate } from '../../sql-semantics/xml-callables.js'
 import { capturedEnumSupport, isOidAliasType } from '../../sql-semantics/expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
@@ -92,6 +93,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       (rust &&
         implementation.kind === 'function' &&
         isMoneyNumericConversion(implementation) &&
+        rustNames.has(implementation.rustName)) ||
+      (rust &&
+        implementation.kind === 'function' &&
+        isTemporalContextCast(implementation) &&
         rustNames.has(implementation.rustName)) ||
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&
