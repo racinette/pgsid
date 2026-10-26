@@ -12,7 +12,9 @@ const TRANSITIONS_PER_BLOCK: usize = 32;
 struct Zone {
     times: Vec<i64>,
     offsets: Vec<i32>,
+    abbreviations: Vec<String>,
     initial: i32,
+    initial_abbreviation: String,
     future: String,
 }
 
@@ -55,6 +57,21 @@ fn decode(bytes: &[u8]) -> Zone {
             )
         })
         .collect();
+    let abbreviation_start = offset_start + types * 6;
+    let abbreviation_end = abbreviation_start + u32_at(bytes, header + 40);
+    let abbreviations: Vec<String> = (0..types)
+        .map(|i| {
+            let start = abbreviation_start + usize::from(bytes[offset_start + i * 6 + 5]);
+            assert!(start < abbreviation_end);
+            let length = bytes[start..abbreviation_end]
+                .iter()
+                .position(|b| *b == 0)
+                .unwrap();
+            let value = &bytes[start..start + length];
+            assert!(value.is_ascii());
+            String::from_utf8(value.to_vec()).unwrap()
+        })
+        .collect();
     assert!(offsets.iter().all(|offset| offset.abs() < 86400));
     let indexes = &bytes[types_start..types_start + transitions];
     assert!(indexes.iter().all(|index| (*index as usize) < types));
@@ -73,8 +90,10 @@ fn decode(bytes: &[u8]) -> Zone {
             .unwrap_or(0)
     });
     let mut initial = offsets[default_type];
+    let mut initial_abbreviation = abbreviations[default_type].clone();
     let mut times = Vec::new();
     let mut changes = Vec::new();
+    let mut labels = Vec::new();
     for (i, index) in indexes.iter().enumerate() {
         let unix_seconds = i64::from_be_bytes(
             bytes[times_start + i * 8..times_start + i * 8 + 8]
@@ -84,6 +103,7 @@ fn decode(bytes: &[u8]) -> Zone {
         let microseconds = (unix_seconds as i128 - 946684800) * 1000000;
         if microseconds < i64::MIN as i128 {
             initial = offsets[*index as usize];
+            initial_abbreviation = abbreviations[*index as usize].clone();
             continue;
         }
         if microseconds > i64::MAX as i128 {
@@ -91,6 +111,7 @@ fn decode(bytes: &[u8]) -> Zone {
         }
         times.push(microseconds as i64);
         changes.push(offsets[*index as usize]);
+        labels.push(abbreviations[*index as usize].clone());
     }
     assert!(times.windows(2).all(|pair| pair[0] < pair[1]));
     let end = header + 44 + block_size(bytes, header, 8);
@@ -101,7 +122,9 @@ fn decode(bytes: &[u8]) -> Zone {
     Zone {
         times,
         offsets: changes,
+        abbreviations: labels,
         initial,
+        initial_abbreviation,
         future,
     }
 }
@@ -177,7 +200,28 @@ pub fn generate(root: &Path, output: &Path) {
     let mut block_delta_starts = Vec::new();
     let mut deltas = Vec::new();
     let mut recurring = Vec::new();
+    let abbreviations: Vec<String> = zones
+        .iter()
+        .flat_map(|zone| std::iter::once(&zone.initial_abbreviation).chain(&zone.abbreviations))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    assert!(abbreviations.len() <= usize::from(u16::MAX) + 1);
+    let mut abbreviation_ids = Vec::new();
+    let mut initial_abbreviation_ids = Vec::new();
     for zone in &zones {
+        assert_eq!(zone.times.len(), zone.abbreviations.len());
+        initial_abbreviation_ids.push(
+            abbreviations
+                .binary_search(&zone.initial_abbreviation)
+                .unwrap(),
+        );
+        abbreviation_ids.extend(
+            zone.abbreviations
+                .iter()
+                .map(|label| u16::try_from(abbreviations.binary_search(label).unwrap()).unwrap()),
+        );
         starts.push(times.len());
         block_starts.push(checkpoint_seconds.len());
         for (block, values) in zone.times.chunks(TRANSITIONS_PER_BLOCK).enumerate() {
@@ -250,10 +294,20 @@ pub fn generate(root: &Path, output: &Path) {
     }
     let numeric_table_bytes = (checkpoint_seconds.len() + delta_seconds.len()) * 8
         + delta_ids.len() * size_of::<u16>()
+        + abbreviation_ids.len() * size_of::<u16>()
+        + initial_abbreviation_ids.len() * size_of::<usize>()
         + offsets.len() * 4
         + (indexes.len() + zones.len() * 7 + checkpoint_seconds.len() * 3 + offset_ids.len())
             * size_of::<usize>();
     let offset_dictionary_entries = offsets.len();
+    let initial_abbreviation_ids: Vec<_> = initial_abbreviation_ids
+        .iter()
+        .map(|id| integer(*id as i64, false))
+        .collect();
+    let abbreviation_ids: Vec<_> = abbreviation_ids
+        .iter()
+        .map(|id| integer(i64::from(*id), false))
+        .collect();
     let indexes: Vec<_> = indexes.iter().map(|i| integer(*i as i64, false)).collect();
     let starts: Vec<_> = starts.iter().map(|i| integer(*i as i64, false)).collect();
     let ends: Vec<_> = ends.iter().map(|i| integer(*i as i64, false)).collect();
@@ -333,6 +387,9 @@ pub fn generate(root: &Path, output: &Path) {
         const ZONE_OFFSET_STARTS: &[usize] = &[#(#offset_starts),*];
         const ZONE_OFFSET_IDS: &[usize] = &[#(#offset_ids),*];
         const ZONE_OFFSET_SECONDS: &[i32] = &[#(#offsets),*];
+        const ZONE_ABBREVIATIONS: &[&str] = &[#(#abbreviations),*];
+        const ZONE_INITIAL_ABBREVIATION_IDS: &[usize] = &[#(#initial_abbreviation_ids),*];
+        const ZONE_ABBREVIATION_IDS: &[u16] = &[#(#abbreviation_ids),*];
     };
     fs::write(output, file.into_token_stream().to_string()).unwrap();
     assert!(Command::new("rustfmt")
@@ -351,10 +408,13 @@ pub fn generate(root: &Path, output: &Path) {
         "maxTransitionsPerBlock": TRANSITIONS_PER_BLOCK,
         "transitionIndexBytes": size_of::<u16>(),
         "offsetDictionaryEntries": offset_dictionary_entries,
+        "distinctAbbreviations": abbreviations.len(),
+        "transitionAbbreviationIndexBytes": size_of::<u16>(),
         "transitionOffsetIndexBytes": size_of::<usize>(),
         "numericTableBytes": numeric_table_bytes + steps.len() * size_of::<usize>(),
         "utf8TableBytes": names.iter().map(String::len).sum::<usize>()
-            + future.iter().map(|rule| rule.len()).sum::<usize>(),
+            + future.iter().map(|rule| rule.len()).sum::<usize>()
+            + abbreviations.iter().map(String::len).sum::<usize>(),
         "rustSourceBytes": fs::metadata(output).unwrap().len(),
     });
     fs::write(
@@ -362,11 +422,57 @@ pub fn generate(root: &Path, output: &Path) {
         serde_json::to_string_pretty(&statistics).unwrap() + "\n",
     )
     .unwrap();
-    let fixtures = serde_json::json!({"names":files.keys().collect::<Vec<_>>(),"ids":files.values().map(|bytes| unique[bytes]).collect::<Vec<_>>(),"zones":zones.iter().map(|zone|serde_json::json!({"times":zone.times.iter().map(|time|time.to_string()).collect::<Vec<_>>(),"offsets":zone.offsets,"initial":zone.initial,"future":zone.future})).collect::<Vec<_>>()});
+    let fixtures = serde_json::json!({"names":files.keys().collect::<Vec<_>>(),"ids":files.values().map(|bytes| unique[bytes]).collect::<Vec<_>>(),"zones":zones.iter().map(|zone|serde_json::json!({"times":zone.times.iter().map(|time|time.to_string()).collect::<Vec<_>>(),"offsets":zone.offsets,"abbreviations":zone.abbreviations,"initial":zone.initial,"initialAbbreviation":zone.initial_abbreviation,"future":zone.future})).collect::<Vec<_>>()});
     fs::write(
         output.with_extension("fixtures.json"),
         serde_json::to_string(&fixtures).unwrap(),
     )
     .unwrap();
     println!("{statistics}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn retains_abbreviation_changes_without_offset_changes() {
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "pgsid-timezone-labels-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        )));
+        fs::create_dir(&scratch.0).unwrap();
+        let source = scratch.0.join("labels.zi");
+        fs::write(
+            &source,
+            "Zone Test/Labels 0 - OLD 2000 Jan 1 0:00u\n\t0 - NEW\n",
+        )
+        .unwrap();
+        let compiled = scratch.0.join("tzif");
+        fs::create_dir(&compiled).unwrap();
+        assert!(
+            Command::new(std::env::var_os("ZIC").unwrap_or_else(|| "zic".into()))
+                .arg("-d")
+                .arg(&compiled)
+                .arg(&source)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let zone = decode(&fs::read(compiled.join("Test/Labels")).unwrap());
+        assert_eq!(zone.initial, 0);
+        assert_eq!(zone.initial_abbreviation, "OLD");
+        assert_eq!(zone.times, vec![0]);
+        assert_eq!(zone.offsets, vec![0]);
+        assert_eq!(zone.abbreviations, vec!["NEW"]);
+        assert_eq!(zone.future, "NEW0");
+    }
 }

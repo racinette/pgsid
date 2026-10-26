@@ -58,7 +58,7 @@ pub fn timestamp_output_context(input: TimestampValue, style: i32) -> TextValue 
         let calendar = temporal_calendar_from_julian(julian);
         let mut output = String::new();
         if style == 4 || style == 5 {
-            let weekday = ((julian+1i64)%7i64) as i32;
+            let weekday = (((julian+1i64)%7i64+7i64)%7i64) as i32;
             output.push_str(calendar_output_label(weekday,"SunMonTueWedThuFriSat").as_str()); output.push(' ');
             if style == 5 {
                 output.push_str(clock_output_pair(calendar.day).as_str()); output.push(' ');
@@ -75,6 +75,17 @@ pub fn timestamp_output_context(input: TimestampValue, style: i32) -> TextValue 
         };
         if calendar.year <= 0 { output.push_str(" BC"); };
         return TextValue::Value(output);
+    };
+    TextValue::Unknown
+}
+
+pub fn timestamptz_output_without_context(input: TimestamptzValue) -> TextValue {
+    if let TimestamptzValue::Error(error) = input { return TextValue::Error(error); };
+    if input == TimestamptzValue::Null { return TextValue::Null; };
+    if let TimestamptzValue::Value(value) = input {
+        if value == -9223372036854775808i64 { return make_text_value("-infinity"); };
+        if value == 9223372036854775807i64 { return make_text_value("infinity"); };
+        return TextValue::NonNull;
     };
     TextValue::Unknown
 }

@@ -379,6 +379,7 @@ const arrayElementOutput = (
     | 'extraFloatDigits'
     | 'byteaOutput'
     | 'dateStyle'
+    | 'timeZone'
     | 'intervalStyle'
   >,
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
@@ -443,6 +444,11 @@ const arrayElementOutput = (
     conversion = `${family === 4 ? 'timestamp' : 'date'}_output_context(${scalar},${calendarOutputStyle(context)})`
   else if (family === 23)
     conversion = `interval_output_context(${scalar},${intervalStyleCode(context)})`
+  else if (family === 5)
+    conversion =
+      context.timeZone === undefined
+        ? `timestamptz_output_without_context(${scalar})`
+        : `timestamptz_output_context(${scalar},${calendarOutputStyle(context)},${rustStringLiteral(context.timeZone)},false)`
   else if (family === 15)
     conversion = `bytea_output_context(${scalar},${context.byteaOutput === 'hex' ? 1 : context.byteaOutput === 'escape' ? 2 : 0},false)`
   else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43, 46, 47, 48].includes(family))
@@ -778,6 +784,7 @@ export type CheckExecutionContext = {
   arrayNulls?: boolean
   quoteAllIdentifiers?: boolean
   byteaOutput?: 'hex' | 'escape'
+  timeZone?: string
   intervalStyle?: 'postgres' | 'postgres_verbose' | 'sql_standard' | 'iso_8601'
   dateStyle?: { format: 'ISO' | 'SQL' | 'Postgres' | 'German'; order: 'MDY' | 'DMY' | 'YMD' }
   xmlOption?: 'document' | 'content'
@@ -1142,11 +1149,11 @@ export function emitCheckRustEvaluator(
     if (!profile) return false
     return (
       !!profile.subtypeCompositeGraph ||
-      [4, 7, 15, 23].includes(
+      [4, 5, 7, 15, 23].includes(
         arrayElementFamily(arrayElementBaseType(profile.elementType)) ?? -1,
       ) ||
       (rangeBoundProfiles(profile, executionContext)?.some((node) =>
-        [4, 7, 15, 23].includes(node.kind),
+        [4, 5, 7, 15, 23].includes(node.kind),
       ) ??
         false) ||
       (moneyTextCLocale(executionContext) &&
@@ -4958,6 +4965,12 @@ export function emitCheckRustEvaluator(
             )
           const carrier = fresh('jsonb_input')
           const args = [ownedOperand(operand)]
+          if (
+            operand.type === 'pg_catalog.timestamptz' &&
+            executionContext.timeZone !== undefined
+          ) {
+            args.push(rustStringLiteral(executionContext.timeZone))
+          }
           if (operand.type === 'pg_catalog.money')
             args.push(String(moneyTextCLocale(executionContext)))
           if (operand.type === 'pg_catalog."interval"')
@@ -4981,7 +4994,11 @@ export function emitCheckRustEvaluator(
             )
           if (['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type))
             args.push(rawJson ? 'true' : typeof key === 'string' ? key : String(key))
-          lines.push(`let ${carrier} = ${helper}(${args.join(', ')});`)
+          const contextualHelper =
+            operand.type === 'pg_catalog.timestamptz' && executionContext.timeZone !== undefined
+              ? 'jsonb_input_from_timestamptz_context'
+              : helper
+          lines.push(`let ${carrier} = ${contextualHelper}(${args.join(', ')});`)
           return carrier
         }
         const arrayInputs = (
@@ -5887,6 +5904,15 @@ export function emitCheckRustEvaluator(
           type: node.type,
           name: bind(
             `${operand.type === 'pg_catalog.date' ? 'date' : 'timestamp'}_output_context(${operand.name},${calendarOutputStyle(executionContext)})`,
+          ),
+        }
+      if (operand.type === 'pg_catalog.timestamptz')
+        return {
+          type: node.type,
+          name: bind(
+            executionContext.timeZone === undefined
+              ? `timestamptz_output_without_context(${operand.name})`
+              : `timestamptz_output_context(${operand.name},${calendarOutputStyle(executionContext)},${rustStringLiteral(executionContext.timeZone)},false)`,
           ),
         }
       if (operand.type === 'pg_catalog."interval"')

@@ -60,6 +60,8 @@ function rendersType(type: string, target: string, seen = new Set<string>()): bo
   if (seen.has(type)) return false
   seen.add(type)
   if (isArrayLikeType(type)) return rendersType(arrayLikeElementType(type)!, target, seen)
+  const range = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
+  if (range) return rendersType(range.elementType, target, seen)
   const anonymous = anonymousRecordProfile(type)
   if (anonymous)
     return anonymous.some((layout) =>
@@ -140,21 +142,56 @@ function needsCalendarOutput(value: unknown): boolean {
   const node = value as {
     kind?: string
     elementType?: string
-    operand?: { type?: string; expression?: { type?: string } }
+    operand?: { type?: string; expression?: { type?: string }; call?: { type?: string } }
   }
   if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
-    const type = node.elementType ?? node.operand?.type ?? node.operand?.expression?.type
+    const type =
+      node.elementType ??
+      node.operand?.type ??
+      node.operand?.expression?.type ??
+      node.operand?.call?.type
     if (type) {
       const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
       const outputType = profile?.elementType ?? type
       if (
         rendersType(outputType, 'pg_catalog.date') ||
-        rendersType(outputType, 'pg_catalog."timestamp"')
+        rendersType(outputType, 'pg_catalog."timestamp"') ||
+        rendersType(outputType, 'pg_catalog.timestamptz')
       )
         return true
     }
   }
   return Object.values(value).some(needsCalendarOutput)
+}
+
+function needsSessionTimezone(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const node = value as {
+    kind?: string
+    elementType?: string
+    operand?: { type?: string; expression?: { type?: string }; call?: { type?: string } }
+    call?: { signature?: string | null }
+    operands?: { type?: string; expression?: { type?: string }; call?: { type?: string } }[]
+  }
+  if (['io-to-text', 'array-to-text', 'composite-to-text'].includes(node.kind ?? '')) {
+    const type =
+      node.elementType ??
+      node.operand?.type ??
+      node.operand?.expression?.type ??
+      node.operand?.call?.type
+    if (type && rendersType(type, 'pg_catalog.timestamptz')) return true
+  }
+  if (
+    node.kind === 'call' &&
+    node.call?.signature &&
+    jsonConversions.has(node.call.signature) &&
+    node.operands?.some((o) => {
+      const type = o.type ?? o.expression?.type ?? o.call?.type
+      return type !== undefined && rendersType(type, 'pg_catalog.timestamptz')
+    })
+  )
+    return true
+  return Object.values(value).some(needsSessionTimezone)
 }
 
 function needsIntervalContext(value: unknown): boolean {
@@ -212,6 +249,9 @@ export function checkUnknownMessage(
   if (context.dateStyle === undefined && needsCalendarOutput(expression))
     message +=
       ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'
+  if (context.timeZone === undefined && needsSessionTimezone(expression))
+    message +=
+      ' Timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
   if (context.byteaOutput === undefined && needsByteaOutput(expression))
     message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))

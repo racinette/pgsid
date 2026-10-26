@@ -352,8 +352,8 @@ describe('CHECK measurement boundaries', () => {
         kind: 'session',
         setting: 'TimeZone',
         requirement:
-          'Finite timestamptz conversion requires TimeZone and currently defers; SQL NULL and both infinities remain definite. Date and timestamp JSON output uses ISO formatting independently of DateStyle.',
-        owner: 'tests/sql-semantics/check-jsonb-output-conversion.test.ts',
+          'Finite timestamptz JSON values and keys use the declared TimeZone through scalar and nested conversions, independently of DateStyle. Missing TimeZone defers finite strings; SQL NULL and both infinities remain definite. Date and timestamp JSON output retains independent ISO formatting.',
+        owner: 'tests/sql-semantics/check-timestamptz-output.test.ts',
       },
       {
         kind: 'session',
@@ -1206,6 +1206,17 @@ describe('CHECK measurement boundaries', () => {
       ).toContain('session-setting:DateStyle')
     }
     const byteaOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.bytea')!
+    const instantOutput = report.textOutput.find(
+      (entry) => entry.type === 'pg_catalog.timestamptz',
+    )!
+    expect(instantOutput.probe.raw.fullyBound).toBe(true)
+    expect(instantOutput.probe.stored!.fullyBound).toBe(true)
+    expect(instantOutput.probe.raw.preparation.kind).toBe('supported')
+    expect(instantOutput.probe.stored!.preparation.kind).toBe('supported')
+    expect(instantOutput.valueRequirements?.map((r) => r.setting)).toEqual([
+      'DateStyle',
+      'TimeZone',
+    ])
     expect(byteaOutput.probe.raw.fullyBound).toBe(true)
     expect(byteaOutput.probe.stored!.fullyBound).toBe(true)
     expect(byteaOutput.probe.raw.preparation.kind).toBe('supported')

@@ -29,3 +29,6 @@ const ZONE_TRANSITION_DELTA_IDS: &[u16] = &[];
 const ZONE_OFFSET_STARTS: &[usize] = &[0, 1, 2, 3, 4];
 const ZONE_OFFSET_IDS: &[usize] = &[0, 0, 0, 0, 0];
 const ZONE_OFFSET_SECONDS: &[i32] = &[0, 0, 0, 1860, 0];
+const ZONE_ABBREVIATIONS: &[&str] = &["STD"];
+const ZONE_INITIAL_ABBREVIATION_IDS: &[usize] = &[0, 0, 0, 0, 0];
+const ZONE_ABBREVIATION_IDS: &[u16] = &[0, 0, 0, 0, 0];

@@ -1560,3 +1560,33 @@ INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypas
 
 -- name: IntervalInputBypassed
 INSERT INTO inspection_interval_input(source,array_source,expected,rounded,bypass) VALUES('-1 day invalid','{"invalid",NULL}',NULL,NULL,true);
+
+-- name: InstantCastOrdinary
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','2024-02-29 12','{"2024-02-29 12:34:56.000001+00",NULL}','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','"2024-02-29T12:34:56.000001+00:00"'::jsonb,true,false);
+
+-- name: InstantCastNull
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES(NULL,NULL,NULL,'{NULL,NULL}','(,)',NULL,false,false);
+
+-- name: InstantCastInfinity
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('infinity','infinity','infinity','{infinity,NULL}','[infinity,infinity]','"infinity"'::jsonb,true,false);
+
+-- name: InstantCastWrongText
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','wrong','2024-02-29 12','{"2024-02-29 12:34:56.000001+00",NULL}','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','"2024-02-29T12:34:56.000001+00:00"'::jsonb,true,false);
+
+-- name: InstantCastWrongWidth
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','wrong','{"2024-02-29 12:34:56.000001+00",NULL}','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','"2024-02-29T12:34:56.000001+00:00"'::jsonb,true,false);
+
+-- name: InstantCastWrongArray
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','2024-02-29 12','wrong','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','"2024-02-29T12:34:56.000001+00:00"'::jsonb,true,false);
+
+-- name: InstantCastWrongRange
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','2024-02-29 12','{"2024-02-29 12:34:56.000001+00",NULL}','wrong','"2024-02-29T12:34:56.000001+00:00"'::jsonb,true,false);
+
+-- name: InstantCastWrongJson
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','2024-02-29 12','{"2024-02-29 12:34:56.000001+00",NULL}','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','null'::jsonb,true,false);
+
+-- name: InstantCastWrongPresence
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','2024-02-29 12:34:56.000001+00','2024-02-29 12','{"2024-02-29 12:34:56.000001+00",NULL}','["2024-02-29 12:34:56.000001+00","2024-02-29 12:34:56.000001+00"]','"2024-02-29T12:34:56.000001+00:00"'::jsonb,false,false);
+
+-- name: InstantCastBypassed
+INSERT INTO inspection_instant_text(instant_at,expected_text,expected_short,expected_array,expected_range,expected_document,expected_present,bypass) VALUES('2024-02-29T12:34:56.000001Z','wrong','wrong','wrong','wrong','null'::jsonb,false,true);

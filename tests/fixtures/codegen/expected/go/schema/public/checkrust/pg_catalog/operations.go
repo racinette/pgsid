@@ -9392,7 +9392,7 @@ func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkr
 		calendar := temporalCalendarFromJulian(julian)
 		output := langruntime.NewTextBuffer("")
 		if style == 4 || style == 5 {
-			weekday := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(1))), int64(7)))))
+			weekday := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(1))), int64(7)), int64(7))), int64(7)))))
 			output = append(output, calendarOutputLabel(weekday, "SunMonTueWedThuFriSat")...)
 			output = append(output, string(langruntime.CheckedChar(' '))...)
 			if style == 5 {
@@ -9417,6 +9417,26 @@ func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkr
 			output = append(output, " BC"...)
 		}
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func TimestamptzOutputWithoutContext(input checkruntime.TimestamptzValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TimestamptzValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return checkruntime.MakeTextValue("-infinity")
+		}
+		if value == int64(9223372036854775807) {
+			return checkruntime.MakeTextValue("infinity")
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }

@@ -522,8 +522,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'TimeZone',
         requirement:
-          'Finite timestamptz conversion requires TimeZone and currently defers; SQL NULL and both infinities remain definite. Date and timestamp JSON output uses ISO formatting independently of DateStyle.',
-        owner: 'tests/sql-semantics/check-jsonb-output-conversion.test.ts',
+          'Finite timestamptz JSON values and keys use the declared TimeZone through scalar and nested conversions, independently of DateStyle. Missing TimeZone defers finite strings; SQL NULL and both infinities remain definite. Date and timestamp JSON output retains independent ISO formatting.',
+        owner: 'tests/sql-semantics/check-timestamptz-output.test.ts',
       },
       {
         kind: 'session',
@@ -759,11 +759,28 @@ export function intervalOutputRequirements(item: BuiltinCallable) {
 export function calendarOutputRequirements(item: BuiltinCallable) {
   if (
     item.kind !== 'function' ||
-    !['pg_catalog.date', 'pg_catalog."timestamp"'].some(
+    !['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz'].some(
       (type) => builtinTypeIO(type)?.output === callableIdentity(item),
     )
   )
     return null
+  if (item.args[0] === 'pg_catalog.timestamptz')
+    return [
+      {
+        kind: 'session',
+        setting: 'DateStyle',
+        requirement:
+          'SQL text and nested timestamptz output uses declared DateStyle formatting and ordering. JSON uses ISO formatting independently of that setting. Missing format retains known finite scalar nullness.',
+        owner: 'tests/sql-semantics/check-timestamptz-output.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Finite timestamptz SQL output uses the declared session timezone, historical offset and abbreviation transitions and future rules. Missing timezone defers bytes while retaining finite non-NULL state; NULLs, infinities and child errors remain definite.',
+        owner: 'tests/sql-semantics/check-timestamptz-output.test.ts',
+      },
+    ]
   return [
     {
       kind: 'session',
@@ -1066,6 +1083,8 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('session-setting:extra_float_digits')
   if (byteaOutputRequirements(item)) categories.push('session-setting:bytea_output')
   if (calendarOutputRequirements(item)) categories.push('session-setting:DateStyle')
+  if (calendarOutputRequirements(item)?.some((r) => r.setting === 'TimeZone'))
+    categories.push('session-setting:TimeZone')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')
   for (const requirement of aclitemValueRequirements(item) ?? nameValueRequirements(item) ?? [])
     categories.push(

@@ -25,7 +25,7 @@ fn compare_zone_name(name: &ZoneName, index: usize) -> i32 {
     0
 }
 
-fn find_named_zone(name: &str) -> usize {
+fn find_zone_name(name: &str, qualified: bool) -> usize {
     let chars: Vec<char> = name.chars().collect();
     let mut slash = false;
     let mut cursor = 0;
@@ -36,7 +36,7 @@ fn find_named_zone(name: &str) -> usize {
         cursor += 1;
     }
     // Bare names can resolve through the session's abbreviation table first.
-    if slash == false {
+    if slash == false && qualified {
         return ZONE_NAMES.len();
     }
     let input = ZoneName { chars: chars };
@@ -53,6 +53,35 @@ fn find_named_zone(name: &str) -> usize {
         return ZONE_IDS[left];
     }
     ZONE_NAMES.len()
+}
+
+fn find_named_zone(name: &str) -> usize {
+    find_zone_name(name, true)
+}
+
+fn named_zone_abbreviation(zone: usize, microseconds: i64) -> TextValue {
+    let transition = next_zone_transition(zone, microseconds);
+    let next = transition.index;
+    let mut label = ZONE_INITIAL_ABBREVIATION_IDS[zone];
+    if next > ZONE_STARTS[zone] {
+        label = ZONE_ABBREVIATION_IDS[next - 1] as usize;
+    };
+    if next == ZONE_ENDS[zone] && ZONE_RECURRING[zone] != 0 {
+        let rules = parse_recurring_zone(ZONE_FUTURE_RULES[zone]);
+        let mut cutoff = -211813488000000000i64;
+        if next > ZONE_STARTS[zone] { cutoff = transition.boundary; };
+        if microseconds > cutoff {
+            let offset_start = ZONE_OFFSET_STARTS[zone];
+            let mut before = ZONE_OFFSET_SECONDS[offset_start + ZONE_INITIAL_OFFSET_IDS[zone]];
+            if next > ZONE_STARTS[zone] {
+                before = ZONE_OFFSET_SECONDS[offset_start + ZONE_OFFSET_IDS[next - 1]];
+            };
+            let recurring = next_recurring_boundary(rules, microseconds, cutoff, before);
+            if recurring.valid == false { return TextValue::Unknown; };
+            return recurring_zone_abbreviation(ZONE_FUTURE_RULES[zone], recurring.before_daylight);
+        };
+    };
+    make_text_value(ZONE_ABBREVIATIONS[label])
 }
 
 struct ZoneTransition {

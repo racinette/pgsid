@@ -7,6 +7,12 @@ Run from the repository root:
 pnpm check-rust:timezones
 ```
 
+For affected-zone development checks, set `PGSID_CHECK_TIMEZONE_ZONES` to a
+comma-separated list of qualified names, then run
+`node --import tsx tools/check-rust-timezones/check.ts` with current source assets.
+Synthetic footer cases and fixed-offset/state checks still run; the result
+records whether qualified-zone coverage was selected or exhaustive.
+
 Source and producers:
 
 - `vendor/postgresql-timezone/tzdata.zi`: copied from the local PostgreSQL

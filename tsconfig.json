@@ -19,7 +19,7 @@
     "noUncheckedIndexedAccess": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "tests", "scripts"],
+  "include": ["src", "tests", "scripts", "tools/check-rust-timezones/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",

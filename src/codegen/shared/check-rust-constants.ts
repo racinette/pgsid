@@ -180,9 +180,14 @@ function prepare(expression: EvalExpression): Preparation | null {
     if (
       output.kind === 'function' &&
       output.schema === 'pg_catalog' &&
-      ['range_out', 'multirange_out', 'date_out', 'timestamp_out', 'interval_out'].includes(
-        output.name,
-      ) &&
+      [
+        'range_out',
+        'multirange_out',
+        'date_out',
+        'timestamp_out',
+        'timestamptz_out',
+        'interval_out',
+      ].includes(output.name) &&
       output.volatility === 's'
     ) {
       const operand = prepare(expression.operand)

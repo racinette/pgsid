@@ -59,6 +59,14 @@ profile matching the PostgreSQL session. SQL, Postgres and German formats use
 the same shared calendar formatter. Direct date and timestamp conversion to
 JSON retains ISO rendering independently of that setting.
 
+Timestamptz SQL output uses both `dateStyle` and `timeZone: America/New_York`.
+The timezone declaration uses the bundled IANA rules and labels; the target
+deployment must use matching timezone data. Canonical PostgreSQL TimeZone names
+and explicit POSIX rules retain historical and future transitions across targets.
+Direct JSON values and keys use ISO timestamps with numeric offsets independently
+of DateStyle. Missing context retains known finite scalar text nullness while
+bytes stay uncertain; NULLs and infinities remain independent of the settings.
+
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and
 record fields, and JSON values and keys. Without the setting, output bytes stay
