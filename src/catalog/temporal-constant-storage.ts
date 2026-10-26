@@ -31,11 +31,16 @@ export function validTemporalConstantStorage(value: unknown): value is TemporalC
         (number >= -2451552n && number < 2145031949n)
       )
     case 'pg_catalog."timestamp"':
+      return (
+        number === -9223372036854775808n ||
+        number === 9223372036854775807n ||
+        (number >= -211814092800000000n && number <= 9223371331200000000n)
+      )
     case 'pg_catalog.timestamptz':
       return (
         number === -9223372036854775808n ||
         number === 9223372036854775807n ||
-        (number >= -211813488000000000n && number < 9223371331200000000n)
+        (number >= -211813488000000000n && number <= 9223371331200000000n)
       )
     case 'pg_catalog."time"':
       return number >= 0n && number <= 86400000000n

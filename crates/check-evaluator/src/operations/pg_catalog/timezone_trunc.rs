@@ -23,7 +23,7 @@ fn timezone_truncate_value(zone: &str, value: i64, code: i32) -> TimestamptzValu
     if let Int4Value::Value(seconds) = offset {
         let original_offset = seconds as i64;
         let local = value + original_offset * 1000000i64;
-        let truncated = temporal_truncate_timestamp(local, code);
+        let truncated = temporal_truncate_timestamp(local, code, true);
         if let TimestampValue::Error(error) = truncated {
             return TimestamptzValue::Error(error);
         }

@@ -1321,3 +1321,32 @@ CREATE TABLE inspection_clock_projections (
  CONSTRAINT clock_project_zone CHECK(CASE WHEN bypass THEN true ELSE
    timetz_send(instant_at::timetz) IS NOT DISTINCT FROM timetz_send(expected_local_zone) END)
 );
+
+CREATE TYPE inspection_clock_boundary AS (local_stamp timestamp, instant_at timestamptz);
+CREATE TABLE inspection_rounded_clocks (
+ local_stamp timestamp(0),
+ instant_at timestamptz(0),
+ expected_stamp text COLLATE "C",
+ expected_instant text COLLATE "C",
+ expected_wire text COLLATE "C",
+ expected_rollback text COLLATE "C",
+ bypass boolean NOT NULL,
+ CONSTRAINT rounded_stamp_wire CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamp_send(local_stamp),'hex') IS NOT DISTINCT FROM expected_wire END),
+ CONSTRAINT rounded_instant_wire CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamptz_send(instant_at),'hex') IS NOT DISTINCT FROM expected_wire END),
+ CONSTRAINT rounded_stamp_text CHECK(CASE WHEN bypass THEN true ELSE
+   local_stamp::text IS NOT DISTINCT FROM expected_stamp END),
+ CONSTRAINT rounded_instant_text CHECK(CASE WHEN bypass THEN true ELSE
+   instant_at::text IS NOT DISTINCT FROM expected_instant END),
+ CONSTRAINT rounded_record_stamp CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamp_send((ROW(local_stamp,instant_at)::inspection_clock_boundary).local_stamp),'hex') IS NOT DISTINCT FROM expected_wire END),
+ CONSTRAINT rounded_array_instant CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamptz_send((ARRAY[instant_at,NULL])[1]),'hex') IS NOT DISTINCT FROM expected_wire END),
+ CONSTRAINT rounded_stamp_rollback CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamp_send(local_stamp-interval '1 second'),'hex') IS NOT DISTINCT FROM expected_rollback END),
+ CONSTRAINT rounded_instant_rollback CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamptz_send(instant_at-interval '1 second'),'hex') IS NOT DISTINCT FROM expected_rollback END),
+ CONSTRAINT rounded_literal CHECK(CASE WHEN bypass THEN true ELSE
+   encode(timestamp_send(TIMESTAMP(0) '294276-12-31 23:59:59.999999'),'hex') = '7fffff5bb3b2a000' END)
+);

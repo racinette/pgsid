@@ -171,7 +171,9 @@ pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -
     if let TimestampValue::Error(error) = value {
         return TimestamptzValue::Error(error);
     }
-    if (zone == TextValue::Unknown || zone == TextValue::NonNull) || value == TimestampValue::Unknown {
+    if (zone == TextValue::Unknown || zone == TextValue::NonNull)
+        || value == TimestampValue::Unknown
+    {
         return TimestamptzValue::Unknown;
     }
     if zone == TextValue::Null || value == TimestampValue::Null {
@@ -187,6 +189,9 @@ pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -
                 return TimestamptzValue::Error(error);
             }
             if let Int4Value::Value(seconds) = offset {
+                if microseconds < -211813488000000000i64 {
+                    return TimestamptzValue::Error(make_sql_error(CLOCK_RANGE));
+                };
                 let wide = seconds as i64;
                 return make_timestamptz_value(microseconds - wide * 1000000i64);
             }
@@ -202,7 +207,9 @@ pub fn sql__pg_catalog__timezone__blof(zone: TextValue, value: TimestamptzValue)
     if let TimestamptzValue::Error(error) = value {
         return TimestampValue::Error(error);
     }
-    if (zone == TextValue::Unknown || zone == TextValue::NonNull) || value == TimestamptzValue::Unknown {
+    if (zone == TextValue::Unknown || zone == TextValue::NonNull)
+        || value == TimestamptzValue::Unknown
+    {
         return TimestampValue::Unknown;
     }
     if zone == TextValue::Null || value == TimestamptzValue::Null {

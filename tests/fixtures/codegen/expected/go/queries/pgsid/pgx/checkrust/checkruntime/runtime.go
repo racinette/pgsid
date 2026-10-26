@@ -139,6 +139,12 @@ func MakeTimestampValue(value int64) TimestampValue {
 	}
 	return TimestampValue{Kind: TimestampValueValue, Value: value}
 }
+func MakeStoredTimestampValue(value int64) TimestampValue {
+	if value >= int64(-211814092800000000) && value <= int64(9223371331200000000) {
+		return TimestampValue{Kind: TimestampValueValue, Value: value}
+	}
+	return MakeTimestampValue(value)
+}
 func TimestampIsNull(value TimestampValue) BoolValue {
 	if value.Kind == TimestampValueError {
 		error := value.Error
@@ -183,6 +189,12 @@ func MakeTimestamptzValue(value int64) TimestamptzValue {
 		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
+}
+func MakeStoredTimestamptzValue(value int64) TimestamptzValue {
+	if value == int64(9223371331200000000) {
+		return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
+	}
+	return MakeTimestamptzValue(value)
 }
 func TimestamptzIsNull(value TimestamptzValue) BoolValue {
 	if value.Kind == TimestamptzValueError {
@@ -9978,11 +9990,11 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 	}
 	if checked.Kind == ArrayElementTimestamp {
 		value := checked.Timestamp
-		return ArrayElementFromTimestamp(MakeTimestampValue(value))
+		return ArrayElementFromTimestamp(MakeStoredTimestampValue(value))
 	}
 	if checked.Kind == ArrayElementTimestamptz {
 		value := checked.Timestamptz
-		return ArrayElementFromTimestamptz(MakeTimestamptzValue(value))
+		return ArrayElementFromTimestamptz(MakeStoredTimestamptzValue(value))
 	}
 	if checked.Kind == ArrayElementXid {
 		value := checked.Xid

@@ -1594,13 +1594,19 @@ func checkRustInterval[T any](field CheckOptional[T]) checkruntime.IntervalValue
 func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampValue {
   if !field.Set { return checkruntime.TimestampUnknown() }
   if field.Null { return checkruntime.TimestampNull() }
-  if value, ok := any(field.V).(checkruntime.TimestampValue); ok { return value }
+  if value, ok := any(field.V).(checkruntime.TimestampValue); ok {
+    if value.Kind == checkruntime.TimestampValueValue { return checkruntime.MakeStoredTimestampValue(value.Value) }
+    return value
+  }
   return checkruntime.TimestampUnknown()
 }
 func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.TimestamptzValue {
   if !field.Set { return checkruntime.TimestamptzUnknown() }
   if field.Null { return checkruntime.TimestamptzNull() }
-  if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
+  if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok {
+    if value.Kind == checkruntime.TimestamptzValueValue { return checkruntime.MakeStoredTimestamptzValue(value.Value) }
+    return value
+  }
   return checkruntime.TimestamptzUnknown()
 }
 func checkRustBit[T any](field CheckOptional[T]) checkruntime.BitValue {

@@ -179,8 +179,10 @@ it('rejects invalid temporal payloads, malformed storage and incomplete carriers
   for (const value of [
     { type: 'pg_catalog.date', value: '-2451553' },
     { type: 'pg_catalog.date', value: '2145031949' },
-    { type: 'pg_catalog."timestamp"', value: '-211813488000000001' },
-    { type: 'pg_catalog.timestamptz', value: '9223371331200000000' },
+    { type: 'pg_catalog."timestamp"', value: '-211814092800000001' },
+    { type: 'pg_catalog."timestamp"', value: '9223371331200000001' },
+    { type: 'pg_catalog.timestamptz', value: '-211813488000000001' },
+    { type: 'pg_catalog.timestamptz', value: '9223371331200000001' },
     { type: 'pg_catalog."time"', value: '-1' },
     { type: 'pg_catalog."time"', value: '86400000001' },
     { type: 'pg_catalog.timetz', value: '0' },
@@ -222,4 +224,68 @@ it('rejects invalid temporal payloads, malformed storage and incomplete carriers
   expect(
     validTemporalConstantStorage({ type: 'pg_catalog.timetz', value: '0', zone: -2147483648 }),
   ).toBe(true)
+})
+
+it('recovers native projected and precision-rounded timestamp storage without text input validation', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec("SET TimeZone='-167.999'")
+    const cases = [
+      {
+        type: 'pg_catalog."timestamp"',
+        sql: "(('4714-11-24T00:00:00Z BC'::timestamptz)::date)::timestamp",
+        send: 'timestamp_send',
+        value: -211814092800000000n,
+      },
+      {
+        type: 'pg_catalog."timestamp"',
+        sql: "TIMESTAMP(0) '294276-12-31 23:59:59.999999'",
+        send: 'timestamp_send',
+        value: 9223371331200000000n,
+      },
+      {
+        type: 'pg_catalog.timestamptz',
+        sql: "TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00'",
+        send: 'timestamptz_send',
+        value: 9223371331200000000n,
+      },
+    ]
+    for (const sample of cases) {
+      const wire = Buffer.from(
+          (
+            await pg.query<{ wire: string }>(
+              `SELECT encode(${sample.send}(${sample.sql}),'hex') wire`,
+            )
+          ).rows[0]!.wire,
+          'hex',
+        ),
+        expected = { type: sample.type, value: String(wire.readBigInt64BE()) }
+      expect(wire.readBigInt64BE()).toBe(sample.value)
+      expect(validTemporalConstantStorage(expected)).toBe(true)
+      for (const byteOrder of ['little', 'big'] as const)
+        for (const byval of [true, false]) {
+          const bytes = Buffer.alloc(8)
+          if (byteOrder === 'little') bytes.writeBigInt64LE(sample.value)
+          else bytes.writeBigInt64BE(sample.value)
+          const node = tree(
+            parseTree(
+              `{CONST :constisnull false :constlen 8 :constbyval ${byval} :constvalue 8 [ ${[...bytes].join(' ')} ]}`,
+            ),
+          )!
+          expect(storedTemporalConstant(node, sample.type, byteOrder)).toEqual(expected)
+          const bound = bindCatalogCheck(
+            [],
+            { NullTest: { arg: { PgsidStoredTemporal: expected }, nulltesttype: 'IS_NOT_NULL' } },
+            [],
+          )
+          expect(JSON.stringify(bound.expression)).not.toContain('uncertain')
+        }
+    }
+    for (const type of ['timestamp', 'timestamptz'])
+      await expect(pg.query(`SELECT '294277-01-01 00:00:00+00'::${type}`)).rejects.toMatchObject({
+        code: '22008',
+      })
+  } finally {
+    await pg.close()
+  }
 })

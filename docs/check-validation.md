@@ -15,6 +15,11 @@ expression from query inputs. A default that depends on database state stays
 unknown. An update may need the previous row and may affect no rows, so a
 parameter alone does not justify rejecting the update before it executes.
 
+Already-coerced temporal values preserve native cast and precision results even
+when text input would reject them. Binary operations, comparisons and nullness
+can remain available while a calendar conversion raises a native range error.
+Input admission and each reached operation apply their own PostgreSQL rules.
+
 ## Execution assumptions
 
 The CHECK settings describe the target PostgreSQL deployment. They do not inspect
@@ -73,6 +78,11 @@ resolve DST gaps and overlaps using PostgreSQL's choice. Attaching a timezone to
 a clock can require the transaction's local date when offsets vary; those cases
 defer without that date. Globally fixed offsets do not need it. The evaluator
 does not obtain transaction context from a target's wall clock.
+
+Calendar interval arithmetic applies months and days in the declared timezone,
+recalculating its offset after each step, then adds elapsed microseconds. This
+preserves the difference between a calendar day and elapsed hours across DST.
+Pure elapsed-time arithmetic, NULLs and infinities do not need timezone context.
 
 Binary text output uses `byteaOutput: hex` or `escape` to match the target
 session's `bytea_output`. The same formatter supplies scalar casts, array and

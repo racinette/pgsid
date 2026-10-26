@@ -9415,8 +9415,9 @@ export function dateOutputContext(input: checkruntime.DateValue, style: number):
     }
     return { kind: "Unknown" };
 }
-export function timestampOutputContext(input: checkruntime.TimestampValue, style: number): checkruntime.TextValue {
+function timestampOutputProfile(input: checkruntime.TimestampValue, style: number, projected: boolean): checkruntime.TextValue {
     style = langruntime.checkedI32(style);
+    projected = langruntime.checkedBool(projected);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -9431,6 +9432,9 @@ export function timestampOutputContext(input: checkruntime.TimestampValue, style
         }
         if (value === 9223372036854775807n) {
             return checkruntime.makeTextValue("infinity");
+        }
+        if (projected === false && value < -211813488000000000n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
         }
         if (style < 1 || style > 6) {
             return { kind: "NonNull" };
@@ -9494,6 +9498,10 @@ export function timestamptzOutputWithoutContext(input: checkruntime.TimestamptzV
         return { kind: "NonNull" };
     }
     return { kind: "Unknown" };
+}
+export function timestampOutputContext(input: checkruntime.TimestampValue, style: number): checkruntime.TextValue {
+    style = langruntime.checkedI32(style);
+    return timestampOutputProfile(input, style, false);
 }
 const vectorDatatypeMismatch = 6822148;
 function catalogVectorStatus(value: checkruntime.ArrayPayload, oid: boolean): checkruntime.BoolValue {
@@ -15641,6 +15649,9 @@ function intervalCalendarAdd(input: checkruntime.TimestampValue, amount: checkru
                 clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
             }
             if (!(span.months === 0)) {
+                if (timestamp < -211813488000000000n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
                 const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(day, 2451545n)));
                 let month: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(calendar.month))), (BigInt(langruntime.checkedI32(span.months))));
                 if (month < (-2147483648n) || month > 2147483647n) {
@@ -15676,8 +15687,17 @@ function intervalCalendarAdd(input: checkruntime.TimestampValue, amount: checkru
                     return { kind: "Error", value: error };
                 }
             }
-            day = langruntime.checkedI64(langruntime.checkedI64Add(day, (BigInt(langruntime.checkedI32(span.days)))));
-            const calendarResult: checkruntime.TimestampValue = intervalCalendarTimestamp(day, clock);
+            let calendarResult: checkruntime.TimestampValue = { kind: "Value", value: timestamp };
+            if (!(span.months === 0)) {
+                calendarResult = intervalCalendarTimestamp(day, clock);
+            }
+            if (!(span.days === 0)) {
+                if (timestamp < -211813488000000000n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                day = langruntime.checkedI64(langruntime.checkedI64Add(day, (BigInt(langruntime.checkedI32(span.days)))));
+                calendarResult = intervalCalendarTimestamp(day, clock);
+            }
             if (calendarResult.kind === "Error") {
                 const error: checkruntime.SqlError = calendarResult.value;
                 return { kind: "Error", value: error };
@@ -15790,7 +15810,7 @@ function intervalCalendarLocalPayload(input: checkruntime.TimestamptzValue): che
     }
     if (input.kind === "Value") {
         const value: bigint = langruntime.checkedI64(input.value);
-        return checkruntime.makeTimestampValue(value);
+        return { kind: "Value", value: value };
     }
     return { kind: "Unknown" };
 }
@@ -17988,6 +18008,9 @@ export function jsonbInputFromTimestamp(input: checkruntime.TimestampValue): che
         }
         if (value === 9223372036854775807n) {
             return { kind: "Text", value: "infinity" };
+        }
+        if (value < -211813488000000000n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
         }
         let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
         let clock: bigint = langruntime.checkedI64Remainder(value, 86400000000n);
@@ -40155,6 +40178,9 @@ export function age7dfp(left: checkruntime.TimestampValue, right: checkruntime.T
         if (right.kind === "Value") {
             const second: bigint = langruntime.checkedI64(right.value);
             if (!(first === (-9223372036854775808n)) && !(first === 9223372036854775807n) && !(second === (-9223372036854775808n)) && !(second === 9223372036854775807n)) {
+                if (first < -211813488000000000n || second < -211813488000000000n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
                 return intervalAgeValue(first, second);
             }
         }
@@ -40180,6 +40206,9 @@ export function dateBvna(left: checkruntime.TimestampValue): checkruntime.DateVa
         }
         if (leftValue === 9223372036854775807n) {
             return { kind: "Value", value: 2147483647 };
+        }
+        if (leftValue < -211813488000000000n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(temporalRangeError) };
         }
         let days: bigint = langruntime.checkedI64Divide(leftValue, 86400000000n);
         if (leftValue < 0n && !(langruntime.checkedI64Remainder(leftValue, 86400000000n) === 0n)) {
@@ -40464,11 +40493,12 @@ export function dateBin67ed(stride: checkruntime.IntervalValue, input: checkrunt
                         return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
                     }
                     result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, width));
+                    return checkruntime.makeTimestampValue(result);
                 }
                 if (result === low || result === high) {
                     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
                 }
-                return checkruntime.makeTimestampValue(result);
+                return { kind: "Value", value: result };
             }
         }
     }
@@ -40487,7 +40517,7 @@ export function dateBin0b5n(stride: checkruntime.IntervalValue, input: checkrunt
     }
     if (result.kind === "Value") {
         const timestamp: bigint = langruntime.checkedI64(result.value);
-        return checkruntime.makeTimestamptzValue(timestamp);
+        return { kind: "Value", value: timestamp };
     }
     return { kind: "Unknown" };
 }
@@ -41061,17 +41091,35 @@ function temporalCalendarFromJulian(day: bigint): TemporalCalendarFields {
     quad = langruntime.checkedI64(langruntime.checkedI64Divide(langruntime.checkedI64Multiply(julian, 2141n), 65536n));
     return { year: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(year, 4800n))))), month: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(quad, 10n)), 12n), 1n))))), day: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(julian, langruntime.checkedI64Divide(langruntime.checkedI64Multiply(7834n, quad), 256n)))))) };
 }
-function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.TimestampValue {
+function temporalTruncateResult(value: bigint, projected: boolean): checkruntime.TimestampValue {
+    value = langruntime.checkedI64(value);
+    projected = langruntime.checkedBool(projected);
+    if (projected) {
+        return { kind: "Value", value: value };
+    }
+    return checkruntime.makeTimestampValue(value);
+}
+function temporalTruncateTimestamp(value: bigint, code: number, projected: boolean): checkruntime.TimestampValue {
     value = langruntime.checkedI64(value);
     code = langruntime.checkedI32(code);
+    projected = langruntime.checkedBool(projected);
     if (code <= 0) {
+        if (code === langruntime.checkedSignedNegate(1) && projected === false && value < -211813488000000000n && !(value === -9223372036854775808n)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+        }
         if (code === langruntime.checkedSignedNegate(1)) {
             return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
         }
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
     }
-    if (value === -9223372036854775808n || value === 9223372036854775807n || code === 1) {
+    if (value === -9223372036854775808n || value === 9223372036854775807n) {
         return { kind: "Value", value: value };
+    }
+    if (projected === false && value < -211813488000000000n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+    }
+    if (code === 1) {
+        return temporalTruncateResult(value, projected);
     }
     let scale: bigint = 86400000000n;
     if (code === 2) {
@@ -41091,7 +41139,7 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
         if (langruntime.checkedI64Remainder(value, scale) < 0n) {
             result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, scale));
         }
-        return { kind: "Value", value: result };
+        return temporalTruncateResult(result, projected);
     }
     let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
     if (langruntime.checkedI64Remainder(value, 86400000000n) < 0n) {
@@ -41103,7 +41151,7 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
         if (weekday < 0n) {
             weekday = langruntime.checkedI64(langruntime.checkedI64Add(weekday, 7n));
         }
-        return { kind: "Value", value: langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(day, weekday)), 86400000000n) };
+        return temporalTruncateResult(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(day, weekday)), 86400000000n), projected);
     }
     const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
     let year: number = calendar.year;
@@ -41139,7 +41187,7 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
         }
     }
     const truncatedJulian: bigint = temporalJulianFromCalendar(year, month, 1);
-    return { kind: "Value", value: langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(truncatedJulian, 2451545n)), 86400000000n) };
+    return temporalTruncateResult(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(truncatedJulian, 2451545n)), 86400000000n), projected);
 }
 export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.TimestampValue {
     if (units.kind === "Error") {
@@ -41160,7 +41208,7 @@ export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime
         const unit: string = langruntime.checkedString(units.value);
         if (input.kind === "Value") {
             const value: bigint = langruntime.checkedI64(input.value);
-            const truncated: checkruntime.TimestampValue = temporalTruncateTimestamp(value, temporalUnitCode(unit));
+            const truncated: checkruntime.TimestampValue = temporalTruncateTimestamp(value, temporalUnitCode(unit), false);
             if (truncated.kind === "Value") {
                 const result: bigint = langruntime.checkedI64(truncated.value);
                 return checkruntime.makeTimestampValue(result);
@@ -41753,7 +41801,7 @@ function temporalRangeTimestampValue(value: bigint, base: bigint, offset: checkr
     if (intervalSpecial(offset) > 0 && ((subtract && base === 9223372036854775807n) || (subtract === false && base === (-9223372036854775808n)))) {
         return checkruntime.makeBoolValue(true);
     }
-    const boundary: checkruntime.TimestampValue = intervalCalendarAdd(checkruntime.makeTimestampValue(base), checkruntime.makeIntervalValue(offset.months, offset.days, offset.time), subtract);
+    const boundary: checkruntime.TimestampValue = intervalCalendarAdd({ kind: "Value", value: base }, checkruntime.makeIntervalValue(offset.months, offset.days, offset.time), subtract);
     if (boundary.kind === "Error") {
         const error: checkruntime.SqlError = boundary.value;
         return { kind: "Error", value: error };
@@ -42544,6 +42592,9 @@ function temporalExtractTimestamp(value: bigint, unit: string): checkruntime.Num
             return { kind: "Value", value: "Infinity" };
         }
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
+    }
+    if (!(code === 19) && value < -211813488000000000n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
     }
     if (code === langruntime.checkedSignedNegate(1)) {
         return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
@@ -45904,6 +45955,9 @@ export function time3gc2(input: checkruntime.TimestampValue): checkruntime.TimeV
         const timestamp: bigint = langruntime.checkedI64(input.value);
         if (timestamp === 9223372036854775807n || timestamp === (-9223372036854775808n)) {
             return { kind: "Null" };
+        }
+        if (timestamp < -211813488000000000n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
         }
         let time: bigint = langruntime.checkedI64Remainder(timestamp, 86400000000n);
         if (time < 0n) {
