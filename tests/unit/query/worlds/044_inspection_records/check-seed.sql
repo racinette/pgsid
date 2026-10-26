@@ -1182,3 +1182,45 @@ INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_
 
 -- name: HistoricalVectorBypassedDivision
 INSERT INTO inspection_vector_history(score,divisor,expected_positions,expected_types,expected_rank,expected_payload,expected_present,bypass) VALUES(1,0,NULL,NULL,NULL,NULL,false,true);
+
+-- name: HistoricalSnapshotValues
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotNullScore
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(NULL,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',false,false);
+
+-- name: HistoricalSnapshotWrongModern
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x00','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotWrongLegacy
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotWrongUpper
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','18446744073709551615',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotWrongVisible
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',false,'["1:9:3,5",null,"1:1:"]',false,false);
+
+-- name: HistoricalSnapshotWrongPayload
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'[]',true,false);
+
+-- name: HistoricalSnapshotWrongPresence
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',false,false);
+
+-- name: HistoricalSnapshotNullPresence
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',NULL,false);
+
+-- name: HistoricalSnapshotNullInput
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,NULL,NULL,'\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotReachedDivision
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,0,'1:9:3','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotInvalidEpochMinimum
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'4294967296:4294967297:','4294967296','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotInvalidEpochMaximum
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,1,'1:4294967296:','1','\x000000020000000000000001000000000000000900000000000000030000000000000005','\x00000001fffffffffffffffefffffffffffffffffffffffffffffffe','-1',true,'["1:9:3,5",null,"1:1:"]',true,false);
+
+-- name: HistoricalSnapshotBypassedErrors
+INSERT INTO inspection_snapshot_history(score,divisor,input_text,expected_lower,expected_modern,expected_legacy,expected_upper,expected_visible,expected_payload,expected_present,bypass) VALUES(1,0,'bad','1',NULL,NULL,NULL,false,NULL,false,true);

@@ -106,6 +106,8 @@ it.each(['pg_snapshot', 'txid_snapshot'] as const)(
         { kind: 'Unknown' },
         { kind: 'Value', value: { ...payload, xmin: 0n } },
         { kind: 'Value', value: { ...payload, xmin: 10n } },
+        { kind: 'Value', value: { xmin: -9223372036854775808n, xmax: -1n, xip: [] } },
+        { kind: 'Value', value: { ...payload, xmax: 4294967296n } },
         { kind: 'Value', value: { ...payload, xmax: 9223372036854775808n } },
         { kind: 'Value', value: { ...payload, xmin: -9223372036854775809n } },
         { kind: 'Value', value: { ...payload, xip: [{ bits: 5n }, { bits: 3n }] } },

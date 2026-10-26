@@ -39224,7 +39224,7 @@ function snapshotParse(value: string): checkruntime.SnapshotValue {
         return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
     }
     const xmax: SnapshotNumber = copySnapshotNumber(snapshotReadNumber(source, langruntime.checkedAdd(xmin.end, 1)));
-    if (xmax.valid === false || xmax.end >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(xmax.end)) === ":") || xmin.bits === 0n || xmax.bits === 0n || checkruntime.snapshotXidOrder(xmin.bits, xmax.bits) > 0) {
+    if (xmax.valid === false || xmax.end >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(xmax.end)) === ":") || langruntime.checkedI64Remainder(xmin.bits, 4294967296n) === 0n || langruntime.checkedI64Remainder(xmax.bits, 4294967296n) === 0n || checkruntime.snapshotXidOrder(xmin.bits, xmax.bits) > 0) {
         return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
     }
     let index: number = langruntime.checkedAdd(xmax.end, 1);

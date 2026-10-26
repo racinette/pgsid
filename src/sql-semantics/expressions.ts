@@ -2,6 +2,7 @@ import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage
 import type { TemporalConstantStorage } from '../catalog/temporal-constant-storage.js'
 import type { GeometryConstantStorage } from '../catalog/geometry-constant-storage.js'
 import type { SystemConstantStorage } from '../catalog/system-constant-storage.js'
+import type { SnapshotConstantStorage } from '../catalog/snapshot-constant-storage.js'
 import type { ArrayConstantStorage } from '../catalog/array-constant-storage.js'
 import {
   builtinCast,
@@ -661,6 +662,7 @@ export type SqlExpression =
   | ({ kind: 'temporal-storage' } & TemporalConstantStorage)
   | ({ kind: 'geometry-storage' } & GeometryConstantStorage)
   | ({ kind: 'system-storage' } & SystemConstantStorage)
+  | ({ kind: 'snapshot-storage' } & SnapshotConstantStorage)
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
       kind: 'array'
@@ -1428,6 +1430,8 @@ export function emitSqlExpression<Ast>(
       throw new Error('Captured geometry literals require the Rust CHECK evaluator')
     if (node.kind === 'system-storage')
       throw new Error('Captured system literals require the Rust CHECK evaluator')
+    if (node.kind === 'snapshot-storage')
+      throw new Error('Captured snapshot literals require the Rust CHECK evaluator')
     if (node.kind === 'temporal') {
       if (
         node.value !== null &&

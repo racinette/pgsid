@@ -2554,8 +2554,8 @@ pub fn make_snapshot_value(payload: SnapshotPayload) -> SnapshotValue {
     if snapshot_count_fits(payload.xip.len()) == false {
         return SnapshotValue::Unknown;
     };
-    if payload.xmin == 0i64
-        || payload.xmax == 0i64
+    if payload.xmin % 4294967296i64 == 0i64
+        || payload.xmax % 4294967296i64 == 0i64
         || snapshot_xid_order(payload.xmin, payload.xmax) > 0
     {
         return SnapshotValue::Unknown;
@@ -2574,6 +2574,20 @@ pub fn make_snapshot_value(payload: SnapshotPayload) -> SnapshotValue {
         index += 1;
     }
     SnapshotValue::Value(payload)
+}
+pub fn start_stored_snapshot(xmin: i64, xmax: i64) -> SnapshotValue {
+    let xip: Vec<SnapshotXid> = Vec::new();
+    make_snapshot_value(SnapshotPayload { xmin, xmax, xip })
+}
+pub fn append_stored_snapshot(input: SnapshotValue, bits: i64) -> SnapshotValue {
+    if let SnapshotValue::Value(payload) = input {
+        let xmin = payload.xmin;
+        let xmax = payload.xmax;
+        let mut xip = payload.xip;
+        xip.push(SnapshotXid { bits });
+        return SnapshotValue::Value(SnapshotPayload { xmin, xmax, xip });
+    };
+    input
 }
 pub fn snapshot_is_null(input: SnapshotValue) -> BoolValue {
     if let SnapshotValue::Error(error) = input {

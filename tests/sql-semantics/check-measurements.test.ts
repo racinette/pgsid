@@ -1311,6 +1311,10 @@ describe('CHECK measurement boundaries', () => {
         'pg_catalog.oidvector:scalar',
         'pg_catalog.oidvector:array',
         'pg_catalog.pg_snapshot:scalar',
+        'pg_catalog.pg_snapshot:array',
+        'pg_catalog.txid_snapshot:scalar',
+        'pg_catalog.txid_snapshot:array',
+        'pg_catalog.aclitem:scalar',
         'boolean_test',
         'scalar_array',
         'domain_coercion',
@@ -1356,6 +1360,10 @@ describe('CHECK measurement boundaries', () => {
       'pg_catalog.int4:scalar',
       'pg_catalog.int4:null',
       'pg_catalog.int4:array',
+      'pg_catalog.pg_snapshot:scalar',
+      'pg_catalog.pg_snapshot:array',
+      'pg_catalog.txid_snapshot:scalar',
+      'pg_catalog.txid_snapshot:array',
       'pg_catalog.int2vector:scalar',
       'pg_catalog.int2vector:array',
       'pg_catalog.oidvector:scalar',
@@ -1421,7 +1429,7 @@ describe('CHECK measurement boundaries', () => {
       'xml_char',
     ])
       expect(inventory.get(name)?.classification, name).toBe('captured-and-prepared')
-    for (const name of ['pg_catalog.pg_snapshot:scalar'])
+    for (const name of ['pg_catalog.aclitem:scalar'])
       expect(inventory.get(name)?.classification, name).toBe('implementation-gap')
     expect(inventory.get('current_date')?.classification).toBe('requires-session')
     expect(inventory.get('custom_call')?.classification).toBe('requires-database-callback')

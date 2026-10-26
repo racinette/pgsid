@@ -1,6 +1,7 @@
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
 import { validSystemConstantStorage } from '../../catalog/system-constant-storage.js'
+import { validSnapshotConstantStorage } from '../../catalog/snapshot-constant-storage.js'
 import {
   isGeometryConstantType,
   validGeometryConstantStorage,
@@ -6762,6 +6763,15 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'snapshot-storage') {
+        if (!validSnapshotConstantStorage(value))
+          throw new UnsupportedCheckRustExpression('Invalid captured snapshot payload')
+        const bits = (word: string) => BigInt.asIntN(64, BigInt(word)).toString() + 'i64'
+        let result = bind(`start_stored_snapshot(${bits(value.xmin)},${bits(value.xmax)})`)
+        for (const word of value.xip)
+          result = bind(`append_stored_snapshot(${result},${bits(word)})`)
+        return { type: value.type, name: result }
+      }
       if (value.kind === 'system-storage') {
         if (!validSystemConstantStorage(value))
           throw new UnsupportedCheckRustExpression('Invalid captured system payload')
