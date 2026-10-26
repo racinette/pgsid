@@ -15,6 +15,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
+  isTemporalLocalTimezone,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -3126,6 +3127,7 @@ export function emitCheckRustEvaluator(
           !isTemporalContextCast(implementation) &&
           !isTemporalContextArithmetic(implementation) &&
           !isTemporalContextComparison(implementation) &&
+          !isTemporalLocalTimezone(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&
@@ -5356,7 +5358,8 @@ export function emitCheckRustEvaluator(
       if (
         isTemporalContextCast(implementation) ||
         isTemporalContextArithmetic(implementation) ||
-        isTemporalContextComparison(implementation)
+        isTemporalContextComparison(implementation) ||
+        (isTemporalLocalTimezone(implementation) && implementation.args[0] !== 'pg_catalog.timetz')
       )
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
       if (
@@ -5368,7 +5371,10 @@ export function emitCheckRustEvaluator(
           String(executionContext.maxIdentifierBytes ?? -1),
           String(executionContext.serverEncoding === 'UTF8'),
         )
-      if (isTemporalExplicitZoneLookup(implementation))
+      if (
+        isTemporalExplicitZoneLookup(implementation) ||
+        (isTemporalLocalTimezone(implementation) && implementation.args[0] === 'pg_catalog.timetz')
+      )
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
           String(executionContext.maxIdentifierBytes ?? -1),

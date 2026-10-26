@@ -150,6 +150,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_extract.rs");
     include!("operations/pg_catalog/temporal_timestamp_extract.rs");
     include!("operations/pg_catalog/timezone_comparison.rs");
+    include!("operations/pg_catalog/timezone_local.rs");
     include!("operations/pg_catalog/timezone_extract.rs");
     include!("operations/pg_catalog/timezone_trunc.rs");
     include!("operations/pg_catalog/timezone.rs");

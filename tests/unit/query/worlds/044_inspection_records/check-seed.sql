@@ -1868,3 +1868,30 @@ INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_
 INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',0,1,false);
 -- name: TimeRelationSkipped
 INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',1,1,true);
+
+-- name: LocalTimeEpoch
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('2000-01-01','2000-01-01+00','12:00-04','2000-01-01','2000-01-01+00','16:00+00',false);
+-- name: LocalTimeEndOfDay
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(NULL,NULL,'24:00+00',NULL,NULL,'00:00+00',false);
+-- name: LocalTimeInfinity
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('infinity','-infinity','00:00-05','-infinity','infinity','05:00+00',false);
+-- name: LocalTimeNegativeFraction
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('1999-12-31 23:59:59.999999','1999-12-31 23:59:59.999999+00','12:34:56.123456+05:30','1999-12-31 23:59:59.999999','1999-12-31 23:59:59.999999+00','07:04:56.123456+00',false);
+-- name: LocalTimeNullClock
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('2000-01-01','2000-01-01+00',NULL,'2000-01-01','2000-01-01+00',NULL,false);
+-- name: LocalTimeNullInputs
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: LocalTimeRoundedInstant
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(NULL,('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),NULL,NULL,NULL,NULL,false);
+-- name: LocalTimeRoundedStamp
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0),NULL,NULL,NULL,NULL,NULL,false);
+-- name: LocalTimeWrongAttach
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('2000-01-01','2000-01-01+00','12:00+00','2000-01-01','2000-01-01 00:00:01+00','12:00+00',false);
+-- name: LocalTimeWrongProject
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('2000-01-01','2000-01-01+00','12:00+00','2000-01-01 00:00:01','2000-01-01+00','12:00+00',false);
+-- name: LocalTimeWrongClock
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES('2000-01-01','2000-01-01+00','12:00+00','2000-01-01','2000-01-01+00','13:00+00',false);
+-- name: LocalTimeWrongClockBytes
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(NULL,NULL,'12:00+00',NULL,NULL,'13:00+01',false);
+-- name: LocalTimeSkipped
+INSERT INTO inspection_local_times(local_stamp,instant_at,recorded_clock,expected_stamp,expected_instant,expected_clock,bypass) VALUES(('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0),('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),'24:00+00',NULL,NULL,NULL,true);

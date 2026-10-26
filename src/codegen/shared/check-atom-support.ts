@@ -3,6 +3,7 @@ import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
+  isTemporalLocalTimezone,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -105,6 +106,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         implementation.kind === 'function' &&
         (isTemporalContextCast(implementation) ||
           isTemporalContextComparison(implementation) ||
+          isTemporalLocalTimezone(implementation) ||
           isTemporalContextArithmetic(implementation) ||
           isTemporalExplicitZoneLookup(implementation) ||
           isTemporalSessionTruncation(implementation) ||

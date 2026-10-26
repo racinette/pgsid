@@ -1443,3 +1443,21 @@ CREATE TABLE inspection_time_relations (
  CONSTRAINT time_relation_array CHECK(CASE WHEN bypass THEN true ELSE
    timestamp_cmp_timestamptz((ARRAY[local_stamp,NULL::timestamp])[1],instant_at) IS NOT DISTINCT FROM expected_stamp_order END)
 );
+
+CREATE TABLE inspection_local_times (
+ local_stamp timestamp,
+ instant_at timestamptz,
+ recorded_clock timetz,
+ expected_stamp timestamp,
+ expected_instant timestamptz,
+ expected_clock timetz,
+ bypass boolean NOT NULL,
+ CONSTRAINT local_time_attach CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(local_stamp AT LOCAL) IS NOT DISTINCT FROM timestamptz_send(expected_instant) END),
+ CONSTRAINT local_time_project CHECK(CASE WHEN bypass THEN true ELSE
+   timestamp_send(instant_at AT LOCAL) IS NOT DISTINCT FROM timestamp_send(expected_stamp) END),
+ CONSTRAINT local_time_clock CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send(recorded_clock AT LOCAL) IS NOT DISTINCT FROM timetz_send(expected_clock) END),
+ CONSTRAINT local_time_array CHECK(CASE WHEN bypass THEN true ELSE
+   timetz_send((ARRAY[timezone(recorded_clock),NULL::timetz])[1]) IS NOT DISTINCT FROM timetz_send(expected_clock) END)
+);
