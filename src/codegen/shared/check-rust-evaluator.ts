@@ -1,5 +1,6 @@
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
+import { validSystemConstantStorage } from '../../catalog/system-constant-storage.js'
 import {
   isGeometryConstantType,
   validGeometryConstantStorage,
@@ -6761,6 +6762,17 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'system-storage') {
+        if (!validSystemConstantStorage(value))
+          throw new UnsupportedCheckRustExpression('Invalid captured system payload')
+        const wide = value.type === 'pg_catalog.xid8' || value.type === 'pg_catalog.pg_lsn',
+          word = wide ? BigInt.asIntN(64, BigInt(value.value)).toString() : value.value,
+          prefix = value.type.slice('pg_catalog.'.length)
+        return {
+          type: value.type,
+          name: bind(`make_${prefix}_${wide ? 'bits' : 'value'}(${word}i64)`),
+        }
+      }
       if (value.kind === 'geometry-storage') {
         if (!validGeometryConstantStorage(value))
           throw new UnsupportedCheckRustExpression('Invalid captured geometry payload')

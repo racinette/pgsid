@@ -1,5 +1,6 @@
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTextLikeConstantStorage } from '../catalog/text-like-constant-storage.js'
+import { validSystemConstantStorage } from '../catalog/system-constant-storage.js'
 import {
   isGeometryConstantType,
   validGeometryConstantStorage,
@@ -3404,6 +3405,14 @@ export function bindCatalogCheck(
                 ? { kind: 'mac', type, value }
                 : { kind: 'bit', type, value },
         },
+      }
+    }
+    const storedSystem = wrapper['PgsidStoredSystem']
+    if (storedSystem !== undefined) {
+      if (!validSystemConstantStorage(storedSystem)) return unknown
+      return {
+        type: storedSystem.type,
+        value: { kind: 'certain', expression: { ...storedSystem, kind: 'system-storage' } },
       }
     }
     const storedGeometry = wrapper['PgsidStoredGeometry']

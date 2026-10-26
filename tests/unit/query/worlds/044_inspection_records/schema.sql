@@ -942,3 +942,32 @@ CREATE TABLE inspection_geometry_history (
      IS NOT NULL)=expected_present END)
 );
 ALTER TYPE historical_geometry_result DROP ATTRIBUTE obsolete_result;
+
+CREATE TYPE historical_system_result AS(score integer,obsolete_result integer);
+CREATE TABLE inspection_system_history (
+ score integer,
+ divisor integer NOT NULL,
+ expected_words bytea,
+ expected_wide bytea,
+ expected_pointer bytea,
+ expected_array boolean,
+ expected_present boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT system_history_words CHECK(CASE WHEN bypass THEN true ELSE
+   (oidsend('4294967295'::oid)||xidsend('4294967295'::xid)||cidsend('4294967295'::cid))
+     IS NOT DISTINCT FROM expected_words END),
+ CONSTRAINT system_history_wide CHECK(CASE WHEN bypass THEN true ELSE
+   (xid8send('18446744073709551615'::xid8)||pg_lsn_send('80000000/0'::pg_lsn))
+     IS NOT DISTINCT FROM expected_wide END),
+ CONSTRAINT system_history_pointer CHECK(CASE WHEN bypass THEN true ELSE
+   tidsend('(305419896,4660)'::tid) IS NOT DISTINCT FROM expected_pointer END),
+ CONSTRAINT system_history_array CHECK(CASE WHEN bypass THEN true ELSE
+   ((('[-1:1]={4294967295,NULL,0}'::oid[])[-1]='4294967295'::oid) AND
+     (('{"(305419896,4660)",NULL}'::tid[])[1]='(305419896,4660)'::tid))
+     IS NOT DISTINCT FROM expected_array END),
+ CONSTRAINT system_history_result CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(score,CASE WHEN (oidsend('4294967295'::oid)||xidsend('4294967295'::xid)||cidsend('4294967295'::cid))=expected_words
+     THEN 1/divisor ELSE NULL::integer END)::historical_system_result
+     IS NOT NULL)=expected_present END)
+);
+ALTER TYPE historical_system_result DROP ATTRIBUTE obsolete_result;
