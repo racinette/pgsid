@@ -114,6 +114,13 @@ pub fn make_timestamp_value(value: i64) -> TimestampValue {
     TimestampValue::Value(value)
 }
 
+pub fn make_stored_timestamp_value(value: i64) -> TimestampValue {
+    if value >= -211814092800000000i64 && value <= 9223371331200000000i64 {
+        return TimestampValue::Value(value);
+    };
+    make_timestamp_value(value)
+}
+
 pub fn timestamp_is_null(value: TimestampValue) -> BoolValue {
     if let TimestampValue::Error(error) = value {
         return BoolValue::Error(error);
@@ -154,6 +161,13 @@ pub fn make_timestamptz_value(value: i64) -> TimestamptzValue {
         });
     }
     TimestamptzValue::Value(value)
+}
+
+pub fn make_stored_timestamptz_value(value: i64) -> TimestamptzValue {
+    if value == 9223371331200000000i64 {
+        return TimestamptzValue::Value(value);
+    };
+    make_timestamptz_value(value)
 }
 
 pub fn timestamptz_is_null(value: TimestamptzValue) -> BoolValue {

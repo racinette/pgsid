@@ -9362,7 +9362,7 @@ func DateOutputContext(input checkruntime.DateValue, style int) checkruntime.Tex
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
-func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkruntime.TextValue {
+func timestampOutputProfile(input checkruntime.TimestampValue, style int, projected bool) checkruntime.TextValue {
 	style = langruntime.CheckedI32(style)
 	if input.Kind == checkruntime.TimestampValueError {
 		error := input.Error
@@ -9378,6 +9378,9 @@ func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkr
 		}
 		if value == int64(9223372036854775807) {
 			return checkruntime.MakeTextValue("infinity")
+		}
+		if projected == false && value < int64(-211813488000000000) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(clockRange)}
 		}
 		if style < 1 || style > 6 {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
@@ -9439,6 +9442,10 @@ func TimestamptzOutputWithoutContext(input checkruntime.TimestamptzValue) checkr
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func TimestampOutputContext(input checkruntime.TimestampValue, style int) checkruntime.TextValue {
+	style = langruntime.CheckedI32(style)
+	return timestampOutputProfile(input, style, false)
 }
 
 const vectorDatatypeMismatch = 6822148
@@ -15553,6 +15560,9 @@ func intervalCalendarAdd(input checkruntime.TimestampValue, amount checkruntime.
 				clock = langruntime.CheckedI64Add(clock, int64(86400000000))
 			}
 			if span.Months != 0 {
+				if timestamp < int64(-211813488000000000) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
 				calendar := temporalCalendarFromJulian(langruntime.CheckedI64Add(day, int64(2451545)))
 				month := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(calendar.month))), (int64(langruntime.CheckedI32(span.Months))))
 				if month < (int64(-2147483648)) || month > int64(2147483647) {
@@ -15588,8 +15598,17 @@ func intervalCalendarAdd(input checkruntime.TimestampValue, amount checkruntime.
 					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
 				}
 			}
-			day = langruntime.CheckedI64Add(day, (int64(langruntime.CheckedI32(span.Days))))
-			calendarResult := intervalCalendarTimestamp(day, clock)
+			calendarResult := checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: timestamp}
+			if span.Months != 0 {
+				calendarResult = intervalCalendarTimestamp(day, clock)
+			}
+			if span.Days != 0 {
+				if timestamp < int64(-211813488000000000) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				day = langruntime.CheckedI64Add(day, (int64(langruntime.CheckedI32(span.Days))))
+				calendarResult = intervalCalendarTimestamp(day, clock)
+			}
 			if calendarResult.Kind == checkruntime.TimestampValueError {
 				error := calendarResult.Error
 				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
@@ -15701,7 +15720,7 @@ func intervalCalendarLocalPayload(input checkruntime.TimestamptzValue) checkrunt
 	}
 	if input.Kind == checkruntime.TimestamptzValueValue {
 		value := input.Value
-		return checkruntime.MakeTimestampValue(value)
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: value}
 	}
 	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
 }
@@ -17862,6 +17881,9 @@ func JsonbInputFromTimestamp(input checkruntime.TimestampValue) checkruntime.Jso
 		}
 		if value == int64(9223372036854775807) {
 			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
+		}
+		if value < int64(-211813488000000000) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: checkruntime.MakeSqlError(clockRange)}
 		}
 		day := langruntime.CheckedI64Divide(value, int64(86400000000))
 		clock := langruntime.CheckedI64Remainder(value, int64(86400000000))
@@ -39909,6 +39931,9 @@ func Age7dfp(left checkruntime.TimestampValue, right checkruntime.TimestampValue
 		if right.Kind == checkruntime.TimestampValueValue {
 			second := right.Value
 			if first != (int64(-9223372036854775808)) && first != int64(9223372036854775807) && second != (int64(-9223372036854775808)) && second != int64(9223372036854775807) {
+				if first < int64(-211813488000000000) || second < int64(-211813488000000000) {
+					return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
 				return intervalAgeValue(first, second)
 			}
 		}
@@ -39936,6 +39961,9 @@ func DateBvna(left checkruntime.TimestampValue) checkruntime.DateValue {
 		}
 		if leftValue == int64(9223372036854775807) {
 			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: 2147483647}
+		}
+		if leftValue < int64(-211813488000000000) {
+			return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
 		}
 		days := langruntime.CheckedI64Divide(leftValue, int64(86400000000))
 		if leftValue < int64(0) && langruntime.CheckedI64Remainder(leftValue, int64(86400000000)) != int64(0) {
@@ -40220,11 +40248,12 @@ func DateBin67ed(stride checkruntime.IntervalValue, input checkruntime.Timestamp
 						return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
 					}
 					result = langruntime.CheckedI64Subtract(result, width)
+					return checkruntime.MakeTimestampValue(result)
 				}
 				if result == low || result == high {
 					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
 				}
-				return checkruntime.MakeTimestampValue(result)
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: result}
 			}
 		}
 	}
@@ -40243,7 +40272,7 @@ func DateBin0b5n(stride checkruntime.IntervalValue, input checkruntime.Timestamp
 	}
 	if result.Kind == checkruntime.TimestampValueValue {
 		timestamp := result.Value
-		return checkruntime.MakeTimestamptzValue(timestamp)
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: timestamp}
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
@@ -40814,16 +40843,31 @@ func temporalCalendarFromJulian(day int64) temporalCalendarFields {
 	quad = langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(2141)), int64(65536))
 	return temporalCalendarFields{year: int(int32((langruntime.CheckedI64Subtract(year, int64(4800))))), month: int(int32((langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(quad, int64(10))), int64(12)), int64(1))))), day: int(int32((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), quad), int64(256))))))}
 }
-func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValue {
+func temporalTruncateResult(value int64, projected bool) checkruntime.TimestampValue {
+	if projected {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: value}
+	}
+	return checkruntime.MakeTimestampValue(value)
+}
+func temporalTruncateTimestamp(value int64, code int, projected bool) checkruntime.TimestampValue {
 	code = langruntime.CheckedI32(code)
 	if code <= 0 {
+		if code == langruntime.CheckedSignedNegate(1) && projected == false && value < int64(-211813488000000000) && value != int64(-9223372036854775808) {
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+		}
 		if code == langruntime.CheckedSignedNegate(1) {
 			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
 		}
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
 	}
-	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) || code == 1 {
+	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: value}
+	}
+	if projected == false && value < int64(-211813488000000000) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+	}
+	if code == 1 {
+		return temporalTruncateResult(value, projected)
 	}
 	scale := int64(86400000000)
 	if code == 2 {
@@ -40843,7 +40887,7 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 		if langruntime.CheckedI64Remainder(value, scale) < int64(0) {
 			result = langruntime.CheckedI64Subtract(result, scale)
 		}
-		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: result}
+		return temporalTruncateResult(result, projected)
 	}
 	day := langruntime.CheckedI64Divide(value, int64(86400000000))
 	if langruntime.CheckedI64Remainder(value, int64(86400000000)) < int64(0) {
@@ -40855,7 +40899,7 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 		if weekday < int64(0) {
 			weekday = langruntime.CheckedI64Add(weekday, int64(7))
 		}
-		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(day, weekday)), int64(86400000000))}
+		return temporalTruncateResult(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(day, weekday)), int64(86400000000)), projected)
 	}
 	calendar := temporalCalendarFromJulian(julian)
 	year := calendar.year
@@ -40888,7 +40932,7 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 		}
 	}
 	truncatedJulian := temporalJulianFromCalendar(year, month, 1)
-	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(truncatedJulian, int64(2451545))), int64(86400000000))}
+	return temporalTruncateResult(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(truncatedJulian, int64(2451545))), int64(86400000000)), projected)
 }
 func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.TimestampValue {
 	if units.Kind == checkruntime.TextValueError {
@@ -40909,7 +40953,7 @@ func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampVal
 		unit := langruntime.CheckedString(units.Value)
 		if input.Kind == checkruntime.TimestampValueValue {
 			value := input.Value
-			truncated := temporalTruncateTimestamp(value, temporalUnitCode(unit))
+			truncated := temporalTruncateTimestamp(value, temporalUnitCode(unit), false)
 			if truncated.Kind == checkruntime.TimestampValueValue {
 				result := truncated.Value
 				return checkruntime.MakeTimestampValue(result)
@@ -41492,7 +41536,7 @@ func temporalRangeTimestampValue(value int64, base int64, offset checkruntime.In
 	if intervalSpecial(offset) > 0 && ((subtract && base == int64(9223372036854775807)) || (subtract == false && base == (int64(-9223372036854775808)))) {
 		return checkruntime.MakeBoolValue(true)
 	}
-	boundary := intervalCalendarAdd(checkruntime.MakeTimestampValue(base), checkruntime.MakeIntervalValue(offset.Months, offset.Days, offset.Time), subtract)
+	boundary := intervalCalendarAdd(checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: base}, checkruntime.MakeIntervalValue(offset.Months, offset.Days, offset.Time), subtract)
 	if boundary.Kind == checkruntime.TimestampValueError {
 		error := boundary.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -42272,6 +42316,9 @@ func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValu
 			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
 		}
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+	}
+	if code != 19 && value < int64(-211813488000000000) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(clockRange)}
 	}
 	if code == langruntime.CheckedSignedNegate(1) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
@@ -45577,6 +45624,9 @@ func Time3gc2(input checkruntime.TimestampValue) checkruntime.TimeValue {
 		timestamp := input.Value
 		if timestamp == int64(9223372036854775807) || timestamp == (int64(-9223372036854775808)) {
 			return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+		}
+		if timestamp < int64(-211813488000000000) {
+			return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}
 		}
 		time := langruntime.CheckedI64Remainder(timestamp, int64(86400000000))
 		if time < int64(0) {

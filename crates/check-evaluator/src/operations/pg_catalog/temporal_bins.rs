@@ -5,7 +5,9 @@ pub fn sql__pg_catalog__date_trunc__d8uf(units: TextValue, input: IntervalValue)
     if let IntervalValue::Error(error) = input {
         return IntervalValue::Error(error);
     };
-    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == IntervalValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull)
+        || input == IntervalValue::Unknown
+    {
         return IntervalValue::Unknown;
     };
     if units == TextValue::Null || input == IntervalValue::Null {
@@ -131,11 +133,12 @@ pub fn sql__pg_catalog__date_bin__67ed(
                         return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
                     };
                     result = result - width;
+                    return make_timestamp_value(result);
                 };
                 if result == low || result == high {
                     return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
                 };
-                return make_timestamp_value(result);
+                return TimestampValue::Value(result);
             };
         };
     };
@@ -156,7 +159,7 @@ pub fn sql__pg_catalog__date_bin__0b5n(
         return TimestamptzValue::Null;
     };
     if let TimestampValue::Value(timestamp) = result {
-        return make_timestamptz_value(timestamp);
+        return TimestamptzValue::Value(timestamp);
     };
     TimestamptzValue::Unknown
 }

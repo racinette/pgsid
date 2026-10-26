@@ -147,6 +147,9 @@ fn temporal_extract_timestamp(value: i64, unit: &str) -> NumericValue {
         }
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
     }
+    if code != 19 && value < -211813488000000000i64 {
+        return NumericValue::Error(make_sql_error(CLOCK_RANGE));
+    };
     if code == -1 {
         return NumericValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
     }
@@ -187,7 +190,9 @@ pub fn sql__pg_catalog__extract__f4l3(units: TextValue, input: TimestampValue) -
     if let TimestampValue::Error(error) = input {
         return NumericValue::Error(error);
     }
-    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == TimestampValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull)
+        || input == TimestampValue::Unknown
+    {
         return NumericValue::Unknown;
     }
     if units == TextValue::Null || input == TimestampValue::Null {

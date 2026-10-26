@@ -1642,7 +1642,7 @@ function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValu
   if (value === null) return _checkRust.timestampNull()
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timestampUnknown()
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestampValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestampValue(value.value)
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestampValue(value.value)
   return _checkRust.timestampUnknown()
 }
 function checkRustTimestamptz(row: object, name: string): _checkRust.TimestamptzValue {
@@ -1651,7 +1651,7 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   if (value === null) return _checkRust.timestamptzNull()
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timestamptzUnknown()
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
-  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestamptzValue(value.value)
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeStoredTimestamptzValue(value.value)
   return _checkRust.timestamptzUnknown()
 }
 function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {

@@ -17,6 +17,9 @@ pub fn sql__pg_catalog__date__bvna(left: TimestampValue) -> DateValue {
         if left_value == 9223372036854775807i64 {
             return DateValue::Value(2147483647);
         }
+        if left_value < -211813488000000000i64 {
+            return DateValue::Error(make_sql_error(TEMPORAL_RANGE_ERROR));
+        };
         let mut days = left_value / 86400000000i64;
         if left_value < 0i64 && left_value % 86400000000i64 != 0i64 {
             days = days - 1i64;
@@ -162,4 +165,3 @@ pub fn sql__pg_catalog__timestamp__swxj(left: DateValue) -> TimestampValue {
     }
     TimestampValue::Unknown
 }
-

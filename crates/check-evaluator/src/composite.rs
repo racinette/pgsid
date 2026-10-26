@@ -282,10 +282,10 @@ pub(crate) fn composite_prepare_scalar_cell(checked: ArrayElement) -> ArrayEleme
         return array_element_from_date(make_stored_date_value(value));
     };
     if let ArrayElement::Timestamp(value) = checked {
-        return array_element_from_timestamp(make_timestamp_value(value));
+        return array_element_from_timestamp(make_stored_timestamp_value(value));
     };
     if let ArrayElement::Timestamptz(value) = checked {
-        return array_element_from_timestamptz(make_timestamptz_value(value));
+        return array_element_from_timestamptz(make_stored_timestamptz_value(value));
     };
     if let ArrayElement::Xid(value) = checked {
         return array_element_from_xid(make_xid_value(value));

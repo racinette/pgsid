@@ -625,7 +625,7 @@ export function renderGoCheckTests(
         const wrapped =
           value === null
             ? go.call(go.selector(go.ident('checkruntime'), 'TimestampNull'))
-            : go.call(go.selector(go.ident('checkruntime'), 'MakeTimestampValue'), [
+            : go.call(go.selector(go.ident('checkruntime'), 'MakeStoredTimestampValue'), [
                 go.number(BigInt(String(value))),
               ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
@@ -640,7 +640,7 @@ export function renderGoCheckTests(
         const wrapped =
           value === null
             ? go.call(go.selector(go.ident('checkruntime'), 'TimestamptzNull'))
-            : go.call(go.selector(go.ident('checkruntime'), 'MakeTimestamptzValue'), [
+            : go.call(go.selector(go.ident('checkruntime'), 'MakeStoredTimestamptzValue'), [
                 go.number(BigInt(String(value))),
               ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))

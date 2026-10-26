@@ -1632,3 +1632,33 @@ INSERT INTO inspection_clock_projections(local_date,local_clock,local_stamp,inst
 
 -- name: ClockAttachDateRangeError
 INSERT INTO inspection_clock_projections(local_date,bypass) VALUES('5874897-12-31',false);
+
+-- name: RoundedClockCeiling
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','294277-01-01 00:00:00','294277-01-01 00:00:00+00','7fffff5bb3b2a000','7fffff5bb3a35dc0',false);
+
+-- name: RoundedClockEpoch
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES('2000-01-01','2000-01-01+00','2000-01-01 00:00:00','2000-01-01 00:00:00+00','0000000000000000','fffffffffff0bdc0',false);
+
+-- name: RoundedClockNull
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: RoundedClockInfinity
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES('infinity','infinity','infinity','infinity','7fffffffffffffff','7fffffffffffffff',false);
+
+-- name: RoundedClockNegativeInfinity
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES('-infinity','-infinity','-infinity','-infinity','8000000000000000','8000000000000000',false);
+
+-- name: RoundedClockStampMismatch
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','wrong','294277-01-01 00:00:00+00','7fffff5bb3b2a000','7fffff5bb3a35dc0',false);
+
+-- name: RoundedClockInstantMismatch
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','294277-01-01 00:00:00','wrong','7fffff5bb3b2a000','7fffff5bb3a35dc0',false);
+
+-- name: RoundedClockWireMismatch
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','294277-01-01 00:00:00','294277-01-01 00:00:00+00','wrong','7fffff5bb3a35dc0',false);
+
+-- name: RoundedClockRollbackMismatch
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','294277-01-01 00:00:00','294277-01-01 00:00:00+00','7fffff5bb3b2a000','wrong',false);
+
+-- name: RoundedClockSkipped
+INSERT INTO inspection_rounded_clocks(local_stamp,instant_at,expected_stamp,expected_instant,expected_wire,expected_rollback,bypass) VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999',TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00','wrong','wrong','wrong','wrong',true);

@@ -12,10 +12,15 @@ import type { CheckExecutionContext } from './check-rust-evaluator.js'
 import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
-import { isTemporalContextCast } from '../../sql-semantics/temporal-casts.js'
+import {
+  isTemporalContextArithmetic,
+  isTemporalContextCast,
+} from '../../sql-semantics/temporal-casts.js'
 
 const temporalCasts = new Set(
-  builtinCallables().filter(isTemporalContextCast).map(callableIdentity),
+  builtinCallables()
+    .filter((item) => isTemporalContextCast(item) || isTemporalContextArithmetic(item))
+    .map(callableIdentity),
 )
 const clockTimezoneCasts = new Set(
   builtinCallables()
@@ -272,7 +277,7 @@ export function checkUnknownMessage(
     (needsSessionTimezone(expression) || containsSignature(expression, temporalCasts))
   )
     message +=
-      ' Temporal casts and timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
+      ' Temporal casts, calendar arithmetic and timestamptz SQL and JSON text output can require an explicit sql.codegen.checks.timeZone setting.'
   if (containsSignature(expression, clockTimezoneCasts))
     message +=
       ' Time-to-timetz conversion in a variable-offset zone can also require the transaction local date.'

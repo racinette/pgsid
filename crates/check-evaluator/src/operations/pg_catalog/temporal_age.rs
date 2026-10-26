@@ -63,6 +63,9 @@ pub fn sql__pg_catalog__age__7dfp(left: TimestampValue, right: TimestampValue) -
                 && second != (-9223372036854775808i64)
                 && second != 9223372036854775807i64
             {
+                if first < -211813488000000000i64 || second < -211813488000000000i64 {
+                    return IntervalValue::Error(make_sql_error(CLOCK_RANGE));
+                };
                 return interval_age_value(first, second);
             };
         };

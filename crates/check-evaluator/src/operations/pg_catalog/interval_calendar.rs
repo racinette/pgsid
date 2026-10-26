@@ -52,6 +52,9 @@ fn interval_calendar_add(
                 clock = clock + 86400000000i64;
             };
             if span.months != 0 {
+                if timestamp < -211813488000000000i64 {
+                    return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
+                };
                 let calendar = temporal_calendar_from_julian(day + 2451545i64);
                 let mut month = (calendar.month as i64) + (span.months as i64);
                 if month < (-2147483648i64) || month > 2147483647i64 {
@@ -87,8 +90,17 @@ fn interval_calendar_add(
                     return TimestampValue::Error(error);
                 };
             };
-            day = day + (span.days as i64);
-            let calendar_result = interval_calendar_timestamp(day, clock);
+            let mut calendar_result = TimestampValue::Value(timestamp);
+            if span.months != 0 {
+                calendar_result = interval_calendar_timestamp(day, clock);
+            };
+            if span.days != 0 {
+                if timestamp < -211813488000000000i64 {
+                    return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
+                };
+                day = day + (span.days as i64);
+                calendar_result = interval_calendar_timestamp(day, clock);
+            };
             if let TimestampValue::Error(error) = calendar_result {
                 return TimestampValue::Error(error);
             };
@@ -215,7 +227,7 @@ fn interval_calendar_local_payload(input: TimestamptzValue) -> TimestampValue {
         return TimestampValue::Null;
     };
     if let TimestamptzValue::Value(value) = input {
-        return make_timestamp_value(value);
+        return TimestampValue::Value(value);
     };
     TimestampValue::Unknown
 }

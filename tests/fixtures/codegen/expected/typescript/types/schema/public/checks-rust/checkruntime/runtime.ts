@@ -156,6 +156,13 @@ export function makeTimestampValue(value: bigint): TimestampValue {
     }
     return { kind: "Value", value: value };
 }
+export function makeStoredTimestampValue(value: bigint): TimestampValue {
+    value = langruntime.checkedI64(value);
+    if (value >= -211814092800000000n && value <= 9223371331200000000n) {
+        return { kind: "Value", value: value };
+    }
+    return makeTimestampValue(value);
+}
 export function timestampIsNull(value: TimestampValue): BoolValue {
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -205,6 +212,13 @@ export function makeTimestamptzValue(value: bigint): TimestamptzValue {
         return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     return { kind: "Value", value: value };
+}
+export function makeStoredTimestamptzValue(value: bigint): TimestamptzValue {
+    value = langruntime.checkedI64(value);
+    if (value === 9223371331200000000n) {
+        return { kind: "Value", value: value };
+    }
+    return makeTimestamptzValue(value);
 }
 export function timestamptzIsNull(value: TimestamptzValue): BoolValue {
     if (value.kind === "Error") {
@@ -10079,11 +10093,11 @@ export function compositePrepareScalarCell(checked: ArrayElement): ArrayElement 
     }
     if (checked.kind === "Timestamp") {
         const value: bigint = langruntime.checkedI64(checked.value);
-        return arrayElementFromTimestamp(makeTimestampValue(value));
+        return arrayElementFromTimestamp(makeStoredTimestampValue(value));
     }
     if (checked.kind === "Timestamptz") {
         const value: bigint = langruntime.checkedI64(checked.value);
-        return arrayElementFromTimestamptz(makeTimestamptzValue(value));
+        return arrayElementFromTimestamptz(makeStoredTimestamptzValue(value));
     }
     if (checked.kind === "Xid") {
         const value: bigint = langruntime.checkedI64(checked.value);

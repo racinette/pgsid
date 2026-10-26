@@ -370,9 +370,11 @@ import them. Keep schema-only helpers with their callables.
   NULLs and errors are independent, and finite known values retain non-NULL state
   without context. Run the calendar-output parity and inspection INSERT world.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
-  minimum and maximum represent negative and positive infinity. Finite payloads
-  range from -2451545 through 2145031948. Public CHECK inputs use this portable
-  wrapper. Calendar construction and range validation live in Rust and return
+  minimum and maximum represent negative and positive infinity. Finite input
+  ranges from -2451545 through 2145031948. Already SQL-coerced
+  timezone projections retain earlier stored days without text-input revalidation.
+  Public CHECK inputs use this portable wrapper. Calendar construction and range
+  validation live in Rust and return
   SQLSTATE 22008 for invalid values. Negative constructor years mean BC;
   year zero is invalid. Native target date objects require caller conversion.
 - Text-to-date casts and date literals use the same maintained Rust parser.
@@ -399,12 +401,17 @@ import them. Keep schema-only helpers with their callables.
   gate also runs the enum catalog and operation parity tests.
 - Timestamptz payloads are signed UTC microseconds from 2000-01-01, using
   Rust i64, Go int64, and TypeScript bigint. The signed minimum and maximum
-  represent infinities. Rust validates finite payloads against PostgreSQL's
-  timestamp range. Same-type comparisons require no timezone context. Public
-  CHECK inputs use the portable wrapper, including for domains. Native query
+  represent infinities. Text input and checked constructors validate PostgreSQL's
+  finite timestamp input range. SQL-coerced precision results preserve the rounded
+  upper boundary independently of text admission. Same-type comparisons require
+  no timezone context. Public CHECK inputs use the portable wrapper, including
+  for domains. Native query
   parameter date objects remain unknown during prevalidation.
-- Timestamp payloads use the same range, epoch, and infinities as timestamptz,
-  measured on a local calendar without timezone interpretation. Explicit
+- Timestamp input uses the same range, epoch, and infinities as timestamptz.
+  Stored values also retain projected dates before the input minimum and rounded
+  precision results at the upper boundary. Calendar consumers apply their own
+  native errors; pure clock arithmetic can recover an admissible result.
+  Local calendars have no implicit timezone interpretation. Explicit
   `timezone(text, timestamp)` and `timezone(text, timestamptz)` callables accept
   case-insensitive UTC/GMT or POSIX fixed offsets, either bare or appended to
   UTC/GMT. Offset fields accept hours, hours:minutes, and hours:minutes:seconds,

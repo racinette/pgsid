@@ -65,6 +65,9 @@ pub fn sql__pg_catalog__time__3gc2(input: TimestampValue) -> TimeValue {
         if timestamp == 9223372036854775807i64 || timestamp == (-9223372036854775808i64) {
             return TimeValue::Null;
         }
+        if timestamp < -211813488000000000i64 {
+            return TimeValue::Error(make_sql_error(CLOCK_RANGE));
+        };
         let mut time = timestamp % 86400000000i64;
         if time < 0i64 {
             time = time + 86400000000i64;

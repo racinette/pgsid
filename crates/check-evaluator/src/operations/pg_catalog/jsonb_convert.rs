@@ -177,6 +177,9 @@ pub fn jsonb_input_from_timestamp(input: TimestampValue) -> JsonbInput {
         if value == 9223372036854775807i64 {
             return JsonbInput::Text("infinity".to_owned());
         };
+        if value < -211813488000000000i64 {
+            return JsonbInput::Error(make_sql_error(CLOCK_RANGE));
+        };
         let mut day = value / 86400000000i64;
         let mut clock = value % 86400000000i64;
         if clock < 0i64 {
@@ -233,7 +236,6 @@ pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput
     };
     JsonbInput::Unknown
 }
-
 
 pub fn jsonb_input_from_xml(input: XmlValue) -> JsonbInput {
     let text = xml_to_output_text(input);

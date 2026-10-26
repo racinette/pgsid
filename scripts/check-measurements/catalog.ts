@@ -1,6 +1,9 @@
 import { isIdentifierQuote } from '../../src/sql-semantics/identifier-quote.js'
 import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callables.js'
-import { isTemporalContextCast } from '../../src/sql-semantics/temporal-casts.js'
+import {
+  isTemporalContextArithmetic,
+  isTemporalContextCast,
+} from '../../src/sql-semantics/temporal-casts.js'
 import {
   isArrayHash,
   isRangeHash,
@@ -740,6 +743,19 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function temporalArithmeticRequirements(item: BuiltinCallable) {
+  if (!isTemporalContextArithmetic(item)) return null
+  return [
+    {
+      kind: 'session',
+      setting: 'TimeZone',
+      requirement:
+        'Calendar interval months and days apply in the declared PostgreSQL session timezone, with native month clipping and separate timezone resolution after each step. Elapsed microseconds, NULLs and infinities retain context-independent results.',
+      owner: 'tests/sql-semantics/check-timestamptz-arithmetic.test.ts',
+    },
+  ]
+}
+
 export function temporalCastRequirements(item: BuiltinCallable) {
   if (!isTemporalContextCast(item)) return null
   const requirements = [
@@ -1109,6 +1125,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (calendarOutputRequirements(item)?.some((r) => r.setting === 'TimeZone'))
     categories.push('session-setting:TimeZone')
   if (temporalCastRequirements(item)) categories.push('session-setting:TimeZone')
+  if (temporalArithmeticRequirements(item)) categories.push('session-setting:TimeZone')
   if (temporalCastRequirements(item)?.some((r) => r.kind === 'transaction'))
     categories.push('transaction-state:local_date')
   if (isMoneyNumericConversion(item)) categories.push('session-setting:moneyFractionDigits')

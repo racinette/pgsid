@@ -184,7 +184,7 @@ pub fn timestamptz_output_context(
             output.push('T');
             output.push_str(clock_output_time(clock).as_str());
         } else {
-            let rendered = timestamp_output_context(TimestampValue::Value(local), style);
+            let rendered = timestamp_output_profile(TimestampValue::Value(local), style, true);
             let mut rendered_known = false;
             if let TextValue::Value(text) = rendered {
                 rendered_known = true;

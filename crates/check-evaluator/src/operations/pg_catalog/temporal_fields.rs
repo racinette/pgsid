@@ -117,16 +117,35 @@ fn temporal_calendar_from_julian(day: i64) -> TemporalCalendarFields {
     }
 }
 
-fn temporal_truncate_timestamp(value: i64, code: i32) -> TimestampValue {
+fn temporal_truncate_result(value: i64, projected: bool) -> TimestampValue {
+    if projected {
+        return TimestampValue::Value(value);
+    };
+    make_timestamp_value(value)
+}
+fn temporal_truncate_timestamp(value: i64, code: i32, projected: bool) -> TimestampValue {
     if code <= 0 {
+        if code == -1
+            && projected == false
+            && value < -211813488000000000i64
+            && value != -9223372036854775808i64
+        {
+            return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
+        };
         if code == -1 {
             return TimestampValue::Error(make_sql_error(TEMPORAL_FIELD_UNSUPPORTED_ERROR));
         }
         return TimestampValue::Error(make_sql_error(TEMPORAL_FIELD_UNIT_ERROR));
     }
-    if value == -9223372036854775808i64 || value == 9223372036854775807i64 || code == 1 {
+    if value == -9223372036854775808i64 || value == 9223372036854775807i64 {
         return TimestampValue::Value(value);
     }
+    if projected == false && value < -211813488000000000i64 {
+        return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
+    };
+    if code == 1 {
+        return temporal_truncate_result(value, projected);
+    };
     let mut scale: i64 = 86400000000i64;
     if code == 2 {
         scale = 1000i64;
@@ -145,7 +164,7 @@ fn temporal_truncate_timestamp(value: i64, code: i32) -> TimestampValue {
         if value % scale < 0i64 {
             result = result - scale;
         }
-        return TimestampValue::Value(result);
+        return temporal_truncate_result(result, projected);
     }
     let mut day = value / 86400000000i64;
     if value % 86400000000i64 < 0i64 {
@@ -157,7 +176,7 @@ fn temporal_truncate_timestamp(value: i64, code: i32) -> TimestampValue {
         if weekday < 0i64 {
             weekday = weekday + 7i64;
         }
-        return TimestampValue::Value((day - weekday) * 86400000000i64);
+        return temporal_truncate_result((day - weekday) * 86400000000i64, projected);
     }
     let calendar = temporal_calendar_from_julian(julian);
     let mut year = calendar.year;
@@ -190,7 +209,7 @@ fn temporal_truncate_timestamp(value: i64, code: i32) -> TimestampValue {
         };
     }
     let truncated_julian = temporal_julian_from_calendar(year, month, 1);
-    TimestampValue::Value((truncated_julian - 2451545i64) * 86400000000i64)
+    temporal_truncate_result((truncated_julian - 2451545i64) * 86400000000i64, projected)
 }
 
 pub fn sql__pg_catalog__date_trunc__3i0u(
@@ -203,7 +222,9 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     if let TimestampValue::Error(error) = input {
         return TimestampValue::Error(error);
     }
-    if (units == TextValue::Unknown || units == TextValue::NonNull) || input == TimestampValue::Unknown {
+    if (units == TextValue::Unknown || units == TextValue::NonNull)
+        || input == TimestampValue::Unknown
+    {
         return TimestampValue::Unknown;
     }
     if units == TextValue::Null || input == TimestampValue::Null {
@@ -211,7 +232,8 @@ pub fn sql__pg_catalog__date_trunc__3i0u(
     }
     if let TextValue::Value(unit) = units {
         if let TimestampValue::Value(value) = input {
-            let truncated = temporal_truncate_timestamp(value, temporal_unit_code(unit.as_str()));
+            let truncated =
+                temporal_truncate_timestamp(value, temporal_unit_code(unit.as_str()), false);
             if let TimestampValue::Value(result) = truncated {
                 return make_timestamp_value(result);
             }

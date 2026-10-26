@@ -58,7 +58,7 @@ fn temporal_range_timestamp_value(
         return make_bool_value(true);
     };
     let boundary = interval_calendar_add(
-        make_timestamp_value(base),
+        TimestampValue::Value(base),
         make_interval_value(offset.months, offset.days, offset.time),
         subtract,
     );
