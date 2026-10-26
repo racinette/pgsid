@@ -1565,3 +1565,14 @@ CREATE TABLE inspection_imported_datetimes (
  CONSTRAINT imported_instant_value CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[pg_catalog.to_timestamp(source_text,input_pattern COLLATE "C"),NULL::timestamptz])[1] IS NOT DISTINCT FROM expected_instant END)
 );
+
+CREATE TABLE inspection_calendar_elapsed (
+ started_at timestamptz,
+ ended_at timestamptz,
+ expected_elapsed interval,
+ bypass boolean NOT NULL,
+ CONSTRAINT elapsed_calendar_value CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.age(ended_at,started_at) IS NOT DISTINCT FROM expected_elapsed END),
+ CONSTRAINT elapsed_calendar_array CHECK(CASE WHEN bypass THEN true ELSE
+   (ARRAY[pg_catalog.age(ended_at,started_at),NULL::interval])[1] IS NOT DISTINCT FROM expected_elapsed END)
+);

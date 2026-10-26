@@ -21,6 +21,7 @@ import {
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
   isTemporalInstantPeriod,
+  isTemporalInstantAge,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -5396,6 +5397,7 @@ export function emitCheckRustEvaluator(
         isTemporalContextArithmetic(implementation) ||
         isTemporalContextComparison(implementation) ||
         isTemporalInstantPeriod(implementation) ||
+        isTemporalInstantAge(implementation) ||
         (isTemporalLocalTimezone(implementation) &&
           implementation.args[0] !== 'pg_catalog.timetz') ||
         (isTemporalInstantConstructor(implementation) && implementation.args.length !== 7)

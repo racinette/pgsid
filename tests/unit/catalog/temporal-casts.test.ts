@@ -21,6 +21,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalInstantAge,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
@@ -590,4 +591,38 @@ it('admits only text-template date/instant parsers with conditional context', ()
       ),
     ).toBe(true)
   }
+})
+
+it('threads timezone only into the native two-instant calendar age overload', () => {
+  const items = builtinCallables().filter(
+    (f): f is FunctionMetadata => f.kind === 'function' && isTemporalInstantAge(f),
+  )
+  expect(items.map((f) => f.rustName)).toEqual(['sql__pg_catalog__age__74kj'])
+  const item = items[0]!
+  for (const changed of [
+    { schema: 'other' },
+    { strict: false },
+    { volatility: 's' as const },
+    { returnsSet: true },
+    { args: ['pg_catalog."timestamp"', 'pg_catalog."timestamp"'] },
+    { result: 'pg_catalog.timestamptz' },
+  ])
+    expect(isTemporalInstantAge({ ...item, ...changed })).toBe(false)
+  const probe = bindProbe('pg_catalog.age(first_stamp,second_stamp) IS NOT NULL', [
+    { name: 'first_stamp', typeName: 'pg_catalog.timestamptz' },
+    { name: 'second_stamp', typeName: 'pg_catalog.timestamptz' },
+  ])
+  expect(probe.fullyBound).toBe(true)
+  expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+  expect(checkUnknownMessage(probe.expression)).toContain('sql.codegen.checks.timeZone')
+  expect(checkUnknownMessage(probe.expression, undefined, { timeZone: 'UTC' })).not.toContain(
+    'sql.codegen.checks.',
+  )
+  expect(temporalArithmeticRequirements(item)).toMatchObject([
+    {
+      kind: 'session',
+      setting: 'TimeZone',
+      owner: 'tests/sql-semantics/check-instant-age.test.ts',
+    },
+  ])
 })

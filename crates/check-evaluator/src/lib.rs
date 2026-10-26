@@ -162,6 +162,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_output.rs");
     include!("operations/pg_catalog/timezone_casts.rs");
     include!("operations/pg_catalog/timezone_interval.rs");
+    include!("operations/pg_catalog/timezone_age.rs");
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/binary_send.rs");
     include!("operations/pg_catalog/time_send.rs");

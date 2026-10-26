@@ -280,3 +280,16 @@ export function isTemporalTemplateParsing(item: BuiltinCallable): boolean {
       (item.name === 'to_timestamp' && item.result === 'pg_catalog.timestamptz'))
   )
 }
+
+export function isTemporalInstantAge(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'age' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.join(',') === 'pg_catalog.timestamptz,pg_catalog.timestamptz' &&
+    item.result === 'pg_catalog."interval"'
+  )
+}
