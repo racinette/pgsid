@@ -17,6 +17,7 @@ import {
   isTemporalContextComparison,
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
+  isTemporalIntervalFormatting,
   isTemporalInstantPeriod,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -3132,6 +3133,7 @@ export function emitCheckRustEvaluator(
           !isTemporalLocalTimezone(implementation) &&
           !isTemporalInstantConstructor(implementation) &&
           !isTemporalInstantPeriod(implementation) &&
+          !isTemporalIntervalFormatting(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&

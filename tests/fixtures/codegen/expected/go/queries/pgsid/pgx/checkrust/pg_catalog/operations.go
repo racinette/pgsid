@@ -15730,6 +15730,406 @@ func TimestamptzMiAv9n(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return TimestampMiSntt(a, b)
 }
 
+var intervalFormatRoman = []string{"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"}
+
+func temporalFormatInteger(value int64, width int) string {
+	width = langruntime.CheckedIndex(width)
+	magnitude := value
+	output := langruntime.NewTextBuffer("")
+	if value < int64(0) {
+		magnitude = langruntime.CheckedI64Subtract(int64(0), magnitude)
+		output = append(output, string(langruntime.CheckedChar('-'))...)
+	}
+	digits := checkruntime.TextSignedNumber(magnitude)
+	digitsCharacters := []rune(digits)
+	length := len(digitsCharacters)
+	if value < int64(0) {
+		length = langruntime.CheckedAdd(length, 1)
+	}
+	for length < width {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+		length = langruntime.CheckedAdd(length, 1)
+	}
+	output = append(output, digits...)
+	return string(output)
+}
+func temporalFormatOrdinal(input string, lower bool) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	suffix := langruntime.NewTextBuffer("TH")
+	length := len(characters)
+	if length > 0 && (length < 2 || characters[langruntime.CheckedSubtract(length, 2)] != '1') {
+		if characters[langruntime.CheckedSubtract(length, 1)] == '1' {
+			suffix = langruntime.NewTextBuffer("ST")
+		}
+		if characters[langruntime.CheckedSubtract(length, 1)] == '2' {
+			suffix = langruntime.NewTextBuffer("ND")
+		}
+		if characters[langruntime.CheckedSubtract(length, 1)] == '3' {
+			suffix = langruntime.NewTextBuffer("RD")
+		}
+	}
+	output := langruntime.NewTextBuffer(input)
+	letters := []rune(string(suffix))
+	index := 0
+	for index < len(letters) {
+		letter := letters[index]
+		if lower {
+			letter = langruntime.CheckedChar(langruntime.AsciiLowercase(letter))
+		}
+		output = append(output, string(langruntime.CheckedChar(letter))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func temporalFormatWord(value int64) int64 {
+	result := langruntime.CheckedI64Remainder(value, int64(4294967296))
+	if result < int64(0) {
+		result = langruntime.CheckedI64Add(result, int64(4294967296))
+	}
+	if result >= int64(2147483648) {
+		result = langruntime.CheckedI64Subtract(result, int64(4294967296))
+	}
+	return result
+}
+func temporalFormatJulian(year int, month int, day int) int64 {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	return temporalFormatWord(temporalJulianFromCalendar(year, month, day))
+}
+func temporalFormatWeekStart(year int) int64 {
+	year = langruntime.CheckedI32(year)
+	fourth := temporalFormatJulian(year, 1, 4)
+	weekday := langruntime.CheckedI64Remainder(fourth, int64(7))
+	if weekday < int64(0) {
+		weekday = langruntime.CheckedI64Add(weekday, int64(7))
+	}
+	return temporalFormatWord(langruntime.CheckedI64Subtract(fourth, weekday))
+}
+func intervalFormatIso(span checkruntime.IntervalPayload, kind int) int64 {
+	kind = langruntime.CheckedI32(kind)
+	year := langruntime.CheckedSignedDivide(span.Months, 12)
+	day := temporalFormatJulian(year, langruntime.CheckedSignedRemainder(span.Months, 12), span.Days)
+	isoYear := year
+	start := temporalFormatWeekStart(year)
+	if day < start {
+		isoYear = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(year, 1))
+		start = temporalFormatWeekStart(isoYear)
+	}
+	week := langruntime.CheckedI64Add(langruntime.CheckedI64Divide(temporalFormatWord(langruntime.CheckedI64Subtract(day, start)), int64(7)), int64(1))
+	if week >= int64(52) {
+		nextYear := langruntime.CheckedSignedAdd(isoYear, 1)
+		if kind == 40 {
+			nextYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1))
+		}
+		next := temporalFormatWeekStart(nextYear)
+		if day >= next {
+			week = langruntime.CheckedI64Add(langruntime.CheckedI64Divide(temporalFormatWord(langruntime.CheckedI64Subtract(day, next)), int64(7)), int64(1))
+			isoYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(isoYear, 1))
+			start = next
+		}
+	}
+	if kind == 40 {
+		return week
+	}
+	if kind == 38 {
+		return temporalFormatWord(langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(day, start), int64(1)))
+	}
+	return int64(langruntime.CheckedI32(isoYear))
+}
+func intervalFormatField(span checkruntime.IntervalPayload, kind int, fill bool, lower bool) string {
+	kind = langruntime.CheckedI32(kind)
+	year := int64(langruntime.CheckedI32((langruntime.CheckedSignedDivide(span.Months, 12))))
+	month := int64(langruntime.CheckedI32((langruntime.CheckedSignedRemainder(span.Months, 12))))
+	hour := langruntime.CheckedI64Divide(span.Time, int64(3600000000))
+	minute := langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(span.Time, int64(60000000))), int64(60))
+	second := langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(span.Time, int64(1000000))), int64(60))
+	fraction := langruntime.CheckedI64Remainder(span.Time, int64(1000000))
+	value := int64(0)
+	width := 0
+	if kind >= 1 && kind <= 4 {
+		value = year
+		if kind == 2 {
+			value = langruntime.CheckedI64Remainder(year, int64(1000))
+		}
+		if kind == 3 {
+			value = langruntime.CheckedI64Remainder(year, int64(100))
+		}
+		if kind == 4 {
+			value = langruntime.CheckedI64Remainder(year, int64(10))
+		}
+		width = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(5, kind), 0))
+		if year < int64(0) && kind != 4 {
+			width = langruntime.CheckedAdd(width, 1)
+		}
+	}
+	if kind == 5 {
+		value = month
+		width = langruntime.CheckedIndex(2)
+		if month < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 6 {
+		value = int64(langruntime.CheckedI32(span.Days))
+		width = langruntime.CheckedIndex(2)
+	}
+	if kind == 7 {
+		value = hour
+		width = langruntime.CheckedIndex(2)
+		if hour < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 41 {
+		value = langruntime.CheckedI64Remainder(hour, int64(12))
+		if value == int64(0) {
+			value = int64(12)
+		}
+		width = langruntime.CheckedIndex(2)
+		if hour < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 8 || kind == 9 {
+		value = minute
+		if kind == 9 {
+			value = second
+		}
+		width = langruntime.CheckedIndex(2)
+		if value < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 10 || kind == 11 || (kind >= 12 && kind <= 17) {
+		precision := langruntime.CheckedSignedSubtract(kind, 11)
+		if kind == 10 {
+			precision = langruntime.CheckedI32(3)
+		}
+		if kind == 11 {
+			precision = langruntime.CheckedI32(6)
+		}
+		divisor := int64(1)
+		precisionIndex := precision
+		for precisionIndex < 6 {
+			divisor = langruntime.CheckedI64Multiply(divisor, int64(10))
+			precisionIndex = langruntime.CheckedI32(langruntime.CheckedSignedAdd(precisionIndex, 1))
+		}
+		return temporalFormatInteger(langruntime.CheckedI64Divide(fraction, divisor), langruntime.IndexFromI32(precision, 0))
+	}
+	if kind == 18 {
+		value = langruntime.CheckedI64Divide(span.Time, int64(1000000))
+	}
+	if kind == 24 || kind == 26 {
+		value = temporalFormatWord(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(span.Months))), int64(30)), (int64(langruntime.CheckedI32(span.Days)))))
+		width = langruntime.CheckedIndex(3)
+		if kind == 26 {
+			value = langruntime.CheckedI64Add(langruntime.CheckedI64Divide(temporalFormatWord(langruntime.CheckedI64Subtract(value, int64(1))), int64(7)), int64(1))
+			width = langruntime.CheckedIndex(2)
+		}
+	}
+	if kind == 27 {
+		value = langruntime.CheckedI64Add(langruntime.CheckedI64Divide(temporalFormatWord(langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(span.Days))), int64(1))), int64(7)), int64(1))
+	}
+	if kind == 29 {
+		if month == int64(0) {
+			return ""
+		}
+		value = langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(month, int64(1))), int64(3)), int64(1))
+	}
+	if kind == 30 {
+		value = langruntime.CheckedI64Divide(year, int64(100))
+		width = langruntime.CheckedIndex(2)
+		if value < int64(0) {
+			width = langruntime.CheckedIndex(3)
+		}
+	}
+	if kind == 33 {
+		output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(year, int64(1000))))
+		output = append(output, string(langruntime.CheckedChar(','))...)
+		output = append(output, temporalFormatInteger(langruntime.CheckedI64Remainder(year, int64(1000)), 3)...)
+		return string(output)
+	}
+	if kind == 40 || (kind >= 34 && kind <= 38) {
+		value = intervalFormatIso(span, kind)
+		if kind == 40 {
+			width = langruntime.CheckedIndex(2)
+		} else if kind == 38 {
+			width = langruntime.CheckedIndex(3)
+		} else {
+			if kind == 35 {
+				value = langruntime.CheckedI64Remainder(value, int64(1000))
+			}
+			if kind == 36 {
+				value = langruntime.CheckedI64Remainder(value, int64(100))
+			}
+			if kind == 37 {
+				value = langruntime.CheckedI64Remainder(value, int64(10))
+			}
+			width = langruntime.CheckedIndex(langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(38, kind), 0))
+			if year < int64(0) && kind != 37 {
+				width = langruntime.CheckedAdd(width, 1)
+			}
+		}
+	}
+	if kind == 28 {
+		value = temporalFormatJulian(langruntime.CheckedSignedDivide(span.Months, 12), langruntime.CheckedSignedRemainder(span.Months, 12), span.Days)
+	}
+	if kind == 42 || kind == 43 {
+		output := langruntime.NewTextBuffer("AM")
+		if kind == 43 {
+			output = langruntime.NewTextBuffer("A.M.")
+		}
+		if langruntime.CheckedI64Remainder(hour, int64(24)) >= int64(12) {
+			output = langruntime.NewTextBuffer("PM")
+			if kind == 43 {
+				output = langruntime.NewTextBuffer("P.M.")
+			}
+		}
+		result := langruntime.NewTextBuffer("")
+		characters := []rune(string(output))
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			if lower {
+				character = langruntime.CheckedChar(langruntime.AsciiLowercase(character))
+			}
+			result = append(result, string(langruntime.CheckedChar(character))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return string(result)
+	}
+	if kind == 48 {
+		if month == int64(0) && year == int64(0) {
+			return ""
+		}
+		selected := month
+		if month == int64(0) {
+			selected = int64(12)
+			if year < int64(0) {
+				selected = int64(1)
+			}
+		} else if month < int64(0) {
+			selected = langruntime.CheckedI64Add(int64(13), month)
+		}
+		characters := []rune(intervalFormatRoman[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract((int(int32(selected))), 1), 0)])
+		output := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(characters) {
+			character := characters[index]
+			if lower {
+				character = langruntime.CheckedChar(langruntime.AsciiLowercase(character))
+			}
+			output = append(output, string(langruntime.CheckedChar(character))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for fill == false && index < 4 {
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return string(output)
+	}
+	if fill {
+		width = langruntime.CheckedIndex(0)
+	}
+	return temporalFormatInteger(value, width)
+}
+func ToChar0fwv(input checkruntime.IntervalValue, template checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		span := input.Value
+		if intervalSpecial(span) != 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			if format == "" {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+			}
+			source := jsonpathTemporalSource{characters: []rune(format)}
+			output := langruntime.NewTextBuffer("")
+			position := 0
+			for position < len(source.characters) {
+				fill := jsonpathTemplateMatches(&source, position, "FM") || jsonpathTemplateMatches(&source, position, "fm")
+				if fill || jsonpathTemplateMatches(&source, position, "TM") || jsonpathTemplateMatches(&source, position, "tm") {
+					position = langruntime.CheckedAdd(position, 2)
+				}
+				key := len(jsonpathTemplateNames)
+				index := 0
+				for index < len(jsonpathTemplateNames) && key == len(jsonpathTemplateNames) {
+					if jsonpathTemplateMatches(&source, position, jsonpathTemplateNames[index]) {
+						key = langruntime.CheckedIndex(index)
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if key < len(jsonpathTemplateNames) {
+					name := jsonpathTemplateNames[key]
+					letters := []rune(name)
+					lower := letters[0] == langruntime.AsciiLowercase(letters[0])
+					kind := jsonpathTemplateKinds[key]
+					position = langruntime.CheckedAdd(position, len(letters))
+					ordinalUpper := jsonpathTemplateMatches(&source, position, "TH")
+					ordinalLower := jsonpathTemplateMatches(&source, position, "th")
+					if ordinalUpper || ordinalLower || jsonpathTemplateMatches(&source, position, "SP") {
+						position = langruntime.CheckedAdd(position, 2)
+					}
+					if (kind >= 19 && kind <= 22) || kind == 25 || kind == 39 || kind == 31 || kind == 32 || (kind >= 44 && kind <= 47) {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateFormat)}
+					}
+					if kind != 23 {
+						field := langruntime.NewTextBuffer(intervalFormatField(span, kind, fill, lower))
+						if (ordinalUpper || ordinalLower) && kind != 42 && kind != 43 && kind != 48 && (kind != 29 || langruntime.CheckedSignedRemainder(span.Months, 12) != 0) {
+							field = langruntime.NewTextBuffer(temporalFormatOrdinal(string(field), ordinalLower))
+						}
+						output = append(output, string(field)...)
+					}
+				} else if position < len(source.characters) {
+					character := source.characters[position]
+					position = langruntime.CheckedAdd(position, 1)
+					if character == '"' {
+						quoted := true
+						for position < len(source.characters) && quoted {
+							literal := source.characters[position]
+							position = langruntime.CheckedAdd(position, 1)
+							if literal == '"' {
+								quoted = false
+							} else {
+								if literal == '\\' && position < len(source.characters) {
+									literal = langruntime.CheckedChar(source.characters[position])
+									position = langruntime.CheckedAdd(position, 1)
+								}
+								output = append(output, string(langruntime.CheckedChar(literal))...)
+							}
+						}
+					} else {
+						if character == '\\' && position < len(source.characters) && source.characters[position] == '"' {
+							character = langruntime.CheckedChar('"')
+							position = langruntime.CheckedAdd(position, 1)
+						}
+						output = append(output, string(langruntime.CheckedChar(character))...)
+					}
+				}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
 const intervalMathDivisionZero = 3452582
 
 func IntervalTextPrecisionContext(input checkruntime.TextValue, fields checkruntime.Int4Value, modifier checkruntime.Int4Value, style int) checkruntime.IntervalValue {

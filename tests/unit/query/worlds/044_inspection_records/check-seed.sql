@@ -2017,3 +2017,36 @@ INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,sec
 INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('2000-01-01+00','1 day','2000-01-02+00','2000-01-02+00','1 day','2000-01-03+00',false,false,true,false);
 -- name: DurationPeriodSkipped
 INSERT INTO inspection_duration_periods(first_start,first_duration,first_end,second_start,second_duration,second_end,expected_both,expected_left,expected_right,bypass) VALUES('infinity','-infinity',NULL,NULL,'0',NULL,NULL,NULL,NULL,true);
+
+-- name: DurationLabelPositive
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 year 2 months 3 days 04:05:06.123456','YYYY-MM-DD HH24:MI:SS.US','0001-02-03 04:05:06.123456',false);
+-- name: DurationLabelNegative
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('-1 year -2 months -3 days -04:05:06.123456','YYYY-MM-DD HH24:MI:SS.US','-0001--02--3 -04:-05:-06.-123456',false);
+-- name: DurationLabelTotalHours
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('49:02:03','HH24 HH12 AM SSSSS','49 01 AM 176523',false);
+-- name: DurationLabelFractionFill
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('0.001002 seconds','FMMS FMUS FF1 FF4','001 001002 0 0010',false);
+-- name: DurationLabelRomanFullYear
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('12 months','RM|FMRM|rm','XII |XII|xii ',false);
+-- name: DurationLabelOrdinal
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('21 days','DDth "day"','21st day',false);
+-- name: DurationLabelEmptyQuarter
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('0','Q','',false);
+-- name: DurationLabelEmptyPattern
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','',NULL,false);
+-- name: DurationLabelQuotedEmpty
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','""','',false);
+-- name: DurationLabelNull
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES (NULL,'HH24',NULL,false);
+-- name: DurationLabelNullPattern
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day',NULL,NULL,false);
+-- name: DurationLabelInfinity
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('infinity','MONTH',NULL,false);
+-- name: DurationLabelInvalidCalendar
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','MONTH',NULL,false);
+-- name: DurationLabelInvalidTimezone
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','TZH',NULL,false);
+-- name: DurationLabelSkipped
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('1 day','MONTH',NULL,true);
+-- name: DurationLabelWrong
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('25 hours','HH24','01',false);

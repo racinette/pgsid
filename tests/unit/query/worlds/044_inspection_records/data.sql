@@ -17,3 +17,4 @@ INSERT INTO inspection_import_batches(reading,fallback,minimum_score,expected_ba
 INSERT INTO inspection_record_rechecks(reading,minimum_score,expected_empty,bypass) VALUES (NULL,1,true,false);
 
 INSERT INTO inspection_mixed_conversions(reading,fallback,minimum_score,expected_document,use_text,bypass) VALUES (ROW(9,'ok',3,true)::inspection_extensions,NULL,1,'{"score":3,"label":"ok"}',false,false);
+INSERT INTO inspection_duration_labels(elapsed,label_pattern,expected_label,bypass) VALUES ('25:02:03.123456','HH24:MI:SS.US','25:02:03.123456',false);

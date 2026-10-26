@@ -1,3 +1,4 @@
+import type { FunctionMetadata } from '../../../src/postgres/builtins/catalog.js'
 import { expect, it } from 'vitest'
 import { bindProbe } from '../../../scripts/check-measurements/probes.js'
 import {
@@ -19,6 +20,7 @@ import {
   isTemporalLocalTimezone,
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
+  isTemporalIntervalFormatting,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalClockZoneLookup,
@@ -459,5 +461,32 @@ it('admits only native instant range and duration-overlap signatures with condit
         'sql.codegen.checks.',
       )
     }
+  }
+})
+
+it('admits the native interval formatter independently of input collation and session text rendering', () => {
+  const items = builtinCallables().filter(
+    (item): item is FunctionMetadata =>
+      item.kind === 'function' && isTemporalIntervalFormatting(item),
+  )
+  expect(items.map((item) => item.rustName)).toEqual(['sql__pg_catalog__to_char__0fwv'])
+  const item = items[0]!
+  for (const changed of [
+    { schema: 'other' },
+    { volatility: 'i' as const },
+    { strict: false },
+    { args: ['pg_catalog.timestamptz', 'pg_catalog.text'] },
+    { result: 'pg_catalog.bool' },
+  ])
+    expect(isTemporalIntervalFormatting({ ...item, ...changed })).toBe(false)
+  const columns = [
+    { name: 'span', typeName: 'pg_catalog."interval"' },
+    { name: 'picture', typeName: 'pg_catalog.text' },
+  ]
+  for (const text of ['picture', 'picture COLLATE "C"']) {
+    const probe = bindProbe(`pg_catalog.to_char(span,${text}) IS NOT NULL`, columns)
+    expect(probe.fullyBound).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(probe.expression))).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(probe.expression, false))).toBe(true)
   }
 })

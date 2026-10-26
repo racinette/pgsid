@@ -15819,6 +15819,415 @@ export function timestamptzMiAv9n(left: checkruntime.TimestamptzValue, right: ch
     const b: checkruntime.TimestampValue = intervalCalendarLocalPayload(right);
     return timestampMiSntt(a, b);
 }
+const intervalFormatRoman: ReadonlyArray<string> = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+function temporalFormatInteger(value: bigint, width: number): string {
+    value = langruntime.checkedI64(value);
+    width = langruntime.checkedIndex(width);
+    let magnitude: bigint = value;
+    let output: string = "";
+    if (value < 0n) {
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, magnitude));
+        output = output + langruntime.checkedChar("-");
+    }
+    const digits: string = checkruntime.textSignedNumber(magnitude);
+    const digitsCharacters: string[] = Array.from(digits);
+    let length: number = digitsCharacters.length;
+    if (value < 0n) {
+        length = langruntime.checkedAdd(length, 1);
+    }
+    while (length < width) {
+        output = output + langruntime.checkedChar("0");
+        length = langruntime.checkedAdd(length, 1);
+    }
+    output = output + digits;
+    return output;
+}
+function temporalFormatOrdinal(input: string, lower: boolean): string {
+    input = langruntime.checkedString(input);
+    lower = langruntime.checkedBool(lower);
+    const characters: string[] = Array.from(input);
+    let suffix: string = "TH";
+    const length: number = characters.length;
+    if (length > 0 && (length < 2 || !(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(length, 2))) === "1"))) {
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(length, 1))) === "1") {
+            suffix = langruntime.checkedString("ST");
+        }
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(length, 1))) === "2") {
+            suffix = langruntime.checkedString("ND");
+        }
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(length, 1))) === "3") {
+            suffix = langruntime.checkedString("RD");
+        }
+    }
+    let output: string = input;
+    const letters: string[] = Array.from(suffix);
+    let index: number = 0;
+    while (index < letters.length) {
+        let letter: string = langruntime.indexChar(letters, langruntime.checkedIndex(index));
+        if (lower) {
+            letter = langruntime.checkedChar(langruntime.asciiLowercase(letter));
+        }
+        output = output + langruntime.checkedChar(letter);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function temporalFormatWord(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    let result: bigint = langruntime.checkedI64Remainder(value, 4294967296n);
+    if (result < 0n) {
+        result = langruntime.checkedI64(langruntime.checkedI64Add(result, 4294967296n));
+    }
+    if (result >= 2147483648n) {
+        result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, 4294967296n));
+    }
+    return result;
+}
+function temporalFormatJulian(year: number, month: number, day: number): bigint {
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    return temporalFormatWord(temporalJulianFromCalendar(year, month, day));
+}
+function temporalFormatWeekStart(year: number): bigint {
+    year = langruntime.checkedI32(year);
+    const fourth: bigint = temporalFormatJulian(year, 1, 4);
+    let weekday: bigint = langruntime.checkedI64Remainder(fourth, 7n);
+    if (weekday < 0n) {
+        weekday = langruntime.checkedI64(langruntime.checkedI64Add(weekday, 7n));
+    }
+    return temporalFormatWord(langruntime.checkedI64Subtract(fourth, weekday));
+}
+function intervalFormatIso(span: checkruntime.IntervalPayload, kind: number): bigint {
+    kind = langruntime.checkedI32(kind);
+    const year: number = langruntime.checkedSignedDivide(span.months, 12);
+    const day: bigint = temporalFormatJulian(year, langruntime.checkedSignedRemainder(span.months, 12), span.days);
+    let isoYear: number = year;
+    let start: bigint = temporalFormatWeekStart(year);
+    if (day < start) {
+        isoYear = langruntime.checkedI32(langruntime.checkedSignedSubtract(year, 1));
+        start = langruntime.checkedI64(temporalFormatWeekStart(isoYear));
+    }
+    let week: bigint = langruntime.checkedI64Add(langruntime.checkedI64Divide(temporalFormatWord(langruntime.checkedI64Subtract(day, start)), 7n), 1n);
+    if (week >= 52n) {
+        let nextYear: number = langruntime.checkedSignedAdd(isoYear, 1);
+        if (kind === 40) {
+            nextYear = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1));
+        }
+        const next: bigint = temporalFormatWeekStart(nextYear);
+        if (day >= next) {
+            week = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide(temporalFormatWord(langruntime.checkedI64Subtract(day, next)), 7n), 1n));
+            isoYear = langruntime.checkedI32(langruntime.checkedSignedAdd(isoYear, 1));
+            start = langruntime.checkedI64(next);
+        }
+    }
+    if (kind === 40) {
+        return week;
+    }
+    if (kind === 38) {
+        return temporalFormatWord(langruntime.checkedI64Add(langruntime.checkedI64Subtract(day, start), 1n));
+    }
+    return BigInt(langruntime.checkedI32(isoYear));
+}
+function intervalFormatField(span: checkruntime.IntervalPayload, kind: number, fill: boolean, lower: boolean): string {
+    kind = langruntime.checkedI32(kind);
+    fill = langruntime.checkedBool(fill);
+    lower = langruntime.checkedBool(lower);
+    const year: bigint = BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide(span.months, 12))));
+    const month: bigint = BigInt(langruntime.checkedI32((langruntime.checkedSignedRemainder(span.months, 12))));
+    const hour: bigint = langruntime.checkedI64Divide(span.time, 3600000000n);
+    const minute: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Divide(span.time, 60000000n)), 60n);
+    const second: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Divide(span.time, 1000000n)), 60n);
+    const fraction: bigint = langruntime.checkedI64Remainder(span.time, 1000000n);
+    let value: bigint = 0n;
+    let width: number = 0;
+    if (kind >= 1 && kind <= 4) {
+        value = langruntime.checkedI64(year);
+        if (kind === 2) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(year, 1000n));
+        }
+        if (kind === 3) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(year, 100n));
+        }
+        if (kind === 4) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(year, 10n));
+        }
+        width = langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(5, kind), 0));
+        if (year < 0n && !(kind === 4)) {
+            width = langruntime.checkedAdd(width, 1);
+        }
+    }
+    if (kind === 5) {
+        value = langruntime.checkedI64(month);
+        width = langruntime.checkedIndex(2);
+        if (month < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 6) {
+        value = langruntime.checkedI64(BigInt(langruntime.checkedI32(span.days)));
+        width = langruntime.checkedIndex(2);
+    }
+    if (kind === 7) {
+        value = langruntime.checkedI64(hour);
+        width = langruntime.checkedIndex(2);
+        if (hour < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 41) {
+        value = langruntime.checkedI64(langruntime.checkedI64Remainder(hour, 12n));
+        if (value === 0n) {
+            value = langruntime.checkedI64(12n);
+        }
+        width = langruntime.checkedIndex(2);
+        if (hour < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 8 || kind === 9) {
+        value = langruntime.checkedI64(minute);
+        if (kind === 9) {
+            value = langruntime.checkedI64(second);
+        }
+        width = langruntime.checkedIndex(2);
+        if (value < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 10 || kind === 11 || (kind >= 12 && kind <= 17)) {
+        let precision: number = langruntime.checkedSignedSubtract(kind, 11);
+        if (kind === 10) {
+            precision = langruntime.checkedI32(3);
+        }
+        if (kind === 11) {
+            precision = langruntime.checkedI32(6);
+        }
+        let divisor: bigint = 1n;
+        let precisionIndex: number = precision;
+        while (precisionIndex < 6) {
+            divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 10n));
+            precisionIndex = langruntime.checkedI32(langruntime.checkedSignedAdd(precisionIndex, 1));
+        }
+        return temporalFormatInteger(langruntime.checkedI64Divide(fraction, divisor), langruntime.indexFromI32(precision, 0));
+    }
+    if (kind === 18) {
+        value = langruntime.checkedI64(langruntime.checkedI64Divide(span.time, 1000000n));
+    }
+    if (kind === 24 || kind === 26) {
+        value = langruntime.checkedI64(temporalFormatWord(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(span.months))), 30n), (BigInt(langruntime.checkedI32(span.days))))));
+        width = langruntime.checkedIndex(3);
+        if (kind === 26) {
+            value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide(temporalFormatWord(langruntime.checkedI64Subtract(value, 1n)), 7n), 1n));
+            width = langruntime.checkedIndex(2);
+        }
+    }
+    if (kind === 27) {
+        value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide(temporalFormatWord(langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(span.days))), 1n)), 7n), 1n));
+    }
+    if (kind === 29) {
+        if (month === 0n) {
+            return "";
+        }
+        value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(month, 1n)), 3n), 1n));
+    }
+    if (kind === 30) {
+        value = langruntime.checkedI64(langruntime.checkedI64Divide(year, 100n));
+        width = langruntime.checkedIndex(2);
+        if (value < 0n) {
+            width = langruntime.checkedIndex(3);
+        }
+    }
+    if (kind === 33) {
+        let output: string = checkruntime.textSignedNumber(langruntime.checkedI64Divide(year, 1000n));
+        output = output + langruntime.checkedChar(",");
+        output = output + temporalFormatInteger(langruntime.checkedI64Remainder(year, 1000n), 3);
+        return output;
+    }
+    if (kind === 40 || (kind >= 34 && kind <= 38)) {
+        value = langruntime.checkedI64(intervalFormatIso(span, kind));
+        if (kind === 40) {
+            width = langruntime.checkedIndex(2);
+        }
+        else if (kind === 38) {
+            width = langruntime.checkedIndex(3);
+        }
+        else {
+            if (kind === 35) {
+                value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 1000n));
+            }
+            if (kind === 36) {
+                value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 100n));
+            }
+            if (kind === 37) {
+                value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 10n));
+            }
+            width = langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(38, kind), 0));
+            if (year < 0n && !(kind === 37)) {
+                width = langruntime.checkedAdd(width, 1);
+            }
+        }
+    }
+    if (kind === 28) {
+        value = langruntime.checkedI64(temporalFormatJulian(langruntime.checkedSignedDivide(span.months, 12), langruntime.checkedSignedRemainder(span.months, 12), span.days));
+    }
+    if (kind === 42 || kind === 43) {
+        let output: string = "AM";
+        if (kind === 43) {
+            output = langruntime.checkedString("A.M.");
+        }
+        if (langruntime.checkedI64Remainder(hour, 24n) >= 12n) {
+            output = langruntime.checkedString("PM");
+            if (kind === 43) {
+                output = langruntime.checkedString("P.M.");
+            }
+        }
+        let result: string = "";
+        const characters: string[] = Array.from(output);
+        let index: number = 0;
+        while (index < characters.length) {
+            let character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (lower) {
+                character = langruntime.checkedChar(langruntime.asciiLowercase(character));
+            }
+            result = result + langruntime.checkedChar(character);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return result;
+    }
+    if (kind === 48) {
+        if (month === 0n && year === 0n) {
+            return "";
+        }
+        let selected: bigint = month;
+        if (month === 0n) {
+            selected = langruntime.checkedI64(12n);
+            if (year < 0n) {
+                selected = langruntime.checkedI64(1n);
+            }
+        }
+        else if (month < 0n) {
+            selected = langruntime.checkedI64(langruntime.checkedI64Add(13n, month));
+        }
+        const characters: string[] = Array.from(langruntime.indexStatic(intervalFormatRoman, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract((Number(BigInt.asIntN(32, langruntime.checkedI64(selected)))), 1), 0))));
+        let output: string = "";
+        let index: number = 0;
+        while (index < characters.length) {
+            let character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (lower) {
+                character = langruntime.checkedChar(langruntime.asciiLowercase(character));
+            }
+            output = output + langruntime.checkedChar(character);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (fill === false && index < 4) {
+            output = output + langruntime.checkedChar(" ");
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return output;
+    }
+    if (fill) {
+        width = langruntime.checkedIndex(0);
+    }
+    return temporalFormatInteger(value, width);
+}
+export function toChar0fwv(input: checkruntime.IntervalValue, template: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const span: checkruntime.IntervalPayload = input.value;
+        if (!(intervalSpecial(span) === 0)) {
+            return { kind: "Null" };
+        }
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            if (format === "") {
+                return { kind: "Null" };
+            }
+            const source: JsonpathTemporalSource = { characters: Array.from(format) };
+            let output: string = "";
+            let position: number = 0;
+            while (position < source.characters.length) {
+                const fill: boolean = jsonpathTemplateMatches(source, position, "FM") || jsonpathTemplateMatches(source, position, "fm");
+                if (fill || jsonpathTemplateMatches(source, position, "TM") || jsonpathTemplateMatches(source, position, "tm")) {
+                    position = langruntime.checkedAdd(position, 2);
+                }
+                let key: number = jsonpathTemplateNames.length;
+                let index: number = 0;
+                while (index < jsonpathTemplateNames.length && key === jsonpathTemplateNames.length) {
+                    if (jsonpathTemplateMatches(source, position, langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(index)))) {
+                        key = langruntime.checkedIndex(index);
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (key < jsonpathTemplateNames.length) {
+                    const name: string = langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(key));
+                    const letters: string[] = Array.from(name);
+                    const lower: boolean = langruntime.indexChar(letters, langruntime.checkedIndex(0)) === langruntime.asciiLowercase(langruntime.indexChar(letters, langruntime.checkedIndex(0)));
+                    const kind: number = langruntime.indexStatic(jsonpathTemplateKinds, langruntime.checkedIndex(key));
+                    position = langruntime.checkedAdd(position, letters.length);
+                    const ordinalUpper: boolean = jsonpathTemplateMatches(source, position, "TH");
+                    const ordinalLower: boolean = jsonpathTemplateMatches(source, position, "th");
+                    if (ordinalUpper || ordinalLower || jsonpathTemplateMatches(source, position, "SP")) {
+                        position = langruntime.checkedAdd(position, 2);
+                    }
+                    if ((kind >= 19 && kind <= 22) || kind === 25 || kind === 39 || kind === 31 || kind === 32 || (kind >= 44 && kind <= 47)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(jsonpathTemplateFormat) };
+                    }
+                    if (!(kind === 23)) {
+                        let field: string = intervalFormatField(span, kind, fill, lower);
+                        if ((ordinalUpper || ordinalLower) && !(kind === 42) && !(kind === 43) && !(kind === 48) && (!(kind === 29) || !(langruntime.checkedSignedRemainder(span.months, 12) === 0))) {
+                            field = langruntime.checkedString(temporalFormatOrdinal(field, ordinalLower));
+                        }
+                        output = output + field;
+                    }
+                }
+                else if (position < source.characters.length) {
+                    let character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                    position = langruntime.checkedAdd(position, 1);
+                    if (character === "\"") {
+                        let quoted: boolean = true;
+                        while (position < source.characters.length && quoted) {
+                            let literal: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                            position = langruntime.checkedAdd(position, 1);
+                            if (literal === "\"") {
+                                quoted = langruntime.checkedBool(false);
+                            }
+                            else {
+                                if (literal === "\\" && position < source.characters.length) {
+                                    literal = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                                    position = langruntime.checkedAdd(position, 1);
+                                }
+                                output = output + langruntime.checkedChar(literal);
+                            }
+                        }
+                    }
+                    else {
+                        if (character === "\\" && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\"") {
+                            character = langruntime.checkedChar("\"");
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        output = output + langruntime.checkedChar(character);
+                    }
+                }
+            }
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
 const intervalMathDivisionZero = 3452582;
 export function intervalTextPrecisionContext(input: checkruntime.TextValue, fields: checkruntime.Int4Value, modifier: checkruntime.Int4Value, style: number): checkruntime.IntervalValue {
     style = langruntime.checkedI32(style);
