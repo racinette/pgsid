@@ -1377,3 +1377,18 @@ CREATE TABLE inspection_zone_truncation (
  CONSTRAINT explicit_zone_truncate_array CHECK(CASE WHEN bypass THEN true ELSE
    timestamptz_send((ARRAY[date_trunc(unit_name,instant_at,zone_name),NULL::timestamptz])[1]) IS NOT DISTINCT FROM timestamptz_send(expected_truncated) END)
 );
+
+CREATE TABLE inspection_zone_projections (
+ local_stamp timestamp,
+ instant_at timestamptz,
+ zone_name text,
+ expected_instant timestamptz,
+ expected_stamp timestamp,
+ bypass boolean NOT NULL,
+ CONSTRAINT explicit_zone_attach CHECK(CASE WHEN bypass THEN true ELSE
+   timestamptz_send(timezone(zone_name,local_stamp)) IS NOT DISTINCT FROM timestamptz_send(expected_instant) END),
+ CONSTRAINT explicit_zone_project CHECK(CASE WHEN bypass THEN true ELSE
+   timestamp_send(timezone(zone_name,instant_at)) IS NOT DISTINCT FROM timestamp_send(expected_stamp) END),
+ CONSTRAINT explicit_zone_project_record CHECK(CASE WHEN bypass THEN true ELSE
+   (ROW(timezone(zone_name,instant_at),timezone(zone_name,local_stamp))::inspection_clock_boundary).local_stamp IS NOT DISTINCT FROM expected_stamp END)
+);

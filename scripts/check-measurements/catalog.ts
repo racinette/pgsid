@@ -753,9 +753,11 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         requirement:
           'Explicit timezone-name lookup consults the session timezone abbreviation definitions before the registry and tzdb.',
         owner:
-          item.name === 'date_trunc'
-            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+          item.name === 'timezone'
+            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+            : item.name === 'date_trunc'
+              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
       },
       {
         kind: 'session',
@@ -763,9 +765,11 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         requirement:
           'The declared Default profile supplies matching fixed and dynamic abbreviation definitions; absent registry facts defer reached lookup.',
         owner:
-          item.name === 'date_trunc'
-            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+          item.name === 'timezone'
+            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+            : item.name === 'date_trunc'
+              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
       },
       {
         kind: 'build',
@@ -773,9 +777,11 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         requirement:
           'Abbreviation lookup truncates identifiers using the deployment byte limit before case conversion; full timezone fallback retains the clipped original name.',
         owner:
-          item.name === 'date_trunc'
-            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+          item.name === 'timezone'
+            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+            : item.name === 'date_trunc'
+              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
       },
       {
         kind: 'session',
@@ -783,9 +789,11 @@ export function temporalArithmeticRequirements(item: BuiltinCallable) {
         requirement:
           'Distinct long session abbreviation names sharing the native cache prefix can depend on earlier lookups. Implicit POSIX rules and uncaptured timezone definitions remain separate boundaries.',
         owner:
-          item.name === 'date_trunc'
-            ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
-            : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
+          item.name === 'timezone'
+            ? 'tests/sql-semantics/check-timezone-conversions.test.ts'
+            : item.name === 'date_trunc'
+              ? 'tests/sql-semantics/check-temporal-zone-lookup.test.ts'
+              : 'tests/sql-semantics/check-temporal-zone-arithmetic.test.ts',
       },
     ]
   if (!isTemporalContextArithmetic(item)) return null

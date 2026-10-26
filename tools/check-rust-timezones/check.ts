@@ -78,6 +78,12 @@ try {
       )!.expression,
       identity: { schema: 'public', kind: 'table', owner: table.name, constraint: name },
     })),
+    {
+      timeZone: 'UTC0',
+      timeZoneAbbreviations: 'Default',
+      maxIdentifierBytes: 63,
+      serverEncoding: 'UTF8',
+    },
   )
   assert.ok(group.source)
   const operations = group.source.modules.find((module) => module.name === 'pg_catalog')!
@@ -315,12 +321,13 @@ try {
     'Etc/UTC',
     'UTC',
     'GMT',
+    'EST',
     'UTC+02:30',
     '-03:45:30',
   ])
     for (const name of ['to_utc', 'from_utc'] as const) await compare(zone, 0n, name)
   for (const name of ['to_utc', 'from_utc']) {
-    for (const zone of ['No/Such_Zone', 'EST', 'UTC2DST'])
+    for (const zone of ['No/Such_Zone', 'UTC2DST'])
       fixtures.push({
         name,
         row: { zone: value(zone), local_at: value(0n), instant_at: value(0n) },

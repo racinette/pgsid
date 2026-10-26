@@ -25,6 +25,12 @@ import { parseConfigString } from '../../src/config/loader.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 
 const run = promisify(execFile)
+const lookupContext = {
+  timeZone: 'UTC',
+  timeZoneAbbreviations: 'Default' as const,
+  maxIdentifierBytes: 63,
+  serverEncoding: 'UTF8' as const,
+}
 const supported: Record<string, string> = {
   equal: 'a = b',
   unequal: 'a <> b',
@@ -123,52 +129,60 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       catalog.domains,
     )!.expression
 
-  it('matches PGlite in Rust, Go, and TypeScript, without session timezone dependence', async () => {
+  it('matches PGlite in Rust, Go, and TypeScript with declared timezone lookup facts', async () => {
     const names = Object.keys(supported)
     const domain = catalog.domains.find((domain) => domain.name === 'valid_local_time')!
-    const group = prepareCheckRustGroup([
-      ...names.map((name) => ({
-        expression: lowerTableCheck(
-          table,
-          table.constraints.find((constraint) => constraint.name === name)!,
-          [],
-          catalog.domains,
-        )!.expression,
-        identity: { schema: 'public', kind: 'table' as const, owner: table.name, constraint: name },
-      })),
-      {
-        expression: lowerDomainCheck(domain, domain.checks[0]!)!.expression,
-        identity: {
-          schema: 'public',
-          kind: 'domain',
-          owner: domain.name,
-          constraint: domain.checks[0]!.name,
+    const group = prepareCheckRustGroup(
+      [
+        ...names.map((name) => ({
+          expression: lowerTableCheck(
+            table,
+            table.constraints.find((constraint) => constraint.name === name)!,
+            [],
+            catalog.domains,
+          )!.expression,
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: name,
+          },
+        })),
+        {
+          expression: lowerDomainCheck(domain, domain.checks[0]!)!.expression,
+          identity: {
+            schema: 'public',
+            kind: 'domain',
+            owner: domain.name,
+            constraint: domain.checks[0]!.name,
+          },
         },
-      },
-      {
-        expression: bind("timezone(INTERVAL '1 hour',a) = instant"),
-        identity: {
-          schema: 'public',
-          kind: 'table' as const,
-          owner: table.name,
-          constraint: 'fixed_interval_zone',
+        {
+          expression: bind("timezone(INTERVAL '1 hour',a) = instant"),
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: 'fixed_interval_zone',
+          },
         },
-      },
-      ...[
-        "a > 'now'::timestamp",
-        'a::timestamptz = instant',
-        'instant::timestamp = a',
-        "a = '2000-01-01 00:00:00'::timestamp(3)",
-      ].map((sql, index) => ({
-        expression: bind(sql),
-        identity: {
-          schema: 'public',
-          kind: 'table' as const,
-          owner: table.name,
-          constraint: 'unsupported_' + index,
-        },
-      })),
-    ])
+        ...[
+          "a > 'now'::timestamp",
+          'a::timestamptz = instant',
+          'instant::timestamp = a',
+          "a = '2000-01-01 00:00:00'::timestamp(3)",
+        ].map((sql, index) => ({
+          expression: bind(sql),
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: 'unsupported_' + index,
+          },
+        })),
+      ],
+      lookupContext,
+    )
     for (const [index, item] of group.checks.slice(0, names.length + 2).entries())
       expect(item.kind, names[index] ?? 'domain').toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
@@ -345,12 +359,26 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       'Z',
       'UTC' + '0'.repeat(129),
     ]) {
-      for (const name of ['zone_to_utc', 'zone_from_utc'])
+      for (const name of ['zone_to_utc', 'zone_from_utc']) {
+        const unresolved = ['UTC2DST', 'UTC2FOO', 'UTC+2 ', '+1:02:03:04'].includes(zone)
+        const expected: Outcome = unresolved
+          ? { kind: 'Unknown' }
+          : outcome(
+              (
+                await pg.query<{ value: boolean }>(
+                  name === 'zone_to_utc'
+                    ? "SELECT timezone($1,timestamp '2000-01-01')=timestamptz '2000-01-01 00:00+00' value"
+                    : "SELECT timezone($1,timestamptz '2000-01-01 00:00+00')=timestamp '2000-01-01' value",
+                  [zone],
+                )
+              ).rows[0]!.value,
+            )
         fixtures.push({
           name,
           row: { a: value(0n), instant: value(0n), zone: value(zone) },
-          expected: { kind: 'Unknown' },
+          expected,
         })
+      }
     }
     const unknown: Row = Object.fromEntries(
       table.columns.map((column) => [column.name, { kind: 'Unknown' }]),
@@ -385,13 +413,28 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
         expected: { kind: 'True' },
       })
     for (const [payload, text] of [
-      [-211813488000000001n, '4714-11-23 23:59:59.999999 BC'],
+      [-211813574400000000n, '4714-11-23 00:00:00 BC'],
       [9223371331200000000n, '294277-01-01 00:00:00'],
     ] as const) {
       await expect(pg.query('SELECT $1::timestamp', [text])).rejects.toMatchObject({
         code: '22008',
       })
-      fixtures.push({ name: 'equal', row: { a: value(payload), b: value(0n) }, expected: error })
+      await pg.exec("SET TimeZone='Etc/GMT+12'")
+      const storedSql =
+          payload < 0n
+            ? "(('4714-11-24 00:00:00+00 BC'::timestamptz)::date)::timestamp"
+            : "('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0)",
+        stored = (
+          await pg.query<{ wire: string; equal: boolean }>(
+            `SELECT encode(timestamp_send(${storedSql}),'hex') wire,(${storedSql})=timestamp '2000-01-01' equal`,
+          )
+        ).rows[0]!
+      expect(Buffer.from(stored.wire, 'hex').readBigInt64BE()).toBe(payload)
+      fixtures.push({
+        name: 'equal',
+        row: { a: value(payload), b: value(0n) },
+        expected: outcome(stored.equal),
+      })
     }
     const unsupported = group.checks.slice(names.length + 2)
     for (const [index, check] of unsupported.entries())
@@ -399,7 +442,8 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
         fixtures.push({
           name: 'unsupported_' + index,
           row: { a: value(0n), instant: value(0n) },
-          expected: { kind: 'Unknown' },
+          expected:
+            index === 1 || index === 2 || index === 3 ? { kind: 'True' } : { kind: 'Unknown' },
         })
     await runCheckParity(
       directory,
@@ -420,7 +464,12 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
   it('exposes portable timestamp inputs and fixed offsets through both public APIs', async () => {
     const agreement = catalog.tables.find((table) => table.name === 'utc_agreement')!
     const fixedAgreement = catalog.tables.find((table) => table.name === 'fixed_agreement')!
-    const ts = renderTypescriptSchemaCheckArtifacts([agreement, fixedAgreement], catalog.domains)
+    const ts = renderTypescriptSchemaCheckArtifacts(
+      [agreement, fixedAgreement],
+      catalog.domains,
+      catalog.domains,
+      { executionContext: lookupContext },
+    )
     await writeFile(join(directory, 'package.json'), '{"type":"module"}')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
@@ -569,7 +618,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       const root = join(directory, nulls)
       await mkdir(root)
       const config = parseConfigString(
-        `schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: ${nulls}\n      schema: { outDir: schema }\n`,
+        `schema: schema.sql\nsql:\n  codegen:\n    checks: { timeZone: UTC, timeZoneAbbreviations: Default, maxIdentifierBytes: 63, serverEncoding: UTF8 }\n    go:\n      nulls: ${nulls}\n      schema: { outDir: schema }\n`,
       )
       const generated = renderGoSchemaArtifacts(
         catalog,
@@ -608,7 +657,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
     const generated = renderTypescriptSchemaArtifacts(
       catalog,
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    typescript:\n      schema: { outDir: schema }\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { timeZone: UTC, timeZoneAbbreviations: Default, maxIdentifierBytes: 63, serverEncoding: UTF8 }\n    typescript:\n      schema: { outDir: schema }\n',
       ),
       {},
       join(root, 'schema'),

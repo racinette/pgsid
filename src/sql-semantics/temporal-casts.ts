@@ -72,6 +72,16 @@ export function isTemporalExplicitZoneLookup(item: BuiltinCallable): boolean {
       item.strict &&
       item.volatility === 'i' &&
       !item.returnsSet &&
+      item.name === 'timezone' &&
+      item.args.length === 2 &&
+      item.args[0] === 'pg_catalog.text' &&
+      ((item.args[1] === 'pg_catalog."timestamp"' && item.result === 'pg_catalog.timestamptz') ||
+        (item.args[1] === 'pg_catalog.timestamptz' && item.result === 'pg_catalog."timestamp"'))) ||
+    (item.kind === 'function' &&
+      item.schema === 'pg_catalog' &&
+      item.strict &&
+      item.volatility === 'i' &&
+      !item.returnsSet &&
       item.name === 'date_trunc' &&
       item.result === 'pg_catalog.timestamptz' &&
       item.args.length === 3 &&

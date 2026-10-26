@@ -127,7 +127,7 @@ it('keeps explicit-zone arithmetic tied to the native overload and exposes order
 
 it('classifies explicit timezone truncation with native lookup requirements independently of arithmetic', () => {
   const operations = builtinCallables().filter(isTemporalExplicitZoneLookup)
-  expect(operations).toHaveLength(3)
+  expect(operations).toHaveLength(5)
   const item = operations.find((item) => item.name === 'date_trunc')!
   expect(isTemporalExplicitZoneArithmetic(item)).toBe(false)
   expect(
@@ -146,4 +146,28 @@ it('classifies explicit timezone truncation with native lookup requirements inde
   expect(checkUnknownMessage(probe.expression)).toContain(
     'sql.codegen.checks.timeZoneAbbreviations',
   )
+})
+
+it('classifies only text timestamp timezone conversions for ordered native lookup context', () => {
+  const items = builtinCallables().filter(
+    (item) => isTemporalExplicitZoneLookup(item) && item.name === 'timezone',
+  )
+  expect(items).toHaveLength(2)
+  for (const item of items) {
+    expect(
+      temporalArithmeticRequirements(item)?.every(
+        (r) => r.owner === 'tests/sql-semantics/check-timezone-conversions.test.ts',
+      ),
+    ).toBe(true)
+    expect(isTemporalExplicitZoneLookup({ ...item, schema: 'other' })).toBe(false)
+    expect(isTemporalExplicitZoneLookup({ ...item, volatility: 's' })).toBe(false)
+    const probe = bindProbe(`timezone(zone,v) IS NOT NULL`, [
+      { name: 'zone', typeName: 'pg_catalog.text' },
+      { name: 'v', typeName: item.args[1]! },
+    ])
+    expect(probe.fullyBound).toBe(true)
+    expect(checkUnknownMessage(probe.expression)).toContain(
+      'sql.codegen.checks.timeZoneAbbreviations',
+    )
+  }
 })

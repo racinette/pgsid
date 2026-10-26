@@ -91,13 +91,16 @@ fn timezone_lookup_candidate(session: &str, zone: usize, index: usize) -> Timezo
             };
             seconds = 0 - rules.daylight;
         };
-        let label = recurring_zone_abbreviation(session, index == 1);
+        let upper_session = timezone_lookup_ascii(session, true);
+        let label = recurring_zone_abbreviation(upper_session.as_str(), index == 1);
         if let TextValue::Value(value) = label {
             return TimezoneAbbreviation {
                 label: timezone_lookup_ascii(value.as_str(), true),
                 seconds: seconds,
                 daylight: index as i32,
-                valid: true,
+                valid: index == 0
+                    || recurring_zone_abbreviation(upper_session.as_str(), false)
+                        != TextValue::Value(value),
             };
         };
         return invalid;
@@ -114,7 +117,32 @@ fn timezone_lookup_candidate(session: &str, zone: usize, index: usize) -> Timezo
     invalid
 }
 
-fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> TextValue {
+struct TimezoneLookup {
+    profile: TextValue,
+    kind: i32,
+    seconds: i32,
+    spelling: String,
+}
+
+fn timezone_lookup_class(
+    profile: TextValue,
+    kind: i32,
+    seconds: i32,
+    spelling: &str,
+) -> TimezoneLookup {
+    TimezoneLookup {
+        profile: profile,
+        kind: kind,
+        seconds: seconds,
+        spelling: spelling.to_owned(),
+    }
+}
+
+fn timezone_lookup_session_classify(
+    key: &str,
+    session: &str,
+    default_profile: bool,
+) -> TimezoneLookup {
     let zone = find_zone_name(session, false);
     let mut count: usize = 2;
     if zone < ZONE_NAMES.len() {
@@ -122,7 +150,7 @@ fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> T
     } else {
         let profile = session_timezone_profile(session, 0i64, false);
         if profile.valid == false {
-            return TextValue::Unknown;
+            return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
         };
     };
     let requested = timezone_lookup_ascii(key, true);
@@ -143,7 +171,7 @@ fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> T
                     || (timezone_lookup_length(requested.as_str()) >= 10
                         && default_profile == false)
                 {
-                    return TextValue::Unknown;
+                    return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
                 };
                 if found && (seconds != abbreviation_seconds || daylight != abbreviation_daylight) {
                     dynamic = true;
@@ -156,7 +184,7 @@ fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> T
             } else if timezone_lookup_length(label.as_str()) >= 10
                 && name_from_text_context(TextValue::Value(label), 10, true) == prefix
             {
-                return TextValue::Unknown;
+                return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
             };
         };
         cursor += 1;
@@ -164,55 +192,81 @@ fn timezone_lookup_session(key: &str, session: &str, default_profile: bool) -> T
 
     if found {
         if dynamic {
-            return TextValue::Value(session.to_owned());
+            return timezone_lookup_class(TextValue::Value(session.to_owned()), 2, 0, key);
         };
-        return timezone_lookup_fixed(seconds);
+        return timezone_lookup_class(timezone_lookup_fixed(seconds), 1, seconds, key);
     };
-    TextValue::Null
+    timezone_lookup_class(TextValue::Null, 0, 0, "")
 }
 
-fn timezone_lookup_name(
+fn timezone_lookup_classify(
     input: TextValue,
     session: &str,
     limit: i32,
     utf8: bool,
     default_profile: bool,
-) -> TextValue {
+) -> TimezoneLookup {
     let clipped = name_from_text_context(input, 255, utf8);
     if let TextValue::Value(name) = clipped {
         let key = name_from_text_context(TextValue::Value(name.clone()), limit, utf8);
         if let TextValue::Value(value) = key {
-            let selected = timezone_lookup_session(value.as_str(), session, default_profile);
-            if selected != TextValue::Null {
-                return selected;
+            let selected =
+                timezone_lookup_session_classify(value.as_str(), session, default_profile);
+            if selected.profile != TextValue::Null {
+                return timezone_lookup_class(
+                    selected.profile,
+                    selected.kind,
+                    selected.seconds,
+                    name.as_str(),
+                );
             };
             if default_profile == false {
-                return TextValue::Unknown;
+                return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
             };
             let lower = timezone_lookup_ascii(value.as_str(), false);
             let mut index: usize = 0;
             while index < ZONE_DEFAULT_ABBREVIATION_NAMES.len() {
                 if lower == ZONE_DEFAULT_ABBREVIATION_NAMES[index] {
                     if timezone_lookup_length(ZONE_DEFAULT_ABBREVIATION_ZONES[index]) > 0 {
-                        return TextValue::Value(ZONE_DEFAULT_ABBREVIATION_ZONES[index].to_owned());
+                        return timezone_lookup_class(
+                            TextValue::Value(ZONE_DEFAULT_ABBREVIATION_ZONES[index].to_owned()),
+                            2,
+                            0,
+                            name.as_str(),
+                        );
                     };
-                    return timezone_lookup_fixed(ZONE_DEFAULT_ABBREVIATION_SECONDS[index]);
+                    return timezone_lookup_class(
+                        timezone_lookup_fixed(ZONE_DEFAULT_ABBREVIATION_SECONDS[index]),
+                        1,
+                        ZONE_DEFAULT_ABBREVIATION_SECONDS[index],
+                        name.as_str(),
+                    );
                 };
                 index += 1;
             }
             if timezone_lookup_length(name.as_str()) == 0 {
-                return TextValue::Error(make_sql_error(INVALID_TIMEZONE_NAME));
+                return timezone_lookup_class(
+                    TextValue::Error(make_sql_error(INVALID_TIMEZONE_NAME)),
+                    0,
+                    0,
+                    name.as_str(),
+                );
             };
             let fixed = timezone_fixed_offset(name.as_str());
             if let Int4Value::Value(west) = fixed {
-                return timezone_lookup_fixed(0 - west);
+                return timezone_lookup_class(
+                    timezone_lookup_fixed(0 - west),
+                    0,
+                    0 - west,
+                    name.as_str(),
+                );
             };
             if let Int4Value::Error(error) = fixed {
-                return TextValue::Error(error);
+                return timezone_lookup_class(TextValue::Error(error), 0, 0, name.as_str());
             };
             let named = find_zone_name(name.as_str(), false);
             if named < ZONE_NAMES.len() {
-                return TextValue::Value(name);
+                return timezone_lookup_class(TextValue::Value(name.clone()), 0, 0, name.as_str());
             };
             let text = ZoneRuleText {
                 chars: name.chars().collect(),
@@ -224,14 +278,29 @@ fn timezone_lookup_name(
             {
                 let profile = session_timezone_profile(name.as_str(), 0i64, false);
                 if profile.valid {
-                    return TextValue::Value(name);
+                    return timezone_lookup_class(
+                        TextValue::Value(name.clone()),
+                        0,
+                        0,
+                        name.as_str(),
+                    );
                 };
             };
-            return TextValue::Unknown;
+            return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
         };
-        return TextValue::Unknown;
+        return timezone_lookup_class(TextValue::Unknown, 0, 0, "");
     };
-    clipped
+    timezone_lookup_class(clipped, 0, 0, "")
+}
+
+fn timezone_lookup_name(
+    input: TextValue,
+    session: &str,
+    limit: i32,
+    utf8: bool,
+    default_profile: bool,
+) -> TextValue {
+    timezone_lookup_classify(input, session, limit, utf8, default_profile).profile
 }
 
 fn timezone_explicit_interval(
