@@ -1839,3 +1839,32 @@ INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expe
 INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('2000-01-01+00','epoch',946684800,946684800,false);
 -- name: InstantFieldSkipped
 INSERT INTO inspection_instant_fields(instant_at,field_name,expected_number,expected_float,bypass) VALUES('infinity','bogus',NULL,NULL,true);
+
+-- name: TimeRelationEqual
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',0,0,false);
+-- name: TimeRelationFraction
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01 00:00:00.000001','2000-01-01+00',0,1,false);
+-- name: TimeRelationEarlier
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('1999-12-31','1999-12-31 23:59:59.999999','2000-01-01+00',-1,-1,false);
+-- name: TimeRelationInfinity
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('infinity','infinity','infinity',0,0,false);
+-- name: TimeRelationNegativeInfinity
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('-infinity','-infinity','2000-01-01+00',-1,-1,false);
+-- name: TimeRelationFiniteAboveRange
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('5874897-12-31','2000-01-01','294276-12-31 23:59:59.999999+00',1,-1,false);
+-- name: TimeRelationOverflowBelowInfinity
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('294277-01-01',('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0),'infinity',-1,-1,false);
+-- name: TimeRelationRoundedUpper
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('294277-01-01',('294276-12-31 23:59:59.999999'::timestamp)::timestamp(0),('294276-12-31 23:59:59.999999+00'::timestamptz)::timestamptz(0),1,1,false);
+-- name: TimeRelationNullLocal
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES(NULL,NULL,'2000-01-01+00',NULL,NULL,false);
+-- name: TimeRelationNullInstant
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01',NULL,NULL,NULL,false);
+-- name: TimeRelationWrongDay
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',1,0,false);
+-- name: TimeRelationWrongStamp
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',0,-1,false);
+-- name: TimeRelationWrongArray
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',0,1,false);
+-- name: TimeRelationSkipped
+INSERT INTO inspection_time_relations(local_day,local_stamp,instant_at,expected_day_order,expected_stamp_order,bypass) VALUES('2000-01-01','2000-01-01','2000-01-01+00',1,1,true);

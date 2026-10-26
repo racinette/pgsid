@@ -14,6 +14,7 @@ import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
+  isTemporalContextComparison,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
   isTemporalExplicitZoneLookup,
@@ -3124,6 +3125,7 @@ export function emitCheckRustEvaluator(
           !isMoneyNumericConversion(implementation) &&
           !isTemporalContextCast(implementation) &&
           !isTemporalContextArithmetic(implementation) &&
+          !isTemporalContextComparison(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
           !isTemporalSessionExtraction(implementation) &&
@@ -5351,7 +5353,11 @@ export function emitCheckRustEvaluator(
         )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
-      if (isTemporalContextCast(implementation) || isTemporalContextArithmetic(implementation))
+      if (
+        isTemporalContextCast(implementation) ||
+        isTemporalContextArithmetic(implementation) ||
+        isTemporalContextComparison(implementation)
+      )
         arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
       if (
         isTemporalSessionTruncation(implementation) ||
