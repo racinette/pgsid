@@ -34,6 +34,9 @@ struct JsonpathExecutionContext {
     session_timezone: String,
     abbreviations_default: bool,
     time_locale_c: bool,
+    regex_profile_supplied: bool,
+    regex_profile_ranges: Vec<usize>,
+    regex_profile_cases: Vec<usize>,
     ordered_result: bool,
     document_ids: Vec<NumericValue>,
     variables_ids: Vec<NumericValue>,
@@ -1189,6 +1192,9 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     session_timezone: context.session_timezone,
                     abbreviations_default: context.abbreviations_default,
                     time_locale_c: context.time_locale_c,
+                    regex_profile_supplied: context.regex_profile_supplied,
+                    regex_profile_ranges: context.regex_profile_ranges,
+                    regex_profile_cases: context.regex_profile_cases,
                     ordered_result: context.ordered_result,
                     document_ids: context.document_ids,
                     variables_ids: context.variables_ids,
@@ -2108,6 +2114,11 @@ fn jsonpath_execution_boolean(value: bool) -> JsonbValue {
     jsonb_from_text(TextValue::Value("false".to_owned()))
 }
 
+pub fn jsonpath_empty_regex_profile_facts() -> Vec<usize> {
+    let facts: Vec<usize> = Vec::new();
+    facts
+}
+
 fn jsonpath_evaluate(
     document: JsonbValue,
     path: JsonpathValue,
@@ -2120,6 +2131,8 @@ fn jsonpath_evaluate(
     ctype: i32,
     use_timezone: bool,
 ) -> JsonbValue {
+    let profile_ranges: Vec<usize> = Vec::new();
+    let profile_cases: Vec<usize> = Vec::new();
     jsonpath_evaluate_session(
         document,
         path,
@@ -2134,6 +2147,9 @@ fn jsonpath_evaluate(
         "",
         false,
         false,
+        false,
+        profile_ranges,
+        profile_cases,
     )
 }
 
@@ -2151,6 +2167,9 @@ fn jsonpath_evaluate_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonbValue {
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
@@ -2200,6 +2219,9 @@ fn jsonpath_evaluate_session(
                         session,
                         defaults,
                         locale_c,
+                        profile_supplied,
+                        profile_ranges,
+                        profile_cases,
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
@@ -2694,6 +2716,9 @@ pub fn jsonpath_exists_tz_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2709,6 +2734,9 @@ pub fn jsonpath_exists_tz_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }
 
@@ -2723,6 +2751,9 @@ pub fn jsonpath_match_tz_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2738,6 +2769,9 @@ pub fn jsonpath_match_tz_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }
 
@@ -2752,6 +2786,9 @@ pub fn jsonpath_query_array_tz_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2767,6 +2804,9 @@ pub fn jsonpath_query_array_tz_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     )
 }
 
@@ -2781,6 +2821,9 @@ pub fn jsonpath_query_first_tz_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2796,6 +2839,9 @@ pub fn jsonpath_query_first_tz_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     )
 }
 
@@ -2810,6 +2856,9 @@ pub fn jsonpath_exists_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2825,6 +2874,9 @@ pub fn jsonpath_exists_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }
 
@@ -2839,6 +2891,9 @@ pub fn jsonpath_match_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2854,6 +2909,9 @@ pub fn jsonpath_match_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }
 
@@ -2868,6 +2926,9 @@ pub fn jsonpath_query_array_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2883,6 +2944,9 @@ pub fn jsonpath_query_array_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     )
 }
 
@@ -2897,6 +2961,9 @@ pub fn jsonpath_query_first_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2912,6 +2979,9 @@ pub fn jsonpath_query_first_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     )
 }
 
@@ -2924,6 +2994,9 @@ pub fn jsonpath_exists_opr_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     let variables = jsonb_from_text(make_text_value("{}"));
     let silent = make_bool_value(true);
@@ -2941,6 +3014,9 @@ pub fn jsonpath_exists_opr_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }
 
@@ -2953,6 +3029,9 @@ pub fn jsonpath_match_opr_session(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> BoolValue {
     let variables = jsonb_from_text(make_text_value("{}"));
     let silent = make_bool_value(true);
@@ -2970,5 +3049,8 @@ pub fn jsonpath_match_opr_session(
         session,
         defaults,
         locale_c,
+        profile_supplied,
+        profile_ranges,
+        profile_cases,
     ))
 }

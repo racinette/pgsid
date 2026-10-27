@@ -81,18 +81,44 @@ fn jsonpath_regex_predicate(
         if context.utf8 == false && (ascii_subject == false || ascii_pattern == false) {
             return BoolValue::Unknown;
         };
-        if jsonpath_regex_locale_neutral(pattern.as_str(), step.flags) == false {
+        let sensitive = jsonpath_regex_locale_neutral(pattern.as_str(), step.flags) == false;
+        let use_profile = sensitive && context.ctype != 1 && context.regex_profile_supplied;
+        if sensitive && use_profile == false {
             if context.ctype != 1 && (context.ctype == 2 && ascii_subject && ascii_pattern) == false
             {
                 return BoolValue::Unknown;
             };
         };
-        let result = find(
-            pattern.as_str(),
-            subject.as_str(),
-            0,
-            jsonpath_regex_options(step.flags),
-        );
+        let mut result = MatchOutcome::Uncertain;
+        if use_profile {
+            let mut ranges: Vec<usize> = Vec::new();
+            let mut cases: Vec<usize> = Vec::new();
+            let mut index: usize = 0;
+            while index < context.regex_profile_ranges.len() {
+                ranges.push(context.regex_profile_ranges[index]);
+                index += 1;
+            }
+            index = 0;
+            while index < context.regex_profile_cases.len() {
+                cases.push(context.regex_profile_cases[index]);
+                index += 1;
+            }
+            let profile = make_regex_character_profile(ranges, cases);
+            result = find_profile(
+                pattern.as_str(),
+                subject.as_str(),
+                0,
+                jsonpath_regex_options(step.flags),
+                profile,
+            );
+        } else {
+            result = find(
+                pattern.as_str(),
+                subject.as_str(),
+                0,
+                jsonpath_regex_options(step.flags),
+            );
+        };
         if result == MatchOutcome::InvalidPattern {
             return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_REGEX));
         };

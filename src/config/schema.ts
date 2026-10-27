@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { validRegexCharacterProfile } from '../codegen/shared/check-regex-profile.js'
 import { isPortableGoSchemaDirectory } from '../codegen/go/names.js'
 
 export type JsonValue =
@@ -324,12 +325,24 @@ const xpathPowerOfTenBitsSchema = z
   })
   .transform((bits) => bits.map((word) => word.toLowerCase()))
 
+const regexCharacterProfileSchema = z
+  .object({
+    ranges: z.array(z.number().int().min(0).max(0x10ffff)).min(3),
+    cases: z.array(z.number().int().min(0).max(0x10ffff)),
+  })
+  .strict()
+  .refine(validRegexCharacterProfile, {
+    message:
+      'Regex profiles require contiguous complete class ranges and ordered single-character case mappings.',
+  })
+
 export const codegenSchema = z
   .object({
     checks: z
       .object({
         defaultCollation: z.literal('C').optional(),
         defaultCtype: z.enum(['C', 'C.UTF-8']).optional(),
+        regexCharacterProfile: regexCharacterProfileSchema.optional(),
         serverEncoding: z.literal('UTF8').optional(),
         nativeByteOrder: z.enum(['little', 'big']).optional(),
         maxIdentifierBytes: z.number().int().min(0).max(2147483647).optional(),

@@ -150,6 +150,33 @@ describe('config schema', () => {
       ).toThrow()
   })
 
+  it('validates explicit character profiles without supplying default Unicode facts', () => {
+    const parse = (profile: unknown) =>
+      parseConfigString(
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: ' +
+          JSON.stringify({ regexCharacterProfile: profile }) +
+          '\n',
+      ).sql.codegen!.checks!
+    const profile = { ranges: [0, 96, 0, 97, 97, 2, 98, 1114111, 0], cases: [97, 97, 65] }
+    expect(parse(profile)).toEqual({ regexCharacterProfile: profile })
+    for (const invalid of [
+      null,
+      {},
+      { ranges: [], cases: [] },
+      { ranges: [0], cases: [] },
+      { ranges: [1, 1114111, 0], cases: [] },
+      { ranges: [0, 100, 0, 100, 1114111, 0], cases: [] },
+      { ranges: [0, 1114111, 16384], cases: [] },
+      { ranges: [0, 1114111, 0], cases: [97] },
+      { ranges: [0, 1114111, 0], cases: [97, 97, 65, 65, 97, 65] },
+      { ranges: [0, 1114111, 0], cases: [1114112, 0, 0] },
+      { ranges: [0, 1114111, 0], cases: [-1, 0, 0] },
+      { ranges: [0, 1114111, 0], cases: [97, 0.5, 0] },
+      { ...profile, provider: 'host' },
+    ])
+      expect(() => parse(invalid)).toThrow()
+  })
+
   it('parses a minimal config with defaults', () => {
     const cfg = parseConfigString(`
       schema: migrations/*.up.sql

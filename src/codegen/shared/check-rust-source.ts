@@ -29,6 +29,7 @@ export function assembleCheckRust(evaluator: {
   source: string
   callables: readonly string[]
   requiresRegex?: boolean
+  sharedDeclarations?: readonly { name: string; source: string }[]
 }): CheckRustSource {
   const maintained = maintainedSources.source()
   const timezoneCallables = checkRustCallableNames({
@@ -137,7 +138,13 @@ export function assembleCheckRust(evaluator: {
       {
         name: 'checks',
         dependencies: ['checkruntime', 'pg_catalog'],
-        files: [{ path: 'evaluators.rs', source: evaluator.source }],
+        files: [
+          { path: 'evaluators.rs', source: evaluator.source },
+          ...(evaluator.sharedDeclarations ?? []).map((declaration) => ({
+            path: `profiles/${declaration.name}.rs`,
+            source: declaration.source,
+          })),
+        ],
       },
     ],
   }
@@ -186,6 +193,7 @@ export function prepareCheckRustGroup(
     | { kind: 'unsupported'; reason: string }
   )[]
   evaluatorSource: string | null
+  sharedDeclarations?: readonly { name: string; source: string }[]
   source: CheckRustSource | null
   requiresRegex: boolean
 } {
@@ -194,6 +202,9 @@ export function prepareCheckRustGroup(
     prepareCheckRust(expression, identity, executionContext),
   )
   const supported = prepared.flatMap((item) => (item.kind === 'supported' ? [item.evaluator] : []))
+  const declarations = new Map(
+    supported.flatMap((item) => item.sharedDeclarations.map((d) => [d.name, d] as const)),
+  )
   const evaluatorSource = supported.length ? supported.map((item) => item.source).join('\n') : null
   return {
     checks: prepared.map((item) =>
@@ -209,10 +220,12 @@ export function prepareCheckRustGroup(
         : item,
     ),
     evaluatorSource,
+    sharedDeclarations: [...declarations.values()],
     requiresRegex: supported.some((item) => item.requiresRegex),
     source: evaluatorSource
       ? assembleCheckRust({
           source: evaluatorSource,
+          sharedDeclarations: [...declarations.values()],
           callables: [...new Set(supported.flatMap((item) => item.callables))],
           requiresRegex: supported.some((item) => item.requiresRegex),
         })

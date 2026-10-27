@@ -7,6 +7,7 @@ import { readCompositeFixture, readCompositeArrayFixture } from './check-composi
 import { decodeCatalogVector } from './check-catalog-vector-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
+import { captureRegexCharacterProfile } from '../../tools/check-rust/regex-profile.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -525,6 +526,9 @@ describe('world CHECK INSERT parity', () => {
       byteaOutput,
       defaultCollation: 'C',
       defaultCtype: 'C.UTF-8',
+      ...(worlds.some((world) => world.name === '042_query_paths')
+        ? { regexCharacterProfile: await captureRegexCharacterProfile(pg) }
+        : {}),
       serverEncoding: 'UTF8',
       arrayNulls: true,
       nativeByteOrder: 'little',
