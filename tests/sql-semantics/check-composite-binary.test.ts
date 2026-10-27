@@ -50,7 +50,7 @@ CREATE TYPE erased AS(old json);ALTER TYPE erased DROP ATTRIBUTE old;`
       string,
       { sql: string; context?: (sample: { record: string; pick: boolean }) => boolean }
     > = {
-      root: { sql: 'record_send(value) IS NULL', context: (s) => s.record !== 'NULL::packet' },
+      root: { sql: 'record_send(value) IS NULL' },
       named: { sql: `encode(record_send(ROW()::vacant),'hex') IS NOT DISTINCT FROM expected` },
       erased: { sql: `encode(record_send(ROW()::erased),'hex') IS NOT DISTINCT FROM expected` },
       anonymous: { sql: `encode(record_send(ROW()),'hex') IS NOT DISTINCT FROM expected` },
@@ -63,9 +63,9 @@ CREATE TYPE erased AS(old json);ALTER TYPE erased DROP ATTRIBUTE old;`
       fallback: {
         sql: 'record_send(COALESCE(CASE WHEN pick THEN NULL::vacant END,ROW()::vacant)) IS NULL',
       },
-      nested: { sql: 'record_send(ROW(value)) IS NULL', context: () => true },
-      divided: { sql: 'record_send(ROW(n/divisor)) IS NULL', context: () => true },
-      wrapped: { sql: 'cardinality(ARRAY[record_send(ROW(n/divisor))])=1', context: () => true },
+      nested: { sql: 'record_send(ROW(value)) IS NULL' },
+      divided: { sql: 'record_send(ROW(n/divisor)) IS NULL' },
+      wrapped: { sql: 'cardinality(ARRAY[record_send(ROW(n/divisor))])=1' },
       wrapped_empty: { sql: 'cardinality(ARRAY[record_send(ROW())])=1' },
       input_cast: {
         sql: `encode(record_send(source::vacant),'hex') IS NOT DISTINCT FROM expected`,
@@ -97,17 +97,15 @@ CREATE TYPE erased AS(old json);ALTER TYPE erased DROP ATTRIBUTE old;`
             expression: portableCheckAtoms(
               lowerTableCheck(
                 table,
-                origin === 'source'
-                  ? {
-                      ...constraint,
-                      definition: `CHECK(CASE WHEN bypass THEN true ELSE ${form.sql} END)`,
-                    }
-                  : constraint,
+                constraint,
                 catalog.enums,
                 catalog.domains,
                 origin,
                 catalog.rangeTypes,
                 catalog.compositeTypeGraph,
+                origin === 'source'
+                  ? `CHECK(CASE WHEN bypass THEN true ELSE ${form.sql} END)`
+                  : undefined,
               )!.expression,
             ),
           }))

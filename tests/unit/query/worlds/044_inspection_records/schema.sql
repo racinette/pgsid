@@ -1597,3 +1597,18 @@ CREATE TABLE inspection_epoch_instants (
  CONSTRAINT epoch_instant_array CHECK(CASE WHEN bypass THEN true ELSE
    (ARRAY[pg_catalog.to_timestamp(epoch_seconds),NULL::timestamptz])[1] IS NOT DISTINCT FROM expected_instant END)
 );
+
+CREATE TABLE inspection_binary_sizes (
+ readings integer[],
+ reading inspection_reading,
+ expected_array_size integer,
+ expected_record_size integer,
+ expected_nested_size integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT array_frame_size CHECK(CASE WHEN bypass THEN true ELSE
+   octet_length(array_send(readings)) IS NOT DISTINCT FROM expected_array_size END),
+ CONSTRAINT record_frame_size CHECK(CASE WHEN bypass THEN true ELSE
+   length(record_send(reading)) IS NOT DISTINCT FROM expected_record_size END),
+ CONSTRAINT nested_frame_size CHECK(CASE WHEN bypass THEN true ELSE
+   octet_length(record_send(ROW(reading,readings))) IS NOT DISTINCT FROM expected_nested_size END)
+);

@@ -820,7 +820,76 @@ func Int4AvgCombineGmvg(left checkruntime.ArrayValue, right checkruntime.ArrayVa
 	}
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 }
-func ArraySendG245(input checkruntime.ArrayValue) checkruntime.ByteaValue {
+
+const containerBinaryMissingSendError = 6822435
+
+func ArrayBinaryInitial(input *checkruntime.ArrayOutputPayload, support int) checkruntime.ByteaValue {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.State == 1 {
+		if support == 0 {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(containerBinaryMissingSendError)}
+		}
+		if support < 0 {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		result := checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 12}
+		index := 0
+		for index < len(input.Dimensions) {
+			result = ByteacatZitv(result, checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 8})
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return result
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func ContainerBinaryMissing(input checkruntime.ArrayElement, absent bool) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ArrayElementUnknown {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if absent {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(containerBinaryMissingSendError)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func ContainerBinaryContinues(input checkruntime.ByteaValue) bool {
+	if input.Kind == checkruntime.ByteaValueError {
+		return false
+	}
+	return input != (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) && input != (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown})
+}
+func ArrayBinaryHasElement(input *checkruntime.ArrayOutputPayload, index checkruntime.Int4Value, output checkruntime.ByteaValue) bool {
+	return checkruntime.ArrayOutputHasElement(input, index) && ContainerBinaryContinues(output)
+}
+func ContainerBinaryCell(input checkruntime.ArrayElement, output checkruntime.ByteaValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	return output
+}
+func ContainerBinaryAppend(input checkruntime.ByteaValue, output checkruntime.ByteaValue, prefix int) checkruntime.ByteaValue {
+	framed := ByteacatZitv(input, checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: prefix})
+	if output == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return framed
+	}
+	return ByteacatZitv(framed, output)
+}
+func ArraySendG245(input checkruntime.ArrayValue, output checkruntime.ByteaValue) checkruntime.ByteaValue {
 	input = checkruntime.CopyArrayValue(input)
 	if input.Kind == checkruntime.ArrayValueError {
 		error := input.Error
@@ -828,6 +897,9 @@ func ArraySendG245(input checkruntime.ArrayValue) checkruntime.ByteaValue {
 	}
 	if input.Kind == checkruntime.ArrayValueNull {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		return output
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -11258,8 +11330,7 @@ func DatePartYjvq(units checkruntime.TextValue, input checkruntime.TimetzValue) 
 func DatePartFb3a(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.Float8Value {
 	return clockFieldsLegacy(units, clockFieldInput{value: input, zone: 0, family: 3})
 }
-func RecordSendYv22(input checkruntime.CompositeValue) checkruntime.ByteaValue {
-	input = checkruntime.CopyCompositeValue(input)
+func RecordBinaryInitial(input checkruntime.CompositeValue) checkruntime.ByteaValue {
 	checked := checkruntime.CompositeFromCoercedValue(input)
 	if checked.Kind == checkruntime.CompositeValueError {
 		error := checked.Error
@@ -11273,6 +11344,23 @@ func RecordSendYv22(input checkruntime.CompositeValue) checkruntime.ByteaValue {
 		if len(value.Fields) == 0 {
 			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: "00000000"}
 		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func RecordBinaryStart() checkruntime.ByteaValue {
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: "00000000"}
+}
+func RecordSendYv22(input checkruntime.CompositeValue, output checkruntime.ByteaValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyCompositeValue(input)
+	if input.Kind == checkruntime.CompositeValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.CompositeValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.CompositeValueValue {
+		return output
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -21395,15 +21483,13 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 }
 func JsonpathSendHmew(input checkruntime.JsonpathValue) checkruntime.ByteaValue {
 	input = checkruntime.CopyJsonpathValue(input)
+	return JsonpathSendContext(input, false)
+}
+func JsonpathSendContext(input checkruntime.JsonpathValue, utf8 bool) checkruntime.ByteaValue {
+	input = checkruntime.CopyJsonpathValue(input)
 	output := JsonpathToText(input)
-	bytes := TextsendMgfj(output)
-	if bytes.Kind == checkruntime.ByteaValueValue {
-		value := langruntime.CheckedString(bytes.Value)
-		framed := langruntime.NewTextBuffer("01")
-		framed = append(framed, value...)
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(framed)}
-	}
-	return bytes
+	bytes := TextWireContext(output, utf8)
+	return ByteacatZitv(checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: "01"}, bytes)
 }
 func JsonbInputFromJsonpath(input checkruntime.JsonpathValue) checkruntime.JsonbInput {
 	input = checkruntime.CopyJsonpathValue(input)

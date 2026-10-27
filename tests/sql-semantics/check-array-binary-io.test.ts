@@ -102,7 +102,7 @@ it('requires deployment element identity for binary array output, preserving NUL
             value: { state: parseInt((error as { code: string }).code, 36) },
           }
         }
-        const expected: Outcome = postgres.kind === 'False' ? { kind: 'Unknown' } : postgres
+        const expected: Outcome = postgres
         references.push({ name, value, postgres, expected })
         for (const origin of ['source', 'stored'])
           fixtures.push({
