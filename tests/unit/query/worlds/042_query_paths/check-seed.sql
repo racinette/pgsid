@@ -333,4 +333,28 @@ INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variabl
 -- name: clock_wrong_first
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong first clock result','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'false'::jsonb);
 -- name: clock_zone_context
-INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'local midnight needs timezone','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured local midnight','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_midnight_zone
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_midnight_zone','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_local_instant
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_local_instant','"2024-03-10T02:30:00"'::jsonb,'$.timestamp_tz()=="2024-03-10T02:30:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-03-10T02:30:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_clock_offset
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_clock_offset','"12:34:56"'::jsonb,'$.time_tz()=="12:34:56+00".datetime()'::jsonpath,'$.time_tz()=="12:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_instant_date
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_instant_date','"2024-02-29T00:30:00+03:30"'::jsonb,'$.date()=="2024-02-28".date()'::jsonpath,'$.date()=="2024-02-28".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_keyvalue_zone
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_keyvalue_zone','{"a":"2024-02-29"}'::jsonb,'$.keyvalue().value.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.keyvalue().value.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_wrong_result
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_wrong_result','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,false,'[false]'::jsonb,'false'::jsonb);
+
+-- name: configured_invalid_calendar
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_invalid_calendar','"2024-13-01"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: configured_null_document
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'Null configured path',NULL,'$.timestamp_tz()'::jsonpath,'$.timestamp_tz()','{}'::jsonb,false,false,NULL,NULL,NULL,NULL);

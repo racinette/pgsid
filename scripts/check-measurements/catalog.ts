@@ -464,9 +464,23 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       },
       {
         kind: 'session',
+        setting: 'TimeZone',
         requirement:
-          'Alphabetic datetime timezone suffixes require the session timezone and abbreviation registry. Timestamp-with-zone to time_tz conversion requires session TimeZone. Scalar _tz calls execute context-independent paths; timezone-dependent conversions and cross-type comparisons defer when reached. Dropping a time-with-zone offset in _tz time() preserves the local clock without session lookup. Non-_tz forbidden conversions/comparisons retain hard errors even when silent.',
-        owner: 'tests/sql-semantics/check-jsonpath-context.test.ts',
+          'Declared session TimeZone drives scalar JSONPath temporal conversions and cross-type comparisons through the shared timezone resolver, including DST gaps/folds and fixed-offset clock attachment. Missing timezone providers defer when reached; non-_tz forbidden operations retain hard errors despite silent.',
+        owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
+      },
+      {
+        kind: 'transaction',
+        setting: 'local_date',
+        requirement:
+          'Bare time attachment and mixed time/timetz comparisons in variable-offset zones require the transaction local date. A configured timezone does not provide that date; fixed-offset zones are handled without it.',
+        owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
+      },
+      {
+        kind: 'implementation',
+        requirement:
+          'Alphabetic datetime suffix parsing is not yet connected to supplied timezone abbreviation definitions. Keep this implementation gap separate from an unavailable abbreviation registry.',
+        owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
       },
     ]
   if (

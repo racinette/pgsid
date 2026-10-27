@@ -24577,6 +24577,10 @@ function jsonpathTemporalRender(input: JsonpathTemporalValue): checkruntime.Text
         output = output + hour;
         output = output + langruntime.checkedChar(":");
         output = output + minute;
+        if (!(langruntime.checkedSignedRemainder(offset, 60) === 0)) {
+            output = output + langruntime.checkedChar(":");
+            output = output + clockOutputPair(langruntime.checkedSignedRemainder(offset, 60));
+        }
     }
     if (bc) {
         output = output + " BC";

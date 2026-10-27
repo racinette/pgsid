@@ -31,6 +31,7 @@ struct JsonpathExecutionContext {
     c_collation: bool,
     ctype: i32,
     use_timezone: bool,
+    session_timezone: String,
     ordered_result: bool,
     document_ids: Vec<NumericValue>,
     variables_ids: Vec<NumericValue>,
@@ -912,10 +913,11 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                             && second.source == 7
                             && step.kind != JSONPATH_NODE_STARTS
                         {
-                            let comparison = jsonpath_temporal_compare_mode(
+                            let comparison = jsonpath_temporal_compare_session(
                                 temporals[first.node],
                                 temporals[second.node],
                                 context.use_timezone,
+                                context.session_timezone.as_str(),
                             );
                             if let Int4Value::Unknown = comparison {
                                 unknown = true;
@@ -1182,6 +1184,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     c_collation: context.c_collation,
                     ctype: context.ctype,
                     use_timezone: context.use_timezone,
+                    session_timezone: context.session_timezone,
                     ordered_result: context.ordered_result,
                     document_ids: context.document_ids,
                     variables_ids: context.variables_ids,
@@ -2113,6 +2116,34 @@ fn jsonpath_evaluate(
     ctype: i32,
     use_timezone: bool,
 ) -> JsonbValue {
+    jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        mode,
+        utf8,
+        operator,
+        c_collation,
+        ctype,
+        use_timezone,
+        "",
+    )
+}
+
+fn jsonpath_evaluate_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    mode: i32,
+    utf8: bool,
+    operator: bool,
+    c_collation: bool,
+    ctype: i32,
+    use_timezone: bool,
+    session: &str,
+) -> JsonbValue {
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
     };
@@ -2158,6 +2189,7 @@ fn jsonpath_evaluate(
                         c_collation,
                         ctype,
                         use_timezone,
+                        session,
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
@@ -2639,4 +2671,254 @@ pub fn jsonpath_query_first_tz_context(
         ctype,
         true,
     )
+}
+
+pub fn jsonpath_exists_tz_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        0,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+        session,
+    ))
+}
+
+pub fn jsonpath_match_tz_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        1,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+        session,
+    ))
+}
+
+pub fn jsonpath_query_array_tz_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> JsonbValue {
+    jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        2,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+        session,
+    )
+}
+
+pub fn jsonpath_query_first_tz_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> JsonbValue {
+    jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        3,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+        session,
+    )
+}
+
+pub fn jsonpath_exists_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        0,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        false,
+        session,
+    ))
+}
+
+pub fn jsonpath_match_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        1,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        false,
+        session,
+    ))
+}
+
+pub fn jsonpath_query_array_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> JsonbValue {
+    jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        2,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        false,
+        session,
+    )
+}
+
+pub fn jsonpath_query_first_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> JsonbValue {
+    jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        3,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        false,
+        session,
+    )
+}
+
+pub fn jsonpath_exists_opr_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    let variables = jsonb_from_text(make_text_value("{}"));
+    let silent = make_bool_value(true);
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        0,
+        utf8,
+        true,
+        c_collation,
+        ctype,
+        false,
+        session,
+    ))
+}
+
+pub fn jsonpath_match_opr_session(
+    document: JsonbValue,
+    path: JsonpathValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+    session: &str,
+) -> BoolValue {
+    let variables = jsonb_from_text(make_text_value("{}"));
+    let silent = make_bool_value(true);
+    jsonpath_execution_bool_result(jsonpath_evaluate_session(
+        document,
+        path,
+        variables,
+        silent,
+        1,
+        utf8,
+        true,
+        c_collation,
+        ctype,
+        false,
+        session,
+    ))
 }

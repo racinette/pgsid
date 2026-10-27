@@ -40,11 +40,6 @@ export function assembleCheckRust(evaluator: {
       ),
     })),
   })
-  const requiresTimezone =
-    evaluator.callables.some((name) => timezoneCallables.has(name)) ||
-    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context|format_accept_timezone)\(/u.test(
-      evaluator.source,
-    )
   const unicodeCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({
@@ -57,7 +52,7 @@ export function assembleCheckRust(evaluator: {
   const requiresUnicode = evaluator.callables.some((name) => unicodeCallables.has(name))
   const executionSource = /\/jsonpath_execute\.rs$/u
   const executionFiles =
-    /\/jsonpath_(?:execute|arithmetic|conversions|keyvalue|methods|predicates|regex)\.rs$/u
+    /\/jsonpath_(?:execute|arithmetic|conversions|keyvalue|methods|predicates|regex|timezone)\.rs$/u
   const executionCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({
@@ -68,6 +63,12 @@ export function assembleCheckRust(evaluator: {
     })),
   })
   const requiresJsonpathExecution = evaluator.callables.some((name) => executionCallables.has(name))
+  const requiresTimezone =
+    requiresJsonpathExecution ||
+    evaluator.callables.some((name) => timezoneCallables.has(name)) ||
+    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context|format_accept_timezone)\(/u.test(
+      evaluator.source,
+    )
   const regexCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({

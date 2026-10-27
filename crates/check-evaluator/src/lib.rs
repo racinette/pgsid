@@ -119,6 +119,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonpath_names.rs");
     include!("operations/pg_catalog/jsonpath_keyvalue.rs");
     include!("operations/pg_catalog/jsonpath_execute.rs");
+    include!("operations/pg_catalog/jsonpath_timezone.rs");
     include!("operations/pg_catalog/jsonb_core.rs");
     include!("operations/pg_catalog/jsonb_hash.rs");
     include!("operations/pg_catalog/json_extract.rs");
