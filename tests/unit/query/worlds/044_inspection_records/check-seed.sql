@@ -2213,3 +2213,20 @@ INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VAL
 INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES (0,'2000-01-01+00',false);
 -- name: EpochInstantSkippedError
 INSERT INTO inspection_epoch_instants(epoch_seconds,expected_instant,bypass) VALUES ('NaN',NULL,true);
+
+-- name: BinarySizesNested
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('{1,NULL,3}',ROW(3,'ok','[1,5)'),40,51,111,false);
+-- name: BinarySizesWrongArray
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('{1,NULL,3}',ROW(3,'ok','[1,5)'),41,51,111,false);
+-- name: BinarySizesWrongRecord
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('{1,NULL,3}',ROW(3,'ok','[1,5)'),40,50,111,false);
+-- name: BinarySizesWrongNested
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('{1,NULL,3}',ROW(3,'ok','[1,5)'),40,51,110,false);
+-- name: BinarySizesNullDatums
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES (NULL,NULL,NULL,NULL,20,false);
+-- name: BinarySizesNullFields
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('{}',ROW(NULL,NULL,NULL),12,28,60,false);
+-- name: BinarySizesDimensions
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('[0:1][-1:0]={{1,2},{3,4}}',NULL,60,NULL,80,false);
+-- name: BinarySizesSkipped
+INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES (NULL,NULL,-1,-1,-1,true);

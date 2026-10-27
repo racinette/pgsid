@@ -812,7 +812,74 @@ export function int4AvgCombineGmvg(left: checkruntime.ArrayValue, right: checkru
     }
     return { kind: "Unknown" };
 }
-export function arraySendG245(input: checkruntime.ArrayValue): checkruntime.ByteaValue {
+const containerBinaryMissingSendError = 6822435;
+export function arrayBinaryInitial(input: checkruntime.ArrayOutputPayload, support: number): checkruntime.ByteaValue {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (input.state === 1) {
+        if (support === 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(containerBinaryMissingSendError) };
+        }
+        if (support < 0) {
+            return { kind: "Unknown" };
+        }
+        let result: checkruntime.ByteaValue = { kind: "Unspecified", value: 12 };
+        let index: number = 0;
+        while (index < input.dimensions.length) {
+            result = byteacatZitv(result, { kind: "Unspecified", value: 8 });
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return result;
+    }
+    return { kind: "Unknown" };
+}
+export function containerBinaryMissing(input: checkruntime.ArrayElement, absent: boolean): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (absent) {
+        return { kind: "Error", value: checkruntime.makeSqlError(containerBinaryMissingSendError) };
+    }
+    return { kind: "Unknown" };
+}
+export function containerBinaryContinues(input: checkruntime.ByteaValue): boolean {
+    if (input.kind === "Error") {
+        return false;
+    }
+    return !(checkruntime.equalByteaValue(input, { kind: "Null" })) && !(checkruntime.equalByteaValue(input, { kind: "Unknown" }));
+}
+export function arrayBinaryHasElement(input: checkruntime.ArrayOutputPayload, index: checkruntime.Int4Value, output: checkruntime.ByteaValue): boolean {
+    return checkruntime.arrayOutputHasElement(input, index) && containerBinaryContinues(output);
+}
+export function containerBinaryCell(input: checkruntime.ArrayElement, output: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return output;
+}
+export function containerBinaryAppend(input: checkruntime.ByteaValue, output: checkruntime.ByteaValue, prefix: number): checkruntime.ByteaValue {
+    const framed: checkruntime.ByteaValue = byteacatZitv(input, { kind: "Unspecified", value: prefix });
+    if (checkruntime.equalByteaValue(output, { kind: "Null" })) {
+        return framed;
+    }
+    return byteacatZitv(framed, output);
+}
+export function arraySendG245(input: checkruntime.ArrayValue, output: checkruntime.ByteaValue): checkruntime.ByteaValue {
     input = checkruntime.copyArrayValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -820,6 +887,9 @@ export function arraySendG245(input: checkruntime.ArrayValue): checkruntime.Byte
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        return output;
     }
     return { kind: "Unknown" };
 }
@@ -11326,8 +11396,7 @@ export function datePartYjvq(units: checkruntime.TextValue, input: checkruntime.
 export function datePartFb3a(units: checkruntime.TextValue, input: checkruntime.IntervalValue): checkruntime.Float8Value {
     return clockFieldsLegacy(units, { value: input, zone: 0, family: 3 });
 }
-export function recordSendYv22(input: checkruntime.CompositeValue): checkruntime.ByteaValue {
-    input = checkruntime.copyCompositeValue(input);
+export function recordBinaryInitial(input: checkruntime.CompositeValue): checkruntime.ByteaValue {
     const checked: checkruntime.CompositeValue = checkruntime.compositeFromCoercedValue(input);
     if (checked.kind === "Error") {
         const error: checkruntime.SqlError = checked.value;
@@ -11341,6 +11410,23 @@ export function recordSendYv22(input: checkruntime.CompositeValue): checkruntime
         if (value.fields.length === 0) {
             return { kind: "Value", value: "00000000" };
         }
+    }
+    return { kind: "Unknown" };
+}
+export function recordBinaryStart(): checkruntime.ByteaValue {
+    return { kind: "Value", value: "00000000" };
+}
+export function recordSendYv22(input: checkruntime.CompositeValue, output: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    input = checkruntime.copyCompositeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        return output;
     }
     return { kind: "Unknown" };
 }
@@ -21599,15 +21685,14 @@ export function jsonpathToText(input: checkruntime.JsonpathValue): checkruntime.
 }
 export function jsonpathSendHmew(input: checkruntime.JsonpathValue): checkruntime.ByteaValue {
     input = checkruntime.copyJsonpathValue(input);
+    return jsonpathSendContext(input, false);
+}
+export function jsonpathSendContext(input: checkruntime.JsonpathValue, utf8: boolean): checkruntime.ByteaValue {
+    input = checkruntime.copyJsonpathValue(input);
+    utf8 = langruntime.checkedBool(utf8);
     const output: checkruntime.TextValue = jsonpathToText(input);
-    const bytes: checkruntime.ByteaValue = textsendMgfj(output);
-    if (bytes.kind === "Value") {
-        const value: string = langruntime.checkedString(bytes.value);
-        let framed: string = "01";
-        framed = framed + value;
-        return { kind: "Value", value: framed };
-    }
-    return bytes;
+    const bytes: checkruntime.ByteaValue = textWireContext(output, utf8);
+    return byteacatZitv({ kind: "Value", value: "01" }, bytes);
 }
 export function jsonbInputFromJsonpath(input: checkruntime.JsonpathValue): checkruntime.JsonbInput {
     input = checkruntime.copyJsonpathValue(input);

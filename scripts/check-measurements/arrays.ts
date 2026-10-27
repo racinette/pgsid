@@ -81,6 +81,31 @@ export function arrayValueRequirements(item: BuiltinCallable, aggregateSupport =
           'The binary array header requires the actual deployment element type OID, including for empty arrays; SQL NULL and incoming errors remain portable.',
         owner: 'tests/sql-semantics/check-array-binary-io.test.ts',
       },
+      {
+        kind: 'interface',
+        requirement:
+          'Captured element send support supplies recursive payload lengths without deployment OIDs. Preserve known framing, dimensions, NULL cells, partial binary lengths and reached child errors; missing binary output support is checked even for empty arrays.',
+        owner: 'tests/sql-semantics/check-container-binary-length.test.ts',
+      },
+    ]
+  if (
+    item.name === 'record_send' &&
+    item.args.join(',') === 'pg_catalog.record' &&
+    item.result === 'pg_catalog.bytea'
+  )
+    return [
+      {
+        kind: 'database',
+        requirement:
+          'Nonempty record frames contain deployment field type OIDs, including NULL fields. Empty records retain exact bytes without catalog identities.',
+        owner: 'tests/sql-semantics/check-composite-binary.test.ts',
+      },
+      {
+        kind: 'interface',
+        requirement:
+          'Captured field send support supplies recursive payload lengths without deployment OIDs. Skip NULL field callbacks, preserve known framing and partial binary lengths, and retain reached child errors or unavailable selected implementations.',
+        owner: 'tests/sql-semantics/check-container-binary-length.test.ts',
+      },
     ]
   if (
     item.name === 'ts_lexize' &&

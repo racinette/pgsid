@@ -1,6 +1,7 @@
 import { it, expect } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { measureArrays } from '../../scripts/check-measurements/arrays.js'
+import { measureArrays, arrayValueRequirements } from '../../scripts/check-measurements/arrays.js'
+import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
 it('separates array implementation gaps, aggregate support, volatile operations, set-returning expressions and internal interfaces against PostgreSQL', async () => {
   const pg = await PGlite.create()
   try {
@@ -58,7 +59,14 @@ it('separates array implementation gaps, aggregate support, volatile operations,
     expect(send.requirements).toContain('session-or-database-state')
     expect(send.valueRequirements).toMatchObject([
       { kind: 'database', owner: 'tests/sql-semantics/check-array-binary-io.test.ts' },
+      { kind: 'interface', owner: 'tests/sql-semantics/check-container-binary-length.test.ts' },
     ])
+    const record = builtinMetadata('function:["pg_catalog","record_send"](pg_catalog.record)')
+    expect(arrayValueRequirements(record)).toMatchObject([
+      { kind: 'database', owner: 'tests/sql-semantics/check-composite-binary.test.ts' },
+      { kind: 'interface', owner: 'tests/sql-semantics/check-container-binary-length.test.ts' },
+    ])
+    expect(arrayValueRequirements({ ...record, schema: 'custom' })).toBeNull()
     const receive = report.callables.find((c) => c.metadata.name === 'array_recv')!
     expect(receive.requirements).toContain('internal-interface')
     expect(receive.representedImmutableGap).toBe(false)
@@ -74,7 +82,7 @@ it('separates array implementation gaps, aggregate support, volatile operations,
       element: 'pg_catalog.int4',
     })
     expect(report.types.find((t) => t.identity === 'pg_catalog._tsvector')).toMatchObject({
-      represented: false,
+      represented: true,
       element: 'pg_catalog.tsvector',
     })
     for (const [sql, code] of [

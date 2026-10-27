@@ -830,6 +830,21 @@ export function emitCheckRustEvaluator(
 } {
   const inputs = new Map<string, Input>()
   const localInputs = new Map<string, Input>()
+  const binaryEnums = new Map<string, EnumDefinition>()
+  const collectBinaryEnums = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if ('enum' in value && value.enum && typeof value.enum === 'object') {
+      const definition = value.enum as EnumDefinition
+      if (
+        typeof definition.schema === 'string' &&
+        typeof definition.name === 'string' &&
+        Array.isArray(definition.values)
+      )
+        binaryEnums.set(enumType(definition), definition)
+    }
+    for (const child of Object.values(value)) collectBinaryEnums(child)
+  }
+  collectBinaryEnums(expression)
   const callables = new Set<string>()
   const domainHelpers: string[] = []
   let domainPreparationState: string | null = null
@@ -2993,6 +3008,7 @@ export function emitCheckRustEvaluator(
         call.signature === builtinCast('pg_catalog.text', 'pg_catalog.xml')?.implementation
       const xmlSend = call.signature === builtinTypeIO('pg_catalog.xml')?.send
       const jsonSend = call.signature === builtinTypeIO('pg_catalog."json"')?.send
+      const jsonpathSend = call.signature === builtinTypeIO('pg_catalog.jsonpath')?.send
       const jsonbSend = call.signature === builtinTypeIO('pg_catalog.jsonb')?.send
       const tsvectorSend = call.signature === builtinTypeIO('pg_catalog.tsvector')?.send
       const tsquerySend = call.signature === builtinTypeIO('pg_catalog.tsquery')?.send
@@ -3306,6 +3322,214 @@ export function emitCheckRustEvaluator(
         )
         callables.add(implementation.rustName)
         return { name: bind(`${implementation.rustName}(${args.join(', ')})`), type: call.type }
+      }
+      if (arrayBinarySend || recordBinarySend) {
+        const bindBinary = (value: string, lines = destination): string => {
+          const name = fresh('container_binary_value')
+          lines.push(`let ${name}=${value};`)
+          return name
+        }
+        const sendSignature = (type: string): string | null | undefined => {
+          type = arrayElementBaseType(type)
+          if (isCatalogVectorType(type)) return builtinTypeIO(type)?.send
+          if (isArrayLikeType(type)) return builtinTypeIO('pg_catalog._int4')?.send
+          if (compositeProfile(type) || anonymousRecordProfile(type))
+            return builtinTypeIO('pg_catalog.record')?.send
+          const range = rangeTypeProfile(type),
+            multi = multirangeTypeProfile(type)
+          if (range || multi) return multi ? multi.multirangeSend : range!.send
+          if (type.startsWith('enum:')) {
+            const send = builtinCallables().find(
+              (item) =>
+                item.kind === 'function' &&
+                item.schema === 'pg_catalog' &&
+                item.name === 'enum_send' &&
+                item.args.join(',') === 'pg_catalog.anyenum' &&
+                item.result === 'pg_catalog.bytea',
+            )
+            return send ? callableIdentity(send) : undefined
+          }
+          return builtinTypeIO(type)?.send
+        }
+        const sendChild = (
+          cell: string,
+          type: string | null,
+          lines: string[],
+          selected?: string | null,
+          definition?: EnumDefinition,
+        ): string => {
+          if (!type) return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+          type = arrayElementBaseType(type)
+          const signature = selected === undefined ? sendSignature(type) : selected
+          const metadata = signature
+            ? builtinCallables().find((item) => callableIdentity(item) === signature)
+            : null
+          if (
+            !metadata ||
+            metadata.kind !== 'function' ||
+            metadata.schema !== 'pg_catalog' ||
+            !metadata.strict ||
+            metadata.returnsSet ||
+            metadata.result !== 'pg_catalog.bytea' ||
+            metadata.args.length !== 1
+          )
+            return bindBinary(
+              `container_binary_missing(${cell}.clone(),${signature === null})`,
+              lines,
+            )
+          const prefix = rustValuePrefix(rustType(type))
+          const scalar = bindBinary(`array_element_to_${prefix}(${cell}.clone())`, lines)
+          let argument = { name: scalar, type }
+          if (
+            type.startsWith('enum:') &&
+            metadata.name === 'enum_send' &&
+            metadata.args[0] === 'pg_catalog.anyenum'
+          ) {
+            const labels = definition ?? binaryEnums.get(type)
+            if (!labels) return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+            const text = bindBinary(
+              `enum_to_text(${scalar},${rustStringLiteral(labels.values.join('\0'))},${labels.values.length})`,
+              lines,
+            )
+            const result = emitCallInner(
+              {
+                kind: 'function',
+                signature: builtinTypeIO('pg_catalog.text')!.send!,
+                type: 'pg_catalog.bytea',
+              },
+              [{ name: text, type: 'pg_catalog.text' }],
+              lines,
+            )
+            return bindBinary(
+              `container_binary_cell(${cell}.clone(),${ownedOperand(result)})`,
+              lines,
+            )
+          }
+          if (!checkRustCallableNames().has(metadata.rustName))
+            return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+          if (
+            ![
+              type,
+              'pg_catalog.anyarray',
+              'pg_catalog.anyrange',
+              'pg_catalog.anymultirange',
+              'pg_catalog.record',
+            ].includes(metadata.args[0]!)
+          ) {
+            if (rustType(type) === rustType(metadata.args[0]!)) {
+              argument = { ...argument, type: metadata.args[0]! }
+            } else {
+              if (builtinCast(type, metadata.args[0]!)?.method !== 'b')
+                return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+              argument = emitCallInner(
+                { kind: 'cast', signature: null, type: metadata.args[0]! },
+                [argument],
+                lines,
+              )
+            }
+          }
+          const result = emitCallInner(
+            { kind: 'function', signature: signature!, type: 'pg_catalog.bytea' },
+            [argument],
+            lines,
+          )
+          return bindBinary(`container_binary_cell(${cell}.clone(),${ownedOperand(result)})`, lines)
+        }
+        const operand = operands[0]!
+        let result: string
+        if (arrayBinarySend) {
+          if (!operand.type.startsWith('array:'))
+            throw new UnsupportedCheckRustExpression(
+              'Array binary output requires a concrete element type',
+            )
+          const elementType = operand.type.slice(6),
+            signature = sendSignature(elementType)
+          const payload = bindBinary(`prepare_array_output(${ownedOperand(operand)})`)
+          const initial = bindBinary(
+            `array_binary_initial(&${payload},${signature === null ? 0 : signature === undefined ? -1 : 1})`,
+          )
+          const index = fresh('array_binary_index')
+          result = fresh('array_binary_result')
+          destination.push(
+            `let mut ${result}:ByteaValue=${initial};`,
+            `let mut ${index}:Int4Value=make_int4_value(0);`,
+          )
+          const body: string[] = []
+          const cell = bindBinary(`array_output_element_at(&${payload},${index})`, body)
+          const bytes = sendChild(cell, elementType, body)
+          body.push(
+            `${result}=container_binary_append(${result},${bytes},4);`,
+            `${index}=array_text_next_index(${index});`,
+          )
+          destination.push(
+            `while array_binary_has_element(&${payload},${index},${result}.clone()) {`,
+            ...indent(body),
+            '}',
+          )
+        } else {
+          const initial = bindBinary(`record_binary_initial(${ownedOperand(operand)})`)
+          result = fresh('record_binary_result')
+          destination.push(`let mut ${result}:ByteaValue=${initial};`)
+          const layouts = recordComparisonLayouts(operand.type)
+          if (!layouts)
+            throw new UnsupportedCheckRustExpression(
+              'Record binary output requires captured layouts',
+            )
+          for (const layout of layouts) {
+            for (const node of layout.profile?.graph.definitions ?? [])
+              if (node.kind === 'e' && node.enumLabels)
+                binaryEnums.set(enumType(node), {
+                  schema: node.schema,
+                  name: node.name,
+                  values: node.enumLabels,
+                })
+            const lines: string[] = [],
+              start = bindBinary('record_binary_start()', lines),
+              current = fresh('record_binary_fields')
+            lines.push(`let mut ${current}:ByteaValue=${start};`)
+            const fields = layout.profile?.graph.definitions.find(
+              (node) => node.identity === layout.profile!.identity,
+            )?.fields
+            for (const [index, field] of layout.fields.entries()) {
+              const body: string[] = []
+              const position = bindBinary(`make_int4_value(${index})`, body)
+              const cell = bindBinary(
+                `composite_field_at(${ownedOperand(operand)},${position})`,
+                body,
+              )
+              const physical =
+                layout.profile && fields?.[index]
+                  ? compositePhysicalType(layout.profile, fields[index]!.type)
+                  : null
+              const definition =
+                physical?.kind === 'e'
+                  ? {
+                      schema: physical.schema,
+                      name: physical.name,
+                      values: physical.enumLabels ?? [],
+                    }
+                  : undefined
+              const bytes = sendChild(cell, field.type, body, physical?.send, definition)
+              body.push(`${current}=container_binary_append(${current},${bytes},8);`)
+              lines.push(
+                `if container_binary_continues(${current}.clone()) {`,
+                ...indent(body),
+                '}',
+              )
+            }
+            lines.push(`${result}=${current};`)
+            destination.push(
+              `if composite_output_matches(${ownedOperand(operand)},${rustStringLiteral(layout.identity)},${layout.fields.length}) {`,
+              ...indent(lines),
+              '}',
+            )
+          }
+        }
+        callables.add(implementation.rustName)
+        return {
+          name: bindBinary(`${implementation.rustName}(${ownedOperand(operand)},${result})`),
+          type: call.type,
+        }
       }
       if (multirangeBinarySend || isMultirangeHash(implementation)) {
         const bindMultirange = (expression: string): string => {
@@ -5320,13 +5544,15 @@ export function emitCheckRustEvaluator(
             ? characterContext + '_context'
             : jsonSend
               ? 'json_send_context'
-              : jsonbSend
-                ? 'jsonb_send_context'
-                : jsonExtraction
-                  ? implementation.name + '_context'
-                  : jsonpathExecution
-                    ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
-                    : implementation.rustName
+              : jsonpathSend
+                ? 'jsonpath_send_context'
+                : jsonbSend
+                  ? 'jsonb_send_context'
+                  : jsonExtraction
+                    ? implementation.name + '_context'
+                    : jsonpathExecution
+                      ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+                      : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (identifierQuote)
         arguments_.push(
@@ -5441,7 +5667,8 @@ export function emitCheckRustEvaluator(
       if (xmlCast) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (xmlSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (jsonbSend) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
-      if (jsonSend || jsonbSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
+      if (jsonSend || jsonbSend || jsonpathSend)
+        arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (tsqueryComparison || tsqueryRewrite)
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (tsvectorSend || tsquerySend)

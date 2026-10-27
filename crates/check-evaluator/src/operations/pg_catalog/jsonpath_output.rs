@@ -474,14 +474,13 @@ pub fn jsonpath_to_text(input: JsonpathValue) -> TextValue {
 }
 
 pub fn sql__pg_catalog__jsonpath_send__hmew(input: JsonpathValue) -> ByteaValue {
+    jsonpath_send_context(input, false)
+}
+
+pub fn jsonpath_send_context(input: JsonpathValue, utf8: bool) -> ByteaValue {
     let output = jsonpath_to_text(input);
-    let bytes = sql__pg_catalog__textsend__mgfj(output);
-    if let ByteaValue::Value(value) = bytes {
-        let mut framed = "01".to_owned();
-        framed.push_str(value.as_str());
-        return ByteaValue::Value(framed);
-    };
-    bytes
+    let bytes = text_wire_context(output, utf8);
+    sql__pg_catalog__byteacat__zitv(ByteaValue::Value("01".to_owned()), bytes)
 }
 
 pub fn jsonb_input_from_jsonpath(input: JsonpathValue) -> JsonbInput {

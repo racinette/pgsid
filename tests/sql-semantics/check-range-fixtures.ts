@@ -439,7 +439,11 @@ export function rangeBoundCell(subtype: string, value: string | null): RangeInpu
     return { kind: 'Tsvector', value: { lexemes, nativeBytes: stored.nativeBytes } }
   }
   if (subtype === 'pg_catalog.xml') return { kind: 'Xml', value }
-  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(subtype))
+  if (
+    ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.name', 'pg_catalog.refcursor'].includes(
+      subtype,
+    )
+  )
     return { kind: 'Text', value }
   if (subtype === 'pg_catalog.bpchar')
     return { kind: 'Text', value: Buffer.from(value, 'hex').toString('utf8') }
