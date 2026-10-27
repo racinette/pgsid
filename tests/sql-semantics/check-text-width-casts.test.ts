@@ -170,3 +170,131 @@ it('matches width casts and direct coercion calls with all input collations, err
     await rm(directory, { recursive: true, force: true })
   }
 }, 600000)
+
+it('captures native bpchar-to-varchar coercions without losing target identity or CHECK branches', async () => {
+  const { parse } = await import('libpg-query')
+  const { portableCheckAtoms } = await import('../../src/codegen/shared/check-atom-support.js')
+  await parse('SELECT 1')
+  const pg = await PGlite.create(),
+    directory = await mkdtemp(join(tmpdir(), 'pgsid-text-width-capture-'))
+  try {
+    const expressions = {
+      preview: '(fixed_label::varchar(3))::text = recorded',
+      octets: 'octet_length(fixed_label::varchar(3)) = recorded_octets',
+    }
+    await pg.exec(
+      `CREATE TABLE width_capture(fixed_label bpchar,recorded text,recorded_octets int4,skip bool,${Object.entries(
+        expressions,
+      )
+        .map(
+          ([name, expression]) =>
+            `CONSTRAINT ${name} CHECK(CASE WHEN skip THEN true ELSE ${expression} END)`,
+        )
+        .join(',')})`,
+    )
+    const catalog = await snapshotCatalog(pg),
+      table = catalog.tables.find((table) => table.name === 'width_capture')!
+    for (const constraint of table.constraints)
+      expect(constraint.rowCoercionContext?.complete).toBe(true)
+    const constraints = Object.entries(expressions).flatMap(([name, expression]) =>
+      (['source', 'stored'] as const).map((origin) => {
+        const plan = lowerTableCheck(
+          table,
+          table.constraints.find((constraint) => constraint.name === name)!,
+          catalog.enums,
+          catalog.domains,
+          origin,
+          catalog.rangeTypes,
+          catalog.compositeTypeGraph,
+          origin === 'source'
+            ? `CHECK(CASE WHEN skip THEN true ELSE ${expression} END)`
+            : undefined,
+        )!
+        expect(plan.expression.kind).not.toBe('uncertain')
+        return {
+          expression: portableCheckAtoms(plan.expression),
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: name + '_' + origin,
+          },
+        }
+      }),
+    )
+    const group = prepareCheckRustGroup(constraints, {
+      defaultCollation: 'C',
+      serverEncoding: 'UTF8',
+    })
+    for (const check of group.checks)
+      expect(check.kind, 'reason' in check ? check.reason : '').toBe('supported')
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const value of ['', 'a  ', 'abcd  ', 'é😊ab', '😊  ', null]) {
+      const rendered = (
+        await pg.query<{ text: string | null; octets: number | null }>(
+          'SELECT ($1::bpchar::varchar(3))::text AS text,octet_length($1::bpchar::varchar(3)) AS octets',
+          [value],
+        )
+      ).rows[0]!
+      for (const variant of ['correct', 'wrong', 'null', 'skip'] as const) {
+        const row: Row = {
+          fixed_label: input(value),
+          recorded: input(
+            variant === 'wrong' ? 'wrong result' : variant === 'null' ? null : rendered.text,
+          ),
+          recorded_octets: input(
+            variant === 'wrong' ? -1 : variant === 'null' ? null : rendered.octets,
+          ),
+          skip: input(variant === 'skip'),
+        }
+        for (const [name, expression] of Object.entries(expressions)) {
+          const output = (
+            await pg.query<{ value: boolean | null }>(
+              `SELECT CASE WHEN skip THEN true ELSE ${expression} END AS value FROM (SELECT $1::bpchar fixed_label,$2::text recorded,$3::int4 recorded_octets,$4::bool skip) args`,
+              [
+                value,
+                row.recorded!.kind === 'Value' ? row.recorded!.value : null,
+                row.recorded_octets!.kind === 'Value' ? row.recorded_octets!.value : null,
+                variant === 'skip',
+              ],
+            )
+          ).rows[0]!.value
+          for (const origin of ['source', 'stored'])
+            fixtures.push({
+              name: name + '_' + origin,
+              row,
+              expected: { kind: output === null ? 'Null' : output ? 'True' : 'False' },
+            })
+        }
+      }
+    }
+    for (const constraint of constraints) {
+      const name = constraint.identity.constraint
+      const row: Row = {
+        fixed_label: { kind: 'Unknown' },
+        recorded: input(''),
+        recorded_octets: input(0),
+        skip: input(false),
+      }
+      fixtures.push(
+        { name, row, expected: { kind: 'Unknown' } },
+        { name, row: { ...row, skip: input(true) }, expected: { kind: 'True' } },
+        {
+          name,
+          row: { ...row, fixed_label: { kind: 'Error', value: { state: parseInt('22012', 36) } } },
+          expected: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+        },
+      )
+    }
+    await runCheckParity(
+      directory,
+      'text_width_capture',
+      group,
+      constraints.map((constraint) => constraint.identity.constraint),
+      fixtures,
+    )
+  } finally {
+    await pg.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 180_000)
