@@ -735,6 +735,15 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       id = Number(scalar(node, node.kind === 'FUNCEXPR' ? 'funcid' : 'opfuncid')),
       callable = input.functions.get(id)
     if (!callable) return undefined
+    const conversion =
+      callable.args.length === 1 && result ? builtinCast(callable.args[0]!, result) : null
+    const castResult =
+      node.kind === 'FUNCEXPR' &&
+      ['1', '2'].includes(scalar(node, 'funcformat') ?? '') &&
+      conversion?.method === 'f' &&
+      conversion.implementation === callable.signature &&
+      result !== undefined &&
+      builtinCast(callable.result, result)?.method === 'b'
     const provided = list('args'),
       variadic = callable.variadic ?? null,
       explicit = node.kind === 'FUNCEXPR' && scalar(node, 'funcvariadic') === 'true',
@@ -789,6 +798,7 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
       (special
         ? callable.result !== 'pg_catalog.bool' || args.length !== 2
         : result !== callable.result &&
+          !castResult &&
           ![
             'pg_catalog.anyenum',
             'pg_catalog.anyarray',
@@ -800,14 +810,12 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           ].includes(callable.result))
     )
       return undefined
-    const conversion =
-      callable.args.length === 1 ? builtinCast(callable.args[0]!, callable.result) : null
     if (conversion?.method === 'f' && conversion.implementation === callable.signature)
       return collated(
         {
           PgsidStoredCast: {
             arg: args[0],
-            type: callable.result,
+            type: result,
             source: callable.args[0],
             signature: callable.signature,
             kind: 'function',

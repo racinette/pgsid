@@ -128,3 +128,69 @@ it('recovers lossless text with explicit storage order and canonical collation i
   expect(expressions.every((e) => JSON.stringify(e) === JSON.stringify(expressions[0]))).toBe(true)
   expect(JSON.stringify(expressions)).not.toMatch(/12345|54321/)
 })
+
+it('preserves a catalog cast target when PostgreSQL retags a binary-compatible function result', async () => {
+  const { parse } = await import('libpg-query')
+  const { builtinCast, builtinMetadata } =
+    await import('../../../src/postgres/builtins/inventory.js')
+  await parse('SELECT 1')
+  const source = 'pg_catalog.bpchar',
+    target = 'pg_catalog."varchar"'
+  const cast = builtinCast(source, target)!
+  const callable = builtinMetadata(cast.implementation!)
+  expect(cast.method).toBe('f')
+  expect(callable.kind).toBe('function')
+  if (callable.kind !== 'function') throw new Error('Expected a captured cast function')
+  expect(callable.result).toBe('pg_catalog.text')
+  const captured: unknown[] = []
+  for (const base of [11000, 55000]) {
+    const input: StoredRowExpressionInput = {
+      types: new Map([
+        [base, source],
+        [base + 1, target],
+        [base + 2, callable.result],
+        [base + 3, 'pg_catalog.int4'],
+      ]),
+      functions: new Map([
+        [
+          base + 4,
+          { signature: cast.implementation!, args: callable.args, result: callable.result },
+        ],
+      ]),
+      columns: new Map([[1, { name: 'label', type: base }]]),
+      byteOrder: 'little',
+    }
+    const node = (format: number, result = base + 1) =>
+      parseTree(
+        `{FUNCEXPR :funcid ${base + 4} :funcresulttype ${result} :funcretset false :funcvariadic false :funcformat ${format} :funccollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 1 :vartype ${base} :varcollid 0 :varlevelsup 0})}`,
+      )
+    for (const format of [1, 2]) {
+      const expression = storedRowExpression(node(format), input)
+      expect(expression).toEqual({
+        PgsidStoredCast: {
+          arg: { ColumnRef: { fields: [{ String: { sval: 'label' } }] } },
+          type: target,
+          source,
+          signature: cast.implementation,
+          kind: 'function',
+        },
+      })
+      captured.push(expression)
+      expect(storedRowExpression(node(format, base + 3), input)).toBeUndefined()
+      expect(
+        storedRowExpression(node(format), {
+          ...input,
+          functions: new Map([
+            [base + 4, { signature: 'unrelated', args: callable.args, result: callable.result }],
+          ]),
+        }),
+      ).toBeUndefined()
+    }
+    expect(storedRowExpression(node(0), input)).toBeUndefined()
+    expect(storedRowExpression(node(0, base + 2), input)).toBeDefined()
+  }
+  expect(captured.every((value) => JSON.stringify(value) === JSON.stringify(captured[0]))).toBe(
+    true,
+  )
+  expect(JSON.stringify(captured)).not.toMatch(/11000|55000/)
+})
