@@ -1,3 +1,4 @@
+import { isTextFormatCallable } from './text-format-callables.js'
 import { isTextConcatCallable } from './text-concat-callables.js'
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
@@ -1561,7 +1562,9 @@ const candidate = (
     const operands = fullArgs.map((arg, index) =>
       explicitAny && index === item.args.length - 1
         ? boundType(arg)?.startsWith('array:') ||
-          ((isNullCountCallable(item) || isTextConcatCallable(item)) &&
+          ((isNullCountCallable(item) ||
+            isTextConcatCallable(item) ||
+            isTextFormatCallable(item)) &&
             isArrayLikeType(boundType(arg)))
           ? materialize(arg, boundType(arg)!, arg.enum)
           : null
@@ -4089,6 +4092,7 @@ export function bindCatalogCheck(
             type,
             ...(explicit && variadic ? { variadic: true as const } : {}),
             ...([
+              'format',
               'concat',
               'concat_ws',
               'json_build_array',
@@ -8587,6 +8591,7 @@ export function bindCatalogCheck(
       resolved.item.kind === 'function' &&
       resolved.item.schema === 'pg_catalog' &&
       [
+        'format',
         'concat',
         'concat_ws',
         'to_json',

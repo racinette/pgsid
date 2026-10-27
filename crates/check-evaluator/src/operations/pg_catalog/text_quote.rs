@@ -1,6 +1,14 @@
 const TEXT_QUOTE_ALLOCATION_ERROR: u32 = 56966976;
 
-pub fn sql__pg_catalog__quote_literal__d0rq(input: TextValue) -> TextValue {
+fn quote_literal_capacity(bytes: i64, sql_text: bool) -> bool {
+    let mut maximum: i64 = 536870909i64;
+    if sql_text {
+        maximum = 536870908i64;
+    };
+    bytes <= maximum
+}
+
+pub(crate) fn quote_literal_output(input: TextValue, sql_text: bool) -> TextValue {
     if let TextValue::Error(error) = input {
         return TextValue::Error(error);
     }
@@ -11,7 +19,8 @@ pub fn sql__pg_catalog__quote_literal__d0rq(input: TextValue) -> TextValue {
         return TextValue::Null;
     }
     if let TextValue::Value(text) = input {
-        if text_build_octets(text.as_str()) > 536870908i64 {
+        let bytes = text_build_octets(text.as_str());
+        if quote_literal_capacity(bytes, sql_text) == false {
             return TextValue::Error(make_sql_error(TEXT_QUOTE_ALLOCATION_ERROR));
         }
         let characters: Vec<char> = text.chars().collect();
@@ -41,4 +50,8 @@ pub fn sql__pg_catalog__quote_literal__d0rq(input: TextValue) -> TextValue {
         return TextValue::Value(output);
     }
     TextValue::Unknown
+}
+
+pub fn sql__pg_catalog__quote_literal__d0rq(input: TextValue) -> TextValue {
+    quote_literal_output(input, true)
 }

@@ -1675,3 +1675,18 @@ CREATE TABLE inspection_joined_labels (
  CONSTRAINT joined_ratio_output CHECK(CASE WHEN bypass THEN true ELSE
    concat_ws(separator,score/denominator) IS NOT DISTINCT FROM expected_ratio END)
 );
+
+CREATE TABLE inspection_formatted_labels (
+ pattern text,
+ label text,
+ score integer,
+ width integer,
+ fields text[],
+ expected_expanded text,
+ expected_array text,
+ bypass boolean NOT NULL,
+ CONSTRAINT formatted_scalar_values CHECK(CASE WHEN bypass THEN true ELSE
+   format(pattern,label,score,width) IS NOT DISTINCT FROM expected_expanded END),
+ CONSTRAINT formatted_array_values CHECK(CASE WHEN bypass THEN true ELSE
+   format(pattern,VARIADIC fields) IS NOT DISTINCT FROM expected_array END)
+);

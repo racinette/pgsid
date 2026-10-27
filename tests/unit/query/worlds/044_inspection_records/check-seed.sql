@@ -2336,3 +2336,37 @@ INSERT INTO inspection_joined_labels(approved,label,source_address,readings,sepa
 INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{}',NULL,1,0,'',NULL,NULL,NULL,false);
 -- name: JoinedSkippedError
 INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{}',NULL,1,0,'wrong','wrong','wrong','wrong',true);
+-- name: FormattedIdentifierAndLiteral
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$I=%2$L','select',3,4,'{select,3}','"select"=''3''','"select"=''3''',false);
+-- name: FormattedWrongScalar
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$I=%2$L','select',3,4,'{select,3}','wrong','"select"=''3''',false);
+-- name: FormattedWrongArray
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$I=%2$L','select',3,4,'{select,3}','"select"=''3''','wrong',false);
+-- name: FormattedUnicodeWidth
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$*3$s','雪',9,4,'{雪,9,4}','   雪','   雪',false);
+-- name: FormattedLeftWidth
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$*3$s','雪',9,-4,'{雪,9,-4}','雪   ','雪   ',false);
+-- name: FormattedPositionConsumption
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%2$s:%1$s:%s','X',3,4,'{A,B,C}','3:X:3','B:A:B',false);
+-- name: FormattedNullValues
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$s|%2$L',NULL,NULL,NULL,'{NULL,NULL}','|NULL','|NULL',false);
+-- name: FormattedEscapedPercent
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%%',NULL,NULL,NULL,NULL,'%','%',false);
+-- name: FormattedNullPattern
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES (NULL,'X',3,4,'{}',NULL,NULL,false);
+-- name: FormattedBadWidth
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%*s','bad',3,4,'{bad,value}',NULL,NULL,false);
+-- name: FormattedNullIdentifier
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$I',NULL,0,0,'{NULL}',NULL,NULL,false);
+-- name: FormattedUnterminated
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%',NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: FormattedOverflowWidth
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%2147483648s','X',1,1,'{X}',NULL,NULL,false);
+-- name: FormattedMinimumWidth
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%1$*3$s','X',0,-2147483648,'{X,0,-2147483648}',NULL,NULL,false);
+-- name: FormattedMissingArgument
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%4$s','X',1,1,'{X,1,1}',NULL,NULL,false);
+-- name: FormattedNullArrayMissingArgument
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%s',NULL,NULL,NULL,NULL,'',NULL,false);
+-- name: FormattedSkippedErrors
+INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%0$s','X',1,1,'{X}','wrong','wrong',true);
