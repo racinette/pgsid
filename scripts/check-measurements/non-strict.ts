@@ -32,7 +32,7 @@ register(['format_type'], ['pg_catalog.oid', 'pg_catalog.int4'], {
   kind: 'database',
   setting: 'type_catalog_and_search_path',
   requirement:
-    'Full type rendering resolves deployment type identities, modifiers and namespace visibility. Native NULL and invalid-identity branches require separate implementation assessment.',
+    'Full type rendering resolves deployment type identities, modifiers and namespace visibility. NULL type identifiers and zero invalid-identity sentinels are handled without catalog lookup.',
 })
 register(['pg_typeof'], ['pg_catalog."any"'], {
   kind: 'expression',
@@ -44,7 +44,7 @@ register(['pg_collation_for'], ['pg_catalog."any"'], {
   kind: 'expression',
   setting: 'resolved_collation_identity',
   requirement:
-    'The result follows expression collation metadata and catalog name visibility, rather than the supplied datum bytes. Known noncollatable and captured collation branches remain implementation work.',
+    'The result follows expression collation metadata and catalog name visibility, rather than supplied datum bytes. Noncollatable errors and known non-NULL names for resolved collations are handled; spelling still requires catalog visibility.',
 })
 register(
   ['satisfies_hash_partition'],
@@ -85,7 +85,7 @@ for (const args of [[], ['pg_catalog.text']])
     kind: 'database',
     setting: 'logging_collector',
     requirement:
-      'Read the active collector file and privileges. Invalid format arguments have deterministic errors even when no collector file exists; those branches remain implementation work.',
+      'Read the active collector file under deployment EXECUTE privileges. Restricted callers can receive 42501 before format validation; authorized callers can receive 22023 for invalid formats. Neither collector contents nor caller privileges are supplied by static code-generation settings.',
   })
 register(['set_config'], ['pg_catalog.text', 'pg_catalog.text', 'pg_catalog.bool'], {
   kind: 'session',

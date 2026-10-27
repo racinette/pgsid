@@ -1,6 +1,10 @@
 import { isTextFormatCallable } from '../../sql-semantics/text-format-callables.js'
 import { isJsonPopulateCallable } from '../../sql-semantics/json-populate-callables.js'
 import { isIntegerSumCallable } from '../../sql-semantics/integer-sum-callables.js'
+import {
+  isCollationMetadataCallable,
+  isTypeFormatCallable,
+} from '../../sql-semantics/metadata-callables.js'
 import { isLegacySimilarCallable } from '../../sql-semantics/text-similar-callables.js'
 import { isTextConcatCallable } from '../../sql-semantics/text-concat-callables.js'
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
@@ -3282,6 +3286,35 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (isCollationMetadataCallable(implementation)) {
+        if (call.kind !== 'function' || operands.length !== 1 || call.type !== 'pg_catalog.text')
+          throw new UnsupportedCheckRustExpression('Invalid collation metadata call')
+        if (folded) return folded
+        const operand = operands[0]!
+        let type = arrayElementBaseType(operand.type)
+        while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+        const collatable = [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(type)
+        const resolved =
+          call.collationResolved === true ||
+          call.collationDefault === true ||
+          call.collation === 'C' ||
+          call.collation === 'deterministic'
+        const argument = fresh('metadata_argument')
+        const collation = fresh('metadata_collation')
+        const result = fresh('metadata_result')
+        destination.push(
+          `let ${argument} = ${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)});`,
+          `let ${collation} = ${!collatable ? 'make_bool_value(false)' : resolved ? 'make_bool_value(true)' : 'bool_unknown()'};`,
+          `let ${result} = ${implementation.rustName}(${argument},${collation});`,
+        )
+        callables.add(implementation.rustName)
+        return { name: result, type: call.type }
+      }
       if (isJsonPopulateCallable(implementation)) {
         const profile = operands[0] && compositeProfile(arrayElementBaseType(operands[0].type)),
           definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
@@ -3749,6 +3782,7 @@ export function emitCheckRustEvaluator(
         (!implementation.strict &&
           !isLegacySimilarCallable(implementation) &&
           !isIntegerSumCallable(implementation) &&
+          !isTypeFormatCallable(implementation) &&
           !xmlConcat &&
           !rangeConstructor &&
           !enumSupport &&
@@ -3762,6 +3796,7 @@ export function emitCheckRustEvaluator(
           !isJsonbSetLax(implementation) &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !isTypeFormatCallable(implementation) &&
           !vectorTypeNames &&
           !enumSupport &&
           !arrayBinarySend &&
