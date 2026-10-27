@@ -97,7 +97,7 @@ Done when required context is explicit and shared Rust owns behavior across targ
 
 ## Assess excluded callable categories
 
-- [ ] Review non-strict scalar functions on represented types individually.
+- [ ] Review non-strict scalar functions on represented types individually. Admit `num_nulls` and `num_nonnulls` through datum nullness and generic expanded/VARIADIC inputs, including catalog vectors, partial non-NULL arrays, composite datums, ordered errors and skipped branches; verify `tests/sql-semantics/check-null-count.test.ts` and inspection-record world INSERTs. Other non-strict callable families remain open.
 - [ ] Separate stable functions with explicit portable context from functions that require database state; assess volatile functions independently. Temporal clocks, one-argument calendar age, lifecycle/replay/commit timestamps and statistics have native-tested transaction, statement, invocation or database-state requirements in `tests/sql-semantics/check-temporal-runtime.test.ts`; reached calls remain deferred independently of skipped branches. Context-independent native NULL/infinity facts for unimplemented wrappers remain implementation work.
 - [ ] Assess custom-schema functions and source-module setup as a separate slice.
 

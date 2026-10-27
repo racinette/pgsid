@@ -1,4 +1,5 @@
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
+import { isNullCountCallable } from './null-count-callables.js'
 import { validJsonpathConstantStorage } from '../catalog/jsonpath-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
@@ -1560,7 +1561,8 @@ const candidate = (
     )
     const operands = fullArgs.map((arg, index) =>
       explicitAny && index === item.args.length - 1
-        ? boundType(arg)?.startsWith('array:')
+        ? boundType(arg)?.startsWith('array:') ||
+          (isNullCountCallable(item) && isArrayLikeType(boundType(arg)))
           ? materialize(arg, boundType(arg)!, arg.enum)
           : null
         : variadicAny
