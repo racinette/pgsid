@@ -124,3 +124,32 @@ func TestExportedGlobalCapturesAreIndependent(t *testing.T) {
 		t.Fatal("global capture work limit lost its status")
 	}
 }
+
+func TestExportedCharacterProfiles(t *testing.T) {
+	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
+	invalid := []struct{ ranges, cases []int }{
+		{[]int{0}, nil}, {[]int{1, 1114111, 0}, nil}, {[]int{0, 100, 0, 100, 1114111, 0}, nil},
+		{[]int{0, 1114111, 16384}, nil}, {[]int{0, 1114111, 0}, []int{97}},
+		{[]int{0, 1114111, 0}, []int{97, 97, 65, 65, 97, 65}},
+		{[]int{0, 1114111, 0}, []int{1114112, 0, 0}}, {nil, []int{97, 97, 65}},
+	}
+	for _, item := range invalid {
+		profile := generated.MakeRegexCharacterProfile(item.ranges, item.cases)
+		if generated.FindProfile("a", "a", 0, options, profile).Kind != generated.MatchOutcomeUncertain || generated.CompileProfile("a", options, profile).Kind != generated.CompileOutcomeUncertain {
+			t.Fatal("malformed character profile was admitted")
+		}
+	}
+	ranges := []int{0, 96, 0, 97, 97, 2, 98, 1114111, 0}
+	cases := []int{97, 97, 65}
+	profile := generated.MakeRegexCharacterProfile(ranges, cases)
+	ranges[5] = 0
+	cases[1] = 0
+	cases[2] = 0
+	if generated.FindProfile("[[:alpha:]]", "a", 0, options, profile).Kind != generated.MatchOutcomeFound {
+		t.Fatal("character profile shares caller class storage")
+	}
+	options.CaseSensitive = false
+	if generated.FindProfile("a", "A", 0, options, profile).Kind != generated.MatchOutcomeFound {
+		t.Fatal("character profile shares caller case storage")
+	}
+}

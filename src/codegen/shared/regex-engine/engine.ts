@@ -149,6 +149,7 @@ const vmAbsoluteEnd = 28;
 const vmBoundary = 29;
 const vmNotBoundary = 30;
 const captureClassRange = 15;
+const captureClassLiteral = 16;
 const nodeSequence = 16;
 const nodeAlternative = 17;
 const nodeGroup = 18;
@@ -224,6 +225,240 @@ export interface RegexOptions {
 }
 function copyRegexOptions(value: RegexOptions): RegexOptions {
     return { syntax: copySyntax(value.syntax), caseSensitive: checkedBool(value.caseSensitive), expanded: checkedBool(value.expanded), newline: copyNewlineMode(value.newline) };
+}
+export interface RegexCharacterProfile {
+    readonly valid: boolean;
+    readonly ranges: number[];
+    readonly cases: number[];
+    readonly rangeSteps: number[];
+    readonly caseSteps: number[];
+}
+function copyRegexCharacterProfile(value: RegexCharacterProfile): RegexCharacterProfile {
+    return checkedOpaque(value);
+}
+export function makeRegexCharacterProfile(ranges: number[], cases: number[]): RegexCharacterProfile {
+    ranges = checkedIndices(ranges);
+    cases = checkedIndices(cases);
+    let valid: boolean = true;
+    let position: number = 0;
+    let next: number = 0;
+    while (valid && position < ranges.length && checkedSubtract(ranges.length, position) >= 3) {
+        const first: number = indexNumber(ranges, checkedIndex(position));
+        const last: number = indexNumber(ranges, checkedIndex(checkedAdd(position, 1)));
+        valid = checkedBool(first === next && first <= last && last <= 1114111 && indexNumber(ranges, checkedIndex(checkedAdd(position, 2))) < 16384);
+        next = checkedIndex(checkedAdd(last, 1));
+        position = checkedAdd(position, 3);
+    }
+    if (!(position === ranges.length) || (ranges.length > 0 && !(next === 1114112))) {
+        valid = checkedBool(false);
+    }
+    if (ranges.length === 0 && cases.length > 0) {
+        valid = checkedBool(false);
+    }
+    position = checkedIndex(0);
+    let previous: number = 0;
+    while (valid && position < cases.length && checkedSubtract(cases.length, position) >= 3) {
+        const point: number = indexNumber(cases, checkedIndex(position));
+        valid = checkedBool(point <= 1114111 && indexNumber(cases, checkedIndex(checkedAdd(position, 1))) <= 1114111 && indexNumber(cases, checkedIndex(checkedAdd(position, 2))) <= 1114111);
+        if (position > 0 && point <= previous) {
+            valid = checkedBool(false);
+        }
+        previous = checkedIndex(point);
+        position = checkedAdd(position, 3);
+    }
+    if (!(position === cases.length)) {
+        valid = checkedBool(false);
+    }
+    let rangeSteps: number[] = [];
+    let caseSteps: number[] = [];
+    let step: number = 3;
+    while (step < ranges.length) {
+        pushIndex(rangeSteps, step);
+        step = checkedIndex(checkedAdd(step, step));
+    }
+    step = checkedIndex(3);
+    while (step < cases.length) {
+        pushIndex(caseSteps, step);
+        step = checkedIndex(checkedAdd(step, step));
+    }
+    return sealOpaque({ valid: valid, ranges: ranges, cases: cases, rangeSteps: rangeSteps, caseSteps: caseSteps });
+}
+export function compileProfile(pattern: string, options: RegexOptions, profile: RegexCharacterProfile): CompileOutcome {
+    pattern = checkedString(pattern);
+    options = copyRegexOptions(options);
+    profile = copyRegexCharacterProfile(profile);
+    if (profile.valid === false) {
+        return { kind: "Uncertain" };
+    }
+    if (equalSyntax(options.syntax, { kind: "Literal" }) && (options.expanded || !(equalNewlineMode(options.newline, { kind: "Ordinary" })))) {
+        return { kind: "InvalidPattern" };
+    }
+    const program: CompiledRegex = compilePatternSourceProfile(pattern, options, true, profile);
+    if (program.limited) {
+        return { kind: "Uncertain" };
+    }
+    if (program.valid === false) {
+        return { kind: "InvalidPattern" };
+    }
+    return { kind: "Compiled", value: sealOpaque(program) };
+}
+export function findProfile(pattern: string, subject: string, from: number, options: RegexOptions, profile: RegexCharacterProfile): MatchOutcome {
+    pattern = checkedString(pattern);
+    subject = checkedString(subject);
+    from = checkedIndex(from);
+    options = copyRegexOptions(options);
+    profile = copyRegexCharacterProfile(profile);
+    if (profile.valid === false) {
+        return { kind: "Uncertain" };
+    }
+    if (equalSyntax(options.syntax, { kind: "Literal" }) && (options.expanded || !(equalNewlineMode(options.newline, { kind: "Ordinary" })))) {
+        return { kind: "InvalidPattern" };
+    }
+    const program: CompiledRegex = compilePatternSourceProfile(pattern, options, false, profile);
+    if (program.limited) {
+        return { kind: "Uncertain" };
+    }
+    if (program.valid === false) {
+        return { kind: "InvalidPattern" };
+    }
+    return captureMatchOutcome(executeCompiledPattern(program, subject, from, false, false, false));
+}
+function regexProfileFlag(kind: number): number {
+    kind = checkedIndex(kind);
+    if (kind === 1) {
+        return 1;
+    }
+    if (kind === 2) {
+        return 2;
+    }
+    if (kind === 3) {
+        return 4;
+    }
+    if (kind === 4) {
+        return 8;
+    }
+    if (kind === 5) {
+        return 16;
+    }
+    if (kind === 6) {
+        return 32;
+    }
+    if (kind === 7) {
+        return 64;
+    }
+    if (kind === 8) {
+        return 128;
+    }
+    if (kind === 9) {
+        return 256;
+    }
+    if (kind === 10) {
+        return 512;
+    }
+    if (kind === 11) {
+        return 1024;
+    }
+    if (kind === 12) {
+        return 2048;
+    }
+    if (kind === 13) {
+        return 4096;
+    }
+    return 8192;
+}
+function regexProfileClass(program: CompiledRegex, point: number, kind: number): boolean {
+    point = checkedIndex(point);
+    kind = checkedIndex(kind);
+    let offset: number = 0;
+    let index: number = program.characterProfile.rangeSteps.length;
+    while (index > 0) {
+        index = checkedIndex(checkedSubtract(index, 1));
+        const candidate: number = checkedAdd(offset, indexNumber(program.characterProfile.rangeSteps, checkedIndex(index)));
+        if (candidate < program.characterProfile.ranges.length && indexNumber(program.characterProfile.ranges, checkedIndex(candidate)) <= point) {
+            offset = checkedIndex(candidate);
+        }
+    }
+    let mask: number = indexNumber(program.characterProfile.ranges, checkedIndex(checkedAdd(offset, 2)));
+    let bit: number = 14;
+    while (bit > kind) {
+        const flag: number = regexProfileFlag(bit);
+        if (mask >= flag) {
+            mask = checkedIndex(checkedSubtract(mask, flag));
+        }
+        bit = checkedIndex(checkedSubtract(bit, 1));
+    }
+    return mask >= regexProfileFlag(kind);
+}
+function regexProfileCaseIndex(program: CompiledRegex, point: number): number {
+    point = checkedIndex(point);
+    const size: number = program.characterProfile.cases.length;
+    if (size === 0) {
+        return size;
+    }
+    let offset: number = 0;
+    let index: number = program.characterProfile.caseSteps.length;
+    while (index > 0) {
+        index = checkedIndex(checkedSubtract(index, 1));
+        const candidate: number = checkedAdd(offset, indexNumber(program.characterProfile.caseSteps, checkedIndex(index)));
+        if (candidate < size && indexNumber(program.characterProfile.cases, checkedIndex(candidate)) <= point) {
+            offset = checkedIndex(candidate);
+        }
+    }
+    return offset;
+}
+function regexProfileCase(program: CompiledRegex, point: number, upper: boolean): number {
+    point = checkedIndex(point);
+    upper = checkedBool(upper);
+    if (program.characterProfile.ranges.length === 0) {
+        if (upper && point >= 97 && point <= 122) {
+            return checkedSubtract(point, 32);
+        }
+        if (upper === false && point >= 65 && point <= 90) {
+            return checkedAdd(point, 32);
+        }
+        return point;
+    }
+    const index: number = regexProfileCaseIndex(program, point);
+    if (index < program.characterProfile.cases.length && indexNumber(program.characterProfile.cases, checkedIndex(index)) === point) {
+        if (upper) {
+            return indexNumber(program.characterProfile.cases, checkedIndex(checkedAdd(index, 2)));
+        }
+        return indexNumber(program.characterProfile.cases, checkedIndex(checkedAdd(index, 1)));
+    }
+    return point;
+}
+function regexProfileLiteral(program: CompiledRegex, expected: number, actual: number, sensitive: boolean): boolean {
+    expected = checkedIndex(expected);
+    actual = checkedIndex(actual);
+    sensitive = checkedBool(sensitive);
+    if (sensitive) {
+        return expected === actual;
+    }
+    return regexProfileCase(program, expected, false) === actual || regexProfileCase(program, expected, true) === actual;
+}
+function regexProfileRange(program: CompiledRegex, first: number, last: number, actual: number): boolean {
+    first = checkedIndex(first);
+    last = checkedIndex(last);
+    actual = checkedIndex(actual);
+    if (actual >= first && actual <= last) {
+        return true;
+    }
+    if (program.characterProfile.ranges.length === 0) {
+        const lower: number = regexProfileCase(program, actual, false);
+        const upper: number = regexProfileCase(program, actual, true);
+        return (lower >= first && lower <= last) || (upper >= first && upper <= last);
+    }
+    let index: number = regexProfileCaseIndex(program, first);
+    if (index < program.characterProfile.cases.length && indexNumber(program.characterProfile.cases, checkedIndex(index)) < first) {
+        index = checkedAdd(index, 3);
+    }
+    while (index < program.characterProfile.cases.length && indexNumber(program.characterProfile.cases, checkedIndex(index)) <= last) {
+        if (indexNumber(program.characterProfile.cases, checkedIndex(checkedAdd(index, 1))) === actual || indexNumber(program.characterProfile.cases, checkedIndex(checkedAdd(index, 2))) === actual) {
+            return true;
+        }
+        index = checkedAdd(index, 3);
+    }
+    return false;
 }
 export function find(pattern: string, subject: string, from: number, options: RegexOptions): MatchOutcome {
     pattern = checkedString(pattern);
@@ -530,6 +765,16 @@ function compilePatternSource(pattern: string, options: RegexOptions, capturing:
     pattern = checkedString(pattern);
     options = copyRegexOptions(options);
     capturing = checkedBool(capturing);
+    const characterRanges: number[] = [];
+    const characterCases: number[] = [];
+    const characterProfile: RegexCharacterProfile = makeRegexCharacterProfile(characterRanges, characterCases);
+    return compilePatternSourceProfile(pattern, options, capturing, characterProfile);
+}
+function compilePatternSourceProfile(pattern: string, options: RegexOptions, capturing: boolean, characterProfile: RegexCharacterProfile): CompiledRegex {
+    pattern = checkedString(pattern);
+    options = copyRegexOptions(options);
+    capturing = checkedBool(capturing);
+    characterProfile = copyRegexCharacterProfile(characterProfile);
     let syntax: string = "a";
     if (equalSyntax(options.syntax, { kind: "Basic" })) {
         syntax = checkedChar("b");
@@ -541,7 +786,7 @@ function compilePatternSource(pattern: string, options: RegexOptions, capturing:
         syntax = checkedChar("q");
     }
     const parsed: CaptureSource = capturePatternSource(pattern, syntax, options.expanded);
-    return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.caseSensitive, equalNewlineMode(options.newline, { kind: "Ordinary" }) || equalNewlineMode(options.newline, { kind: "Anchors" }), equalNewlineMode(options.newline, { kind: "Sensitive" }) || equalNewlineMode(options.newline, { kind: "Anchors" }));
+    return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.caseSensitive, equalNewlineMode(options.newline, { kind: "Ordinary" }) || equalNewlineMode(options.newline, { kind: "Anchors" }), equalNewlineMode(options.newline, { kind: "Sensitive" }) || equalNewlineMode(options.newline, { kind: "Anchors" }), characterProfile);
 }
 export interface MatchSpan {
     start: number;
@@ -611,6 +856,7 @@ function copyCaptureInstruction(value: CaptureInstruction): CaptureInstruction {
     return { operation: checkedIndex(value.operation), target: checkedIndex(value.target), alternate: checkedIndex(value.alternate), group: checkedIndex(value.group), atom: checkedChar(value.atom) };
 }
 export interface CompiledRegex {
+    readonly characterProfile: RegexCharacterProfile;
     readonly valid: boolean;
     readonly limited: boolean;
     readonly nodes: CaptureNode[];
@@ -764,8 +1010,11 @@ function posixClassWidth(kind: number): number {
     }
     return 11;
 }
-function zeroWidthWord(atom: string): boolean {
+function zeroWidthWord(atom: string, program: CompiledRegex): boolean {
     atom = checkedChar(atom);
+    if (program.characterProfile.ranges.length > 0) {
+        return regexProfileClass(program, checkedIndex((checkedChar(atom).codePointAt(0)!)), 14);
+    }
     const codepoint: number = checkedChar(atom).codePointAt(0)!;
     const lower: number = checkedChar(asciiLowercase(atom)).codePointAt(0)!;
     return (codepoint >= 48 && codepoint <= 57) || (lower >= 97 && lower <= 122) || atom === "_";
@@ -1453,6 +1702,8 @@ function parseCaptureClass(source: string[], syntax: string, groups: number): Ca
         }
         position = checkedAdd(position, atom.end);
         let upper: number = atom.value;
+        let kind: number = atom.kind;
+        let ranged: boolean = false;
         if (checkedSubtract(source.length, position) >= 2 && indexChar(source, checkedIndex(position)) === "-" && !(indexChar(source, checkedIndex(checkedAdd(position, 1))) === "]")) {
             let lookahead: string[] = [];
             let look: number = checkedAdd(position, 1);
@@ -1465,14 +1716,50 @@ function parseCaptureClass(source: string[], syntax: string, groups: number): Ca
                 break;
             }
             upper = checkedIndex(bound.value);
+            ranged = checkedBool(true);
             position = checkedAdd(position, checkedAdd(1, bound.end));
         }
-        pushStruct(members, { kind: atom.kind, lower: atom.value, upper: upper, complement: atom.complement }, copyCaptureClassMember);
+        if (kind === captureClassRange && ranged === false) {
+            kind = checkedIndex(captureClassLiteral);
+        }
+        pushStruct(members, { kind: kind, lower: atom.value, upper: upper, complement: atom.complement }, copyCaptureClassMember);
     }
     pushStruct(members, { kind: 0, lower: 0, upper: 0, complement: false }, copyCaptureClassMember);
     return { valid: valid, negated: negated, members: members };
 }
-function captureClassMemberMatches(member: CaptureClassMember, actual: string, sensitive: boolean): boolean {
+function captureClassMemberMatches(member: CaptureClassMember, actual: string, sensitive: boolean, program: CompiledRegex): boolean {
+    member = copyCaptureClassMember(member);
+    actual = checkedChar(actual);
+    sensitive = checkedBool(sensitive);
+    if (program.characterProfile.ranges.length === 0) {
+        let selectedKind: number = member.kind;
+        if (selectedKind === captureClassLiteral) {
+            selectedKind = checkedIndex(captureClassRange);
+        }
+        const selected: CaptureClassMember = copyCaptureClassMember({ kind: selectedKind, lower: member.lower, upper: member.upper, complement: member.complement });
+        return captureClassMemberMatchesAscii(selected, actual, sensitive);
+    }
+    const point: number = checkedIndex((checkedChar(actual).codePointAt(0)!));
+    let kind: number = member.kind;
+    if (sensitive === false && (kind === 3 || kind === 10)) {
+        kind = checkedIndex(2);
+    }
+    let matched: boolean = false;
+    if (kind === captureClassLiteral) {
+        matched = checkedBool(regexProfileLiteral(program, checkedIndex(member.lower), point, sensitive));
+    }
+    else if (kind === captureClassRange) {
+        matched = checkedBool(point >= checkedIndex(member.lower) && point <= checkedIndex(member.upper));
+        if (sensitive === false) {
+            matched = checkedBool(regexProfileRange(program, checkedIndex(member.lower), checkedIndex(member.upper), point));
+        }
+    }
+    else {
+        matched = checkedBool(regexProfileClass(program, point, kind));
+    }
+    return !(matched === member.complement);
+}
+function captureClassMemberMatchesAscii(member: CaptureClassMember, actual: string, sensitive: boolean): boolean {
     member = copyCaptureClassMember(member);
     actual = checkedChar(actual);
     sensitive = checkedBool(sensitive);
@@ -1734,7 +2021,7 @@ function capturePatternSource(pattern: string, syntax: string, expanded: boolean
     }
     return { valid: valid, syntax: syntax, caseMode: caseMode, newlineMode: newlineMode, atoms: atoms, tokenEnds: tokenEnds };
 }
-function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], syntax: string, valid: boolean, caseMode: string, newlineMode: string, capturing: boolean, caseSensitive: boolean, dotCrossesNewline: boolean, lineAnchors: boolean): CompiledRegex {
+function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], syntax: string, valid: boolean, caseMode: string, newlineMode: string, capturing: boolean, caseSensitive: boolean, dotCrossesNewline: boolean, lineAnchors: boolean, characterProfile: RegexCharacterProfile): CompiledRegex {
     source = checkedChars(source);
     tokenEnds = checkedIndices(tokenEnds);
     syntax = checkedChar(syntax);
@@ -1745,6 +2032,7 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
     caseSensitive = checkedBool(caseSensitive);
     dotCrossesNewline = checkedBool(dotCrossesNewline);
     lineAnchors = checkedBool(lineAnchors);
+    characterProfile = copyRegexCharacterProfile(characterProfile);
     let limited: boolean = false;
     let classMembers: CaptureClassMember[] = [];
     let nodes: CaptureNode[] = [];
@@ -2439,7 +2727,7 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
             valid = checkedBool(false);
         }
     }
-    return { valid: valid, limited: limited, nodes: nodes, root: root, references: references, minimums: minimums, maximums: maximums, firstLiterals: firstLiterals, lastLiterals: lastLiterals, interpreted: interpreted, regular: regular, prefilter: prefilter, instructions: instructions, classMembers: classMembers, caseMode: caseMode, newlineMode: newlineMode, shortest: shortest, captures: groups, backreferences: backreferences, caseSensitive: caseSensitive, dotCrossesNewline: dotCrossesNewline, lineAnchors: lineAnchors };
+    return { characterProfile: characterProfile, valid: valid, limited: limited, nodes: nodes, root: root, references: references, minimums: minimums, maximums: maximums, firstLiterals: firstLiterals, lastLiterals: lastLiterals, interpreted: interpreted, regular: regular, prefilter: prefilter, instructions: instructions, classMembers: classMembers, caseMode: caseMode, newlineMode: newlineMode, shortest: shortest, captures: groups, backreferences: backreferences, caseSensitive: caseSensitive, dotCrossesNewline: dotCrossesNewline, lineAnchors: lineAnchors };
 }
 function makeCaptureDissectFrame(node: number, begin: number, end: number, capture: number, prefix: boolean): CaptureDissectFrame {
     node = checkedIndex(node);
@@ -2464,24 +2752,14 @@ function captureRepeatEndpoint(begin: number, end: number, minimum: number, maxi
     }
     return checkedAdd(begin, width);
 }
-function captureBoundaryMatches(expected: number, actual: string, caseSensitive: boolean): boolean {
+function captureBoundaryMatches(expected: number, actual: string, caseSensitive: boolean, program: CompiledRegex): boolean {
     expected = checkedIndex(expected);
     actual = checkedChar(actual);
     caseSensitive = checkedBool(caseSensitive);
     if (expected === 0) {
         return true;
     }
-    let actualCode: number = checkedAdd((checkedIndex((checkedChar(actual).codePointAt(0)!))), 1);
-    let expectedCode: number = expected;
-    if (caseSensitive === false) {
-        if (actualCode >= 66 && actualCode <= 91) {
-            actualCode = checkedAdd(actualCode, 32);
-        }
-        if (expectedCode >= 66 && expectedCode <= 91) {
-            expectedCode = checkedAdd(expectedCode, 32);
-        }
-    }
-    return actualCode === expectedCode;
+    return regexProfileLiteral(program, checkedSubtract(expected, 1), checkedIndex((checkedChar(actual).codePointAt(0)!)), caseSensitive);
 }
 function executeCaptureTree(program: CompiledRegex, subject: string, from: number, exactEnd: number, exactMatch: boolean, caseSensitive: boolean, dotCrossesNewline: boolean, lineAnchors: boolean, counting: boolean, capturing: boolean, collecting: boolean, startWork: number, batch: MatchSpan[], batchMode: boolean): CaptureRunResult {
     subject = checkedString(subject);
@@ -2630,10 +2908,10 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                                 }
                                 phase = checkedIndex(dissectLeft);
                                 let possible: boolean = true;
-                                if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive) === false) {
+                                if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive, program) === false) {
                                     possible = checkedBool(false);
                                 }
-                                if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive) === false) {
+                                if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive, program) === false) {
                                     possible = checkedBool(false);
                                 }
                                 if (possible === false) {
@@ -2720,8 +2998,8 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                             matched = checkedBool(true);
                         }
                         else if (captureAssertion(node.operation)) {
-                            const before: boolean = end > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(end, 1))));
-                            const after: boolean = end < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(end)));
+                            const before: boolean = end > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(end, 1))), program);
+                            const after: boolean = end < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(end)), program);
                             const previousNewline: boolean = end > 0 && indexChar(haystack, checkedIndex(checkedSubtract(end, 1))) === "\n";
                             const nextNewline: boolean = end < haystack.length && indexChar(haystack, checkedIndex(end)) === "\n";
                             matched = checkedBool(captureAssertionMatches(node.operation, end, haystack.length, before, after, previousNewline, nextNewline, lineAnchors));
@@ -2755,7 +3033,7 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                                         work = checkedAdd(work, 1);
                                         const actual: string = indexChar(haystack, checkedIndex(checkedAdd(end, offset)));
                                         const expected: string = indexChar(haystack, checkedIndex(checkedAdd(register.start, offset)));
-                                        matched = checkedBool(actual === expected || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(expected)));
+                                        matched = checkedBool(actual === expected || (caseSensitive === false && regexProfileCase(program, checkedIndex((checkedChar(actual).codePointAt(0)!)), false) === regexProfileCase(program, checkedIndex((checkedChar(expected).codePointAt(0)!)), false)));
                                         offset = checkedAdd(offset, 1);
                                     }
                                     if (matched) {
@@ -2775,7 +3053,7 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                                         return captureTreeResult(2, 0, work);
                                     }
                                     work = checkedAdd(work, 1);
-                                    if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(end)), caseSensitive)) {
+                                    if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(end)), caseSensitive, program)) {
                                         included = checkedBool(true);
                                     }
                                     classPosition = checkedAdd(classPosition, 1);
@@ -2789,11 +3067,7 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                         }
                         else if (end < haystack.length) {
                             const actual: string = indexChar(haystack, checkedIndex(end));
-                            let numericLower: number = node.group;
-                            if (numericLower >= 65 && numericLower <= 90) {
-                                numericLower = checkedAdd(numericLower, 32);
-                            }
-                            matched = checkedBool((node.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (node.operation === vmWord && zeroWidthWord(actual)) || (node.operation === vmNumeric && ((checkedIndex((checkedChar(actual).codePointAt(0)!))) === node.group || (caseSensitive === false && (checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!))) === numericLower))) || (node.operation === vmLiteral && (actual === node.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(node.atom)))));
+                            matched = checkedBool((node.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (node.operation === vmWord && zeroWidthWord(actual, program)) || (node.operation === vmNumeric && regexProfileLiteral(program, node.group, checkedIndex((checkedChar(actual).codePointAt(0)!)), caseSensitive)) || (node.operation === vmLiteral && regexProfileLiteral(program, checkedIndex((checkedChar(node.atom).codePointAt(0)!)), checkedIndex((checkedChar(actual).codePointAt(0)!)), caseSensitive)));
                             if (matched) {
                                 end = checkedAdd(end, 1);
                             }
@@ -2995,10 +3269,10 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                             }
                             let possible: boolean = true;
                             if (node.operation === nodeSequence) {
-                                if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive) === false) {
+                                if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive, program) === false) {
                                     possible = checkedBool(false);
                                 }
-                                if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive) === false) {
+                                if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive, program) === false) {
                                     possible = checkedBool(false);
                                 }
                             }
@@ -3278,8 +3552,8 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
                         }
                     }
                     else if (captureAssertion(step.operation)) {
-                        const before: boolean = position > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(position, 1))));
-                        const after: boolean = position < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(position)));
+                        const before: boolean = position > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(position, 1))), program);
+                        const after: boolean = position < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(position)), program);
                         const previousNewline: boolean = position > 0 && indexChar(haystack, checkedIndex(checkedSubtract(position, 1))) === "\n";
                         const nextNewline: boolean = position < haystack.length && indexChar(haystack, checkedIndex(position)) === "\n";
                         if (captureAssertionMatches(step.operation, position, haystack.length, before, after, previousNewline, nextNewline, lineAnchors)) {
@@ -3337,7 +3611,7 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
                                     return makeCaptureRunResult(2, 0, 0, 0);
                                 }
                                 work = checkedAdd(work, 1);
-                                if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(position)), caseSensitive)) {
+                                if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(position)), caseSensitive, program)) {
                                     included = checkedBool(true);
                                 }
                                 classPosition = checkedAdd(classPosition, 1);
@@ -3358,14 +3632,7 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
                     }
                     else if (position < haystack.length) {
                         const actual: string = indexChar(haystack, checkedIndex(position));
-                        const codepoint: number = checkedChar(actual).codePointAt(0)!;
-                        const lowercase: number = checkedChar(asciiLowercase(actual)).codePointAt(0)!;
-                        const word: boolean = (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual === "_";
-                        let numericLower: number = step.group;
-                        if (numericLower >= 65 && numericLower <= 90) {
-                            numericLower = checkedAdd(numericLower, 32);
-                        }
-                        const matched: boolean = (step.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (step.operation === vmWord && word) || (step.operation === vmNumeric && (checkedIndex((checkedChar(actual).codePointAt(0)!)) === step.group || (caseSensitive === false && checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!)) === numericLower))) || (step.operation === vmLiteral && (actual === step.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(step.atom))));
+                        const matched: boolean = (step.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (step.operation === vmWord && zeroWidthWord(actual, program)) || (step.operation === vmNumeric && regexProfileLiteral(program, step.group, checkedIndex((checkedChar(actual).codePointAt(0)!)), caseSensitive)) || (step.operation === vmLiteral && regexProfileLiteral(program, checkedIndex((checkedChar(step.atom).codePointAt(0)!)), checkedIndex((checkedChar(actual).codePointAt(0)!)), caseSensitive));
                         if (matched) {
                             const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
                             if (nextLen === next.length) {

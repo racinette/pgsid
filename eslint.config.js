@@ -36,7 +36,6 @@ export default tseslint.config(
       // Producer output compared byte for byte. A finding here is fixed by regenerating.
       'tests/fixtures/codegen/**',
       'tests/fixtures/sql-semantics/projects/**',
-      'src/codegen/shared/regex-engine/engine.ts',
     ],
   },
   {
@@ -47,10 +46,20 @@ export default tseslint.config(
       'scripts/report-sql-semantics-coverage.ts',
       'scripts/check-measurements/**/*.ts',
       'tools/check-rust-timezones/**/*.ts',
+      'tools/check-rust/regex-profile.ts',
+      'tools/regex-transpiler/smoke/engine_check.ts',
     ],
     extends: [tseslint.configs.base],
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: [
+            'src/codegen/shared/regex-engine/engine.ts',
+            'tools/regex-transpiler/smoke/engine_check.ts',
+          ],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       // The three that found something. A floating promise in this codebase

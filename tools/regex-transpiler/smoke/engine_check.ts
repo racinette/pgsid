@@ -434,3 +434,41 @@ assert.deepEqual(
     kind: 'Uncertain',
   },
 )
+
+const invalidProfiles = [
+  [[0], []],
+  [[1, 1114111, 0], []],
+  [[0, 100, 0, 100, 1114111, 0], []],
+  [[0, 1114111, 16384], []],
+  [[0, 1114111, 0], [97]],
+  [
+    [0, 1114111, 0],
+    [97, 97, 65, 65, 97, 65],
+  ],
+  [
+    [0, 1114111, 0],
+    [1114112, 0, 0],
+  ],
+  [[], [97, 97, 65]],
+]
+for (const [ranges, cases] of invalidProfiles) {
+  const invalid = generated.makeRegexCharacterProfile(ranges, cases)
+  assert.deepEqual(generated.findProfile('a', 'a', 0, unifiedOptions, invalid), {
+    kind: 'Uncertain',
+  })
+  assert.deepEqual(generated.compileProfile('a', unifiedOptions, invalid), { kind: 'Uncertain' })
+}
+const profileRanges = [0, 96, 0, 97, 97, 2, 98, 1114111, 0]
+const profileCases = [97, 97, 65]
+const characterProfile = generated.makeRegexCharacterProfile(profileRanges, profileCases)
+profileRanges[5] = 0
+profileCases[1] = 0
+profileCases[2] = 0
+assert.deepEqual(generated.findProfile('[[:alpha:]]', 'a', 0, unifiedOptions, characterProfile), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
+assert.deepEqual(
+  generated.findProfile('a', 'A', 0, { ...unifiedOptions, caseSensitive: false }, characterProfile),
+  { kind: 'Found', value: { start: 0, end: 1 } },
+)

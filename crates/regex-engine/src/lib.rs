@@ -19,6 +19,7 @@ const VM_ABSOLUTE_END: usize = 28;
 const VM_BOUNDARY: usize = 29;
 const VM_NOT_BOUNDARY: usize = 30;
 const CAPTURE_CLASS_RANGE: usize = 15;
+const CAPTURE_CLASS_LITERAL: usize = 16;
 const NODE_SEQUENCE: usize = 16;
 const NODE_ALTERNATIVE: usize = 17;
 const NODE_GROUP: usize = 18;
@@ -65,6 +66,267 @@ pub struct RegexOptions {
     pub case_sensitive: bool,
     pub expanded: bool,
     pub newline: NewlineMode,
+}
+
+pub struct RegexCharacterProfile {
+    valid: bool,
+    ranges: Vec<usize>,
+    cases: Vec<usize>,
+    range_steps: Vec<usize>,
+    case_steps: Vec<usize>,
+}
+
+pub fn make_regex_character_profile(
+    ranges: Vec<usize>,
+    cases: Vec<usize>,
+) -> RegexCharacterProfile {
+    let mut valid = true;
+    let mut position: usize = 0;
+    let mut next: usize = 0;
+    while valid && position < ranges.len() && ranges.len() - position >= 3 {
+        let first = ranges[position];
+        let last = ranges[position + 1];
+        valid = first == next && first <= last && last <= 1114111 && ranges[position + 2] < 16384;
+        next = last + 1;
+        position += 3;
+    }
+    if position != ranges.len() || (ranges.len() > 0 && next != 1114112) {
+        valid = false;
+    };
+    if ranges.len() == 0 && cases.len() > 0 {
+        valid = false;
+    };
+    position = 0;
+    let mut previous: usize = 0;
+    while valid && position < cases.len() && cases.len() - position >= 3 {
+        let point = cases[position];
+        valid =
+            point <= 1114111 && cases[position + 1] <= 1114111 && cases[position + 2] <= 1114111;
+        if position > 0 && point <= previous {
+            valid = false;
+        };
+        previous = point;
+        position += 3;
+    }
+    if position != cases.len() {
+        valid = false;
+    };
+    let mut range_steps: Vec<usize> = Vec::new();
+    let mut case_steps: Vec<usize> = Vec::new();
+    let mut step: usize = 3;
+    while step < ranges.len() {
+        range_steps.push(step);
+        step = step + step;
+    }
+    step = 3;
+    while step < cases.len() {
+        case_steps.push(step);
+        step = step + step;
+    }
+    RegexCharacterProfile {
+        valid,
+        ranges,
+        cases,
+        range_steps,
+        case_steps,
+    }
+}
+
+pub fn compile_profile(
+    pattern: &str,
+    options: RegexOptions,
+    profile: RegexCharacterProfile,
+) -> CompileOutcome {
+    if profile.valid == false {
+        return CompileOutcome::Uncertain;
+    };
+    if options.syntax == Syntax::Literal
+        && (options.expanded || options.newline != NewlineMode::Ordinary)
+    {
+        return CompileOutcome::InvalidPattern;
+    };
+    let program = compile_pattern_source_profile(pattern, options, true, profile);
+    if program.limited {
+        return CompileOutcome::Uncertain;
+    };
+    if program.valid == false {
+        return CompileOutcome::InvalidPattern;
+    };
+    CompileOutcome::Compiled(program)
+}
+
+pub fn find_profile(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    options: RegexOptions,
+    profile: RegexCharacterProfile,
+) -> MatchOutcome {
+    if profile.valid == false {
+        return MatchOutcome::Uncertain;
+    };
+    if options.syntax == Syntax::Literal
+        && (options.expanded || options.newline != NewlineMode::Ordinary)
+    {
+        return MatchOutcome::InvalidPattern;
+    };
+    let program = compile_pattern_source_profile(pattern, options, false, profile);
+    if program.limited {
+        return MatchOutcome::Uncertain;
+    };
+    if program.valid == false {
+        return MatchOutcome::InvalidPattern;
+    };
+    capture_match_outcome(execute_compiled_pattern(
+        &program, subject, from, false, false, false,
+    ))
+}
+
+fn regex_profile_flag(kind: usize) -> usize {
+    if kind == 1 {
+        return 1;
+    };
+    if kind == 2 {
+        return 2;
+    };
+    if kind == 3 {
+        return 4;
+    };
+    if kind == 4 {
+        return 8;
+    };
+    if kind == 5 {
+        return 16;
+    };
+    if kind == 6 {
+        return 32;
+    };
+    if kind == 7 {
+        return 64;
+    };
+    if kind == 8 {
+        return 128;
+    };
+    if kind == 9 {
+        return 256;
+    };
+    if kind == 10 {
+        return 512;
+    };
+    if kind == 11 {
+        return 1024;
+    };
+    if kind == 12 {
+        return 2048;
+    };
+    if kind == 13 {
+        return 4096;
+    };
+    8192
+}
+
+fn regex_profile_class(program: &CompiledRegex, point: usize, kind: usize) -> bool {
+    let mut offset: usize = 0;
+    let mut index = program.character_profile.range_steps.len();
+    while index > 0 {
+        index = index - 1;
+        let candidate = offset + program.character_profile.range_steps[index];
+        if candidate < program.character_profile.ranges.len()
+            && program.character_profile.ranges[candidate] <= point
+        {
+            offset = candidate;
+        };
+    }
+    let mut mask = program.character_profile.ranges[offset + 2];
+    let mut bit: usize = 14;
+    while bit > kind {
+        let flag = regex_profile_flag(bit);
+        if mask >= flag {
+            mask = mask - flag;
+        };
+        bit = bit - 1;
+    }
+    mask >= regex_profile_flag(kind)
+}
+
+fn regex_profile_case_index(program: &CompiledRegex, point: usize) -> usize {
+    let size = program.character_profile.cases.len();
+    if size == 0 {
+        return size;
+    };
+    let mut offset: usize = 0;
+    let mut index = program.character_profile.case_steps.len();
+    while index > 0 {
+        index = index - 1;
+        let candidate = offset + program.character_profile.case_steps[index];
+        if candidate < size && program.character_profile.cases[candidate] <= point {
+            offset = candidate;
+        };
+    }
+    offset
+}
+
+fn regex_profile_case(program: &CompiledRegex, point: usize, upper: bool) -> usize {
+    if program.character_profile.ranges.len() == 0 {
+        if upper && point >= 97 && point <= 122 {
+            return point - 32;
+        };
+        if upper == false && point >= 65 && point <= 90 {
+            return point + 32;
+        };
+        return point;
+    };
+    let index = regex_profile_case_index(program, point);
+    if index < program.character_profile.cases.len()
+        && program.character_profile.cases[index] == point
+    {
+        if upper {
+            return program.character_profile.cases[index + 2];
+        };
+        return program.character_profile.cases[index + 1];
+    };
+    point
+}
+
+fn regex_profile_literal(
+    program: &CompiledRegex,
+    expected: usize,
+    actual: usize,
+    sensitive: bool,
+) -> bool {
+    if sensitive {
+        return expected == actual;
+    };
+    regex_profile_case(program, expected, false) == actual
+        || regex_profile_case(program, expected, true) == actual
+}
+
+fn regex_profile_range(program: &CompiledRegex, first: usize, last: usize, actual: usize) -> bool {
+    if actual >= first && actual <= last {
+        return true;
+    };
+    if program.character_profile.ranges.len() == 0 {
+        let lower = regex_profile_case(program, actual, false);
+        let upper = regex_profile_case(program, actual, true);
+        return (lower >= first && lower <= last) || (upper >= first && upper <= last);
+    };
+    let mut index = regex_profile_case_index(program, first);
+    if index < program.character_profile.cases.len()
+        && program.character_profile.cases[index] < first
+    {
+        index += 3;
+    };
+    while index < program.character_profile.cases.len()
+        && program.character_profile.cases[index] <= last
+    {
+        if program.character_profile.cases[index + 1] == actual
+            || program.character_profile.cases[index + 2] == actual
+        {
+            return true;
+        };
+        index += 3;
+    }
+    false
 }
 
 pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> MatchOutcome {
@@ -390,6 +652,18 @@ fn execute_compiled_pattern(
 }
 
 fn compile_pattern_source(pattern: &str, options: RegexOptions, capturing: bool) -> CompiledRegex {
+    let character_ranges: Vec<usize> = Vec::new();
+    let character_cases: Vec<usize> = Vec::new();
+    let character_profile = make_regex_character_profile(character_ranges, character_cases);
+    compile_pattern_source_profile(pattern, options, capturing, character_profile)
+}
+
+fn compile_pattern_source_profile(
+    pattern: &str,
+    options: RegexOptions,
+    capturing: bool,
+    character_profile: RegexCharacterProfile,
+) -> CompiledRegex {
     let mut syntax = 'a';
     if options.syntax == Syntax::Basic {
         syntax = 'b';
@@ -410,6 +684,7 @@ fn compile_pattern_source(pattern: &str, options: RegexOptions, capturing: bool)
         options.case_sensitive,
         options.newline == NewlineMode::Ordinary || options.newline == NewlineMode::Anchors,
         options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
+        character_profile,
     )
 }
 
@@ -449,6 +724,7 @@ struct CaptureInstruction {
 }
 
 pub struct CompiledRegex {
+    character_profile: RegexCharacterProfile,
     valid: bool,
     limited: bool,
     nodes: Vec<CaptureNode>,
@@ -674,7 +950,10 @@ fn posix_class_width(kind: usize) -> usize {
     11
 }
 
-fn zero_width_word(atom: char) -> bool {
+fn zero_width_word(atom: char, program: &CompiledRegex) -> bool {
+    if program.character_profile.ranges.len() > 0 {
+        return regex_profile_class(program, (atom as u32) as usize, 14);
+    };
     let codepoint = atom as u32;
     let lower = atom.to_ascii_lowercase() as u32;
     (codepoint >= 48 && codepoint <= 57) || (lower >= 97 && lower <= 122) || atom == '_'
@@ -1401,6 +1680,8 @@ fn parse_capture_class(source: Vec<char>, syntax: char, groups: usize) -> Captur
         };
         position += atom.end;
         let mut upper = atom.value;
+        let mut kind = atom.kind;
+        let mut ranged = false;
         if source.len() - position >= 2 && source[position] == '-' && source[position + 1] != ']' {
             let mut lookahead: Vec<char> = Vec::new();
             let mut look = position + 1;
@@ -1419,10 +1700,14 @@ fn parse_capture_class(source: Vec<char>, syntax: char, groups: usize) -> Captur
                 break;
             };
             upper = bound.value;
+            ranged = true;
             position += 1 + bound.end;
         };
+        if kind == CAPTURE_CLASS_RANGE && ranged == false {
+            kind = CAPTURE_CLASS_LITERAL;
+        };
         members.push(CaptureClassMember {
-            kind: atom.kind,
+            kind,
             lower: atom.value,
             upper,
             complement: atom.complement,
@@ -1441,7 +1726,50 @@ fn parse_capture_class(source: Vec<char>, syntax: char, groups: usize) -> Captur
     }
 }
 
-fn capture_class_member_matches(member: CaptureClassMember, actual: char, sensitive: bool) -> bool {
+fn capture_class_member_matches(
+    member: CaptureClassMember,
+    actual: char,
+    sensitive: bool,
+    program: &CompiledRegex,
+) -> bool {
+    if program.character_profile.ranges.len() == 0 {
+        let mut selected_kind = member.kind;
+        if selected_kind == CAPTURE_CLASS_LITERAL {
+            selected_kind = CAPTURE_CLASS_RANGE;
+        };
+        let selected = CaptureClassMember {
+            kind: selected_kind,
+            lower: member.lower,
+            upper: member.upper,
+            complement: member.complement,
+        };
+        return capture_class_member_matches_ascii(selected, actual, sensitive);
+    };
+    let point = (actual as u32) as usize;
+    let mut kind = member.kind;
+    if sensitive == false && (kind == 3 || kind == 10) {
+        kind = 2;
+    };
+    let mut matched = false;
+    if kind == CAPTURE_CLASS_LITERAL {
+        matched = regex_profile_literal(program, member.lower as usize, point, sensitive);
+    } else if kind == CAPTURE_CLASS_RANGE {
+        matched = point >= member.lower as usize && point <= member.upper as usize;
+        if sensitive == false {
+            matched =
+                regex_profile_range(program, member.lower as usize, member.upper as usize, point);
+        };
+    } else {
+        matched = regex_profile_class(program, point, kind);
+    };
+    matched != member.complement
+}
+
+fn capture_class_member_matches_ascii(
+    member: CaptureClassMember,
+    actual: char,
+    sensitive: bool,
+) -> bool {
     let codepoint = actual as u32;
     let digit = codepoint >= 48 && codepoint <= 57;
     let upper = codepoint >= 65 && codepoint <= 90;
@@ -1753,6 +2081,7 @@ fn compile_capture_program_atoms(
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
+    character_profile: RegexCharacterProfile,
 ) -> CompiledRegex {
     let mut limited = false;
     let mut class_members: Vec<CaptureClassMember> = Vec::new();
@@ -2651,6 +2980,7 @@ fn compile_capture_program_atoms(
         }
     }
     CompiledRegex {
+        character_profile,
         valid,
         limited,
         nodes,
@@ -2712,21 +3042,21 @@ fn capture_repeat_endpoint(
     begin + width
 }
 
-fn capture_boundary_matches(expected: usize, actual: char, case_sensitive: bool) -> bool {
+fn capture_boundary_matches(
+    expected: usize,
+    actual: char,
+    case_sensitive: bool,
+    program: &CompiledRegex,
+) -> bool {
     if expected == 0 {
         return true;
-    }
-    let mut actual_code = ((actual as u32) as usize) + 1;
-    let mut expected_code = expected;
-    if case_sensitive == false {
-        if actual_code >= 66 && actual_code <= 91 {
-            actual_code += 32;
-        }
-        if expected_code >= 66 && expected_code <= 91 {
-            expected_code += 32;
-        }
-    }
-    actual_code == expected_code
+    };
+    regex_profile_literal(
+        program,
+        expected - 1,
+        (actual as u32) as usize,
+        case_sensitive,
+    )
 }
 
 fn execute_capture_tree(
@@ -2904,6 +3234,7 @@ fn execute_capture_tree(
                                         program.last_literals[node.left],
                                         haystack[cursor - 1],
                                         case_sensitive,
+                                        program,
                                     ) == false
                                 {
                                     possible = false;
@@ -2913,6 +3244,7 @@ fn execute_capture_tree(
                                         program.first_literals[node.right],
                                         haystack[cursor],
                                         case_sensitive,
+                                        program,
                                     ) == false
                                 {
                                     possible = false;
@@ -3005,8 +3337,9 @@ fn execute_capture_tree(
                         if node.operation == NODE_EMPTY {
                             matched = true;
                         } else if capture_assertion(node.operation) {
-                            let before = end > 0 && zero_width_word(haystack[end - 1]);
-                            let after = end < haystack.len() && zero_width_word(haystack[end]);
+                            let before = end > 0 && zero_width_word(haystack[end - 1], program);
+                            let after =
+                                end < haystack.len() && zero_width_word(haystack[end], program);
                             let previous_newline = end > 0 && haystack[end - 1] == '\n';
                             let next_newline = end < haystack.len() && haystack[end] == '\n';
                             matched = capture_assertion_matches(
@@ -3050,8 +3383,15 @@ fn execute_capture_tree(
                                         let expected = haystack[register.start + offset];
                                         matched = actual == expected
                                             || (case_sensitive == false
-                                                && actual.to_ascii_lowercase()
-                                                    == expected.to_ascii_lowercase());
+                                                && regex_profile_case(
+                                                    program,
+                                                    (actual as u32) as usize,
+                                                    false,
+                                                ) == regex_profile_case(
+                                                    program,
+                                                    (expected as u32) as usize,
+                                                    false,
+                                                ));
                                         offset += 1;
                                     }
                                     if matched {
@@ -3074,6 +3414,7 @@ fn execute_capture_tree(
                                         program.class_members[class_position],
                                         haystack[end],
                                         case_sensitive,
+                                        program,
                                     ) {
                                         included = true;
                                     }
@@ -3090,23 +3431,23 @@ fn execute_capture_tree(
                             }
                         } else if end < haystack.len() {
                             let actual = haystack[end];
-                            let mut numeric_lower = node.group;
-                            if numeric_lower >= 65 && numeric_lower <= 90 {
-                                numeric_lower += 32;
-                            }
                             matched = (node.operation == VM_ANY
                                 && (dot_crosses_newline || actual != '\n'))
-                                || (node.operation == VM_WORD && zero_width_word(actual))
+                                || (node.operation == VM_WORD && zero_width_word(actual, program))
                                 || (node.operation == VM_NUMERIC
-                                    && (((actual as u32) as usize) == node.group
-                                        || (case_sensitive == false
-                                            && ((actual.to_ascii_lowercase() as u32) as usize)
-                                                == numeric_lower)))
+                                    && regex_profile_literal(
+                                        program,
+                                        node.group,
+                                        (actual as u32) as usize,
+                                        case_sensitive,
+                                    ))
                                 || (node.operation == VM_LITERAL
-                                    && (actual == node.atom
-                                        || (case_sensitive == false
-                                            && actual.to_ascii_lowercase()
-                                                == node.atom.to_ascii_lowercase())));
+                                    && regex_profile_literal(
+                                        program,
+                                        (node.atom as u32) as usize,
+                                        (actual as u32) as usize,
+                                        case_sensitive,
+                                    ));
                             if matched {
                                 end += 1;
                             }
@@ -3330,6 +3671,7 @@ fn execute_capture_tree(
                                         program.last_literals[node.left],
                                         haystack[cursor - 1],
                                         case_sensitive,
+                                        program,
                                     ) == false
                                 {
                                     possible = false;
@@ -3339,6 +3681,7 @@ fn execute_capture_tree(
                                         program.first_literals[node.right],
                                         haystack[cursor],
                                         case_sensitive,
+                                        program,
                                     ) == false
                                 {
                                     possible = false;
@@ -3747,9 +4090,10 @@ fn execute_capture_program(
                             next_len += 1;
                         }
                     } else if capture_assertion(step.operation) {
-                        let before = position > 0 && zero_width_word(haystack[position - 1]);
-                        let after =
-                            position < haystack.len() && zero_width_word(haystack[position]);
+                        let before =
+                            position > 0 && zero_width_word(haystack[position - 1], program);
+                        let after = position < haystack.len()
+                            && zero_width_word(haystack[position], program);
                         let previous_newline = position > 0 && haystack[position - 1] == '\n';
                         let next_newline = position < haystack.len() && haystack[position] == '\n';
                         if capture_assertion_matches(
@@ -3842,6 +4186,7 @@ fn execute_capture_program(
                                     program.class_members[class_position],
                                     haystack[position],
                                     case_sensitive,
+                                    program,
                                 ) {
                                     included = true;
                                 }
@@ -3868,28 +4213,23 @@ fn execute_capture_program(
                     } else {
                         if position < haystack.len() {
                             let actual = haystack[position];
-                            let codepoint = actual as u32;
-                            let lowercase = actual.to_ascii_lowercase() as u32;
-                            let word = (codepoint >= 48 && codepoint <= 57)
-                                || (lowercase >= 97 && lowercase <= 122)
-                                || actual == '_';
-                            let mut numeric_lower = step.group;
-                            if numeric_lower >= 65 && numeric_lower <= 90 {
-                                numeric_lower += 32;
-                            };
                             let matched = (step.operation == VM_ANY
                                 && (dot_crosses_newline || actual != '\n'))
-                                || (step.operation == VM_WORD && word)
+                                || (step.operation == VM_WORD && zero_width_word(actual, program))
                                 || (step.operation == VM_NUMERIC
-                                    && ((actual as u32) as usize == step.group
-                                        || (case_sensitive == false
-                                            && (actual.to_ascii_lowercase() as u32) as usize
-                                                == numeric_lower)))
+                                    && regex_profile_literal(
+                                        program,
+                                        step.group,
+                                        (actual as u32) as usize,
+                                        case_sensitive,
+                                    ))
                                 || (step.operation == VM_LITERAL
-                                    && (actual == step.atom
-                                        || (case_sensitive == false
-                                            && actual.to_ascii_lowercase()
-                                                == step.atom.to_ascii_lowercase())));
+                                    && regex_profile_literal(
+                                        program,
+                                        (step.atom as u32) as usize,
+                                        (actual as u32) as usize,
+                                        case_sensitive,
+                                    ));
                             if matched {
                                 let resumed = PatternWorkState {
                                     pattern: instruction + 1,
