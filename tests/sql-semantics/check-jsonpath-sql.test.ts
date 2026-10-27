@@ -246,7 +246,7 @@ it('binds raw and stored JSONPath values, casts, state composition and versioned
     )
     const literalPlans = plans.filter(
       (plan) =>
-        /^(?:printed_predicate_|lossy_literal_|converted_literal)/u.test(
+        /^(?:printed_predicate_|lossy_literal_|converted_literal|built_literal)/u.test(
           plan.identity.constraint,
         ) && plan.identity.constraint.endsWith('_stored'),
     )

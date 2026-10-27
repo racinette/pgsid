@@ -2230,3 +2230,20 @@ INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expecte
 INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES ('[0:1][-1:0]={{1,2},{3,4}}',NULL,60,NULL,80,false);
 -- name: BinarySizesSkipped
 INSERT INTO inspection_binary_sizes(readings,reading,expected_array_size,expected_record_size,expected_nested_size,bypass) VALUES (NULL,NULL,-1,-1,-1,true);
+
+-- name: CapturedPathValues
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":-1}','["(-$.\"a\").abs()","\"é😊\"",null]','1','["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathWrongBuilder
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":-1}','[]','1','["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathWrongGrouping
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":-1}','["(-$.\"a\").abs()","\"é😊\"",null]','-1','["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathWrongRegexValue
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":-1}','["(-$.\"a\").abs()","\"é😊\"",null]','1','[]',false);
+-- name: CapturedPathNullDocument
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES (NULL,'["(-$.\"a\").abs()","\"é😊\"",null]',NULL,'["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathMissingKey
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{}','["(-$.\"a\").abs()","\"é😊\"",null]',NULL,'["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathInvalidMethodTarget
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":"bad"}','["(-$.\"a\").abs()","\"é😊\"",null]',NULL,'["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
+-- name: CapturedPathSkipped
+INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":"bad"}','[]',NULL,'[]',true);

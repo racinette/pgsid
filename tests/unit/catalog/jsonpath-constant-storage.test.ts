@@ -8,14 +8,18 @@ import {
   type Tree,
   type Value,
 } from '../../../src/catalog/expression-tree.js'
-import { storedJsonpathConstant } from '../../../src/catalog/jsonpath-constant-storage.js'
+import {
+  storedJsonpathConstant,
+  storedJsonpathValue,
+  validJsonpathConstantStorage,
+} from '../../../src/catalog/jsonpath-constant-storage.js'
 
 it('recovers fully grouped JSONPath inputs that rebuild the identical native graph for every stored node family', async () => {
   const pg = await PGlite.create()
   try {
     const oid = (await pg.query<{ oid: number }>("SELECT 'jsonpath'::regtype::oid oid")).rows[0]!
         .oid,
-      paths = jsonpathStoragePaths,
+      paths = [...jsonpathStoragePaths, '$.**{2147483647}'],
       constant = async (path: string, name: string): Promise<Tree> => {
         await pg.exec(
           `CREATE TABLE ${name}(document jsonb,CHECK(jsonb_path_exists(document,'${path.replaceAll("'", "''")}'::jsonpath)))`,
@@ -44,6 +48,9 @@ it('recovers fully grouped JSONPath inputs that rebuild the identical native gra
       const original = await constant(path, 'original_' + index),
         recovered = storedJsonpathConstant(original, 'little', true)
       expect(typeof recovered, path).toBe('string')
+      const graph = storedJsonpathValue(original, 'little', true)
+      expect(graph, path).not.toBeUndefined()
+      expect(validJsonpathConstantStorage(graph), path).toBe(true)
       const rebuilt = await constant(recovered!, 'rebuilt_' + index)
       expect(rebuilt.fields['constvalue'], `${path} -> ${recovered}`).toEqual(
         original.fields['constvalue'],
@@ -51,6 +58,8 @@ it('recovers fully grouped JSONPath inputs that rebuild the identical native gra
       if (/[^\x00-\x7f]/u.test(path))
         expect(storedJsonpathConstant(original, 'little', false)).toBeUndefined()
     }
+    for (const path of ['$.**{2147483648}', '$.**{4294967294}'])
+      await expect(pg.query('SELECT $1::jsonpath', [path])).rejects.toMatchObject({ code: '22003' })
   } finally {
     await pg.close()
   }
@@ -81,8 +90,12 @@ it('reads native word order explicitly and rejects malformed graph links, header
       },
     }
   }
-  for (const little of [false, true])
+  for (const little of [false, true]) {
     expect(storedJsonpathConstant(node(little), little ? 'little' : 'big', true)).toBe('lax $."x"')
+    expect(storedJsonpathValue(node(little), little ? 'little' : 'big', true)).toEqual(
+      storedJsonpathValue(node(true), 'little', true),
+    )
+  }
   for (const mutate of [
     (bytes: Buffer) => bytes.writeUInt32LE(2, 4),
     (bytes: Buffer) => bytes.writeUInt32LE(9999, 12),
@@ -94,6 +107,29 @@ it('reads native word order explicitly and rejects malformed graph links, header
     (bytes: Buffer) => {
       bytes[16] = 255
     },
-  ])
+  ]) {
     expect(storedJsonpathConstant(node(true, mutate), 'little', true)).toBeUndefined()
+    expect(storedJsonpathValue(node(true, mutate), 'little', true)).toBeUndefined()
+  }
+  const graph = storedJsonpathValue(node(true), 'little', true)!
+  for (const invalid of [
+    null,
+    {},
+    { ...graph, root: 0 },
+    { ...graph, lax: 1 },
+    { ...graph, nodes: [...graph.nodes, graph.nodes[1]] },
+  ])
+    expect(validJsonpathConstantStorage(invalid)).toBe(false)
+  for (const changes of [
+    { next: 1 },
+    { left: 999 },
+    { kind: 999 },
+    { text: '\0' },
+    { text: '\ud800' },
+    { first: 2147483648 },
+  ]) {
+    const copy = structuredClone(graph)!
+    copy.nodes[1] = { ...copy.nodes[1]!, ...changes }
+    expect(validJsonpathConstantStorage(copy)).toBe(false)
+  }
 })

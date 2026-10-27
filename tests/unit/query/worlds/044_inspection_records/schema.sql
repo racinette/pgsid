@@ -1612,3 +1612,17 @@ CREATE TABLE inspection_binary_sizes (
  CONSTRAINT nested_frame_size CHECK(CASE WHEN bypass THEN true ELSE
    octet_length(record_send(ROW(reading,readings))) IS NOT DISTINCT FROM expected_nested_size END)
 );
+
+CREATE TABLE inspection_captured_paths (
+ document jsonb,
+ expected_builder jsonb,
+ expected_first jsonb,
+ expected_regex jsonb,
+ bypass boolean NOT NULL,
+ CONSTRAINT captured_path_builder CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_build_array('(-$.a).abs()'::jsonpath,'"é😊"'::jsonpath,NULL::jsonpath) IS NOT DISTINCT FROM expected_builder END),
+ CONSTRAINT captured_path_execution CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_path_query_first(document,'(-$.a).abs()'::jsonpath) IS NOT DISTINCT FROM expected_first END),
+ CONSTRAINT captured_path_regex_value CHECK(CASE WHEN bypass THEN true ELSE
+   jsonb_build_array('$.a like_regex "a.b" flag "sxq"'::jsonpath) IS NOT DISTINCT FROM expected_regex END)
+);

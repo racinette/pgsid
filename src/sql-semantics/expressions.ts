@@ -1,4 +1,5 @@
 import type { AclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
+import type { JsonpathConstantStorage } from '../catalog/jsonpath-constant-storage.js'
 import { isOidAliasType, type OidAliasType } from '../catalog/oid-alias-constant-storage.js'
 export {
   isOidAliasType,
@@ -641,7 +642,13 @@ export type SqlExpression =
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
-  | { kind: 'jsonpath'; type: JsonpathType; value: string | null; origin?: 'source' | 'stored' }
+  | {
+      kind: 'jsonpath'
+      type: JsonpathType
+      value: string | null
+      origin?: 'source' | 'stored'
+      storage?: JsonpathConstantStorage
+    }
   | {
       kind: 'xml'
       type: XmlType

@@ -7655,6 +7655,46 @@ type jsonpathBoundaryVisit struct {
 func copyjsonpathBoundaryVisit(value jsonpathBoundaryVisit) jsonpathBoundaryVisit {
 	return jsonpathBoundaryVisit{node: langruntime.CheckedIndex(value.node), filters: langruntime.CheckedIndex(value.filters), subscript: value.subscript, accessor: value.accessor, list: value.list}
 }
+func MakeStoredJsonpathPayload(lax bool, root int) JsonpathPayload {
+	root = langruntime.CheckedI32(root)
+	characters := []rune{}
+	nodes := []JsonpathNode{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, JsonpathNode{Kind: 0, Next: 0, Left: 0, Right: 0, TextStart: 0, TextEnd: 0, First: 0, Last: 0, Flags: 0})
+	return JsonpathPayload{Characters: characters, Nodes: nodes, Root: langruntime.IndexFromI32(root, 0), Lax: lax}
+}
+func AppendStoredJsonpathNode(input JsonpathPayload, kind int, next int, left int, right int, text string, first int, last int, flags int) JsonpathPayload {
+	input = CopyJsonpathPayload(input)
+	kind = langruntime.CheckedI32(kind)
+	next = langruntime.CheckedI32(next)
+	left = langruntime.CheckedI32(left)
+	right = langruntime.CheckedI32(right)
+	text = langruntime.CheckedString(text)
+	first = langruntime.CheckedI32(first)
+	last = langruntime.CheckedI32(last)
+	flags = langruntime.CheckedI32(flags)
+	characters := input.Characters
+	nodes := input.Nodes
+	root := input.Root
+	if next < 0 || left < 0 || right < 0 {
+		root = langruntime.CheckedIndex(0)
+	}
+	start := len(characters)
+	source := []rune(text)
+	index := 0
+	for index < len(source) {
+		langruntime.CheckedAdd(len(characters), 1)
+		characters = append(characters, langruntime.CheckedChar(source[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, JsonpathNode{Kind: kind, Next: langruntime.IndexFromI32(next, 0), Left: langruntime.IndexFromI32(left, 0), Right: langruntime.IndexFromI32(right, 0), TextStart: start, TextEnd: len(characters), First: first, Last: last, Flags: flags})
+	return JsonpathPayload{Characters: characters, Nodes: nodes, Root: root, Lax: input.Lax}
+}
+func MakeStoredJsonpathValue(input JsonpathPayload) JsonpathValue {
+	input = CopyJsonpathPayload(input)
+	return JsonpathFromCoercedValue(JsonpathValue{Kind: JsonpathValueValue, Value: input})
+}
 
 type ArrayElementKind uint8
 

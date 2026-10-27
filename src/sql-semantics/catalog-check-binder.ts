@@ -1,4 +1,5 @@
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
+import { validJsonpathConstantStorage } from '../catalog/jsonpath-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validStoredTsvectorValue } from '../catalog/tsvector-constant-storage.js'
@@ -3439,12 +3440,13 @@ export function bindCatalogCheck(
     }
     const storedJsonpath = wrapper['PgsidStoredJsonpath']
     if (storedJsonpath !== undefined) {
-      if (typeof storedJsonpath !== 'string') return unknown
+      if (!validJsonpathConstantStorage(storedJsonpath)) return unknown
       const expression = {
         kind: 'jsonpath' as const,
         type: 'pg_catalog.jsonpath' as const,
-        value: storedJsonpath,
-        origin: 'source' as const,
+        value: storedJsonpath.source,
+        origin: 'stored' as const,
+        storage: storedJsonpath,
       }
       importedExpressions.add(expression)
       return { type: expression.type, value: { kind: 'certain', expression } }
