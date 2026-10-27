@@ -27,6 +27,7 @@ pnpm exec vitest run tests/sql-semantics/check-polygon-relations.test.ts tests/s
 pnpm exec vitest run tests/sql-semantics/check-composite*.test.ts tests/sql-semantics/check-nested-composite*.test.ts tests/sql-semantics/check-anonymous-record*.test.ts tests/sql-semantics/check-generic-record*.test.ts tests/sql-semantics/check-nested-range*.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-json*.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-null-count.test.ts "${vitest_args[@]}"
+pnpm exec vitest run tests/sql-semantics/check-non-strict-measurements.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-nullable-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-generic-literal-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-text-format.test.ts tests/sql-semantics/check-text-format-grammar.test.ts tests/sql-semantics/check-text-format-states.test.ts tests/sql-semantics/check-text-format-output-knowledge.test.ts "${vitest_args[@]}"

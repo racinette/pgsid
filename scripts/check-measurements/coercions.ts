@@ -511,11 +511,12 @@ const inputForms = [
   {
     type: 'pg_catalog.money',
     suite: 'tests/sql-semantics/check-money.test.ts',
+    contextOwner: 'tests/sql-semantics/check-money-text-context.test.ts',
     handled: moneyInputForms,
     deferred: deferredMoneyContextForms,
     platformDependent: [],
     contextRequired: deferredMoneyContextForms,
-    unimplementedGrammar: deferredMoneyContextForms,
+    unimplementedGrammar: [],
     inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {

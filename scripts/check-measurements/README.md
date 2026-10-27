@@ -90,7 +90,14 @@ node --import tsx scripts/check-measurements/surface.ts
 node --import tsx scripts/check-measurements/coercions.ts
 node --import tsx scripts/check-measurements/arrays.ts
 node --import tsx scripts/check-measurements/historical.ts
+node --import tsx scripts/check-measurements/non-strict.ts
 ```
+
+The non-strict report inventories every builtin scalar signature, including
+concrete-resolution polymorphic and captured-record roles. Missing bodies with
+state requirements stay separate from pure arithmetic gaps. A state requirement
+does not discharge missing deterministic errors or other recoverable branches,
+and a source body does not establish public admission or executed parity.
 
 Pass exact historical probe names to select a development subset. Selected
 reports retain their selection instead of presenting it as the full inventory:

@@ -258,23 +258,31 @@ export const timestamptzDeferredText = [
   '20000101 000000+00',
 ]
 
+const runtimeDateText = new Set(['today', 'tomorrow', 'yesterday', 'now'])
+
 export const temporalInputForms = [
   {
     type: 'pg_catalog.date',
     suite: 'tests/sql-semantics/check-date-text.test.ts',
     handled: dateHandledText,
     deferred: dateDeferredText,
+    runtimeRequired: dateDeferredText.filter((text) => runtimeDateText.has(text)),
+    unimplementedGrammar: dateDeferredText.filter((text) => !runtimeDateText.has(text)),
   },
   {
     type: 'pg_catalog."timestamp"',
     suite: 'tests/sql-semantics/check-timestamp-text.test.ts',
     handled: timestampHandledText,
     deferred: timestampDeferredText,
+    runtimeRequired: timestampDeferredText.filter((text) => runtimeDateText.has(text)),
+    unimplementedGrammar: timestampDeferredText.filter((text) => !runtimeDateText.has(text)),
   },
   {
     type: 'pg_catalog.timestamptz',
     suite: 'tests/sql-semantics/check-timestamptz-text.test.ts',
     handled: timestamptzHandledText,
     deferred: timestamptzDeferredText,
+    runtimeRequired: timestamptzDeferredText.filter((text) => runtimeDateText.has(text)),
+    unimplementedGrammar: timestamptzDeferredText.filter((text) => !runtimeDateText.has(text)),
   },
 ] as const
