@@ -43562,6 +43562,307 @@ func ConcatWsDc5y(input TextConcatState) checkruntime.TextValue {
 	return concatFinish(input)
 }
 
+type TextFormatBounds struct {
+	Status  checkruntime.CheckOutcome
+	Minimum int64
+	Maximum int64
+	Width   checkruntime.Int4Value
+}
+
+func copyTextFormatBounds(value TextFormatBounds) TextFormatBounds {
+	return TextFormatBounds{Status: value.Status, Minimum: value.Minimum, Maximum: value.Maximum, Width: value.Width}
+}
+
+type TextFormatOutput struct {
+	Buffer  TextConcatState
+	Status  checkruntime.CheckOutcome
+	Minimum int64
+	Maximum int64
+	Known   bool
+}
+
+func formatUnknownBounds() TextFormatBounds {
+	return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}, Minimum: int64(0), Maximum: int64(0), Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}}
+}
+func formatExactBounds(size int64) TextFormatBounds {
+	return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}, Minimum: size, Maximum: size, Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}}
+}
+func formatErrorBounds(error checkruntime.SqlError) TextFormatBounds {
+	return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}, Minimum: int64(0), Maximum: int64(0), Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}}
+}
+func formatMergeBounds(left TextFormatBounds, right TextFormatBounds) TextFormatBounds {
+	left = copyTextFormatBounds(left)
+	right = copyTextFormatBounds(right)
+	if left.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
+		return right
+	}
+	if left.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && right.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		minimum := left.Minimum
+		maximum := left.Maximum
+		if right.Minimum < minimum {
+			minimum = right.Minimum
+		}
+		if right.Maximum > maximum {
+			maximum = right.Maximum
+		}
+		width := left.Width
+		if width != right.Width {
+			width = checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}, Minimum: minimum, Maximum: maximum, Width: width}
+	}
+	if left.Status == right.Status {
+		return left
+	}
+	return formatUnknownBounds()
+}
+func formatPreparedBounds(value checkruntime.TextValue, width int) TextFormatBounds {
+	width = langruntime.CheckedI32(width)
+	if value.Kind == checkruntime.TextValueError {
+		error := value.Error
+		return formatErrorBounds(error)
+	}
+	if value.Kind == checkruntime.TextValueValue {
+		if width == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			error := checkruntime.MakeSqlError(textFormatRangeError)
+			return formatErrorBounds(error)
+		}
+	}
+	if value.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		bytes := textBuildOctets(text)
+		if bytes >= int64(1073741823) {
+			error := checkruntime.MakeSqlError(textConcatLimitError)
+			return formatErrorBounds(error)
+		}
+		size := bytes
+		if width != 0 {
+			characters := []rune(text)
+			absolute := width
+			if absolute < 0 {
+				absolute = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, absolute))
+			}
+			requested := int64(langruntime.CheckedI32(absolute))
+			length := int(int32(len(characters)))
+			count := int64(langruntime.CheckedI32(length))
+			if requested > count {
+				size = langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(size, requested), count)
+			}
+		}
+		if size >= int64(1073741823) {
+			error := checkruntime.MakeSqlError(textConcatLimitError)
+			return formatErrorBounds(error)
+		}
+		return formatExactBounds(size)
+	}
+	return formatUnknownBounds()
+}
+func formatQuotedValue(value checkruntime.TextValue, conversion int, quoteAll int) checkruntime.TextValue {
+	conversion = langruntime.CheckedI32(conversion)
+	quoteAll = langruntime.CheckedI32(quoteAll)
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		if conversion == 115 {
+			return checkruntime.MakeTextValue("")
+		}
+		if conversion == 76 {
+			return checkruntime.MakeTextValue("NULL")
+		}
+		error := checkruntime.MakeSqlError(textFormatNullError)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if conversion == 73 {
+		return QuoteIdentOutputContext(value, quoteAll, false)
+	}
+	if conversion == 76 {
+		return QuoteLiteralOutput(value, false)
+	}
+	return value
+}
+func formatCandidateBounds(input *TextFormatState, value checkruntime.TextValue, quoteAll int) TextFormatBounds {
+	quoteAll = langruntime.CheckedI32(quoteAll)
+	if input.Phase == 1 {
+		parsed := ScalarIntegerFromText(value, 32)
+		if parsed.Kind == checkruntime.Int8ValueError {
+			error := parsed.Error
+			return formatErrorBounds(error)
+		}
+		if parsed.Kind == checkruntime.Int8ValueValue {
+			number := parsed.Value
+			width := int(int32(number))
+			return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}, Minimum: int64(0), Maximum: int64(0), Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: width}}
+		}
+		return formatUnknownBounds()
+	}
+	if input.Conversion == 73 && quoteAll == langruntime.CheckedSignedNegate(1) {
+		raw := value
+		first := formatQuotedValue(raw, input.Conversion, 0)
+		left := formatPreparedBounds(first, input.Width)
+		second := formatQuotedValue(value, input.Conversion, 1)
+		right := formatPreparedBounds(second, input.Width)
+		return formatMergeBounds(left, right)
+	}
+	prepared := formatQuotedValue(value, input.Conversion, quoteAll)
+	return formatPreparedBounds(prepared, input.Width)
+}
+func formatBeginOutput(guard checkruntime.BoolValue) TextFormatOutput {
+	separator := checkruntime.MakeTextValue("")
+	buffer := ConcatBegin(separator, guard)
+	return TextFormatOutput{Status: buffer.Status, Buffer: buffer, Minimum: int64(0), Maximum: int64(0), Known: true}
+}
+func formatAppendOutput(input TextFormatOutput, value checkruntime.TextValue, facts TextFormatBounds, width int, left bool) TextFormatOutput {
+	facts = copyTextFormatBounds(facts)
+	width = langruntime.CheckedI32(width)
+	if input.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return input
+	}
+	status := facts.Status
+	minimum := input.Minimum
+	maximum := input.Maximum
+	known := input.Known
+	buffer := input.Buffer
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		minimum = langruntime.CheckedI64Add(minimum, facts.Minimum)
+		maximum = langruntime.CheckedI64Add(maximum, facts.Maximum)
+		if minimum >= int64(1073741823) {
+			error := checkruntime.MakeSqlError(textConcatLimitError)
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		} else if maximum >= int64(1073741823) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		} else {
+			concrete := false
+			if value.Kind == checkruntime.TextValueValue {
+				concrete = true
+			}
+			if known && concrete {
+				buffer = formatPadOutput(buffer, value, width, left)
+				status = buffer.Status
+			} else {
+				known = false
+			}
+		}
+	}
+	return TextFormatOutput{Status: status, Buffer: buffer, Minimum: minimum, Maximum: maximum, Known: known}
+}
+func formatFinishOutput(input TextFormatOutput) checkruntime.TextValue {
+	if input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if input.Minimum > int64(1073741819) {
+			error := checkruntime.MakeSqlError(textConcatAllocationError)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if input.Maximum > int64(1073741819) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		if input.Known {
+			return concatFinish(input.Buffer)
+		}
+		if input.Maximum == int64(0) {
+			return checkruntime.MakeTextValue("")
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		error := status.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func formatChoiceValue(original checkruntime.ArrayElement, family int, choice int) checkruntime.TextValue {
+	original = checkruntime.CopyArrayElement(original)
+	family = langruntime.CheckedI32(family)
+	choice = langruntime.CheckedI32(choice)
+	if family == 4 {
+		value := checkruntime.ArrayElementToTimestamp(original)
+		return TimestampOutputContext(value, choice)
+	}
+	if family == 7 {
+		value := checkruntime.ArrayElementToDate(original)
+		return DateOutputContext(value, choice)
+	}
+	if family == 15 {
+		value := checkruntime.ArrayElementToBytea(original)
+		return ByteaOutputContext(value, choice, false)
+	}
+	if family == 19 {
+		value := checkruntime.ArrayElementToFloat4(original)
+		extra := langruntime.CheckedSignedSubtract(choice, 16)
+		return Float4OutputContext(value, extra, true)
+	}
+	if family == 20 {
+		value := checkruntime.ArrayElementToFloat8(original)
+		extra := langruntime.CheckedSignedSubtract(choice, 16)
+		return Float8OutputContext(value, extra, true)
+	}
+	if family == 23 {
+		value := checkruntime.ArrayElementToInterval(original)
+		return IntervalOutputContext(value, choice)
+	}
+	extra := langruntime.CheckedSignedSubtract(choice, 16)
+	if family == 24 {
+		value := checkruntime.ArrayElementToPoint(original)
+		return GeometryPointOutputContext(value, extra, true)
+	}
+	if family == 25 {
+		value := checkruntime.ArrayElementToLine(original)
+		return GeometryLineOutputContext(value, extra, true)
+	}
+	if family == 26 {
+		value := checkruntime.ArrayElementToLseg(original)
+		return GeometryLsegOutputContext(value, extra, true)
+	}
+	if family == 27 {
+		value := checkruntime.ArrayElementToBox(original)
+		return GeometryBoxOutputContext(value, extra, true)
+	}
+	if family == 28 {
+		value := checkruntime.ArrayElementToPath(original)
+		return GeometryPathOutputContext(value, extra, true)
+	}
+	if family == 29 {
+		value := checkruntime.ArrayElementToPolygon(original)
+		return GeometryPolygonOutputContext(value, extra, true)
+	}
+	if family == 30 {
+		value := checkruntime.ArrayElementToCircle(original)
+		return GeometryCircleOutputContext(value, extra, true)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func formatChoiceBounds(input *TextFormatState, original checkruntime.ArrayElement, family int, quoteAll int) TextFormatBounds {
+	original = checkruntime.CopyArrayElement(original)
+	family = langruntime.CheckedI32(family)
+	quoteAll = langruntime.CheckedI32(quoteAll)
+	count := 0
+	if family == 4 || family == 7 {
+		count = langruntime.CheckedI32(6)
+	}
+	if family == 15 {
+		count = langruntime.CheckedI32(2)
+	}
+	if family == 19 || family == 20 || (family >= 24 && family <= 30) {
+		count = langruntime.CheckedI32(19)
+	}
+	if family == 23 {
+		count = langruntime.CheckedI32(4)
+	}
+	result := TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}, Minimum: int64(0), Maximum: int64(0), Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}}
+	index := 1
+	for index <= count {
+		source := checkruntime.CopyArrayElement(original)
+		candidate := formatChoiceValue(source, family, index)
+		bounds := formatCandidateBounds(input, candidate, quoteAll)
+		result = copyTextFormatBounds(formatMergeBounds(result, bounds))
+		if result.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+			return result
+		}
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	if count == 0 {
+		return formatUnknownBounds()
+	}
+	return result
+}
+
 type TextFormatToken struct {
 	Status        checkruntime.CheckOutcome
 	End           int
@@ -43767,7 +44068,10 @@ func formatPadOutput(input TextConcatState, value checkruntime.TextValue, width 
 	missing := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	return ConcatAfterArgument(input, missing)
 }
-func FormatAccept(input TextFormatState, value checkruntime.TextValue, quoteAll int) TextFormatState {
+func formatAcceptWithBounds(input TextFormatState, value checkruntime.TextValue, quoteAll int, hint TextFormatBounds) TextFormatState {
+	input = copyTextFormatState(input)
+	quoteAll = langruntime.CheckedI32(quoteAll)
+	hint = copyTextFormatBounds(hint)
 	status := input.Status
 	phase := input.Phase
 	request := input.Request
@@ -43776,6 +44080,19 @@ func FormatAccept(input TextFormatState, value checkruntime.TextValue, quoteAll 
 	output := input.Output
 	if phase == 1 {
 		parsed := ScalarIntegerFromText(value, 32)
+		if parsed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+			hintedWidth := hint.Width
+			if hintedWidth.Kind == checkruntime.Int4ValueValue {
+				width := langruntime.CheckedI32(hintedWidth.Value)
+				number := int64(langruntime.CheckedI32(width))
+				parsed = checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: number}
+			}
+			hintStatus := hint.Status
+			if hintStatus.Kind == checkruntime.CheckOutcomeError {
+				error := hintStatus.Error
+				parsed = checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+			}
+		}
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 		if parsed.Kind == checkruntime.Int8ValueError {
 			error := parsed.Error
@@ -43798,22 +44115,13 @@ func FormatAccept(input TextFormatState, value checkruntime.TextValue, quoteAll 
 			phase = langruntime.CheckedI32(2)
 		}
 	} else {
-		rendered := value
-		if rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
-			if input.Conversion == 115 {
-				rendered = checkruntime.MakeTextValue("")
-			} else if input.Conversion == 76 {
-				rendered = checkruntime.MakeTextValue("NULL")
-			} else {
-				error := checkruntime.MakeSqlError(textFormatNullError)
-				rendered = checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
-			}
-		} else if input.Conversion == 73 {
-			rendered = QuoteIdentOutputContext(rendered, quoteAll, false)
-		} else if input.Conversion == 76 {
-			rendered = QuoteLiteralOutput(rendered, false)
+		rendered := formatQuotedValue(value, input.Conversion, quoteAll)
+		prepared := rendered
+		facts := formatPreparedBounds(prepared, width)
+		if facts.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+			facts = copyTextFormatBounds(hint)
 		}
-		output = formatPadOutput(output, rendered, width, input.Left)
+		output = formatAppendOutput(output, rendered, facts, width, input.Left)
 		status = output.Status
 		phase = langruntime.CheckedI32(0)
 	}
@@ -43839,6 +44147,25 @@ func FormatBeforeArgument(input TextFormatState, nullness checkruntime.BoolValue
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
 	}
 	return TextFormatState{Source: input.Source, Position: input.Position, Status: status, Output: input.Output, NextArgument: input.NextArgument, Argument: input.Argument, Width: input.Width, Left: input.Left, Conversion: input.Conversion, Phase: input.Phase, Request: input.Request, Count: input.Count, Render: render}
+}
+func FormatAccept(input TextFormatState, value checkruntime.TextValue, quoteAll int) TextFormatState {
+	facts := formatUnknownBounds()
+	if input.Phase == 2 && input.Conversion == 73 && quoteAll == langruntime.CheckedSignedNegate(1) {
+		raw := value
+		facts = copyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
+	}
+	return formatAcceptWithBounds(input, value, quoteAll, facts)
+}
+func FormatAcceptTyped(input TextFormatState, value checkruntime.TextValue, original checkruntime.ArrayElement, family int, quoteAll int) TextFormatState {
+	facts := formatUnknownBounds()
+	if input.Phase == 2 && input.Conversion == 73 && quoteAll == langruntime.CheckedSignedNegate(1) {
+		raw := value
+		facts = copyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
+	}
+	if facts.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) && (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
+		facts = copyTextFormatBounds(formatChoiceBounds(&input, original, family, quoteAll))
+	}
+	return formatAcceptWithBounds(input, value, quoteAll, facts)
 }
 
 type TextFormatSource struct {
@@ -43872,7 +44199,7 @@ type TextFormatState struct {
 	Source       TextFormatSource
 	Position     int
 	Status       checkruntime.CheckOutcome
-	Output       TextConcatState
+	Output       TextFormatOutput
 	NextArgument int
 	Argument     int
 	Width        int
@@ -43913,9 +44240,7 @@ func FormatBegin(format checkruntime.TextValue, count checkruntime.Int4Value, gu
 	if knownCount == false && status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
 	}
-	empty := ""
-	separator := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: empty}
-	output := ConcatBegin(separator, guard)
+	output := formatBeginOutput(guard)
 	if output.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 		status = output.Status
 	}
@@ -43970,8 +44295,10 @@ func FormatNext(input TextFormatState) TextFormatState {
 				text = append(text, string(langruntime.CheckedChar(source.Characters[position]))...)
 				position = langruntime.CheckedAdd(position, 1)
 			}
+			bytes := textBuildOctets(string(text))
 			value := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
-			output = ConcatAfterArgument(output, value)
+			facts := formatExactBounds(bytes)
+			output = formatAppendOutput(output, value, facts, 0, false)
 			status = output.Status
 		} else {
 			start := langruntime.CheckedAdd(position, 1)
@@ -43981,7 +44308,8 @@ func FormatNext(input TextFormatState) TextFormatState {
 			if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 				if token.Conversion == 37 {
 					text := checkruntime.MakeTextValue("%")
-					output = ConcatAfterArgument(output, text)
+					facts := formatExactBounds(int64(1))
+					output = formatAppendOutput(output, text, facts, 0, false)
 					status = output.Status
 				} else {
 					argument = langruntime.CheckedI32(token.Argument)
@@ -44021,7 +44349,7 @@ func formatFinish(input TextFormatInput) checkruntime.TextValue {
 	if input.Kind == TextFormatInputValue {
 		state := copyTextFormatState(input.Value)
 		if state.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
-			return concatFinish(state.Output)
+			return formatFinishOutput(state.Output)
 		}
 		if state.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}

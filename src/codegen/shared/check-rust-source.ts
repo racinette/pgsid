@@ -42,7 +42,7 @@ export function assembleCheckRust(evaluator: {
   })
   const requiresTimezone =
     evaluator.callables.some((name) => timezoneCallables.has(name)) ||
-    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context)\(/u.test(
+    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context|format_accept_timezone)\(/u.test(
       evaluator.source,
     )
   const unicodeCallables = checkRustCallableNames({

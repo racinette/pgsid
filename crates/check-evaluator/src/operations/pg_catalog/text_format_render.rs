@@ -58,10 +58,11 @@ fn format_pad_output(
     concat_after_argument(input, missing)
 }
 
-pub(crate) fn format_accept(
+fn format_accept_with_bounds(
     input: TextFormatState,
     value: TextValue,
     quote_all: i32,
+    hint: TextFormatBounds,
 ) -> TextFormatState {
     let mut status = input.status;
     let mut phase = input.phase;
@@ -70,7 +71,18 @@ pub(crate) fn format_accept(
     let mut width = input.width;
     let mut output = input.output;
     if phase == 1 {
-        let parsed = scalar_integer_from_text(value, 32);
+        let mut parsed = scalar_integer_from_text(value, 32);
+        if parsed == Int8Value::Unknown {
+            let hinted_width = hint.width;
+            if let Int4Value::Value(width) = hinted_width {
+                let number = width as i64;
+                parsed = Int8Value::Value(number);
+            };
+            let hint_status = hint.status;
+            if let CheckOutcome::Error(error) = hint_status {
+                parsed = Int8Value::Error(error);
+            };
+        };
         status = CheckOutcome::Unknown;
         if let Int8Value::Error(error) = parsed {
             status = CheckOutcome::Error(error);
@@ -91,22 +103,13 @@ pub(crate) fn format_accept(
             phase = 2;
         };
     } else {
-        let mut rendered = value;
-        if rendered == TextValue::Null {
-            if input.conversion == 115 {
-                rendered = make_text_value("");
-            } else if input.conversion == 76 {
-                rendered = make_text_value("NULL");
-            } else {
-                let error = make_sql_error(TEXT_FORMAT_NULL_ERROR);
-                rendered = TextValue::Error(error);
-            };
-        } else if input.conversion == 73 {
-            rendered = quote_ident_output_context(rendered, quote_all, false);
-        } else if input.conversion == 76 {
-            rendered = quote_literal_output(rendered, false);
+        let rendered = format_quoted_value(value, input.conversion, quote_all);
+        let prepared = rendered.clone();
+        let mut facts = format_prepared_bounds(prepared, width);
+        if facts.status == CheckOutcome::Unknown {
+            facts = hint;
         };
-        output = format_pad_output(output, rendered, width, input.left);
+        output = format_append_output(output, rendered, facts, width, input.left);
         status = output.status;
         phase = 0;
     };
@@ -164,4 +167,37 @@ pub(crate) fn format_before_argument(
         count: input.count,
         render: render,
     }
+}
+
+pub(crate) fn format_accept(
+    input: TextFormatState,
+    value: TextValue,
+    quote_all: i32,
+) -> TextFormatState {
+    let mut facts = format_unknown_bounds();
+    if input.phase == 2 && input.conversion == 73 && quote_all == -1 {
+        let raw = value.clone();
+        facts = format_candidate_bounds(&input, raw, quote_all);
+    };
+    format_accept_with_bounds(input, value, quote_all, facts)
+}
+
+pub(crate) fn format_accept_typed(
+    input: TextFormatState,
+    value: TextValue,
+    original: ArrayElement,
+    family: i32,
+    quote_all: i32,
+) -> TextFormatState {
+    let mut facts = format_unknown_bounds();
+    if input.phase == 2 && input.conversion == 73 && quote_all == -1 {
+        let raw = value.clone();
+        facts = format_candidate_bounds(&input, raw, quote_all);
+    };
+    if facts.status == CheckOutcome::Unknown
+        && (value == TextValue::Unknown || value == TextValue::NonNull)
+    {
+        facts = format_choice_bounds(&input, original, family, quote_all);
+    };
+    format_accept_with_bounds(input, value, quote_all, facts)
 }

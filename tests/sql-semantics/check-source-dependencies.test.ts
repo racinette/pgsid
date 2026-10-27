@@ -124,6 +124,27 @@ describe('CHECK operation source dependencies', () => {
       ),
     )
   })
+  it('retains timezone sources only for a selected timezone formatting helper', () => {
+    const timezone = assembleCheckRust({
+      source: 'format_accept_timezone(state, value, original, 0, "UTC")',
+      callables: [],
+    })
+    expect(
+      timezone.modules
+        .find((module) => module.name === 'pg_catalog')!
+        .files.some((file) => file.path.includes('/timezone')),
+    ).toBe(true)
+    const scalar = assembleCheckRust({
+      source: 'format_accept_typed(state, value, original, 20, 0)',
+      callables: [],
+    })
+    expect(
+      scalar.modules
+        .find((module) => module.name === 'pg_catalog')!
+        .files.some((file) => file.path.includes('/timezone')),
+    ).toBe(false)
+  })
+
   it('retains shared Unicode tables and helpers only for a Unicode catalog callable', () => {
     const original = fixture()
     const operation = original.modules[2]!.files.find((file) =>
