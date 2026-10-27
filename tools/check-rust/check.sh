@@ -4,6 +4,7 @@ set -euo pipefail
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
 unset PGSID_CHECK_JSON_POPULATE_ARRAY_TYPES PGSID_CHECK_JSON_POPULATE_TYPES PGSID_CHECK_INTERVAL_FUNCTIONS PGSID_CHECK_TEMPORAL_PERIOD_FUNCTIONS PGSID_CHECK_INSTANT_PERIOD_FUNCTIONS PGSID_CHECK_TIMESTAMP_FORMAT_FUNCTIONS PGSID_CHECK_DATETIME_TEMPLATE_FUNCTIONS PGSID_CHECK_TEMPORAL_SCALAR_FUNCTIONS
+unset PGSID_CHECK_JSONPATH_TIMEZONE_ZONES PGSID_CHECK_JSONPATH_TIMEZONE_CASES
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-trimpath"
 vitest_args=("$@")
 has_worker_option=false
@@ -31,6 +32,7 @@ pnpm exec vitest run tests/sql-semantics/check-non-strict-measurements.test.ts "
 pnpm exec vitest run tests/sql-semantics/check-integer-sum.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-value-metadata.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-current-age.test.ts "${vitest_args[@]}"
+pnpm exec vitest run tests/sql-semantics/check-jsonpath-timezone.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-nullable-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-generic-literal-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-text-format.test.ts tests/sql-semantics/check-text-format-grammar.test.ts tests/sql-semantics/check-text-format-states.test.ts tests/sql-semantics/check-text-format-output-knowledge.test.ts "${vitest_args[@]}"

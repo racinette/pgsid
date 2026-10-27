@@ -462,6 +462,10 @@ fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
         output.push_str(hour.as_str());
         output.push(':');
         output.push_str(minute.as_str());
+        if offset % 60 != 0 {
+            output.push(':');
+            output.push_str(clock_output_pair(offset % 60).as_str());
+        };
     };
     if bc {
         output.push_str(" BC");

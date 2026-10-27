@@ -24429,6 +24429,10 @@ func jsonpathTemporalRender(input jsonpathTemporalValue) checkruntime.TextValue 
 		output = append(output, hour...)
 		output = append(output, string(langruntime.CheckedChar(':'))...)
 		output = append(output, minute...)
+		if langruntime.CheckedSignedRemainder(offset, 60) != 0 {
+			output = append(output, string(langruntime.CheckedChar(':'))...)
+			output = append(output, clockOutputPair(langruntime.CheckedSignedRemainder(offset, 60))...)
+		}
 	}
 	if bc {
 		output = append(output, " BC"...)

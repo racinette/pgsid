@@ -166,5 +166,11 @@ fn jsonpath_temporal_apply(
             return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
         };
     };
-    jsonpath_temporal_convert_mode(input, method.kind, precision, context.use_timezone)
+    jsonpath_temporal_convert_session(
+        input,
+        method.kind,
+        precision,
+        context.use_timezone,
+        context.session_timezone.as_str(),
+    )
 }

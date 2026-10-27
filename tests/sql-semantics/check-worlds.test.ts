@@ -238,13 +238,6 @@ const declaredValueContextCases = new Map<string, string>([
       ] as const,
   ),
   ...arraySortContextCases,
-  ...['clock_exists', 'clock_match', 'clock_results', 'clock_first'].map(
-    (name) =>
-      [
-        `042_query_paths/clock_zone_context/${name}`,
-        `world_042_query_paths.query_clock_rules.${name}`,
-      ] as const,
-  ),
   ...[
     'regclass',
     'regcollation',
