@@ -2293,3 +2293,22 @@ INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,exp
 INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,NULL,1,0,'NULL','NULL','NULL','unused',false);
 -- name: QuotedSkippedError
 INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,NULL,1,0,NULL,NULL,NULL,NULL,true);
+
+-- name: LiteralValues
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (4,2,ROW(NULL,NULL,NULL),'{1,NULL,2}','''2''','''(,,)''','''{1,NULL,2}''',false);
+-- name: LiteralWrongRatio
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (4,2,ROW(NULL,NULL,NULL),'{1,NULL,2}','wrong','''(,,)''','''{1,NULL,2}''',false);
+-- name: LiteralWrongReading
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (4,2,ROW(NULL,NULL,NULL),'{1,NULL,2}','''2''','wrong','''{1,NULL,2}''',false);
+-- name: LiteralWrongNumbers
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (4,2,ROW(NULL,NULL,NULL),'{1,NULL,2}','''2''','''(,,)''','wrong',false);
+-- name: LiteralNullDatums
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (NULL,0,NULL,NULL,NULL,NULL,NULL,false);
+-- name: LiteralNullFieldsEmptyArray
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (NULL,0,ROW(NULL,NULL,NULL),'{}',NULL,'''(,,)''','''{}''',false);
+-- name: LiteralArrayBounds
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (0,1,NULL,'[-1:0]={1,NULL}','''0''',NULL,'''[-1:0]={1,NULL}''',false);
+-- name: LiteralReachedError
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (1,0,NULL,NULL,NULL,NULL,NULL,false);
+-- name: LiteralSkippedError
+INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (1,0,NULL,NULL,'wrong','wrong','wrong',true);

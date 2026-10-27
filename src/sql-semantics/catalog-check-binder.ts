@@ -1,6 +1,6 @@
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
-import { isNullableQuote } from './nullable-quote-callables.js'
+import { isNullableQuote, isGenericLiteralQuote } from './literal-quote-callables.js'
 import { validJsonpathConstantStorage } from '../catalog/jsonpath-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
@@ -2978,7 +2978,7 @@ export function bindCatalogCheck(
   let storedArguments: ((index: number) => Bound) | undefined
   let storedCaseTest: Bound | undefined
   let nextCaseBinding = 0
-  const nullableQuoteArgument = (raw: unknown, operand: Bound): Bound => {
+  const quoteTextArgument = (raw: unknown, operand: Bound): Bound => {
     const source = boundType(operand)
     if (!source || !operand.value) return unknown
     const native = elementTypeName(source as ScalarType),
@@ -3038,6 +3038,57 @@ export function bindCatalogCheck(
         typeName: { names: ['pg_catalog', 'text'].map((sval) => ({ String: { sval } })) },
       },
     })
+  }
+  const strictQuotedCall = (result: Bound, operand: Bound): Bound => {
+    const type = boundType(operand)
+    if (!type || !operand.value || result.value?.kind !== 'call') return unknown
+    let binding: string
+    do binding = `__pgsid_quote_operand_${nextCaseBinding++}`
+    while (columns.some((column) => column.name === binding))
+    const reference: Bound = {
+      ...operand,
+      type,
+      literal: undefined,
+      value: {
+        kind: 'input',
+        type: type as ScalarType,
+        name: binding,
+        ...(operand.enum ? { enum: operand.enum } : {}),
+      },
+    }
+    const outer = storedArguments
+    let converted: Bound
+    storedArguments = (index) => (index === 0 ? reference : unknown)
+    try {
+      converted = quoteTextArgument({ PgsidStoredArgument: { index: 0 } }, reference)
+    } finally {
+      storedArguments = outer
+    }
+    if (!converted.value) return unknown
+    return {
+      ...result,
+      value: {
+        kind: 'case',
+        type: 'pg_catalog.text',
+        scrutinee: { expression: operand.value, binding },
+        branches: [
+          {
+            when: {
+              kind: 'null-test',
+              type: 'pg_catalog.bool',
+              operand: reference.value!,
+              negated: false,
+              datum: true,
+            },
+            then: {
+              kind: 'certain',
+              expression: { kind: 'text', type: 'pg_catalog.text', value: null },
+            },
+          },
+        ],
+        otherwise: { ...result.value, operands: [converted.value] },
+      },
+    }
   }
   const bind = (
     node: unknown,
@@ -4021,10 +4072,10 @@ export function bindCatalogCheck(
         return unknown
       const quoteArgument =
         isNullableQuote(selected.item) && selected.item.args[0] === 'pg_catalog.anyelement'
-          ? nullableQuoteArgument(nodes[0], args[0]!)
+          ? quoteTextArgument(nodes[0], args[0]!)
           : undefined
       if (quoteArgument && !quoteArgument.value) return unknown
-      return {
+      const result: Bound = {
         ...carrier!,
         type,
         ...(resultCollation ? { collation: resultCollation } : {}),
@@ -4059,6 +4110,7 @@ export function bindCatalogCheck(
           operands: quoteArgument ? [quoteArgument.value!] : args.map((arg) => arg.value!),
         },
       }
+      return isGenericLiteralQuote(selected.item) ? strictQuotedCall(result, args[0]!) : result
     }
     const storedComparison = fields(wrapper['PgsidStoredComparison'])
     if (storedComparison) {
@@ -8519,7 +8571,7 @@ export function bindCatalogCheck(
     const collation = resolved.collation
     const quoteArgument =
       isNullableQuote(resolved.item) && resolved.item.args[0] === 'pg_catalog.anyelement'
-        ? nullableQuoteArgument(nodes[0], { ...args[0]!, value: resolved.operands[0]! })
+        ? quoteTextArgument(nodes[0], { ...args[0]!, value: resolved.operands[0]! })
         : undefined
     if (quoteArgument && !quoteArgument.value) return unknown
     const outputEnum =
@@ -8548,7 +8600,7 @@ export function bindCatalogCheck(
             ).values(),
           ]
         : []
-    return {
+    const result: Bound = {
       type,
       ...(resolved.resultNominalDomain ? { nominalDomain: resolved.resultNominalDomain } : {}),
       ...(type.startsWith('enum:') || type.startsWith('array:enum:') ? { enum: outputEnum } : {}),
@@ -8581,6 +8633,9 @@ export function bindCatalogCheck(
         operands: quoteArgument ? [quoteArgument.value!] : resolved.operands,
       },
     }
+    return isGenericLiteralQuote(resolved.item)
+      ? strictQuotedCall(result, { ...args[0]!, value: resolved.operands[0]! })
+      : result
   }
   const runtimeOpaque = (node: unknown): boolean => {
     const wrapper = fields(node)

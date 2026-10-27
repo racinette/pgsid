@@ -1,6 +1,6 @@
 import { arrayElementComparison } from './check-array-types.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
-import { caseWhenExpression } from './check-rust-constants.js'
+import { caseBoundExpression } from './check-rust-constants.js'
 import { isRecordComparison, recordComparisonLayouts } from './check-record-comparison.js'
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
@@ -640,10 +640,10 @@ const reachableChildren = (value: Record<string, unknown>): unknown[] => {
     return [
       expression.scrutinee!.expression,
       ...expression.branches.flatMap((branch) => [
-        caseWhenExpression(expression, branch.when),
-        branch.then,
+        caseBoundExpression(expression, branch.when),
+        caseBoundExpression(expression, branch.then),
       ]),
-      expression.otherwise,
+      caseBoundExpression(expression, expression.otherwise),
     ]
   }
   if (

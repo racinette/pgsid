@@ -43679,6 +43679,9 @@ export function lowerHcg0(input: checkruntime.TextValue): checkruntime.TextValue
 export function upperValc(input: checkruntime.TextValue): checkruntime.TextValue {
     return textCaseValue(input, 1);
 }
+export function quoteLiteralI1gy(input: checkruntime.TextValue): checkruntime.TextValue {
+    return quoteLiteralD0rq(input);
+}
 function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
     trimSpaces = langruntime.checkedBool(trimSpaces);
     byteOrder = langruntime.checkedI32(byteOrder);

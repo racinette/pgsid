@@ -1,5 +1,12 @@
 -- @world checks
 CREATE TYPE inspection_reading AS (score integer, label text COLLATE "C", span int4range);
+CREATE TABLE inspection_literal_values (
+  score integer, denominator integer, reading inspection_reading, numbers integer[],
+  expected_ratio text, expected_reading text, expected_numbers text, bypass boolean NOT NULL,
+  CONSTRAINT literal_ratio CHECK (CASE WHEN bypass THEN true ELSE quote_literal(score/denominator) COLLATE "C" IS NOT DISTINCT FROM expected_ratio COLLATE "C" END),
+  CONSTRAINT literal_reading CHECK (CASE WHEN bypass THEN true ELSE quote_literal(reading) COLLATE "C" IS NOT DISTINCT FROM expected_reading COLLATE "C" END),
+  CONSTRAINT literal_numbers CHECK (CASE WHEN bypass THEN true ELSE quote_literal(numbers) COLLATE "C" IS NOT DISTINCT FROM expected_numbers COLLATE "C" END)
+);
 CREATE TABLE inspection_quoted_values (
   label text, reading inspection_reading, numbers integer[], score integer, denominator integer,
   expected_label text, expected_reading text, expected_numbers text, expected_ratio text, bypass boolean NOT NULL,

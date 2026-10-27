@@ -43391,6 +43391,9 @@ func LowerHcg0(input checkruntime.TextValue) checkruntime.TextValue {
 func UpperValc(input checkruntime.TextValue) checkruntime.TextValue {
 	return textCaseValue(input, 1)
 }
+func QuoteLiteralI1gy(input checkruntime.TextValue) checkruntime.TextValue {
+	return QuoteLiteralD0rq(input)
+}
 func textHashValue(input checkruntime.TextValue, trimSpaces bool, byteOrder int, utf8 bool) checkruntime.Int4Value {
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.TextValueError {

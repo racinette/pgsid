@@ -1,6 +1,9 @@
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
-import { isNullableQuote } from '../../sql-semantics/nullable-quote-callables.js'
+import {
+  isNullableQuote,
+  isGenericLiteralQuote,
+} from '../../sql-semantics/literal-quote-callables.js'
 import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
 import { validJsonpathConstantStorage } from '../../catalog/jsonpath-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
@@ -121,7 +124,7 @@ import { rustStringLiteral } from './rust-literals.js'
 import {
   constantCheckExpression,
   constantScalarExpression,
-  caseWhenExpression,
+  caseBoundExpression,
   strictNullPreparation,
   nullifNullPreparation,
   type ConstantPreparation,
@@ -2968,7 +2971,7 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
-      if (isNullableQuote(implementation)) {
+      if (isNullableQuote(implementation) || isGenericLiteralQuote(implementation)) {
         if (
           call.kind !== 'function' ||
           call.type !== implementation.result ||
@@ -2976,7 +2979,7 @@ export function emitCheckRustEvaluator(
           operands[0]!.type !== 'pg_catalog.text'
         )
           throw new UnsupportedCheckRustExpression(
-            'Nullable quoting requires its selected text coercion',
+            'Literal quoting requires its selected text coercion',
           )
         if (folded) return folded
         const name = fresh('nullable_quote')
@@ -8286,6 +8289,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'null-test') {
       if (
         node.operand.kind === 'input' &&
+        !localInputs.has(JSON.stringify([node.operand.name, false])) &&
         !compositeProfile(node.operand.type) &&
         !node.operand.type.startsWith('enum:') &&
         !isOidType(node.operand.type) &&
@@ -8982,7 +8986,7 @@ export function emitCheckRustEvaluator(
         const branch = node.branches[position]!
         const when =
           node.scrutinee?.binding && constantScalarExpression(node.scrutinee.expression)
-            ? caseWhenExpression(node, branch.when)
+            ? caseBoundExpression(node, branch.when)
             : branch.when
         let condition = emitScalar(when, lines, used)
         if (scrutinee && node.scrutinee && !node.scrutinee.binding) {
@@ -9003,7 +9007,7 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression('CASE result type mismatch')
         const otherwise = capturePreparation(() => branchLines(position + 1))
         const prepared = prepareBranches(
-          constantScalarExpression(caseWhenExpression(node, branch.when)) &&
+          constantScalarExpression(caseBoundExpression(node, branch.when)) &&
             (!node.scrutinee || constantScalarExpression(node.scrutinee.expression)),
           lines,
           guard,

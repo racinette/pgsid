@@ -1,5 +1,8 @@
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
-import { isNullableQuote } from '../../sql-semantics/nullable-quote-callables.js'
+import {
+  isNullableQuote,
+  isGenericLiteralQuote,
+} from '../../sql-semantics/literal-quote-callables.js'
 import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
@@ -92,6 +95,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isNullableQuote(implementation) && rustNames.has(implementation.rustName)) ||
+      (rust && isGenericLiteralQuote(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isJsonBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isJsonConversion(implementation) && rustNames.has(implementation.rustName)) ||
       (rust &&
