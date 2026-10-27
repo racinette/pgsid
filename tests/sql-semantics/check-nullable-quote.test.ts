@@ -7,99 +7,13 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
-import type { CheckExecutionContext } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import { quoteContext as full, quoteProfiles as profiles } from './check-quote-fixtures.js'
 
 const packet = 'artifacts/goal-checks/nullable-quote-active'
 const known = (value: string | number | boolean | null) =>
   value === null ? { kind: 'Null' as const } : { kind: 'Value' as const, value }
-const full: CheckExecutionContext = {
-  defaultCollation: 'C',
-  serverEncoding: 'UTF8',
-  dateStyle: { format: 'ISO', order: 'MDY' },
-  timeZone: 'UTC',
-  intervalStyle: 'postgres',
-  byteaOutput: 'hex',
-  moneyLocale: 'C',
-  extraFloatDigits: 1,
-  arrayNulls: true,
-}
-const profiles: {
-  type: string
-  value: string
-  context?: boolean
-  catalog?: boolean
-  castText?: boolean
-}[] = [
-  { type: 'text', value: "E'a''b\\\\c é😊'" },
-  { type: 'char(4)', value: "'x'" },
-  { type: 'varchar(4)', value: "'x'" },
-  { type: 'name', value: "'select'" },
-  { type: '"char"', value: "'x'", castText: true },
-  { type: 'refcursor', value: "'cursor'" },
-  { type: 'smallint', value: '-123' },
-  { type: 'integer', value: '-123' },
-  { type: 'bigint', value: '-123' },
-  { type: 'numeric', value: '123.4500' },
-  { type: 'boolean', value: 'true' },
-  { type: 'float4', value: '1.23456789', context: true },
-  { type: 'float8', value: '1.234567891234567', context: true },
-  { type: 'date', value: "'2000-01-02'", context: true },
-  { type: 'timestamp', value: "'2000-01-02 03:04:05'", context: true },
-  { type: 'timestamptz', value: "'2000-01-02 03:04:05+00'", context: true },
-  { type: 'time', value: "'12:34:56.123'" },
-  { type: 'timetz', value: "'12:34:56+04'" },
-  { type: 'interval', value: "'1 day 2 hours'", context: true },
-  { type: 'money', value: "'12.34'", context: true },
-  { type: 'bytea', value: "'\\x0102'", context: true },
-  { type: 'uuid', value: "'00000000-0000-0000-0000-000000000001'" },
-  { type: 'inet', value: "'127.0.0.1'" },
-  { type: 'cidr', value: "'127.0.0.0/8'" },
-  { type: 'macaddr', value: "'00:11:22:33:44:55'" },
-  { type: 'macaddr8', value: "'00:11:22:33:44:55:66:77'" },
-  { type: 'bit(2)', value: "B'10'" },
-  { type: 'varbit', value: "B'10'" },
-  { type: 'point', value: "'(1.234567891234567,2)'", context: true },
-  { type: 'line', value: "'{1.234567891234567,2,3}'", context: true },
-  { type: 'lseg', value: "'[(1.234567891234567,2),(3,4)]'", context: true },
-  { type: 'box', value: "'((1.234567891234567,2),(3,4))'", context: true },
-  { type: 'path', value: "'[(1.234567891234567,2),(3,4)]'", context: true },
-  { type: 'polygon', value: "'((1.234567891234567,2),(3,4),(5,6))'", context: true },
-  { type: 'circle', value: "'<(1.234567891234567,2),3>'", context: true },
-  { type: 'json', value: '\'{ "a": 1, "a": null }\'' },
-  { type: 'jsonb', value: '\'{"a": 1.00}\'' },
-  { type: 'jsonpath', value: "'(-$.a).abs()'" },
-  { type: 'xml', value: '\'<item a="value"/>\'' },
-  { type: 'tsvector', value: "'lexeme:1A'" },
-  { type: 'tsquery', value: "'lexeme & other'" },
-  { type: 'oid', value: "'4294967295'" },
-  { type: 'xid', value: "'4294967295'" },
-  { type: 'cid', value: "'4294967295'" },
-  { type: 'xid8', value: "'18446744073709551615'" },
-  { type: 'pg_lsn', value: "'FFFFFFFF/FFFFFFFF'" },
-  { type: 'tid', value: "'(1,2)'" },
-  { type: 'pg_snapshot', value: "'1:3:2'" },
-  { type: 'txid_snapshot', value: "'1:3:2'" },
-  { type: 'int2vector', value: "'1 2'" },
-  { type: 'oidvector', value: "'1 2'" },
-  { type: 'int4range', value: "'[1,4)'" },
-  { type: 'int4multirange', value: "'{[1,4)}'" },
-  { type: 'quote_label', value: "'ready'" },
-  { type: 'quote_positive', value: '1' },
-  { type: 'quote_pair', value: 'ROW(NULL,NULL)' },
-  { type: 'record', value: "ROW(1,'x'::text)" },
-  { type: 'quote_label[]', value: "ARRAY['ready'::quote_label,NULL]" },
-  { type: 'quote_positive[]', value: 'ARRAY[1::quote_positive,NULL]' },
-  { type: 'quote_pair[]', value: 'ARRAY[ROW(NULL,NULL)::quote_pair,NULL]' },
-  { type: 'integer[]', value: 'ARRAY[1,NULL,2]' },
-  {
-    type: 'quote_data',
-    value: "ROW(1.234567891234567::float8,'2000-01-02'::date,'\\x0102'::bytea)",
-    context: true,
-  },
-  { type: 'aclitem', value: "'=r/postgres'", catalog: true },
-]
 
 it('retains native ambiguity for internal char and accepts an explicit text conversion', async () => {
   const pg = await PGlite.create()

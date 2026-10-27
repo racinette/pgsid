@@ -3,12 +3,12 @@ import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 
-export function caseWhenExpression(
+export function caseBoundExpression(
   expression: Extract<EvalExpression, { kind: 'case' }>,
-  when: EvalExpression,
+  member: EvalExpression,
 ): EvalExpression {
   const scrutinee = expression.scrutinee
-  if (!scrutinee?.binding) return when
+  if (!scrutinee?.binding) return member
   const replace = (value: unknown): unknown => {
     if (Array.isArray(value)) {
       const items = value.map(replace)
@@ -22,7 +22,7 @@ export function caseWhenExpression(
       ? value
       : Object.fromEntries(entries)
   }
-  return replace(when) as EvalExpression
+  return replace(member) as EvalExpression
 }
 
 export function constantCheckExpression(expression: EvalBoolExpression): boolean {
@@ -63,10 +63,10 @@ export function constantScalarExpression(expression: EvalExpression): boolean {
       (!expression.scrutinee || constantScalarExpression(expression.scrutinee.expression)) &&
       expression.branches.every(
         (branch) =>
-          constantScalarExpression(caseWhenExpression(expression, branch.when)) &&
-          constantScalarExpression(branch.then),
+          constantScalarExpression(caseBoundExpression(expression, branch.when)) &&
+          constantScalarExpression(caseBoundExpression(expression, branch.then)),
       ) &&
-      constantScalarExpression(expression.otherwise)
+      constantScalarExpression(caseBoundExpression(expression, expression.otherwise))
     )
   return prepare(expression)?.constant ?? false
 }
@@ -407,10 +407,10 @@ function prepare(expression: EvalExpression): Preparation | null {
     if (expression.scrutinee && !scrutinee) return null
     const operands = prepareAll([
       ...expression.branches.flatMap((branch) => [
-        caseWhenExpression(expression, branch.when),
-        branch.then,
+        caseBoundExpression(expression, branch.when),
+        caseBoundExpression(expression, branch.then),
       ]),
-      expression.otherwise,
+      caseBoundExpression(expression, expression.otherwise),
     ])
     if (!operands) return null
     if ((!scrutinee || scrutinee.constant) && operands.every((operand) => operand.constant))
@@ -428,7 +428,7 @@ function prepare(expression: EvalExpression): Preparation | null {
                 call: branch.equality!,
                 operands: [expression.scrutinee.expression, branch.when],
               }
-            : caseWhenExpression(expression, branch.when)
+            : caseBoundExpression(expression, branch.when)
         steps = [{ kind: 'guard', expression: condition, test: 'true', selected, otherwise: steps }]
       } else steps = [...when.expressions, ...selected, ...steps]
     }

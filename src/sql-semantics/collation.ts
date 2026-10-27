@@ -8,7 +8,7 @@ import {
   isTemporalSessionExtraction,
 } from './temporal-casts.js'
 import { isIdentifierQuote } from './identifier-quote.js'
-import { isNullableQuote } from './nullable-quote-callables.js'
+import { isNullableQuote, isGenericLiteralQuote } from './literal-quote-callables.js'
 import {
   isXmlOptionPredicate,
   isXmlValidationCallable,
@@ -451,6 +451,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     isIdentifierParseCallable(signature) ||
     isIdentifierQuote(metadata) ||
     isNullableQuote(metadata) ||
+    isGenericLiteralQuote(metadata) ||
     isBuiltinRangeConstructor(implementation) ||
     (implementation.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&
