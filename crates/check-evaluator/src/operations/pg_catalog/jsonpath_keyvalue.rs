@@ -12,6 +12,7 @@ fn jsonpath_execution_make_context(
     use_timezone: bool,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonpathExecutionContext {
     let mut needs_objects = false;
     let mut index: usize = 1;
@@ -87,6 +88,7 @@ fn jsonpath_execution_make_context(
         use_timezone: use_timezone,
         session_timezone: session.to_owned(),
         abbreviations_default: defaults,
+        time_locale_c: locale_c,
         ordered_result: ordered_result,
         document_ids: document_ids,
         variables_ids: variables_ids,

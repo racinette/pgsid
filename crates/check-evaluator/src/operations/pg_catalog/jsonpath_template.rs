@@ -281,13 +281,15 @@ fn jsonpath_template_error(error: u32, hard: bool) -> JsonpathTemporalValue {
 
 fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTemporalValue {
     let prefixes: Vec<usize> = Vec::new();
-    jsonpath_template_parse_prefixes(input, template, prefixes)
+    jsonpath_template_parse_prefixes(input, template, prefixes, false, false)
 }
 
 fn jsonpath_template_parse_prefixes(
     input: TextValue,
     template: TextValue,
     prefixes: Vec<usize>,
+    locale_c: bool,
+    collation_c: bool,
 ) -> JsonpathTemporalValue {
     if let TextValue::Error(error) = input {
         return jsonpath_template_error(error.state, false);
@@ -343,7 +345,11 @@ fn jsonpath_template_parse_prefixes(
                         };
                         date_mode = mode;
                     };
-                    if token.translated && token.kind >= 44 && token.kind <= 47 {
+                    if token.translated
+                        && token.kind >= 44
+                        && token.kind <= 47
+                        && (locale_c == false || collation_c == false)
+                    {
                         return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
                     };
                     let mut variable =

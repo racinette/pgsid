@@ -385,3 +385,21 @@ INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variabl
 
 -- name: abbreviation_keyvalue_copy
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_keyvalue_copy','{"a":"2024-02-29T12:34:56EST"}'::jsonb,'$.keyvalue().value.datetime()=="2024-02-29T17:34:56+00".datetime()'::jsonpath,'$.keyvalue().value.datetime()=="2024-02-29T17:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_month
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_month','"2024-February-29"'::jsonb,'$.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()'::jsonpath,'$.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_weekday
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_weekday','"2024-09-Thursday"'::jsonb,'$.datetime("IYYY-IW-TMDay")=="2024-02-29".date()'::jsonpath,'$.datetime("IYYY-IW-TMDay")=="2024-02-29".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_keyvalue
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_keyvalue','{"a":"2024-February-29"}'::jsonb,'$.keyvalue().value.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()'::jsonpath,'$.keyvalue().value.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_abbreviation
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_abbreviation','"2024-February-29 12:34:56EST"'::jsonb,'$.datetime("YYYY-TMMonth-DD HH24:MI:SSTZ")=="2024-02-29T17:34:56+00".datetime()'::jsonpath,'$.datetime("YYYY-TMMonth-DD HH24:MI:SSTZ")=="2024-02-29T17:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_invalid_month
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_invalid_month','"2024-Fébruary-29"'::jsonb,'$.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()'::jsonpath,'$.datetime("YYYY-TMMonth-DD")=="2024-02-29".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: translated_wrong_result
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_wrong_result','"2024-February-29"'::jsonb,'$.datetime("YYYY-TMMonth-DD")=="2024-03-01".date()'::jsonpath,'$.datetime("YYYY-TMMonth-DD")=="2024-03-01".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);

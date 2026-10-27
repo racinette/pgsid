@@ -100,6 +100,8 @@ fn jsonpath_template_parse_context(
     session: &str,
     defaults: bool,
     utf8: bool,
+    locale_c: bool,
+    collation_c: bool,
 ) -> JsonpathTemporalValue {
     let original = input.clone();
     if let TextValue::Value(text) = original {
@@ -115,7 +117,14 @@ fn jsonpath_template_parse_context(
                 token += 1;
             }
             if needs_abbreviation == false {
-                return jsonpath_template_parse(input, template);
+                let prefixes: Vec<usize> = Vec::new();
+                return jsonpath_template_parse_prefixes(
+                    input,
+                    template,
+                    prefixes,
+                    locale_c,
+                    collation_c,
+                );
             };
         };
         let source = JsonpathTemporalSource {
@@ -136,7 +145,8 @@ fn jsonpath_template_parse_context(
             prefixes.push(end);
             index += 1;
         }
-        let parsed = jsonpath_template_parse_prefixes(input, template, prefixes);
+        let parsed =
+            jsonpath_template_parse_prefixes(input, template, prefixes, locale_c, collation_c);
         if parsed.abbreviation_token > 0 {
             let selected = datetime_template_find_prefix(
                 &source,
