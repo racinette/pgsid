@@ -1,4 +1,5 @@
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
+import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
 import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
 import { validJsonpathConstantStorage } from '../../catalog/jsonpath-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
@@ -2966,6 +2967,33 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (isNullCountCallable(implementation)) {
+        if (call.kind !== 'function' || call.type !== implementation.result || !operands.length)
+          throw new UnsupportedCheckRustExpression('Invalid null-counting call')
+        for (const operand of operands) rustType(operand.type)
+        const variadic = call.variadic === true
+        if (variadic && (operands.length !== 1 || !isArrayLikeType(operands[0]!.type)))
+          throw new UnsupportedCheckRustExpression('Null counting requires one VARIADIC array')
+        if (folded) return folded
+        const bindArgument = (source: string): string => {
+          const name = fresh('null_count_arguments')
+          destination.push(`let ${name} = ${source};`)
+          return name
+        }
+        let arguments_ = variadic
+          ? bindArgument(`null_count_array_arguments(${ownedOperand(operands[0]!)})`)
+          : bindArgument('make_null_count_arguments()')
+        if (!variadic)
+          for (const operand of operands) {
+            const nullness = bindArgument(
+              `${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)})`,
+            )
+            arguments_ = bindArgument(`append_null_count_argument(${arguments_}, ${nullness})`)
+          }
+        const name = bindArgument(`${implementation.rustName}(${arguments_})`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       const anonymousArray = isArrayComparison(implementation)
         ? commonAnonymousRecordType(operands.map((operand) => operand.type))
         : null

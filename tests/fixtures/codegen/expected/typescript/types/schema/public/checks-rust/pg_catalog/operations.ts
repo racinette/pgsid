@@ -30637,6 +30637,68 @@ export function inetSendZ9ng(input: checkruntime.NetworkValue): checkruntime.Byt
 export function cidrSendS007(input: checkruntime.NetworkValue): checkruntime.ByteaValue {
     return networkSend(input, true);
 }
+export interface NullCountArguments {
+    readonly nulls: checkruntime.Int4Value;
+    readonly nonnulls: checkruntime.Int4Value;
+}
+export function makeNullCountArguments(): NullCountArguments {
+    return { nulls: { kind: "Value", value: 0 }, nonnulls: { kind: "Value", value: 0 } };
+}
+function nullCountStep(input: checkruntime.Int4Value, nullness: checkruntime.BoolValue, countNulls: boolean): checkruntime.Int4Value {
+    countNulls = langruntime.checkedBool(countNulls);
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (nullness.kind === "Error") {
+        const error: checkruntime.SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const count: number = langruntime.checkedI32(input.value);
+        if (nullness.kind === "Value") {
+            const isNull: boolean = langruntime.checkedBool(nullness.value);
+            if (isNull === countNulls) {
+                return { kind: "Value", value: langruntime.checkedSignedAdd(count, 1) };
+            }
+            return input;
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function appendNullCountArgument(input: NullCountArguments, nullness: checkruntime.BoolValue): NullCountArguments {
+    return { nulls: nullCountStep(input.nulls, nullness, true), nonnulls: nullCountStep(input.nonnulls, nullness, false) };
+}
+export function nullCountArrayArguments(input: checkruntime.ArrayValue): NullCountArguments {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { nulls: { kind: "Error", value: error }, nonnulls: { kind: "Error", value: error } };
+    }
+    if (input.kind === "Null") {
+        return { nulls: { kind: "Null" }, nonnulls: { kind: "Null" } };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let result: NullCountArguments = makeNullCountArguments();
+        let index: number = 0;
+        while (index < value.elements.length) {
+            let nullness: checkruntime.BoolValue = checkruntime.arrayElementBitmap(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+            if (checkruntime.equalBoolValue(nullness, { kind: "Unknown" }) && checkruntime.equalBoolValue(value.nullBitmap, { kind: "Value", value: false })) {
+                nullness = { kind: "Value", value: false };
+            }
+            result = appendNullCountArgument(result, nullness);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return result;
+    }
+    return { nulls: { kind: "Unknown" }, nonnulls: { kind: "Unknown" } };
+}
+export function numNullsJx40(input: NullCountArguments): checkruntime.Int4Value {
+    return input.nulls;
+}
+export function numNonnullsY0jf(input: NullCountArguments): checkruntime.Int4Value {
+    return input.nonnulls;
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

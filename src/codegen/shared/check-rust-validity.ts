@@ -1,4 +1,5 @@
 import { arrayElementComparison } from './check-array-types.js'
+import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
 import { caseWhenExpression } from './check-rust-constants.js'
 import { isRecordComparison, recordComparisonLayouts } from './check-record-comparison.js'
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
@@ -140,6 +141,7 @@ export function rustCallCanFail(
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
   const boundary = hash.kind === 'operator' ? builtinMetadata(hash.implementation) : hash
+  if (isNullCountCallable(boundary)) return false
   if (
     boundary.kind === 'function' &&
     boundary.schema === 'pg_catalog' &&

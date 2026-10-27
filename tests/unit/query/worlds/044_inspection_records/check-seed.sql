@@ -2247,3 +2247,28 @@ INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,e
 INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":"bad"}','["(-$.\"a\").abs()","\"é😊\"",null]',NULL,'["($.\"a\" like_regex \"a.b\" flag \"sxq\")"]',false);
 -- name: CapturedPathSkipped
 INSERT INTO inspection_captured_paths(document,expected_builder,expected_first,expected_regex,bypass) VALUES ('{"a":"bad"}','[]',NULL,'[]',true);
+
+-- name: NullCountsDatumAndArray
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,6,1,2,1,1,false);
+-- name: NullCountsWrongDatumNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,1,6,1,2,1,1,false);
+-- name: NullCountsWrongDatumNonNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,7,1,2,1,1,false);
+-- name: NullCountsWrongArrayNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,6,2,2,1,1,false);
+-- name: NullCountsWrongArrayNonNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,6,1,3,1,1,false);
+-- name: NullCountsWrongRowArrayNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,6,1,2,2,1,false);
+-- name: NullCountsWrongRowArrayNonNull
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,'x',ROW(NULL,NULL,NULL),'{"(,,)",NULL}','{1,NULL,2}',1,0,6,1,2,1,2,false);
+-- name: NullCountsNullDatums
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (NULL,NULL,NULL,NULL,NULL,0,5,1,NULL,NULL,NULL,NULL,false);
+-- name: NullCountsEmptyArrays
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,NULL,NULL,'{}','{}',1,2,4,0,0,0,0,false);
+-- name: NullCountsArrayDimensions
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (NULL,'x',NULL,NULL,'[-1:0][-2:-1]={{NULL,NULL},{NULL,NULL}}',0,3,3,4,0,NULL,NULL,false);
+-- name: NullCountsReachedError
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,NULL,NULL,NULL,NULL,0,0,0,0,0,0,0,false);
+-- name: NullCountsSkippedError
+INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,NULL,NULL,NULL,NULL,0,0,0,0,0,0,0,true);

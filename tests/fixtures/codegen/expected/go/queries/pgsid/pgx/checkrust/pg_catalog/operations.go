@@ -30411,6 +30411,69 @@ func InetSendZ9ng(input checkruntime.NetworkValue) checkruntime.ByteaValue {
 func CidrSendS007(input checkruntime.NetworkValue) checkruntime.ByteaValue {
 	return networkSend(input, true)
 }
+
+type NullCountArguments struct {
+	Nulls    checkruntime.Int4Value
+	Nonnulls checkruntime.Int4Value
+}
+
+func MakeNullCountArguments() NullCountArguments {
+	return NullCountArguments{Nulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, Nonnulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}}
+}
+func nullCountStep(input checkruntime.Int4Value, nullness checkruntime.BoolValue, countNulls bool) checkruntime.Int4Value {
+	if input.Kind == checkruntime.Int4ValueError {
+		return input
+	}
+	if nullness.Kind == checkruntime.BoolValueError {
+		error := nullness.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		count := langruntime.CheckedI32(input.Value)
+		if nullness.Kind == checkruntime.BoolValueValue {
+			isNull := nullness.Value
+			if isNull == countNulls {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(count, 1)}
+			}
+			return input
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func AppendNullCountArgument(input NullCountArguments, nullness checkruntime.BoolValue) NullCountArguments {
+	return NullCountArguments{Nulls: nullCountStep(input.Nulls, nullness, true), Nonnulls: nullCountStep(input.Nonnulls, nullness, false)}
+}
+func NullCountArrayArguments(input checkruntime.ArrayValue) NullCountArguments {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return NullCountArguments{Nulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}, Nonnulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return NullCountArguments{Nulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}, Nonnulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		result := MakeNullCountArguments()
+		index := 0
+		for index < len(value.Elements) {
+			nullness := checkruntime.ArrayElementBitmap(checkruntime.CopyArrayElement(value.Elements[index]))
+			if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && value.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+				nullness = checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			}
+			result = AppendNullCountArgument(result, nullness)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return result
+	}
+	return NullCountArguments{Nulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}, Nonnulls: checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}}
+}
+func NumNullsJx40(input NullCountArguments) checkruntime.Int4Value {
+	return input.Nulls
+}
+func NumNonnullsY0jf(input NullCountArguments) checkruntime.Int4Value {
+	return input.Nonnulls
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.NumericValueError {
 		error := left.Error

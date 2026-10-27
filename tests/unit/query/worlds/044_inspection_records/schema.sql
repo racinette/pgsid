@@ -1,5 +1,16 @@
 -- @world checks
 CREATE TYPE inspection_reading AS (score integer, label text COLLATE "C", span int4range);
+CREATE TABLE inspection_null_counts (
+  score integer, label text, reading inspection_reading, readings inspection_reading[], numbers integer[], denominator integer,
+  expected_nulls integer, expected_nonnulls integer, expected_array_nulls integer, expected_array_nonnulls integer,
+  expected_row_array_nulls integer, expected_row_array_nonnulls integer, bypass boolean NOT NULL,
+  CONSTRAINT datum_null_count CHECK (CASE WHEN bypass THEN true ELSE num_nulls(score,label,reading,ROW(NULL,NULL),numbers,score/denominator) IS NOT DISTINCT FROM expected_nulls END),
+  CONSTRAINT datum_nonnull_count CHECK (CASE WHEN bypass THEN true ELSE num_nonnulls(score,label,reading,ROW(NULL,NULL),numbers,score/denominator) IS NOT DISTINCT FROM expected_nonnulls END),
+  CONSTRAINT array_null_count CHECK (CASE WHEN bypass THEN true ELSE num_nulls(VARIADIC numbers) IS NOT DISTINCT FROM expected_array_nulls END),
+  CONSTRAINT array_nonnull_count CHECK (CASE WHEN bypass THEN true ELSE num_nonnulls(VARIADIC numbers) IS NOT DISTINCT FROM expected_array_nonnulls END),
+  CONSTRAINT row_array_null_count CHECK (CASE WHEN bypass THEN true ELSE num_nulls(VARIADIC readings) IS NOT DISTINCT FROM expected_row_array_nulls END),
+  CONSTRAINT row_array_nonnull_count CHECK (CASE WHEN bypass THEN true ELSE num_nonnulls(VARIADIC readings) IS NOT DISTINCT FROM expected_row_array_nonnulls END)
+);
 CREATE TYPE inspection_packet AS (current_reading inspection_reading, previous_reading inspection_reading, history inspection_reading[]);
 CREATE TABLE inspection_reports (
   packet inspection_packet,
