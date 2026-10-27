@@ -2450,3 +2450,37 @@ INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass
 INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[[[[[[[1]]]]]]]}','{"readings":[[[[[[[1]]]]]]]}',NULL,false);
 -- name: JsonRecordSkippedArrayErrors
 INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[["bad"],[1,2]]}','{"readings":[["bad"],[1,2]]}',NULL,true);
+-- name: JsonNestedMissingBaseDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{}','{}',9,'old',1,false);
+-- name: JsonNestedEmptyObjectDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{}}}','{"b":{"child":{}}}',9,'old',1,false);
+-- name: JsonNestedPartialObjectDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"n":2}}}','{"b":{"child":{"n":2}}}',2,'old',1,false);
+-- name: JsonNestedPartialLabelDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"label":"new"}}}','{"b":{"child":{"label":"new"}}}',9,'new',1,false);
+-- name: JsonNestedArrayReplacesDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[{}, {"n":2}]}}','{"b":{"children":[{}, {"n":2}]}}',9,'old',2,false);
+-- name: JsonNestedArrayNullElements
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[null]}}','{"b":{"children":[null]}}',9,'old',1,false);
+-- name: JsonNestedExplicitNullChild
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":null}}','{"b":{"child":null}}',NULL,NULL,1,false);
+-- name: JsonNestedExplicitNullParent
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":null}','{"b":null}',NULL,NULL,NULL,false);
+-- name: JsonNestedNullInputDefaults
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES (NULL,NULL,9,'old',1,false);
+-- name: JsonNestedWrongQuantity
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"n":2}}}','{"b":{"child":{"n":2}}}',3,'old',1,false);
+-- name: JsonNestedDomainError
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"n":0}}}','{"b":{"child":{"n":0}}}',NULL,'old',1,false);
+-- name: JsonNestedFieldWidthError
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"label":"long"}}}','{"b":{"child":{"label":"long"}}}',9,NULL,1,false);
+-- name: JsonNestedArrayShapeError
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[[{}],[{},{}]]}}','{"b":{"children":[[{}],[{},{}]]}}',9,'old',NULL,false);
+-- name: JsonNestedArrayDimensionLimit
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[[[[[[[{}]]]]]]]}}','{"b":{"children":[[[[[[[{}]]]]]]]}}',9,'old',NULL,false);
+-- name: JsonNestedSkippedInputErrors
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"n":"bad"}}}','{"b":{"child":{"n":"bad"}}}',NULL,NULL,NULL,true);
+-- name: JsonNestedWrongLabel
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"label":"new"}}}','{"b":{"child":{"label":"new"}}}',9,'old',1,false);
+-- name: JsonNestedWrongArraySize
+INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[{},{}]}}','{"b":{"children":[{},{}]}}',9,'old',1,false);

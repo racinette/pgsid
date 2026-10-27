@@ -18284,6 +18284,9 @@ export function jsonPopulateKind(input: checkruntime.JsonbInput): number {
     }
     return langruntime.checkedSignedNegate(1);
 }
+export function jsonPopulateRecordObject(input: checkruntime.JsonbInput): boolean {
+    return jsonPopulateKind(input) === 6;
+}
 export function jsonPopulateText(input: checkruntime.JsonbInput, quoted: boolean, utf8: boolean): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -18598,6 +18601,14 @@ export function jsonPopulateShouldConvert(input: JsonPopulateState): boolean {
 export function jsonPopulateCurrent(input: JsonPopulateState): checkruntime.JsonbInput {
     return checkruntime.copyJsonbInput(input.current);
 }
+export function jsonPopulateBaseCurrent(input: JsonPopulateState): checkruntime.CompositeValue {
+    const index: checkruntime.Int4Value = checkruntime.makeInt4Value(input.position);
+    const field: checkruntime.ArrayElement = checkruntime.compositeFieldAt(checkruntime.copyCompositeValue(input.base), index);
+    return checkruntime.arrayElementToComposite(field);
+}
+export function jsonPopulateNestedHard(input: JsonPopulateState): checkruntime.CheckOutcome {
+    return input.hard;
+}
 export function jsonPopulateAccept(input: JsonPopulateState, field: checkruntime.ArrayElement, hard: checkruntime.CheckOutcome): JsonPopulateState {
     if (jsonPopulateShouldConvert(input) === false) {
         return input;
@@ -18620,8 +18631,7 @@ export function jsonPopulateAccept(input: JsonPopulateState, field: checkruntime
     }
     return { input: input.input, base: input.base, output: output, status: status, hard: jsonPopulateHardError(input.hard, hard), position: position, count: input.count, active: input.active, convert: false, current: input.current, utf8: input.utf8 };
 }
-function finishJsonPopulate(input: JsonPopulateState): checkruntime.CompositeValue {
-    input = copyJsonPopulateState(input);
+export function finishJsonPopulate(input: JsonPopulateState): checkruntime.CompositeValue {
     const hard: checkruntime.CheckOutcome = input.hard;
     if (hard.kind === "Error") {
         const error: checkruntime.SqlError = hard.value;

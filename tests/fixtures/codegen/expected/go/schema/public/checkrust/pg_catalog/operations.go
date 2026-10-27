@@ -18163,6 +18163,9 @@ func JsonPopulateKind(input checkruntime.JsonbInput) int {
 	}
 	return langruntime.CheckedSignedNegate(1)
 }
+func JsonPopulateRecordObject(input checkruntime.JsonbInput) bool {
+	return JsonPopulateKind(input) == 6
+}
 func JsonPopulateText(input checkruntime.JsonbInput, quoted bool, utf8 bool) checkruntime.TextValue {
 	if input.Kind == checkruntime.JsonbInputError {
 		error := input.Error
@@ -18484,6 +18487,14 @@ func JsonPopulateShouldConvert(input *JsonPopulateState) bool {
 func JsonPopulateCurrent(input *JsonPopulateState) checkruntime.JsonbInput {
 	return checkruntime.CopyJsonbInput(input.Current)
 }
+func JsonPopulateBaseCurrent(input *JsonPopulateState) checkruntime.CompositeValue {
+	index := checkruntime.MakeInt4Value(input.Position)
+	field := checkruntime.CompositeFieldAt(checkruntime.CopyCompositeValue(input.Base), index)
+	return checkruntime.ArrayElementToComposite(field)
+}
+func JsonPopulateNestedHard(input *JsonPopulateState) checkruntime.CheckOutcome {
+	return input.Hard
+}
 func JsonPopulateAccept(input JsonPopulateState, field checkruntime.ArrayElement, hard checkruntime.CheckOutcome) JsonPopulateState {
 	if JsonPopulateShouldConvert(&input) == false {
 		return input
@@ -18506,8 +18517,7 @@ func JsonPopulateAccept(input JsonPopulateState, field checkruntime.ArrayElement
 	}
 	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: output, Status: status, Hard: JsonPopulateHardError(input.Hard, hard), Position: position, Count: input.Count, Active: input.Active, Convert: false, Current: input.Current, Utf8: input.Utf8}
 }
-func finishJsonPopulate(input JsonPopulateState) checkruntime.CompositeValue {
-	input = copyJsonPopulateState(input)
+func FinishJsonPopulate(input JsonPopulateState) checkruntime.CompositeValue {
 	hard := input.Hard
 	if hard.Kind == checkruntime.CheckOutcomeError {
 		error := hard.Error
@@ -18547,7 +18557,7 @@ func JsonPopulateRecordQo9b(input JsonPopulatePlan) checkruntime.CompositeValue 
 	input = copyJsonPopulatePlan(input)
 	if input.Kind == JsonPopulatePlanValue {
 		value := copyJsonPopulateState(input.Value)
-		return finishJsonPopulate(value)
+		return FinishJsonPopulate(value)
 	}
 	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
 }
@@ -18555,7 +18565,7 @@ func JsonbPopulateRecordF6m5(input JsonPopulatePlan) checkruntime.CompositeValue
 	input = copyJsonPopulatePlan(input)
 	if input.Kind == JsonPopulatePlanValue {
 		value := copyJsonPopulateState(input.Value)
-		return finishJsonPopulate(value)
+		return FinishJsonPopulate(value)
 	}
 	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
 }

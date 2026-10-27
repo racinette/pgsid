@@ -15,6 +15,10 @@ pub(crate) fn json_populate_kind(input: JsonbInput) -> i32 {
     -1
 }
 
+pub(crate) fn json_populate_record_object(input: JsonbInput) -> bool {
+    json_populate_kind(input) == 6
+}
+
 pub(crate) fn json_populate_text(input: JsonbInput, quoted: bool, utf8: bool) -> TextValue {
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
