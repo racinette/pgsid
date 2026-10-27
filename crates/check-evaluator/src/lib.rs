@@ -144,6 +144,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_concat.rs");
     include!("operations/pg_catalog/text_format_grammar.rs");
     include!("operations/pg_catalog/text_format_state.rs");
+    include!("operations/pg_catalog/text_format_bounds.rs");
+    include!("operations/pg_catalog/text_format_choices.rs");
+    include!("operations/pg_catalog/timezone_format_output.rs");
     include!("operations/pg_catalog/text_format_render.rs");
     include!("operations/pg_catalog/text_nullable_quote.rs");
     include!("operations/pg_catalog/text_generic_quote.rs");
@@ -466,6 +469,84 @@ pub mod pg_catalog {
                 sql_error_message(make_sql_error(BIT_PROGRAM_LIMIT_EXCEEDED)).message,
                 "program limit exceeded"
             );
+        }
+
+        fn synthetic_format_output(minimum: i64, maximum: i64) -> TextFormatOutput {
+            let guard = BoolValue::Value(true);
+            let mut output = format_begin_output(guard);
+            output.minimum = minimum;
+            output.maximum = maximum;
+            output.known = false;
+            output
+        }
+
+        #[test]
+        fn format_output_bounds_preserve_earlier_limits_and_later_errors() {
+            let value = make_text_value("x");
+            let size = format_exact_bounds(1i64);
+            let uncertain = format_append_output(
+                synthetic_format_output(1073741819i64, 1073741822i64),
+                value,
+                size,
+                0,
+                false,
+            );
+            assert!(uncertain.status == CheckOutcome::Unknown);
+            let value = make_text_value("x");
+            let failed = format_append_output(
+                synthetic_format_output(1073741822i64, 1073741822i64),
+                value,
+                size,
+                0,
+                false,
+            );
+            assert!(failed.status == CheckOutcome::Error(make_sql_error(TEXT_CONCAT_LIMIT_ERROR)));
+            assert!(
+                format_finish_output(synthetic_format_output(1073741818i64, 1073741819i64))
+                    == TextValue::NonNull
+            );
+            assert!(
+                format_finish_output(synthetic_format_output(1073741819i64, 1073741820i64))
+                    == TextValue::Unknown
+            );
+            assert!(
+                format_finish_output(synthetic_format_output(1073741820i64, 1073741821i64))
+                    == TextValue::Error(make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR))
+            );
+            assert!(format_finish_output(synthetic_format_output(0i64, 0i64)) == make_text_value(""));
+            let mut state = format_begin(
+                make_text_value("%"),
+                Int4Value::Value(0),
+                BoolValue::Value(true),
+            );
+            state.output = synthetic_format_output(1073741820i64, 1073741821i64);
+            let reached = format_next(state);
+            let wrapped = make_format_input(reached);
+            assert!(
+                format_finish(wrapped) == TextValue::Error(make_sql_error(TEXT_FORMAT_SYNTAX_ERROR))
+            );
+            let mut state = format_begin(
+                make_text_value("%"),
+                Int4Value::Value(0),
+                BoolValue::Value(true),
+            );
+            state.output = uncertain;
+            state.status = state.output.status;
+            assert!(!format_continues(&state));
+            let reached = format_next(state);
+            let wrapped = make_format_input(reached);
+            assert!(format_finish(wrapped) == TextValue::Unknown);
+            let mut state = format_begin(
+                make_text_value(""),
+                Int4Value::Value(1),
+                BoolValue::Value(true),
+            );
+            state.phase = 2;
+            state.conversion = 115;
+            state.width = i32::MIN;
+            let deferred = format_accept(state, TextValue::Unknown, 0);
+            let wrapped = make_format_input(deferred);
+            assert!(format_finish(wrapped) == TextValue::Unknown);
         }
 
         #[test]

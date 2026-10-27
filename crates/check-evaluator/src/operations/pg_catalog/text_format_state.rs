@@ -13,7 +13,7 @@ pub struct TextFormatState {
     pub source: TextFormatSource,
     pub position: usize,
     pub status: CheckOutcome,
-    pub output: TextConcatState,
+    pub output: TextFormatOutput,
     pub next_argument: i32,
     pub argument: i32,
     pub width: i32,
@@ -52,9 +52,7 @@ pub(crate) fn format_begin(
     if known_count == false && status == CheckOutcome::True {
         status = CheckOutcome::Unknown;
     };
-    let empty = String::new();
-    let separator = TextValue::Value(empty);
-    let output = concat_begin(separator, guard);
+    let output = format_begin_output(guard);
     if output.status != CheckOutcome::True {
         status = output.status;
     };
@@ -131,8 +129,10 @@ pub(crate) fn format_next(input: TextFormatState) -> TextFormatState {
                 text.push(source.characters[position]);
                 position += 1;
             }
+            let bytes = text_build_octets(text.as_str());
             let value = TextValue::Value(text);
-            output = concat_after_argument(output, value);
+            let facts = format_exact_bounds(bytes);
+            output = format_append_output(output, value, facts, 0, false);
             status = output.status;
         } else {
             let start = position + 1;
@@ -142,7 +142,8 @@ pub(crate) fn format_next(input: TextFormatState) -> TextFormatState {
             if status == CheckOutcome::True {
                 if token.conversion == 37 {
                     let text = make_text_value("%");
-                    output = concat_after_argument(output, text);
+                    let facts = format_exact_bounds(1i64);
+                    output = format_append_output(output, text, facts, 0, false);
                     status = output.status;
                 } else {
                     argument = token.argument;
@@ -196,7 +197,7 @@ pub(crate) fn make_format_input(input: TextFormatState) -> TextFormatInput {
 fn format_finish(input: TextFormatInput) -> TextValue {
     if let TextFormatInput::Value(state) = input {
         if state.status == CheckOutcome::True {
-            return concat_finish(state.output);
+            return format_finish_output(state.output);
         };
         if state.status == CheckOutcome::Null {
             return TextValue::Null;

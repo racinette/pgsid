@@ -43850,6 +43850,308 @@ export function concatCa4i(input: TextConcatState): checkruntime.TextValue {
 export function concatWsDc5y(input: TextConcatState): checkruntime.TextValue {
     return concatFinish(input);
 }
+export interface TextFormatBounds {
+    status: checkruntime.CheckOutcome;
+    minimum: bigint;
+    maximum: bigint;
+    width: checkruntime.Int4Value;
+}
+function copyTextFormatBounds(value: TextFormatBounds): TextFormatBounds {
+    return { status: value.status, minimum: langruntime.checkedI64(value.minimum), maximum: langruntime.checkedI64(value.maximum), width: value.width };
+}
+export interface TextFormatOutput {
+    readonly buffer: TextConcatState;
+    readonly status: checkruntime.CheckOutcome;
+    readonly minimum: bigint;
+    readonly maximum: bigint;
+    readonly known: boolean;
+}
+function formatUnknownBounds(): TextFormatBounds {
+    return { status: { kind: "Unknown" }, minimum: 0n, maximum: 0n, width: { kind: "Unknown" } };
+}
+function formatExactBounds(size: bigint): TextFormatBounds {
+    size = langruntime.checkedI64(size);
+    return { status: { kind: "True" }, minimum: size, maximum: size, width: { kind: "Unknown" } };
+}
+function formatErrorBounds(error: checkruntime.SqlError): TextFormatBounds {
+    return { status: { kind: "Error", value: error }, minimum: 0n, maximum: 0n, width: { kind: "Error", value: error } };
+}
+function formatMergeBounds(left: TextFormatBounds, right: TextFormatBounds): TextFormatBounds {
+    left = copyTextFormatBounds(left);
+    right = copyTextFormatBounds(right);
+    if (checkruntime.equalCheckOutcome(left.status, { kind: "Null" })) {
+        return right;
+    }
+    if (checkruntime.equalCheckOutcome(left.status, { kind: "True" }) && checkruntime.equalCheckOutcome(right.status, { kind: "True" })) {
+        let minimum: bigint = left.minimum;
+        let maximum: bigint = left.maximum;
+        if (right.minimum < minimum) {
+            minimum = langruntime.checkedI64(right.minimum);
+        }
+        if (right.maximum > maximum) {
+            maximum = langruntime.checkedI64(right.maximum);
+        }
+        let width: checkruntime.Int4Value = left.width;
+        if (!(checkruntime.equalInt4Value(width, right.width))) {
+            width = { kind: "Unknown" };
+        }
+        return { status: { kind: "True" }, minimum: minimum, maximum: maximum, width: width };
+    }
+    if (checkruntime.equalCheckOutcome(left.status, right.status)) {
+        return left;
+    }
+    return formatUnknownBounds();
+}
+function formatPreparedBounds(value: checkruntime.TextValue, width: number): TextFormatBounds {
+    width = langruntime.checkedI32(width);
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return formatErrorBounds(error);
+    }
+    if (value.kind === "Value") {
+        if (width === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatRangeError);
+            return formatErrorBounds(error);
+        }
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const bytes: bigint = textBuildOctets(text);
+        if (bytes >= 1073741823n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+            return formatErrorBounds(error);
+        }
+        let size: bigint = bytes;
+        if (!(width === 0)) {
+            const characters: string[] = Array.from(text);
+            let absolute: number = width;
+            if (absolute < 0) {
+                absolute = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, absolute));
+            }
+            const requested: bigint = BigInt(langruntime.checkedI32(absolute));
+            const length: number = langruntime.checkedI32(langruntime.checkedIndex(characters.length));
+            const count: bigint = BigInt(langruntime.checkedI32(length));
+            if (requested > count) {
+                size = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Add(size, requested), count));
+            }
+        }
+        if (size >= 1073741823n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+            return formatErrorBounds(error);
+        }
+        return formatExactBounds(size);
+    }
+    return formatUnknownBounds();
+}
+function formatQuotedValue(value: checkruntime.TextValue, conversion: number, quoteAll: number): checkruntime.TextValue {
+    conversion = langruntime.checkedI32(conversion);
+    quoteAll = langruntime.checkedI32(quoteAll);
+    if (checkruntime.equalTextValue(value, { kind: "Null" })) {
+        if (conversion === 115) {
+            return checkruntime.makeTextValue("");
+        }
+        if (conversion === 76) {
+            return checkruntime.makeTextValue("NULL");
+        }
+        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatNullError);
+        return { kind: "Error", value: error };
+    }
+    if (conversion === 73) {
+        return quoteIdentOutputContext(value, quoteAll, false);
+    }
+    if (conversion === 76) {
+        return quoteLiteralOutput(value, false);
+    }
+    return value;
+}
+function formatCandidateBounds(input: TextFormatState, value: checkruntime.TextValue, quoteAll: number): TextFormatBounds {
+    quoteAll = langruntime.checkedI32(quoteAll);
+    if (input.phase === 1) {
+        const parsed: checkruntime.Int8Value = scalarIntegerFromText(value, 32);
+        if (parsed.kind === "Error") {
+            const error: checkruntime.SqlError = parsed.value;
+            return formatErrorBounds(error);
+        }
+        if (parsed.kind === "Value") {
+            const number: bigint = langruntime.checkedI64(parsed.value);
+            const width: number = Number(BigInt.asIntN(32, langruntime.checkedI64(number)));
+            return { status: { kind: "True" }, minimum: 0n, maximum: 0n, width: { kind: "Value", value: width } };
+        }
+        return formatUnknownBounds();
+    }
+    if (input.conversion === 73 && quoteAll === langruntime.checkedSignedNegate(1)) {
+        const raw: checkruntime.TextValue = value;
+        const first: checkruntime.TextValue = formatQuotedValue(raw, input.conversion, 0);
+        const left: TextFormatBounds = copyTextFormatBounds(formatPreparedBounds(first, input.width));
+        const second: checkruntime.TextValue = formatQuotedValue(value, input.conversion, 1);
+        const right: TextFormatBounds = copyTextFormatBounds(formatPreparedBounds(second, input.width));
+        return formatMergeBounds(left, right);
+    }
+    const prepared: checkruntime.TextValue = formatQuotedValue(value, input.conversion, quoteAll);
+    return formatPreparedBounds(prepared, input.width);
+}
+function formatBeginOutput(guard: checkruntime.BoolValue): TextFormatOutput {
+    const separator: checkruntime.TextValue = checkruntime.makeTextValue("");
+    const buffer: TextConcatState = concatBegin(separator, guard);
+    return { status: buffer.status, buffer: buffer, minimum: 0n, maximum: 0n, known: true };
+}
+function formatAppendOutput(input: TextFormatOutput, value: checkruntime.TextValue, facts: TextFormatBounds, width: number, left: boolean): TextFormatOutput {
+    facts = copyTextFormatBounds(facts);
+    width = langruntime.checkedI32(width);
+    left = langruntime.checkedBool(left);
+    if (!(checkruntime.equalCheckOutcome(input.status, { kind: "True" }))) {
+        return input;
+    }
+    let status: checkruntime.CheckOutcome = facts.status;
+    let minimum: bigint = input.minimum;
+    let maximum: bigint = input.maximum;
+    let known: boolean = input.known;
+    let buffer: TextConcatState = input.buffer;
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        minimum = langruntime.checkedI64(langruntime.checkedI64Add(minimum, facts.minimum));
+        maximum = langruntime.checkedI64(langruntime.checkedI64Add(maximum, facts.maximum));
+        if (minimum >= 1073741823n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+            status = { kind: "Error", value: error };
+        }
+        else if (maximum >= 1073741823n) {
+            status = { kind: "Unknown" };
+        }
+        else {
+            let concrete: boolean = false;
+            if (value.kind === "Value") {
+                concrete = langruntime.checkedBool(true);
+            }
+            if (known && concrete) {
+                buffer = formatPadOutput(buffer, value, width, left);
+                status = buffer.status;
+            }
+            else {
+                known = langruntime.checkedBool(false);
+            }
+        }
+    }
+    return { status: status, buffer: buffer, minimum: minimum, maximum: maximum, known: known };
+}
+function formatFinishOutput(input: TextFormatOutput): checkruntime.TextValue {
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "True" })) {
+        if (input.minimum > 1073741819n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatAllocationError);
+            return { kind: "Error", value: error };
+        }
+        if (input.maximum > 1073741819n) {
+            return { kind: "Unknown" };
+        }
+        if (input.known) {
+            return concatFinish(input.buffer);
+        }
+        if (input.maximum === 0n) {
+            return checkruntime.makeTextValue("");
+        }
+        return { kind: "NonNull" };
+    }
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+function formatChoiceValue(original: checkruntime.ArrayElement, family: number, choice: number): checkruntime.TextValue {
+    original = checkruntime.copyArrayElement(original);
+    family = langruntime.checkedI32(family);
+    choice = langruntime.checkedI32(choice);
+    if (family === 4) {
+        const value: checkruntime.TimestampValue = checkruntime.arrayElementToTimestamp(original);
+        return timestampOutputContext(value, choice);
+    }
+    if (family === 7) {
+        const value: checkruntime.DateValue = checkruntime.arrayElementToDate(original);
+        return dateOutputContext(value, choice);
+    }
+    if (family === 15) {
+        const value: checkruntime.ByteaValue = checkruntime.arrayElementToBytea(original);
+        return byteaOutputContext(value, choice, false);
+    }
+    if (family === 19) {
+        const value: checkruntime.Float4Value = checkruntime.arrayElementToFloat4(original);
+        const extra: number = langruntime.checkedSignedSubtract(choice, 16);
+        return float4OutputContext(value, extra, true);
+    }
+    if (family === 20) {
+        const value: checkruntime.Float8Value = checkruntime.arrayElementToFloat8(original);
+        const extra: number = langruntime.checkedSignedSubtract(choice, 16);
+        return float8OutputContext(value, extra, true);
+    }
+    if (family === 23) {
+        const value: checkruntime.IntervalValue = checkruntime.arrayElementToInterval(original);
+        return intervalOutputContext(value, choice);
+    }
+    const extra: number = langruntime.checkedSignedSubtract(choice, 16);
+    if (family === 24) {
+        const value: checkruntime.PointValue = checkruntime.arrayElementToPoint(original);
+        return geometryPointOutputContext(value, extra, true);
+    }
+    if (family === 25) {
+        const value: checkruntime.LineValue = checkruntime.arrayElementToLine(original);
+        return geometryLineOutputContext(value, extra, true);
+    }
+    if (family === 26) {
+        const value: checkruntime.LsegValue = checkruntime.arrayElementToLseg(original);
+        return geometryLsegOutputContext(value, extra, true);
+    }
+    if (family === 27) {
+        const value: checkruntime.BoxValue = checkruntime.arrayElementToBox(original);
+        return geometryBoxOutputContext(value, extra, true);
+    }
+    if (family === 28) {
+        const value: checkruntime.PathValue = checkruntime.arrayElementToPath(original);
+        return geometryPathOutputContext(value, extra, true);
+    }
+    if (family === 29) {
+        const value: checkruntime.PolygonValue = checkruntime.arrayElementToPolygon(original);
+        return geometryPolygonOutputContext(value, extra, true);
+    }
+    if (family === 30) {
+        const value: checkruntime.CircleValue = checkruntime.arrayElementToCircle(original);
+        return geometryCircleOutputContext(value, extra, true);
+    }
+    return { kind: "Unknown" };
+}
+function formatChoiceBounds(input: TextFormatState, original: checkruntime.ArrayElement, family: number, quoteAll: number): TextFormatBounds {
+    original = checkruntime.copyArrayElement(original);
+    family = langruntime.checkedI32(family);
+    quoteAll = langruntime.checkedI32(quoteAll);
+    let count: number = 0;
+    if (family === 4 || family === 7) {
+        count = langruntime.checkedI32(6);
+    }
+    if (family === 15) {
+        count = langruntime.checkedI32(2);
+    }
+    if (family === 19 || family === 20 || (family >= 24 && family <= 30)) {
+        count = langruntime.checkedI32(19);
+    }
+    if (family === 23) {
+        count = langruntime.checkedI32(4);
+    }
+    let result: TextFormatBounds = copyTextFormatBounds({ status: { kind: "Null" }, minimum: 0n, maximum: 0n, width: { kind: "Unknown" } });
+    let index: number = 1;
+    while (index <= count) {
+        const source: checkruntime.ArrayElement = checkruntime.copyArrayElement(original);
+        const candidate: checkruntime.TextValue = formatChoiceValue(source, family, index);
+        const bounds: TextFormatBounds = copyTextFormatBounds(formatCandidateBounds(input, candidate, quoteAll));
+        result = copyTextFormatBounds(formatMergeBounds(result, bounds));
+        if (checkruntime.equalCheckOutcome(result.status, { kind: "Unknown" })) {
+            return result;
+        }
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    if (count === 0) {
+        return formatUnknownBounds();
+    }
+    return result;
+}
 export interface TextFormatToken {
     status: checkruntime.CheckOutcome;
     end: number;
@@ -44056,15 +44358,31 @@ function formatPadOutput(input: TextConcatState, value: checkruntime.TextValue, 
     const missing: checkruntime.TextValue = { kind: "Unknown" };
     return concatAfterArgument(input, missing);
 }
-export function formatAccept(input: TextFormatState, value: checkruntime.TextValue, quoteAll: number): TextFormatState {
+function formatAcceptWithBounds(input: TextFormatState, value: checkruntime.TextValue, quoteAll: number, hint: TextFormatBounds): TextFormatState {
+    input = copyTextFormatState(input);
+    quoteAll = langruntime.checkedI32(quoteAll);
+    hint = copyTextFormatBounds(hint);
     let status: checkruntime.CheckOutcome = input.status;
     let phase: number = input.phase;
     let request: number = input.request;
     let nextArgument: number = input.nextArgument;
     let width: number = input.width;
-    let output: TextConcatState = input.output;
+    let output: TextFormatOutput = input.output;
     if (phase === 1) {
-        const parsed: checkruntime.Int8Value = scalarIntegerFromText(value, 32);
+        let parsed: checkruntime.Int8Value = scalarIntegerFromText(value, 32);
+        if (checkruntime.equalInt8Value(parsed, { kind: "Unknown" })) {
+            const hintedWidth: checkruntime.Int4Value = hint.width;
+            if (hintedWidth.kind === "Value") {
+                const width1: number = langruntime.checkedI32(hintedWidth.value);
+                const number: bigint = BigInt(langruntime.checkedI32(width1));
+                parsed = { kind: "Value", value: number };
+            }
+            const hintStatus: checkruntime.CheckOutcome = hint.status;
+            if (hintStatus.kind === "Error") {
+                const error: checkruntime.SqlError = hintStatus.value;
+                parsed = { kind: "Error", value: error };
+            }
+        }
         status = { kind: "Unknown" };
         if (parsed.kind === "Error") {
             const error: checkruntime.SqlError = parsed.value;
@@ -44089,26 +44407,13 @@ export function formatAccept(input: TextFormatState, value: checkruntime.TextVal
         }
     }
     else {
-        let rendered: checkruntime.TextValue = value;
-        if (checkruntime.equalTextValue(rendered, { kind: "Null" })) {
-            if (input.conversion === 115) {
-                rendered = checkruntime.makeTextValue("");
-            }
-            else if (input.conversion === 76) {
-                rendered = checkruntime.makeTextValue("NULL");
-            }
-            else {
-                const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatNullError);
-                rendered = { kind: "Error", value: error };
-            }
+        const rendered: checkruntime.TextValue = formatQuotedValue(value, input.conversion, quoteAll);
+        const prepared: checkruntime.TextValue = rendered;
+        let facts: TextFormatBounds = copyTextFormatBounds(formatPreparedBounds(prepared, width));
+        if (checkruntime.equalCheckOutcome(facts.status, { kind: "Unknown" })) {
+            facts = copyTextFormatBounds(hint);
         }
-        else if (input.conversion === 73) {
-            rendered = quoteIdentOutputContext(rendered, quoteAll, false);
-        }
-        else if (input.conversion === 76) {
-            rendered = quoteLiteralOutput(rendered, false);
-        }
-        output = formatPadOutput(output, rendered, width, input.left);
+        output = formatAppendOutput(output, rendered, facts, width, input.left);
         status = output.status;
         phase = langruntime.checkedI32(0);
     }
@@ -44136,6 +44441,25 @@ export function formatBeforeArgument(input: TextFormatState, nullness: checkrunt
     }
     return { source: input.source, position: input.position, status: status, output: input.output, nextArgument: input.nextArgument, argument: input.argument, width: input.width, left: input.left, conversion: input.conversion, phase: input.phase, request: input.request, count: input.count, render: render };
 }
+export function formatAccept(input: TextFormatState, value: checkruntime.TextValue, quoteAll: number): TextFormatState {
+    let facts: TextFormatBounds = copyTextFormatBounds(formatUnknownBounds());
+    if (input.phase === 2 && input.conversion === 73 && quoteAll === langruntime.checkedSignedNegate(1)) {
+        const raw: checkruntime.TextValue = value;
+        facts = copyTextFormatBounds(formatCandidateBounds(input, raw, quoteAll));
+    }
+    return formatAcceptWithBounds(input, value, quoteAll, facts);
+}
+export function formatAcceptTyped(input: TextFormatState, value: checkruntime.TextValue, original: checkruntime.ArrayElement, family: number, quoteAll: number): TextFormatState {
+    let facts: TextFormatBounds = copyTextFormatBounds(formatUnknownBounds());
+    if (input.phase === 2 && input.conversion === 73 && quoteAll === langruntime.checkedSignedNegate(1)) {
+        const raw: checkruntime.TextValue = value;
+        facts = copyTextFormatBounds(formatCandidateBounds(input, raw, quoteAll));
+    }
+    if (checkruntime.equalCheckOutcome(facts.status, { kind: "Unknown" }) && (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "NonNull" }))) {
+        facts = copyTextFormatBounds(formatChoiceBounds(input, original, family, quoteAll));
+    }
+    return formatAcceptWithBounds(input, value, quoteAll, facts);
+}
 export interface TextFormatSource {
     readonly characters: string[];
 }
@@ -44155,7 +44479,7 @@ export interface TextFormatState {
     readonly source: TextFormatSource;
     readonly position: number;
     readonly status: checkruntime.CheckOutcome;
-    readonly output: TextConcatState;
+    readonly output: TextFormatOutput;
     readonly nextArgument: number;
     readonly argument: number;
     readonly width: number;
@@ -44195,9 +44519,7 @@ export function formatBegin(format: checkruntime.TextValue, count: checkruntime.
     if (knownCount === false && checkruntime.equalCheckOutcome(status, { kind: "True" })) {
         status = { kind: "Unknown" };
     }
-    const empty: string = "";
-    const separator: checkruntime.TextValue = { kind: "Value", value: empty };
-    const output: TextConcatState = concatBegin(separator, guard);
+    const output: TextFormatOutput = formatBeginOutput(guard);
     if (!(checkruntime.equalCheckOutcome(output.status, { kind: "True" }))) {
         status = output.status;
     }
@@ -44235,7 +44557,7 @@ export function formatNext(input: TextFormatState): TextFormatState {
     }
     const source: TextFormatSource = input.source;
     let position: number = input.position;
-    let output: TextConcatState = input.output;
+    let output: TextFormatOutput = input.output;
     let status: checkruntime.CheckOutcome = input.status;
     let nextArgument: number = input.nextArgument;
     let argument: number = input.argument;
@@ -44252,8 +44574,10 @@ export function formatNext(input: TextFormatState): TextFormatState {
                 text = text + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
                 position = langruntime.checkedAdd(position, 1);
             }
+            const bytes: bigint = textBuildOctets(text);
             const value: checkruntime.TextValue = { kind: "Value", value: text };
-            output = concatAfterArgument(output, value);
+            const facts: TextFormatBounds = copyTextFormatBounds(formatExactBounds(bytes));
+            output = formatAppendOutput(output, value, facts, 0, false);
             status = output.status;
         }
         else {
@@ -44264,7 +44588,8 @@ export function formatNext(input: TextFormatState): TextFormatState {
             if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
                 if (token.conversion === 37) {
                     const text: checkruntime.TextValue = checkruntime.makeTextValue("%");
-                    output = concatAfterArgument(output, text);
+                    const facts: TextFormatBounds = copyTextFormatBounds(formatExactBounds(1n));
+                    output = formatAppendOutput(output, text, facts, 0, false);
                     status = output.status;
                 }
                 else {
@@ -44307,7 +44632,7 @@ function formatFinish(input: TextFormatInput): checkruntime.TextValue {
     if (input.kind === "Value") {
         const state: TextFormatState = copyTextFormatState(input.value);
         if (checkruntime.equalCheckOutcome(state.status, { kind: "True" })) {
-            return concatFinish(state.output);
+            return formatFinishOutput(state.output);
         }
         if (checkruntime.equalCheckOutcome(state.status, { kind: "Null" })) {
             return { kind: "Null" };

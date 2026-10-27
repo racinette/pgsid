@@ -1690,3 +1690,14 @@ CREATE TABLE inspection_formatted_labels (
  CONSTRAINT formatted_array_values CHECK(CASE WHEN bypass THEN true ELSE
    format(pattern,VARIADIC fields) IS NOT DISTINCT FROM expected_array END)
 );
+
+CREATE TABLE inspection_format_guards (
+ label text,
+ pattern text,
+ expected_text text,
+ bypass boolean NOT NULL,
+ CONSTRAINT guarded_format_value CHECK(CASE WHEN bypass THEN true ELSE
+   format(pattern,label,NULL::text) IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT identifier_format_nonnull CHECK(CASE WHEN bypass THEN true ELSE
+   format('%I',label) IS NOT NULL END)
+);

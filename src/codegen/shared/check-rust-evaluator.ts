@@ -3039,6 +3039,20 @@ export function emitCheckRustEvaluator(
             `if format_should_render(&${state}) {`,
           )
           const inner: string[] = []
+          const family = arrayElementFamily(type)
+          let hint =
+            ((family === 19 ||
+              family === 20 ||
+              (family !== null && family >= 24 && family <= 30)) &&
+              executionContext.extraFloatDigits === undefined) ||
+            ((family === 4 ||
+              family === 7 ||
+              (family === 5 && executionContext.timeZone !== undefined)) &&
+              executionContext.dateStyle === undefined) ||
+            (family === 15 && executionContext.byteaOutput === undefined) ||
+            (family === 23 && executionContext.intervalStyle === undefined)
+              ? (family ?? 0)
+              : 0
           let base = arrayElementBaseType(type)
           while (base.startsWith('array:')) base = arrayElementBaseType(base.slice(6))
           const definition =
@@ -3049,12 +3063,19 @@ export function emitCheckRustEvaluator(
           } catch (error) {
             if (!(error instanceof UnsupportedCheckRustExpression)) throw error
             inner.length = 0
-            conversion = 'text_unknown()'
+            conversion = `array_contextual_output(${cell})`
+            hint = 0
           }
+          const original = hint ? fresh('format_original') : null
+          if (original) inner.unshift(`let ${original} = ${cell}.clone();`)
           const rendered = fresh('format_rendered')
           inner.push(
             `let ${rendered} = ${conversion};`,
-            `${state} = format_accept(${state}, ${rendered}, ${quoteAll});`,
+            original
+              ? hint === 5
+                ? `${state} = format_accept_timezone(${state}, ${rendered}, ${original}, ${quoteAll}, ${rustStringLiteral(executionContext.timeZone!)});`
+                : `${state} = format_accept_typed(${state}, ${rendered}, ${original}, ${hint}, ${quoteAll});`
+              : `${state} = format_accept(${state}, ${rendered}, ${quoteAll});`,
           )
           lines.push(...indent(inner), '}')
         }
@@ -3139,7 +3160,7 @@ export function emitCheckRustEvaluator(
           } catch (error) {
             if (!(error instanceof UnsupportedCheckRustExpression)) throw error
             rendered.length = 0
-            conversion = 'text_unknown()'
+            conversion = `array_contextual_output(${cell})`
           }
           const output = fresh('concat_rendered')
           rendered.push(

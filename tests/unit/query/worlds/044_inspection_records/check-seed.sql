@@ -2370,3 +2370,19 @@ INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expecte
 INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%s',NULL,NULL,NULL,NULL,'',NULL,false);
 -- name: FormattedSkippedErrors
 INSERT INTO inspection_formatted_labels(pattern,label,score,width,fields,expected_expanded,expected_array,bypass) VALUES ('%0$s','X',1,1,'{X}','wrong','wrong',true);
+-- name: FormatUnknownQuoteNonNull
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','constant','constant',false);
+-- name: FormatUnknownQuoteRawText
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','%s','lower',false);
+-- name: FormatUnknownQuoteWrongValue
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','constant','wrong',false);
+-- name: FormatUnknownQuoteLaterSyntaxError
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','%I%',NULL,false);
+-- name: FormatUnknownQuoteLaterNullIdentifier
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','%I%2$I',NULL,false);
+-- name: FormatAlwaysQuotedIdentifier
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('select','%I','"select"',false);
+-- name: FormatNullIdentifierGuard
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES (NULL,'constant','constant',false);
+-- name: FormatSkippedUnknownQuoteError
+INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','%I%',NULL,true);
