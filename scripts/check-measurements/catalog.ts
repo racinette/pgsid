@@ -755,6 +755,157 @@ export function aclitemValueRequirements(item: BuiltinCallable) {
   return null
 }
 
+export function temporalRuntimeRequirements(item: BuiltinCallable) {
+  if (item.kind !== 'function' || item.schema !== 'pg_catalog' || item.returnsSet || !item.strict)
+    return null
+  const owner = 'tests/sql-semantics/check-temporal-runtime.test.ts'
+  if (
+    item.name === 'age' &&
+    item.volatility === 's' &&
+    item.result === 'pg_catalog."interval"' &&
+    item.args.length === 1 &&
+    ['pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(item.args[0]!)
+  )
+    return [
+      {
+        kind: 'transaction',
+        setting: 'local_date',
+        requirement:
+          'One-argument calendar age subtracts its input from the transaction current local date at midnight. A supplied timezone alone does not provide that date; do not freeze a generation-time or client-clock sample.',
+        owner,
+      },
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'The transaction instant determines current_date in the session timezone. The instant overload also converts that local midnight and decomposes its input in that timezone. Strict NULL and infinite inputs have native context-independent outcomes; finite evaluation remains deferred without runtime state.',
+        owner,
+      },
+    ]
+  const matches = (names: readonly string[], args: readonly string[], volatility = 's') =>
+    names.includes(item.name) &&
+    item.volatility === volatility &&
+    item.result === 'pg_catalog.timestamptz' &&
+    item.args.length === args.length &&
+    item.args.every((arg, index) => arg === args[index])
+  if (matches(['now', 'transaction_timestamp'], []))
+    return [
+      {
+        kind: 'transaction',
+        setting: 'start_timestamp',
+        requirement:
+          'Read the active PostgreSQL transaction start instant. These aliases agree throughout a transaction; timezone and static execution settings do not supply the instant.',
+        owner,
+      },
+    ]
+  if (matches(['statement_timestamp'], []))
+    return [
+      {
+        kind: 'statement',
+        setting: 'start_timestamp',
+        requirement:
+          'Read the active PostgreSQL statement start instant, which can change between commands in the same transaction. A transaction timestamp does not supply statement state.',
+        owner,
+      },
+    ]
+  const timeofday =
+    item.name === 'timeofday' &&
+    item.volatility === 'v' &&
+    item.result === 'pg_catalog.text' &&
+    item.args.length === 0
+  if (matches(['clock_timestamp'], [], 'v') || timeofday)
+    return [
+      {
+        kind: 'execution',
+        setting: 'wall_clock',
+        requirement:
+          'Read the PostgreSQL wall clock at this invocation; the value can change within a statement. A target-language clock or cached transaction, statement or generation-time sample is not the server clock.',
+        owner,
+      },
+      ...(timeofday
+        ? [
+            {
+              kind: 'session',
+              setting: 'TimeZone',
+              requirement:
+                'The legacy textual clock renders the live instant in the session timezone with native English names. Supplying a timezone does not provide the live instant.',
+              owner,
+            },
+          ]
+        : []),
+    ]
+  if (matches(['pg_postmaster_start_time', 'pg_conf_load_time'], []))
+    return [
+      {
+        kind: 'database',
+        setting: item.name === 'pg_conf_load_time' ? 'configuration_load' : 'server_start',
+        requirement:
+          'Read the server lifecycle timestamp. Configuration-load time can reflect the current backend reload; neither timestamp is derivable from row values or static settings.',
+        owner,
+      },
+    ]
+  if (matches(['pg_last_xact_replay_timestamp'], [], 'v'))
+    return [
+      {
+        kind: 'database',
+        setting: 'replication_replay',
+        requirement:
+          'Read the most recently replayed transaction timestamp, including the native NULL result when unavailable. Local absence of replay is not a portable database assumption.',
+        owner,
+      },
+    ]
+  if (matches(['pg_xact_commit_timestamp'], ['pg_catalog.xid'], 'v'))
+    return [
+      {
+        kind: 'database',
+        setting: 'commit_timestamp_history',
+        requirement:
+          'Read commit-timestamp tracking configuration and retained transaction history. Supplied transaction words alone do not provide commit times, NULL decisions or reached native errors.',
+        owner,
+      },
+    ]
+  if (
+    matches(
+      [
+        'pg_stat_get_backend_activity_start',
+        'pg_stat_get_backend_start',
+        'pg_stat_get_backend_xact_start',
+      ],
+      ['pg_catalog.int4'],
+    ) ||
+    matches(
+      [
+        'pg_stat_get_db_checksum_last_failure',
+        'pg_stat_get_db_stat_reset_time',
+        'pg_stat_get_last_analyze_time',
+        'pg_stat_get_last_autoanalyze_time',
+        'pg_stat_get_last_autovacuum_time',
+        'pg_stat_get_last_vacuum_time',
+        'pg_stat_get_lastscan',
+      ],
+      ['pg_catalog.oid'],
+    ) ||
+    matches(
+      [
+        'pg_stat_get_bgwriter_stat_reset_time',
+        'pg_stat_get_checkpointer_stat_reset_time',
+        'pg_stat_get_snapshot_timestamp',
+      ],
+      [],
+    )
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'statistics',
+        requirement:
+          'Read backend, object or shared statistics and their snapshot/reset state. Object identifiers remain deployment-local. Native NULLs for absent entries or invalid backend slots do not establish a universal result; strict NULL arguments remain independent.',
+        owner,
+      },
+    ]
+  return null
+}
+
 export function temporalArithmeticRequirements(item: BuiltinCallable) {
   if (isTemporalDatePart(item))
     return [
@@ -1366,6 +1517,10 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (calendarOutputRequirements(item)?.some((r) => r.setting === 'TimeZone'))
     categories.push('session-setting:TimeZone')
   if (temporalCastRequirements(item)) categories.push('session-setting:TimeZone')
+  for (const requirement of temporalRuntimeRequirements(item) ?? [])
+    categories.push(
+      `${requirement.kind}-${requirement.kind === 'session' ? 'setting' : 'state'}:${requirement.setting}`,
+    )
   for (const requirement of temporalArithmeticRequirements(item) ?? [])
     categories.push(
       requirement.kind === 'transaction'
