@@ -141,6 +141,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/json_construct.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/null_count.rs");
+    include!("operations/pg_catalog/text_nullable_quote.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");
     include!("operations/pg_catalog/timestamp.rs");

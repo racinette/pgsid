@@ -1,5 +1,6 @@
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
+import { isNullableQuote } from '../../sql-semantics/nullable-quote-callables.js'
 import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
 import { validJsonpathConstantStorage } from '../../catalog/jsonpath-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
@@ -2967,6 +2968,22 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (isNullableQuote(implementation)) {
+        if (
+          call.kind !== 'function' ||
+          call.type !== implementation.result ||
+          operands.length !== 1 ||
+          operands[0]!.type !== 'pg_catalog.text'
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Nullable quoting requires its selected text coercion',
+          )
+        if (folded) return folded
+        const name = fresh('nullable_quote')
+        destination.push(`let ${name} = ${implementation.rustName}(${ownedOperand(operands[0]!)});`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       if (isNullCountCallable(implementation)) {
         if (call.kind !== 'function' || call.type !== implementation.result || !operands.length)
           throw new UnsupportedCheckRustExpression('Invalid null-counting call')

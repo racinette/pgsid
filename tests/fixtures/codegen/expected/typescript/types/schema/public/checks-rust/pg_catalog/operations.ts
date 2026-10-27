@@ -44137,6 +44137,15 @@ export function octetLength9hmr(value: checkruntime.TextValue): checkruntime.Int
 export function textlen2bvv(value: checkruntime.TextValue): checkruntime.Int4Value {
     return textMeasureValue(value, false, 0);
 }
+export function quoteNullableXaua(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Value", value: "NULL" };
+    }
+    return quoteLiteralD0rq(input);
+}
+export function quoteNullableX3ga(input: checkruntime.TextValue): checkruntime.TextValue {
+    return quoteNullableXaua(input);
+}
 export function bpcharLargerClri(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.TextValue {
     const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
     if (compared.kind === "Error") {
