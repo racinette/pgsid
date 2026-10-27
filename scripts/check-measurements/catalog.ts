@@ -440,13 +440,13 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'database',
         setting: 'database default collation / LC_CTYPE / server_encoding',
         requirement:
-          'Regex matching uses the database default collation independently of expression collations. Declare C ordering separately from C or C.UTF-8 character classification; C ordering does not imply ASCII character classes. Case-sensitive quoted literals bypass collation. Non-ASCII matching requires UTF8. Locale-neutral patterns require no character-type declaration; other supported patterns require C character types or ASCII subjects and patterns under C.UTF-8.',
-        owner: 'tests/sql-semantics/check-jsonpath-regex.test.ts',
+          'Regex matching uses the database default collation independently of expression collations. Declare C ordering separately from C or C.UTF-8 character classification; C ordering does not imply ASCII character classes. Case-sensitive quoted literals bypass collation. Non-ASCII matching requires UTF8. Locale-neutral patterns require no character-type declaration. Other supported patterns use classic C character types, explicitly supplied target class/case tables, or ASCII subjects and patterns under C.UTF-8. A locale name does not select portable Unicode tables.',
+        owner: 'tests/sql-semantics/check-jsonpath-regex-context.test.ts',
       },
       {
         kind: 'implementation',
         requirement:
-          'Regex predicates reuse the maintained engine with JSONPath flags, strict/lax sequence semantics, three-valued non-string handling, lazy guards and hard regex errors. Non-ASCII C.UTF-8 class, case-folding and other unproven locale-sensitive patterns defer, as do unsupported engine syntax and capacity. These are implementation gaps, separate from missing database context.',
+          'Regex predicates reuse the maintained engine with JSONPath flags, strict/lax sequence semantics, three-valued non-string handling, lazy guards and hard regex errors. Explicit target character profiles implement directional Unicode casing, classes, ranges, boundaries and backreferences without host Unicode APIs. Missing target facts are database requirements; unsupported engine syntax and capacity remain implementation gaps.',
         owner: 'tests/sql-semantics/check-jsonpath-regex.test.ts',
       },
       {

@@ -63,12 +63,13 @@ pub fn jsonpath_counter_walk_probe(identity:Int8Value,path:TextValue,expected:Te
   if let JsonbValue::Value(document)=input {
    if let JsonbValue::Value(vars)=variables {
     if let JsonpathValue::Value(path)=query {
-     let context=jsonpath_execution_make_context(document,vars,path,true,true,true,false,0,false,"",false,false);
+     let profile_ranges:Vec<usize>=Vec::new();let profile_cases:Vec<usize>=Vec::new();
+     let context=jsonpath_execution_make_context(document,vars,path,true,true,true,false,0,false,"",false,false,false,profile_ranges,profile_cases);
      let seeded=JsonpathExecutionContext {
       document_characters:context.document_characters,document_nodes:context.document_nodes,document_root:context.document_root,
       variables_characters:context.variables_characters,variables_nodes:context.variables_nodes,variables_root:context.variables_root,
       literal_nodes:context.literal_nodes,path_characters:context.path_characters,path_nodes:context.path_nodes,path_root:context.path_root,
-      lax:context.lax,utf8:context.utf8,c_collation:context.c_collation,ctype:context.ctype,use_timezone:context.use_timezone,session_timezone:context.session_timezone,abbreviations_default:context.abbreviations_default,time_locale_c:context.time_locale_c,ordered_result:context.ordered_result,document_ids:context.document_ids,variables_ids:context.variables_ids,
+      lax:context.lax,utf8:context.utf8,c_collation:context.c_collation,ctype:context.ctype,use_timezone:context.use_timezone,session_timezone:context.session_timezone,abbreviations_default:context.abbreviations_default,time_locale_c:context.time_locale_c,regex_profile_supplied:context.regex_profile_supplied,regex_profile_ranges:context.regex_profile_ranges,regex_profile_cases:context.regex_profile_cases,ordered_result:context.ordered_result,document_ids:context.document_ids,variables_ids:context.variables_ids,
       generated_nodes:context.generated_nodes,generated_characters:context.generated_characters,generated_ids:context.generated_ids,next_generated_id:base,
      };
      let sequence=jsonpath_execution_walk(seeded.clone(),false);

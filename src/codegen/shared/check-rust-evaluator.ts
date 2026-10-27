@@ -1,3 +1,7 @@
+import {
+  regexCharacterProfileDeclaration,
+  type RegexCharacterProfileFacts,
+} from './check-regex-profile.js'
 import { isTextFormatCallable } from '../../sql-semantics/text-format-callables.js'
 import { isJsonPopulateCallable } from '../../sql-semantics/json-populate-callables.js'
 import { isIntegerSumCallable } from '../../sql-semantics/integer-sum-callables.js'
@@ -809,6 +813,7 @@ const rustType = (type: string): string => {
 export type CheckExecutionContext = {
   defaultCollation?: 'C'
   defaultCtype?: 'C' | 'C.UTF-8'
+  regexCharacterProfile?: RegexCharacterProfileFacts
   serverEncoding?: 'UTF8'
   nativeByteOrder?: 'little' | 'big'
   maxIdentifierBytes?: number
@@ -838,6 +843,7 @@ export function emitCheckRustEvaluator(
   preparationOnly = false,
 ): {
   source: string
+  sharedDeclarations: readonly { name: string; source: string }[]
   entryName: string
   diagnosticEntryName?: string
   inputs: readonly Input[]
@@ -863,6 +869,7 @@ export function emitCheckRustEvaluator(
   collectBinaryEnums(expression)
   const callables = new Set<string>()
   const domainHelpers: string[] = []
+  const sharedDeclarations = new Map<string, { name: string; source: string }>()
   let domainPreparationState: string | null = null
   let domainInputPreparation: { lines: string[]; status: string } | null = null
   let jsonPopulateHardError: string | null = null
@@ -2640,6 +2647,7 @@ export function emitCheckRustEvaluator(
           executionContext,
         )
         domainHelpers.push(checker.source)
+        checker.sharedDeclarations.forEach((d) => sharedDeclarations.set(d.name, d))
         checker.callables.forEach((name) => callables.add(name))
         requiresRegex ||= checker.requiresRegex
         const preparer = emitCheckRustEvaluator(
@@ -2654,6 +2662,7 @@ export function emitCheckRustEvaluator(
           true,
         )
         domainHelpers.push(preparer.source)
+        preparer.sharedDeclarations.forEach((d) => sharedDeclarations.set(d.name, d))
         preparer.callables.forEach((name) => callables.add(name))
         requiresRegex ||= preparer.requiresRegex
         const targetPreparation = domainInputPreparation?.lines ?? preparationLines
@@ -6221,7 +6230,8 @@ export function emitCheckRustEvaluator(
                       ? implementation.name.replace('jsonb_path_', 'jsonpath_') +
                         (executionContext.timeZone === undefined &&
                         executionContext.timeZoneAbbreviations !== 'Default' &&
-                        executionContext.timeLocale !== 'C'
+                        executionContext.timeLocale !== 'C' &&
+                        executionContext.regexCharacterProfile === undefined
                           ? '_context'
                           : '_session')
                       : implementation.rustName
@@ -6268,13 +6278,32 @@ export function emitCheckRustEvaluator(
         jsonpathExecution &&
         (executionContext.timeZone !== undefined ||
           executionContext.timeZoneAbbreviations === 'Default' ||
-          executionContext.timeLocale === 'C')
-      )
+          executionContext.timeLocale === 'C' ||
+          executionContext.regexCharacterProfile !== undefined)
+      ) {
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
           String(executionContext.timeZoneAbbreviations === 'Default'),
           String(executionContext.timeLocale === 'C'),
         )
+        const ranges = fresh('regex_profile_ranges'),
+          cases = fresh('regex_profile_cases')
+        const profile = executionContext.regexCharacterProfile
+        if (profile === undefined)
+          destination.push(
+            `let ${ranges}=jsonpath_empty_regex_profile_facts();`,
+            `let ${cases}=jsonpath_empty_regex_profile_facts();`,
+          )
+        else {
+          const declaration = regexCharacterProfileDeclaration(profile)
+          sharedDeclarations.set(declaration.name, declaration)
+          destination.push(
+            `let ${ranges}=${declaration.name}_ranges();`,
+            `let ${cases}=${declaration.name}_cases();`,
+          )
+        }
+        arguments_.push(String(profile !== undefined), ranges, cases)
+      }
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalDatePart(implementation))
@@ -10187,8 +10216,10 @@ export function emitCheckRustEvaluator(
       `pub fn ${diagnosticEntryName}(${parameters(entry.inputs)}) -> CheckEvaluationResult {\n${indent(detailLines).join('\n')}\n    make_check_evaluation_result(${resultName}, ${finished})\n}\n`
   } else
     source = `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n`
+  const bodySource = source + domainHelpers.join('\n')
   return {
-    source: source + domainHelpers.join('\n'),
+    source: bodySource,
+    sharedDeclarations: [...sharedDeclarations.values()],
     entryName,
     ...(diagnosticEntryName ? { diagnosticEntryName } : {}),
     inputs: ordered(entry.inputs),

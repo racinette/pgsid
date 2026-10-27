@@ -13,6 +13,9 @@ fn jsonpath_execution_make_context(
     session: &str,
     defaults: bool,
     locale_c: bool,
+    profile_supplied: bool,
+    profile_ranges: Vec<usize>,
+    profile_cases: Vec<usize>,
 ) -> JsonpathExecutionContext {
     let mut needs_objects = false;
     let mut index: usize = 1;
@@ -89,6 +92,9 @@ fn jsonpath_execution_make_context(
         session_timezone: session.to_owned(),
         abbreviations_default: defaults,
         time_locale_c: locale_c,
+        regex_profile_supplied: profile_supplied,
+        regex_profile_ranges: profile_ranges,
+        regex_profile_cases: profile_cases,
         ordered_result: ordered_result,
         document_ids: document_ids,
         variables_ids: variables_ids,

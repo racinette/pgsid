@@ -403,3 +403,26 @@ INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variabl
 
 -- name: translated_wrong_result
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'translated_wrong_result','"2024-February-29"'::jsonb,'$.datetime("YYYY-TMMonth-DD")=="2024-03-01".date()'::jsonpath,'$.datetime("YYYY-TMMonth-DD")=="2024-03-01".date()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: document_regex_unicode_alpha
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_alpha','{"a":"é","flag":true}'::jsonb,'$.a like_regex "[[:alpha:]]"'::jsonpath,'$.a like_regex "[[:alpha:]]"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_regex_unicode_digit
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_digit','{"a":"١","flag":true}'::jsonb,'$.a like_regex "[[:digit:]]"'::jsonpath,'$.a like_regex "[[:digit:]]"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_regex_unicode_directional_upper
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_directional_upper','{"a":"S","flag":true}'::jsonb,'$.a like_regex "ſ" flag "i"'::jsonpath,'$.a like_regex "ſ" flag "i"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_regex_unicode_directional_lower
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_directional_lower','{"a":"s","flag":true}'::jsonb,'$.a like_regex "ſ" flag "i"'::jsonpath,'$.a like_regex "ſ" flag "i"','{}'::jsonb,false,false,true,true,'[false]'::jsonb,'false'::jsonb);
+-- name: document_regex_unicode_titlecase_literal
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_titlecase_literal','{"a":"ǅ","flag":true}'::jsonb,'$.a like_regex "ǅ" flag "i"'::jsonpath,'$.a like_regex "ǅ" flag "i"','{}'::jsonb,false,false,true,true,'[false]'::jsonb,'false'::jsonb);
+-- name: document_regex_unicode_titlecase_range
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_titlecase_range','{"a":"ǅ","flag":true}'::jsonb,'$.a like_regex "[ǅ-ǅ]" flag "i"'::jsonpath,'$.a like_regex "[ǅ-ǅ]" flag "i"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_regex_unicode_keyvalue
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_keyvalue','{"a":"é","flag":true}'::jsonb,'$.keyvalue()?(@.value like_regex "[[:alpha:]]").value'::jsonpath,'$.keyvalue()?(@.value like_regex "[[:alpha:]]").value','{}'::jsonb,false,false,true,true,'["é"]'::jsonb,'"é"'::jsonb);
+-- name: document_regex_unicode_wrong_result
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_wrong_result','{"a":"é","flag":true}'::jsonb,'$.a like_regex "[[:alpha:]]"'::jsonpath,'$.a like_regex "[[:alpha:]]"','{}'::jsonb,false,false,true,true,'[false]'::jsonb,'true'::jsonb);
+-- name: clock_regex_unicode_class
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_class','"é"'::jsonb,'$ like_regex "[[:alpha:]]"'::jsonpath,'$ like_regex "[[:alpha:]]"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_regex_unicode_directional
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_directional','"s"'::jsonb,'$ like_regex "ſ" flag "i"'::jsonpath,'$ like_regex "ſ" flag "i"','{}'::jsonb,false,false,true,false,'[false]'::jsonb,'false'::jsonb);
+-- name: clock_regex_unicode_lazy
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unicode_lazy','"é"'::jsonb,'(1==1)||($missing like_regex "[[:alpha:]]")'::jsonpath,'(1==1)||($missing like_regex "[[:alpha:]]")','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
