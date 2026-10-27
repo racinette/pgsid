@@ -434,6 +434,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/array_identifiers.rs");
     include!("operations/pg_catalog/array_aggregate_context.rs");
     include!("operations/pg_catalog/array_integer_state.rs");
+    include!("operations/pg_catalog/integer_sum.rs");
     include!("operations/pg_catalog/array_float_state.rs");
     include!("operations/pg_catalog/array_float_transition.rs");
 
