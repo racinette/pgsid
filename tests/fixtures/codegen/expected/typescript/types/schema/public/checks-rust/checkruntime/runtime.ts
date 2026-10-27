@@ -5710,6 +5710,70 @@ export function jsonReadLength(input: JsonValue): Int4Value {
     }
     return { kind: "Unknown" };
 }
+export function jsonReadInputScalar(input: JsonValue, quoted: boolean, utf8: boolean): TextValue {
+    quoted = langruntime.checkedBool(quoted);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        if (value.kind === 0) {
+            return { kind: "Null" };
+        }
+        if (value.kind === 4) {
+            const source: JsonSyntaxSource = { characters: Array.from(value.source) };
+            const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, 0));
+            const decoded: TextValue = jsonReadDecodeStringContext(source, token, utf8);
+            if (quoted) {
+                if (decoded.kind === "Value") {
+                    const text: string = langruntime.checkedString(decoded.value);
+                    const result: string = jsonQuoteString(text);
+                    return { kind: "Value", value: result };
+                }
+            }
+            return decoded;
+        }
+        return { kind: "Value", value: value.source };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonReadObjectReady(input: JsonValue, utf8: boolean): CheckOutcome {
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        const kind: number = value.kind;
+        const source: JsonValue = { kind: "Value", value: value };
+        let checked: TextValue = { kind: "Null" };
+        if (kind === 4) {
+            checked = jsonReadInputScalar(source, false, utf8);
+        }
+        else if (kind === 6) {
+            const key: TextValue = makeTextValue("");
+            checked = jsonReadFieldContext(source, key, false, utf8);
+        }
+        if (checked.kind === "Error") {
+            const error: SqlError = checked.value;
+            return { kind: "Error", value: error };
+        }
+        if (equalTextValue(checked, { kind: "Unknown" }) || equalTextValue(checked, { kind: "NonNull" })) {
+            return { kind: "Unknown" };
+        }
+        if (kind === 6) {
+            return { kind: "True" };
+        }
+        return { kind: "Error", value: makeSqlError(jsonReadNonArray) };
+    }
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export function jsonKindText(kind: number): TextValue {
     kind = langruntime.checkedI32(kind);
     if (kind === 0) {

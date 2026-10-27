@@ -1712,3 +1712,19 @@ CREATE TABLE inspection_legacy_patterns (
  CONSTRAINT legacy_pattern_nullness CHECK(CASE WHEN bypass THEN true ELSE
    (pattern IS NULL) = (pg_catalog.similar_escape(pattern,escape) IS NULL) END)
 );
+
+CREATE TYPE inspection_json_input AS (quantity integer,label varchar(3));
+CREATE TABLE inspection_json_records (
+ data jsonb,
+ raw_data json,
+ expected_quantity integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT json_record_quantity CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.json_populate_record(ROW(3,'old')::inspection_json_input,raw_data)).quantity
+     IS NOT DISTINCT FROM expected_quantity END),
+ CONSTRAINT jsonb_record_quantity CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.jsonb_populate_record(ROW(3,'old')::inspection_json_input,data)).quantity
+     IS NOT DISTINCT FROM expected_quantity END),
+ CONSTRAINT jsonb_record_fields_valid CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_input,data) IS NOT FALSE END)
+);

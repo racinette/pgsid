@@ -375,6 +375,62 @@ pub fn json_read_length(input: JsonValue) -> Int4Value {
     Int4Value::Unknown
 }
 
+pub fn json_read_input_scalar(input: JsonValue, quoted: bool, utf8: bool) -> TextValue {
+    if let JsonValue::Error(error) = input {
+        return TextValue::Error(error);
+    };
+    if let JsonValue::Null = input {
+        return TextValue::Null;
+    };
+    if let JsonValue::Value(value) = input {
+        if value.kind == 0 {
+            return TextValue::Null;
+        };
+        if value.kind == 4 {
+            let source = JsonSyntaxSource { characters: value.source.chars().collect() };
+            let token = json_read_next_token(&source, 0);
+            let decoded = json_read_decode_string_context(&source, token, utf8);
+            if quoted {
+                if let TextValue::Value(text) = decoded {
+                    let result = json_quote_string(text.as_str());
+                    return TextValue::Value(result);
+                };
+            };
+            return decoded;
+        };
+        return TextValue::Value(value.source);
+    };
+    TextValue::Unknown
+}
+
+pub fn json_read_object_ready(input: JsonValue, utf8: bool) -> CheckOutcome {
+    if let JsonValue::Value(value) = input {
+        let kind = value.kind;
+        let source = JsonValue::Value(value);
+        let mut checked = TextValue::Null;
+        if kind == 4 {
+            checked = json_read_input_scalar(source, false, utf8);
+        } else if kind == 6 {
+            let key = make_text_value("");
+            checked = json_read_field_context(source, key, false, utf8);
+        };
+        if let TextValue::Error(error) = checked {
+            return CheckOutcome::Error(error);
+        };
+        if checked == TextValue::Unknown || checked == TextValue::NonNull {
+            return CheckOutcome::Unknown;
+        };
+        if kind == 6 {
+            return CheckOutcome::True;
+        };
+        return CheckOutcome::Error(make_sql_error(JSON_READ_NON_ARRAY));
+    };
+    if let JsonValue::Error(error) = input {
+        return CheckOutcome::Error(error);
+    };
+    CheckOutcome::Unknown
+}
+
 pub fn json_kind_text(kind: i32) -> TextValue {
     if kind == 0 {
         return make_text_value("null");

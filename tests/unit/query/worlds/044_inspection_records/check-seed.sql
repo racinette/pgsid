@@ -2404,3 +2404,23 @@ INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALU
 INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('\"a\"b\"',NULL,NULL,false);
 -- name: LegacyPatternSkippedError
 INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('%','ab','wrong',true);
+-- name: JsonRecordScalarFields
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":"2","label":"new"}','{"quantity":"2","label":"new"}',2,false);
+-- name: JsonRecordMissingFields
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{}','{}',3,false);
+-- name: JsonRecordExplicitNull
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":null}','{"quantity":null}',NULL,false);
+-- name: JsonRecordNullArguments
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES (NULL,NULL,3,false);
+-- name: JsonRecordLastDuplicate
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":"bad","quantity":2}','{"quantity":"bad","quantity":2}',2,false);
+-- name: JsonRecordWrongQuantity
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":2}','{"quantity":2}',9,false);
+-- name: JsonRecordInvalidInteger
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":"bad"}','{"quantity":"bad"}',NULL,false);
+-- name: JsonRecordInvalidWidth
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":2,"label":"long"}','{"quantity":2,"label":"long"}',2,false);
+-- name: JsonRecordWrongShape
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('[]','[]',NULL,false);
+-- name: JsonRecordSkippedErrors
+INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":"bad"}','{"quantity":"bad"}',NULL,true);

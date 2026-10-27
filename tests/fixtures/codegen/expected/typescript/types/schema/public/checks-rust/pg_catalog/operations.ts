@@ -5365,6 +5365,49 @@ export function setBit2mfa(input: checkruntime.BitValue, position: checkruntime.
     }
     return { kind: "Unknown" };
 }
+export function bitFromTextModifier(input: checkruntime.TextValue, width: number, varying: boolean, utf8: boolean): checkruntime.BitValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let index: number = 0;
+        while (index < characters.length) {
+            const character: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+            if (character > 127 && utf8 === false) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let length: bigint = textBuildOctets(value);
+        let hexadecimal: boolean = false;
+        if (characters.length > 0) {
+            const first: string = langruntime.indexChar(characters, langruntime.checkedIndex(0));
+            if (first === "b" || first === "B" || first === "x" || first === "X") {
+                length = langruntime.checkedI64(langruntime.checkedI64Subtract(length, 1n));
+            }
+            if (first === "x" || first === "X") {
+                hexadecimal = langruntime.checkedBool(true);
+            }
+        }
+        if (hexadecimal) {
+            const maximum: bigint = BigInt(langruntime.checkedI32(bitMaxLength));
+            if (length > langruntime.checkedI64Divide(maximum, 4n)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(bitProgramLimitExceeded) };
+            }
+            length = langruntime.checkedI64(langruntime.checkedI64Multiply(length, 4n));
+        }
+        const requested: bigint = BigInt(langruntime.checkedI32(width));
+        if (width > 0) {
+            if (varying && length > requested) {
+                return { kind: "Error", value: checkruntime.makeSqlError(bitStringRightTruncation) };
+            }
+            if (varying === false && !(length === requested)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(bitStringLengthMismatch) };
+            }
+        }
+        return checkruntime.bitFromText({ kind: "Value", value: value });
+    }
+    return checkruntime.bitFromText(input);
+}
 function bitIntegerEncode(input: bigint, requested: number): string {
     input = langruntime.checkedI64(input);
     requested = langruntime.checkedI32(requested);
@@ -18003,6 +18046,347 @@ export function jsonbObjectTmdc(keys: checkruntime.ArrayValue, values: checkrunt
     values = checkruntime.copyArrayValue(values);
     const object: checkruntime.JsonValue = jsonObjectKatl(keys, values);
     return jsonObjectArrayToJsonb(object);
+}
+const jsonPopulateObjectError = 3452619;
+const jsonPopulateArrayError = 3484946;
+const jsonPopulateCalendarError = 3452551;
+export function jsonPopulateKind(input: checkruntime.JsonbInput): number {
+    if (input.kind === "Json") {
+        const value: checkruntime.JsonPayload = input.value;
+        return value.kind;
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        return langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind;
+    }
+    if (input.kind === "Null") {
+        return langruntime.checkedSignedNegate(2);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+export function jsonPopulateText(input: checkruntime.JsonbInput, quoted: boolean, utf8: boolean): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Json") {
+        const value: checkruntime.JsonPayload = input.value;
+        return checkruntime.jsonReadInputScalar({ kind: "Value", value: value }, quoted, utf8);
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const kind: number = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind;
+        if (kind === 0) {
+            return { kind: "Null" };
+        }
+        const scalar: checkruntime.JsonbValue = { kind: "Value", value: value };
+        if (quoted) {
+            return jsonbTextContext(scalar, utf8);
+        }
+        return jsonbExtractText(scalar, utf8);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonPopulateJsonb(input: checkruntime.JsonbInput, utf8: boolean): checkruntime.JsonbValue {
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind === 0) {
+            return { kind: "Null" };
+        }
+        return { kind: "Value", value: value };
+    }
+    const text: checkruntime.TextValue = jsonPopulateText(input, true, utf8);
+    return checkruntime.jsonbFromTextContext(text, utf8);
+}
+export function jsonPopulateScalarText(input: checkruntime.JsonbInput, quoted: boolean, container: number, calendar: boolean, utf8: boolean): checkruntime.TextValue {
+    const kind: number = jsonPopulateKind(checkruntime.copyJsonbInput(input));
+    if (calendar && (kind === 5 || kind === 6)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateCalendarError) };
+    }
+    if (kind >= 0 && !(kind === 0) && !(kind === 4) && container > 0) {
+        if ((container === 1 && !(kind === 5)) || (container === 2 && !(kind === 6))) {
+            let state: number = jsonPopulateArrayError;
+            if (container === 2) {
+                state = langruntime.checkedIndex(jsonPopulateObjectError);
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(state) };
+        }
+        return { kind: "Unknown" };
+    }
+    return jsonPopulateText(input, quoted, utf8);
+}
+export function jsonPopulateHardError(input: checkruntime.CheckOutcome, result: checkruntime.CheckOutcome): checkruntime.CheckOutcome {
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (result.kind === "Error") {
+        return result;
+    }
+    return input;
+}
+export function jsonPopulateBeginHard(): checkruntime.CheckOutcome {
+    return { kind: "True" };
+}
+export function jsonPopulateUnavailable(input: checkruntime.JsonbInput, domain: boolean): checkruntime.ArrayElement {
+    const kind: number = jsonPopulateKind(checkruntime.copyJsonbInput(input));
+    if (domain === false && (kind === 0 || kind === langruntime.checkedSignedNegate(2))) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export interface JsonPopulateState {
+    readonly input: checkruntime.JsonbInput;
+    readonly base: checkruntime.CompositeValue;
+    readonly output: checkruntime.CompositeValue;
+    readonly status: checkruntime.CheckOutcome;
+    readonly hard: checkruntime.CheckOutcome;
+    readonly position: number;
+    readonly count: number;
+    readonly active: boolean;
+    readonly convert: boolean;
+    readonly current: checkruntime.JsonbInput;
+    readonly utf8: boolean;
+}
+function copyJsonPopulateState(value: JsonPopulateState): JsonPopulateState {
+    return { input: checkruntime.copyJsonbInput(value.input), base: checkruntime.copyCompositeValue(value.base), output: checkruntime.copyCompositeValue(value.output), status: value.status, hard: value.hard, position: langruntime.checkedI32(value.position), count: langruntime.checkedI32(value.count), active: langruntime.checkedBool(value.active), convert: langruntime.checkedBool(value.convert), current: checkruntime.copyJsonbInput(value.current), utf8: langruntime.checkedBool(value.utf8) };
+}
+export type JsonPopulatePlan = {
+    readonly kind: "Value";
+    readonly value: JsonPopulateState;
+};
+function copyJsonPopulatePlan(value: JsonPopulatePlan): JsonPopulatePlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyJsonPopulateState(value.value) };
+    }
+}
+export function makeJsonPopulatePlan(input: JsonPopulateState): JsonPopulatePlan {
+    return { kind: "Value", value: input };
+}
+export function prepareJsonPopulate(base: checkruntime.CompositeValue, input: checkruntime.JsonbInput, typeName: string, count: number, utf8: boolean): JsonPopulateState {
+    const expected: number = langruntime.indexFromI32(count, 0);
+    let status: checkruntime.CheckOutcome = { kind: "True" };
+    let hard: checkruntime.CheckOutcome = { kind: "True" };
+    let active: boolean = true;
+    let output: checkruntime.CompositeValue = checkruntime.makeCompositeFields(typeName);
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        status = { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        if (input.kind === "Error") {
+            const error: checkruntime.SqlError = input.value;
+            status = { kind: "Error", value: error };
+        }
+    }
+    if (status.kind === "Error") {
+        hard = status;
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        if (base.kind === "Unknown") {
+            status = { kind: "Unknown" };
+        }
+        if (input.kind === "Unknown") {
+            status = { kind: "Unknown" };
+        }
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        if (input.kind === "Null") {
+            output = checkruntime.copyCompositeValue(checkruntime.copyCompositeValue(base));
+            active = langruntime.checkedBool(false);
+        }
+        if (active) {
+            status = { kind: "Unknown" };
+            const rawSource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
+            if (rawSource.kind === "Json") {
+                const value: checkruntime.JsonPayload = rawSource.value;
+                status = checkruntime.jsonReadObjectReady({ kind: "Value", value: value }, utf8);
+            }
+            const binarySource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
+            if (binarySource.kind === "Jsonb") {
+                const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(binarySource.value);
+                status = { kind: "True" };
+                if (!(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind === 6)) {
+                    status = { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateObjectError) };
+                }
+            }
+        }
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && active) {
+        const source: checkruntime.CompositeValue = checkruntime.copyCompositeValue(base);
+        if (source.kind === "Value") {
+            const value: checkruntime.CompositePayload = checkruntime.copyCompositePayload(source.value);
+            if (!(value.typeName === typeName) || !(value.fields.length === expected) || count < 0) {
+                status = { kind: "Unknown" };
+            }
+        }
+    }
+    return { input: input, base: base, output: output, status: status, hard: hard, position: 0, count: count, active: active, convert: false, current: { kind: "Unknown" }, utf8: utf8 };
+}
+export function jsonPopulateSelect(input: JsonPopulateState, name: string): JsonPopulateState {
+    if (!(checkruntime.equalCheckOutcome(input.status, { kind: "True" })) || input.active === false) {
+        return input;
+    }
+    let current: checkruntime.JsonbInput = { kind: "Unknown" };
+    let status: checkruntime.CheckOutcome = input.status;
+    const key: checkruntime.TextValue = checkruntime.makeTextValue(name);
+    const rawSource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input.input);
+    if (rawSource.kind === "Json") {
+        const value: checkruntime.JsonPayload = rawSource.value;
+        const selected: checkruntime.TextValue = checkruntime.jsonReadFieldContext({ kind: "Value", value: value }, key, false, input.utf8);
+        if (selected.kind === "Null") {
+            current = checkruntime.copyJsonbInput({ kind: "Null" });
+        }
+        if (selected.kind === "Error") {
+            const error: checkruntime.SqlError = selected.value;
+            status = { kind: "Error", value: error };
+        }
+        if (selected.kind === "Value") {
+            const text: string = langruntime.checkedString(selected.value);
+            const value1: checkruntime.JsonValue = checkruntime.makeJsonValue(text);
+            current = checkruntime.copyJsonbInput(checkruntime.jsonbInputFromJson(value1));
+        }
+    }
+    const binarySource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input.input);
+    if (binarySource.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(binarySource.value);
+        const selected: checkruntime.JsonbValue = jsonbObjectField4uf3({ kind: "Value", value: value }, key);
+        current = checkruntime.copyJsonbInput(checkruntime.jsonbInputFromJsonb(selected));
+    }
+    let found: boolean = true;
+    if (current.kind === "Null") {
+        found = langruntime.checkedBool(false);
+    }
+    let convert: boolean = true;
+    let output: checkruntime.CompositeValue = input.output;
+    let position: number = input.position;
+    if (found === false) {
+        const base: checkruntime.CompositeValue = checkruntime.copyCompositeValue(input.base);
+        if (base.kind === "Value") {
+            const index: checkruntime.Int4Value = checkruntime.makeInt4Value(position);
+            const field: checkruntime.ArrayElement = checkruntime.compositeFieldAt(checkruntime.copyCompositeValue(input.base), index);
+            output = checkruntime.copyCompositeValue(checkruntime.appendCompositeField(output, field));
+            position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+            convert = langruntime.checkedBool(false);
+        }
+    }
+    return { input: input.input, base: input.base, output: output, status: status, hard: input.hard, position: position, count: input.count, active: input.active, convert: convert, current: current, utf8: input.utf8 };
+}
+export function jsonPopulateShouldConvert(input: JsonPopulateState): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && input.active && input.convert;
+}
+export function jsonPopulateCurrent(input: JsonPopulateState): checkruntime.JsonbInput {
+    return checkruntime.copyJsonbInput(input.current);
+}
+export function jsonPopulateAccept(input: JsonPopulateState, field: checkruntime.ArrayElement, hard: checkruntime.CheckOutcome): JsonPopulateState {
+    if (jsonPopulateShouldConvert(input) === false) {
+        return input;
+    }
+    let status: checkruntime.CheckOutcome = input.status;
+    let output: checkruntime.CompositeValue = input.output;
+    let position: number = input.position;
+    if (field.kind === "Error") {
+        const error: checkruntime.SqlError = field.value;
+        status = { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        if (field.kind === "Unknown") {
+            status = { kind: "Unknown" };
+        }
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        output = checkruntime.copyCompositeValue(checkruntime.appendCompositeField(output, field));
+        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+    }
+    return { input: input.input, base: input.base, output: output, status: status, hard: jsonPopulateHardError(input.hard, hard), position: position, count: input.count, active: input.active, convert: false, current: input.current, utf8: input.utf8 };
+}
+function finishJsonPopulate(input: JsonPopulateState): checkruntime.CompositeValue {
+    input = copyJsonPopulateState(input);
+    const hard: checkruntime.CheckOutcome = input.hard;
+    if (hard.kind === "Error") {
+        const error: checkruntime.SqlError = hard.value;
+        return { kind: "Error", value: error };
+    }
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (!(checkruntime.equalCheckOutcome(input.status, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    if (input.active && !(input.position === input.count)) {
+        return { kind: "Unknown" };
+    }
+    return input.output;
+}
+export function jsonPopulateGuard(input: JsonPopulateState, flag: checkruntime.BoolValue, safe: boolean): JsonPopulateState {
+    const initial: checkruntime.CheckOutcome = input.hard;
+    if (initial.kind === "Error") {
+        return input;
+    }
+    let status: checkruntime.CheckOutcome = input.status;
+    let hard: checkruntime.CheckOutcome = input.hard;
+    if (flag.kind === "Error") {
+        const error: checkruntime.SqlError = flag.value;
+        status = { kind: "Error", value: error };
+        hard = status;
+    }
+    if (safe === false && checkruntime.equalBoolValue(flag, { kind: "Unknown" })) {
+        status = { kind: "Unknown" };
+    }
+    return { input: input.input, base: input.base, output: input.output, status: status, hard: hard, position: input.position, count: input.count, active: input.active, convert: input.convert, current: input.current, utf8: input.utf8 };
+}
+export function jsonPopulateRecordQo9b(input: JsonPopulatePlan): checkruntime.CompositeValue {
+    input = copyJsonPopulatePlan(input);
+    if (input.kind === "Value") {
+        const value: JsonPopulateState = copyJsonPopulateState(input.value);
+        return finishJsonPopulate(value);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbPopulateRecordF6m5(input: JsonPopulatePlan): checkruntime.CompositeValue {
+    input = copyJsonPopulatePlan(input);
+    if (input.kind === "Value") {
+        const value: JsonPopulateState = copyJsonPopulateState(input.value);
+        return finishJsonPopulate(value);
+    }
+    return { kind: "Unknown" };
+}
+function finishJsonPopulateValid(input: JsonPopulateState): checkruntime.BoolValue {
+    input = copyJsonPopulateState(input);
+    const hard: checkruntime.CheckOutcome = input.hard;
+    if (hard.kind === "Error") {
+        const error: checkruntime.SqlError = hard.value;
+        return { kind: "Error", value: error };
+    }
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        return checkruntime.makeBoolValue(false);
+    }
+    if (!(checkruntime.equalCheckOutcome(input.status, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    if (input.active && !(input.position === input.count)) {
+        return { kind: "Unknown" };
+    }
+    if (input.active === false) {
+        const output: checkruntime.CompositeValue = input.output;
+        if (output.kind === "Null") {
+            return { kind: "Null" };
+        }
+    }
+    return checkruntime.makeBoolValue(true);
+}
+export function jsonbPopulateRecordValidRd7k(input: JsonPopulatePlan): checkruntime.BoolValue {
+    input = copyJsonPopulatePlan(input);
+    if (input.kind === "Value") {
+        const value: JsonPopulateState = copyJsonPopulateState(input.value);
+        return finishJsonPopulateValid(value);
+    }
+    return { kind: "Unknown" };
 }
 interface JsonbArrayFrame {
     node: number;

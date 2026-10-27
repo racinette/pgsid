@@ -1,4 +1,5 @@
 import { isTextFormatCallable } from './text-format-callables.js'
+import { isJsonPopulateCallable } from './json-populate-callables.js'
 import { isTextConcatCallable } from './text-concat-callables.js'
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
@@ -2898,6 +2899,9 @@ export function bindCatalogCheck(
             schema: physical.schema,
             name: physical.name,
             values: physical.enumLabels ?? [],
+            inputFunction: physical.input ?? undefined,
+            outputFunction: physical.output ?? undefined,
+            jsonConversion: physical.jsonCast ? ('cast' as const) : ('label' as const),
           }
         : undefined
     return {
@@ -5999,7 +6003,10 @@ export function bindCatalogCheck(
             if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
               return unknown
             let value = converted.expression.operand
-            if (!stored && type === 'pg_catalog."interval"') {
+            if (
+              !stored &&
+              ['pg_catalog."interval"', 'pg_catalog."bit"', 'pg_catalog.varbit'].includes(type)
+            ) {
               let modifier = field.typeMod
               let layer = declared
               const visited = new Set<string>()
@@ -6017,7 +6024,7 @@ export function bindCatalogCheck(
               }
               if (modifier !== -1) {
                 const seed = (node: EvalExpression): EvalExpression =>
-                  node.kind === 'text-to-interval'
+                  node.kind === 'text-to-interval' || node.kind === 'text-to-bit'
                     ? { ...node, inputModifier: modifier }
                     : node.kind === 'domain-cast'
                       ? { ...node, operand: seed(node.operand) }
@@ -8924,6 +8931,28 @@ export function bindCatalogCheck(
     const result = entries.every(([key, item]) => item === record[key])
       ? record
       : Object.fromEntries(entries)
+    if (result['kind'] === 'call' && !result['inputConversion']) {
+      const call = fields(result['call'])
+      const operands = result['operands']
+      if (
+        typeof call?.['signature'] === 'string' &&
+        isJsonPopulateCallable(builtinMetadata(call['signature'])) &&
+        Array.isArray(operands)
+      ) {
+        const operand = fields(operands[0])
+        const expression =
+          operand?.['kind'] === 'certain'
+            ? fields(operand['expression'])
+            : operand?.['kind'] === 'call'
+              ? fields(operand['call'])
+              : operand
+        const type = expression?.['type']
+        if (typeof type === 'string' && compositeProfile(arrayElementBaseType(type))) {
+          const inputConversion = compositeConversion(type as ScalarType, false)
+          if (inputConversion) return { ...result, inputConversion }
+        }
+      }
+    }
     if (
       ['array-text-literal', 'text-to-array', 'array-io-coerce'].includes(String(result['kind'])) &&
       typeof result['elementType'] === 'string'
