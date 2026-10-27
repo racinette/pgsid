@@ -1768,3 +1768,23 @@ CREATE TABLE inspection_json_nested_records (
  CONSTRAINT jsonb_nested_fields_valid CHECK(CASE WHEN bypass THEN true ELSE
    pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_nested_input,data) IS NOT FALSE END)
 );
+
+CREATE TYPE inspection_json_root_input AS (n integer,label varchar(3));
+CREATE DOMAIN inspection_json_root AS inspection_json_root_input CHECK((VALUE).n>0);
+CREATE DOMAIN inspection_json_fault_root AS inspection_json_root_input CHECK(10/(VALUE).n>0);
+CREATE TABLE inspection_json_root_records (
+ data jsonb,
+ raw_data json,
+ expected_n integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT json_domain_root_value CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.json_populate_record(ROW(2,'old')::inspection_json_root,raw_data)).n
+     IS NOT DISTINCT FROM expected_n END),
+ CONSTRAINT jsonb_domain_root_value CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.jsonb_populate_record(ROW(2,'old')::inspection_json_root,data)).n
+     IS NOT DISTINCT FROM expected_n END),
+ CONSTRAINT jsonb_domain_root_valid CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_root,data) IS NOT FALSE END),
+ CONSTRAINT jsonb_domain_root_hard_error CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_fault_root,data) IS NOT FALSE END)
+);

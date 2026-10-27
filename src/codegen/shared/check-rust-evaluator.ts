@@ -1937,6 +1937,76 @@ export function emitCheckRustEvaluator(
     }
     return state
   }
+  const renderJsonPopulateDomain = (
+    state: string,
+    conversion: Extract<EvalExpression, { kind: 'domain-cast' }>,
+    destination: string[],
+    used: Set<string>,
+  ): string => {
+    const value = fresh('json_populate_domain_value'),
+      result = fresh('json_populate_domain_result'),
+      hard = fresh('json_populate_domain_hard'),
+      status = fresh('json_populate_domain_preparation'),
+      cell = fresh('json_populate_domain_cell'),
+      finished = fresh('json_populate_domain_finished'),
+      next = fresh('json_populate_domain_next'),
+      prepared: string[] = [],
+      lines: string[] = [],
+      name = '__pgsid_json_populate_domain',
+      key = JSON.stringify([name, false]),
+      outer = localInputs.get(key),
+      outerValidity = arrayValidityScope,
+      outerPreparation = domainInputPreparation,
+      outerDepth = preparationDepth,
+      outerHard = jsonPopulateHardError,
+      outerInput = jsonPopulateInput
+    const replace = (node: EvalExpression): EvalExpression =>
+      node.kind === 'domain-cast'
+        ? { ...node, operand: replace(node.operand) }
+        : { kind: 'input', type: conversion.type, name }
+    localInputs.set(key, {
+      name,
+      type: conversion.type,
+      rustName: value,
+      rustType: 'CompositeValue',
+    })
+    arrayValidityScope = null
+    domainInputPreparation = { lines: prepared, status }
+    preparationDepth = 0
+    jsonPopulateHardError = hard
+    jsonPopulateInput = null
+    let converted: { name: string; type: string }
+    try {
+      converted = emitScalar(replace(conversion), lines, used)
+      if (converted.type !== conversion.type)
+        throw new UnsupportedCheckRustExpression(
+          'JSON root domain requires its populated record carrier',
+        )
+    } finally {
+      if (outer) localInputs.set(key, outer)
+      else localInputs.delete(key)
+      arrayValidityScope = outerValidity
+      domainInputPreparation = outerPreparation
+      preparationDepth = outerDepth
+      jsonPopulateHardError = outerHard
+      jsonPopulateInput = outerInput
+    }
+    destination.push(
+      `let mut ${result}:CompositeValue = composite_unknown();`,
+      `let mut ${hard}:CheckOutcome = json_populate_begin_hard();`,
+      `if json_populate_domain_ready(&${state}) {`,
+      `    let ${value} = json_populate_domain_value(&${state});`,
+      `    let mut ${status}:CheckOutcome = json_populate_begin_hard();`,
+      ...indent(prepared),
+      ...indent(lines),
+      `    let ${cell} = array_element_from_composite(${ownedOperand(converted)});`,
+      `    let ${finished} = finish_domain_conversion(${cell},${status});`,
+      `    ${result} = array_element_to_composite(${finished});`,
+      '};',
+      `let ${next} = json_populate_accept_domain(${state},${result},${hard});`,
+    )
+    return next
+  }
   const emitScalar = (
     node: EvalExpression,
     bindings: string[],
@@ -3214,11 +3284,13 @@ export function emitCheckRustEvaluator(
       if (isJsonPopulateCallable(implementation)) {
         const profile = operands[0] && compositeProfile(arrayElementBaseType(operands[0].type)),
           definition = profile?.graph.definitions.find((n) => n.identity === profile.identity),
-          conversion =
-            node.kind === 'call' && node.call === call ? node.inputConversion : undefined,
-          input = definition?.input
-            ? builtinCallables().find((n) => callableIdentity(n) === definition.input)
-            : null
+          rootConversion =
+            node.kind === 'call' && node.call === call ? node.inputConversion : undefined
+        let conversion = rootConversion
+        while (conversion?.kind === 'domain-cast') conversion = conversion.operand
+        const input = definition?.input
+          ? builtinCallables().find((n) => callableIdentity(n) === definition.input)
+          : null
         if (
           call.kind !== 'function' ||
           operands.length !== implementation.args.length ||
@@ -3260,6 +3332,8 @@ export function emitCheckRustEvaluator(
           state = bindPopulate(`json_populate_guard(${state},${ownedOperand(operands[2])},${safe})`)
         }
         state = renderJsonPopulateFields(state, profile, conversion, destination, used)
+        if (rootConversion?.kind === 'domain-cast')
+          state = renderJsonPopulateDomain(state, rootConversion, destination, used)
         callables.add(implementation.rustName)
         const finished = bindPopulate(`make_json_populate_plan(${state})`)
         return { name: bindPopulate(`${implementation.rustName}(${finished})`), type: call.type }

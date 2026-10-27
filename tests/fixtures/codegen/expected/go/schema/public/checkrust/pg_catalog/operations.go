@@ -18495,6 +18495,26 @@ func JsonPopulateBaseCurrent(input *JsonPopulateState) checkruntime.CompositeVal
 func JsonPopulateNestedHard(input *JsonPopulateState) checkruntime.CheckOutcome {
 	return input.Hard
 }
+func JsonPopulateDomainReady(input *JsonPopulateState) bool {
+	return input.Active && input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && input.Position == input.Count
+}
+func JsonPopulateDomainValue(input *JsonPopulateState) checkruntime.CompositeValue {
+	return checkruntime.CopyCompositeValue(input.Output)
+}
+func JsonPopulateAcceptDomain(input JsonPopulateState, output checkruntime.CompositeValue, hard checkruntime.CheckOutcome) JsonPopulateState {
+	if JsonPopulateDomainReady(&input) == false {
+		return input
+	}
+	status := input.Status
+	if output.Kind == checkruntime.CompositeValueError {
+		error := output.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	if output.Kind == checkruntime.CompositeValueUnknown {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	}
+	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: output, Status: status, Hard: JsonPopulateHardError(input.Hard, hard), Position: input.Position, Count: input.Count, Active: input.Active, Convert: input.Convert, Current: input.Current, Utf8: input.Utf8}
+}
 func JsonPopulateAccept(input JsonPopulateState, field checkruntime.ArrayElement, hard checkruntime.CheckOutcome) JsonPopulateState {
 	if JsonPopulateShouldConvert(&input) == false {
 		return input

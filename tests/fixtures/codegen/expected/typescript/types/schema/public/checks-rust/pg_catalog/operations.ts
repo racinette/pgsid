@@ -18609,6 +18609,26 @@ export function jsonPopulateBaseCurrent(input: JsonPopulateState): checkruntime.
 export function jsonPopulateNestedHard(input: JsonPopulateState): checkruntime.CheckOutcome {
     return input.hard;
 }
+export function jsonPopulateDomainReady(input: JsonPopulateState): boolean {
+    return input.active && checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && input.position === input.count;
+}
+export function jsonPopulateDomainValue(input: JsonPopulateState): checkruntime.CompositeValue {
+    return checkruntime.copyCompositeValue(input.output);
+}
+export function jsonPopulateAcceptDomain(input: JsonPopulateState, output: checkruntime.CompositeValue, hard: checkruntime.CheckOutcome): JsonPopulateState {
+    if (jsonPopulateDomainReady(input) === false) {
+        return input;
+    }
+    let status: checkruntime.CheckOutcome = input.status;
+    if (output.kind === "Error") {
+        const error: checkruntime.SqlError = output.value;
+        status = { kind: "Error", value: error };
+    }
+    if (output.kind === "Unknown") {
+        status = { kind: "Unknown" };
+    }
+    return { input: input.input, base: input.base, output: output, status: status, hard: jsonPopulateHardError(input.hard, hard), position: input.position, count: input.count, active: input.active, convert: input.convert, current: input.current, utf8: input.utf8 };
+}
 export function jsonPopulateAccept(input: JsonPopulateState, field: checkruntime.ArrayElement, hard: checkruntime.CheckOutcome): JsonPopulateState {
     if (jsonPopulateShouldConvert(input) === false) {
         return input;
