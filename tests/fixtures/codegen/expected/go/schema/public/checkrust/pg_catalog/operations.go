@@ -45774,6 +45774,23 @@ func SimilarToEscape7txt(pattern checkruntime.TextValue) checkruntime.TextValue 
 func SimilarToEscape9vor(pattern checkruntime.TextValue, escape checkruntime.TextValue) checkruntime.TextValue {
 	return similarPatternValue(pattern, escape)
 }
+func SimilarEscape1s9l(pattern checkruntime.TextValue, escape checkruntime.TextValue) checkruntime.TextValue {
+	if pattern.Kind == checkruntime.TextValueError {
+		error := pattern.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if escape.Kind == checkruntime.TextValueError {
+		error := escape.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return SimilarToEscape7txt(pattern)
+	}
+	return similarPatternValue(pattern, escape)
+}
 
 const sizeBytesParameterError = 3452619
 const sizeBytesNumericSyntaxError = 3484946

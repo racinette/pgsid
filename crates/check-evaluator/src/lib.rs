@@ -353,6 +353,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_quote.rs");
     include!("operations/pg_catalog/text_identifier.rs");
     include!("operations/pg_catalog/text_similar.rs");
+    include!("operations/pg_catalog/text_similar_legacy.rs");
     include!("operations/pg_catalog/text_size_bytes.rs");
     include!("operations/pg_catalog/text_like.rs");
     include!("operations/pg_catalog/text_bool.rs");
