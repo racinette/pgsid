@@ -1,3 +1,4 @@
+import { isTextConcatCallable } from './text-concat-callables.js'
 import {
   isTemporalClockZoneLookup,
   isTemporalInstantConstructor,
@@ -450,6 +451,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       !metadata.returnsSet) ||
     isIdentifierParseCallable(signature) ||
     isIdentifierQuote(metadata) ||
+    isTextConcatCallable(metadata) ||
     isNullableQuote(metadata) ||
     isGenericLiteralQuote(metadata) ||
     isBuiltinRangeConstructor(implementation) ||

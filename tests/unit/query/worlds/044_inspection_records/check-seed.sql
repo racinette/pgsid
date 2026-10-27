@@ -2312,3 +2312,27 @@ INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected
 INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (1,0,NULL,NULL,NULL,NULL,NULL,false);
 -- name: LiteralSkippedError
 INSERT INTO inspection_literal_values(score,denominator,reading,numbers,expected_ratio,expected_reading,expected_numbers,bypass) VALUES (1,0,NULL,NULL,'wrong','wrong','wrong',true);
+-- name: JoinedRawTypeOutputs
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}','|',4,2,'tx  192.0.2.1','t|x  |192.0.2.1','1|2','2',false);
+-- name: JoinedWrongRawTypeOutput
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}','|',4,2,'truex192.0.2.1/32','t|x  |192.0.2.1','1|2','2',false);
+-- name: JoinedWrongSeparatedOutput
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}','|',4,2,'tx  192.0.2.1','wrong','1|2','2',false);
+-- name: JoinedWrongArrayOutput
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}','|',4,2,'tx  192.0.2.1','t|x  |192.0.2.1','1||2','2',false);
+-- name: JoinedWrongRatioOutput
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}','|',4,2,'tx  192.0.2.1','t|x  |192.0.2.1','1|2','wrong',false);
+-- name: JoinedNullArguments
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{NULL,NULL}','|',NULL,0,'','','','',false);
+-- name: JoinedEmptyArray
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{}','|',NULL,0,'','','','',false);
+-- name: JoinedNullArray
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,NULL,'|',NULL,0,'','',NULL,'',false);
+-- name: JoinedArrayDimensions
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (false,'','192.0.2.0/24','[0:1][4:5]={{1,NULL},{3,4}}','|',4,2,'f   192.0.2.0/24','f|   |192.0.2.0/24','1|3|4','2',false);
+-- name: JoinedNullSeparator
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (true,'x','192.0.2.1','{1,NULL,2}',NULL,4,2,'tx  192.0.2.1',NULL,NULL,NULL,false);
+-- name: JoinedNullSeparatorEagerError
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{}',NULL,1,0,'',NULL,NULL,NULL,false);
+-- name: JoinedSkippedError
+INSERT INTO inspection_joined_labels(approved,label,source_address,readings,separator,score,denominator,expected_plain,expected_joined,expected_readings,expected_ratio,bypass) VALUES (NULL,NULL,NULL,'{}',NULL,1,0,'wrong','wrong','wrong','wrong',true);

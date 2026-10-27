@@ -43679,6 +43679,177 @@ export function lowerHcg0(input: checkruntime.TextValue): checkruntime.TextValue
 export function upperValc(input: checkruntime.TextValue): checkruntime.TextValue {
     return textCaseValue(input, 1);
 }
+export interface TextConcatState {
+    readonly status: checkruntime.CheckOutcome;
+    readonly output: string;
+    readonly separator: string;
+    readonly separatorKnown: boolean;
+    readonly length: bigint;
+    readonly printed: boolean;
+    readonly ready: boolean;
+    readonly pendingSeparator: boolean;
+}
+const textConcatLimitError = 8584704;
+const textConcatAllocationError = 56966976;
+export function concatArgumentGuard(previous: checkruntime.BoolValue, nullness: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (previous.kind === "Error") {
+        return previous;
+    }
+    if (nullness.kind === "Error") {
+        return nullness;
+    }
+    return { kind: "Value", value: true };
+}
+export function concatBegin(separator: checkruntime.TextValue, argumentGuard: checkruntime.BoolValue): TextConcatState {
+    let status: checkruntime.CheckOutcome = { kind: "Unknown" };
+    let text: string = "";
+    let known: boolean = false;
+    if (checkruntime.equalTextValue(separator, { kind: "Null" })) {
+        status = { kind: "Null" };
+    }
+    if (checkruntime.equalTextValue(separator, { kind: "NonNull" })) {
+        status = { kind: "True" };
+    }
+    if (separator.kind === "Error") {
+        const error: checkruntime.SqlError = separator.value;
+        status = { kind: "Error", value: error };
+    }
+    if (separator.kind === "Value") {
+        const value: string = langruntime.checkedString(separator.value);
+        text = langruntime.checkedString(value);
+        status = { kind: "True" };
+        known = langruntime.checkedBool(true);
+    }
+    if (argumentGuard.kind === "Error") {
+        const error: checkruntime.SqlError = argumentGuard.value;
+        status = { kind: "Error", value: error };
+    }
+    const output: string = "";
+    return { status: status, output: output, separator: text, separatorKnown: known, length: 0n, printed: false, ready: false, pendingSeparator: false };
+}
+export function concatVariadicBegin(input: TextConcatState, nullness: checkruntime.BoolValue): TextConcatState {
+    let status: checkruntime.CheckOutcome = input.status;
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: true })) {
+            status = { kind: "Null" };
+        }
+        else if (!(checkruntime.equalBoolValue(nullness, { kind: "Value", value: false }))) {
+            status = { kind: "Unknown" };
+        }
+    }
+    return { status: status, output: input.output, separator: input.separator, separatorKnown: input.separatorKnown, length: input.length, printed: input.printed, ready: false, pendingSeparator: false };
+}
+function concatAppend(input: TextConcatState, value: checkruntime.TextValue): TextConcatState {
+    let status: checkruntime.CheckOutcome = input.status;
+    let output: string = input.output;
+    let length: bigint = input.length;
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        status = { kind: "Unknown" };
+        if (value.kind === "Error") {
+            const error: checkruntime.SqlError = value.value;
+            status = { kind: "Error", value: error };
+        }
+        if (value.kind === "Value") {
+            const part: string = langruntime.checkedString(value.value);
+            const size: bigint = textBuildOctets(part);
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, size));
+            if (length >= 1073741823n) {
+                const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+                status = { kind: "Error", value: error };
+            }
+            else {
+                output = output + part;
+                status = { kind: "True" };
+            }
+        }
+    }
+    return { status: status, output: output, separator: input.separator, separatorKnown: input.separatorKnown, length: length, printed: input.printed, ready: input.ready, pendingSeparator: input.pendingSeparator };
+}
+export function concatBeforeArgument(input: TextConcatState, nullness: checkruntime.BoolValue, separatorFirst: boolean): TextConcatState {
+    separatorFirst = langruntime.checkedBool(separatorFirst);
+    let status: checkruntime.CheckOutcome = input.status;
+    let ready: boolean = false;
+    let printed: boolean = input.printed;
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && !(checkruntime.equalBoolValue(nullness, { kind: "Value", value: true }))) {
+        if (!(checkruntime.equalBoolValue(nullness, { kind: "Value", value: false }))) {
+            status = { kind: "Unknown" };
+        }
+        else {
+            ready = langruntime.checkedBool(true);
+            printed = langruntime.checkedBool(true);
+            if (separatorFirst && input.printed && input.separatorKnown === false) {
+                status = { kind: "Unknown" };
+                ready = langruntime.checkedBool(false);
+            }
+        }
+    }
+    const appendSeparator: boolean = ready && input.printed && separatorFirst;
+    const pending: boolean = ready && input.printed && separatorFirst === false;
+    let result: TextConcatState = { status: status, output: input.output, separator: input.separator, separatorKnown: input.separatorKnown, length: input.length, printed: printed, ready: ready, pendingSeparator: pending };
+    if (appendSeparator) {
+        const separator: string = langruntime.checkedString(result.separator);
+        const part: checkruntime.TextValue = { kind: "Value", value: separator };
+        result = concatAppend(result, part);
+    }
+    return result;
+}
+export function concatShouldRender(input: TextConcatState): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && input.ready;
+}
+export function concatAfterArgument(input: TextConcatState, rendered: checkruntime.TextValue): TextConcatState {
+    let state: TextConcatState = input;
+    if (state.pendingSeparator) {
+        if (rendered.kind === "Error") {
+            return concatAppend(state, rendered);
+        }
+        if (checkruntime.equalTextValue(rendered, { kind: "Unknown" }) || checkruntime.equalTextValue(rendered, { kind: "Null" })) {
+            return concatAppend(state, rendered);
+        }
+        if (state.length >= 1073741808n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+            const failed: checkruntime.TextValue = { kind: "Error", value: error };
+            return concatAppend(state, failed);
+        }
+        let separator: checkruntime.TextValue = { kind: "NonNull" };
+        if (state.separatorKnown) {
+            const text: string = langruntime.checkedString(state.separator);
+            separator = { kind: "Value", value: text };
+        }
+        state = concatAppend(state, separator);
+    }
+    return concatAppend(state, rendered);
+}
+export function concatArrayElementNullness(input: checkruntime.ArrayOutputPayload, element: checkruntime.ArrayElement): checkruntime.BoolValue {
+    const nullness: checkruntime.BoolValue = checkruntime.arrayElementBitmap(element);
+    if (checkruntime.equalBoolValue(nullness, { kind: "Unknown" }) && checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
+        return { kind: "Value", value: false };
+    }
+    return nullness;
+}
+function concatFinish(input: TextConcatState): checkruntime.TextValue {
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "True" })) {
+        if (input.length > 1073741819n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatAllocationError);
+            return { kind: "Error", value: error };
+        }
+        return { kind: "Value", value: input.output };
+    }
+    if (checkruntime.equalCheckOutcome(input.status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const status: checkruntime.CheckOutcome = input.status;
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function concatCa4i(input: TextConcatState): checkruntime.TextValue {
+    return concatFinish(input);
+}
+export function concatWsDc5y(input: TextConcatState): checkruntime.TextValue {
+    return concatFinish(input);
+}
 export function quoteLiteralI1gy(input: checkruntime.TextValue): checkruntime.TextValue {
     return quoteLiteralD0rq(input);
 }

@@ -1,3 +1,4 @@
+import { isTextConcatCallable } from './text-concat-callables.js'
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
 import { isNullableQuote, isGenericLiteralQuote } from './literal-quote-callables.js'
@@ -1560,10 +1561,11 @@ const candidate = (
     const operands = fullArgs.map((arg, index) =>
       explicitAny && index === item.args.length - 1
         ? boundType(arg)?.startsWith('array:') ||
-          (isNullCountCallable(item) && isArrayLikeType(boundType(arg)))
+          ((isNullCountCallable(item) || isTextConcatCallable(item)) &&
+            isArrayLikeType(boundType(arg)))
           ? materialize(arg, boundType(arg)!, arg.enum)
           : null
-        : variadicAny
+        : variadicAny && index >= item.args.length - 1
           ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
           : item.args[index] === 'pg_catalog.anycompatiblearray'
             ? coerce(arg, compatibleArray!, definition)
@@ -4087,6 +4089,8 @@ export function bindCatalogCheck(
             type,
             ...(explicit && variadic ? { variadic: true as const } : {}),
             ...([
+              'concat',
+              'concat_ws',
               'json_build_array',
               'jsonb_build_array',
               'json_build_object',
@@ -8583,6 +8587,8 @@ export function bindCatalogCheck(
       resolved.item.kind === 'function' &&
       resolved.item.schema === 'pg_catalog' &&
       [
+        'concat',
+        'concat_ws',
         'to_json',
         'to_jsonb',
         'array_to_json',

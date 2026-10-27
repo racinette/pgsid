@@ -43391,6 +43391,176 @@ func LowerHcg0(input checkruntime.TextValue) checkruntime.TextValue {
 func UpperValc(input checkruntime.TextValue) checkruntime.TextValue {
 	return textCaseValue(input, 1)
 }
+
+type TextConcatState struct {
+	Status           checkruntime.CheckOutcome
+	Output           string
+	Separator        string
+	SeparatorKnown   bool
+	Length           int64
+	Printed          bool
+	Ready            bool
+	PendingSeparator bool
+}
+
+const textConcatLimitError = 8584704
+const textConcatAllocationError = 56966976
+
+func ConcatArgumentGuard(previous checkruntime.BoolValue, nullness checkruntime.BoolValue) checkruntime.BoolValue {
+	if previous.Kind == checkruntime.BoolValueError {
+		return previous
+	}
+	if nullness.Kind == checkruntime.BoolValueError {
+		return nullness
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+}
+func ConcatBegin(separator checkruntime.TextValue, argumentGuard checkruntime.BoolValue) TextConcatState {
+	status := checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	text := langruntime.NewTextBuffer("")
+	known := false
+	if separator == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}
+	}
+	if separator == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+	}
+	if separator.Kind == checkruntime.TextValueError {
+		error := separator.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	if separator.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(separator.Value)
+		text = langruntime.NewTextBuffer(value)
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+		known = true
+	}
+	if argumentGuard.Kind == checkruntime.BoolValueError {
+		error := argumentGuard.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	output := ""
+	return TextConcatState{Status: status, Output: output, Separator: string(text), SeparatorKnown: known, Length: int64(0), Printed: false, Ready: false, PendingSeparator: false}
+}
+func ConcatVariadicBegin(input TextConcatState, nullness checkruntime.BoolValue) TextConcatState {
+	status := input.Status
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}
+		} else if nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
+	}
+	return TextConcatState{Status: status, Output: input.Output, Separator: input.Separator, SeparatorKnown: input.SeparatorKnown, Length: input.Length, Printed: input.Printed, Ready: false, PendingSeparator: false}
+}
+func concatAppend(input TextConcatState, value checkruntime.TextValue) TextConcatState {
+	status := input.Status
+	output := langruntime.NewTextBuffer(input.Output)
+	length := input.Length
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		if value.Kind == checkruntime.TextValueError {
+			error := value.Error
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		}
+		if value.Kind == checkruntime.TextValueValue {
+			part := langruntime.CheckedString(value.Value)
+			size := textBuildOctets(part)
+			length = langruntime.CheckedI64Add(length, size)
+			if length >= int64(1073741823) {
+				error := checkruntime.MakeSqlError(textConcatLimitError)
+				status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+			} else {
+				output = append(output, part...)
+				status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+			}
+		}
+	}
+	return TextConcatState{Status: status, Output: string(output), Separator: input.Separator, SeparatorKnown: input.SeparatorKnown, Length: length, Printed: input.Printed, Ready: input.Ready, PendingSeparator: input.PendingSeparator}
+}
+func ConcatBeforeArgument(input TextConcatState, nullness checkruntime.BoolValue, separatorFirst bool) TextConcatState {
+	status := input.Status
+	ready := false
+	printed := input.Printed
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		if nullness != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		} else {
+			ready = true
+			printed = true
+			if separatorFirst && input.Printed && input.SeparatorKnown == false {
+				status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+				ready = false
+			}
+		}
+	}
+	appendSeparator := ready && input.Printed && separatorFirst
+	pending := ready && input.Printed && separatorFirst == false
+	result := TextConcatState{Status: status, Output: input.Output, Separator: input.Separator, SeparatorKnown: input.SeparatorKnown, Length: input.Length, Printed: printed, Ready: ready, PendingSeparator: pending}
+	if appendSeparator {
+		separator := langruntime.CheckedString(result.Separator)
+		part := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: separator}
+		result = concatAppend(result, part)
+	}
+	return result
+}
+func ConcatShouldRender(input *TextConcatState) bool {
+	return input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && input.Ready
+}
+func ConcatAfterArgument(input TextConcatState, rendered checkruntime.TextValue) TextConcatState {
+	state := input
+	if state.PendingSeparator {
+		if rendered.Kind == checkruntime.TextValueError {
+			return concatAppend(state, rendered)
+		}
+		if rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || rendered == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+			return concatAppend(state, rendered)
+		}
+		if state.Length >= int64(1073741808) {
+			error := checkruntime.MakeSqlError(textConcatLimitError)
+			failed := checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			return concatAppend(state, failed)
+		}
+		separator := checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		if state.SeparatorKnown {
+			text := langruntime.CheckedString(state.Separator)
+			separator = checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+		}
+		state = concatAppend(state, separator)
+	}
+	return concatAppend(state, rendered)
+}
+func ConcatArrayElementNullness(input *checkruntime.ArrayOutputPayload, element checkruntime.ArrayElement) checkruntime.BoolValue {
+	nullness := checkruntime.ArrayElementBitmap(element)
+	if nullness == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) && input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	return nullness
+}
+func concatFinish(input TextConcatState) checkruntime.TextValue {
+	if input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if input.Length > int64(1073741819) {
+			error := checkruntime.MakeSqlError(textConcatAllocationError)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: input.Output}
+	}
+	if input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		error := status.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ConcatCa4i(input TextConcatState) checkruntime.TextValue {
+	return concatFinish(input)
+}
+func ConcatWsDc5y(input TextConcatState) checkruntime.TextValue {
+	return concatFinish(input)
+}
 func QuoteLiteralI1gy(input checkruntime.TextValue) checkruntime.TextValue {
 	return QuoteLiteralD0rq(input)
 }

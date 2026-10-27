@@ -1652,3 +1652,26 @@ CREATE TABLE inspection_captured_paths (
  CONSTRAINT captured_path_regex_value CHECK(CASE WHEN bypass THEN true ELSE
    jsonb_build_array('$.a like_regex "a.b" flag "sxq"'::jsonpath) IS NOT DISTINCT FROM expected_regex END)
 );
+
+CREATE TABLE inspection_joined_labels (
+ approved boolean,
+ label char(3),
+ source_address inet,
+ readings integer[],
+ separator text,
+ score integer,
+ denominator integer,
+ expected_plain text,
+ expected_joined text,
+ expected_readings text,
+ expected_ratio text,
+ bypass boolean NOT NULL,
+ CONSTRAINT joined_raw_outputs CHECK(CASE WHEN bypass THEN true ELSE
+   concat(approved,label,source_address) IS NOT DISTINCT FROM expected_plain END),
+ CONSTRAINT joined_separated_outputs CHECK(CASE WHEN bypass THEN true ELSE
+   concat_ws(separator,approved,label,source_address) IS NOT DISTINCT FROM expected_joined END),
+ CONSTRAINT joined_array_elements CHECK(CASE WHEN bypass THEN true ELSE
+   concat_ws(separator,VARIADIC readings) IS NOT DISTINCT FROM expected_readings END),
+ CONSTRAINT joined_ratio_output CHECK(CASE WHEN bypass THEN true ELSE
+   concat_ws(separator,score/denominator) IS NOT DISTINCT FROM expected_ratio END)
+);

@@ -1,3 +1,4 @@
+import { isTextConcatCallable } from '../../sql-semantics/text-concat-callables.js'
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
 import {
@@ -1240,6 +1241,7 @@ export function emitCheckRustEvaluator(
                 type: 'pg_catalog.text',
                 operand: { kind: 'input', name, type: type as ScalarType },
                 elementType: type.slice(6) as ArrayElementType,
+                ...(definition ? { enum: definition } : {}),
                 output: builtinTypeIO('pg_catalog._int4')!.output!,
               },
           destination,
@@ -2984,6 +2986,92 @@ export function emitCheckRustEvaluator(
         if (folded) return folded
         const name = fresh('nullable_quote')
         destination.push(`let ${name} = ${implementation.rustName}(${ownedOperand(operands[0]!)});`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
+      if (isTextConcatCallable(implementation)) {
+        const fixed = implementation.name === 'concat_ws' ? 1 : 0
+        if (
+          call.kind !== 'function' ||
+          call.type !== implementation.result ||
+          operands.length <= fixed ||
+          (fixed === 1 && operands[0]!.type !== 'pg_catalog.text') ||
+          (call.variadic &&
+            (operands.length !== fixed + 1 || !isArrayLikeType(operands[fixed]!.type)))
+        )
+          throw new UnsupportedCheckRustExpression('Invalid concatenation call')
+        if (folded) return folded
+        const bind = (value: string, label = 'concat_value'): string => {
+          const name = fresh(label)
+          destination.push(`let ${name} = ${value};`)
+          return name
+        }
+        let guard = bind('make_bool_value(true)')
+        const nullness = operands.map((operand) => {
+          const state = bind(
+            `${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)})`,
+          )
+          guard = bind(`concat_argument_guard(${guard}, ${state})`)
+          return state
+        })
+        const separator = bind(fixed ? ownedOperand(operands[0]!) : 'make_text_value("")'),
+          state = fresh('concat_state'),
+          initial = bind(`concat_begin(${separator}, ${guard})`)
+        destination.push(`let mut ${state}: TextConcatState = ${initial};`)
+        const append = (cell: string, type: string, nullness: string, lines: string[]) => {
+          lines.push(
+            `${state} = concat_before_argument(${state}, ${nullness}, ${!call.variadic});`,
+            `if concat_should_render(&${state}) {`,
+          )
+          const rendered: string[] = []
+          let base = arrayElementBaseType(type)
+          while (base.startsWith('array:')) base = arrayElementBaseType(base.slice(6))
+          const definition =
+            call.inputEnums?.find((item) => enumType(item) === base) ?? binaryEnums.get(base)
+          let conversion: string
+          try {
+            conversion = renderTypedOutput(cell, type, rendered, definition)
+          } catch (error) {
+            if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+            rendered.length = 0
+            conversion = 'text_unknown()'
+          }
+          const output = fresh('concat_rendered')
+          rendered.push(
+            `let ${output} = ${conversion};`,
+            `${state} = concat_after_argument(${state}, ${output});`,
+          )
+          lines.push(...indent(rendered), '}')
+        }
+        if (call.variadic) {
+          const operand = operands[fixed]!,
+            payload = bind(`prepare_array_output(${ownedOperand(operand)})`),
+            index = fresh('concat_index'),
+            start = bind('make_int4_value(0)')
+          destination.push(
+            `${state} = concat_variadic_begin(${state}, ${nullness[fixed]});`,
+            `let mut ${index}: Int4Value = ${start};`,
+            `while array_output_has_element(&${payload}, ${index}) {`,
+          )
+          const cell = fresh('concat_element'),
+            bitmap = fresh('concat_nullness'),
+            inner = [
+              `let ${cell} = array_output_element_at(&${payload}, ${index});`,
+              `let ${bitmap} = concat_array_element_nullness(&${payload}, ${cell}.clone());`,
+            ]
+          append(cell, arrayLikeElementType(operand.type)!, bitmap, inner)
+          inner.push(`${index} = array_text_next_index(${index});`)
+          destination.push(...indent(inner), '}')
+        } else {
+          for (const [index, operand] of operands.entries()) {
+            if (index < fixed) continue
+            const cell = bind(
+              `array_element_from_${rustValuePrefix(rustType(operand.type))}(${ownedOperand(operand)})`,
+            )
+            append(cell, operand.type, nullness[index]!, destination)
+          }
+        }
+        const name = bind(`${implementation.rustName}(${state})`)
         callables.add(implementation.rustName)
         return { name, type: call.type }
       }
