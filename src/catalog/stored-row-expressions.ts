@@ -13,7 +13,7 @@ import { storedTextLikeConstant } from './text-like-constant-storage.js'
 import { isGeometryConstantType, storedGeometryConstant } from './geometry-constant-storage.js'
 import { isSystemConstantType, storedSystemConstant } from './system-constant-storage.js'
 import { isSnapshotConstantType, storedSnapshotConstant } from './snapshot-constant-storage.js'
-import { storedJsonpathConstant } from './jsonpath-constant-storage.js'
+import { storedJsonpathValue } from './jsonpath-constant-storage.js'
 import { storedJsonbConstant } from './jsonb-constant-storage.js'
 import { storedContainerConstant } from './container-value-constant-storage.js'
 import { storedTsvectorValue } from './tsvector-constant-storage.js'
@@ -525,8 +525,8 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
         ? undefined
         : typedExpression({ A_Const: { sval: { sval: text } } }, type)
     } else if (type === 'pg_catalog.jsonpath') {
-      const text = storedJsonpathConstant(node, input.byteOrder, input.utf8 === true)
-      return typeof text === 'string' ? { PgsidStoredJsonpath: text } : undefined
+      const value = storedJsonpathValue(node, input.byteOrder, input.utf8 === true)
+      return value ? { PgsidStoredJsonpath: value } : undefined
     } else if (type === 'pg_catalog.bytea' || type === 'pg_catalog.uuid') {
       const storage = storedBinaryConstant(node, type, input.byteOrder)
       return storage ? { PgsidStoredBinary: storage } : undefined

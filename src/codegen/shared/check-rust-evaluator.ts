@@ -1,5 +1,6 @@
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { validAclitemConstantKnowledge } from '../../catalog/aclitem-constant-storage.js'
+import { validJsonpathConstantStorage } from '../../catalog/jsonpath-constant-storage.js'
 import { validTsqueryConstantStorage } from '../../catalog/tsquery-constant-storage.js'
 import { validStoredTsvectorValue } from '../../catalog/tsvector-constant-storage.js'
 import { validTemporalConstantStorage } from '../../catalog/temporal-constant-storage.js'
@@ -7559,6 +7560,18 @@ export function emitCheckRustEvaluator(
         return { name: bind('array_null()'), type: value.type }
       if (value.kind === 'jsonpath') {
         if (value.value === null) return { name: bind('jsonpath_null()'), type: value.type }
+        if (value.storage !== undefined) {
+          if (!validJsonpathConstantStorage(value.storage))
+            throw new UnsupportedCheckRustExpression('Invalid stored JSONPath graph')
+          let payload = bind(
+            `make_stored_jsonpath_payload(${value.storage.lax},${value.storage.root})`,
+          )
+          for (const node of value.storage.nodes.slice(1))
+            payload = bind(
+              `append_stored_jsonpath_node(${payload},${node.kind},${node.next},${node.left},${node.right},${rustStringLiteral(node.text)},${node.first},${node.last},${node.flags})`,
+            )
+          return { name: bind(`make_stored_jsonpath_value(${payload})`), type: value.type }
+        }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         if (value.origin === 'stored')
           return { name: bind(`jsonpath_from_stored_text(${text})`), type: value.type }

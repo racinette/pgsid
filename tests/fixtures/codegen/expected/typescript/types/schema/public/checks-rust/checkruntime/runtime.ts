@@ -7798,6 +7798,44 @@ interface JsonpathBoundaryVisit {
 function copyJsonpathBoundaryVisit(value: JsonpathBoundaryVisit): JsonpathBoundaryVisit {
     return { node: langruntime.checkedIndex(value.node), filters: langruntime.checkedIndex(value.filters), subscript: langruntime.checkedBool(value.subscript), accessor: langruntime.checkedBool(value.accessor), list: langruntime.checkedBool(value.list) };
 }
+export function makeStoredJsonpathPayload(lax: boolean, root: number): JsonpathPayload {
+    lax = langruntime.checkedBool(lax);
+    root = langruntime.checkedI32(root);
+    const characters: string[] = [];
+    let nodes: JsonpathNode[] = [];
+    langruntime.pushStruct(nodes, { kind: 0, next: 0, left: 0, right: 0, textStart: 0, textEnd: 0, first: 0, last: 0, flags: 0 }, copyJsonpathNode);
+    return { characters: characters, nodes: nodes, root: langruntime.indexFromI32(root, 0), lax: lax };
+}
+export function appendStoredJsonpathNode(input: JsonpathPayload, kind: number, next: number, left: number, right: number, text: string, first: number, last: number, flags: number): JsonpathPayload {
+    input = copyJsonpathPayload(input);
+    kind = langruntime.checkedI32(kind);
+    next = langruntime.checkedI32(next);
+    left = langruntime.checkedI32(left);
+    right = langruntime.checkedI32(right);
+    text = langruntime.checkedString(text);
+    first = langruntime.checkedI32(first);
+    last = langruntime.checkedI32(last);
+    flags = langruntime.checkedI32(flags);
+    let characters: string[] = input.characters;
+    let nodes: JsonpathNode[] = input.nodes;
+    let root: number = input.root;
+    if (next < 0 || left < 0 || right < 0) {
+        root = langruntime.checkedIndex(0);
+    }
+    const start: number = characters.length;
+    const source: string[] = Array.from(text);
+    let index: number = 0;
+    while (index < source.length) {
+        langruntime.pushChar(characters, langruntime.indexChar(source, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    langruntime.pushStruct(nodes, { kind: kind, next: langruntime.indexFromI32(next, 0), left: langruntime.indexFromI32(left, 0), right: langruntime.indexFromI32(right, 0), textStart: start, textEnd: characters.length, first: first, last: last, flags: flags }, copyJsonpathNode);
+    return { characters: characters, nodes: nodes, root: root, lax: input.lax };
+}
+export function makeStoredJsonpathValue(input: JsonpathPayload): JsonpathValue {
+    input = copyJsonpathPayload(input);
+    return jsonpathFromCoercedValue({ kind: "Value", value: input });
+}
 export type ArrayElement = {
     readonly kind: "Unknown";
 } | {
