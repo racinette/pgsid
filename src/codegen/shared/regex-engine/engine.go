@@ -152,6 +152,7 @@ const vmAbsoluteEnd = 28
 const vmBoundary = 29
 const vmNotBoundary = 30
 const captureClassRange = 15
+const captureClassLiteral = 16
 const nodeSequence = 16
 const nodeAlternative = 17
 const nodeGroup = 18
@@ -239,6 +240,247 @@ type RegexOptions struct {
 
 func copyRegexOptions(value RegexOptions) RegexOptions {
 	return RegexOptions{Syntax: copySyntax(value.Syntax), CaseSensitive: value.CaseSensitive, Expanded: value.Expanded, Newline: copyNewlineMode(value.Newline)}
+}
+
+type RegexCharacterProfile struct {
+	valid      bool
+	ranges     []int
+	cases      []int
+	rangeSteps []int
+	caseSteps  []int
+}
+
+func copyRegexCharacterProfile(value RegexCharacterProfile) RegexCharacterProfile {
+	return RegexCharacterProfile{valid: value.valid, ranges: checkedIndices(value.ranges), cases: checkedIndices(value.cases), rangeSteps: checkedIndices(value.rangeSteps), caseSteps: checkedIndices(value.caseSteps)}
+}
+func MakeRegexCharacterProfile(ranges []int, cases []int) RegexCharacterProfile {
+	ranges = checkedIndices(ranges)
+	cases = checkedIndices(cases)
+	valid := true
+	position := 0
+	next := 0
+	for valid && position < len(ranges) && checkedSubtract(len(ranges), position) >= 3 {
+		first := ranges[position]
+		last := ranges[checkedAdd(position, 1)]
+		valid = first == next && first <= last && last <= 1114111 && ranges[checkedAdd(position, 2)] < 16384
+		next = checkedIndex(checkedAdd(last, 1))
+		position = checkedAdd(position, 3)
+	}
+	if position != len(ranges) || (len(ranges) > 0 && next != 1114112) {
+		valid = false
+	}
+	if len(ranges) == 0 && len(cases) > 0 {
+		valid = false
+	}
+	position = checkedIndex(0)
+	previous := 0
+	for valid && position < len(cases) && checkedSubtract(len(cases), position) >= 3 {
+		point := cases[position]
+		valid = point <= 1114111 && cases[checkedAdd(position, 1)] <= 1114111 && cases[checkedAdd(position, 2)] <= 1114111
+		if position > 0 && point <= previous {
+			valid = false
+		}
+		previous = checkedIndex(point)
+		position = checkedAdd(position, 3)
+	}
+	if position != len(cases) {
+		valid = false
+	}
+	rangeSteps := []int{}
+	caseSteps := []int{}
+	step := 3
+	for step < len(ranges) {
+		checkedAdd(len(rangeSteps), 1)
+		rangeSteps = append(rangeSteps, checkedIndex(step))
+		step = checkedIndex(checkedAdd(step, step))
+	}
+	step = checkedIndex(3)
+	for step < len(cases) {
+		checkedAdd(len(caseSteps), 1)
+		caseSteps = append(caseSteps, checkedIndex(step))
+		step = checkedIndex(checkedAdd(step, step))
+	}
+	return RegexCharacterProfile{valid: valid, ranges: ranges, cases: cases, rangeSteps: rangeSteps, caseSteps: caseSteps}
+}
+func CompileProfile(pattern string, options RegexOptions, profile RegexCharacterProfile) CompileOutcome {
+	pattern = checkedString(pattern)
+	options = copyRegexOptions(options)
+	profile = copyRegexCharacterProfile(profile)
+	if profile.valid == false {
+		return CompileOutcome{Kind: CompileOutcomeUncertain}
+	}
+	if options.Syntax == (Syntax{Kind: SyntaxLiteral}) && (options.Expanded || options.Newline != (NewlineMode{Kind: NewlineModeOrdinary})) {
+		return CompileOutcome{Kind: CompileOutcomeInvalidPattern}
+	}
+	program := compilePatternSourceProfile(pattern, options, true, profile)
+	if program.limited {
+		return CompileOutcome{Kind: CompileOutcomeUncertain}
+	}
+	if program.valid == false {
+		return CompileOutcome{Kind: CompileOutcomeInvalidPattern}
+	}
+	return CompileOutcome{Kind: CompileOutcomeCompiled, Compiled: program}
+}
+func FindProfile(pattern string, subject string, from int, options RegexOptions, profile RegexCharacterProfile) MatchOutcome {
+	pattern = checkedString(pattern)
+	subject = checkedString(subject)
+	from = checkedIndex(from)
+	options = copyRegexOptions(options)
+	profile = copyRegexCharacterProfile(profile)
+	if profile.valid == false {
+		return MatchOutcome{Kind: MatchOutcomeUncertain}
+	}
+	if options.Syntax == (Syntax{Kind: SyntaxLiteral}) && (options.Expanded || options.Newline != (NewlineMode{Kind: NewlineModeOrdinary})) {
+		return MatchOutcome{Kind: MatchOutcomeInvalidPattern}
+	}
+	program := compilePatternSourceProfile(pattern, options, false, profile)
+	if program.limited {
+		return MatchOutcome{Kind: MatchOutcomeUncertain}
+	}
+	if program.valid == false {
+		return MatchOutcome{Kind: MatchOutcomeInvalidPattern}
+	}
+	return captureMatchOutcome(executeCompiledPattern(&program, subject, from, false, false, false))
+}
+func regexProfileFlag(kind int) int {
+	kind = checkedIndex(kind)
+	if kind == 1 {
+		return 1
+	}
+	if kind == 2 {
+		return 2
+	}
+	if kind == 3 {
+		return 4
+	}
+	if kind == 4 {
+		return 8
+	}
+	if kind == 5 {
+		return 16
+	}
+	if kind == 6 {
+		return 32
+	}
+	if kind == 7 {
+		return 64
+	}
+	if kind == 8 {
+		return 128
+	}
+	if kind == 9 {
+		return 256
+	}
+	if kind == 10 {
+		return 512
+	}
+	if kind == 11 {
+		return 1024
+	}
+	if kind == 12 {
+		return 2048
+	}
+	if kind == 13 {
+		return 4096
+	}
+	return 8192
+}
+func regexProfileClass(program *CompiledRegex, point int, kind int) bool {
+	program = checkedOpaqueBorrow(program)
+	point = checkedIndex(point)
+	kind = checkedIndex(kind)
+	offset := 0
+	index := len(program.characterProfile.rangeSteps)
+	for index > 0 {
+		index = checkedIndex(checkedSubtract(index, 1))
+		candidate := checkedAdd(offset, program.characterProfile.rangeSteps[index])
+		if candidate < len(program.characterProfile.ranges) && program.characterProfile.ranges[candidate] <= point {
+			offset = checkedIndex(candidate)
+		}
+	}
+	mask := program.characterProfile.ranges[checkedAdd(offset, 2)]
+	bit := 14
+	for bit > kind {
+		flag := regexProfileFlag(bit)
+		if mask >= flag {
+			mask = checkedIndex(checkedSubtract(mask, flag))
+		}
+		bit = checkedIndex(checkedSubtract(bit, 1))
+	}
+	return mask >= regexProfileFlag(kind)
+}
+func regexProfileCaseIndex(program *CompiledRegex, point int) int {
+	program = checkedOpaqueBorrow(program)
+	point = checkedIndex(point)
+	size := len(program.characterProfile.cases)
+	if size == 0 {
+		return size
+	}
+	offset := 0
+	index := len(program.characterProfile.caseSteps)
+	for index > 0 {
+		index = checkedIndex(checkedSubtract(index, 1))
+		candidate := checkedAdd(offset, program.characterProfile.caseSteps[index])
+		if candidate < size && program.characterProfile.cases[candidate] <= point {
+			offset = checkedIndex(candidate)
+		}
+	}
+	return offset
+}
+func regexProfileCase(program *CompiledRegex, point int, upper bool) int {
+	program = checkedOpaqueBorrow(program)
+	point = checkedIndex(point)
+	if len(program.characterProfile.ranges) == 0 {
+		if upper && point >= 97 && point <= 122 {
+			return checkedSubtract(point, 32)
+		}
+		if upper == false && point >= 65 && point <= 90 {
+			return checkedAdd(point, 32)
+		}
+		return point
+	}
+	index := regexProfileCaseIndex(program, point)
+	if index < len(program.characterProfile.cases) && program.characterProfile.cases[index] == point {
+		if upper {
+			return program.characterProfile.cases[checkedAdd(index, 2)]
+		}
+		return program.characterProfile.cases[checkedAdd(index, 1)]
+	}
+	return point
+}
+func regexProfileLiteral(program *CompiledRegex, expected int, actual int, sensitive bool) bool {
+	program = checkedOpaqueBorrow(program)
+	expected = checkedIndex(expected)
+	actual = checkedIndex(actual)
+	if sensitive {
+		return expected == actual
+	}
+	return regexProfileCase(program, expected, false) == actual || regexProfileCase(program, expected, true) == actual
+}
+func regexProfileRange(program *CompiledRegex, first int, last int, actual int) bool {
+	program = checkedOpaqueBorrow(program)
+	first = checkedIndex(first)
+	last = checkedIndex(last)
+	actual = checkedIndex(actual)
+	if actual >= first && actual <= last {
+		return true
+	}
+	if len(program.characterProfile.ranges) == 0 {
+		lower := regexProfileCase(program, actual, false)
+		upper := regexProfileCase(program, actual, true)
+		return (lower >= first && lower <= last) || (upper >= first && upper <= last)
+	}
+	index := regexProfileCaseIndex(program, first)
+	if index < len(program.characterProfile.cases) && program.characterProfile.cases[index] < first {
+		index = checkedAdd(index, 3)
+	}
+	for index < len(program.characterProfile.cases) && program.characterProfile.cases[index] <= last {
+		if program.characterProfile.cases[checkedAdd(index, 1)] == actual || program.characterProfile.cases[checkedAdd(index, 2)] == actual {
+			return true
+		}
+		index = checkedAdd(index, 3)
+	}
+	return false
 }
 func Find(pattern string, subject string, from int, options RegexOptions) MatchOutcome {
 	pattern = checkedString(pattern)
@@ -585,6 +827,15 @@ func executeCompiledPattern(program *CompiledRegex, subject string, from int, co
 func compilePatternSource(pattern string, options RegexOptions, capturing bool) CompiledRegex {
 	pattern = checkedString(pattern)
 	options = copyRegexOptions(options)
+	characterRanges := []int{}
+	characterCases := []int{}
+	characterProfile := MakeRegexCharacterProfile(characterRanges, characterCases)
+	return compilePatternSourceProfile(pattern, options, capturing, characterProfile)
+}
+func compilePatternSourceProfile(pattern string, options RegexOptions, capturing bool, characterProfile RegexCharacterProfile) CompiledRegex {
+	pattern = checkedString(pattern)
+	options = copyRegexOptions(options)
+	characterProfile = copyRegexCharacterProfile(characterProfile)
 	syntax := 'a'
 	if options.Syntax == (Syntax{Kind: SyntaxBasic}) {
 		syntax = checkedChar('b')
@@ -594,7 +845,7 @@ func compilePatternSource(pattern string, options RegexOptions, capturing bool) 
 		syntax = checkedChar('q')
 	}
 	parsed := capturePatternSource(pattern, syntax, options.Expanded)
-	return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.CaseSensitive, options.Newline == (NewlineMode{Kind: NewlineModeOrdinary}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}), options.Newline == (NewlineMode{Kind: NewlineModeSensitive}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}))
+	return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.CaseSensitive, options.Newline == (NewlineMode{Kind: NewlineModeOrdinary}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}), options.Newline == (NewlineMode{Kind: NewlineModeSensitive}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}), characterProfile)
 }
 
 type MatchSpan struct {
@@ -681,6 +932,7 @@ func copycaptureInstruction(value captureInstruction) captureInstruction {
 }
 
 type CompiledRegex struct {
+	characterProfile  RegexCharacterProfile
 	valid             bool
 	limited           bool
 	nodes             []captureNode
@@ -706,7 +958,7 @@ type CompiledRegex struct {
 }
 
 func copyCompiledRegex(value CompiledRegex) CompiledRegex {
-	return CompiledRegex{valid: value.valid, limited: value.limited, nodes: checkedStructs(value.nodes, copycaptureNode), root: checkedIndex(value.root), references: checkedIndices(value.references), minimums: checkedIndices(value.minimums), maximums: checkedIndices(value.maximums), firstLiterals: checkedIndices(value.firstLiterals), lastLiterals: checkedIndices(value.lastLiterals), interpreted: value.interpreted, regular: value.regular, prefilter: value.prefilter, instructions: checkedStructs(value.instructions, copycaptureInstruction), classMembers: checkedStructs(value.classMembers, copycaptureClassMember), caseMode: checkedChar(value.caseMode), newlineMode: checkedChar(value.newlineMode), shortest: value.shortest, captures: checkedIndex(value.captures), backreferences: value.backreferences, caseSensitive: value.caseSensitive, dotCrossesNewline: value.dotCrossesNewline, lineAnchors: value.lineAnchors}
+	return CompiledRegex{characterProfile: copyRegexCharacterProfile(value.characterProfile), valid: value.valid, limited: value.limited, nodes: checkedStructs(value.nodes, copycaptureNode), root: checkedIndex(value.root), references: checkedIndices(value.references), minimums: checkedIndices(value.minimums), maximums: checkedIndices(value.maximums), firstLiterals: checkedIndices(value.firstLiterals), lastLiterals: checkedIndices(value.lastLiterals), interpreted: value.interpreted, regular: value.regular, prefilter: value.prefilter, instructions: checkedStructs(value.instructions, copycaptureInstruction), classMembers: checkedStructs(value.classMembers, copycaptureClassMember), caseMode: checkedChar(value.caseMode), newlineMode: checkedChar(value.newlineMode), shortest: value.shortest, captures: checkedIndex(value.captures), backreferences: value.backreferences, caseSensitive: value.caseSensitive, dotCrossesNewline: value.dotCrossesNewline, lineAnchors: value.lineAnchors}
 }
 
 type captureNode struct {
@@ -847,8 +1099,12 @@ func posixClassWidth(kind int) int {
 	}
 	return 11
 }
-func zeroWidthWord(atom rune) bool {
+func zeroWidthWord(atom rune, program *CompiledRegex) bool {
 	atom = checkedChar(atom)
+	program = checkedOpaqueBorrow(program)
+	if len(program.characterProfile.ranges) > 0 {
+		return regexProfileClass(program, checkedIndex((int(checkedChar(atom)))), 14)
+	}
 	codepoint := int(checkedChar(atom))
 	lower := int(checkedChar(asciiLowercase(atom)))
 	return (codepoint >= 48 && codepoint <= 57) || (lower >= 97 && lower <= 122) || atom == '_'
@@ -1525,6 +1781,8 @@ func parseCaptureClass(source []rune, syntax rune, groups int) captureClass {
 		}
 		position = checkedAdd(position, atom.end)
 		upper := atom.value
+		kind := atom.kind
+		ranged := false
 		if checkedSubtract(len(source), position) >= 2 && source[position] == '-' && source[checkedAdd(position, 1)] != ']' {
 			lookahead := []rune{}
 			look := checkedAdd(position, 1)
@@ -1538,16 +1796,50 @@ func parseCaptureClass(source []rune, syntax rune, groups int) captureClass {
 				break
 			}
 			upper = checkedIndex(bound.value)
+			ranged = true
 			position = checkedAdd(position, checkedAdd(1, bound.end))
 		}
+		if kind == captureClassRange && ranged == false {
+			kind = checkedIndex(captureClassLiteral)
+		}
 		checkedAdd(len(members), 1)
-		members = append(members, copycaptureClassMember(captureClassMember{kind: atom.kind, lower: atom.value, upper: upper, complement: atom.complement}))
+		members = append(members, copycaptureClassMember(captureClassMember{kind: kind, lower: atom.value, upper: upper, complement: atom.complement}))
 	}
 	checkedAdd(len(members), 1)
 	members = append(members, copycaptureClassMember(captureClassMember{kind: 0, lower: 0, upper: 0, complement: false}))
 	return captureClass{valid: valid, negated: negated, members: members}
 }
-func captureClassMemberMatches(member captureClassMember, actual rune, sensitive bool) bool {
+func captureClassMemberMatches(member captureClassMember, actual rune, sensitive bool, program *CompiledRegex) bool {
+	member = copycaptureClassMember(member)
+	actual = checkedChar(actual)
+	program = checkedOpaqueBorrow(program)
+	if len(program.characterProfile.ranges) == 0 {
+		selectedKind := member.kind
+		if selectedKind == captureClassLiteral {
+			selectedKind = checkedIndex(captureClassRange)
+		}
+		selected := captureClassMember{kind: selectedKind, lower: member.lower, upper: member.upper, complement: member.complement}
+		return captureClassMemberMatchesAscii(selected, actual, sensitive)
+	}
+	point := checkedIndex((int(checkedChar(actual))))
+	kind := member.kind
+	if sensitive == false && (kind == 3 || kind == 10) {
+		kind = checkedIndex(2)
+	}
+	matched := false
+	if kind == captureClassLiteral {
+		matched = regexProfileLiteral(program, checkedIndex(member.lower), point, sensitive)
+	} else if kind == captureClassRange {
+		matched = point >= checkedIndex(member.lower) && point <= checkedIndex(member.upper)
+		if sensitive == false {
+			matched = regexProfileRange(program, checkedIndex(member.lower), checkedIndex(member.upper), point)
+		}
+	} else {
+		matched = regexProfileClass(program, point, kind)
+	}
+	return matched != member.complement
+}
+func captureClassMemberMatchesAscii(member captureClassMember, actual rune, sensitive bool) bool {
 	member = copycaptureClassMember(member)
 	actual = checkedChar(actual)
 	codepoint := int(checkedChar(actual))
@@ -1805,12 +2097,13 @@ func capturePatternSource(pattern string, syntax rune, expanded bool) captureSou
 	}
 	return captureSource{valid: valid, syntax: syntax, caseMode: caseMode, newlineMode: newlineMode, atoms: atoms, tokenEnds: tokenEnds}
 }
-func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, valid bool, caseMode rune, newlineMode rune, capturing bool, caseSensitive bool, dotCrossesNewline bool, lineAnchors bool) CompiledRegex {
+func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, valid bool, caseMode rune, newlineMode rune, capturing bool, caseSensitive bool, dotCrossesNewline bool, lineAnchors bool, characterProfile RegexCharacterProfile) CompiledRegex {
 	source = checkedChars(source)
 	tokenEnds = checkedIndices(tokenEnds)
 	syntax = checkedChar(syntax)
 	caseMode = checkedChar(caseMode)
 	newlineMode = checkedChar(newlineMode)
+	characterProfile = copyRegexCharacterProfile(characterProfile)
 	limited := false
 	classMembers := []captureClassMember{}
 	nodes := []captureNode{}
@@ -2503,7 +2796,7 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 			valid = false
 		}
 	}
-	return CompiledRegex{valid: valid, limited: limited, nodes: nodes, root: root, references: references, minimums: minimums, maximums: maximums, firstLiterals: firstLiterals, lastLiterals: lastLiterals, interpreted: interpreted, regular: regular, prefilter: prefilter, instructions: instructions, classMembers: classMembers, caseMode: caseMode, newlineMode: newlineMode, shortest: shortest, captures: groups, backreferences: backreferences, caseSensitive: caseSensitive, dotCrossesNewline: dotCrossesNewline, lineAnchors: lineAnchors}
+	return CompiledRegex{characterProfile: characterProfile, valid: valid, limited: limited, nodes: nodes, root: root, references: references, minimums: minimums, maximums: maximums, firstLiterals: firstLiterals, lastLiterals: lastLiterals, interpreted: interpreted, regular: regular, prefilter: prefilter, instructions: instructions, classMembers: classMembers, caseMode: caseMode, newlineMode: newlineMode, shortest: shortest, captures: groups, backreferences: backreferences, caseSensitive: caseSensitive, dotCrossesNewline: dotCrossesNewline, lineAnchors: lineAnchors}
 }
 func makeCaptureDissectFrame(node int, begin int, end int, capture int, prefix bool) captureDissectFrame {
 	node = checkedIndex(node)
@@ -2526,23 +2819,14 @@ func captureRepeatEndpoint(begin int, end int, minimum int, maximum int, shortes
 	}
 	return checkedAdd(begin, width)
 }
-func captureBoundaryMatches(expected int, actual rune, caseSensitive bool) bool {
+func captureBoundaryMatches(expected int, actual rune, caseSensitive bool, program *CompiledRegex) bool {
 	expected = checkedIndex(expected)
 	actual = checkedChar(actual)
+	program = checkedOpaqueBorrow(program)
 	if expected == 0 {
 		return true
 	}
-	actualCode := checkedAdd((checkedIndex((int(checkedChar(actual))))), 1)
-	expectedCode := expected
-	if caseSensitive == false {
-		if actualCode >= 66 && actualCode <= 91 {
-			actualCode = checkedAdd(actualCode, 32)
-		}
-		if expectedCode >= 66 && expectedCode <= 91 {
-			expectedCode = checkedAdd(expectedCode, 32)
-		}
-	}
-	return actualCode == expectedCode
+	return regexProfileLiteral(program, checkedSubtract(expected, 1), checkedIndex((int(checkedChar(actual)))), caseSensitive)
 }
 func executeCaptureTree(program *CompiledRegex, subject string, from int, exactEnd int, exactMatch bool, caseSensitive bool, dotCrossesNewline bool, lineAnchors bool, counting bool, capturing bool, collecting bool, startWork int, batch []MatchSpan, batchMode bool) captureRunResult {
 	program = checkedOpaqueBorrow(program)
@@ -2684,10 +2968,10 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 								}
 								phase = checkedIndex(dissectLeft)
 								possible := true
-								if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive) == false {
+								if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive, program) == false {
 									possible = false
 								}
-								if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive) == false {
+								if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive, program) == false {
 									possible = false
 								}
 								if possible == false {
@@ -2763,8 +3047,8 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 						if node.operation == nodeEmpty {
 							matched = true
 						} else if captureAssertion(node.operation) {
-							before := end > 0 && zeroWidthWord(haystack[checkedSubtract(end, 1)])
-							after := end < len(haystack) && zeroWidthWord(haystack[end])
+							before := end > 0 && zeroWidthWord(haystack[checkedSubtract(end, 1)], program)
+							after := end < len(haystack) && zeroWidthWord(haystack[end], program)
 							previousNewline := end > 0 && haystack[checkedSubtract(end, 1)] == '\n'
 							nextNewline := end < len(haystack) && haystack[end] == '\n'
 							matched = captureAssertionMatches(node.operation, end, len(haystack), before, after, previousNewline, nextNewline, lineAnchors)
@@ -2796,7 +3080,7 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 										work = checkedAdd(work, 1)
 										actual := haystack[checkedAdd(end, offset)]
 										expected := haystack[checkedAdd(register.start, offset)]
-										matched = actual == expected || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(expected))
+										matched = actual == expected || (caseSensitive == false && regexProfileCase(program, checkedIndex((int(checkedChar(actual)))), false) == regexProfileCase(program, checkedIndex((int(checkedChar(expected)))), false))
 										offset = checkedAdd(offset, 1)
 									}
 									if matched {
@@ -2815,7 +3099,7 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 										return captureTreeResult(2, 0, work)
 									}
 									work = checkedAdd(work, 1)
-									if captureClassMemberMatches(program.classMembers[classPosition], haystack[end], caseSensitive) {
+									if captureClassMemberMatches(program.classMembers[classPosition], haystack[end], caseSensitive, program) {
 										included = true
 									}
 									classPosition = checkedAdd(classPosition, 1)
@@ -2828,11 +3112,7 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 							}
 						} else if end < len(haystack) {
 							actual := haystack[end]
-							numericLower := node.group
-							if numericLower >= 65 && numericLower <= 90 {
-								numericLower = checkedAdd(numericLower, 32)
-							}
-							matched = (node.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (node.operation == vmWord && zeroWidthWord(actual)) || (node.operation == vmNumeric && ((checkedIndex((int(checkedChar(actual))))) == node.group || (caseSensitive == false && (checkedIndex((int(checkedChar(asciiLowercase(actual)))))) == numericLower))) || (node.operation == vmLiteral && (actual == node.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(node.atom))))
+							matched = (node.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (node.operation == vmWord && zeroWidthWord(actual, program)) || (node.operation == vmNumeric && regexProfileLiteral(program, node.group, checkedIndex((int(checkedChar(actual)))), caseSensitive)) || (node.operation == vmLiteral && regexProfileLiteral(program, checkedIndex((int(checkedChar(node.atom)))), checkedIndex((int(checkedChar(actual)))), caseSensitive))
 							if matched {
 								end = checkedAdd(end, 1)
 							}
@@ -3013,10 +3293,10 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 							}
 							possible := true
 							if node.operation == nodeSequence {
-								if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive) == false {
+								if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive, program) == false {
 									possible = false
 								}
-								if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive) == false {
+								if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive, program) == false {
 									possible = false
 								}
 							}
@@ -3278,8 +3558,8 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 							nextLen = checkedAdd(nextLen, 1)
 						}
 					} else if captureAssertion(step.operation) {
-						before := position > 0 && zeroWidthWord(haystack[checkedSubtract(position, 1)])
-						after := position < len(haystack) && zeroWidthWord(haystack[position])
+						before := position > 0 && zeroWidthWord(haystack[checkedSubtract(position, 1)], program)
+						after := position < len(haystack) && zeroWidthWord(haystack[position], program)
 						previousNewline := position > 0 && haystack[checkedSubtract(position, 1)] == '\n'
 						nextNewline := position < len(haystack) && haystack[position] == '\n'
 						if captureAssertionMatches(step.operation, position, len(haystack), before, after, previousNewline, nextNewline, lineAnchors) {
@@ -3334,7 +3614,7 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 									return makeCaptureRunResult(2, 0, 0, 0)
 								}
 								work = checkedAdd(work, 1)
-								if captureClassMemberMatches(program.classMembers[classPosition], haystack[position], caseSensitive) {
+								if captureClassMemberMatches(program.classMembers[classPosition], haystack[position], caseSensitive, program) {
 									included = true
 								}
 								classPosition = checkedAdd(classPosition, 1)
@@ -3354,14 +3634,7 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 						}
 					} else if position < len(haystack) {
 						actual := haystack[position]
-						codepoint := int(checkedChar(actual))
-						lowercase := int(checkedChar(asciiLowercase(actual)))
-						word := (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual == '_'
-						numericLower := step.group
-						if numericLower >= 65 && numericLower <= 90 {
-							numericLower = checkedAdd(numericLower, 32)
-						}
-						matched := (step.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (step.operation == vmWord && word) || (step.operation == vmNumeric && (checkedIndex((int(checkedChar(actual)))) == step.group || (caseSensitive == false && checkedIndex((int(checkedChar(asciiLowercase(actual))))) == numericLower))) || (step.operation == vmLiteral && (actual == step.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(step.atom))))
+						matched := (step.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (step.operation == vmWord && zeroWidthWord(actual, program)) || (step.operation == vmNumeric && regexProfileLiteral(program, step.group, checkedIndex((int(checkedChar(actual)))), caseSensitive)) || (step.operation == vmLiteral && regexProfileLiteral(program, checkedIndex((int(checkedChar(step.atom)))), checkedIndex((int(checkedChar(actual)))), caseSensitive))
 						if matched {
 							resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
 							if nextLen == len(next) {

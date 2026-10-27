@@ -1649,3 +1649,37 @@ fn rust_composition_results_match_postgres() {
     }
     assert!(checked > 0);
 }
+
+#[test]
+fn explicit_character_profiles_reject_malformed_facts() {
+    let invalid = [
+        (vec![0], vec![]),
+        (vec![1, 1114111, 0], vec![]),
+        (vec![0, 100, 0, 100, 1114111, 0], vec![]),
+        (vec![0, 1114111, 16384], vec![]),
+        (vec![0, 1114111, 0], vec![97]),
+        (vec![0, 1114111, 0], vec![97, 97, 65, 65, 97, 65]),
+        (vec![0, 1114111, 0], vec![1114112, 0, 0]),
+        (vec![], vec![97, 97, 65]),
+    ];
+    for (ranges, cases) in invalid {
+        assert!(matches!(
+            engine::compile_profile(
+                "a",
+                default_options(),
+                engine::make_regex_character_profile(ranges.clone(), cases.clone()),
+            ),
+            engine::CompileOutcome::Uncertain
+        ));
+        assert!(matches!(
+            engine::find_profile(
+                "a",
+                "a",
+                0,
+                default_options(),
+                engine::make_regex_character_profile(ranges, cases),
+            ),
+            engine::MatchOutcome::Uncertain
+        ));
+    }
+}
