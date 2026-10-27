@@ -364,6 +364,7 @@ export type EvalExpression =
   | {
       kind: 'text-to-bit'
       type: 'pg_catalog."bit"' | 'pg_catalog.varbit'
+      inputModifier?: number
       operand: EvalExpression
     }
   | {
@@ -397,6 +398,7 @@ export type EvalExpression =
       kind: 'call'
       call: SqlCallableExpression
       operands: readonly EvalExpression[]
+      inputConversion?: EvalExpression
       strictNull?: true
     }
   | {

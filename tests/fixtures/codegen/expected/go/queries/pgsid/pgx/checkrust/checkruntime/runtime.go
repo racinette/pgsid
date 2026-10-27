@@ -5562,6 +5562,66 @@ func JsonReadLength(input JsonValue) Int4Value {
 	}
 	return Int4Value{Kind: Int4ValueUnknown}
 }
+func JsonReadInputScalar(input JsonValue, quoted bool, utf8 bool) TextValue {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	if input.Kind == JsonValueNull {
+		return TextValue{Kind: TextValueNull}
+	}
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		if value.Kind == 0 {
+			return TextValue{Kind: TextValueNull}
+		}
+		if value.Kind == 4 {
+			source := jsonSyntaxSource{characters: []rune(value.Source)}
+			token := jsonReadNextToken(&source, 0)
+			decoded := jsonReadDecodeStringContext(&source, token, utf8)
+			if quoted {
+				if decoded.Kind == TextValueValue {
+					text := langruntime.CheckedString(decoded.Value)
+					result := JsonQuoteString(text)
+					return TextValue{Kind: TextValueValue, Value: result}
+				}
+			}
+			return decoded
+		}
+		return TextValue{Kind: TextValueValue, Value: value.Source}
+	}
+	return TextValue{Kind: TextValueUnknown}
+}
+func JsonReadObjectReady(input JsonValue, utf8 bool) CheckOutcome {
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		kind := value.Kind
+		source := JsonValue{Kind: JsonValueValue, Value: value}
+		checked := TextValue{Kind: TextValueNull}
+		if kind == 4 {
+			checked = JsonReadInputScalar(source, false, utf8)
+		} else if kind == 6 {
+			key := MakeTextValue("")
+			checked = JsonReadFieldContext(source, key, false, utf8)
+		}
+		if checked.Kind == TextValueError {
+			error := checked.Error
+			return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+		}
+		if checked == (TextValue{Kind: TextValueUnknown}) || checked == (TextValue{Kind: TextValueNonNull}) {
+			return CheckOutcome{Kind: CheckOutcomeUnknown}
+		}
+		if kind == 6 {
+			return CheckOutcome{Kind: CheckOutcomeTrue}
+		}
+		return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(jsonReadNonArray)}
+	}
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	return CheckOutcome{Kind: CheckOutcomeUnknown}
+}
 func JsonKindText(kind int) TextValue {
 	kind = langruntime.CheckedI32(kind)
 	if kind == 0 {

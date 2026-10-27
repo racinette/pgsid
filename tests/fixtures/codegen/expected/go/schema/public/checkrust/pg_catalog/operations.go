@@ -5369,6 +5369,49 @@ func SetBit2mfa(input checkruntime.BitValue, position checkruntime.Int4Value, re
 	}
 	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
 }
+func BitFromTextModifier(input checkruntime.TextValue, width int, varying bool, utf8 bool) checkruntime.BitValue {
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		index := 0
+		for index < len(characters) {
+			character := int(langruntime.CheckedChar(characters[index]))
+			if character > 127 && utf8 == false {
+				return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		length := textBuildOctets(value)
+		hexadecimal := false
+		if len(characters) > 0 {
+			first := characters[0]
+			if first == 'b' || first == 'B' || first == 'x' || first == 'X' {
+				length = langruntime.CheckedI64Subtract(length, int64(1))
+			}
+			if first == 'x' || first == 'X' {
+				hexadecimal = true
+			}
+		}
+		if hexadecimal {
+			maximum := int64(langruntime.CheckedI32(bitMaxLength))
+			if length > langruntime.CheckedI64Divide(maximum, int64(4)) {
+				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitProgramLimitExceeded)}
+			}
+			length = langruntime.CheckedI64Multiply(length, int64(4))
+		}
+		requested := int64(langruntime.CheckedI32(width))
+		if width > 0 {
+			if varying && length > requested {
+				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringRightTruncation)}
+			}
+			if varying == false && length != requested {
+				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringLengthMismatch)}
+			}
+		}
+		return checkruntime.BitFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value})
+	}
+	return checkruntime.BitFromText(input)
+}
 func bitIntegerEncode(input int64, requested int) string {
 	requested = langruntime.CheckedI32(requested)
 	width := requested
@@ -17859,6 +17902,361 @@ func JsonbObjectTmdc(keys checkruntime.ArrayValue, values checkruntime.ArrayValu
 	values = checkruntime.CopyArrayValue(values)
 	object := JsonObjectKatl(keys, values)
 	return jsonObjectArrayToJsonb(object)
+}
+
+const jsonPopulateObjectError = 3452619
+const jsonPopulateArrayError = 3484946
+const jsonPopulateCalendarError = 3452551
+
+func JsonPopulateKind(input checkruntime.JsonbInput) int {
+	if input.Kind == checkruntime.JsonbInputJson {
+		value := input.Json
+		return value.Kind
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		return value.Nodes[value.Root].Kind
+	}
+	if input.Kind == checkruntime.JsonbInputNull {
+		return langruntime.CheckedSignedNegate(2)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func JsonPopulateText(input checkruntime.JsonbInput, quoted bool, utf8 bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonbInputError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonbInputJson {
+		value := input.Json
+		return checkruntime.JsonReadInputScalar(checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value}, quoted, utf8)
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		kind := value.Nodes[value.Root].Kind
+		if kind == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		scalar := checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}
+		if quoted {
+			return JsonbTextContext(scalar, utf8)
+		}
+		return jsonbExtractText(scalar, utf8)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonPopulateJsonb(input checkruntime.JsonbInput, utf8 bool) checkruntime.JsonbValue {
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		if value.Nodes[value.Root].Kind == 0 {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+		}
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}
+	}
+	text := JsonPopulateText(input, true, utf8)
+	return checkruntime.JsonbFromTextContext(text, utf8)
+}
+func JsonPopulateScalarText(input checkruntime.JsonbInput, quoted bool, container int, calendar bool, utf8 bool) checkruntime.TextValue {
+	kind := JsonPopulateKind(checkruntime.CopyJsonbInput(input))
+	if calendar && (kind == 5 || kind == 6) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonPopulateCalendarError)}
+	}
+	if kind >= 0 && kind != 0 && kind != 4 && container > 0 {
+		if (container == 1 && kind != 5) || (container == 2 && kind != 6) {
+			state := jsonPopulateArrayError
+			if container == 2 {
+				state = langruntime.CheckedIndex(jsonPopulateObjectError)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(state)}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	return JsonPopulateText(input, quoted, utf8)
+}
+func JsonPopulateHardError(input checkruntime.CheckOutcome, result checkruntime.CheckOutcome) checkruntime.CheckOutcome {
+	if input.Kind == checkruntime.CheckOutcomeError {
+		return input
+	}
+	if result.Kind == checkruntime.CheckOutcomeError {
+		return result
+	}
+	return input
+}
+func JsonPopulateBeginHard() checkruntime.CheckOutcome {
+	return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+}
+func JsonPopulateUnavailable(input checkruntime.JsonbInput, domain bool) checkruntime.ArrayElement {
+	kind := JsonPopulateKind(checkruntime.CopyJsonbInput(input))
+	if domain == false && (kind == 0 || kind == langruntime.CheckedSignedNegate(2)) {
+		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+
+type JsonPopulateState struct {
+	Input    checkruntime.JsonbInput
+	Base     checkruntime.CompositeValue
+	Output   checkruntime.CompositeValue
+	Status   checkruntime.CheckOutcome
+	Hard     checkruntime.CheckOutcome
+	Position int
+	Count    int
+	Active   bool
+	Convert  bool
+	Current  checkruntime.JsonbInput
+	Utf8     bool
+}
+
+func copyJsonPopulateState(value JsonPopulateState) JsonPopulateState {
+	return JsonPopulateState{Input: checkruntime.CopyJsonbInput(value.Input), Base: checkruntime.CopyCompositeValue(value.Base), Output: checkruntime.CopyCompositeValue(value.Output), Status: value.Status, Hard: value.Hard, Position: langruntime.CheckedI32(value.Position), Count: langruntime.CheckedI32(value.Count), Active: value.Active, Convert: value.Convert, Current: checkruntime.CopyJsonbInput(value.Current), Utf8: value.Utf8}
+}
+
+type JsonPopulatePlanKind uint8
+
+const (
+	JsonPopulatePlanValue JsonPopulatePlanKind = iota
+)
+
+type JsonPopulatePlan struct {
+	Kind  JsonPopulatePlanKind
+	Value JsonPopulateState
+}
+
+func copyJsonPopulatePlan(value JsonPopulatePlan) JsonPopulatePlan {
+	switch value.Kind {
+	case JsonPopulatePlanValue:
+		return JsonPopulatePlan{Kind: JsonPopulatePlanValue, Value: copyJsonPopulateState(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func MakeJsonPopulatePlan(input JsonPopulateState) JsonPopulatePlan {
+	return JsonPopulatePlan{Kind: JsonPopulatePlanValue, Value: input}
+}
+func PrepareJsonPopulate(base checkruntime.CompositeValue, input checkruntime.JsonbInput, typeName string, count int, utf8 bool) JsonPopulateState {
+	expected := langruntime.IndexFromI32(count, 0)
+	status := checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+	hard := checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+	active := true
+	output := checkruntime.MakeCompositeFields(typeName)
+	if base.Kind == checkruntime.CompositeValueError {
+		error := base.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if input.Kind == checkruntime.JsonbInputError {
+			error := input.Error
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		}
+	}
+	if status.Kind == checkruntime.CheckOutcomeError {
+		hard = status
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if base.Kind == checkruntime.CompositeValueUnknown {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
+		if input.Kind == checkruntime.JsonbInputUnknown {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if input.Kind == checkruntime.JsonbInputNull {
+			output = checkruntime.CopyCompositeValue(checkruntime.CopyCompositeValue(base))
+			active = false
+		}
+		if active {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			rawSource := checkruntime.CopyJsonbInput(input)
+			if rawSource.Kind == checkruntime.JsonbInputJson {
+				value := rawSource.Json
+				status = checkruntime.JsonReadObjectReady(checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value}, utf8)
+			}
+			binarySource := checkruntime.CopyJsonbInput(input)
+			if binarySource.Kind == checkruntime.JsonbInputJsonb {
+				value := checkruntime.CopyJsonbPayload(binarySource.Jsonb)
+				status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+				if value.Nodes[value.Root].Kind != 6 {
+					status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: checkruntime.MakeSqlError(jsonPopulateObjectError)}
+				}
+			}
+		}
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && active {
+		source := checkruntime.CopyCompositeValue(base)
+		if source.Kind == checkruntime.CompositeValueValue {
+			value := checkruntime.CopyCompositePayload(source.Value)
+			if value.TypeName != typeName || len(value.Fields) != expected || count < 0 {
+				status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+			}
+		}
+	}
+	return JsonPopulateState{Input: input, Base: base, Output: output, Status: status, Hard: hard, Position: 0, Count: count, Active: active, Convert: false, Current: checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}, Utf8: utf8}
+}
+func JsonPopulateSelect(input JsonPopulateState, name string) JsonPopulateState {
+	if input.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) || input.Active == false {
+		return input
+	}
+	current := checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+	status := input.Status
+	key := checkruntime.MakeTextValue(name)
+	rawSource := checkruntime.CopyJsonbInput(input.Input)
+	if rawSource.Kind == checkruntime.JsonbInputJson {
+		value := rawSource.Json
+		selected := checkruntime.JsonReadFieldContext(checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value}, key, false, input.Utf8)
+		if selected.Kind == checkruntime.TextValueNull {
+			current = checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull})
+		}
+		if selected.Kind == checkruntime.TextValueError {
+			error := selected.Error
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		}
+		if selected.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(selected.Value)
+			value := checkruntime.MakeJsonValue(text)
+			current = checkruntime.CopyJsonbInput(checkruntime.JsonbInputFromJson(value))
+		}
+	}
+	binarySource := checkruntime.CopyJsonbInput(input.Input)
+	if binarySource.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(binarySource.Jsonb)
+		selected := JsonbObjectField4uf3(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}, key)
+		current = checkruntime.CopyJsonbInput(checkruntime.JsonbInputFromJsonb(selected))
+	}
+	found := true
+	if current.Kind == checkruntime.JsonbInputNull {
+		found = false
+	}
+	convert := true
+	output := input.Output
+	position := input.Position
+	if found == false {
+		base := checkruntime.CopyCompositeValue(input.Base)
+		if base.Kind == checkruntime.CompositeValueValue {
+			index := checkruntime.MakeInt4Value(position)
+			field := checkruntime.CompositeFieldAt(checkruntime.CopyCompositeValue(input.Base), index)
+			output = checkruntime.CopyCompositeValue(checkruntime.AppendCompositeField(output, field))
+			position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+			convert = false
+		}
+	}
+	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: output, Status: status, Hard: input.Hard, Position: position, Count: input.Count, Active: input.Active, Convert: convert, Current: current, Utf8: input.Utf8}
+}
+func JsonPopulateShouldConvert(input *JsonPopulateState) bool {
+	return input.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) && input.Active && input.Convert
+}
+func JsonPopulateCurrent(input *JsonPopulateState) checkruntime.JsonbInput {
+	return checkruntime.CopyJsonbInput(input.Current)
+}
+func JsonPopulateAccept(input JsonPopulateState, field checkruntime.ArrayElement, hard checkruntime.CheckOutcome) JsonPopulateState {
+	if JsonPopulateShouldConvert(&input) == false {
+		return input
+	}
+	status := input.Status
+	output := input.Output
+	position := input.Position
+	if field.Kind == checkruntime.ArrayElementError {
+		error := field.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		if field.Kind == checkruntime.ArrayElementUnknown {
+			status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
+	}
+	if status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		output = checkruntime.CopyCompositeValue(checkruntime.AppendCompositeField(output, field))
+		position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+	}
+	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: output, Status: status, Hard: JsonPopulateHardError(input.Hard, hard), Position: position, Count: input.Count, Active: input.Active, Convert: false, Current: input.Current, Utf8: input.Utf8}
+}
+func finishJsonPopulate(input JsonPopulateState) checkruntime.CompositeValue {
+	input = copyJsonPopulateState(input)
+	hard := input.Hard
+	if hard.Kind == checkruntime.CheckOutcomeError {
+		error := hard.Error
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: error}
+	}
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		error := status.Error
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueError, Error: error}
+	}
+	if input.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+	}
+	if input.Active && input.Position != input.Count {
+		return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+	}
+	return input.Output
+}
+func JsonPopulateGuard(input JsonPopulateState, flag checkruntime.BoolValue, safe bool) JsonPopulateState {
+	initial := input.Hard
+	if initial.Kind == checkruntime.CheckOutcomeError {
+		return input
+	}
+	status := input.Status
+	hard := input.Hard
+	if flag.Kind == checkruntime.BoolValueError {
+		error := flag.Error
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+		hard = status
+	}
+	if safe == false && flag == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		status = checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	}
+	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: input.Output, Status: status, Hard: hard, Position: input.Position, Count: input.Count, Active: input.Active, Convert: input.Convert, Current: input.Current, Utf8: input.Utf8}
+}
+func JsonPopulateRecordQo9b(input JsonPopulatePlan) checkruntime.CompositeValue {
+	input = copyJsonPopulatePlan(input)
+	if input.Kind == JsonPopulatePlanValue {
+		value := copyJsonPopulateState(input.Value)
+		return finishJsonPopulate(value)
+	}
+	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+}
+func JsonbPopulateRecordF6m5(input JsonPopulatePlan) checkruntime.CompositeValue {
+	input = copyJsonPopulatePlan(input)
+	if input.Kind == JsonPopulatePlanValue {
+		value := copyJsonPopulateState(input.Value)
+		return finishJsonPopulate(value)
+	}
+	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
+}
+func finishJsonPopulateValid(input JsonPopulateState) checkruntime.BoolValue {
+	input = copyJsonPopulateState(input)
+	hard := input.Hard
+	if hard.Kind == checkruntime.CheckOutcomeError {
+		error := hard.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	status := input.Status
+	if status.Kind == checkruntime.CheckOutcomeError {
+		return checkruntime.MakeBoolValue(false)
+	}
+	if input.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Active && input.Position != input.Count {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Active == false {
+		output := input.Output
+		if output.Kind == checkruntime.CompositeValueNull {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func JsonbPopulateRecordValidRd7k(input JsonPopulatePlan) checkruntime.BoolValue {
+	input = copyJsonPopulatePlan(input)
+	if input.Kind == JsonPopulatePlanValue {
+		value := copyJsonPopulateState(input.Value)
+		return finishJsonPopulateValid(value)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 
 type jsonbArrayFrame struct {
