@@ -2272,3 +2272,24 @@ INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denomina
 INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,NULL,NULL,NULL,NULL,0,0,0,0,0,0,0,false);
 -- name: NullCountsSkippedError
 INSERT INTO inspection_null_counts(score,label,reading,readings,numbers,denominator,expected_nulls,expected_nonnulls,expected_array_nulls,expected_array_nonnulls,expected_row_array_nulls,expected_row_array_nonnulls,bypass) VALUES (1,NULL,NULL,NULL,NULL,0,0,0,0,0,0,0,true);
+
+-- name: QuotedValues
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('a''b',ROW(NULL,NULL,NULL),'{1,NULL,2}',4,2,'''a''''b''','''(,,)''','''{1,NULL,2}''','''2''',false);
+-- name: QuotedWrongLabel
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('a''b',ROW(NULL,NULL,NULL),'{1,NULL,2}',4,2,'wrong','''(,,)''','''{1,NULL,2}''','''2''',false);
+-- name: QuotedWrongReading
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('a''b',ROW(NULL,NULL,NULL),'{1,NULL,2}',4,2,'''a''''b''','wrong','''{1,NULL,2}''','''2''',false);
+-- name: QuotedWrongNumbers
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('a''b',ROW(NULL,NULL,NULL),'{1,NULL,2}',4,2,'''a''''b''','''(,,)''','wrong','''2''',false);
+-- name: QuotedWrongRatio
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('a''b',ROW(NULL,NULL,NULL),'{1,NULL,2}',4,2,'''a''''b''','''(,,)''','''{1,NULL,2}''','wrong',false);
+-- name: QuotedNullDatums
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,NULL,NULL,0,'NULL','NULL','NULL','NULL',false);
+-- name: QuotedEmptyAndRowNullFields
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES ('',ROW(NULL,NULL,NULL),'{}',NULL,0,'''''','''(,,)''','''{}''','NULL',false);
+-- name: QuotedArrayBounds
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,'[-1:0]={1,NULL}',0,1,'NULL','NULL','''[-1:0]={1,NULL}''','''0''',false);
+-- name: QuotedReachedError
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,NULL,1,0,'NULL','NULL','NULL','unused',false);
+-- name: QuotedSkippedError
+INSERT INTO inspection_quoted_values(label,reading,numbers,score,denominator,expected_label,expected_reading,expected_numbers,expected_ratio,bypass) VALUES (NULL,NULL,NULL,1,0,NULL,NULL,NULL,NULL,true);

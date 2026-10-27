@@ -76,7 +76,7 @@ unexercised cases explicitly rather than treating them as passes.
 - [x] Share handled and deferred temporal input-form cases between their parity suites and the coercion report, retaining the executing owner of each list.
 - [x] Expand temporal text parsing in bounded, independently testable slices, including SQL date/instant templates with permissive separators, partial-input defaults, Gregorian/ISO calendars, precision, abbreviation prefixes and conditional locale/encoding/timezone context; verify `tests/sql-semantics/check-datetime-templates.test.ts`.
 - [x] Assess precision modifiers, assignment coercion, and raw query-parameter conversion separately from already SQL-coerced row inputs.
-- [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability.
+- [ ] Verify casts through catalog links, including domains and mixed-type expressions, without selecting overloads by implementation availability. Consider catalog-declared implicit conversions before ranking declared exact matches and preferred targets within the source type category; preserve native internal-char ambiguity and name-to-text preference with `tests/sql-semantics/check-nullable-quote.test.ts`, plus integer-promotion, native variadic and JSONB-builder regressions.
 
 Done per slice when supported forms have Rust/Go/TypeScript/PostgreSQL parity, unsupported forms remain distinguishable, and the public input contract is explicit. Do not use target-native date or numeric parsers to supply SQL behavior.
 
@@ -97,7 +97,7 @@ Done when required context is explicit and shared Rust owns behavior across targ
 
 ## Assess excluded callable categories
 
-- [ ] Review non-strict scalar functions on represented types individually. Admit `num_nulls` and `num_nonnulls` through datum nullness and generic expanded/VARIADIC inputs, including catalog vectors, partial non-NULL arrays, composite datums, ordered errors and skipped branches; verify `tests/sql-semantics/check-null-count.test.ts` and inspection-record world INSERTs. Other non-strict callable families remain open.
+- [ ] Review non-strict scalar functions on represented types individually. Admit `num_nulls` and `num_nonnulls` through datum nullness and generic expanded/VARIADIC inputs, including catalog vectors, partial non-NULL arrays, composite datums, ordered errors and skipped branches; verify `tests/sql-semantics/check-null-count.test.ts`. Admit both `quote_nullable` overloads through selected explicit text casts and existing scalar/container output policies; capture custom cast identities/strictness, defer unavailable bodies, preserve strict NULL casts and later catalog changes, and verify `tests/sql-semantics/check-nullable-quote.test.ts` plus inspection-record world INSERTs. Other non-strict callable families remain open.
 - [ ] Separate stable functions with explicit portable context from functions that require database state; assess volatile functions independently. Temporal clocks, one-argument calendar age, lifecycle/replay/commit timestamps and statistics have native-tested transaction, statement, invocation or database-state requirements in `tests/sql-semantics/check-temporal-runtime.test.ts`; reached calls remain deferred independently of skipped branches. Context-independent native NULL/infinity facts for unimplemented wrappers remain implementation work.
 - [ ] Assess custom-schema functions and source-module setup as a separate slice.
 

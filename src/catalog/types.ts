@@ -732,6 +732,7 @@ export interface CompositeTypeDefinition {
   receive: string | null
   send: string | null
   jsonCast?: string | null
+  textCast?: { method: 'f' | 'i' | 'b'; function: string | null; strict: boolean | null } | null
   comparison?: {
     btreeClass: string | null
     hashClass: string | null

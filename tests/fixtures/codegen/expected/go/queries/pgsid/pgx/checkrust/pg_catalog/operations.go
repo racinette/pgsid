@@ -43830,6 +43830,15 @@ func OctetLength9hmr(value checkruntime.TextValue) checkruntime.Int4Value {
 func Textlen2bvv(value checkruntime.TextValue) checkruntime.Int4Value {
 	return textMeasureValue(value, false, 0)
 }
+func QuoteNullableXaua(input checkruntime.TextValue) checkruntime.TextValue {
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "NULL"}
+	}
+	return QuoteLiteralD0rq(input)
+}
+func QuoteNullableX3ga(input checkruntime.TextValue) checkruntime.TextValue {
+	return QuoteNullableXaua(input)
+}
 func BpcharLargerClri(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
 	compared := textBinaryCompare(left, right, true)
 	if compared.Kind == checkruntime.Int4ValueError {

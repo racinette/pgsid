@@ -1,5 +1,6 @@
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
+import { isNullableQuote } from './nullable-quote-callables.js'
 import { validJsonpathConstantStorage } from '../catalog/jsonpath-constant-storage.js'
 import type { TsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
 import { validTsqueryConstantStorage } from '../catalog/tsquery-constant-storage.js'
@@ -1556,9 +1557,6 @@ const candidate = (
           )))
     )
       return []
-    const concreteArrayParameters = item.args.some((type) =>
-      catalogScalarType(type)?.startsWith('array:'),
-    )
     const operands = fullArgs.map((arg, index) =>
       explicitAny && index === item.args.length - 1
         ? boundType(arg)?.startsWith('array:') ||
@@ -1587,7 +1585,7 @@ const candidate = (
                           ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
                           : isIntegerType(item.args[index]!)
                             ? materializeInteger(arg, item.args[index]! as ScalarType)
-                            : concreteArrayParameters && catalogScalarType(item.args[index]!)
+                            : catalogScalarType(item.args[index]!)
                               ? implicitOperand(
                                   arg,
                                   catalogScalarType(item.args[index]!)!,
@@ -1637,7 +1635,7 @@ const candidate = (
         ]
       : []
   })
-  const matches = expandedMatches.filter(
+  let matches = expandedMatches.filter(
     ({ item, matchingArgs }) =>
       item.kind !== 'function' ||
       item.variadic === null ||
@@ -1663,6 +1661,28 @@ const candidate = (
       .every((type, index) => (catalogScalarType(type) ?? type) === types[index]),
   )
   if (exact.length === 1) return exact[0]!
+  if (matches.length < 2) return matches[0] ?? null
+  for (const preferred of [false, true]) {
+    const score = (candidate: (typeof matches)[number]): number =>
+      types.reduce((count, source, index) => {
+        if (source === null) return count
+        const declared = (candidate.matchingArgs ?? candidate.item.args)[index]
+        if (declared === undefined) return count
+        const target = catalogScalarType(declared) ?? declared
+        if (source === target) return count + 1
+        const input = builtinTypeResolution(source),
+          output = builtinTypeResolution(declared)
+        return (
+          count +
+          Number(
+            preferred && input !== null && output?.category === input.category && output.preferred,
+          )
+        )
+      }, 0)
+    const best = Math.max(0, ...matches.map(score))
+    matches = matches.filter((candidate) => score(candidate) === best)
+    if (matches.length === 1) return matches[0]!
+  }
   if (kind === 'operator' && args.length === 2) {
     const known = types.filter((type) => type !== null)
     if (known.length === 1 && args.some((arg, index) => types[index] === null && arg.literal)) {
@@ -2958,6 +2978,67 @@ export function bindCatalogCheck(
   let storedArguments: ((index: number) => Bound) | undefined
   let storedCaseTest: Bound | undefined
   let nextCaseBinding = 0
+  const nullableQuoteArgument = (raw: unknown, operand: Bound): Bound => {
+    const source = boundType(operand)
+    if (!source || !operand.value) return unknown
+    const native = elementTypeName(source as ScalarType),
+      names = strings(native['names'])
+    let definition = compositeGraph?.definitions.find(
+      (d) => names?.length === 2 && d.schema === names[0] && d.name === names[1],
+    )
+    if (Array.isArray(native['arrayBounds']) && native['arrayBounds'].length)
+      definition = compositeGraph?.definitions.find((d) => d.identity === definition?.array)
+    const seen = new Set<string>()
+    while (definition?.kind === 'd' && definition.base && !seen.has(definition.identity)) {
+      seen.add(definition.identity)
+      definition = compositeGraph?.definitions.find((d) => d.identity === definition?.base)
+    }
+    const selected = definition?.textCast
+    const ordinary = builtinCast(source, 'pg_catalog.text')
+    const unavailable =
+      (selected === undefined &&
+        !source.startsWith('pg_catalog.') &&
+        !anonymousRecordProfile(source)) ||
+      (selected &&
+        ((selected.method === 'b' && ordinary?.method !== 'b') ||
+          (selected.method === 'f' && selected.function !== ordinary?.implementation)))
+    if (unavailable) {
+      const absent: EvalExpression = { kind: 'uncertain', type: 'pg_catalog.text' }
+      return {
+        type: 'pg_catalog.text',
+        collation: defaultCollation,
+        value: {
+          kind: 'case',
+          type: 'pg_catalog.text',
+          branches: [
+            {
+              when: {
+                kind: 'null-test',
+                type: 'pg_catalog.bool',
+                operand: operand.value,
+                negated: false,
+                datum: true,
+              },
+              then:
+                selected?.strict === true
+                  ? {
+                      kind: 'certain',
+                      expression: { kind: 'text', type: 'pg_catalog.text', value: null },
+                    }
+                  : absent,
+            },
+          ],
+          otherwise: absent,
+        },
+      }
+    }
+    return bind({
+      TypeCast: {
+        arg: raw,
+        typeName: { names: ['pg_catalog', 'text'].map((sval) => ({ String: { sval } })) },
+      },
+    })
+  }
   const bind = (
     node: unknown,
     expectedType?: ScalarType,
@@ -3938,6 +4019,11 @@ export function bindCatalogCheck(
             ))
       )
         return unknown
+      const quoteArgument =
+        isNullableQuote(selected.item) && selected.item.args[0] === 'pg_catalog.anyelement'
+          ? nullableQuoteArgument(nodes[0], args[0]!)
+          : undefined
+      if (quoteArgument && !quoteArgument.value) return unknown
       return {
         ...carrier!,
         type,
@@ -3970,7 +4056,7 @@ export function bindCatalogCheck(
             ...callDefaultCollation(selected.signature, collation ?? undefined),
             ...((resolved?.enum ?? carrier?.enum) ? { enum: resolved?.enum ?? carrier?.enum } : {}),
           },
-          operands: args.map((arg) => arg.value!),
+          operands: quoteArgument ? [quoteArgument.value!] : args.map((arg) => arg.value!),
         },
       }
     }
@@ -8431,6 +8517,11 @@ export function bindCatalogCheck(
         ? enumType(resolved.enum!)
         : (catalogScalarType(resolved.item.result) ?? (resolved.item.result as ScalarType)))
     const collation = resolved.collation
+    const quoteArgument =
+      isNullableQuote(resolved.item) && resolved.item.args[0] === 'pg_catalog.anyelement'
+        ? nullableQuoteArgument(nodes[0], { ...args[0]!, value: resolved.operands[0]! })
+        : undefined
+    if (quoteArgument && !quoteArgument.value) return unknown
     const outputEnum =
       resolved.item.schema === 'pg_catalog' && resolved.item.name === 'array_to_string'
         ? arrayOutputEnum(boundType(args[0]!) ?? '')
@@ -8487,7 +8578,7 @@ export function bindCatalogCheck(
           collation: collation?.kind,
           ...callDefaultCollation(resolved.signature, collation),
         },
-        operands: resolved.operands,
+        operands: quoteArgument ? [quoteArgument.value!] : resolved.operands,
       },
     }
   }
