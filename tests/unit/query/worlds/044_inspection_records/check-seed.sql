@@ -2424,3 +2424,29 @@ INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALU
 INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('[]','[]',NULL,false);
 -- name: JsonRecordSkippedErrors
 INSERT INTO inspection_json_records(data,raw_data,expected_quantity,bypass) VALUES ('{"quantity":"bad"}','{"quantity":"bad"}',NULL,true);
+-- name: JsonRecordMultidimensionalArray
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[[1,2],[3,4]],"labels":["ok","xy"],"flags":["b10","B01"]}','{"readings":[[1,2],[3,4]],"labels":["ok","xy"],"flags":["b10","B01"]}','{{1,2},{3,4}}',false);
+-- name: JsonRecordEmptyArrayDimensions
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[[],[]]}','{"readings":[[],[]]}','{}',false);
+-- name: JsonRecordMissingArrayDefaults
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{}','{}','[0:0]={9}',false);
+-- name: JsonRecordExplicitNullArray
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":null}','{"readings":null}',NULL,false);
+-- name: JsonRecordNullArrayArguments
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES (NULL,NULL,'[0:0]={9}',false);
+-- name: JsonRecordArrayNullElements
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[1,null,2]}','{"readings":[1,null,2]}','{1,NULL,2}',false);
+-- name: JsonRecordWrongArrayValues
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[1,2]}','{"readings":[1,2]}','{1,3}',false);
+-- name: JsonRecordRaggedArray
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[[1],[2,3]]}','{"readings":[[1],[2,3]]}',NULL,false);
+-- name: JsonRecordInvalidArrayElement
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":["bad"]}','{"readings":["bad"]}',NULL,false);
+-- name: JsonRecordArrayElementWidth
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[1],"labels":["long"]}','{"readings":[1],"labels":["long"]}','{1}',false);
+-- name: JsonRecordBitArrayInputWidth
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[1],"flags":["abc"]}','{"readings":[1],"flags":["abc"]}','{1}',false);
+-- name: JsonRecordArrayDimensionLimit
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[[[[[[[1]]]]]]]}','{"readings":[[[[[[[1]]]]]]]}',NULL,false);
+-- name: JsonRecordSkippedArrayErrors
+INSERT INTO inspection_json_array_records(data,raw_data,expected_readings,bypass) VALUES ('{"readings":[["bad"],[1,2]]}','{"readings":[["bad"],[1,2]]}',NULL,true);

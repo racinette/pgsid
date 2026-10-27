@@ -1728,3 +1728,19 @@ CREATE TABLE inspection_json_records (
  CONSTRAINT jsonb_record_fields_valid CHECK(CASE WHEN bypass THEN true ELSE
    pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_input,data) IS NOT FALSE END)
 );
+
+CREATE TYPE inspection_json_array_input AS (readings integer[],labels varchar(2)[],flags bit(2)[]);
+CREATE TABLE inspection_json_array_records (
+ data jsonb,
+ raw_data json,
+ expected_readings integer[],
+ bypass boolean NOT NULL,
+ CONSTRAINT json_record_array_values CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.json_populate_record(ROW('[0:0]={9}'::integer[],ARRAY['ok'],ARRAY[B'10'])::inspection_json_array_input,raw_data)).readings
+     IS NOT DISTINCT FROM expected_readings END),
+ CONSTRAINT jsonb_record_array_values CHECK(CASE WHEN bypass THEN true ELSE
+   (pg_catalog.jsonb_populate_record(ROW('[0:0]={9}'::integer[],ARRAY['ok'],ARRAY[B'10'])::inspection_json_array_input,data)).readings
+     IS NOT DISTINCT FROM expected_readings END),
+ CONSTRAINT jsonb_record_arrays_valid CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_array_input,data) IS NOT FALSE END)
+);

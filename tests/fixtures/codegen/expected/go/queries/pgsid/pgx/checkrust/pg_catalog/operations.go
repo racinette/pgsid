@@ -17904,6 +17904,247 @@ func JsonbObjectTmdc(keys checkruntime.ArrayValue, values checkruntime.ArrayValu
 	return jsonObjectArrayToJsonb(object)
 }
 
+const jsonPopulateArrayLimit = 8584704
+
+type JsonPopulateArrayPayload struct {
+	Text      checkruntime.ArrayTextPayload
+	Values    []checkruntime.JsonbInput
+	HardIndex int
+}
+
+func copyJsonPopulateArrayPayload(value JsonPopulateArrayPayload) JsonPopulateArrayPayload {
+	return JsonPopulateArrayPayload{Text: checkruntime.CopyArrayTextPayload(value.Text), Values: langruntime.CheckedStructs(value.Values, checkruntime.CopyJsonbInput), HardIndex: langruntime.CheckedI32(value.HardIndex)}
+}
+
+type JsonPopulateArrayPlanKind uint8
+
+const (
+	JsonPopulateArrayPlanValue JsonPopulateArrayPlanKind = iota
+)
+
+type JsonPopulateArrayPlan struct {
+	Kind  JsonPopulateArrayPlanKind
+	Value JsonPopulateArrayPayload
+}
+
+func copyJsonPopulateArrayPlan(value JsonPopulateArrayPlan) JsonPopulateArrayPlan {
+	switch value.Kind {
+	case JsonPopulateArrayPlanValue:
+		return JsonPopulateArrayPlan{Kind: JsonPopulateArrayPlanValue, Value: copyJsonPopulateArrayPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+
+type jsonPopulateArrayFrame struct {
+	input    checkruntime.JsonbInput
+	position int
+	count    int
+}
+
+func copyjsonPopulateArrayFrame(value jsonPopulateArrayFrame) jsonPopulateArrayFrame {
+	return jsonPopulateArrayFrame{input: checkruntime.CopyJsonbInput(value.input), position: langruntime.CheckedI32(value.position), count: langruntime.CheckedI32(value.count)}
+}
+func jsonPopulateArrayLength(input checkruntime.JsonbInput) int {
+	input = checkruntime.CopyJsonbInput(input)
+	count := checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	raw := checkruntime.CopyJsonbInput(input)
+	if raw.Kind == checkruntime.JsonbInputJson {
+		value := raw.Json
+		count = checkruntime.JsonReadLength(checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value})
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		count = JsonbArrayLength1gng(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value})
+	}
+	if count.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(count.Value)
+		return value
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func jsonPopulateArrayElement(input checkruntime.JsonbInput, position int, utf8 bool) checkruntime.JsonbInput {
+	input = checkruntime.CopyJsonbInput(input)
+	position = langruntime.CheckedI32(position)
+	index := checkruntime.MakeInt4Value(position)
+	raw := checkruntime.CopyJsonbInput(input)
+	if raw.Kind == checkruntime.JsonbInputJson {
+		value := raw.Json
+		selected := checkruntime.JsonReadElementContext(checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value}, index, false, utf8)
+		if selected.Kind == checkruntime.TextValueError {
+			error := selected.Error
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+		}
+		if selected.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(selected.Value)
+			value := checkruntime.MakeJsonValue(text)
+			return checkruntime.JsonbInputFromJson(value)
+		}
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		selected := JsonbArrayElement08oi(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}, index)
+		if selected.Kind == checkruntime.JsonbValueValue {
+			payload := checkruntime.CopyJsonbPayload(selected.Value)
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputJsonb, Jsonb: checkruntime.JsonbDetachSubtree(payload)}
+		}
+		return checkruntime.JsonbInputFromJsonb(selected)
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func jsonPopulateArrayTextEvent(input checkruntime.TextValue) checkruntime.ArrayTextEvent {
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		return checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventText, Text: text}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventNull}
+	}
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventError, Error: error}
+	}
+	return checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventUnknown}
+}
+func PrepareJsonPopulateArray(input checkruntime.JsonbInput, text checkruntime.TextValue, boxDelimiter bool, nulls int, quoted bool, container int, calendar bool, utf8 bool) JsonPopulateArrayPayload {
+	values := []checkruntime.JsonbInput{}
+	if JsonPopulateKind(checkruntime.CopyJsonbInput(input)) != 5 {
+		return JsonPopulateArrayPayload{Text: checkruntime.PrepareArrayText(text, boxDelimiter, nulls), Values: values, HardIndex: langruntime.CheckedSignedNegate(1)}
+	}
+	count := jsonPopulateArrayLength(checkruntime.CopyJsonbInput(input))
+	frames := []jsonPopulateArrayFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonPopulateArrayFrame(jsonPopulateArrayFrame{input: input, position: 0, count: count}))
+	depth := 1
+	dimensions := []checkruntime.ArrayDimension{}
+	ndims := 0
+	events := []checkruntime.ArrayTextEvent{}
+	failed := false
+	for depth > 0 && failed == false {
+		top := langruntime.CheckedSubtract(depth, 1)
+		frame := copyjsonPopulateArrayFrame(frames[top])
+		if ndims == 0 {
+			first := jsonPopulateArrayElement(checkruntime.CopyJsonbInput(frame.input), 0, utf8)
+			if frame.count == 0 || JsonPopulateKind(first) != 5 {
+				ndims = langruntime.CheckedIndex(depth)
+				for len(dimensions) < ndims {
+					langruntime.CheckedAdd(len(dimensions), 1)
+					dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: langruntime.CheckedSignedNegate(1)})
+				}
+			}
+		}
+		if frame.position >= frame.count {
+			if top == 0 || dimensions[top].Length == langruntime.CheckedSignedNegate(1) {
+				dimensions[top] = checkruntime.ArrayDimension{Lower: 1, Length: frame.count}
+			} else if dimensions[top].Length != frame.count {
+				langruntime.CheckedAdd(len(events), 1)
+				events = append(events, checkruntime.CopyArrayTextEvent(checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventError, Error: checkruntime.MakeSqlError(jsonPopulateArrayError)}))
+				langruntime.CheckedAdd(len(values), 1)
+				values = append(values, checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: checkruntime.MakeSqlError(jsonPopulateArrayError)}))
+				failed = true
+			}
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		} else {
+			value := jsonPopulateArrayElement(checkruntime.CopyJsonbInput(frame.input), frame.position, utf8)
+			frames[top] = copyjsonPopulateArrayFrame(jsonPopulateArrayFrame{input: frame.input, position: langruntime.CheckedSignedAdd(frame.position, 1), count: frame.count})
+			if ndims > 0 && depth >= ndims {
+				scalar := JsonPopulateScalarText(checkruntime.CopyJsonbInput(value), quoted, container, calendar, utf8)
+				langruntime.CheckedAdd(len(values), 1)
+				values = append(values, checkruntime.CopyJsonbInput(value))
+				langruntime.CheckedAdd(len(events), 1)
+				events = append(events, checkruntime.CopyArrayTextEvent(jsonPopulateArrayTextEvent(scalar)))
+			} else if JsonPopulateKind(checkruntime.CopyJsonbInput(value)) != 5 {
+				langruntime.CheckedAdd(len(events), 1)
+				events = append(events, checkruntime.CopyArrayTextEvent(checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventError, Error: checkruntime.MakeSqlError(jsonPopulateArrayError)}))
+				langruntime.CheckedAdd(len(values), 1)
+				values = append(values, checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: checkruntime.MakeSqlError(jsonPopulateArrayError)}))
+				failed = true
+			} else {
+				count := jsonPopulateArrayLength(checkruntime.CopyJsonbInput(value))
+				child := jsonPopulateArrayFrame{input: value, position: 0, count: count}
+				if depth == len(frames) {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copyjsonPopulateArrayFrame(child))
+				} else {
+					frames[depth] = copyjsonPopulateArrayFrame(child)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+	}
+	hardIndex := langruntime.CheckedSignedNegate(1)
+	if failed == false && ndims > 6 {
+		hardIndex = langruntime.CheckedI32(int(int32(len(events))))
+		langruntime.CheckedAdd(len(events), 1)
+		events = append(events, checkruntime.CopyArrayTextEvent(checkruntime.ArrayTextEvent{Kind: checkruntime.ArrayTextEventError, Error: checkruntime.MakeSqlError(jsonPopulateArrayLimit)}))
+		langruntime.CheckedAdd(len(values), 1)
+		values = append(values, checkruntime.CopyJsonbInput(checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: checkruntime.MakeSqlError(jsonPopulateArrayLimit)}))
+	}
+	output := []checkruntime.ArrayDimension{}
+	position := 0
+	empty := false
+	for position < len(dimensions) {
+		if dimensions[position].Length == 0 {
+			empty = true
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	position = langruntime.CheckedIndex(0)
+	for empty == false && position < len(dimensions) {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, checkruntime.ArrayDimension{Lower: 1, Length: dimensions[position].Length})
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return JsonPopulateArrayPayload{Text: checkruntime.ArrayTextPayload{State: 1, Dimensions: output, Events: events}, Values: values, HardIndex: hardIndex}
+}
+func JsonPopulateArrayText(input *JsonPopulateArrayPayload) checkruntime.ArrayTextPayload {
+	return checkruntime.CopyArrayTextPayload(input.Text)
+}
+func JsonPopulateArrayHard(input *JsonPopulateArrayPayload, index checkruntime.Int4Value) checkruntime.CheckOutcome {
+	if index.Kind == checkruntime.Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		if input.HardIndex >= 0 && position > input.HardIndex {
+			return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: checkruntime.MakeSqlError(jsonPopulateArrayLimit)}
+		}
+	}
+	return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+}
+func JsonPopulateArrayCurrent(input *JsonPopulateArrayPayload, index checkruntime.Int4Value) checkruntime.JsonbInput {
+	if index.Kind == checkruntime.Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		if position >= 0 && position < int(int32(len(input.Values))) {
+			return checkruntime.CopyJsonbInput(input.Values[langruntime.IndexFromI32(position, 0)])
+		}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonPopulateArrayHasEvent(text *checkruntime.ArrayTextPayload, index checkruntime.Int4Value, input *checkruntime.ArrayOutputPayload) bool {
+	return input.State == 1 && checkruntime.ArrayTextHasEvent(text, index)
+}
+func JsonPopulateArrayJsonb(input checkruntime.JsonbInput, text checkruntime.TextValue, utf8 bool) checkruntime.JsonbValue {
+	if input.Kind == checkruntime.JsonbInputUnknown {
+		return checkruntime.JsonbFromTextContext(text, utf8)
+	}
+	return JsonPopulateJsonb(input, utf8)
+}
+func FinishJsonPopulateArray(input checkruntime.ArrayTextPayload, converted checkruntime.ArrayArguments) checkruntime.ArrayValue {
+	if converted.Kind == checkruntime.ArrayArgumentsUnknown {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	return checkruntime.FinishDomainArrayInput(input, converted)
+}
+func JsonPopulateArrayModifier(input checkruntime.ArrayElement, identity string, modifier int) checkruntime.ArrayElement {
+	if modifier < 0 {
+		return input
+	}
+	if identity == "pg_catalog.\"varchar\"" {
+		return checkruntime.ArrayElementFromText(Varchar2rhn(checkruntime.ArrayElementToText(input), checkruntime.MakeInt4Value(modifier), checkruntime.MakeBoolValue(false)))
+	}
+	if identity == "pg_catalog.bpchar" {
+		return checkruntime.ArrayElementFromText(Bpchar2uas(checkruntime.ArrayElementToText(input), checkruntime.MakeInt4Value(modifier), checkruntime.MakeBoolValue(false)))
+	}
+	return ArrayElementTypmod(input, identity, modifier)
+}
+
 const jsonPopulateObjectError = 3452619
 const jsonPopulateArrayError = 3484946
 const jsonPopulateCalendarError = 3452551
@@ -17962,7 +18203,8 @@ func JsonPopulateJsonb(input checkruntime.JsonbInput, utf8 bool) checkruntime.Js
 func JsonPopulateScalarText(input checkruntime.JsonbInput, quoted bool, container int, calendar bool, utf8 bool) checkruntime.TextValue {
 	kind := JsonPopulateKind(checkruntime.CopyJsonbInput(input))
 	if calendar && (kind == 5 || kind == 6) {
-		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonPopulateCalendarError)}
+		text := JsonPopulateText(input, false, utf8)
+		return jsonPopulateCalendarText(text)
 	}
 	if kind >= 0 && kind != 0 && kind != 4 && container > 0 {
 		if (container == 1 && kind != 5) || (container == 2 && kind != 6) {
@@ -17975,6 +18217,98 @@ func JsonPopulateScalarText(input checkruntime.JsonbInput, quoted bool, containe
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	return JsonPopulateText(input, quoted, utf8)
+}
+func jsonPopulateCalendarDigit(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func jsonPopulateCalendarSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == '\v' || character == '\f'
+}
+func jsonPopulateCalendarAlpha(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(langruntime.AsciiLowercase(character)))
+	return code >= 97 && code <= 122
+}
+func jsonPopulateCalendarText(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		possible := false
+		invalidWord := false
+		numbers := 0
+		position := 0
+		for position < len(characters) {
+			character := characters[position]
+			if character == '\\' {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			if jsonPopulateCalendarDigit(character) >= 0 {
+				start := position
+				for position < len(characters) && jsonPopulateCalendarDigit(characters[position]) >= 0 {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				numbers = langruntime.CheckedAdd(numbers, 1)
+				if langruntime.CheckedSubtract(position, start) >= 2 || characters[start] == '0' {
+					possible = true
+				}
+			} else if jsonPopulateCalendarAlpha(character) {
+				start := position
+				for position < len(characters) && jsonPopulateCalendarAlpha(characters[position]) {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				initial := langruntime.AsciiLowercase(characters[start])
+				if langruntime.CheckedSubtract(position, start) >= 2 || initial == 'j' || initial == 'y' || initial == 'm' || initial == 'd' || initial == 'h' || initial == 's' || initial == 't' || initial == 'w' || initial == 'z' {
+					possible = true
+				} else {
+					invalidWord = true
+				}
+			} else {
+				if (character == ':' && position > 0 && jsonPopulateCalendarDigit(characters[langruntime.CheckedSubtract(position, 1)]) >= 0) || character == '+' || character == '-' || character == '.' || character == '/' {
+					possible = true
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		if possible == false && (numbers < 2 || invalidWord) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonPopulateCalendarError)}
+		}
+		result := langruntime.NewTextBuffer("")
+		separated := true
+		clockField := false
+		position = langruntime.CheckedIndex(0)
+		for position < len(characters) {
+			character := characters[position]
+			separator := character == '[' || character == ']' || character == '{' || character == '}' || character == ',' || character == '"' || jsonPopulateCalendarSpace(character)
+			if character == ':' {
+				if clockField || (position > 0 && jsonPopulateCalendarDigit(characters[langruntime.CheckedSubtract(position, 1)]) >= 0) {
+					clockField = true
+				} else {
+					separator = true
+				}
+			}
+			if separator {
+				clockField = false
+				if separated == false {
+					result = append(result, string(langruntime.CheckedChar(' '))...)
+				}
+			} else {
+				result = append(result, string(langruntime.CheckedChar(character))...)
+				if jsonPopulateCalendarAlpha(character) {
+					clockField = false
+				}
+			}
+			separated = separator
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(result)}
+	}
+	return input
 }
 func JsonPopulateHardError(input checkruntime.CheckOutcome, result checkruntime.CheckOutcome) checkruntime.CheckOutcome {
 	if input.Kind == checkruntime.CheckOutcomeError {
