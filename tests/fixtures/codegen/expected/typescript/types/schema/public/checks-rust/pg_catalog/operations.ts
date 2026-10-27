@@ -15056,6 +15056,65 @@ export function inRangeGcyn(value: checkruntime.Int2Value, base: checkruntime.In
     const offsetWide: checkruntime.Int8Value = int8Sxtp(offset);
     return integerInRange(valueWide, baseWide, offsetWide, subtract, less);
 }
+function integerScalarSum(state: checkruntime.Int8Value, input: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return state;
+    }
+    if (checkruntime.equalInt8Value(state, { kind: "Null" })) {
+        return input;
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return integerStateAdjust(state, value);
+    }
+    return { kind: "Unknown" };
+}
+export function int2Sum3feg(state: checkruntime.Int8Value, input: checkruntime.Int2Value): checkruntime.Int8Value {
+    return integerScalarSum(state, checkruntime.int2ToInt8(input));
+}
+export function int4SumVfwt(state: checkruntime.Int8Value, input: checkruntime.Int4Value): checkruntime.Int8Value {
+    return integerScalarSum(state, int8Mzac(input));
+}
+export function int8SumCqr6(state: checkruntime.NumericValue, input: checkruntime.Int8Value): checkruntime.NumericValue {
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return state;
+    }
+    const amount: checkruntime.NumericValue = numeric11bc(input);
+    if (checkruntime.equalNumericValue(state, { kind: "Null" })) {
+        return amount;
+    }
+    const copy: checkruntime.NumericValue = state;
+    if (copy.kind === "Value") {
+        const text: string = langruntime.checkedString(copy.value);
+        const parts: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(text));
+        if (parts.valid && parts.special === 0) {
+            return checkruntime.makeNumericValue("-Infinity");
+        }
+        if (parts.valid && parts.special === 2) {
+            return checkruntime.makeNumericValue("Infinity");
+        }
+        if (parts.valid && parts.special === 3) {
+            return checkruntime.makeNumericValue("NaN");
+        }
+    }
+    return numericAddO3d7(state, amount);
+}
 function integerSupportCompare(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

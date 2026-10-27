@@ -1224,3 +1224,29 @@ VALUES (2,1.2500,2,2,9223372036854775807,9223372036854775809.5000,0.625,1.25,4,f
 -- name: mixed_fractional_nan_scale
 INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
 VALUES (2,'NaN',2,2,9007199254740993,'NaN','NaN','NaN',NULL,false);
+-- name: StockSumInitialStates
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (NULL,2,3,NULL,7,2,3,'7',1,false);
+-- name: StockSumNullAmounts
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (5,NULL,NULL,1.20,NULL,5,5,'1.20',1,false);
+-- name: StockSumAllNull
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,false);
+-- name: StockSumWrapAboveMaximum
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (9223372036854775807,1,1,9223372036854775807.20,1,-9223372036854775808,-9223372036854775808,'9223372036854775808.20',1,false);
+-- name: StockSumWrapBelowMinimum
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (-9223372036854775808,-1,-1,-9223372036854775808.00,-1,9223372036854775807,9223372036854775807,'-9223372036854775809.00',1,false);
+-- name: StockSumNanState
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (0,0,0,'NaN',NULL,0,0,'NaN',1,false);
+-- name: StockSumPositiveInfinity
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (NULL,1,2,'Infinity',9223372036854775807,1,2,'Infinity',1,false);
+-- name: StockSumNegativeInfinity
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (NULL,1,2,'-Infinity',-9223372036854775808,1,2,'-Infinity',1,false);
+-- name: StockSumSmallMismatch
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (5,1,1,1.20,1,7,6,'2.20',1,false);
+-- name: StockSumOrdinaryMismatch
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (5,1,1,1.20,1,6,7,'2.20',1,false);
+-- name: StockSumNumericScaleMismatch
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (5,1,1,1.20,1,6,6,'2.2',1,false);
+-- name: StockSumEagerDivision
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (0,0,1,0,0,0,1,'0',0,false);
+-- name: StockSumSkippedErrors
+INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (0,0,1,0,0,99,99,'wrong',0,true);

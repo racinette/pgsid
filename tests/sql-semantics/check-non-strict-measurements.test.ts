@@ -26,7 +26,11 @@ it('inventories every non-strict scalar signature without treating source presen
         .filter((row) => row.classification === 'portable-implementation-gap')
         .map((row) => row.metadata.name)
         .sort(),
-    ).toEqual(['int2_sum', 'int4_sum', 'int8_sum'])
+    ).toEqual([])
+    for (const name of ['int2_sum', 'int4_sum', 'int8_sum'])
+      expect(report.callables.find((row) => row.metadata.name === name)?.classification).toBe(
+        'source-present-not-runtime-proof',
+      )
     for (const row of report.callables.filter((row) => row.requirement)) {
       expect(row.requirement!.owner).toBe(
         'tests/sql-semantics/check-non-strict-measurements.test.ts',

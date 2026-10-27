@@ -501,3 +501,24 @@ CREATE TABLE stock_fractional_totals (
   CONSTRAINT fractional_scale CHECK (CASE WHEN bypass THEN true ELSE scale(unit_cost+bulk_count)=recorded_scale END),
   CONSTRAINT fractional_intermediate CHECK (CASE WHEN bypass THEN true ELSE (pack_count+1)+unit_cost>=0 END)
 );
+
+CREATE TABLE stock_sum_states (
+ bigint_state bigint,
+ small_amount smallint,
+ ordinary_amount integer,
+ numeric_state numeric,
+ bulk_amount bigint,
+ expected_small bigint,
+ expected_ordinary bigint,
+ expected_numeric text COLLATE "C",
+ denominator integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT small_sum_step CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.int2_sum(bigint_state,small_amount) IS NOT DISTINCT FROM expected_small END),
+ CONSTRAINT ordinary_sum_step CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.int4_sum(bigint_state,ordinary_amount) IS NOT DISTINCT FROM expected_ordinary END),
+ CONSTRAINT bulk_sum_step CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.int8_sum(numeric_state,bulk_amount)::text IS NOT DISTINCT FROM expected_numeric END),
+ CONSTRAINT sum_input_eager CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.int4_sum(NULL::bigint,ordinary_amount/denominator) IS NOT DISTINCT FROM ordinary_amount END)
+);

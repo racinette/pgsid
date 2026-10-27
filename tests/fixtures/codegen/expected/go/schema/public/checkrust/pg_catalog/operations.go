@@ -14974,6 +14974,65 @@ func InRangeGcyn(value checkruntime.Int2Value, base checkruntime.Int2Value, offs
 	offsetWide := Int8Sxtp(offset)
 	return integerInRange(valueWide, baseWide, offsetWide, subtract, less)
 }
+func integerScalarSum(state checkruntime.Int8Value, input checkruntime.Int8Value) checkruntime.Int8Value {
+	if state.Kind == checkruntime.Int8ValueError {
+		error := state.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return state
+	}
+	if state == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return input
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		return integerStateAdjust(state, value)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int2Sum3feg(state checkruntime.Int8Value, input checkruntime.Int2Value) checkruntime.Int8Value {
+	return integerScalarSum(state, checkruntime.Int2ToInt8(input))
+}
+func Int4SumVfwt(state checkruntime.Int8Value, input checkruntime.Int4Value) checkruntime.Int8Value {
+	return integerScalarSum(state, Int8Mzac(input))
+}
+func Int8SumCqr6(state checkruntime.NumericValue, input checkruntime.Int8Value) checkruntime.NumericValue {
+	if state.Kind == checkruntime.NumericValueError {
+		error := state.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return state
+	}
+	amount := Numeric11bc(input)
+	if state == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return amount
+	}
+	copy := state
+	if copy.Kind == checkruntime.NumericValueValue {
+		text := langruntime.CheckedString(copy.Value)
+		parts := checkruntime.NumericParts(text)
+		if parts.Valid && parts.Special == 0 {
+			return checkruntime.MakeNumericValue("-Infinity")
+		}
+		if parts.Valid && parts.Special == 2 {
+			return checkruntime.MakeNumericValue("Infinity")
+		}
+		if parts.Valid && parts.Special == 3 {
+			return checkruntime.MakeNumericValue("NaN")
+		}
+	}
+	return NumericAddO3d7(state, amount)
+}
 func integerSupportCompare(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Int4Value {
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
