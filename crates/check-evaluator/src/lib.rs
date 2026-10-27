@@ -183,6 +183,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/time_constructors.rs");
     include!("operations/pg_catalog/interval_math.rs");
     include!("operations/pg_catalog/interval_calendar.rs");
+    include!("operations/pg_catalog/temporal_current_age.rs");
     include!("operations/pg_catalog/time_output.rs");
     include!("operations/pg_catalog/interval_format.rs");
     include!("operations/pg_catalog/timestamp_format.rs");

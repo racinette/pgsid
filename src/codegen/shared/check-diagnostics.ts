@@ -24,6 +24,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
+  isTemporalCurrentAge,
   isTemporalDatePart,
   isTemporalTimestampFormatting,
   isTemporalTemplateParsing,
@@ -56,6 +57,9 @@ const catalogMetadata = new Set(
   builtinCallables()
     .filter((item) => isTypeFormatCallable(item) || isCollationMetadataCallable(item))
     .map(callableIdentity),
+)
+const temporalCurrentAge = new Set(
+  builtinCallables().filter(isTemporalCurrentAge).map(callableIdentity),
 )
 const temporalTimestampFormats = new Set(
   builtinCallables()
@@ -340,6 +344,9 @@ export function checkUnknownMessage(
   if (containsSignature(expression, catalogMetadata))
     message +=
       ' Metadata name rendering can require the deployment catalog and search path; captured type and collation facts do not supply deployment names.'
+  if (containsSignature(expression, temporalCurrentAge))
+    message +=
+      ' Finite one-argument calendar age requires the transaction current local date and session timezone; static timezone settings alone do not supply that date.'
   if (containsSignature(expression, temporalTimestampFormats)) {
     if (context.timeLocale === undefined)
       message += ' Localized temporal template names can require sql.codegen.checks.timeLocale.'

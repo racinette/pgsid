@@ -2,6 +2,19 @@
 CREATE DOMAIN daily_clock AS time CHECK (VALUE BETWEEN TIME '00:00' AND TIME '24:00');
 CREATE DOMAIN nonnegative_duration AS interval CHECK (VALUE >= INTERVAL '0');
 
+CREATE TABLE shift_age_snapshots (
+  local_stamp timestamp,
+  instant_stamp timestamptz,
+  raw_local text,
+  expected_local interval,
+  expected_instant interval,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT snapshot_local_age CHECK (CASE WHEN skip_validation THEN true ELSE age(local_stamp) IS NOT DISTINCT FROM expected_local END),
+  CONSTRAINT snapshot_instant_age CHECK (CASE WHEN skip_validation THEN true ELSE age(instant_stamp) IS NOT DISTINCT FROM expected_instant END),
+  CONSTRAINT snapshot_nested_age CHECK (CASE WHEN skip_validation THEN true ELSE (ARRAY[age(local_stamp),NULL::interval])[1] IS NOT DISTINCT FROM expected_local END),
+  CONSTRAINT snapshot_input_age CHECK (CASE WHEN skip_validation THEN true ELSE age(raw_local::timestamp) IS NOT DISTINCT FROM expected_local END)
+);
+
 CREATE TABLE shift_templates (
   id integer PRIMARY KEY,
   label text NOT NULL,

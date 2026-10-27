@@ -30,6 +30,7 @@ pnpm exec vitest run tests/sql-semantics/check-null-count.test.ts "${vitest_args
 pnpm exec vitest run tests/sql-semantics/check-non-strict-measurements.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-integer-sum.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-value-metadata.test.ts "${vitest_args[@]}"
+pnpm exec vitest run tests/sql-semantics/check-current-age.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-nullable-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-generic-literal-quote.test.ts "${vitest_args[@]}"
 pnpm exec vitest run tests/sql-semantics/check-text-format.test.ts tests/sql-semantics/check-text-format-grammar.test.ts tests/sql-semantics/check-text-format-states.test.ts tests/sql-semantics/check-text-format-output-knowledge.test.ts "${vitest_args[@]}"

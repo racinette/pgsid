@@ -18,6 +18,7 @@ import {
   prepareCheckRustGroup,
 } from '../../src/codegen/shared/check-rust-source.js'
 import { runCheckParity, type Outcome, type Row } from '../../tools/check-rust/parity.js'
+import { isTemporalCurrentAge } from '../../src/sql-semantics/temporal-casts.js'
 
 const packet = 'artifacts/goal-checks/temporal-runtime-active'
 const callables = builtinCallables().filter((item) => temporalRuntimeRequirements(item))
@@ -60,7 +61,7 @@ it('classifies temporal runtime reads by their native state rather than treating
       const requirements = temporalRuntimeRequirements(item)!
       expect(item.kind).toBe('function')
       if (item.kind !== 'function') throw new Error(callableIdentity(item))
-      expect(available.has(item.rustName), callableIdentity(item)).toBe(false)
+      expect(available.has(item.rustName), callableIdentity(item)).toBe(isTemporalCurrentAge(item))
       const categories = callableBoundary(item, new Set([...item.args, item.result])).categories
       for (const requirement of requirements) {
         expect(requirement.owner).toBe('tests/sql-semantics/check-temporal-runtime.test.ts')
@@ -91,7 +92,7 @@ it('classifies temporal runtime reads by their native state rather than treating
             identity: callableIdentity(metadata),
             metadata,
             ...callableBoundary(metadata, new Set([...metadata.args, metadata.result])),
-            implementationPresent: false,
+            implementationPresent: metadata.kind === 'function' && available.has(metadata.rustName),
             valueRequirements: temporalRuntimeRequirements(metadata),
           })),
         },
@@ -253,7 +254,7 @@ it('keeps reached runtime reads unknown and skipped branches definite in raw and
         )!
         expect(hasUncertain(lowered.expression), name).toBe(false)
         const expression = portableCheckAtoms(lowered.expression)
-        expect(hasUncertain(expression), name).toBe(true)
+        expect(hasUncertain(expression), name).toBe(!isTemporalCurrentAge(form.item))
         return {
           identity: {
             schema: 'public',
@@ -274,24 +275,46 @@ it('keeps reached runtime reads unknown and skipped branches definite in raw and
     })
     for (const [index, check] of group.checks.entries()) {
       expect(check.kind, names[index]).toBe('supported')
-      if (check.kind === 'supported') expect(check.inputs.map((i) => i.name)).toEqual(['bypass'])
+      if (check.kind === 'supported') {
+        const form = forms[Math.floor(index / 2)]!
+        const inputs = ['bypass']
+        if (isTemporalCurrentAge(form.item))
+          inputs.push(form.item.args[0] === 'pg_catalog.timestamptz' ? 'instant' : 'local_stamp')
+        expect(check.inputs.map((i) => i.name).sort()).toEqual(inputs.sort())
+      }
     }
     expect(group.evaluatorSource).not.toMatch(
-      /sql__pg_catalog__(?:now|age|clock_timestamp|timeofday)__/u,
+      /sql__pg_catalog__(?:now|clock_timestamp|timeofday)__/u,
     )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     for (const name of names) {
       for (const bypass of [true, false, null])
         fixtures.push({
           name,
-          row: { bypass: bypass === null ? { kind: 'Null' } : { kind: 'Value', value: bypass } },
+          row: {
+            bypass: bypass === null ? { kind: 'Null' } : { kind: 'Value', value: bypass },
+            local_stamp: { kind: 'Value', value: 0n },
+            instant: { kind: 'Value', value: 0n },
+          },
           expected: { kind: bypass === true ? 'True' : 'Unknown' },
         })
       fixtures.push(
-        { name, row: { bypass: { kind: 'Unknown' } }, expected: { kind: 'Unknown' } },
         {
           name,
-          row: { bypass: { kind: 'Error', value: { state: parseInt('22003', 36) } } },
+          row: {
+            bypass: { kind: 'Unknown' },
+            local_stamp: { kind: 'Value', value: 0n },
+            instant: { kind: 'Value', value: 0n },
+          },
+          expected: { kind: 'Unknown' },
+        },
+        {
+          name,
+          row: {
+            bypass: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+            local_stamp: { kind: 'Value', value: 0n },
+            instant: { kind: 'Value', value: 0n },
+          },
           expected: { kind: 'Error', value: { state: parseInt('22003', 36) } },
         },
       )
