@@ -860,7 +860,7 @@ export function emitCheckRustEvaluator(
   let domainPreparationState: string | null = null
   let domainInputPreparation: { lines: string[]; status: string } | null = null
   let jsonPopulateHardError: string | null = null
-  let jsonPopulateInput: { input: string; text: string } | null = null
+  let jsonPopulateInput: { input: string; text: string; arrayModifier?: number } | null = null
   let next = 0
   let requiresRegex = false
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
@@ -1745,7 +1745,20 @@ export function emitCheckRustEvaluator(
     } else scalar = `${prefix}_from_text(${event})`
 
     if (family === 12)
-      scalar = `jsonb_from_text_context(${event}, ${executionContext.serverEncoding === 'UTF8'})`
+      scalar =
+        jsonPopulateInput?.text === event
+          ? `json_populate_array_jsonb(${jsonPopulateInput.input}.clone(),${event},${executionContext.serverEncoding === 'UTF8'})`
+          : `jsonb_from_text_context(${event}, ${executionContext.serverEncoding === 'UTF8'})`
+    if (jsonPopulateInput?.text === event && jsonPopulateInput.arrayModifier !== undefined) {
+      const modifier = jsonPopulateInput.arrayModifier
+      if (family === 14)
+        scalar = `bit_from_text_modifier(${event},${modifier},${elementType === 'pg_catalog.varbit'},${executionContext.serverEncoding === 'UTF8'})`
+      if (family === 23) {
+        const fields = fresh('array_interval_fields')
+        destination.push(`let ${fields} = make_int4_value(${Math.floor(modifier / 65536)});`)
+        scalar = `interval_from_text_fields_context(${event},${fields},${intervalStyleCode(executionContext)})`
+      }
+    }
     const value = fresh('array_input_scalar')
     destination.push(`let ${value} = ${scalar};`)
     const applied = family === 47 && stored ? applyTsvectorStorage(value, destination) : value
@@ -2660,8 +2673,19 @@ export function emitCheckRustEvaluator(
           name: bind(`record_array_from_text(${ownedOperand(operand)},${nulls})`),
           type: node.type,
         }
+      const populateScope =
+        node.kind === 'text-to-array' && jsonPopulateInput?.text === operand.name
+          ? jsonPopulateInput
+          : null
+      const populatePlan = populateScope
+        ? bind(
+            `prepare_json_populate_array(${populateScope.input}.clone(),${ownedOperand(operand)},${arrayElementDelimiter(node.elementType) === ';'},${nulls},${['pg_catalog."json"', 'pg_catalog.jsonb'].includes(baseType)},${baseType.startsWith('array:') ? 1 : compositeProfile(baseType) ? 2 : 0},${['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz', 'pg_catalog."time"', 'pg_catalog.timetz'].includes(baseType)},${executionContext.serverEncoding === 'UTF8'})`,
+          )
+        : null
       const payload = bind(
-        `prepare_array_text(${ownedOperand(operand)}, ${arrayElementDelimiter(node.elementType) === ';'}, ${nulls})`,
+        populatePlan
+          ? `json_populate_array_text(&${populatePlan})`
+          : `prepare_array_text(${ownedOperand(operand)}, ${arrayElementDelimiter(node.elementType) === ';'}, ${nulls})`,
       )
       const initial = bind(`make_array_conversion()`)
       const builder = fresh('array_builder')
@@ -2669,11 +2693,15 @@ export function emitCheckRustEvaluator(
       const index = fresh('array_index')
       const event = fresh('array_event')
       const element = fresh('array_element')
+      const jsonEvent = populatePlan ? fresh('array_json_event') : null
       bindings.push(
         `let mut ${builder}: ArrayOutputPayload = ${initial};`,
         `let mut ${index}: Int4Value = ${first};`,
       )
       const lines: string[] = []
+      const outerPopulateInput = jsonPopulateInput
+      if (populateScope && jsonEvent)
+        jsonPopulateInput = { ...populateScope, input: jsonEvent, text: event }
       let converted = renderArrayInputElement(
         baseType,
         node.enum,
@@ -2686,6 +2714,14 @@ export function emitCheckRustEvaluator(
         used,
         node.kind === 'array-text-literal' && node.xmlStorage === true,
       )
+      jsonPopulateInput = outerPopulateInput
+      if (populateScope?.arrayModifier !== undefined) {
+        const modified = fresh('array_input_modifier')
+        lines.push(
+          `let ${modified} = json_populate_array_modifier(${converted},${rustStringLiteral(arrayElementIdentity(baseType))},${populateScope.arrayModifier});`,
+        )
+        converted = modified
+      }
       const inputPreparation: string[] = []
       if (conversion) {
         const prefix = rustValuePrefix(rustType(baseType))
@@ -2744,23 +2780,34 @@ export function emitCheckRustEvaluator(
         converted = finished
       }
       bindings.push(
-        `while array_text_has_event(&${payload}, ${index}) {`,
+        `while ${populatePlan ? `json_populate_array_has_event(&${payload},${index},&${builder})` : `array_text_has_event(&${payload}, ${index})`} {`,
         ...indent(inputPreparation),
         `    let ${event} = array_text_event_at(&${payload}, ${index});`,
+        ...(populatePlan &&
+        jsonEvent &&
+        new RegExp(`\\b${jsonEvent}\\b`).test([...inputPreparation, ...lines].join('\n'))
+          ? [`    let ${jsonEvent} = json_populate_array_current(&${populatePlan},${index});`]
+          : []),
         ...indent(lines),
         `    let ${element} = ${converted};`,
       )
       bindings.push(
-        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!conversion && family !== 42 && family !== 43});`,
+        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!populatePlan && !conversion && family !== 42 && family !== 43});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
       const arguments_ = bind(
         `array_conversion_arguments(${builder}, ${rustStringLiteral(arrayElementIdentity(node.elementType))}, ${family})`,
       )
+      if (populatePlan && jsonPopulateHardError) {
+        const hard = bind(`json_populate_array_hard(&${populatePlan},${index})`)
+        bindings.push(
+          `${jsonPopulateHardError} = json_populate_hard_error(${jsonPopulateHardError},${hard});`,
+        )
+      }
       return {
         name: bind(
-          `${conversion || family === 42 || family === 43 ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
+          `${populatePlan ? 'finish_json_populate_array' : conversion || family === 42 || family === 43 ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
         ),
         type: node.type,
       }
@@ -3073,7 +3120,22 @@ export function emitCheckRustEvaluator(
           domainInputPreparation = { lines: prepared, status }
           preparationDepth = 0
           jsonPopulateHardError = hard
-          jsonPopulateInput = { input: current, text }
+          let arrayModifier = field.typeMod
+          let modifierType = declared
+          const modifierTypes = new Set<string>()
+          while (!modifierTypes.has(modifierType.identity)) {
+            modifierTypes.add(modifierType.identity)
+            if (modifierType.baseTypeMod !== -1) arrayModifier = modifierType.baseTypeMod
+            const next = modifierType.base ?? modifierType.element
+            const nextType = next && profile.graph.definitions.find((n) => n.identity === next)
+            if (!nextType) break
+            modifierType = nextType
+          }
+          jsonPopulateInput = {
+            input: current,
+            text,
+            ...(arrayModifier >= 0 ? { arrayModifier } : {}),
+          }
           storedArrayInputScope = false
           storedArrayXmlStorageScope = false
           let unavailable = false
@@ -3132,7 +3194,6 @@ export function emitCheckRustEvaluator(
               'pg_catalog.timestamptz',
               'pg_catalog."time"',
               'pg_catalog.timetz',
-              'pg_catalog."interval"',
             ].includes(arrayElementBaseType(type)),
             finished = fresh('json_populate_finished'),
             result = fresh('json_populate_value'),

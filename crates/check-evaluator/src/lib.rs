@@ -355,6 +355,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_similar.rs");
     include!("operations/pg_catalog/text_similar_legacy.rs");
     include!("operations/pg_catalog/json_populate_input.rs");
+    include!("operations/pg_catalog/json_populate_array.rs");
     include!("operations/pg_catalog/bit_input.rs");
     include!("operations/pg_catalog/json_populate_state.rs");
     include!("operations/pg_catalog/text_size_bytes.rs");

@@ -137,3 +137,42 @@ pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
     };
     JsonbValue::Unknown
 }
+
+pub fn jsonb_detach_subtree(input: JsonbPayload) -> JsonbPayload {
+    let compact = jsonb_preorder(input);
+    let mut characters: Vec<char> = Vec::new();
+    let mut nodes: Vec<JsonbNode> = Vec::new();
+    nodes.push(compact.nodes[0]);
+    let mut position: usize = 1;
+    while position < compact.nodes.len() {
+        let node = compact.nodes[position];
+        let key_start = characters.len();
+        let mut offset = node.key_start;
+        while offset < node.key_end {
+            characters.push(compact.characters[offset]);
+            offset += 1;
+        }
+        let key_end = characters.len();
+        let text_start = characters.len();
+        offset = node.text_start;
+        while offset < node.text_end {
+            characters.push(compact.characters[offset]);
+            offset += 1;
+        }
+        nodes.push(JsonbNode {
+            kind: node.kind,
+            child: node.child,
+            next: node.next,
+            key_start: key_start,
+            key_end: key_end,
+            text_start: text_start,
+            text_end: characters.len(),
+        });
+        position += 1;
+    }
+    JsonbPayload {
+        characters: characters,
+        nodes: nodes,
+        root: compact.root,
+    }
+}

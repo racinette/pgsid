@@ -1,31 +1,75 @@
 const CLOCK_INPUT_SYNTAX: u32 = 3452551;
 const CLOCK_INPUT_RANGE: u32 = 3452552;
 
+fn clock_input_alpha(character: char) -> bool {
+    let code = character.to_ascii_lowercase() as i32;
+    code >= 97 && code <= 122
+}
+
+fn clock_input_complete(text: &str) -> String {
+    let characters: Vec<char> = text.chars().collect();
+    let mut result = String::new();
+    let mut active = true;
+    let mut seen = false;
+    let mut position: usize = 0;
+    while position < characters.len() {
+        let character = characters[position];
+        if date_text_digit(character) >= 0 {
+            seen = true;
+        };
+        if character == '+'
+            || character == '-'
+            || clock_input_alpha(character)
+            || (seen && date_text_space(character))
+        {
+            active = false;
+        };
+        result.push(character);
+        if active && seen && character == ':' {
+            let mut missing = position + 1 == characters.len();
+            if position + 1 < characters.len() {
+                let next = characters[position + 1];
+                missing = next == ':'
+                    || next == '.'
+                    || next == '+'
+                    || next == '-'
+                    || date_text_space(next)
+                    || clock_input_alpha(next);
+            };
+            if missing {
+                result.push('0');
+            };
+        };
+        position += 1;
+    }
+    result
+}
+
 fn clock_grammar_normalized(input: TextValue) -> TextValue {
     if let TextValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         let mut start: usize = 0;
         let mut end = chars.len();
-        while start < end && date_text_space(chars[start]) {
+        while start < end && (date_text_space(chars[start]) || chars[start] == ':') {
             start += 1;
-        };
+        }
         while end > start && date_text_space(chars[end - 1]) {
             end = end - 1;
-        };
+        }
         let mut position = start;
         while position < end && date_text_digit(chars[position]) >= 0 {
             position += 1;
-        };
+        }
         if position - start >= 4 && position < end && chars[position] == '-' {
             position += 1;
             while position < end && date_text_digit(chars[position]) >= 0 {
                 position += 1;
-            };
+            }
             if position < end && chars[position] == '-' {
                 position += 1;
                 while position < end && date_text_digit(chars[position]) >= 0 {
                     position += 1;
-                };
+                }
                 if position < end
                     && (date_text_space(chars[position])
                         || chars[position] == 'T'
@@ -39,7 +83,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                     while index < position {
                         date.push(chars[index]);
                         index += 1;
-                    };
+                    }
                     let parsed = date_from_text(TextValue::Value(date));
                     if let DateValue::Error(error) = parsed {
                         return TextValue::Error(error);
@@ -50,12 +94,18 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                     start = position + 1;
                     while start < end && date_text_space(chars[start]) {
                         start += 1;
-                    };
+                    }
                 };
             };
         };
         let mut clock = String::new();
         let mut meridian: i32 = 0;
+        if start + 1 < end
+            && chars[start].to_ascii_lowercase() == 't'
+            && date_text_digit(chars[start + 1]) >= 0
+        {
+            start += 1;
+        };
         position = start;
         while position < end {
             let mut consumed = false;
@@ -91,16 +141,16 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                 clock.push(chars[position]);
                 position += 1;
             };
-        };
+        }
         let raw: Vec<char> = clock.chars().collect();
         start = 0;
         while start < raw.len() && date_text_space(raw[start]) {
             start += 1;
-        };
+        }
         position = start;
         while position < raw.len() && date_text_digit(raw[position]) >= 0 {
             position += 1;
-        };
+        }
         let digits = position - start;
         let mut normalized = String::new();
         if (digits == 4 || digits == 6) && (position == raw.len() || raw[position] != ':') {
@@ -123,7 +173,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
                 clock_end += 1;
                 while clock_end < raw.len() && date_text_digit(raw[clock_end]) >= 0 {
                     clock_end += 1;
-                };
+                }
                 if clock_end < raw.len() && raw[clock_end] == '.' {
                     normalized.push_str("00:");
                 };
@@ -133,7 +183,8 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
         while position < raw.len() {
             normalized.push(raw[position]);
             position += 1;
-        };
+        }
+        normalized = clock_input_complete(normalized.as_str());
         if meridian != 0 {
             normalized.push(' ');
             if meridian == 1 {
@@ -146,6 +197,7 @@ fn clock_grammar_normalized(input: TextValue) -> TextValue {
     };
     input
 }
+
 fn clock_input_text(raw_input: TextValue) -> TextValue {
     let input = clock_grammar_normalized(raw_input);
     if let TextValue::Value(value) = input {
@@ -156,11 +208,61 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
         let mut end = text.chars.len();
         while start < end && date_text_space(text.chars[start]) {
             start += 1;
-        };
+        }
         while start < end && date_text_space(text.chars[end - 1]) {
             end = end - 1;
-        };
+        }
         if start == end || text.chars[start] == '+' || text.chars[start] == '-' {
+            return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
+        };
+        let mut keyword = String::new();
+        let mut digit_count: usize = 0;
+        let mut word_end = start;
+        while word_end < end && clock_input_alpha(text.chars[word_end]) {
+            word_end += 1;
+        }
+        let mut word_digits = word_end;
+        while word_digits < end && date_text_digit(text.chars[word_digits]) >= 0 {
+            word_digits += 1;
+        }
+        let mut scan = start;
+        while scan < end {
+            keyword.push(text.chars[scan].to_ascii_lowercase());
+            if date_text_digit(text.chars[scan]) >= 0 {
+                digit_count += 1;
+            };
+            scan += 1;
+        }
+        if digit_count == 0 {
+            if keyword == "now" {
+                return TextValue::Unknown;
+            };
+            if keyword == "allballs" {
+                return make_text_value("2000-01-01 00:00:00+00");
+            };
+            return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
+        };
+        if word_end > start && word_digits == end && word_digits - word_end < 4 {
+            return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
+        };
+        let mut numeric_end = start;
+        while numeric_end < end && date_text_digit(text.chars[numeric_end]) >= 0 {
+            numeric_end += 1;
+        }
+        if numeric_end > start
+            && numeric_end - start < 4
+            && numeric_end < end
+            && text.chars[numeric_end] != ':'
+        {
+            return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
+        };
+        if numeric_end > start && numeric_end < end && text.chars[numeric_end] == '.' {
+            numeric_end += 1;
+            while numeric_end < end && date_text_digit(text.chars[numeric_end]) >= 0 {
+                numeric_end += 1;
+            }
+        };
+        if numeric_end == end {
             return TextValue::Error(make_sql_error(CLOCK_INPUT_SYNTAX));
         };
         let mut meridian: i32 = 0;
@@ -174,7 +276,7 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
                 end = end - 2;
                 while start < end && date_text_space(text.chars[end - 1]) {
                     end = end - 1;
-                };
+                }
             };
         };
         let mut output = "2000-01-01 ".to_owned();
@@ -203,7 +305,7 @@ fn clock_input_text(raw_input: TextValue) -> TextValue {
         while start < end {
             output.push(text.chars[start]);
             start += 1;
-        };
+        }
         return TextValue::Value(output);
     };
     input

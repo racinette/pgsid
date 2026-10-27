@@ -18047,6 +18047,226 @@ export function jsonbObjectTmdc(keys: checkruntime.ArrayValue, values: checkrunt
     const object: checkruntime.JsonValue = jsonObjectKatl(keys, values);
     return jsonObjectArrayToJsonb(object);
 }
+const jsonPopulateArrayLimit = 8584704;
+export interface JsonPopulateArrayPayload {
+    text: checkruntime.ArrayTextPayload;
+    values: checkruntime.JsonbInput[];
+    hardIndex: number;
+}
+function copyJsonPopulateArrayPayload(value: JsonPopulateArrayPayload): JsonPopulateArrayPayload {
+    return { text: checkruntime.copyArrayTextPayload(value.text), values: langruntime.checkedStructs(value.values, checkruntime.copyJsonbInput), hardIndex: langruntime.checkedI32(value.hardIndex) };
+}
+export type JsonPopulateArrayPlan = {
+    kind: "Value";
+    value: JsonPopulateArrayPayload;
+};
+function copyJsonPopulateArrayPlan(value: JsonPopulateArrayPlan): JsonPopulateArrayPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyJsonPopulateArrayPayload(value.value) };
+    }
+}
+interface JsonPopulateArrayFrame {
+    input: checkruntime.JsonbInput;
+    position: number;
+    count: number;
+}
+function copyJsonPopulateArrayFrame(value: JsonPopulateArrayFrame): JsonPopulateArrayFrame {
+    return { input: checkruntime.copyJsonbInput(value.input), position: langruntime.checkedI32(value.position), count: langruntime.checkedI32(value.count) };
+}
+function jsonPopulateArrayLength(input: checkruntime.JsonbInput): number {
+    input = checkruntime.copyJsonbInput(input);
+    let count: checkruntime.Int4Value = { kind: "Unknown" };
+    const raw: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
+    if (raw.kind === "Json") {
+        const value: checkruntime.JsonPayload = raw.value;
+        count = checkruntime.jsonReadLength({ kind: "Value", value: value });
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        count = jsonbArrayLength1gng({ kind: "Value", value: value });
+    }
+    if (count.kind === "Value") {
+        const value: number = langruntime.checkedI32(count.value);
+        return value;
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function jsonPopulateArrayElement(input: checkruntime.JsonbInput, position: number, utf8: boolean): checkruntime.JsonbInput {
+    input = checkruntime.copyJsonbInput(input);
+    position = langruntime.checkedI32(position);
+    utf8 = langruntime.checkedBool(utf8);
+    const index: checkruntime.Int4Value = checkruntime.makeInt4Value(position);
+    const raw: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
+    if (raw.kind === "Json") {
+        const value: checkruntime.JsonPayload = raw.value;
+        const selected: checkruntime.TextValue = checkruntime.jsonReadElementContext({ kind: "Value", value: value }, index, false, utf8);
+        if (selected.kind === "Error") {
+            const error: checkruntime.SqlError = selected.value;
+            return { kind: "Error", value: error };
+        }
+        if (selected.kind === "Value") {
+            const text: string = langruntime.checkedString(selected.value);
+            const value1: checkruntime.JsonValue = checkruntime.makeJsonValue(text);
+            return checkruntime.jsonbInputFromJson(value1);
+        }
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const selected: checkruntime.JsonbValue = jsonbArrayElement08oi({ kind: "Value", value: value }, index);
+        if (selected.kind === "Value") {
+            const payload: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(selected.value);
+            return { kind: "Jsonb", value: checkruntime.jsonbDetachSubtree(payload) };
+        }
+        return checkruntime.jsonbInputFromJsonb(selected);
+    }
+    return { kind: "Unknown" };
+}
+function jsonPopulateArrayTextEvent(input: checkruntime.TextValue): checkruntime.ArrayTextEvent {
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        return { kind: "Text", value: text };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function prepareJsonPopulateArray(input: checkruntime.JsonbInput, text: checkruntime.TextValue, boxDelimiter: boolean, nulls: number, quoted: boolean, container: number, calendar: boolean, utf8: boolean): JsonPopulateArrayPayload {
+    let values: checkruntime.JsonbInput[] = [];
+    if (!(jsonPopulateKind(checkruntime.copyJsonbInput(input)) === 5)) {
+        return { text: checkruntime.prepareArrayText(text, boxDelimiter, nulls), values: values, hardIndex: langruntime.checkedSignedNegate(1) };
+    }
+    const count: number = jsonPopulateArrayLength(checkruntime.copyJsonbInput(input));
+    let frames: JsonPopulateArrayFrame[] = [];
+    langruntime.pushStruct(frames, { input: input, position: 0, count: count }, copyJsonPopulateArrayFrame);
+    let depth: number = 1;
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    let ndims: number = 0;
+    let events: checkruntime.ArrayTextEvent[] = [];
+    let failed: boolean = false;
+    while (depth > 0 && failed === false) {
+        const top: number = langruntime.checkedSubtract(depth, 1);
+        const frame: JsonPopulateArrayFrame = copyJsonPopulateArrayFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(top), copyJsonPopulateArrayFrame));
+        if (ndims === 0) {
+            const first: checkruntime.JsonbInput = jsonPopulateArrayElement(checkruntime.copyJsonbInput(frame.input), 0, utf8);
+            if (frame.count === 0 || !(jsonPopulateKind(first) === 5)) {
+                ndims = langruntime.checkedIndex(depth);
+                while (dimensions.length < ndims) {
+                    langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedSignedNegate(1) }, checkruntime.copyArrayDimension);
+                }
+            }
+        }
+        if (frame.position >= frame.count) {
+            if (top === 0 || langruntime.indexStruct(dimensions, langruntime.checkedIndex(top), checkruntime.copyArrayDimension).length === langruntime.checkedSignedNegate(1)) {
+                dimensions[langruntime.checkedIndexIn(dimensions, top)] = { lower: 1, length: frame.count };
+            }
+            else if (!(langruntime.indexStruct(dimensions, langruntime.checkedIndex(top), checkruntime.copyArrayDimension).length === frame.count)) {
+                langruntime.pushStruct(events, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayError) }, checkruntime.copyArrayTextEvent);
+                langruntime.pushStruct(values, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayError) }, checkruntime.copyJsonbInput);
+                failed = langruntime.checkedBool(true);
+            }
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        }
+        else {
+            const value: checkruntime.JsonbInput = jsonPopulateArrayElement(checkruntime.copyJsonbInput(frame.input), frame.position, utf8);
+            frames[langruntime.checkedIndexIn(frames, top)] = copyJsonPopulateArrayFrame({ input: frame.input, position: langruntime.checkedSignedAdd(frame.position, 1), count: frame.count });
+            if (ndims > 0 && depth >= ndims) {
+                const scalar: checkruntime.TextValue = jsonPopulateScalarText(checkruntime.copyJsonbInput(value), quoted, container, calendar, utf8);
+                langruntime.pushStruct(values, value, checkruntime.copyJsonbInput);
+                langruntime.pushStruct(events, jsonPopulateArrayTextEvent(scalar), checkruntime.copyArrayTextEvent);
+            }
+            else if (!(jsonPopulateKind(checkruntime.copyJsonbInput(value)) === 5)) {
+                langruntime.pushStruct(events, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayError) }, checkruntime.copyArrayTextEvent);
+                langruntime.pushStruct(values, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayError) }, checkruntime.copyJsonbInput);
+                failed = langruntime.checkedBool(true);
+            }
+            else {
+                const count1: number = jsonPopulateArrayLength(checkruntime.copyJsonbInput(value));
+                const child: JsonPopulateArrayFrame = { input: value, position: 0, count: count1 };
+                if (depth === frames.length) {
+                    langruntime.pushStruct(frames, child, copyJsonPopulateArrayFrame);
+                }
+                else {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonPopulateArrayFrame(child);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+        }
+    }
+    let hardIndex: number = langruntime.checkedSignedNegate(1);
+    if (failed === false && ndims > 6) {
+        hardIndex = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(events.length)));
+        langruntime.pushStruct(events, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayLimit) }, checkruntime.copyArrayTextEvent);
+        langruntime.pushStruct(values, { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayLimit) }, checkruntime.copyJsonbInput);
+    }
+    let output: checkruntime.ArrayDimension[] = [];
+    let position: number = 0;
+    let empty: boolean = false;
+    while (position < dimensions.length) {
+        if (langruntime.indexStruct(dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension).length === 0) {
+            empty = langruntime.checkedBool(true);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    position = langruntime.checkedIndex(0);
+    while (empty === false && position < dimensions.length) {
+        langruntime.pushStruct(output, { lower: 1, length: langruntime.indexStruct(dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension).length }, checkruntime.copyArrayDimension);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { text: { state: 1, dimensions: output, events: events }, values: values, hardIndex: hardIndex };
+}
+export function jsonPopulateArrayText(input: JsonPopulateArrayPayload): checkruntime.ArrayTextPayload {
+    return checkruntime.copyArrayTextPayload(input.text);
+}
+export function jsonPopulateArrayHard(input: JsonPopulateArrayPayload, index: checkruntime.Int4Value): checkruntime.CheckOutcome {
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        if (input.hardIndex >= 0 && position > input.hardIndex) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateArrayLimit) };
+        }
+    }
+    return { kind: "True" };
+}
+export function jsonPopulateArrayCurrent(input: JsonPopulateArrayPayload, index: checkruntime.Int4Value): checkruntime.JsonbInput {
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        if (position >= 0 && position < langruntime.checkedI32(langruntime.checkedIndex(input.values.length))) {
+            return checkruntime.copyJsonbInput(langruntime.indexStruct(input.values, langruntime.checkedIndex(langruntime.indexFromI32(position, 0)), checkruntime.copyJsonbInput));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonPopulateArrayHasEvent(text: checkruntime.ArrayTextPayload, index: checkruntime.Int4Value, input: checkruntime.ArrayOutputPayload): boolean {
+    return input.state === 1 && checkruntime.arrayTextHasEvent(text, index);
+}
+export function jsonPopulateArrayJsonb(input: checkruntime.JsonbInput, text: checkruntime.TextValue, utf8: boolean): checkruntime.JsonbValue {
+    if (input.kind === "Unknown") {
+        return checkruntime.jsonbFromTextContext(text, utf8);
+    }
+    return jsonPopulateJsonb(input, utf8);
+}
+export function finishJsonPopulateArray(input: checkruntime.ArrayTextPayload, converted: checkruntime.ArrayArguments): checkruntime.ArrayValue {
+    if (converted.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.finishDomainArrayInput(input, converted);
+}
+export function jsonPopulateArrayModifier(input: checkruntime.ArrayElement, identity: string, modifier: number): checkruntime.ArrayElement {
+    if (modifier < 0) {
+        return input;
+    }
+    if (identity === "pg_catalog.\"varchar\"") {
+        return checkruntime.arrayElementFromText(varchar2rhn(checkruntime.arrayElementToText(input), checkruntime.makeInt4Value(modifier), checkruntime.makeBoolValue(false)));
+    }
+    if (identity === "pg_catalog.bpchar") {
+        return checkruntime.arrayElementFromText(bpchar2uas(checkruntime.arrayElementToText(input), checkruntime.makeInt4Value(modifier), checkruntime.makeBoolValue(false)));
+    }
+    return arrayElementTypmod(input, identity, modifier);
+}
 const jsonPopulateObjectError = 3452619;
 const jsonPopulateArrayError = 3484946;
 const jsonPopulateCalendarError = 3452551;
@@ -18104,7 +18324,8 @@ export function jsonPopulateJsonb(input: checkruntime.JsonbInput, utf8: boolean)
 export function jsonPopulateScalarText(input: checkruntime.JsonbInput, quoted: boolean, container: number, calendar: boolean, utf8: boolean): checkruntime.TextValue {
     const kind: number = jsonPopulateKind(checkruntime.copyJsonbInput(input));
     if (calendar && (kind === 5 || kind === 6)) {
-        return { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateCalendarError) };
+        const text: checkruntime.TextValue = jsonPopulateText(input, false, utf8);
+        return jsonPopulateCalendarText(text);
     }
     if (kind >= 0 && !(kind === 0) && !(kind === 4) && container > 0) {
         if ((container === 1 && !(kind === 5)) || (container === 2 && !(kind === 6))) {
@@ -18117,6 +18338,103 @@ export function jsonPopulateScalarText(input: checkruntime.JsonbInput, quoted: b
         return { kind: "Unknown" };
     }
     return jsonPopulateText(input, quoted, utf8);
+}
+function jsonPopulateCalendarDigit(character: string): number {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function jsonPopulateCalendarSpace(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === " " || character === "\t" || character === "\n" || character === "\r" || character === "\v" || character === "\f";
+}
+function jsonPopulateCalendarAlpha(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(langruntime.asciiLowercase(character)).codePointAt(0)!;
+    return code >= 97 && code <= 122;
+}
+function jsonPopulateCalendarText(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        let possible: boolean = false;
+        let invalidWord: boolean = false;
+        let numbers: number = 0;
+        let position: number = 0;
+        while (position < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            if (character === "\\") {
+                return { kind: "Unknown" };
+            }
+            if (jsonPopulateCalendarDigit(character) >= 0) {
+                const start: number = position;
+                while (position < characters.length && jsonPopulateCalendarDigit(langruntime.indexChar(characters, langruntime.checkedIndex(position))) >= 0) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                numbers = langruntime.checkedAdd(numbers, 1);
+                if (langruntime.checkedSubtract(position, start) >= 2 || langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+                    possible = langruntime.checkedBool(true);
+                }
+            }
+            else if (jsonPopulateCalendarAlpha(character)) {
+                const start: number = position;
+                while (position < characters.length && jsonPopulateCalendarAlpha(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                const initial: string = langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(start)));
+                if (langruntime.checkedSubtract(position, start) >= 2 || initial === "j" || initial === "y" || initial === "m" || initial === "d" || initial === "h" || initial === "s" || initial === "t" || initial === "w" || initial === "z") {
+                    possible = langruntime.checkedBool(true);
+                }
+                else {
+                    invalidWord = langruntime.checkedBool(true);
+                }
+            }
+            else {
+                if ((character === ":" && position > 0 && jsonPopulateCalendarDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1)))) >= 0) || character === "+" || character === "-" || character === "." || character === "/") {
+                    possible = langruntime.checkedBool(true);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        if (possible === false && (numbers < 2 || invalidWord)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonPopulateCalendarError) };
+        }
+        let result: string = "";
+        let separated: boolean = true;
+        let clockField: boolean = false;
+        position = langruntime.checkedIndex(0);
+        while (position < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            let separator: boolean = character === "[" || character === "]" || character === "{" || character === "}" || character === "," || character === "\"" || jsonPopulateCalendarSpace(character);
+            if (character === ":") {
+                if (clockField || (position > 0 && jsonPopulateCalendarDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1)))) >= 0)) {
+                    clockField = langruntime.checkedBool(true);
+                }
+                else {
+                    separator = langruntime.checkedBool(true);
+                }
+            }
+            if (separator) {
+                clockField = langruntime.checkedBool(false);
+                if (separated === false) {
+                    result = result + langruntime.checkedChar(" ");
+                }
+            }
+            else {
+                result = result + langruntime.checkedChar(character);
+                if (jsonPopulateCalendarAlpha(character)) {
+                    clockField = langruntime.checkedBool(false);
+                }
+            }
+            separated = langruntime.checkedBool(separator);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return { kind: "Value", value: result };
+    }
+    return input;
 }
 export function jsonPopulateHardError(input: checkruntime.CheckOutcome, result: checkruntime.CheckOutcome): checkruntime.CheckOutcome {
     if (input.kind === "Error") {

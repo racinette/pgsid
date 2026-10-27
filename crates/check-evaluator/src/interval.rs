@@ -484,6 +484,17 @@ fn interval_units_from_text(input: TextValue, field_mask: i32, style: i32) -> In
                     return IntervalValue::Error(error);
                 };
                 if whole == Int8Value::Unknown {
+                    let mut ascii_field = false;
+                    let mut scan: usize = 0;
+                    while scan < token_chars.len() {
+                        if date_text_digit(token_chars[scan]) >= 0 || interval_input_alpha(token_chars[scan]) {
+                            ascii_field = true;
+                        };
+                        scan += 1;
+                    }
+                    if ascii_field == false {
+                        return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
+                    };
                     return IntervalValue::Unknown;
                 };
                 if let Int8Value::Value(number) = whole {
@@ -573,7 +584,10 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
         return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
     };
     let first_text = interval_token_text(&buffer, fields[0]);
-    let second_text = interval_token_text(&buffer, fields[1]);
+    let mut second_text = interval_token_text(&buffer, fields[1]);
+    if second_text.as_str() == "" {
+        second_text = "0".to_owned();
+    };
     let first_number = interval_input_whole(first_text.as_str());
     let second_number = interval_input_whole(second_text.as_str());
     if let Int8Value::Error(error) = first_number {
@@ -617,6 +631,9 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
     }
     if fields.len() == 3 {
         fraction_text = interval_token_text(&buffer, fields[2]);
+        if fraction_text.as_str() == "" {
+            fraction_text = "0".to_owned();
+        };
         let last_number = interval_input_whole(fraction_text.as_str());
         if let Int8Value::Error(error) = last_number {
             return interval_input_fail(input, interval_clock_error_state(error, range_error));
@@ -694,6 +711,7 @@ struct IntervalIsoNumber {
     width: usize,
     error: u32,
 }
+
 fn interval_iso_number_fail(next: usize, width: usize, error: u32) -> IntervalIsoNumber {
     IntervalIsoNumber {
         whole: 0i64,
@@ -1086,12 +1104,30 @@ fn interval_input_normalized(text: &str) -> String {
     let mut previous: char = ' ';
     let mut date_field = false;
     let mut word = false;
+    let mut clock_field = false;
     let mut output = String::new();
     while index < chars.len() {
-        let current = chars[index];
+        let mut current = chars[index];
+        if current == '['
+            || current == ']'
+            || current == '{'
+            || current == '}'
+            || current == ','
+            || current == '"'
+        {
+            current = ' ';
+        };
+        if current == ':' {
+            if date_text_digit(previous) >= 0 || clock_field {
+                clock_field = true;
+            } else {
+                current = ' ';
+            };
+        };
         if date_text_space(current) {
             date_field = false;
             word = false;
+            clock_field = false;
         };
         if date_field && (current == '.' || current == '+') {
             output.push(' ');
@@ -1107,6 +1143,7 @@ fn interval_input_normalized(text: &str) -> String {
         };
         if interval_input_alpha(current) {
             word = true;
+            clock_field = false;
         };
         output.push(current);
         previous = current;
@@ -1114,6 +1151,7 @@ fn interval_input_normalized(text: &str) -> String {
     }
     output
 }
+
 fn interval_input_year_month(text: &str) -> Int8Value {
     let chars: Vec<char> = text.chars().collect();
     let mut index: usize = 0;

@@ -118,8 +118,19 @@ it('routes JSON record scalar fields through captured input functions and modifi
         '{}',
         '{"value":null}',
         original,
+        ...(['date', 'time', 'timetz', 'timestamp', 'timestamptz', 'interval'].includes(
+          f.profile.type,
+        )
+          ? [
+              JSON.stringify({ value: [JSON.parse(original).value] }),
+              JSON.stringify({ value: { [String(JSON.parse(original).value)]: '' } }),
+            ]
+          : []),
         '{"value":""}',
         '{"value":{"a":1}}',
+        ...(['date', 'timestamp'].includes(f.profile.type)
+          ? ['{"value":{"12":"34"}}', '{"value":[12,34]}']
+          : []),
       ]) {
         let expected: Outcome,
           text: string | null = null,
@@ -139,6 +150,15 @@ it('routes JSON record scalar fields through captured input functions and modifi
           if (!code) throw e
           expected = { kind: 'Error', value: { state: parseInt(code, 36) } }
         }
+        const nativeExpected = expected
+        if (
+          ['date', 'timestamp'].includes(f.profile.type) &&
+          ['{"value":{"12":"34"}}', '{"value":[12,34]}'].includes(data ?? '')
+        ) {
+          if (f.fn.endsWith('_valid')) expect(bool).toBe(false)
+          else expect(expected).toEqual({ kind: 'Error', value: { state: parseInt('22008', 36) } })
+          expected = { kind: 'Unknown' }
+        }
         const row: Row = {
           data: known(data),
           expected_text: known(text),
@@ -146,7 +166,15 @@ it('routes JSON record scalar fields through captured input functions and modifi
         }
         for (const origin of ['source', 'stored'])
           fixtures.push({ name: f.name + '_' + origin, row, expected })
-        observations.push({ type: f.profile.type, fn: f.fn, data, text, bool, expected })
+        observations.push({
+          type: f.profile.type,
+          fn: f.fn,
+          data,
+          text,
+          bool,
+          nativeExpected,
+          expected,
+        })
       }
     }
     await mkdir(packet, { recursive: true })
