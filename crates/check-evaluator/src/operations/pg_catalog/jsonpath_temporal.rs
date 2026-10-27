@@ -10,6 +10,7 @@ struct JsonpathTemporalValue {
     error: u32,
     unknown: bool,
     hard: bool,
+    abbreviation_token: usize,
 }
 
 #[derive(Clone)]
@@ -40,6 +41,7 @@ fn jsonpath_temporal_state(
         error: error,
         unknown: unknown,
         hard: hard,
+        abbreviation_token: 0,
     }
 }
 
@@ -300,7 +302,20 @@ fn jsonpath_temporal_convert_mode(
     precision: i32,
     use_timezone: bool,
 ) -> JsonpathTemporalValue {
-    let parsed = jsonpath_temporal_decode(input);
+    jsonpath_temporal_convert_parsed(
+        jsonpath_temporal_decode(input),
+        method,
+        precision,
+        use_timezone,
+    )
+}
+
+fn jsonpath_temporal_convert_parsed(
+    parsed: JsonpathTemporalValue,
+    method: i32,
+    precision: i32,
+    use_timezone: bool,
+) -> JsonpathTemporalValue {
     if parsed.unknown && parsed.kind == 3 && (method == 104 || method == 130 || method == 132) {
         return jsonpath_temporal_invalid();
     };

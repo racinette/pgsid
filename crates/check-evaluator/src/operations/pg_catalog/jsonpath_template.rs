@@ -280,6 +280,15 @@ fn jsonpath_template_error(error: u32, hard: bool) -> JsonpathTemporalValue {
 }
 
 fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTemporalValue {
+    let prefixes: Vec<usize> = Vec::new();
+    jsonpath_template_parse_prefixes(input, template, prefixes)
+}
+
+fn jsonpath_template_parse_prefixes(
+    input: TextValue,
+    template: TextValue,
+    prefixes: Vec<usize>,
+) -> JsonpathTemporalValue {
     if let TextValue::Error(error) = input {
         return jsonpath_template_error(error.state, false);
     };
@@ -309,6 +318,8 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
             }
             let mut position: usize = 0;
             let mut zone_sign: i32 = -1;
+            let mut abbreviation_token: usize = 0;
+            let mut numeric_zone = false;
             let mut precision: i32 = -1;
             let mut year_size: i32 = 0;
             let mut date_mode: i32 = 0;
@@ -342,199 +353,232 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                         variable = true;
                     };
                     if token.kind == 22 && jsonpath_temporal_letter(source.characters[position]) {
-                        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
-                    };
-                    if token.kind == 19 || token.kind == 21 || token.kind == 22 {
-                        zone_sign = -1;
-                        let character = source.characters[position];
-                        if character == '+' || character == '-' || character == ' ' {
-                            if character == '-' {
-                                zone_sign = 1;
-                            };
-                            position += 1;
-                        };
-                    };
-                    let mut read =
-                        jsonpath_template_read_integer(&source, position, token.width, variable);
-                    if token.kind == 31 || token.kind == 32 {
-                        let mut ad = "AD".to_owned();
-                        let mut bc = "BC".to_owned();
-                        let mut length: usize = 2;
-                        if token.kind == 32 {
-                            ad = "A.D.".to_owned();
-                            bc = "B.C.".to_owned();
-                            length = 4;
-                        };
-                        if jsonpath_template_ascii_matches(&source, position, ad.as_str()) {
-                            read = JsonpathTemplateRead {
-                                value: 0,
-                                end: position + length,
-                                width: length,
-                                error: 0,
-                            };
-                        } else if jsonpath_template_ascii_matches(&source, position, bc.as_str()) {
-                            read = JsonpathTemplateRead {
-                                value: 1,
-                                end: position + length,
-                                width: length,
-                                error: 0,
-                            };
-                        } else {
-                            return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
-                        };
-                    };
-                    if token.kind >= 42 && token.kind <= 48 {
-                        read = jsonpath_template_named_read(&source, position, token.kind);
-                    };
-                    if token.kind == 33 {
-                        read = jsonpath_template_read_integer(&source, position, 1, true);
-                        if read.error == JSONPATH_TEMPLATE_RANGE {
+                        if prefixes.len() == 0 || prefixes[position] > source.characters.len() {
                             return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
                         };
-                        if read.error == 0 {
-                            if read.end == source.characters.len()
-                                || source.characters[read.end] != ','
-                            {
-                                return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
-                            };
-                            let part = jsonpath_template_year_group(&source, read.end + 1);
-                            if part.error > 0 {
-                                return jsonpath_template_error(part.error, false);
-                            };
-                            let product = (read.value as i64) * 1000i64;
-                            let combined = product + part.value as i64;
-                            if jsonpath_template_calendar_fits(product) == false
-                                || jsonpath_template_calendar_fits(combined) == false
-                            {
-                                return jsonpath_template_error(JSONPATH_TEMPLATE_RANGE, false);
-                            };
-                            read = JsonpathTemplateRead {
-                                value: combined as i32,
-                                end: part.end,
-                                width: part.end - position,
-                                error: 0,
-                            };
-                        };
-                    };
-                    if read.error > 0 {
-                        return jsonpath_template_error(read.error, false);
-                    };
-                    position = read.end;
-                    let mut field = token.kind;
-                    if field >= 1 && field <= 4 {
-                        year_size = 5 - field;
-                        field = 1;
-                    };
-                    if field == 33 {
-                        year_size = 4;
-                        field = 1;
-                    };
-                    if field >= 34 && field <= 37 {
-                        year_size = 38 - field;
-                        field = 1;
-                    };
-                    if field == 32 {
-                        field = 31;
-                    };
-                    if field == 38 {
-                        field = 24;
-                    };
-                    if field == 39 {
-                        field = 25;
-                    };
-                    if field == 40 {
-                        field = 26;
-                    };
-                    if field >= 12 && field <= 17 {
-                        precision = field - 11;
-                        field = 11;
-                    };
-                    if field == 21 || field == 22 {
-                        field = 19;
-                    };
-                    if field == 41 {
-                        twelve_hour = true;
-                        field = 7;
-                    };
-                    if field == 42 || field == 43 {
-                        twelve_hour = true;
-                        field = 34;
-                    };
-                    if field == 44 || field == 45 || field == 48 {
-                        field = 5;
-                    };
-                    if field == 46 || field == 47 {
-                        field = 25;
-                    };
-                    let slot = usize::try_from(field).unwrap_or(0);
-                    if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
-                        return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
-                    };
-                    let mut value = read.value;
-                    if ((token.kind >= 2 && token.kind <= 4)
-                        || (token.kind >= 35 && token.kind <= 37))
-                        && read.width < 4
-                    {
-                        if value < 70 {
-                            value = value + 2000;
-                        } else if value < 100 {
-                            value = value + 1900;
-                        } else if value < 520 {
-                            value = value + 2000;
-                        } else if value < 1000 {
-                            value = value + 1000;
-                        };
-                    };
-                    if field == 10 {
-                        if read.width == 1 {
-                            value = value * 100;
-                        };
-                        if read.width == 2 {
-                            value = value * 10;
-                        };
-                    };
-                    if field == 11 {
-                        let mut consumed = read.width;
-                        while consumed < 6 {
-                            value = value * 10;
-                            consumed += 1;
-                        }
-                    };
-                    if token.kind == 46 || token.kind == 47 {
-                        value = value + 1;
-                    };
-                    if token.kind == 39 {
-                        value = ((value as i64) + 1i64) as i32;
-                        if value > 7 {
-                            value = 1;
-                        };
-                    };
-                    if field != 29 {
-                        fields[slot] = JsonpathTemplateField { value: value };
-                    };
-                    if (token.kind == 21 || token.kind == 22)
-                        && position < source.characters.len()
-                        && source.characters[position] == ':'
-                    {
-                        let minutes =
-                            jsonpath_template_read_integer(&source, position + 1, 2, variable);
-                        if minutes.error > 0 {
-                            return jsonpath_template_error(minutes.error, false);
-                        };
-                        if fields[20].value != 0 && fields[20].value != minutes.value {
+                        if prefixes[position] == 0 {
                             return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
                         };
-                        fields[20] = JsonpathTemplateField {
-                            value: minutes.value,
+                        abbreviation_token = position + 1;
+                        numeric_zone = false;
+                        zone_sign = -1;
+                        fields[19] = JsonpathTemplateField { value: 0 };
+                        fields[20] = JsonpathTemplateField { value: 0 };
+                        position = prefixes[position];
+                    } else {
+                        if token.kind == 19
+                            || token.kind == 20
+                            || token.kind == 21
+                            || token.kind == 22
+                        {
+                            numeric_zone = true;
                         };
-                        position = minutes.end;
-                    };
-                    if token.ordinal && jsonpath_template_ordinal_field(token.kind) {
-                        let mut skipped: usize = 0;
-                        while skipped < 2 && position < source.characters.len() {
-                            position += 1;
-                            skipped += 1;
-                        }
+                        if token.kind == 19 || token.kind == 21 || token.kind == 22 {
+                            zone_sign = -1;
+                            let character = source.characters[position];
+                            if character == '+' || character == '-' || character == ' ' {
+                                if character == '-' {
+                                    zone_sign = 1;
+                                };
+                                position += 1;
+                            };
+                        };
+                        let mut read = jsonpath_template_read_integer(
+                            &source,
+                            position,
+                            token.width,
+                            variable,
+                        );
+                        if token.kind == 31 || token.kind == 32 {
+                            let mut ad = "AD".to_owned();
+                            let mut bc = "BC".to_owned();
+                            let mut length: usize = 2;
+                            if token.kind == 32 {
+                                ad = "A.D.".to_owned();
+                                bc = "B.C.".to_owned();
+                                length = 4;
+                            };
+                            if jsonpath_template_ascii_matches(&source, position, ad.as_str()) {
+                                read = JsonpathTemplateRead {
+                                    value: 0,
+                                    end: position + length,
+                                    width: length,
+                                    error: 0,
+                                };
+                            } else if jsonpath_template_ascii_matches(
+                                &source,
+                                position,
+                                bc.as_str(),
+                            ) {
+                                read = JsonpathTemplateRead {
+                                    value: 1,
+                                    end: position + length,
+                                    width: length,
+                                    error: 0,
+                                };
+                            } else {
+                                return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
+                            };
+                        };
+                        if token.kind >= 42 && token.kind <= 48 {
+                            read = jsonpath_template_named_read(&source, position, token.kind);
+                        };
+                        if token.kind == 33 {
+                            read = jsonpath_template_read_integer(&source, position, 1, true);
+                            if read.error == JSONPATH_TEMPLATE_RANGE {
+                                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+                            };
+                            if read.error == 0 {
+                                if read.end == source.characters.len()
+                                    || source.characters[read.end] != ','
+                                {
+                                    return jsonpath_template_error(
+                                        JSONPATH_TEMPLATE_FORMAT,
+                                        false,
+                                    );
+                                };
+                                let part = jsonpath_template_year_group(&source, read.end + 1);
+                                if part.error > 0 {
+                                    return jsonpath_template_error(part.error, false);
+                                };
+                                let product = (read.value as i64) * 1000i64;
+                                let combined = product + part.value as i64;
+                                if jsonpath_template_calendar_fits(product) == false
+                                    || jsonpath_template_calendar_fits(combined) == false
+                                {
+                                    return jsonpath_template_error(JSONPATH_TEMPLATE_RANGE, false);
+                                };
+                                read = JsonpathTemplateRead {
+                                    value: combined as i32,
+                                    end: part.end,
+                                    width: part.end - position,
+                                    error: 0,
+                                };
+                            };
+                        };
+                        if read.error > 0 {
+                            return jsonpath_template_error(read.error, false);
+                        };
+                        position = read.end;
+                        let mut field = token.kind;
+                        if field >= 1 && field <= 4 {
+                            year_size = 5 - field;
+                            field = 1;
+                        };
+                        if field == 33 {
+                            year_size = 4;
+                            field = 1;
+                        };
+                        if field >= 34 && field <= 37 {
+                            year_size = 38 - field;
+                            field = 1;
+                        };
+                        if field == 32 {
+                            field = 31;
+                        };
+                        if field == 38 {
+                            field = 24;
+                        };
+                        if field == 39 {
+                            field = 25;
+                        };
+                        if field == 40 {
+                            field = 26;
+                        };
+                        if field >= 12 && field <= 17 {
+                            precision = field - 11;
+                            field = 11;
+                        };
+                        if field == 21 || field == 22 {
+                            field = 19;
+                        };
+                        if field == 41 {
+                            twelve_hour = true;
+                            field = 7;
+                        };
+                        if field == 42 || field == 43 {
+                            twelve_hour = true;
+                            field = 34;
+                        };
+                        if field == 44 || field == 45 || field == 48 {
+                            field = 5;
+                        };
+                        if field == 46 || field == 47 {
+                            field = 25;
+                        };
+                        let slot = usize::try_from(field).unwrap_or(0);
+                        if field != 29
+                            && fields[slot].value != 0
+                            && fields[slot].value != read.value
+                        {
+                            return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
+                        };
+                        let mut value = read.value;
+                        if ((token.kind >= 2 && token.kind <= 4)
+                            || (token.kind >= 35 && token.kind <= 37))
+                            && read.width < 4
+                        {
+                            if value < 70 {
+                                value = value + 2000;
+                            } else if value < 100 {
+                                value = value + 1900;
+                            } else if value < 520 {
+                                value = value + 2000;
+                            } else if value < 1000 {
+                                value = value + 1000;
+                            };
+                        };
+                        if field == 10 {
+                            if read.width == 1 {
+                                value = value * 100;
+                            };
+                            if read.width == 2 {
+                                value = value * 10;
+                            };
+                        };
+                        if field == 11 {
+                            let mut consumed = read.width;
+                            while consumed < 6 {
+                                value = value * 10;
+                                consumed += 1;
+                            }
+                        };
+                        if token.kind == 46 || token.kind == 47 {
+                            value = value + 1;
+                        };
+                        if token.kind == 39 {
+                            value = ((value as i64) + 1i64) as i32;
+                            if value > 7 {
+                                value = 1;
+                            };
+                        };
+                        if field != 29 {
+                            fields[slot] = JsonpathTemplateField { value: value };
+                        };
+                        if (token.kind == 21 || token.kind == 22)
+                            && position < source.characters.len()
+                            && source.characters[position] == ':'
+                        {
+                            let minutes =
+                                jsonpath_template_read_integer(&source, position + 1, 2, variable);
+                            if minutes.error > 0 {
+                                return jsonpath_template_error(minutes.error, false);
+                            };
+                            if fields[20].value != 0 && fields[20].value != minutes.value {
+                                return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
+                            };
+                            fields[20] = JsonpathTemplateField {
+                                value: minutes.value,
+                            };
+                            position = minutes.end;
+                        };
+                        if token.ordinal && jsonpath_template_ordinal_field(token.kind) {
+                            let mut skipped: usize = 0;
+                            while skipped < 2 && position < source.characters.len() {
+                                position += 1;
+                                skipped += 1;
+                            }
+                        };
                     };
                 };
                 index += 1;
@@ -640,7 +684,13 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                 if program.zoned {
                     kind = 3;
                 };
-                return jsonpath_temporal_state(kind, result, zone, 0, false, false);
+                return jsonpath_template_zone_result(
+                    kind,
+                    result,
+                    zone,
+                    abbreviation_token,
+                    numeric_zone,
+                );
             };
             if let DateValue::Value(day) = date {
                 let combined = jsonpath_temporal_timestamp(day, clock, zone);
@@ -659,11 +709,39 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                             result = value;
                         };
                     };
-                    return jsonpath_temporal_state(kind, result, zone, 0, false, false);
+                    return jsonpath_template_zone_result(
+                        kind,
+                        result,
+                        zone,
+                        abbreviation_token,
+                        numeric_zone,
+                    );
                 };
             };
             return jsonpath_template_error(JSONPATH_TEMPLATE_RANGE, false);
         };
     };
     jsonpath_temporal_state(0, 0i64, 0, 0, true, false)
+}
+
+fn jsonpath_template_zone_result(
+    kind: i32,
+    value: i64,
+    zone: i32,
+    abbreviation_token: usize,
+    numeric_zone: bool,
+) -> JsonpathTemporalValue {
+    let result = jsonpath_temporal_state(kind, value, zone, 0, false, false);
+    if abbreviation_token > 0 && numeric_zone == false {
+        return JsonpathTemporalValue {
+            kind: kind,
+            value: value,
+            zone: 0,
+            error: 0,
+            unknown: true,
+            hard: false,
+            abbreviation_token: abbreviation_token,
+        };
+    };
+    result
 }

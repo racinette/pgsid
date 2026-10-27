@@ -40,12 +40,14 @@ fn jsonpath_temporal_convert_session(
     precision: i32,
     use_timezone: bool,
     session: &str,
+    defaults: bool,
+    utf8: bool,
 ) -> JsonpathTemporalValue {
-    let prior = jsonpath_temporal_convert_mode(input.clone(), method, precision, use_timezone);
+    let parsed = jsonpath_temporal_decode_context(input, session, defaults, utf8);
+    let prior = jsonpath_temporal_convert_parsed(parsed, method, precision, use_timezone);
     if prior.unknown == false || session == "" {
         return prior;
     };
-    let parsed = jsonpath_temporal_decode(input);
     if parsed.unknown || parsed.error > 0 || parsed.kind < 0 {
         return prior;
     };

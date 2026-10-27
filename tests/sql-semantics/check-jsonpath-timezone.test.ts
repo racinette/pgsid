@@ -24,7 +24,7 @@ const known = (value: string | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const failure = (code: string): Outcome => ({ kind: 'Error', value: { state: parseInt(code, 36) } })
 
-it('separates JSONPath timezone settings, transaction date and abbreviation implementation requirements', () => {
+it('separates JSONPath timezone settings, transaction date and abbreviation requirements', () => {
   const item = builtinCallables().find(
     (item) => item.kind === 'function' && item.name === 'jsonb_path_query_array_tz',
   )!
@@ -42,8 +42,8 @@ it('separates JSONPath timezone settings, transaction date and abbreviation impl
         owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
       }),
       expect.objectContaining({
-        kind: 'implementation',
-        requirement: expect.stringContaining('Alphabetic datetime suffix'),
+        kind: 'session',
+        setting: 'timezone_abbreviations',
       }),
     ]),
   )

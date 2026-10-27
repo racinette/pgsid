@@ -23668,6 +23668,11 @@ func jsonpathTemplateError(error int, hard bool) jsonpathTemporalValue {
 	return jsonpathTemporalState(0, int64(0), 0, error, false, hard)
 }
 func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.TextValue) jsonpathTemporalValue {
+	prefixes := []int{}
+	return jsonpathTemplateParsePrefixes(input, template, prefixes)
+}
+func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkruntime.TextValue, prefixes []int) jsonpathTemporalValue {
+	prefixes = langruntime.CheckedIndices(prefixes)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return jsonpathTemplateError(error.State, false)
@@ -23700,6 +23705,8 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			}
 			position := 0
 			zoneSign := langruntime.CheckedSignedNegate(1)
+			abbreviationToken := 0
+			numericZone := false
 			precision := langruntime.CheckedSignedNegate(1)
 			yearSize := 0
 			dateMode := 0
@@ -23731,169 +23738,184 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 						variable = true
 					}
 					if token.kind == 22 && jsonpathTemporalLetter(source.characters[position]) {
-						return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
-					}
-					if token.kind == 19 || token.kind == 21 || token.kind == 22 {
-						zoneSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-						character := source.characters[position]
-						if character == '+' || character == '-' || character == ' ' {
-							if character == '-' {
-								zoneSign = langruntime.CheckedI32(1)
-							}
-							position = langruntime.CheckedAdd(position, 1)
-						}
-					}
-					read := jsonpathTemplateReadInteger(&source, position, token.width, variable)
-					if token.kind == 31 || token.kind == 32 {
-						ad := langruntime.NewTextBuffer("AD")
-						bc := langruntime.NewTextBuffer("BC")
-						length := 2
-						if token.kind == 32 {
-							ad = langruntime.NewTextBuffer("A.D.")
-							bc = langruntime.NewTextBuffer("B.C.")
-							length = langruntime.CheckedIndex(4)
-						}
-						if jsonpathTemplateAsciiMatches(&source, position, string(ad)) {
-							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 0, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
-						} else if jsonpathTemplateAsciiMatches(&source, position, string(bc)) {
-							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 1, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
-						} else {
-							return jsonpathTemplateError(jsonpathTemplateFormat, false)
-						}
-					}
-					if token.kind >= 42 && token.kind <= 48 {
-						read = copyjsonpathTemplateRead(jsonpathTemplateNamedRead(&source, position, token.kind))
-					}
-					if token.kind == 33 {
-						read = copyjsonpathTemplateRead(jsonpathTemplateReadInteger(&source, position, 1, true))
-						if read.error == jsonpathTemplateRange {
+						if len(prefixes) == 0 || prefixes[position] > len(source.characters) {
 							return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
 						}
-						if read.error == 0 {
-							if read.end == len(source.characters) || source.characters[read.end] != ',' {
-								return jsonpathTemplateError(jsonpathTemplateFormat, false)
-							}
-							part := jsonpathTemplateYearGroup(&source, langruntime.CheckedAdd(read.end, 1))
-							if part.error > 0 {
-								return jsonpathTemplateError(part.error, false)
-							}
-							product := langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(read.value))), int64(1000))
-							combined := langruntime.CheckedI64Add(product, int64(langruntime.CheckedI32(part.value)))
-							if jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(combined) == false {
-								return jsonpathTemplateError(jsonpathTemplateRange, false)
-							}
-							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: int(int32(combined)), end: part.end, width: langruntime.CheckedSubtract(part.end, position), error: 0})
-						}
-					}
-					if read.error > 0 {
-						return jsonpathTemplateError(read.error, false)
-					}
-					position = langruntime.CheckedIndex(read.end)
-					field := token.kind
-					if field >= 1 && field <= 4 {
-						yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(5, field))
-						field = langruntime.CheckedI32(1)
-					}
-					if field == 33 {
-						yearSize = langruntime.CheckedI32(4)
-						field = langruntime.CheckedI32(1)
-					}
-					if field >= 34 && field <= 37 {
-						yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(38, field))
-						field = langruntime.CheckedI32(1)
-					}
-					if field == 32 {
-						field = langruntime.CheckedI32(31)
-					}
-					if field == 38 {
-						field = langruntime.CheckedI32(24)
-					}
-					if field == 39 {
-						field = langruntime.CheckedI32(25)
-					}
-					if field == 40 {
-						field = langruntime.CheckedI32(26)
-					}
-					if field >= 12 && field <= 17 {
-						precision = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(field, 11))
-						field = langruntime.CheckedI32(11)
-					}
-					if field == 21 || field == 22 {
-						field = langruntime.CheckedI32(19)
-					}
-					if field == 41 {
-						twelveHour = true
-						field = langruntime.CheckedI32(7)
-					}
-					if field == 42 || field == 43 {
-						twelveHour = true
-						field = langruntime.CheckedI32(34)
-					}
-					if field == 44 || field == 45 || field == 48 {
-						field = langruntime.CheckedI32(5)
-					}
-					if field == 46 || field == 47 {
-						field = langruntime.CheckedI32(25)
-					}
-					slot := langruntime.IndexFromI32(field, 0)
-					if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
-						return jsonpathTemplateError(jsonpathTemplateFormat, false)
-					}
-					value := read.value
-					if ((token.kind >= 2 && token.kind <= 4) || (token.kind >= 35 && token.kind <= 37)) && read.width < 4 {
-						if value < 70 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 2000))
-						} else if value < 100 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1900))
-						} else if value < 520 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 2000))
-						} else if value < 1000 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1000))
-						}
-					}
-					if field == 10 {
-						if read.width == 1 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 100))
-						}
-						if read.width == 2 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 10))
-						}
-					}
-					if field == 11 {
-						consumed := read.width
-						for consumed < 6 {
-							value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 10))
-							consumed = langruntime.CheckedAdd(consumed, 1)
-						}
-					}
-					if token.kind == 46 || token.kind == 47 {
-						value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1))
-					}
-					if token.kind == 39 {
-						value = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(value))), int64(1))))))
-						if value > 7 {
-							value = langruntime.CheckedI32(1)
-						}
-					}
-					if field != 29 {
-						fields[slot] = copyjsonpathTemplateField(jsonpathTemplateField{value: value})
-					}
-					if (token.kind == 21 || token.kind == 22) && position < len(source.characters) && source.characters[position] == ':' {
-						minutes := jsonpathTemplateReadInteger(&source, langruntime.CheckedAdd(position, 1), 2, variable)
-						if minutes.error > 0 {
-							return jsonpathTemplateError(minutes.error, false)
-						}
-						if fields[20].value != 0 && fields[20].value != minutes.value {
+						if prefixes[position] == 0 {
 							return jsonpathTemplateError(jsonpathTemplateFormat, false)
 						}
-						fields[20] = copyjsonpathTemplateField(jsonpathTemplateField{value: minutes.value})
-						position = langruntime.CheckedIndex(minutes.end)
-					}
-					if token.ordinal && jsonpathTemplateOrdinalField(token.kind) {
-						skipped := 0
-						for skipped < 2 && position < len(source.characters) {
-							position = langruntime.CheckedAdd(position, 1)
-							skipped = langruntime.CheckedAdd(skipped, 1)
+						abbreviationToken = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
+						numericZone = false
+						zoneSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+						fields[19] = copyjsonpathTemplateField(jsonpathTemplateField{value: 0})
+						fields[20] = copyjsonpathTemplateField(jsonpathTemplateField{value: 0})
+						position = langruntime.CheckedIndex(prefixes[position])
+					} else {
+						if token.kind == 19 || token.kind == 20 || token.kind == 21 || token.kind == 22 {
+							numericZone = true
+						}
+						if token.kind == 19 || token.kind == 21 || token.kind == 22 {
+							zoneSign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+							character := source.characters[position]
+							if character == '+' || character == '-' || character == ' ' {
+								if character == '-' {
+									zoneSign = langruntime.CheckedI32(1)
+								}
+								position = langruntime.CheckedAdd(position, 1)
+							}
+						}
+						read := jsonpathTemplateReadInteger(&source, position, token.width, variable)
+						if token.kind == 31 || token.kind == 32 {
+							ad := langruntime.NewTextBuffer("AD")
+							bc := langruntime.NewTextBuffer("BC")
+							length := 2
+							if token.kind == 32 {
+								ad = langruntime.NewTextBuffer("A.D.")
+								bc = langruntime.NewTextBuffer("B.C.")
+								length = langruntime.CheckedIndex(4)
+							}
+							if jsonpathTemplateAsciiMatches(&source, position, string(ad)) {
+								read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 0, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
+							} else if jsonpathTemplateAsciiMatches(&source, position, string(bc)) {
+								read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 1, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
+							} else {
+								return jsonpathTemplateError(jsonpathTemplateFormat, false)
+							}
+						}
+						if token.kind >= 42 && token.kind <= 48 {
+							read = copyjsonpathTemplateRead(jsonpathTemplateNamedRead(&source, position, token.kind))
+						}
+						if token.kind == 33 {
+							read = copyjsonpathTemplateRead(jsonpathTemplateReadInteger(&source, position, 1, true))
+							if read.error == jsonpathTemplateRange {
+								return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+							}
+							if read.error == 0 {
+								if read.end == len(source.characters) || source.characters[read.end] != ',' {
+									return jsonpathTemplateError(jsonpathTemplateFormat, false)
+								}
+								part := jsonpathTemplateYearGroup(&source, langruntime.CheckedAdd(read.end, 1))
+								if part.error > 0 {
+									return jsonpathTemplateError(part.error, false)
+								}
+								product := langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(read.value))), int64(1000))
+								combined := langruntime.CheckedI64Add(product, int64(langruntime.CheckedI32(part.value)))
+								if jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(combined) == false {
+									return jsonpathTemplateError(jsonpathTemplateRange, false)
+								}
+								read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: int(int32(combined)), end: part.end, width: langruntime.CheckedSubtract(part.end, position), error: 0})
+							}
+						}
+						if read.error > 0 {
+							return jsonpathTemplateError(read.error, false)
+						}
+						position = langruntime.CheckedIndex(read.end)
+						field := token.kind
+						if field >= 1 && field <= 4 {
+							yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(5, field))
+							field = langruntime.CheckedI32(1)
+						}
+						if field == 33 {
+							yearSize = langruntime.CheckedI32(4)
+							field = langruntime.CheckedI32(1)
+						}
+						if field >= 34 && field <= 37 {
+							yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(38, field))
+							field = langruntime.CheckedI32(1)
+						}
+						if field == 32 {
+							field = langruntime.CheckedI32(31)
+						}
+						if field == 38 {
+							field = langruntime.CheckedI32(24)
+						}
+						if field == 39 {
+							field = langruntime.CheckedI32(25)
+						}
+						if field == 40 {
+							field = langruntime.CheckedI32(26)
+						}
+						if field >= 12 && field <= 17 {
+							precision = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(field, 11))
+							field = langruntime.CheckedI32(11)
+						}
+						if field == 21 || field == 22 {
+							field = langruntime.CheckedI32(19)
+						}
+						if field == 41 {
+							twelveHour = true
+							field = langruntime.CheckedI32(7)
+						}
+						if field == 42 || field == 43 {
+							twelveHour = true
+							field = langruntime.CheckedI32(34)
+						}
+						if field == 44 || field == 45 || field == 48 {
+							field = langruntime.CheckedI32(5)
+						}
+						if field == 46 || field == 47 {
+							field = langruntime.CheckedI32(25)
+						}
+						slot := langruntime.IndexFromI32(field, 0)
+						if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
+							return jsonpathTemplateError(jsonpathTemplateFormat, false)
+						}
+						value := read.value
+						if ((token.kind >= 2 && token.kind <= 4) || (token.kind >= 35 && token.kind <= 37)) && read.width < 4 {
+							if value < 70 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 2000))
+							} else if value < 100 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1900))
+							} else if value < 520 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 2000))
+							} else if value < 1000 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1000))
+							}
+						}
+						if field == 10 {
+							if read.width == 1 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 100))
+							}
+							if read.width == 2 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 10))
+							}
+						}
+						if field == 11 {
+							consumed := read.width
+							for consumed < 6 {
+								value = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(value, 10))
+								consumed = langruntime.CheckedAdd(consumed, 1)
+							}
+						}
+						if token.kind == 46 || token.kind == 47 {
+							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1))
+						}
+						if token.kind == 39 {
+							value = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(value))), int64(1))))))
+							if value > 7 {
+								value = langruntime.CheckedI32(1)
+							}
+						}
+						if field != 29 {
+							fields[slot] = copyjsonpathTemplateField(jsonpathTemplateField{value: value})
+						}
+						if (token.kind == 21 || token.kind == 22) && position < len(source.characters) && source.characters[position] == ':' {
+							minutes := jsonpathTemplateReadInteger(&source, langruntime.CheckedAdd(position, 1), 2, variable)
+							if minutes.error > 0 {
+								return jsonpathTemplateError(minutes.error, false)
+							}
+							if fields[20].value != 0 && fields[20].value != minutes.value {
+								return jsonpathTemplateError(jsonpathTemplateFormat, false)
+							}
+							fields[20] = copyjsonpathTemplateField(jsonpathTemplateField{value: minutes.value})
+							position = langruntime.CheckedIndex(minutes.end)
+						}
+						if token.ordinal && jsonpathTemplateOrdinalField(token.kind) {
+							skipped := 0
+							for skipped < 2 && position < len(source.characters) {
+								position = langruntime.CheckedAdd(position, 1)
+								skipped = langruntime.CheckedAdd(skipped, 1)
+							}
 						}
 					}
 				}
@@ -23974,7 +23996,7 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 				if program.zoned {
 					kind = langruntime.CheckedI32(3)
 				}
-				return jsonpathTemporalState(kind, result, zone, 0, false, false)
+				return jsonpathTemplateZoneResult(kind, result, zone, abbreviationToken, numericZone)
 			}
 			if date.Kind == checkruntime.DateValueValue {
 				day := langruntime.CheckedI32(date.Value)
@@ -23996,7 +24018,7 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 							result = value
 						}
 					}
-					return jsonpathTemporalState(kind, result, zone, 0, false, false)
+					return jsonpathTemplateZoneResult(kind, result, zone, abbreviationToken, numericZone)
 				}
 			}
 			return jsonpathTemplateError(jsonpathTemplateRange, false)
@@ -24004,22 +24026,33 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 	}
 	return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
 }
+func jsonpathTemplateZoneResult(kind int, value int64, zone int, abbreviationToken int, numericZone bool) jsonpathTemporalValue {
+	kind = langruntime.CheckedI32(kind)
+	zone = langruntime.CheckedI32(zone)
+	abbreviationToken = langruntime.CheckedIndex(abbreviationToken)
+	result := jsonpathTemporalState(kind, value, zone, 0, false, false)
+	if abbreviationToken > 0 && numericZone == false {
+		return jsonpathTemporalValue{kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, abbreviationToken: abbreviationToken}
+	}
+	return result
+}
 
 const jsonpathTemporalArgument = 3452653
 const jsonpathTemporalRange = 3452552
 const jsonpathTemporalFeature = 466560
 
 type jsonpathTemporalValue struct {
-	kind    int
-	value   int64
-	zone    int
-	error   int
-	unknown bool
-	hard    bool
+	kind              int
+	value             int64
+	zone              int
+	error             int
+	unknown           bool
+	hard              bool
+	abbreviationToken int
 }
 
 func copyjsonpathTemporalValue(value jsonpathTemporalValue) jsonpathTemporalValue {
-	return jsonpathTemporalValue{kind: langruntime.CheckedI32(value.kind), value: value.value, zone: langruntime.CheckedI32(value.zone), error: langruntime.CheckedIndex(value.error), unknown: value.unknown, hard: value.hard}
+	return jsonpathTemporalValue{kind: langruntime.CheckedI32(value.kind), value: value.value, zone: langruntime.CheckedI32(value.zone), error: langruntime.CheckedIndex(value.error), unknown: value.unknown, hard: value.hard, abbreviationToken: langruntime.CheckedIndex(value.abbreviationToken)}
 }
 
 type jsonpathTemporalSource struct {
@@ -24044,7 +24077,7 @@ func jsonpathTemporalState(kind int, value int64, zone int, error int, unknown b
 	kind = langruntime.CheckedI32(kind)
 	zone = langruntime.CheckedI32(zone)
 	error = langruntime.CheckedIndex(error)
-	return jsonpathTemporalValue{kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard}
+	return jsonpathTemporalValue{kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, abbreviationToken: 0}
 }
 func jsonpathTemporalInvalid() jsonpathTemporalValue {
 	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalArgument, false, false)
@@ -24263,7 +24296,12 @@ func jsonpathTemporalTimezone(useTimezone bool) jsonpathTemporalValue {
 func jsonpathTemporalConvertMode(input checkruntime.TextValue, method int, precision int, useTimezone bool) jsonpathTemporalValue {
 	method = langruntime.CheckedI32(method)
 	precision = langruntime.CheckedI32(precision)
-	parsed := jsonpathTemporalDecode(input)
+	return jsonpathTemporalConvertParsed(jsonpathTemporalDecode(input), method, precision, useTimezone)
+}
+func jsonpathTemporalConvertParsed(parsed jsonpathTemporalValue, method int, precision int, useTimezone bool) jsonpathTemporalValue {
+	parsed = copyjsonpathTemporalValue(parsed)
+	method = langruntime.CheckedI32(method)
+	precision = langruntime.CheckedI32(precision)
 	if parsed.unknown && parsed.kind == 3 && (method == 104 || method == 130 || method == 132) {
 		return jsonpathTemporalInvalid()
 	}
