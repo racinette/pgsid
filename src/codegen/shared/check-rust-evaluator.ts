@@ -860,7 +860,12 @@ export function emitCheckRustEvaluator(
   let domainPreparationState: string | null = null
   let domainInputPreparation: { lines: string[]; status: string } | null = null
   let jsonPopulateHardError: string | null = null
-  let jsonPopulateInput: { input: string; text: string; arrayModifier?: number } | null = null
+  let jsonPopulateInput: {
+    input: string
+    text: string
+    base?: string
+    arrayModifier?: number
+  } | null = null
   let next = 0
   let requiresRegex = false
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
@@ -1766,6 +1771,172 @@ export function emitCheckRustEvaluator(
     return element
   }
 
+  const renderJsonPopulateFields = (
+    initial: string,
+    profile: CompositeProfile,
+    conversion: Extract<EvalExpression, { kind: 'text-to-composite' }>,
+    destination: string[],
+    used: Set<string>,
+  ): string => {
+    const definition = profile.graph.definitions.find((n) => n.identity === profile.identity)!
+    const utf8 = executionContext.serverEncoding === 'UTF8'
+    const bindPopulate = (source: string): string => {
+      const name = fresh('json_populate')
+      destination.push(`let ${name} = ${source};`)
+      return name
+    }
+    let state = initial
+    for (const [index, field] of definition.fields.entries()) {
+      const type = compositeFieldType(profile, field.type),
+        declared = profile.graph.definitions.find((n) => n.identity === field.type),
+        physical = compositePhysicalType(profile, field.type)
+      if (!type || !declared || !physical)
+        throw new UnsupportedCheckRustExpression(
+          'JSON record fields require captured input carriers',
+        )
+      state = bindPopulate(`json_populate_select(${state},${rustStringLiteral(field.name)})`)
+      const next = fresh('json_populate_next'),
+        text = fresh('json_populate_text'),
+        current = fresh('json_populate_input'),
+        base = fresh('json_populate_base'),
+        hard = fresh('json_populate_hard'),
+        status = fresh('json_populate_preparation'),
+        cell = fresh('json_populate_field'),
+        kind = rustType(type),
+        prefix = rustValuePrefix(kind),
+        prepared: string[] = [],
+        lines: string[] = [],
+        key = JSON.stringify(['__pgsid_composite_text_field', false]),
+        outer = localInputs.get(key),
+        outerValidity = arrayValidityScope,
+        outerPreparation = domainInputPreparation,
+        outerDepth = preparationDepth,
+        outerHard = jsonPopulateHardError,
+        outerInput = jsonPopulateInput,
+        outerStored = storedArrayInputScope,
+        outerXmlStorage = storedArrayXmlStorageScope
+      localInputs.set(key, {
+        name: '__pgsid_composite_text_field',
+        type: 'pg_catalog.text',
+        rustName: text,
+        rustType: 'TextValue',
+      })
+      arrayValidityScope = null
+      domainInputPreparation = { lines: prepared, status }
+      preparationDepth = 0
+      jsonPopulateHardError = hard
+      let arrayModifier = field.typeMod
+      let modifierType = declared
+      const modifierTypes = new Set<string>()
+      while (!modifierTypes.has(modifierType.identity)) {
+        modifierTypes.add(modifierType.identity)
+        if (modifierType.baseTypeMod !== -1) arrayModifier = modifierType.baseTypeMod
+        const next = modifierType.base ?? modifierType.element
+        const nextType = next && profile.graph.definitions.find((n) => n.identity === next)
+        if (!nextType) break
+        modifierType = nextType
+      }
+      jsonPopulateInput = {
+        input: current,
+        text,
+        base,
+        ...(arrayModifier >= 0 ? { arrayModifier } : {}),
+      }
+      storedArrayInputScope = false
+      storedArrayXmlStorageScope = false
+      let unavailable = false
+      try {
+        const name =
+          declared.kind === 'd'
+            ? 'domain_in'
+            : physical.kind === 'e'
+              ? 'enum_in'
+              : physical.kind === 'c'
+                ? 'record_in'
+                : physical.element && !isCatalogVectorType(arrayElementBaseType(type))
+                  ? 'array_in'
+                  : null
+        const selected = name
+          ? builtinCallables().find(
+              (n) =>
+                n.kind === 'function' &&
+                n.schema === 'pg_catalog' &&
+                n.name === name &&
+                n.args[0] === 'pg_catalog.cstring',
+            )
+          : null
+        const expected = selected
+          ? callableIdentity(selected)
+          : (rangeTypeInput(type) ?? builtinTypeIO(type)?.input)
+        if (!expected || declared.input !== expected)
+          throw new UnsupportedCheckRustExpression('Unavailable selected field input callback')
+        const value = emitScalar(conversion.conversions[index]!, lines, used)
+        lines.push(`let ${cell} = array_element_from_${prefix}(${ownedOperand(value)});`)
+      } catch (error) {
+        if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+        unavailable = true
+        prepared.length = 0
+        lines.length = 0
+      } finally {
+        if (outer) localInputs.set(key, outer)
+        else localInputs.delete(key)
+        arrayValidityScope = outerValidity
+        domainInputPreparation = outerPreparation
+        preparationDepth = outerDepth
+        jsonPopulateHardError = outerHard
+        jsonPopulateInput = outerInput
+        storedArrayInputScope = outerStored
+        storedArrayXmlStorageScope = outerXmlStorage
+      }
+      const container = type.startsWith('array:')
+          ? 1
+          : compositeProfile(arrayElementBaseType(type))
+            ? 2
+            : 0,
+        quoted = ['pg_catalog."json"', 'pg_catalog.jsonb'].includes(arrayElementBaseType(type)),
+        calendar = [
+          'pg_catalog.date',
+          'pg_catalog."timestamp"',
+          'pg_catalog.timestamptz',
+          'pg_catalog."time"',
+          'pg_catalog.timetz',
+        ].includes(arrayElementBaseType(type)),
+        finished = fresh('json_populate_finished'),
+        result = fresh('json_populate_value'),
+        accepted = fresh('json_populate_cell'),
+        needsBase = new RegExp(`\\b${base}\\b`).test([...prepared, ...lines].join('\n')),
+        needsText = new RegExp(`\\b${text}\\b`).test([...prepared, ...lines].join('\n'))
+      destination.push(
+        `let mut ${result}:${kind} = ${prefix}_unknown();`,
+        `let mut ${hard}:CheckOutcome = json_populate_begin_hard();`,
+        `if json_populate_should_convert(&${state}) {`,
+        `    let ${current} = json_populate_current(&${state});`,
+        ...(needsBase ? [`    let ${base} = json_populate_base_current(&${state});`] : []),
+        ...(unavailable
+          ? [
+              `    let ${cell} = json_populate_unavailable(${current},${declared.kind === 'd'});`,
+              `    let ${status} = json_populate_begin_hard();`,
+            ]
+          : [
+              ...(needsText
+                ? [
+                    `    let ${text} = json_populate_scalar_text(${current}.clone(),${quoted},${container},${calendar},${utf8});`,
+                  ]
+                : []),
+              `    let mut ${status}:CheckOutcome = json_populate_begin_hard();`,
+              ...indent(prepared),
+              ...indent(lines),
+            ]),
+        `    let ${finished} = finish_domain_conversion(${cell},${status});`,
+        `    ${result} = array_element_to_${prefix}(${finished});`,
+        '};',
+        `let ${accepted} = array_element_from_${prefix}(${ownedOperand({ name: result, type })});`,
+        `let ${next} = json_populate_accept(${state},${accepted},${hard});`,
+      )
+      state = next
+    }
+    return state
+  }
   const emitScalar = (
     node: EvalExpression,
     bindings: string[],
@@ -2701,7 +2872,13 @@ export function emitCheckRustEvaluator(
       const lines: string[] = []
       const outerPopulateInput = jsonPopulateInput
       if (populateScope && jsonEvent)
-        jsonPopulateInput = { ...populateScope, input: jsonEvent, text: event }
+        jsonPopulateInput = {
+          input: jsonEvent,
+          text: event,
+          ...(populateScope.arrayModifier === undefined
+            ? {}
+            : { arrayModifier: populateScope.arrayModifier }),
+        }
       let converted = renderArrayInputElement(
         baseType,
         node.enum,
@@ -3082,151 +3259,7 @@ export function emitCheckRustEvaluator(
             node.kind === 'call' && !rustExpressionCanFail(node.operands[2], executionContext)
           state = bindPopulate(`json_populate_guard(${state},${ownedOperand(operands[2])},${safe})`)
         }
-        for (const [index, field] of definition.fields.entries()) {
-          const type = compositeFieldType(profile, field.type),
-            declared = profile.graph.definitions.find((n) => n.identity === field.type),
-            physical = compositePhysicalType(profile, field.type)
-          if (!type || !declared || !physical)
-            throw new UnsupportedCheckRustExpression(
-              'JSON record fields require captured input carriers',
-            )
-          state = bindPopulate(`json_populate_select(${state},${rustStringLiteral(field.name)})`)
-          const next = fresh('json_populate_next'),
-            text = fresh('json_populate_text'),
-            current = fresh('json_populate_input'),
-            hard = fresh('json_populate_hard'),
-            status = fresh('json_populate_preparation'),
-            cell = fresh('json_populate_field'),
-            kind = rustType(type),
-            prefix = rustValuePrefix(kind),
-            prepared: string[] = [],
-            lines: string[] = [],
-            key = JSON.stringify(['__pgsid_composite_text_field', false]),
-            outer = localInputs.get(key),
-            outerValidity = arrayValidityScope,
-            outerPreparation = domainInputPreparation,
-            outerDepth = preparationDepth,
-            outerHard = jsonPopulateHardError,
-            outerInput = jsonPopulateInput,
-            outerStored = storedArrayInputScope,
-            outerXmlStorage = storedArrayXmlStorageScope
-          localInputs.set(key, {
-            name: '__pgsid_composite_text_field',
-            type: 'pg_catalog.text',
-            rustName: text,
-            rustType: 'TextValue',
-          })
-          arrayValidityScope = null
-          domainInputPreparation = { lines: prepared, status }
-          preparationDepth = 0
-          jsonPopulateHardError = hard
-          let arrayModifier = field.typeMod
-          let modifierType = declared
-          const modifierTypes = new Set<string>()
-          while (!modifierTypes.has(modifierType.identity)) {
-            modifierTypes.add(modifierType.identity)
-            if (modifierType.baseTypeMod !== -1) arrayModifier = modifierType.baseTypeMod
-            const next = modifierType.base ?? modifierType.element
-            const nextType = next && profile.graph.definitions.find((n) => n.identity === next)
-            if (!nextType) break
-            modifierType = nextType
-          }
-          jsonPopulateInput = {
-            input: current,
-            text,
-            ...(arrayModifier >= 0 ? { arrayModifier } : {}),
-          }
-          storedArrayInputScope = false
-          storedArrayXmlStorageScope = false
-          let unavailable = false
-          try {
-            const name =
-              declared.kind === 'd'
-                ? 'domain_in'
-                : physical.kind === 'e'
-                  ? 'enum_in'
-                  : physical.kind === 'c'
-                    ? 'record_in'
-                    : physical.element && !isCatalogVectorType(arrayElementBaseType(type))
-                      ? 'array_in'
-                      : null
-            const selected = name
-              ? builtinCallables().find(
-                  (n) =>
-                    n.kind === 'function' &&
-                    n.schema === 'pg_catalog' &&
-                    n.name === name &&
-                    n.args[0] === 'pg_catalog.cstring',
-                )
-              : null
-            const expected = selected
-              ? callableIdentity(selected)
-              : (rangeTypeInput(type) ?? builtinTypeIO(type)?.input)
-            if (!expected || declared.input !== expected)
-              throw new UnsupportedCheckRustExpression('Unavailable selected field input callback')
-            const value = emitScalar(conversion.conversions[index]!, lines, used)
-            lines.push(`let ${cell} = array_element_from_${prefix}(${ownedOperand(value)});`)
-          } catch (error) {
-            if (!(error instanceof UnsupportedCheckRustExpression)) throw error
-            unavailable = true
-            prepared.length = 0
-            lines.length = 0
-          } finally {
-            if (outer) localInputs.set(key, outer)
-            else localInputs.delete(key)
-            arrayValidityScope = outerValidity
-            domainInputPreparation = outerPreparation
-            preparationDepth = outerDepth
-            jsonPopulateHardError = outerHard
-            jsonPopulateInput = outerInput
-            storedArrayInputScope = outerStored
-            storedArrayXmlStorageScope = outerXmlStorage
-          }
-          const container = type.startsWith('array:')
-              ? 1
-              : compositeProfile(arrayElementBaseType(type))
-                ? 2
-                : 0,
-            quoted = ['pg_catalog."json"', 'pg_catalog.jsonb'].includes(arrayElementBaseType(type)),
-            calendar = [
-              'pg_catalog.date',
-              'pg_catalog."timestamp"',
-              'pg_catalog.timestamptz',
-              'pg_catalog."time"',
-              'pg_catalog.timetz',
-            ].includes(arrayElementBaseType(type)),
-            finished = fresh('json_populate_finished'),
-            result = fresh('json_populate_value'),
-            accepted = fresh('json_populate_cell'),
-            needsText = new RegExp(`\\b${text}\\b`).test([...prepared, ...lines].join('\n'))
-          destination.push(
-            `let mut ${result}:${kind} = ${prefix}_unknown();`,
-            `let mut ${hard}:CheckOutcome = json_populate_begin_hard();`,
-            `if json_populate_should_convert(&${state}) {`,
-            `    let ${current} = json_populate_current(&${state});`,
-            ...(unavailable
-              ? [
-                  `    let ${cell} = json_populate_unavailable(${current},${declared.kind === 'd'});`,
-                  `    let ${status} = json_populate_begin_hard();`,
-                ]
-              : [
-                  ...(needsText
-                    ? [
-                        `    let ${text} = json_populate_scalar_text(${current}.clone(),${quoted},${container},${calendar},${utf8});`,
-                      ]
-                    : []),
-                  `    let mut ${status}:CheckOutcome = json_populate_begin_hard();`,
-                  ...indent(prepared),
-                  ...indent(lines),
-                ]),
-            `    let ${finished} = finish_domain_conversion(${cell},${status});`,
-            `    ${result} = array_element_to_${prefix}(${finished});`,
-            '};',
-            `let ${accepted} = array_element_from_${prefix}(${ownedOperand({ name: result, type })});`,
-            `let ${next} = json_populate_accept(${state},${accepted},${hard});`,
-          )
-          state = next
-        }
+        state = renderJsonPopulateFields(state, profile, conversion, destination, used)
         callables.add(implementation.rustName)
         const finished = bindPopulate(`make_json_populate_plan(${state})`)
         return { name: bindPopulate(`${implementation.rustName}(${finished})`), type: call.type }
@@ -8390,6 +8423,66 @@ export function emitCheckRustEvaluator(
           'Composite input requires captured record and field I/O identities',
         )
       const operand = emitScalar(node.operand, bindings, used)
+      const populateScope =
+        node.origin !== 'stored' && jsonPopulateInput?.text === operand.name
+          ? jsonPopulateInput
+          : null
+      if (populateScope) {
+        const value = fresh('json_populate_record'),
+          nested: string[] = [],
+          fallback: string[] = []
+        const bindNested = (source: string): string => {
+          const name = fresh('json_populate_nested')
+          nested.push(`let ${name} = ${source};`)
+          return name
+        }
+        const base = populateScope.base ?? bindNested('composite_null()')
+        const initial = bindNested(
+          `prepare_json_populate(${base}.clone(),${populateScope.input}.clone(),${rustStringLiteral(profile.identity)},${definition.fields.length},${executionContext.serverEncoding === 'UTF8'})`,
+        )
+        const state = renderJsonPopulateFields(initial, profile, node, nested, used)
+        if (jsonPopulateHardError) {
+          const hard = bindNested(`json_populate_nested_hard(&${state})`)
+          nested.push(
+            `${jsonPopulateHardError} = json_populate_hard_error(${jsonPopulateHardError},${hard});`,
+          )
+        }
+        const populated = bindNested(`finish_json_populate(${state})`)
+        const name = '__pgsid_json_record_text',
+          key = JSON.stringify([name, false]),
+          outer = localInputs.get(key),
+          outerInput = jsonPopulateInput
+        localInputs.set(key, {
+          name,
+          type: 'pg_catalog.text',
+          rustName: operand.name,
+          rustType: 'TextValue',
+        })
+        jsonPopulateInput = null
+        let converted: { name: string; type: string }
+        try {
+          converted = emitScalar(
+            { ...node, operand: { kind: 'input', type: 'pg_catalog.text', name } },
+            fallback,
+            used,
+          )
+        } finally {
+          if (outer) localInputs.set(key, outer)
+          else localInputs.delete(key)
+          jsonPopulateInput = outerInput
+        }
+        bindings.push(
+          `let mut ${value}:CompositeValue = composite_unknown();`,
+          `if json_populate_record_object(${populateScope.input}.clone()) {`,
+          ...indent(nested),
+          `    ${value} = ${populated};`,
+          '} else {',
+          ...indent(fallback),
+          `    ${value} = ${ownedOperand(converted)};`,
+          '};',
+        )
+        return { name: value, type: node.type }
+      }
       let plan = bind(
         `prepare_composite_text(${ownedOperand(operand)},${definition.fields.length})`,
       )

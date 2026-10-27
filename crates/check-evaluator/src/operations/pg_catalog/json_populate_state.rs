@@ -164,6 +164,16 @@ pub(crate) fn json_populate_current(input: &JsonPopulateState) -> JsonbInput {
     input.current.clone()
 }
 
+pub(crate) fn json_populate_base_current(input: &JsonPopulateState) -> CompositeValue {
+    let index = make_int4_value(input.position);
+    let field = composite_field_at(input.base.clone(), index);
+    array_element_to_composite(field)
+}
+
+pub(crate) fn json_populate_nested_hard(input: &JsonPopulateState) -> CheckOutcome {
+    input.hard
+}
+
 pub(crate) fn json_populate_accept(
     input: JsonPopulateState,
     field: ArrayElement,
@@ -202,7 +212,7 @@ pub(crate) fn json_populate_accept(
     }
 }
 
-fn finish_json_populate(input: JsonPopulateState) -> CompositeValue {
+pub(crate) fn finish_json_populate(input: JsonPopulateState) -> CompositeValue {
     let hard = input.hard;
     if let CheckOutcome::Error(error) = hard {
         return CompositeValue::Error(error);

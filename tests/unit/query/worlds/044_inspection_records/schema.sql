@@ -1744,3 +1744,27 @@ CREATE TABLE inspection_json_array_records (
  CONSTRAINT jsonb_record_arrays_valid CHECK(CASE WHEN bypass THEN true ELSE
    pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_array_input,data) IS NOT FALSE END)
 );
+
+CREATE DOMAIN inspection_nested_positive AS integer CHECK(VALUE>0);
+CREATE TYPE inspection_json_leaf AS (n inspection_nested_positive,label varchar(3));
+CREATE TYPE inspection_json_branch AS (child inspection_json_leaf,children inspection_json_leaf[],tag text);
+CREATE TYPE inspection_json_nested_input AS (b inspection_json_branch);
+CREATE TABLE inspection_json_nested_records (
+ data jsonb,
+ raw_data json,
+ expected_n integer,
+ expected_label text,
+ expected_count integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT json_nested_quantity CHECK(CASE WHEN bypass THEN true ELSE
+   ((pg_catalog.json_populate_record(ROW(ROW(ROW(9,'old')::inspection_json_leaf,ARRAY[ROW(8,'arr')::inspection_json_leaf],'base')::inspection_json_branch)::inspection_json_nested_input,raw_data)).b).child.n
+     IS NOT DISTINCT FROM expected_n END),
+ CONSTRAINT jsonb_nested_label CHECK(CASE WHEN bypass THEN true ELSE
+   ((pg_catalog.jsonb_populate_record(ROW(ROW(ROW(9,'old')::inspection_json_leaf,ARRAY[ROW(8,'arr')::inspection_json_leaf],'base')::inspection_json_branch)::inspection_json_nested_input,data)).b).child.label
+     IS NOT DISTINCT FROM expected_label END),
+ CONSTRAINT jsonb_nested_array_size CHECK(CASE WHEN bypass THEN true ELSE
+   cardinality(((pg_catalog.jsonb_populate_record(ROW(ROW(ROW(9,'old')::inspection_json_leaf,ARRAY[ROW(8,'arr')::inspection_json_leaf],'base')::inspection_json_branch)::inspection_json_nested_input,data)).b).children)
+     IS NOT DISTINCT FROM expected_count END),
+ CONSTRAINT jsonb_nested_fields_valid CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.jsonb_populate_record_valid(NULL::inspection_json_nested_input,data) IS NOT FALSE END)
+);
