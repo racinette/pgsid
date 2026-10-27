@@ -23812,10 +23812,12 @@ function jsonpathTemplateError(error: number, hard: boolean): JsonpathTemporalVa
 }
 function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkruntime.TextValue): JsonpathTemporalValue {
     const prefixes: number[] = [];
-    return jsonpathTemplateParsePrefixes(input, template, prefixes);
+    return jsonpathTemplateParsePrefixes(input, template, prefixes, false, false);
 }
-function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: checkruntime.TextValue, prefixes: number[]): JsonpathTemporalValue {
+function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: checkruntime.TextValue, prefixes: number[], localeC: boolean, collationC: boolean): JsonpathTemporalValue {
     prefixes = langruntime.checkedIndices(prefixes);
+    localeC = langruntime.checkedBool(localeC);
+    collationC = langruntime.checkedBool(collationC);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return jsonpathTemplateError(error.state, false);
@@ -23873,7 +23875,7 @@ function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: 
                         }
                         dateMode = langruntime.checkedI32(mode);
                     }
-                    if (token.translated && token.kind >= 44 && token.kind <= 47) {
+                    if (token.translated && token.kind >= 44 && token.kind <= 47 && (localeC === false || collationC === false)) {
                         return jsonpathTemporalState(0, 0n, 0, 0, true, false);
                     }
                     let variable: boolean = token.fill || token.ordinal || langruntime.checkedAdd(index, 1) === program.tokens.length;

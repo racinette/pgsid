@@ -33,6 +33,7 @@ struct JsonpathExecutionContext {
     use_timezone: bool,
     session_timezone: String,
     abbreviations_default: bool,
+    time_locale_c: bool,
     ordered_result: bool,
     document_ids: Vec<NumericValue>,
     variables_ids: Vec<NumericValue>,
@@ -1187,6 +1188,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     use_timezone: context.use_timezone,
                     session_timezone: context.session_timezone,
                     abbreviations_default: context.abbreviations_default,
+                    time_locale_c: context.time_locale_c,
                     ordered_result: context.ordered_result,
                     document_ids: context.document_ids,
                     variables_ids: context.variables_ids,
@@ -2131,6 +2133,7 @@ fn jsonpath_evaluate(
         use_timezone,
         "",
         false,
+        false,
     )
 }
 
@@ -2147,6 +2150,7 @@ fn jsonpath_evaluate_session(
     use_timezone: bool,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonbValue {
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
@@ -2195,6 +2199,7 @@ fn jsonpath_evaluate_session(
                         use_timezone,
                         session,
                         defaults,
+                        locale_c,
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
@@ -2688,6 +2693,7 @@ pub fn jsonpath_exists_tz_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2702,6 +2708,7 @@ pub fn jsonpath_exists_tz_session(
         true,
         session,
         defaults,
+        locale_c,
     ))
 }
 
@@ -2715,6 +2722,7 @@ pub fn jsonpath_match_tz_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2729,6 +2737,7 @@ pub fn jsonpath_match_tz_session(
         true,
         session,
         defaults,
+        locale_c,
     ))
 }
 
@@ -2742,6 +2751,7 @@ pub fn jsonpath_query_array_tz_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2756,6 +2766,7 @@ pub fn jsonpath_query_array_tz_session(
         true,
         session,
         defaults,
+        locale_c,
     )
 }
 
@@ -2769,6 +2780,7 @@ pub fn jsonpath_query_first_tz_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2783,6 +2795,7 @@ pub fn jsonpath_query_first_tz_session(
         true,
         session,
         defaults,
+        locale_c,
     )
 }
 
@@ -2796,6 +2809,7 @@ pub fn jsonpath_exists_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2810,6 +2824,7 @@ pub fn jsonpath_exists_session(
         false,
         session,
         defaults,
+        locale_c,
     ))
 }
 
@@ -2823,6 +2838,7 @@ pub fn jsonpath_match_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate_session(
         document,
@@ -2837,6 +2853,7 @@ pub fn jsonpath_match_session(
         false,
         session,
         defaults,
+        locale_c,
     ))
 }
 
@@ -2850,6 +2867,7 @@ pub fn jsonpath_query_array_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2864,6 +2882,7 @@ pub fn jsonpath_query_array_session(
         false,
         session,
         defaults,
+        locale_c,
     )
 }
 
@@ -2877,6 +2896,7 @@ pub fn jsonpath_query_first_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> JsonbValue {
     jsonpath_evaluate_session(
         document,
@@ -2891,6 +2911,7 @@ pub fn jsonpath_query_first_session(
         false,
         session,
         defaults,
+        locale_c,
     )
 }
 
@@ -2902,6 +2923,7 @@ pub fn jsonpath_exists_opr_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     let variables = jsonb_from_text(make_text_value("{}"));
     let silent = make_bool_value(true);
@@ -2918,6 +2940,7 @@ pub fn jsonpath_exists_opr_session(
         false,
         session,
         defaults,
+        locale_c,
     ))
 }
 
@@ -2929,6 +2952,7 @@ pub fn jsonpath_match_opr_session(
     ctype: i32,
     session: &str,
     defaults: bool,
+    locale_c: bool,
 ) -> BoolValue {
     let variables = jsonb_from_text(make_text_value("{}"));
     let silent = make_bool_value(true);
@@ -2945,5 +2969,6 @@ pub fn jsonpath_match_opr_session(
         false,
         session,
         defaults,
+        locale_c,
     ))
 }

@@ -453,8 +453,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'lc_time / database default collation',
         requirement:
-          'Translated month/day template fields require locale word lists and default-collation case folding. Plain English month/day names, Roman months and AM/PM use fixed ASCII lists. Defer when a translated field is reached; preceding format, literal and date-mode errors remain definite.',
-        owner: 'tests/sql-semantics/check-jsonpath-templates.test.ts',
+          'Translated month/day template fields consume declared C time locale and C default collation through fixed English lists and ASCII case folding. Missing locale/collation facts defer only at a reached translated field; preceding format, literal and date-mode errors remain definite. Plain English fields, Roman months and AM/PM do not require translated locale data.',
+        owner: 'tests/sql-semantics/check-jsonpath-template-locale.test.ts',
       },
       {
         kind: 'platform-input',
@@ -482,12 +482,6 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         requirement:
           'Alphabetic ISO and TZ template suffixes use declared Default definitions and known session labels, retaining prefix consumption, numeric/abbreviation field order, fixed offsets and dated dynamic abbreviations. Undeclared registries remain unavailable; dynamic bare-clock offsets require transaction date unless their forced offset is invariant.',
         owner: 'tests/sql-semantics/check-jsonpath-abbreviations.test.ts',
-      },
-      {
-        kind: 'implementation',
-        requirement:
-          'Translated JSONPath template fields do not yet consume supplied C time-locale/default-collation facts. Ordinary English name fields are supported; keep the missing declared-C integration separate from unavailable locale word lists.',
-        owner: 'tests/sql-semantics/check-jsonpath-templates.test.ts',
       },
     ]
   if (

@@ -23669,9 +23669,9 @@ func jsonpathTemplateError(error int, hard bool) jsonpathTemporalValue {
 }
 func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.TextValue) jsonpathTemporalValue {
 	prefixes := []int{}
-	return jsonpathTemplateParsePrefixes(input, template, prefixes)
+	return jsonpathTemplateParsePrefixes(input, template, prefixes, false, false)
 }
-func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkruntime.TextValue, prefixes []int) jsonpathTemporalValue {
+func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkruntime.TextValue, prefixes []int, localeC bool, collationC bool) jsonpathTemporalValue {
 	prefixes = langruntime.CheckedIndices(prefixes)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
@@ -23730,7 +23730,7 @@ func jsonpathTemplateParsePrefixes(input checkruntime.TextValue, template checkr
 						}
 						dateMode = langruntime.CheckedI32(mode)
 					}
-					if token.translated && token.kind >= 44 && token.kind <= 47 {
+					if token.translated && token.kind >= 44 && token.kind <= 47 && (localeC == false || collationC == false) {
 						return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
 					}
 					variable := token.fill || token.ordinal || langruntime.CheckedAdd(index, 1) == len(program.tokens)

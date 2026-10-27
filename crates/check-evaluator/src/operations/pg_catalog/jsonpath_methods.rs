@@ -148,6 +148,8 @@ fn jsonpath_temporal_apply(
             context.session_timezone.as_str(),
             context.abbreviations_default,
             context.utf8,
+            context.time_locale_c,
+            context.c_collation,
         );
     };
     let mut precision: i32 = -1;
