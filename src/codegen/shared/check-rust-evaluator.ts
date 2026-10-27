@@ -1,3 +1,4 @@
+import { isTextFormatCallable } from '../../sql-semantics/text-format-callables.js'
 import { isTextConcatCallable } from '../../sql-semantics/text-concat-callables.js'
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
@@ -2986,6 +2987,110 @@ export function emitCheckRustEvaluator(
         if (folded) return folded
         const name = fresh('nullable_quote')
         destination.push(`let ${name} = ${implementation.rustName}(${ownedOperand(operands[0]!)});`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
+      if (isTextFormatCallable(implementation)) {
+        if (
+          call.kind !== 'function' ||
+          call.type !== implementation.result ||
+          !operands.length ||
+          operands[0]!.type !== 'pg_catalog.text' ||
+          (implementation.variadic === null && operands.length !== 1) ||
+          (call.variadic && (operands.length !== 2 || !isArrayLikeType(operands[1]!.type)))
+        )
+          throw new UnsupportedCheckRustExpression('Invalid formatting call')
+        if (folded) return folded
+        const bind = (value: string): string => {
+          const name = fresh('format_value')
+          destination.push(`let ${name} = ${value};`)
+          return name
+        }
+        let guard = bind('make_bool_value(true)')
+        const nullness = operands.map((operand) => {
+          const state = bind(
+            `${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)})`,
+          )
+          guard = bind(`concat_argument_guard(${guard}, ${state})`)
+          return state
+        })
+        const payload = call.variadic
+            ? bind(`prepare_array_output(${ownedOperand(operands[1]!)})`)
+            : null,
+          count = bind(
+            payload ? `format_array_count(&${payload})` : `make_int4_value(${operands.length - 1})`,
+          ),
+          initial = bind(`format_begin(${ownedOperand(operands[0]!)}, ${count}, ${guard})`),
+          state = fresh('format_state'),
+          quoteAll =
+            executionContext.quoteAllIdentifiers === undefined
+              ? -1
+              : executionContext.quoteAllIdentifiers
+                ? 1
+                : 0
+        destination.push(
+          `let mut ${state}: TextFormatState = ${initial};`,
+          `while format_continues(&${state}) {`,
+          `    ${state} = format_next(${state});`,
+        )
+        const supply = (cell: string, type: string, bitmap: string, lines: string[]) => {
+          lines.push(
+            `${state} = format_before_argument(${state}, ${bitmap}, ${quoteAll});`,
+            `if format_should_render(&${state}) {`,
+          )
+          const inner: string[] = []
+          let base = arrayElementBaseType(type)
+          while (base.startsWith('array:')) base = arrayElementBaseType(base.slice(6))
+          const definition =
+            call.inputEnums?.find((item) => enumType(item) === base) ?? binaryEnums.get(base)
+          let conversion: string
+          try {
+            conversion = renderTypedOutput(cell, type, inner, definition)
+          } catch (error) {
+            if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+            inner.length = 0
+            conversion = 'text_unknown()'
+          }
+          const rendered = fresh('format_rendered')
+          inner.push(
+            `let ${rendered} = ${conversion};`,
+            `${state} = format_accept(${state}, ${rendered}, ${quoteAll});`,
+          )
+          lines.push(...indent(inner), '}')
+        }
+        if (payload) {
+          const index = fresh('format_index'),
+            cell = fresh('format_element'),
+            bitmap = fresh('format_nullness'),
+            inner = [
+              `let ${index} = format_argument_index(&${state});`,
+              `let ${cell} = array_output_element_at(&${payload}, ${index});`,
+              `let ${bitmap} = concat_array_element_nullness(&${payload}, ${cell}.clone());`,
+            ]
+          supply(cell, arrayLikeElementType(operands[1]!.type)!, bitmap, inner)
+          destination.push(
+            `    if format_needs_argument(&${state}) {`,
+            ...indent(indent(inner)),
+            '    }',
+          )
+        } else {
+          for (const [index, operand] of operands.entries()) {
+            if (!index) continue
+            const cell = fresh('format_element'),
+              inner = [
+                `let ${cell} = array_element_from_${rustValuePrefix(rustType(operand.type))}(${ownedOperand(operand)});`,
+              ]
+            supply(cell, operand.type, nullness[index]!, inner)
+            destination.push(
+              `    if format_requests(&${state}, ${index}) {`,
+              ...indent(indent(inner)),
+              '    }',
+            )
+          }
+        }
+        destination.push('}')
+        const input = bind(`make_format_input(${state})`),
+          name = bind(`${implementation.rustName}(${input})`)
         callables.add(implementation.rustName)
         return { name, type: call.type }
       }

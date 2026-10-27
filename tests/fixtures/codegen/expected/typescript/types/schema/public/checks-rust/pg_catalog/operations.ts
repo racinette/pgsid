@@ -43850,6 +43850,484 @@ export function concatCa4i(input: TextConcatState): checkruntime.TextValue {
 export function concatWsDc5y(input: TextConcatState): checkruntime.TextValue {
     return concatFinish(input);
 }
+export interface TextFormatToken {
+    status: checkruntime.CheckOutcome;
+    end: number;
+    argument: number;
+    widthArgument: number;
+    width: number;
+    left: boolean;
+    conversion: number;
+}
+function copyTextFormatToken(value: TextFormatToken): TextFormatToken {
+    return { status: value.status, end: langruntime.checkedIndex(value.end), argument: langruntime.checkedI32(value.argument), widthArgument: langruntime.checkedI32(value.widthArgument), width: langruntime.checkedI32(value.width), left: langruntime.checkedBool(value.left), conversion: langruntime.checkedI32(value.conversion) };
+}
+interface TextFormatDigits {
+    end: number;
+    value: number;
+    found: boolean;
+    status: checkruntime.CheckOutcome;
+}
+function copyTextFormatDigits(value: TextFormatDigits): TextFormatDigits {
+    return { end: langruntime.checkedIndex(value.end), value: langruntime.checkedI32(value.value), found: langruntime.checkedBool(value.found), status: value.status };
+}
+const textFormatSyntaxError = 3452619;
+const textFormatRangeError = 3452547;
+function formatParseDigits(input: TextFormatSource, start: number): TextFormatDigits {
+    start = langruntime.checkedIndex(start);
+    let index: number = start;
+    let value: number = 0;
+    let found: boolean = false;
+    let status: checkruntime.CheckOutcome = { kind: "True" };
+    if (index >= input.characters.length) {
+        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+        status = { kind: "Error", value: error };
+    }
+    while (index < input.characters.length && checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(input.characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code < 48 || code > 57) {
+            return { end: index, value: value, found: found, status: status };
+        }
+        const digit: number = langruntime.checkedSignedSubtract(code, 48);
+        if (value > 214748364 || (value === 214748364 && digit > 7)) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatRangeError);
+            status = { kind: "Error", value: error };
+        }
+        else {
+            value = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value, 10), digit));
+            index = langruntime.checkedAdd(index, 1);
+            found = langruntime.checkedBool(true);
+            if (index === input.characters.length) {
+                const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                status = { kind: "Error", value: error };
+            }
+        }
+    }
+    return { end: index, value: value, found: found, status: status };
+}
+export function formatParseToken(input: TextFormatSource, start: number): TextFormatToken {
+    let index: number = start;
+    let status: checkruntime.CheckOutcome = { kind: "True" };
+    let argument: number = langruntime.checkedSignedNegate(1);
+    let widthArgument: number = langruntime.checkedSignedNegate(1);
+    let width: number = 0;
+    let left: boolean = false;
+    let conversion: number = 0;
+    let parseOptions: boolean = true;
+    if (index >= input.characters.length) {
+        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+        status = { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && langruntime.indexChar(input.characters, langruntime.checkedIndex(index)) === "%") {
+        conversion = langruntime.checkedI32(37);
+        index = langruntime.checkedAdd(index, 1);
+        parseOptions = langruntime.checkedBool(false);
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && parseOptions) {
+        const digits: TextFormatDigits = copyTextFormatDigits(formatParseDigits(input, index));
+        status = digits.status;
+        index = langruntime.checkedIndex(digits.end);
+        if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && digits.found) {
+            if (langruntime.indexChar(input.characters, langruntime.checkedIndex(index)) === "$") {
+                argument = langruntime.checkedI32(digits.value);
+                index = langruntime.checkedAdd(index, 1);
+                if (argument === 0 || index === input.characters.length) {
+                    const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                    status = { kind: "Error", value: error };
+                }
+            }
+            else {
+                width = langruntime.checkedI32(digits.value);
+                parseOptions = langruntime.checkedBool(false);
+            }
+        }
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && parseOptions) {
+        while (index < input.characters.length && langruntime.indexChar(input.characters, langruntime.checkedIndex(index)) === "-") {
+            left = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === input.characters.length) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+            status = { kind: "Error", value: error };
+        }
+        if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+            if (langruntime.indexChar(input.characters, langruntime.checkedIndex(index)) === "*") {
+                index = langruntime.checkedAdd(index, 1);
+                const digits: TextFormatDigits = copyTextFormatDigits(formatParseDigits(input, index));
+                index = langruntime.checkedIndex(digits.end);
+                status = digits.status;
+                widthArgument = langruntime.checkedI32(0);
+                if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && digits.found) {
+                    widthArgument = langruntime.checkedI32(digits.value);
+                    if (!(langruntime.indexChar(input.characters, langruntime.checkedIndex(index)) === "$") || widthArgument === 0) {
+                        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                        status = { kind: "Error", value: error };
+                    }
+                    else {
+                        index = langruntime.checkedAdd(index, 1);
+                        if (index === input.characters.length) {
+                            const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                            status = { kind: "Error", value: error };
+                        }
+                    }
+                }
+            }
+            else {
+                const digits: TextFormatDigits = copyTextFormatDigits(formatParseDigits(input, index));
+                index = langruntime.checkedIndex(digits.end);
+                status = digits.status;
+                width = langruntime.checkedI32(digits.value);
+            }
+        }
+    }
+    if (checkruntime.equalCheckOutcome(status, { kind: "True" }) && !(conversion === 37)) {
+        const character: string = langruntime.indexChar(input.characters, langruntime.checkedIndex(index));
+        if (character === "s") {
+            conversion = langruntime.checkedI32(115);
+        }
+        else if (character === "I") {
+            conversion = langruntime.checkedI32(73);
+        }
+        else if (character === "L") {
+            conversion = langruntime.checkedI32(76);
+        }
+        else {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+            status = { kind: "Error", value: error };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { status: status, end: index, argument: argument, widthArgument: widthArgument, width: width, left: left, conversion: conversion };
+}
+const textFormatNullError = 3452548;
+function formatPadOutput(input: TextConcatState, value: checkruntime.TextValue, width: number, left: boolean): TextConcatState {
+    width = langruntime.checkedI32(width);
+    left = langruntime.checkedBool(left);
+    if (value.kind === "Error") {
+        return concatAfterArgument(input, value);
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(value, { kind: "Null" })) {
+        const missing: checkruntime.TextValue = { kind: "Unknown" };
+        return concatAfterArgument(input, missing);
+    }
+    if (width === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatRangeError);
+        const failed: checkruntime.TextValue = { kind: "Error", value: error };
+        return concatAfterArgument(input, failed);
+    }
+    let absolute: number = width;
+    let alignLeft: boolean = left;
+    if (width < 0) {
+        absolute = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, width));
+        alignLeft = langruntime.checkedBool(true);
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const characters: string[] = Array.from(text);
+        let padding: number = 0;
+        const widthLimit: number = langruntime.indexFromI32(absolute, characters.length);
+        if (characters.length < widthLimit) {
+            const count: number = langruntime.checkedI32(langruntime.checkedIndex(characters.length));
+            padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(absolute, count));
+        }
+        const bytes: bigint = textBuildOctets(text);
+        const spaces: bigint = BigInt(langruntime.checkedI32(padding));
+        if (langruntime.checkedI64Add(langruntime.checkedI64Add(input.length, bytes), spaces) >= 1073741823n) {
+            const error: checkruntime.SqlError = checkruntime.makeSqlError(textConcatLimitError);
+            const failed: checkruntime.TextValue = { kind: "Error", value: error };
+            return concatAfterArgument(input, failed);
+        }
+        let rendered: string = "";
+        if (alignLeft) {
+            rendered = rendered + text;
+        }
+        let index: number = 0;
+        while (index < padding) {
+            rendered = rendered + langruntime.checkedChar(" ");
+            index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+        }
+        if (alignLeft === false) {
+            rendered = rendered + text;
+        }
+        const result: checkruntime.TextValue = { kind: "Value", value: rendered };
+        return concatAfterArgument(input, result);
+    }
+    const missing: checkruntime.TextValue = { kind: "Unknown" };
+    return concatAfterArgument(input, missing);
+}
+export function formatAccept(input: TextFormatState, value: checkruntime.TextValue, quoteAll: number): TextFormatState {
+    let status: checkruntime.CheckOutcome = input.status;
+    let phase: number = input.phase;
+    let request: number = input.request;
+    let nextArgument: number = input.nextArgument;
+    let width: number = input.width;
+    let output: TextConcatState = input.output;
+    if (phase === 1) {
+        const parsed: checkruntime.Int8Value = scalarIntegerFromText(value, 32);
+        status = { kind: "Unknown" };
+        if (parsed.kind === "Error") {
+            const error: checkruntime.SqlError = parsed.value;
+            status = { kind: "Error", value: error };
+        }
+        if (parsed.kind === "Value") {
+            const number: bigint = langruntime.checkedI64(parsed.value);
+            width = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64(number))));
+            request = langruntime.checkedI32(nextArgument);
+            if (input.argument > 0) {
+                request = langruntime.checkedI32(input.argument);
+            }
+            status = { kind: "True" };
+            if (request > input.count) {
+                const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                status = { kind: "Error", value: error };
+            }
+            else {
+                nextArgument = langruntime.checkedI32(langruntime.checkedSignedAdd(request, 1));
+            }
+            phase = langruntime.checkedI32(2);
+        }
+    }
+    else {
+        let rendered: checkruntime.TextValue = value;
+        if (checkruntime.equalTextValue(rendered, { kind: "Null" })) {
+            if (input.conversion === 115) {
+                rendered = checkruntime.makeTextValue("");
+            }
+            else if (input.conversion === 76) {
+                rendered = checkruntime.makeTextValue("NULL");
+            }
+            else {
+                const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatNullError);
+                rendered = { kind: "Error", value: error };
+            }
+        }
+        else if (input.conversion === 73) {
+            rendered = quoteIdentOutputContext(rendered, quoteAll, false);
+        }
+        else if (input.conversion === 76) {
+            rendered = quoteLiteralOutput(rendered, false);
+        }
+        output = formatPadOutput(output, rendered, width, input.left);
+        status = output.status;
+        phase = langruntime.checkedI32(0);
+    }
+    return { source: input.source, position: input.position, status: status, output: output, nextArgument: nextArgument, argument: input.argument, width: width, left: input.left, conversion: input.conversion, phase: phase, request: request, count: input.count, render: false };
+}
+export function formatBeforeArgument(input: TextFormatState, nullness: checkruntime.BoolValue, quoteAll: number): TextFormatState {
+    if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: true })) {
+        let value: checkruntime.TextValue = { kind: "Null" };
+        if (input.phase === 1) {
+            value = checkruntime.makeTextValue("0");
+        }
+        return formatAccept(input, value, quoteAll);
+    }
+    let status: checkruntime.CheckOutcome = input.status;
+    let render: boolean = false;
+    if (checkruntime.equalBoolValue(nullness, { kind: "Value", value: false })) {
+        render = langruntime.checkedBool(true);
+    }
+    else {
+        status = { kind: "Unknown" };
+    }
+    if (nullness.kind === "Error") {
+        const error: checkruntime.SqlError = nullness.value;
+        status = { kind: "Error", value: error };
+    }
+    return { source: input.source, position: input.position, status: status, output: input.output, nextArgument: input.nextArgument, argument: input.argument, width: input.width, left: input.left, conversion: input.conversion, phase: input.phase, request: input.request, count: input.count, render: render };
+}
+export interface TextFormatSource {
+    readonly characters: string[];
+}
+function copyTextFormatSource(value: TextFormatSource): TextFormatSource {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+export type TextFormatInput = {
+    readonly kind: "Value";
+    readonly value: TextFormatState;
+};
+function copyTextFormatInput(value: TextFormatInput): TextFormatInput {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyTextFormatState(value.value) };
+    }
+}
+export interface TextFormatState {
+    readonly source: TextFormatSource;
+    readonly position: number;
+    readonly status: checkruntime.CheckOutcome;
+    readonly output: TextConcatState;
+    readonly nextArgument: number;
+    readonly argument: number;
+    readonly width: number;
+    readonly left: boolean;
+    readonly conversion: number;
+    readonly phase: number;
+    readonly request: number;
+    readonly count: number;
+    readonly render: boolean;
+}
+function copyTextFormatState(value: TextFormatState): TextFormatState {
+    return { source: copyTextFormatSource(value.source), position: langruntime.checkedIndex(value.position), status: value.status, output: value.output, nextArgument: langruntime.checkedI32(value.nextArgument), argument: langruntime.checkedI32(value.argument), width: langruntime.checkedI32(value.width), left: langruntime.checkedBool(value.left), conversion: langruntime.checkedI32(value.conversion), phase: langruntime.checkedI32(value.phase), request: langruntime.checkedI32(value.request), count: langruntime.checkedI32(value.count), render: langruntime.checkedBool(value.render) };
+}
+export function formatBegin(format: checkruntime.TextValue, count: checkruntime.Int4Value, guard: checkruntime.BoolValue): TextFormatState {
+    let formatText: string = "";
+    let status: checkruntime.CheckOutcome = { kind: "Unknown" };
+    if (checkruntime.equalTextValue(format, { kind: "Null" })) {
+        status = { kind: "Null" };
+    }
+    if (format.kind === "Error") {
+        const error: checkruntime.SqlError = format.value;
+        status = { kind: "Error", value: error };
+    }
+    if (format.kind === "Value") {
+        const text: string = langruntime.checkedString(format.value);
+        formatText = langruntime.checkedString(text);
+        status = { kind: "True" };
+    }
+    const source: string[] = Array.from(formatText);
+    let size: number = 0;
+    let knownCount: boolean = false;
+    if (count.kind === "Value") {
+        const value: number = langruntime.checkedI32(count.value);
+        size = langruntime.checkedI32(value);
+        knownCount = langruntime.checkedBool(true);
+    }
+    if (knownCount === false && checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        status = { kind: "Unknown" };
+    }
+    const empty: string = "";
+    const separator: checkruntime.TextValue = { kind: "Value", value: empty };
+    const output: TextConcatState = concatBegin(separator, guard);
+    if (!(checkruntime.equalCheckOutcome(output.status, { kind: "True" }))) {
+        status = output.status;
+    }
+    const parsedSource: TextFormatSource = { characters: source };
+    return { source: parsedSource, position: 0, status: status, output: output, nextArgument: 1, argument: langruntime.checkedSignedNegate(1), width: 0, left: false, conversion: 0, phase: 0, request: 0, count: size, render: false };
+}
+export function formatContinues(input: TextFormatState): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && (!(input.phase === 0) || input.position < input.source.characters.length);
+}
+export function formatRequests(input: TextFormatState, position: number): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && !(input.phase === 0) && input.request === position;
+}
+export function formatNeedsArgument(input: TextFormatState): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && !(input.phase === 0);
+}
+export function formatShouldRender(input: TextFormatState): boolean {
+    return checkruntime.equalCheckOutcome(input.status, { kind: "True" }) && input.render;
+}
+export function formatArrayCount(input: checkruntime.ArrayOutputPayload): checkruntime.Int4Value {
+    if (input.state === 0) {
+        return { kind: "Value", value: 0 };
+    }
+    if (input.state === 1 && input.elements.length < 2147483647) {
+        const size: number = langruntime.checkedI32(langruntime.checkedIndex(input.elements.length));
+        return { kind: "Value", value: size };
+    }
+    return { kind: "Unknown" };
+}
+export function formatArgumentIndex(input: TextFormatState): checkruntime.Int4Value {
+    return { kind: "Value", value: langruntime.checkedSignedSubtract(input.request, 1) };
+}
+export function formatNext(input: TextFormatState): TextFormatState {
+    if (!(checkruntime.equalCheckOutcome(input.status, { kind: "True" })) || !(input.phase === 0)) {
+        return input;
+    }
+    const source: TextFormatSource = input.source;
+    let position: number = input.position;
+    let output: TextConcatState = input.output;
+    let status: checkruntime.CheckOutcome = input.status;
+    let nextArgument: number = input.nextArgument;
+    let argument: number = input.argument;
+    let width: number = input.width;
+    let left: boolean = input.left;
+    let conversion: number = input.conversion;
+    let phase: number = input.phase;
+    let request: number = input.request;
+    while (position < source.characters.length && phase === 0 && checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (!(character === "%")) {
+            let text: string = "";
+            while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "%")) {
+                text = text + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const value: checkruntime.TextValue = { kind: "Value", value: text };
+            output = concatAfterArgument(output, value);
+            status = output.status;
+        }
+        else {
+            const start: number = langruntime.checkedAdd(position, 1);
+            const token: TextFormatToken = copyTextFormatToken(formatParseToken(source, start));
+            position = langruntime.checkedIndex(token.end);
+            status = token.status;
+            if (checkruntime.equalCheckOutcome(status, { kind: "True" })) {
+                if (token.conversion === 37) {
+                    const text: checkruntime.TextValue = checkruntime.makeTextValue("%");
+                    output = concatAfterArgument(output, text);
+                    status = output.status;
+                }
+                else {
+                    argument = langruntime.checkedI32(token.argument);
+                    width = langruntime.checkedI32(token.width);
+                    left = langruntime.checkedBool(token.left);
+                    conversion = langruntime.checkedI32(token.conversion);
+                    if (token.widthArgument >= 0) {
+                        request = langruntime.checkedI32(nextArgument);
+                        if (token.widthArgument > 0) {
+                            request = langruntime.checkedI32(token.widthArgument);
+                        }
+                        phase = langruntime.checkedI32(1);
+                    }
+                    else {
+                        request = langruntime.checkedI32(nextArgument);
+                        if (argument > 0) {
+                            request = langruntime.checkedI32(argument);
+                        }
+                        phase = langruntime.checkedI32(2);
+                    }
+                    if (request > input.count) {
+                        const error: checkruntime.SqlError = checkruntime.makeSqlError(textFormatSyntaxError);
+                        status = { kind: "Error", value: error };
+                    }
+                    else {
+                        nextArgument = langruntime.checkedI32(langruntime.checkedSignedAdd(request, 1));
+                    }
+                }
+            }
+        }
+    }
+    return { source: source, position: position, status: status, output: output, nextArgument: nextArgument, argument: argument, width: width, left: left, conversion: conversion, phase: phase, request: request, count: input.count, render: false };
+}
+export function makeFormatInput(input: TextFormatState): TextFormatInput {
+    return { kind: "Value", value: input };
+}
+function formatFinish(input: TextFormatInput): checkruntime.TextValue {
+    input = copyTextFormatInput(input);
+    if (input.kind === "Value") {
+        const state: TextFormatState = copyTextFormatState(input.value);
+        if (checkruntime.equalCheckOutcome(state.status, { kind: "True" })) {
+            return concatFinish(state.output);
+        }
+        if (checkruntime.equalCheckOutcome(state.status, { kind: "Null" })) {
+            return { kind: "Null" };
+        }
+        const status: checkruntime.CheckOutcome = state.status;
+        if (status.kind === "Error") {
+            const error: checkruntime.SqlError = status.value;
+            return { kind: "Error", value: error };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function formatBz7w(input: TextFormatInput): checkruntime.TextValue {
+    input = copyTextFormatInput(input);
+    return formatFinish(input);
+}
+export function formatTfn6(input: TextFormatInput): checkruntime.TextValue {
+    input = copyTextFormatInput(input);
+    return formatFinish(input);
+}
 export function quoteLiteralI1gy(input: checkruntime.TextValue): checkruntime.TextValue {
     return quoteLiteralD0rq(input);
 }
@@ -43964,8 +44442,17 @@ function textIdentifierKeyword(input: string): boolean {
     }
     return false;
 }
-export function quoteIdentContext(input: checkruntime.TextValue, quoteAll: number): checkruntime.TextValue {
-    quoteAll = langruntime.checkedI32(quoteAll);
+function quoteIdentifierCapacity(bytes: bigint, quotes: bigint, sqlText: boolean): boolean {
+    bytes = langruntime.checkedI64(bytes);
+    quotes = langruntime.checkedI64(quotes);
+    sqlText = langruntime.checkedBool(sqlText);
+    let maximum: bigint = 1073741822n;
+    if (sqlText) {
+        maximum = langruntime.checkedI64(1073741819n);
+    }
+    return langruntime.checkedI64Add(langruntime.checkedI64Add(bytes, quotes), 2n) <= maximum;
+}
+export function quoteIdentOutputContext(input: checkruntime.TextValue, quoteAll: number, sqlText: boolean): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -43998,14 +44485,16 @@ export function quoteIdentContext(input: checkruntime.TextValue, quoteAll: numbe
         }
         if (safe) {
             if (!(quoteAll === 0)) {
-                if (textBuildOctets(text) <= 1073741817n) {
+                const bytes: bigint = textBuildOctets(text);
+                if (quoteIdentifierCapacity(bytes, 0n, sqlText)) {
                     return { kind: "NonNull" };
                 }
                 return { kind: "Unknown" };
             }
             return { kind: "Value", value: text };
         }
-        if (langruntime.checkedI64Add(langruntime.checkedI64Add(textBuildOctets(text), quotes), 2n) > 1073741819n) {
+        const bytes: bigint = textBuildOctets(text);
+        if (quoteIdentifierCapacity(bytes, quotes, sqlText) === false) {
             return { kind: "Error", value: checkruntime.makeSqlError(textIdentifierAllocationError) };
         }
         let output: string = "";
@@ -44026,6 +44515,10 @@ export function quoteIdentContext(input: checkruntime.TextValue, quoteAll: numbe
 }
 export function quoteIdentDyzt(input: checkruntime.TextValue): checkruntime.TextValue {
     return quoteIdentContext(input, langruntime.checkedSignedNegate(1));
+}
+export function quoteIdentContext(input: checkruntime.TextValue, quoteAll: number): checkruntime.TextValue {
+    quoteAll = langruntime.checkedI32(quoteAll);
+    return quoteIdentOutputContext(input, quoteAll, true);
 }
 export function ginCmpTslexeme1b7b(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
     return textBinaryCompare(left, right, false);
@@ -44772,7 +45265,16 @@ export function translateTxpt(input: checkruntime.TextValue, from: checkruntime.
     return { kind: "Unknown" };
 }
 const textQuoteAllocationError = 56966976;
-export function quoteLiteralD0rq(input: checkruntime.TextValue): checkruntime.TextValue {
+function quoteLiteralCapacity(bytes: bigint, sqlText: boolean): boolean {
+    bytes = langruntime.checkedI64(bytes);
+    sqlText = langruntime.checkedBool(sqlText);
+    let maximum: bigint = 536870909n;
+    if (sqlText) {
+        maximum = langruntime.checkedI64(536870908n);
+    }
+    return bytes <= maximum;
+}
+export function quoteLiteralOutput(input: checkruntime.TextValue, sqlText: boolean): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -44785,7 +45287,8 @@ export function quoteLiteralD0rq(input: checkruntime.TextValue): checkruntime.Te
     }
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
-        if (textBuildOctets(text) > 536870908n) {
+        const bytes: bigint = textBuildOctets(text);
+        if (quoteLiteralCapacity(bytes, sqlText) === false) {
             return { kind: "Error", value: checkruntime.makeSqlError(textQuoteAllocationError) };
         }
         const characters: string[] = Array.from(text);
@@ -44815,6 +45318,9 @@ export function quoteLiteralD0rq(input: checkruntime.TextValue): checkruntime.Te
         return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
+}
+export function quoteLiteralD0rq(input: checkruntime.TextValue): checkruntime.TextValue {
+    return quoteLiteralOutput(input, true);
 }
 const textSearchParameterError = 3452619;
 const textSearchInternalError = 56966976;

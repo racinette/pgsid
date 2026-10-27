@@ -1,3 +1,4 @@
+import { isTextFormatCallable } from '../../sql-semantics/text-format-callables.js'
 import { isTextConcatCallable } from '../../sql-semantics/text-concat-callables.js'
 import { isMoneyNumericConversion } from '../../sql-semantics/money-callables.js'
 import {
@@ -95,6 +96,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         isCatalogVectorTypeNames(implementation) &&
         rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
+      (rust && isTextFormatCallable(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isTextConcatCallable(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isNullableQuote(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isGenericLiteralQuote(implementation) && rustNames.has(implementation.rustName)) ||

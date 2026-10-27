@@ -14,7 +14,13 @@ fn text_identifier_keyword(input: &str) -> bool {
     false
 }
 
-pub fn quote_ident_context(input: TextValue, quote_all: i32) -> TextValue {
+fn quote_identifier_capacity(bytes: i64, quotes: i64, sql_text: bool) -> bool {
+    let mut maximum: i64 = 1073741822i64;
+    if sql_text { maximum = 1073741819i64; };
+    bytes + quotes + 2i64 <= maximum
+}
+
+pub(crate) fn quote_ident_output_context(input: TextValue, quote_all: i32, sql_text: bool) -> TextValue {
     if let TextValue::Error(error) = input { return TextValue::Error(error); };
     if input == TextValue::Null { return TextValue::Null; };
     if let TextValue::Value(text) = input {
@@ -33,12 +39,14 @@ pub fn quote_ident_context(input: TextValue, quote_all: i32) -> TextValue {
         if quote_all == 1 { safe = false; };
         if safe {
             if quote_all != 0 {
-                if text_build_octets(text.as_str()) <= 1073741817i64 { return TextValue::NonNull; };
+                let bytes = text_build_octets(text.as_str());
+                if quote_identifier_capacity(bytes, 0i64, sql_text) { return TextValue::NonNull; };
                 return TextValue::Unknown;
             };
             return TextValue::Value(text);
         };
-        if text_build_octets(text.as_str()) + quotes + 2i64 > 1073741819i64 {
+        let bytes = text_build_octets(text.as_str());
+        if quote_identifier_capacity(bytes, quotes, sql_text) == false {
             return TextValue::Error(make_sql_error(TEXT_IDENTIFIER_ALLOCATION_ERROR));
         };
         let mut output = String::new();
@@ -58,4 +66,8 @@ pub fn quote_ident_context(input: TextValue, quote_all: i32) -> TextValue {
 
 pub fn sql__pg_catalog__quote_ident__dyzt(input: TextValue) -> TextValue {
     quote_ident_context(input,-1)
+}
+
+pub fn quote_ident_context(input: TextValue, quote_all: i32) -> TextValue {
+    quote_ident_output_context(input, quote_all, true)
 }

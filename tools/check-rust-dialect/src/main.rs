@@ -368,7 +368,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("JsonRecordInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload") || path.path.is_ident("XmlConcatState") || path.path.is_ident("TextConcatState") || path.path.is_ident("i32")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("JsonRecordInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload") || path.path.is_ident("XmlConcatState") || path.path.is_ident("TextConcatState") || path.path.is_ident("TextFormatState") || path.path.is_ident("i32")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -1360,6 +1360,35 @@ pub fn evaluate_check(input: XmlValue) -> CheckOutcome {
             source.replace("xml_concat_append(state, input)", "xml_concat_append(&mut state, input)"),
             source.replace("xml_concat_append(state, input)", "xml_concat_append(missing, input)"),
         ] { assert!(check_source(&invalid).is_err()); }
+    }
+
+    #[test]
+    fn text_format_state_is_an_internal_mutable_record() {
+        let source = r#"
+pub fn evaluate_check(pattern: TextValue) -> CheckOutcome {
+    let guard = make_bool_value(true);
+    let count = make_int4_value(0);
+    let initial = format_begin(pattern, count, guard);
+    let mut state: TextFormatState = initial;
+    while format_continues(&state) {
+        state = format_next(state);
+    }
+    let payload = make_format_input(state);
+    let value = sql__pg_catalog__format__bz7w(payload);
+    let nullness = text_is_null(value);
+    check_from_bool(nullness)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("pattern: TextValue", "pattern: TextFormatState"),
+            source.replace("pattern: TextValue", "pattern: TextFormatInput"),
+            source.replace("let mut state", "let state"),
+            source.replace("&state", "&mut state"),
+            source.replace("&state", "&missing"),
+        ] {
+            assert!(check_source(&invalid).is_err(), "accepted {invalid}");
+        }
     }
 
     #[test]

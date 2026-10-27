@@ -142,6 +142,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/null_count.rs");
     include!("operations/pg_catalog/text_concat.rs");
+    include!("operations/pg_catalog/text_format_grammar.rs");
+    include!("operations/pg_catalog/text_format_state.rs");
+    include!("operations/pg_catalog/text_format_render.rs");
     include!("operations/pg_catalog/text_nullable_quote.rs");
     include!("operations/pg_catalog/text_generic_quote.rs");
     include!("operations/pg_catalog/date.rs");
@@ -463,6 +466,20 @@ pub mod pg_catalog {
                 sql_error_message(make_sql_error(BIT_PROGRAM_LIMIT_EXCEEDED)).message,
                 "program limit exceeded"
             );
+        }
+
+        #[test]
+        fn format_quoting_distinguishes_raw_and_sql_text_allocation_limits() {
+            assert!(quote_literal_capacity(536870908i64, true));
+            assert!(!quote_literal_capacity(536870909i64, true));
+            assert!(quote_literal_capacity(536870909i64, false));
+            assert!(!quote_literal_capacity(536870910i64, false));
+            assert!(quote_identifier_capacity(1073741817i64, 0i64, true));
+            assert!(!quote_identifier_capacity(1073741818i64, 0i64, true));
+            assert!(quote_identifier_capacity(1073741820i64, 0i64, false));
+            assert!(!quote_identifier_capacity(1073741821i64, 0i64, false));
+            assert!(quote_identifier_capacity(1073741818i64, 2i64, false));
+            assert!(!quote_identifier_capacity(1073741819i64, 2i64, false));
         }
 
         fn synthetic_concat_state(length: i64) -> TextConcatState {
