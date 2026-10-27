@@ -2484,3 +2484,27 @@ INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_lab
 INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"child":{"label":"new"}}}','{"b":{"child":{"label":"new"}}}',9,'old',1,false);
 -- name: JsonNestedWrongArraySize
 INSERT INTO inspection_json_nested_records(data,raw_data,expected_n,expected_label,expected_count,bypass) VALUES ('{"b":{"children":[{},{}]}}','{"b":{"children":[{},{}]}}',9,'old',1,false);
+-- name: JsonDomainRootDefaults
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{}','{}',2,false);
+-- name: JsonDomainRootNullInput
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES (NULL,NULL,2,false);
+-- name: JsonDomainRootReplacement
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":5,"label":"new"}','{"n":5,"label":"new"}',5,false);
+-- name: JsonDomainRootNullField
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":null}','{"n":null}',NULL,false);
+-- name: JsonDomainRootNullFields
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":null,"label":null}','{"n":null,"label":null}',NULL,false);
+-- name: JsonDomainRootWrongExpected
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":5}','{"n":5}',6,false);
+-- name: JsonDomainRootNegativeCheck
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":-1}','{"n":-1}',NULL,false);
+-- name: JsonDomainRootHardDivision
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":0}','{"n":0}',NULL,false);
+-- name: JsonDomainRootInputBeforeCheck
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":"bad"}','{"n":"bad"}',NULL,false);
+-- name: JsonDomainRootWidthBeforeCheck
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":0,"label":"long"}','{"n":0,"label":"long"}',NULL,false);
+-- name: JsonDomainRootScalarInput
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('null','null',NULL,false);
+-- name: JsonDomainRootSkippedErrors
+INSERT INTO inspection_json_root_records(data,raw_data,expected_n,bypass) VALUES ('{"n":0}','{"n":0}',NULL,true);

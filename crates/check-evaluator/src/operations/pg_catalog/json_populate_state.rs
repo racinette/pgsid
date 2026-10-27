@@ -174,6 +174,44 @@ pub(crate) fn json_populate_nested_hard(input: &JsonPopulateState) -> CheckOutco
     input.hard
 }
 
+pub(crate) fn json_populate_domain_ready(input: &JsonPopulateState) -> bool {
+    input.active && input.status == CheckOutcome::True && input.position == input.count
+}
+
+pub(crate) fn json_populate_domain_value(input: &JsonPopulateState) -> CompositeValue {
+    input.output.clone()
+}
+
+pub(crate) fn json_populate_accept_domain(
+    input: JsonPopulateState,
+    output: CompositeValue,
+    hard: CheckOutcome,
+) -> JsonPopulateState {
+    if json_populate_domain_ready(&input) == false {
+        return input;
+    };
+    let mut status = input.status;
+    if let CompositeValue::Error(error) = output {
+        status = CheckOutcome::Error(error);
+    };
+    if let CompositeValue::Unknown = output {
+        status = CheckOutcome::Unknown;
+    };
+    JsonPopulateState {
+        input: input.input,
+        base: input.base,
+        output: output,
+        status: status,
+        hard: json_populate_hard_error(input.hard, hard),
+        position: input.position,
+        count: input.count,
+        active: input.active,
+        convert: input.convert,
+        current: input.current,
+        utf8: input.utf8,
+    }
+}
+
 pub(crate) fn json_populate_accept(
     input: JsonPopulateState,
     field: ArrayElement,

@@ -87,7 +87,7 @@ it('keeps internal range constructors portable when their names collide with bui
   }
 })
 
-it('keeps unimplemented generic variadic callables visible after native capture', async () => {
+it('retains implemented generic null counts in captured discarded fields', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(
@@ -113,7 +113,9 @@ it('keeps unimplemented generic variadic callables visible after native capture'
           expression,
         },
       ]).checks[0]!.kind,
-    ).toBe('unsupported')
+    ).toBe('supported')
+    await pg.exec('INSERT INTO h VALUES(1,NULL)')
+    await expect(pg.exec('INSERT INTO h VALUES(NULL,1)')).rejects.toMatchObject({ code: '23514' })
   } finally {
     await pg.close()
   }

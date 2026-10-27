@@ -1615,14 +1615,16 @@ const candidate = (
             collation,
             enum: definition,
             resultNominalDomain:
-              item.result === 'pg_catalog.anyelement' &&
-              rangeElement &&
-              domainElementDefinition(rangeElement)
-                ? JSON.stringify([
-                    domainElementDefinition(rangeElement)!.schema,
-                    domainElementDefinition(rangeElement)!.name,
-                  ])
-                : undefined,
+              item.result === 'pg_catalog.anyelement' && isJsonPopulateCallable(item)
+                ? fullArgs[0]?.nominalDomain
+                : item.result === 'pg_catalog.anyelement' &&
+                    rangeElement &&
+                    domainElementDefinition(rangeElement)
+                  ? JSON.stringify([
+                      domainElementDefinition(rangeElement)!.schema,
+                      domainElementDefinition(rangeElement)!.name,
+                    ])
+                  : undefined,
             resultType:
               item.result === 'pg_catalog.anymultirange'
                 ? multirangeIdentity
@@ -1631,7 +1633,9 @@ const candidate = (
                   : item.result === 'pg_catalog.anyelement'
                     ? rangeElement
                       ? (arrayElementBaseType(elementType!) as ScalarType)
-                      : (elementType ?? undefined)
+                      : isJsonPopulateCallable(item)
+                        ? (arrayElementBaseType(elementType!) as ScalarType)
+                        : (elementType ?? undefined)
                     : item.result === 'pg_catalog.anycompatiblearray'
                       ? compatibleArray!
                       : item.result === 'pg_catalog.anycompatible'
@@ -4044,7 +4048,7 @@ export function bindCatalogCheck(
               args,
               undefined,
               explicit || (variadic !== null && variadic !== 'pg_catalog."any"'),
-              implicitOperand,
+              (arg, target, definition) => coerceBound(arg, target, undefined, definition),
               selected.signature,
             )
           : null,
@@ -4122,6 +4126,7 @@ export function bindCatalogCheck(
           operands: quoteArgument ? [quoteArgument.value!] : args.map((arg) => arg.value!),
         },
       }
+      if (isJsonPopulateCallable(selected.item)) return jsonPopulateDomainResult(result, args[0])
       return isGenericLiteralQuote(selected.item) ? strictQuotedCall(result, args[0]!) : result
     }
     const storedComparison = fields(wrapper['PgsidStoredComparison'])
@@ -8651,6 +8656,7 @@ export function bindCatalogCheck(
         operands: quoteArgument ? [quoteArgument.value!] : resolved.operands,
       },
     }
+    if (isJsonPopulateCallable(resolved.item)) return jsonPopulateDomainResult(result, args[0])
     return isGenericLiteralQuote(resolved.item)
       ? strictQuotedCall(result, { ...args[0]!, value: resolved.operands[0]! })
       : result
@@ -8916,6 +8922,13 @@ export function bindCatalogCheck(
         : null
     compositeConversions.set(key, result)
     return result
+  }
+  const jsonPopulateDomainResult = (result: Bound, base?: Bound): Bound => {
+    if (!base?.nominalDomain) return result
+    const nominal = nominalScalarType(base)
+    const inputConversion = nominal ? compositeConversion(nominal, false) : null
+    if (!inputConversion || result.value?.kind !== 'call') return unknown
+    return { ...result, value: { ...result.value, inputConversion } }
   }
   const attachContainerInput = (value: unknown): unknown => {
     if (value && typeof value === 'object' && importedExpressions.has(value)) return value
