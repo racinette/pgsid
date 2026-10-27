@@ -1,6 +1,27 @@
 -- @world checks
 CREATE TYPE catalog_layout AS (positions int2vector, type_ids oidvector);
 
+CREATE TABLE catalog_metadata_exports (
+  type_id oid,
+  modifier integer,
+  divisor integer,
+  expected_name text COLLATE "C",
+  label text,
+  bypass boolean NOT NULL,
+  CONSTRAINT metadata_type_name CHECK (CASE WHEN bypass THEN true ELSE format_type(type_id,modifier/divisor) IS NOT DISTINCT FROM expected_name END),
+  CONSTRAINT metadata_label_collation CHECK (CASE WHEN bypass THEN true ELSE pg_collation_for(label) IS NOT NULL END)
+);
+
+CREATE TABLE catalog_metadata_errors (
+  type_id oid,
+  expected_name text COLLATE "C",
+  item_count integer,
+  divisor integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT metadata_error_type_name CHECK (CASE WHEN bypass THEN true ELSE format_type(type_id,NULL) IS NOT DISTINCT FROM expected_name END),
+  CONSTRAINT metadata_noncollatable CHECK (CASE WHEN bypass THEN true ELSE pg_collation_for(item_count/divisor) IS NULL END)
+);
+
 CREATE TABLE catalog_layout_exports (
   positions int2vector,
   type_ids oidvector,

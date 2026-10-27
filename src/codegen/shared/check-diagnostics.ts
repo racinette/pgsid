@@ -13,6 +13,10 @@ import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
+  isCollationMetadataCallable,
+  isTypeFormatCallable,
+} from '../../sql-semantics/metadata-callables.js'
+import {
   isTemporalContextArithmetic,
   isTemporalContextCast,
   isTemporalContextComparison,
@@ -46,6 +50,11 @@ const temporalCasts = new Set(
         isTemporalSessionExtraction(item) ||
         isTemporalExplicitZoneLookup(item),
     )
+    .map(callableIdentity),
+)
+const catalogMetadata = new Set(
+  builtinCallables()
+    .filter((item) => isTypeFormatCallable(item) || isCollationMetadataCallable(item))
     .map(callableIdentity),
 )
 const temporalTimestampFormats = new Set(
@@ -328,6 +337,9 @@ export function checkUnknownMessage(
   if (reason) return `Local evaluation is incomplete: ${reason}`
   let message =
     'A required input is unavailable, or its value or an evaluated expression is not supported.'
+  if (containsSignature(expression, catalogMetadata))
+    message +=
+      ' Metadata name rendering can require the deployment catalog and search path; captured type and collation facts do not supply deployment names.'
   if (containsSignature(expression, temporalTimestampFormats)) {
     if (context.timeLocale === undefined)
       message += ' Localized temporal template names can require sql.codegen.checks.timeLocale.'

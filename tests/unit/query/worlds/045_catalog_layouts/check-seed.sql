@@ -2,6 +2,50 @@
 INSERT INTO catalog_layout_exports(positions,type_ids,packet,history,encoded_positions,expected_count,expected_json,bypass)
 VALUES ('1 2','0 0',ROW('1 2'::int2vector,'0 0'::oidvector),ARRAY['1 2'::int2vector],'1 2',2,'{"type_ids": ["0", "0"], "positions": [1, 2]}',false);
 
+-- name: NullMetadataType
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (NULL,0,1,NULL,'label',false);
+
+-- name: InvalidMetadataTypeSentinel
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (0,-1,1,'-',NULL,false);
+
+-- name: NullMetadataModifier
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (0,NULL,0,'-','label',false);
+
+-- name: WrongMetadataTypeName
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (0,-1,1,'wrong','label',false);
+
+-- name: WrongNullMetadataName
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (NULL,-1,1,'-',NULL,false);
+
+-- name: EagerMetadataModifierError
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (NULL,1,0,NULL,'label',false);
+
+-- name: BypassedMetadataModifierError
+INSERT INTO catalog_metadata_exports(type_id,modifier,divisor,expected_name,label,bypass)
+VALUES (NULL,1,0,'wrong',NULL,true);
+
+-- name: NoncollatableMetadataType
+INSERT INTO catalog_metadata_errors(type_id,expected_name,item_count,divisor,bypass)
+VALUES (0,'-',1,1,false);
+
+-- name: NullNoncollatableMetadataType
+INSERT INTO catalog_metadata_errors(type_id,expected_name,item_count,divisor,bypass)
+VALUES (NULL,NULL,NULL,0,false);
+
+-- name: EagerNoncollatableMetadataError
+INSERT INTO catalog_metadata_errors(type_id,expected_name,item_count,divisor,bypass)
+VALUES (0,'-',1,0,false);
+
+-- name: BypassedNoncollatableMetadata
+INSERT INTO catalog_metadata_errors(type_id,expected_name,item_count,divisor,bypass)
+VALUES (0,'wrong',1,0,true);
+
 -- name: ExportCatalogExtent
 INSERT INTO catalog_extent_exports(positions,type_groups,packet,needle,expected_contains,encoded_positions,position_text,type_text,expected_lower,expected_wire,bypass)
 VALUES ('[1,3)','{[100,"1 2")}',ROW('[1,3)'::position_window,'{[100,"1 2")}'::type_windows),'100',true,'[1,3)','[1,3)','{[100,"1 2")}',0,61,false);

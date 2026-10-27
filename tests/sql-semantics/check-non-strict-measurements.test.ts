@@ -104,6 +104,40 @@ it('observes native type, collation and partition metadata requirements without 
   }
 })
 
+it('retains native collation name visibility separately from resolved expression metadata', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE SCHEMA collation_shadow;
+      CREATE COLLATION collation_shadow."C" FROM pg_catalog."C";
+      CREATE COLLATION collation_shadow."default" FROM pg_catalog."C"`)
+    const render = async () =>
+      (
+        await pg.query(`SELECT pg_collation_for(NULL::text COLLATE pg_catalog."C") c,
+          pg_collation_for(NULL::text COLLATE pg_catalog."default") d`)
+      ).rows[0]
+    await pg.exec('SET search_path=pg_catalog,collation_shadow')
+    expect(await render()).toEqual({ c: '"C"', d: '"default"' })
+    await pg.exec('SET search_path=collation_shadow,pg_catalog')
+    expect(await render()).toEqual({ c: 'pg_catalog."C"', d: 'pg_catalog."default"' })
+    expect(
+      (
+        await pg.query(`SELECT pg_collation_for(NULL) untyped_null,
+          pg_collation_for('label') untyped_label`)
+      ).rows[0],
+    ).toEqual({ untyped_null: null, untyped_label: null })
+    expect(
+      (
+        await pg.query(`WITH args AS MATERIALIZED(
+          SELECT 'a'::text COLLATE pg_catalog."C" a,
+            'b'::text COLLATE collation_shadow."C" b)
+          SELECT pg_collation_for(a||b) unresolved FROM args`)
+      ).rows[0],
+    ).toEqual({ unresolved: null })
+  } finally {
+    await pg.close()
+  }
+})
+
 it('observes statistics mutation and runtime record contents separately from captured record shape', async () => {
   const pg = await PGlite.create()
   try {
@@ -184,6 +218,24 @@ it('observes native connection, submitted-query, logging and configuration bound
     await pg.exec('ROLLBACK')
     expect((await pg.query("SELECT current_setting('application_name') value")).rows[0]).toEqual({
       value: original,
+    })
+  } finally {
+    await pg.close()
+  }
+})
+
+it('requires logfile execution privileges before classifying invalid format errors', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec('CREATE ROLE logfile_probe; SET ROLE logfile_probe')
+    await expect(pg.query("SELECT pg_current_logfile('bad')")).rejects.toMatchObject({
+      code: '42501',
+    })
+    await pg.exec(
+      'RESET ROLE; GRANT EXECUTE ON FUNCTION pg_current_logfile(text) TO logfile_probe; SET ROLE logfile_probe',
+    )
+    await expect(pg.query("SELECT pg_current_logfile('bad')")).rejects.toMatchObject({
+      code: '22023',
     })
   } finally {
     await pg.close()

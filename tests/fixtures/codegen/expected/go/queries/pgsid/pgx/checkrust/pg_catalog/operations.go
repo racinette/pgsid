@@ -54928,6 +54928,42 @@ func UuidExtractTimestampP52j(input checkruntime.UuidValue) checkruntime.Timesta
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
+
+const metadataNoncollatableType = 6822148
+
+func FormatTypeBj8v(identity checkruntime.OidValue, modifier checkruntime.Int4Value) checkruntime.TextValue {
+	if identity.Kind == checkruntime.OidValueError {
+		error := identity.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if modifier.Kind == checkruntime.Int4ValueError {
+		error := modifier.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if identity == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if identity.Kind == checkruntime.OidValueValue {
+		value := identity.Value
+		if value == int64(0) {
+			return checkruntime.MakeTextValue("-")
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func PgCollationFor808q(argument checkruntime.BoolValue, collation checkruntime.BoolValue) checkruntime.TextValue {
+	if argument.Kind == checkruntime.BoolValueError {
+		error := argument.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if collation == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(metadataNoncollatableType)}
+	}
+	if collation == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func valueOrderFinish(result checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
 	strategy = langruntime.CheckedI32(strategy)
 	if result.Kind == checkruntime.Int4ValueError {

@@ -1,5 +1,6 @@
 import { isTextFormatCallable } from './text-format-callables.js'
 import { isJsonPopulateCallable } from './json-populate-callables.js'
+import { isCollationMetadataCallable } from './metadata-callables.js'
 import { isTextConcatCallable } from './text-concat-callables.js'
 import { validAclitemConstantKnowledge } from '../catalog/aclitem-constant-storage.js'
 import { isNullCountCallable } from './null-count-callables.js'
@@ -1301,6 +1302,7 @@ const candidate = (
       item.schema === 'pg_catalog' &&
       item.name === name &&
       (item.args.includes('pg_catalog.anyelement') ||
+        item.args.includes('pg_catalog."any"') ||
         (item.args.length === args.length &&
           item.args.some((type) =>
             ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatible'].includes(type),
@@ -1587,23 +1589,31 @@ const candidate = (
                       ? materialize(arg, rangeIdentity!)
                       : item.args[index] === 'pg_catalog.anyelement'
                         ? coerce(arg, elementType!, arg.enum)
-                        : catalogScalarType(item.args[index]!)?.startsWith('array:')
-                          ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                          : isIntegerType(item.args[index]!)
-                            ? materializeInteger(arg, item.args[index]! as ScalarType)
-                            : catalogScalarType(item.args[index]!)
-                              ? implicitOperand(
-                                  arg,
-                                  catalogScalarType(item.args[index]!)!,
-                                  definition,
-                                )
-                              : materialize(
-                                  arg,
-                                  item.args[index] === 'pg_catalog.anyenum'
-                                    ? enumType(definition!)
-                                    : (item.args[index]! as ScalarType),
-                                  definition,
-                                ),
+                        : item.args[index] === 'pg_catalog."any"'
+                          ? boundType(arg)
+                            ? materialize(arg, boundType(arg)!, arg.enum)
+                            : null
+                          : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                            ? implicitOperand(
+                                arg,
+                                catalogScalarType(item.args[index]!)!,
+                                definition,
+                              )
+                            : isIntegerType(item.args[index]!)
+                              ? materializeInteger(arg, item.args[index]! as ScalarType)
+                              : catalogScalarType(item.args[index]!)
+                                ? implicitOperand(
+                                    arg,
+                                    catalogScalarType(item.args[index]!)!,
+                                    definition,
+                                  )
+                                : materialize(
+                                    arg,
+                                    item.args[index] === 'pg_catalog.anyenum'
+                                      ? enumType(definition!)
+                                      : (item.args[index]! as ScalarType),
+                                    definition,
+                                  ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
@@ -2145,8 +2155,15 @@ const comparisonCandidate = (
 const callDefaultCollation = (
   signature: string,
   collation?: BoundCollation,
-): { collationDefault?: true } => {
+): { collationDefault?: true; collationResolved?: true } => {
   const metadata = builtinMetadata(signature)
+  if (isCollationMetadataCallable(metadata))
+    return {
+      ...(collation?.default ? { collationDefault: true as const } : {}),
+      ...(collation && collation.identity !== 'conflict'
+        ? { collationResolved: true as const }
+        : {}),
+    }
   return collation?.default &&
     (metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray') ||

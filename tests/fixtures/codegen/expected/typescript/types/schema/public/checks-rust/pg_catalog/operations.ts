@@ -55261,6 +55261,40 @@ export function uuidExtractTimestampP52j(input: checkruntime.UuidValue): checkru
     }
     return { kind: "Unknown" };
 }
+const metadataNoncollatableType = 6822148;
+export function formatTypeBj8v(identity: checkruntime.OidValue, modifier: checkruntime.Int4Value): checkruntime.TextValue {
+    if (identity.kind === "Error") {
+        const error: checkruntime.SqlError = identity.value;
+        return { kind: "Error", value: error };
+    }
+    if (modifier.kind === "Error") {
+        const error: checkruntime.SqlError = modifier.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(identity, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (identity.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(identity.value);
+        if (value === 0n) {
+            return checkruntime.makeTextValue("-");
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pgCollationFor808q(argument: checkruntime.BoolValue, collation: checkruntime.BoolValue): checkruntime.TextValue {
+    if (argument.kind === "Error") {
+        const error: checkruntime.SqlError = argument.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(collation, { kind: "Value", value: false })) {
+        return { kind: "Error", value: checkruntime.makeSqlError(metadataNoncollatableType) };
+    }
+    if (checkruntime.equalBoolValue(collation, { kind: "Value", value: true })) {
+        return { kind: "NonNull" };
+    }
+    return { kind: "Unknown" };
+}
 function valueOrderFinish(result: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
     strategy = langruntime.checkedI32(strategy);
     if (result.kind === "Error") {
