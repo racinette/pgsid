@@ -2386,3 +2386,21 @@ INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES 
 INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES (NULL,'constant','constant',false);
 -- name: FormatSkippedUnknownQuoteError
 INSERT INTO inspection_format_guards(label,pattern,expected_text,bypass) VALUES ('lower','%I%',NULL,true);
+-- name: LegacyPatternDefaultEscape
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('a\%b',NULL,'^(?:a\%b)$',false);
+-- name: LegacyPatternDisabledEscape
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('a\%b','','^(?:a\\.*b)$',false);
+-- name: LegacyPatternUnicodeEscape
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('é%😊_','😊','^(?:é.*\_)$',false);
+-- name: LegacyPatternNullBeforeBadEscape
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES (NULL,'ab',NULL,false);
+-- name: LegacyPatternNullBoth
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES (NULL,NULL,NULL,false);
+-- name: LegacyPatternWrongOutput
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('%',NULL,'wrong',false);
+-- name: LegacyPatternInvalidEscape
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('%','ab',NULL,false);
+-- name: LegacyPatternTooManyQuotes
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('\"a\"b\"',NULL,NULL,false);
+-- name: LegacyPatternSkippedError
+INSERT INTO inspection_legacy_patterns(pattern,escape,expected_text,bypass) VALUES ('%','ab','wrong',true);

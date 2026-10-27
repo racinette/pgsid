@@ -1701,3 +1701,14 @@ CREATE TABLE inspection_format_guards (
  CONSTRAINT identifier_format_nonnull CHECK(CASE WHEN bypass THEN true ELSE
    format('%I',label) IS NOT NULL END)
 );
+
+CREATE TABLE inspection_legacy_patterns (
+ pattern text COLLATE "C",
+ escape text COLLATE "C",
+ expected_text text COLLATE "C",
+ bypass boolean NOT NULL,
+ CONSTRAINT legacy_pattern_output CHECK(CASE WHEN bypass THEN true ELSE
+   pg_catalog.similar_escape(pattern,escape) IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT legacy_pattern_nullness CHECK(CASE WHEN bypass THEN true ELSE
+   (pattern IS NULL) = (pg_catalog.similar_escape(pattern,escape) IS NULL) END)
+);

@@ -1,4 +1,5 @@
 import { isTextFormatCallable } from './text-format-callables.js'
+import { isLegacySimilarCallable } from './text-similar-callables.js'
 import { isTextConcatCallable } from './text-concat-callables.js'
 import {
   isTemporalClockZoneLookup,
@@ -453,6 +454,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     isIdentifierParseCallable(signature) ||
     isIdentifierQuote(metadata) ||
     isTextFormatCallable(metadata) ||
+    isLegacySimilarCallable(metadata) ||
     isTextConcatCallable(metadata) ||
     isNullableQuote(metadata) ||
     isGenericLiteralQuote(metadata) ||

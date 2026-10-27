@@ -1,4 +1,5 @@
 import { isTextFormatCallable } from '../../sql-semantics/text-format-callables.js'
+import { isLegacySimilarCallable } from '../../sql-semantics/text-similar-callables.js'
 import { isTextConcatCallable } from '../../sql-semantics/text-concat-callables.js'
 import { isIdentifierQuote } from '../../sql-semantics/identifier-quote.js'
 import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js'
@@ -3382,6 +3383,7 @@ export function emitCheckRustEvaluator(
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !isLegacySimilarCallable(implementation) &&
           !xmlConcat &&
           !rangeConstructor &&
           !enumSupport &&

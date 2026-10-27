@@ -46097,6 +46097,23 @@ export function similarToEscape7txt(pattern: checkruntime.TextValue): checkrunti
 export function similarToEscape9vor(pattern: checkruntime.TextValue, escape: checkruntime.TextValue): checkruntime.TextValue {
     return similarPatternValue(pattern, escape);
 }
+export function similarEscape1s9l(pattern: checkruntime.TextValue, escape: checkruntime.TextValue): checkruntime.TextValue {
+    if (pattern.kind === "Error") {
+        const error: checkruntime.SqlError = pattern.value;
+        return { kind: "Error", value: error };
+    }
+    if (escape.kind === "Error") {
+        const error: checkruntime.SqlError = escape.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(pattern, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalTextValue(escape, { kind: "Null" })) {
+        return similarToEscape7txt(pattern);
+    }
+    return similarPatternValue(pattern, escape);
+}
 const sizeBytesParameterError = 3452619;
 const sizeBytesNumericSyntaxError = 3484946;
 export function pgSizeBytesGgrt(input: checkruntime.TextValue): checkruntime.Int8Value {
