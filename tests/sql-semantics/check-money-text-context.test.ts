@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
+import { deferredMoneyContextForms } from './check-money-input-forms.js'
 import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
 import {
   runCheckParity,
@@ -23,6 +24,7 @@ it('matches declared C money text grammar and formatting through scalar, contain
   const forms: (string | null)[] = [
     null,
     ...new Set([
+      ...deferredMoneyContextForms,
       ...['', '$', '+', '-', '(', '$-', '-$', '$$', '($', '+ $'].flatMap((prefix) =>
         ['', '0', '.005', '1,234.567'].flatMap((amount) =>
           ['', ')-+$'].map((tail) => prefix + amount + tail),

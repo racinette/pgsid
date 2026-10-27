@@ -795,6 +795,21 @@ describe('CHECK measurement boundaries', () => {
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
     const report = await measureCoercions(pg)
+    expect(
+      report.inputForms.types.find((forms) => forms.type === 'pg_catalog.money'),
+    ).toMatchObject({
+      contextOwner: 'tests/sql-semantics/check-money-text-context.test.ts',
+      unimplementedGrammar: [],
+    })
+    for (const type of ['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz']) {
+      const forms = report.inputForms.types.find((entry) => entry.type === type)!
+      expect(forms).toMatchObject({ runtimeRequired: ['today', 'tomorrow', 'yesterday', 'now'] })
+      expect(
+        'unimplementedGrammar' in forms &&
+          forms.unimplementedGrammar.some((text) => text?.startsWith('January ')),
+      ).toBe(true)
+      expect('unimplementedGrammar' in forms && forms.unimplementedGrammar).not.toContain('now')
+    }
     const temporalCasts = report.casts.filter((cast) =>
       cast.valueRequirements?.some(
         (requirement) => 'setting' in requirement && requirement.setting === 'TimeZone',
