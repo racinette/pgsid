@@ -6219,7 +6219,10 @@ export function emitCheckRustEvaluator(
                     ? implementation.name + '_context'
                     : jsonpathExecution
                       ? implementation.name.replace('jsonb_path_', 'jsonpath_') +
-                        (executionContext.timeZone === undefined ? '_context' : '_session')
+                        (executionContext.timeZone === undefined &&
+                        executionContext.timeZoneAbbreviations !== 'Default'
+                          ? '_context'
+                          : '_session')
                       : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (identifierQuote)
@@ -6260,8 +6263,15 @@ export function emitCheckRustEvaluator(
                 : 0,
           ),
         )
-      if (jsonpathExecution && executionContext.timeZone !== undefined)
-        arguments_.push(rustStringLiteral(executionContext.timeZone))
+      if (
+        jsonpathExecution &&
+        (executionContext.timeZone !== undefined ||
+          executionContext.timeZoneAbbreviations === 'Default')
+      )
+        arguments_.push(
+          rustStringLiteral(executionContext.timeZone ?? ''),
+          String(executionContext.timeZoneAbbreviations === 'Default'),
+        )
       if (isMoneyNumericConversion(implementation))
         arguments_.push(String(moneyContextFractionDigits(executionContext)))
       if (isTemporalDatePart(implementation))

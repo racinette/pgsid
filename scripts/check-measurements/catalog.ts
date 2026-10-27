@@ -473,14 +473,21 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'transaction',
         setting: 'local_date',
         requirement:
-          'Bare time attachment and mixed time/timetz comparisons in variable-offset zones require the transaction local date. A configured timezone does not provide that date; fixed-offset zones are handled without it.',
+          'Bare time attachment, mixed time/timetz comparisons in variable-offset zones and nonconstant dynamic abbreviations on bare clocks require transaction local date. A configured timezone does not provide that date; invariant forced offsets remain available without it.',
         owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'timezone_abbreviations',
+        requirement:
+          'Alphabetic ISO and TZ template suffixes use declared Default definitions and known session labels, retaining prefix consumption, numeric/abbreviation field order, fixed offsets and dated dynamic abbreviations. Undeclared registries remain unavailable; dynamic bare-clock offsets require transaction date unless their forced offset is invariant.',
+        owner: 'tests/sql-semantics/check-jsonpath-abbreviations.test.ts',
       },
       {
         kind: 'implementation',
         requirement:
-          'Alphabetic datetime suffix parsing is not yet connected to supplied timezone abbreviation definitions. Keep this implementation gap separate from an unavailable abbreviation registry.',
-        owner: 'tests/sql-semantics/check-jsonpath-timezone.test.ts',
+          'Translated JSONPath template fields do not yet consume supplied C time-locale/default-collation facts. Ordinary English name fields are supported; keep the missing declared-C integration separate from unavailable locale word lists.',
+        owner: 'tests/sql-semantics/check-jsonpath-templates.test.ts',
       },
     ]
   if (

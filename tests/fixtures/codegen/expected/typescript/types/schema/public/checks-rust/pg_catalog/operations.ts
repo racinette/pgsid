@@ -23811,6 +23811,11 @@ function jsonpathTemplateError(error: number, hard: boolean): JsonpathTemporalVa
     return jsonpathTemporalState(0, 0n, 0, error, false, hard);
 }
 function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkruntime.TextValue): JsonpathTemporalValue {
+    const prefixes: number[] = [];
+    return jsonpathTemplateParsePrefixes(input, template, prefixes);
+}
+function jsonpathTemplateParsePrefixes(input: checkruntime.TextValue, template: checkruntime.TextValue, prefixes: number[]): JsonpathTemporalValue {
+    prefixes = langruntime.checkedIndices(prefixes);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return jsonpathTemplateError(error.state, false);
@@ -23842,6 +23847,8 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
             }
             let position: number = 0;
             let zoneSign: number = langruntime.checkedSignedNegate(1);
+            let abbreviationToken: number = 0;
+            let numericZone: boolean = false;
             let precision: number = langruntime.checkedSignedNegate(1);
             let yearSize: number = 0;
             let dateMode: number = 0;
@@ -23874,174 +23881,190 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                         variable = langruntime.checkedBool(true);
                     }
                     if (token.kind === 22 && jsonpathTemporalLetter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
-                        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
-                    }
-                    if (token.kind === 19 || token.kind === 21 || token.kind === 22) {
-                        zoneSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
-                        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
-                        if (character === "+" || character === "-" || character === " ") {
-                            if (character === "-") {
-                                zoneSign = langruntime.checkedI32(1);
-                            }
-                            position = langruntime.checkedAdd(position, 1);
-                        }
-                    }
-                    let read: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, token.width, variable));
-                    if (token.kind === 31 || token.kind === 32) {
-                        let ad: string = "AD";
-                        let bc: string = "BC";
-                        let length: number = 2;
-                        if (token.kind === 32) {
-                            ad = langruntime.checkedString("A.D.");
-                            bc = langruntime.checkedString("B.C.");
-                            length = langruntime.checkedIndex(4);
-                        }
-                        if (jsonpathTemplateAsciiMatches(source, position, ad)) {
-                            read = copyJsonpathTemplateRead({ value: 0, end: langruntime.checkedAdd(position, length), width: length, error: 0 });
-                        }
-                        else if (jsonpathTemplateAsciiMatches(source, position, bc)) {
-                            read = copyJsonpathTemplateRead({ value: 1, end: langruntime.checkedAdd(position, length), width: length, error: 0 });
-                        }
-                        else {
-                            return jsonpathTemplateError(jsonpathTemplateFormat, false);
-                        }
-                    }
-                    if (token.kind >= 42 && token.kind <= 48) {
-                        read = copyJsonpathTemplateRead(jsonpathTemplateNamedRead(source, position, token.kind));
-                    }
-                    if (token.kind === 33) {
-                        read = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, 1, true));
-                        if (read.error === jsonpathTemplateRange) {
+                        if (prefixes.length === 0 || langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)) > source.characters.length) {
                             return jsonpathTemporalState(0, 0n, 0, 0, true, false);
                         }
-                        if (read.error === 0) {
-                            if (read.end === source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(read.end)) === ",")) {
-                                return jsonpathTemplateError(jsonpathTemplateFormat, false);
-                            }
-                            const part: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateYearGroup(source, langruntime.checkedAdd(read.end, 1)));
-                            if (part.error > 0) {
-                                return jsonpathTemplateError(part.error, false);
-                            }
-                            const product: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(read.value))), 1000n);
-                            const combined: bigint = langruntime.checkedI64Add(product, BigInt(langruntime.checkedI32(part.value)));
-                            if (jsonpathTemplateCalendarFits(product) === false || jsonpathTemplateCalendarFits(combined) === false) {
-                                return jsonpathTemplateError(jsonpathTemplateRange, false);
-                            }
-                            read = copyJsonpathTemplateRead({ value: Number(BigInt.asIntN(32, langruntime.checkedI64(combined))), end: part.end, width: langruntime.checkedSubtract(part.end, position), error: 0 });
-                        }
-                    }
-                    if (read.error > 0) {
-                        return jsonpathTemplateError(read.error, false);
-                    }
-                    position = langruntime.checkedIndex(read.end);
-                    let field: number = token.kind;
-                    if (field >= 1 && field <= 4) {
-                        yearSize = langruntime.checkedI32(langruntime.checkedSignedSubtract(5, field));
-                        field = langruntime.checkedI32(1);
-                    }
-                    if (field === 33) {
-                        yearSize = langruntime.checkedI32(4);
-                        field = langruntime.checkedI32(1);
-                    }
-                    if (field >= 34 && field <= 37) {
-                        yearSize = langruntime.checkedI32(langruntime.checkedSignedSubtract(38, field));
-                        field = langruntime.checkedI32(1);
-                    }
-                    if (field === 32) {
-                        field = langruntime.checkedI32(31);
-                    }
-                    if (field === 38) {
-                        field = langruntime.checkedI32(24);
-                    }
-                    if (field === 39) {
-                        field = langruntime.checkedI32(25);
-                    }
-                    if (field === 40) {
-                        field = langruntime.checkedI32(26);
-                    }
-                    if (field >= 12 && field <= 17) {
-                        precision = langruntime.checkedI32(langruntime.checkedSignedSubtract(field, 11));
-                        field = langruntime.checkedI32(11);
-                    }
-                    if (field === 21 || field === 22) {
-                        field = langruntime.checkedI32(19);
-                    }
-                    if (field === 41) {
-                        twelveHour = langruntime.checkedBool(true);
-                        field = langruntime.checkedI32(7);
-                    }
-                    if (field === 42 || field === 43) {
-                        twelveHour = langruntime.checkedBool(true);
-                        field = langruntime.checkedI32(34);
-                    }
-                    if (field === 44 || field === 45 || field === 48) {
-                        field = langruntime.checkedI32(5);
-                    }
-                    if (field === 46 || field === 47) {
-                        field = langruntime.checkedI32(25);
-                    }
-                    const slot: number = langruntime.indexFromI32(field, 0);
-                    if (!(field === 29) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === read.value)) {
-                        return jsonpathTemplateError(jsonpathTemplateFormat, false);
-                    }
-                    let value: number = read.value;
-                    if (((token.kind >= 2 && token.kind <= 4) || (token.kind >= 35 && token.kind <= 37)) && read.width < 4) {
-                        if (value < 70) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
-                        }
-                        else if (value < 100) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1900));
-                        }
-                        else if (value < 520) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
-                        }
-                        else if (value < 1000) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1000));
-                        }
-                    }
-                    if (field === 10) {
-                        if (read.width === 1) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 100));
-                        }
-                        if (read.width === 2) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
-                        }
-                    }
-                    if (field === 11) {
-                        let consumed: number = read.width;
-                        while (consumed < 6) {
-                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
-                            consumed = langruntime.checkedAdd(consumed, 1);
-                        }
-                    }
-                    if (token.kind === 46 || token.kind === 47) {
-                        value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1));
-                    }
-                    if (token.kind === 39) {
-                        value = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add((BigInt(langruntime.checkedI32(value))), 1n))))));
-                        if (value > 7) {
-                            value = langruntime.checkedI32(1);
-                        }
-                    }
-                    if (!(field === 29)) {
-                        fields[langruntime.checkedIndexIn(fields, slot)] = copyJsonpathTemplateField({ value: value });
-                    }
-                    if ((token.kind === 21 || token.kind === 22) && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
-                        const minutes: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, langruntime.checkedAdd(position, 1), 2, variable));
-                        if (minutes.error > 0) {
-                            return jsonpathTemplateError(minutes.error, false);
-                        }
-                        if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === minutes.value)) {
+                        if (langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)) === 0) {
                             return jsonpathTemplateError(jsonpathTemplateFormat, false);
                         }
-                        fields[langruntime.checkedIndexIn(fields, 20)] = copyJsonpathTemplateField({ value: minutes.value });
-                        position = langruntime.checkedIndex(minutes.end);
+                        abbreviationToken = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+                        numericZone = langruntime.checkedBool(false);
+                        zoneSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                        fields[langruntime.checkedIndexIn(fields, 19)] = copyJsonpathTemplateField({ value: 0 });
+                        fields[langruntime.checkedIndexIn(fields, 20)] = copyJsonpathTemplateField({ value: 0 });
+                        position = langruntime.checkedIndex(langruntime.indexNumber(prefixes, langruntime.checkedIndex(position)));
                     }
-                    if (token.ordinal && jsonpathTemplateOrdinalField(token.kind)) {
-                        let skipped: number = 0;
-                        while (skipped < 2 && position < source.characters.length) {
-                            position = langruntime.checkedAdd(position, 1);
-                            skipped = langruntime.checkedAdd(skipped, 1);
+                    else {
+                        if (token.kind === 19 || token.kind === 20 || token.kind === 21 || token.kind === 22) {
+                            numericZone = langruntime.checkedBool(true);
+                        }
+                        if (token.kind === 19 || token.kind === 21 || token.kind === 22) {
+                            zoneSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                            const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                            if (character === "+" || character === "-" || character === " ") {
+                                if (character === "-") {
+                                    zoneSign = langruntime.checkedI32(1);
+                                }
+                                position = langruntime.checkedAdd(position, 1);
+                            }
+                        }
+                        let read: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, token.width, variable));
+                        if (token.kind === 31 || token.kind === 32) {
+                            let ad: string = "AD";
+                            let bc: string = "BC";
+                            let length: number = 2;
+                            if (token.kind === 32) {
+                                ad = langruntime.checkedString("A.D.");
+                                bc = langruntime.checkedString("B.C.");
+                                length = langruntime.checkedIndex(4);
+                            }
+                            if (jsonpathTemplateAsciiMatches(source, position, ad)) {
+                                read = copyJsonpathTemplateRead({ value: 0, end: langruntime.checkedAdd(position, length), width: length, error: 0 });
+                            }
+                            else if (jsonpathTemplateAsciiMatches(source, position, bc)) {
+                                read = copyJsonpathTemplateRead({ value: 1, end: langruntime.checkedAdd(position, length), width: length, error: 0 });
+                            }
+                            else {
+                                return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                            }
+                        }
+                        if (token.kind >= 42 && token.kind <= 48) {
+                            read = copyJsonpathTemplateRead(jsonpathTemplateNamedRead(source, position, token.kind));
+                        }
+                        if (token.kind === 33) {
+                            read = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, 1, true));
+                            if (read.error === jsonpathTemplateRange) {
+                                return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+                            }
+                            if (read.error === 0) {
+                                if (read.end === source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(read.end)) === ",")) {
+                                    return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                                }
+                                const part: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateYearGroup(source, langruntime.checkedAdd(read.end, 1)));
+                                if (part.error > 0) {
+                                    return jsonpathTemplateError(part.error, false);
+                                }
+                                const product: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(read.value))), 1000n);
+                                const combined: bigint = langruntime.checkedI64Add(product, BigInt(langruntime.checkedI32(part.value)));
+                                if (jsonpathTemplateCalendarFits(product) === false || jsonpathTemplateCalendarFits(combined) === false) {
+                                    return jsonpathTemplateError(jsonpathTemplateRange, false);
+                                }
+                                read = copyJsonpathTemplateRead({ value: Number(BigInt.asIntN(32, langruntime.checkedI64(combined))), end: part.end, width: langruntime.checkedSubtract(part.end, position), error: 0 });
+                            }
+                        }
+                        if (read.error > 0) {
+                            return jsonpathTemplateError(read.error, false);
+                        }
+                        position = langruntime.checkedIndex(read.end);
+                        let field: number = token.kind;
+                        if (field >= 1 && field <= 4) {
+                            yearSize = langruntime.checkedI32(langruntime.checkedSignedSubtract(5, field));
+                            field = langruntime.checkedI32(1);
+                        }
+                        if (field === 33) {
+                            yearSize = langruntime.checkedI32(4);
+                            field = langruntime.checkedI32(1);
+                        }
+                        if (field >= 34 && field <= 37) {
+                            yearSize = langruntime.checkedI32(langruntime.checkedSignedSubtract(38, field));
+                            field = langruntime.checkedI32(1);
+                        }
+                        if (field === 32) {
+                            field = langruntime.checkedI32(31);
+                        }
+                        if (field === 38) {
+                            field = langruntime.checkedI32(24);
+                        }
+                        if (field === 39) {
+                            field = langruntime.checkedI32(25);
+                        }
+                        if (field === 40) {
+                            field = langruntime.checkedI32(26);
+                        }
+                        if (field >= 12 && field <= 17) {
+                            precision = langruntime.checkedI32(langruntime.checkedSignedSubtract(field, 11));
+                            field = langruntime.checkedI32(11);
+                        }
+                        if (field === 21 || field === 22) {
+                            field = langruntime.checkedI32(19);
+                        }
+                        if (field === 41) {
+                            twelveHour = langruntime.checkedBool(true);
+                            field = langruntime.checkedI32(7);
+                        }
+                        if (field === 42 || field === 43) {
+                            twelveHour = langruntime.checkedBool(true);
+                            field = langruntime.checkedI32(34);
+                        }
+                        if (field === 44 || field === 45 || field === 48) {
+                            field = langruntime.checkedI32(5);
+                        }
+                        if (field === 46 || field === 47) {
+                            field = langruntime.checkedI32(25);
+                        }
+                        const slot: number = langruntime.indexFromI32(field, 0);
+                        if (!(field === 29) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === read.value)) {
+                            return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                        }
+                        let value: number = read.value;
+                        if (((token.kind >= 2 && token.kind <= 4) || (token.kind >= 35 && token.kind <= 37)) && read.width < 4) {
+                            if (value < 70) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
+                            }
+                            else if (value < 100) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1900));
+                            }
+                            else if (value < 520) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
+                            }
+                            else if (value < 1000) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1000));
+                            }
+                        }
+                        if (field === 10) {
+                            if (read.width === 1) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 100));
+                            }
+                            if (read.width === 2) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
+                            }
+                        }
+                        if (field === 11) {
+                            let consumed: number = read.width;
+                            while (consumed < 6) {
+                                value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
+                                consumed = langruntime.checkedAdd(consumed, 1);
+                            }
+                        }
+                        if (token.kind === 46 || token.kind === 47) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1));
+                        }
+                        if (token.kind === 39) {
+                            value = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add((BigInt(langruntime.checkedI32(value))), 1n))))));
+                            if (value > 7) {
+                                value = langruntime.checkedI32(1);
+                            }
+                        }
+                        if (!(field === 29)) {
+                            fields[langruntime.checkedIndexIn(fields, slot)] = copyJsonpathTemplateField({ value: value });
+                        }
+                        if ((token.kind === 21 || token.kind === 22) && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
+                            const minutes: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, langruntime.checkedAdd(position, 1), 2, variable));
+                            if (minutes.error > 0) {
+                                return jsonpathTemplateError(minutes.error, false);
+                            }
+                            if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === minutes.value)) {
+                                return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                            }
+                            fields[langruntime.checkedIndexIn(fields, 20)] = copyJsonpathTemplateField({ value: minutes.value });
+                            position = langruntime.checkedIndex(minutes.end);
+                        }
+                        if (token.ordinal && jsonpathTemplateOrdinalField(token.kind)) {
+                            let skipped: number = 0;
+                            while (skipped < 2 && position < source.characters.length) {
+                                position = langruntime.checkedAdd(position, 1);
+                                skipped = langruntime.checkedAdd(skipped, 1);
+                            }
                         }
                     }
                 }
@@ -24122,7 +24145,7 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                 if (program.zoned) {
                     kind = langruntime.checkedI32(3);
                 }
-                return jsonpathTemporalState(kind, result, zone, 0, false, false);
+                return jsonpathTemplateZoneResult(kind, result, zone, abbreviationToken, numericZone);
             }
             if (date.kind === "Value") {
                 const day: number = langruntime.checkedI32(date.value);
@@ -24144,13 +24167,25 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                             result = langruntime.checkedI64(value1);
                         }
                     }
-                    return jsonpathTemporalState(kind, result, zone, 0, false, false);
+                    return jsonpathTemplateZoneResult(kind, result, zone, abbreviationToken, numericZone);
                 }
             }
             return jsonpathTemplateError(jsonpathTemplateRange, false);
         }
     }
     return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+}
+function jsonpathTemplateZoneResult(kind: number, value: bigint, zone: number, abbreviationToken: number, numericZone: boolean): JsonpathTemporalValue {
+    kind = langruntime.checkedI32(kind);
+    value = langruntime.checkedI64(value);
+    zone = langruntime.checkedI32(zone);
+    abbreviationToken = langruntime.checkedIndex(abbreviationToken);
+    numericZone = langruntime.checkedBool(numericZone);
+    const result: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalState(kind, value, zone, 0, false, false));
+    if (abbreviationToken > 0 && numericZone === false) {
+        return { kind: kind, value: value, zone: 0, error: 0, unknown: true, hard: false, abbreviationToken: abbreviationToken };
+    }
+    return result;
 }
 const jsonpathTemporalArgument = 3452653;
 const jsonpathTemporalRange = 3452552;
@@ -24162,9 +24197,10 @@ interface JsonpathTemporalValue {
     error: number;
     unknown: boolean;
     hard: boolean;
+    abbreviationToken: number;
 }
 function copyJsonpathTemporalValue(value: JsonpathTemporalValue): JsonpathTemporalValue {
-    return { kind: langruntime.checkedI32(value.kind), value: langruntime.checkedI64(value.value), zone: langruntime.checkedI32(value.zone), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown), hard: langruntime.checkedBool(value.hard) };
+    return { kind: langruntime.checkedI32(value.kind), value: langruntime.checkedI64(value.value), zone: langruntime.checkedI32(value.zone), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown), hard: langruntime.checkedBool(value.hard), abbreviationToken: langruntime.checkedIndex(value.abbreviationToken) };
 }
 interface JsonpathTemporalSource {
     characters: string[];
@@ -24188,7 +24224,7 @@ function jsonpathTemporalState(kind: number, value: bigint, zone: number, error:
     error = langruntime.checkedIndex(error);
     unknown = langruntime.checkedBool(unknown);
     hard = langruntime.checkedBool(hard);
-    return { kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard };
+    return { kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard, abbreviationToken: 0 };
 }
 function jsonpathTemporalInvalid(): JsonpathTemporalValue {
     return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalArgument, false, false);
@@ -24409,7 +24445,13 @@ function jsonpathTemporalConvertMode(input: checkruntime.TextValue, method: numb
     method = langruntime.checkedI32(method);
     precision = langruntime.checkedI32(precision);
     useTimezone = langruntime.checkedBool(useTimezone);
-    const parsed: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalDecode(input));
+    return jsonpathTemporalConvertParsed(jsonpathTemporalDecode(input), method, precision, useTimezone);
+}
+function jsonpathTemporalConvertParsed(parsed: JsonpathTemporalValue, method: number, precision: number, useTimezone: boolean): JsonpathTemporalValue {
+    parsed = copyJsonpathTemporalValue(parsed);
+    method = langruntime.checkedI32(method);
+    precision = langruntime.checkedI32(precision);
+    useTimezone = langruntime.checkedBool(useTimezone);
     if (parsed.unknown && parsed.kind === 3 && (method === 104 || method === 130 || method === 132)) {
         return jsonpathTemporalInvalid();
     }

@@ -333,7 +333,7 @@ INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variabl
 -- name: clock_wrong_first
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong first clock result','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'false'::jsonb);
 -- name: clock_zone_context
-INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured local midnight','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured local midnight','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
 
 -- name: configured_midnight_zone
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'configured_midnight_zone','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
@@ -358,3 +358,30 @@ INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variabl
 
 -- name: configured_null_document
 INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'Null configured path',NULL,'$.timestamp_tz()'::jsonpath,'$.timestamp_tz()','{}'::jsonb,false,false,NULL,NULL,NULL,NULL);
+
+-- name: abbreviation_zulu
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_zulu','"2024-02-29T12:34:56Z"'::jsonb,'$.datetime()=="2024-02-29T12:34:56+00".datetime()'::jsonpath,'$.datetime()=="2024-02-29T12:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_default_cst
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_default_cst','"2024-02-29T12:34:56CST"'::jsonb,'$.datetime()=="2024-02-29T18:34:56+00".datetime()'::jsonpath,'$.datetime()=="2024-02-29T18:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_template_est
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_template_est','"2024-02-29 12:34:56EST"'::jsonb,'$.datetime("YYYY-MM-DD HH24:MI:SSTZ")=="2024-02-29T17:34:56+00".datetime()'::jsonpath,'$.datetime("YYYY-MM-DD HH24:MI:SSTZ")=="2024-02-29T17:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_dynamic_date
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_dynamic_date','"2024-02-29T12:34:56MSK"'::jsonb,'$.datetime()=="2024-02-29T12:34:56+03".datetime()'::jsonpath,'$.datetime()=="2024-02-29T12:34:56+03".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_lowercase
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_lowercase','"2024-02-29T12:34:56z"'::jsonb,'$.datetime()=="2024-02-29T12:34:56+00".datetime()'::jsonpath,'$.datetime()=="2024-02-29T12:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_invalid_name
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_invalid_name','"2024-02-29T12:34:56XYZ"'::jsonb,'$.datetime()=="2024-02-29T12:34:56+00".datetime()'::jsonpath,'$.datetime()=="2024-02-29T12:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_template_error_order
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_template_error_order','"2024-13-01 12:34:56XYZ"'::jsonb,'$.datetime("YYYY-MM-DD HH24:MI:SSTZ")=="2024-02-29T12:34:56+00".datetime()'::jsonpath,'$.datetime("YYYY-MM-DD HH24:MI:SSTZ")=="2024-02-29T12:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+
+-- name: abbreviation_wrong_result
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_wrong_result','"2024-02-29T12:34:56CST"'::jsonb,'$.datetime()=="2024-02-29T18:34:56+00".datetime()'::jsonpath,'$.datetime()=="2024-02-29T18:34:56+00".datetime()','{}'::jsonb,false,false,true,false,'[false]'::jsonb,'false'::jsonb);
+
+-- name: abbreviation_keyvalue_copy
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'abbreviation_keyvalue_copy','{"a":"2024-02-29T12:34:56EST"}'::jsonb,'$.keyvalue().value.datetime()=="2024-02-29T17:34:56+00".datetime()'::jsonpath,'$.keyvalue().value.datetime()=="2024-02-29T17:34:56+00".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);

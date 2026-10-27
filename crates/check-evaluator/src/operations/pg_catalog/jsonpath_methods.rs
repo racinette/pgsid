@@ -136,7 +136,7 @@ fn jsonpath_temporal_apply(
         return jsonpath_temporal_invalid();
     };
     if method.kind == 128 && method.left > 0 {
-        return jsonpath_template_parse(
+        return jsonpath_template_parse_context(
             input,
             jsonpath_method_text(
                 context,
@@ -145,6 +145,9 @@ fn jsonpath_temporal_apply(
                     node: method.left,
                 },
             ),
+            context.session_timezone.as_str(),
+            context.abbreviations_default,
+            context.utf8,
         );
     };
     let mut precision: i32 = -1;
@@ -172,5 +175,7 @@ fn jsonpath_temporal_apply(
         precision,
         context.use_timezone,
         context.session_timezone.as_str(),
+        context.abbreviations_default,
+        context.utf8,
     )
 }
