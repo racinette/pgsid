@@ -141,6 +141,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/json_construct.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/null_count.rs");
+    include!("operations/pg_catalog/text_concat.rs");
     include!("operations/pg_catalog/text_nullable_quote.rs");
     include!("operations/pg_catalog/text_generic_quote.rs");
     include!("operations/pg_catalog/date.rs");
@@ -461,6 +462,80 @@ pub mod pg_catalog {
             assert_eq!(
                 sql_error_message(make_sql_error(BIT_PROGRAM_LIMIT_EXCEEDED)).message,
                 "program limit exceeded"
+            );
+        }
+
+        fn synthetic_concat_state(length: i64) -> TextConcatState {
+            TextConcatState {
+                status: CheckOutcome::True,
+                output: String::new(),
+                separator: "x".to_owned(),
+                separator_known: true,
+                length,
+                printed: true,
+                ready: false,
+                pending_separator: false,
+            }
+        }
+
+        #[test]
+        fn text_concat_checks_buffer_and_result_limits_in_native_output_order() {
+            for (length, expected) in [
+                (1073741818i64, 0u32),
+                (1073741819i64, TEXT_CONCAT_ALLOCATION_ERROR),
+                (1073741821i64, TEXT_CONCAT_ALLOCATION_ERROR),
+                (1073741822i64, TEXT_CONCAT_LIMIT_ERROR),
+            ] {
+                let state = synthetic_concat_state(length);
+                let result = concat_before_argument(state, BoolValue::Value(false), true);
+                let value = sql__pg_catalog__concat__ca4i(result);
+                if expected == 0 {
+                    assert!(value == TextValue::Value("x".to_owned()));
+                } else {
+                    assert!(value == TextValue::Error(make_sql_error(expected)));
+                }
+            }
+            let output_error = make_sql_error(3452547);
+            let expanded = concat_before_argument(
+                synthetic_concat_state(1073741822i64),
+                BoolValue::Value(false),
+                true,
+            );
+            assert!(!concat_should_render(&expanded));
+            assert!(
+                sql__pg_catalog__concat__ca4i(expanded)
+                    == TextValue::Error(make_sql_error(TEXT_CONCAT_LIMIT_ERROR))
+            );
+            let variadic = concat_before_argument(
+                synthetic_concat_state(1073741822i64),
+                BoolValue::Value(false),
+                false,
+            );
+            assert!(concat_should_render(&variadic));
+            let failed = concat_after_argument(variadic, TextValue::Error(output_error));
+            assert!(sql__pg_catalog__concat_ws__dc5y(failed) == TextValue::Error(output_error));
+            for (length, fails) in [(1073741807i64, false), (1073741808i64, true)] {
+                let started = concat_before_argument(
+                    synthetic_concat_state(length),
+                    BoolValue::Value(false),
+                    false,
+                );
+                let appended = concat_after_argument(started, TextValue::Value(String::new()));
+                let result = sql__pg_catalog__concat_ws__dc5y(appended);
+                if fails {
+                    assert!(result == TextValue::Error(make_sql_error(TEXT_CONCAT_LIMIT_ERROR)));
+                } else {
+                    assert!(result == TextValue::Value("x".to_owned()));
+                }
+            }
+            let mut unicode = synthetic_concat_state(1073741817i64);
+            unicode.printed = false;
+            let started = concat_before_argument(unicode, BoolValue::Value(false), true);
+            let appended = concat_after_argument(started, TextValue::Value("雪".to_owned()));
+            assert_eq!(appended.length, 1073741820i64);
+            assert!(
+                sql__pg_catalog__concat__ca4i(appended)
+                    == TextValue::Error(make_sql_error(TEXT_CONCAT_ALLOCATION_ERROR))
             );
         }
 
