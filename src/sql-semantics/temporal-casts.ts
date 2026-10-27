@@ -281,6 +281,21 @@ export function isTemporalTemplateParsing(item: BuiltinCallable): boolean {
   )
 }
 
+export function isTemporalCurrentAge(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'age' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.variadic === null &&
+    item.args.length === 1 &&
+    ['pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(item.args[0]!) &&
+    item.result === 'pg_catalog."interval"'
+  )
+}
+
 export function isTemporalInstantAge(item: BuiltinCallable): boolean {
   return (
     item.kind === 'function' &&

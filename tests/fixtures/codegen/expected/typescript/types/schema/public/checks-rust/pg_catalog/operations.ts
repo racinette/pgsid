@@ -42232,6 +42232,44 @@ export function timestampNeDateBxi2(left: checkruntime.TimestampValue, right: ch
     }
     return { kind: "Unknown" };
 }
+export function age0wjc(input: checkruntime.TimestampValue): checkruntime.IntervalValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return intervalInfinity(1);
+        }
+        if (value === 9223372036854775807n) {
+            return intervalInfinity(langruntime.checkedSignedNegate(1));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function age62n0(input: checkruntime.TimestamptzValue): checkruntime.IntervalValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return intervalInfinity(1);
+        }
+        if (value === 9223372036854775807n) {
+            return intervalInfinity(langruntime.checkedSignedNegate(1));
+        }
+    }
+    return { kind: "Unknown" };
+}
 const temporalExtractKeys: ReadonlyArray<string> = ["+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"];
 const temporalExtractCodes: ReadonlyArray<number> = [-1, -1, -1, 16, 18, 19, -1, 17, 15, 14, 14, 14, 4, -1, -1, -1, -1];
 function temporalExtractCode(value: string): number {

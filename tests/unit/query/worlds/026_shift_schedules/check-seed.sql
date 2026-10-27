@@ -825,3 +825,34 @@ VALUES (2,1,'Temporal bounds','24:00','00:00:00.000001-15:59:59','infinity',fals
 -- name: presence_subsecond_values
 INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
 VALUES (2,1,'Microseconds','00:00:00.000001','00:00:00.000001+00','00:00:00.000001',false,false,false,true,false);
+-- name: NullAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES (NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: FutureAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('infinity','infinity','infinity','-infinity','-infinity',false);
+
+-- name: PastAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('-infinity','-infinity','-infinity','infinity','infinity',false);
+
+-- name: WrongLocalAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('infinity','infinity','infinity','infinity','-infinity',false);
+
+-- name: WrongInstantAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('infinity','infinity','infinity','-infinity','infinity',false);
+
+-- name: WrongNullAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES (NULL,NULL,NULL,'0','0',false);
+
+-- name: InvalidAgeSnapshotInput
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('infinity','infinity','2000-13-01','-infinity','-infinity',false);
+
+-- name: BypassedAgeSnapshot
+INSERT INTO shift_age_snapshots(local_stamp,instant_stamp,raw_local,expected_local,expected_instant,skip_validation)
+VALUES ('2000-01-01','2000-01-01+00','2000-13-01','0','0',true);

@@ -42007,6 +42007,44 @@ func TimestampNeDateBxi2(left checkruntime.TimestampValue, right checkruntime.Da
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func Age0wjc(input checkruntime.TimestampValue) checkruntime.IntervalValue {
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return intervalInfinity(1)
+		}
+		if value == int64(9223372036854775807) {
+			return intervalInfinity(langruntime.CheckedSignedNegate(1))
+		}
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func Age62n0(input checkruntime.TimestamptzValue) checkruntime.IntervalValue {
+	if input.Kind == checkruntime.TimestamptzValueError {
+		error := input.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return intervalInfinity(1)
+		}
+		if value == int64(9223372036854775807) {
+			return intervalInfinity(langruntime.CheckedSignedNegate(1))
+		}
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
 
 var temporalExtractKeys = []string{"+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"}
 var temporalExtractCodes = []int{-1, -1, -1, 16, 18, 19, -1, 17, 15, 14, 14, 14, 4, -1, -1, -1, -1}
