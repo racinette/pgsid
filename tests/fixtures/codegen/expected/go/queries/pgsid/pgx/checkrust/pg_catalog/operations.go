@@ -20148,6 +20148,16 @@ func jsonbExtractText(input checkruntime.JsonbValue, utf8 bool) checkruntime.Tex
 	if input.Kind == checkruntime.JsonbValueNull {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
 	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if facts.Kind == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		if facts.Kind > 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		node := value.Nodes[value.Root]
