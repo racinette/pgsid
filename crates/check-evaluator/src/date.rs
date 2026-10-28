@@ -49,12 +49,14 @@ const ORDINAL_DATE_FOUND: i32 = 1;
 const ORDINAL_DATE_DEFERRED: i32 = 2;
 const ORDINAL_DATE_SYNTAX: i32 = 3;
 const ORDINAL_DATE_OVERFLOW: i32 = 4;
+const ORDINAL_DATE_CALENDAR: i32 = 5;
 
 struct OrdinalDateText {
     state: i32,
     next: usize,
     year: i32,
     overflow: bool,
+    month: i32,
     day: i32,
     minus_zone: bool,
 }
@@ -70,6 +72,7 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
     let year = read_timestamp_number(text, start, end);
     let mut index = year.next;
     let mut state = ORDINAL_DATE_ABSENT;
+    let mut month: i32 = 0;
     let mut day: i32 = 0;
     let mut minus_zone = false;
     if year.digits > 0 && index < end {
@@ -111,11 +114,32 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
                 state = ORDINAL_DATE_FOUND;
                 day = field.value;
                 index = field.next;
+            } else if field.digits >= 6 {
+                state = ORDINAL_DATE_SYNTAX;
             } else if field.digits > 0 && field.next == end {
                 index = field.next;
                 state = ORDINAL_DATE_OVERFLOW;
-                if field.digits >= 6 || (year.value != 0 && field.value >= 1 && field.value <= 12) {
+                if year.value != 0 && field.value >= 1 && field.value <= 12 {
                     state = ORDINAL_DATE_SYNTAX;
+                };
+            } else if field.digits > 0 && date_text_space(text.chars[field.next]) {
+                let mut third_start = field.next;
+                while third_start < end && date_text_space(text.chars[third_start]) {
+                    third_start += 1;
+                }
+                let third = read_timestamp_number(text, third_start, end);
+                if third.digits >= 6 {
+                    state = ORDINAL_DATE_SYNTAX;
+                } else if third.digits > 0
+                    && (third.next == end
+                        || date_text_space(text.chars[third.next])
+                        || text.chars[third.next].to_ascii_lowercase() == 't'
+                        || text.chars[third.next] == '+')
+                {
+                    state = ORDINAL_DATE_CALENDAR;
+                    month = field.value;
+                    day = third.value;
+                    index = third.next;
                 };
             };
         };
@@ -125,6 +149,7 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         next: index,
         year: year.value,
         overflow: year.overflow,
+        month: month,
         day: day,
         minus_zone: minus_zone,
     }
