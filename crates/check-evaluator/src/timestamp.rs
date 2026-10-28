@@ -44,6 +44,7 @@ fn timestamp_calendar_microseconds(
     offset_seconds: i32,
     with_timezone: bool,
     allow_fraction_carry: bool,
+    missing_timezone: bool,
 ) -> Int8Value {
     let mut max_fraction: i32 = 999999;
     if allow_fraction_carry {
@@ -81,6 +82,9 @@ fn timestamp_calendar_microseconds(
         return Int8Value::Error(error);
     }
     if let Int4Value::Value(day_value) = days {
+        if missing_timezone {
+            return Int8Value::Unknown;
+        }
         if (year == -4714 && month < 11) || day_value < -2451546 || day_value > 106751983 {
             return Int8Value::Error(SqlError {
                 state: TIMESTAMP_FIELD_OVERFLOW,
@@ -178,6 +182,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 0,
                 with_timezone,
                 false,
+                false,
             );
         }
         let mut infinity_start = start;
@@ -221,9 +226,6 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             return Int8Value::Unknown;
         }
         if index == end {
-            if with_timezone {
-                return Int8Value::Unknown;
-            }
             if year_field.overflow {
                 return Int8Value::Error(SqlError {
                     state: TIMESTAMP_FIELD_OVERFLOW,
@@ -244,6 +246,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 0,
                 false,
                 false,
+                with_timezone,
             );
         }
         if text.chars[index].to_ascii_lowercase() == 't' {
@@ -312,6 +315,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             index += 1;
         }
         let mut offset: i32 = 0;
+        let mut missing_timezone = false;
         if index < end && text.chars[index].to_ascii_lowercase() == 'z' {
             index += 1;
         } else if index < end && (text.chars[index] == '+' || text.chars[index] == '-') {
@@ -357,8 +361,10 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                     offset = 0 - offset;
                 }
             };
-        } else if with_timezone || index != end {
+        } else if index != end {
             return Int8Value::Unknown;
+        } else if with_timezone {
+            missing_timezone = true;
         }
         if index != end {
             return Int8Value::Unknown;
@@ -383,6 +389,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             offset,
             with_timezone,
             true,
+            missing_timezone,
         );
     }
     Int8Value::Unknown
@@ -419,6 +426,7 @@ pub fn timestamp_from_calendar(
         second,
         microsecond,
         0,
+        false,
         false,
         false,
     );

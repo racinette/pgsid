@@ -454,3 +454,160 @@ it('casts already-projected dates without repeating date input validation before
     await rm(root, { recursive: true, force: true })
   }
 }, 300000)
+
+it('preserves calendar and clock errors before unknown timestamptz timezone resolution', async () => {
+  const pg = await PGlite.create(),
+    root = await mkdtemp(join(tmpdir(), 'pgsid-temporal-calendar-')),
+    packet = 'artifacts/goal-checks/temporal-calendar-active'
+  try {
+    const expressions = {
+      scalar: 'raw::timestamptz',
+      domain: 'raw::calendar_instant',
+      array: '(ARRAY[raw]::timestamptz[])[1]',
+      record: '(ROW(raw::timestamptz)::calendar_record).value',
+      range: "lower(tstzrange(raw::timestamptz,raw::timestamptz,'[]'))",
+    }
+    await pg.exec(`CREATE DOMAIN calendar_instant AS timestamptz CHECK(VALUE IS NULL OR VALUE IS NOT NULL);
+      CREATE TYPE calendar_record AS (value timestamptz);
+      CREATE TABLE calendar_input(raw text,bypass bool,${Object.entries(expressions)
+        .map(
+          ([name, expression]) =>
+            `CONSTRAINT "${name}" CHECK(CASE WHEN bypass THEN true ELSE (${expression}) IS NULL END)`,
+        )
+        .join(',')})`)
+    const catalog = await snapshotCatalog(pg),
+      table = catalog.tables.find((table) => table.name === 'calendar_input')!
+    const constraints = Object.entries(expressions).flatMap(([name, expression]) =>
+      (['source', 'stored'] as const).map((origin) => {
+        const plan = lowerTableCheck(
+          table,
+          table.constraints.find((constraint) => constraint.name === name)!,
+          catalog.enums,
+          catalog.domains,
+          origin,
+          catalog.rangeTypes,
+          catalog.compositeTypeGraph,
+          origin === 'source'
+            ? `CHECK(CASE WHEN bypass THEN true ELSE (${expression}) IS NULL END)`
+            : undefined,
+        )!
+        expect(hasUncertain(plan.expression), name + '_' + origin).toBe(false)
+        return {
+          expression: plan.expression,
+          identity: {
+            schema: 'public',
+            kind: 'table' as const,
+            owner: table.name,
+            constraint: name + '_' + origin,
+          },
+        }
+      }),
+    )
+    const group = prepareCheckRustGroup(constraints, {
+      defaultCollation: 'C',
+      serverEncoding: 'UTF8',
+    })
+    for (const check of group.checks)
+      expect(check.kind, 'reason' in check ? check.reason : '').toBe('supported')
+    const invalid = [
+      '2024-02-30',
+      '1900-02-29',
+      '0000-01-01',
+      '2024-13-01',
+      '2024-00-01',
+      '2024-01-00',
+      '2024-04-31',
+      '2147483648-01-01',
+      '99999999999999999999-01-01',
+      '2024-02-30 BC',
+      '0001-02-30 BC',
+      '2024-02-30 00:00:00',
+      '2024-02-29 25:00:00',
+      '2024-02-29 24:00:00.000001',
+      '2024-02-29 23:60:00',
+      '2024-02-29 23:59:61',
+      '2024-02-29 00:00:00+16',
+    ]
+    const missing = [
+      '2000-01-01',
+      '2024-02-29',
+      '0001-02-29 BC',
+      '2024-02-29 12:34:56',
+      '2024-02-29 24:00:00',
+      '2024-02-29 23:59:60',
+      '294277-01-01',
+      '294277-01-01 00:00:00',
+      '4714-11-23 23:59:59 BC',
+    ]
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
+      observations: unknown[] = []
+    for (const zone of ['UTC', 'Etc/GMT-15', 'Etc/GMT+15'])
+      for (const style of ['ISO, MDY', 'SQL, DMY', 'German, YMD']) {
+        await pg.query("SELECT set_config('TimeZone',$1,false),set_config('DateStyle',$2,false)", [
+          zone,
+          style,
+        ])
+        for (const raw of [
+          ...invalid,
+          ...missing,
+          '2000-01-01 00:00:00Z',
+          '2024-02-29 12:34:56+05:30',
+          null,
+        ])
+          for (const [name, expression] of Object.entries(expressions)) {
+            let expected: Outcome
+            try {
+              const output = (
+                await pg.query<{ value: boolean | null }>(
+                  `SELECT (${expression}) IS NULL AS value FROM (SELECT $1::text raw) input`,
+                  [raw],
+                )
+              ).rows[0]!.value
+              expected = { kind: output === null ? 'Null' : output ? 'True' : 'False' }
+            } catch (cause) {
+              expected = error(cause)
+            }
+            if (raw !== null && invalid.includes(raw)) expect(expected.kind, raw).toBe('Error')
+            if (raw !== null && missing.includes(raw)) expected = { kind: 'Unknown' }
+            observations.push({ zone, style, raw, expression, expected })
+            for (const origin of ['source', 'stored'])
+              fixtures.push({
+                name: name + '_' + origin,
+                row: { raw: known(raw), bypass: known(false) },
+                expected,
+              })
+          }
+      }
+    for (const constraint of constraints) {
+      const name = constraint.identity.constraint
+      for (const raw of [
+        known('2024-02-30'),
+        { kind: 'Unknown' } as Input,
+        { kind: 'Error', value: { state: parseInt('22012', 36) } } as Input,
+      ]) {
+        fixtures.push({ name, row: { raw, bypass: known(true) }, expected: { kind: 'True' } })
+        if (raw.kind !== 'Value')
+          fixtures.push({ name, row: { raw, bypass: known(false) }, expected: raw as Outcome })
+      }
+    }
+    await mkdir(packet, { recursive: true })
+    await writeFile(
+      packet + '/observations.json',
+      JSON.stringify(
+        { scope: 'complete-owner', observations, fixtures: fixtures.length },
+        null,
+        2,
+      ) + '\n',
+    )
+    await runCheckParity(
+      root,
+      'temporal_calendar',
+      group,
+      constraints.map((constraint) => constraint.identity.constraint),
+      fixtures,
+    )
+  } finally {
+    await pg.close()
+    await rm(root, { recursive: true, force: true })
+  }
+}, 240_000)
