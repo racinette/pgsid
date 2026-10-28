@@ -31,6 +31,80 @@ const profiles = [
   { name: 'identity', sql: 'to_jsonb(jsonb_build_array(n))' },
   { name: 'raw_conversion', sql: 'to_json(jsonb_build_array(n))' },
   { name: 'json_cast', sql: 'jsonb_build_array(n)::json' },
+  { name: 'array_json_cast', sql: '(ARRAY[jsonb_build_array(n)]::json[])[1]' },
+  {
+    name: 'array_json_bounds',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[1],ARRAY[-3])::json[])[-3]',
+  },
+  {
+    name: 'array_json_dimensions',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[2,3],ARRAY[-2,4])::json[])[-1][5]',
+  },
+  {
+    name: 'array_json_source_domain',
+    sql: '(array_fill(jsonb_build_array(n)::partial_binary,ARRAY[1])::json[])[1]',
+  },
+  {
+    name: 'array_json_target_domain',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[1])::partial_raw[])[1]',
+  },
+  {
+    name: 'array_json_list_domain',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[1])::partial_raw_list)[1]',
+  },
+  {
+    name: 'array_json_later_error',
+    sql: '(array_append(array_fill(jsonb_build_array(n),ARRAY[1]),doc::jsonb)::json[])[1]',
+    conversion: true,
+  },
+  {
+    name: 'array_json_roundtrip',
+    sql: '((array_fill(jsonb_build_array(n),ARRAY[1])::json[])::jsonb[])[1]',
+    unknown: true,
+  },
+  {
+    name: 'array_json_text_bridge',
+    sql: '((array_fill(jsonb_build_array(n),ARRAY[1])::text[])::json[])[1]',
+    unknown: true,
+  },
+  {
+    name: 'array_json_null_domain',
+    sql: '(array_append(array_fill(jsonb_build_array(n),ARRAY[1]),NULL::jsonb)::partial_raw[])[1]',
+    error: '23502',
+  },
+  {
+    name: 'array_json_empty_domain',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[0])::partial_raw_list)[1]',
+    error: '23514',
+  },
+  {
+    name: 'array_json_nullable',
+    sql: '(array_fill(to_jsonb(n),ARRAY[1])::json[])[1]',
+    unknown: true,
+  },
+  {
+    name: 'array_json_shape',
+    sql: 'array_dims(array_fill(jsonb_build_array(n),ARRAY[2,3],ARRAY[-2,4])::json[])',
+  },
+  {
+    name: 'array_json_null_cell',
+    sql: '(array_append(array_fill(jsonb_build_array(n),ARRAY[1]),NULL::jsonb)::json[])[2]',
+    null: true,
+  },
+  {
+    name: 'array_json_outside',
+    sql: '(array_fill(jsonb_build_array(n),ARRAY[1],ARRAY[-3])::json[])[-4]',
+    null: true,
+  },
+  {
+    name: 'array_json_bad_text',
+    sql: "(array_append(array_fill(jsonb_build_array(n)::text,ARRAY[1]),'bad')::json[])[1]",
+    unknown: true,
+  },
+  { name: 'array_empty_text_path', sql: "jsonb_build_array(n)#>>'{}'::text[]" },
+  { name: 'object_empty_text_path', sql: "jsonb_build_object('n',n)#>>'{}'::text[]" },
+  { name: 'scalar_text_path', sql: "jsonb_build_array(n)#>>'{0}'::text[]", unknown: true },
+
   { name: 'text_cast', sql: 'jsonb_build_array(n)::text' },
   { name: 'root_type', sql: 'jsonb_typeof(jsonb_build_array(n))' },
   { name: 'owned_array', sql: 'to_jsonb(ARRAY[jsonb_build_array(n)])' },
@@ -59,6 +133,9 @@ it('retains nonnull JSONB builders through owned carriers without hiding convers
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-partial-'))
   try {
+    await pg.exec(
+      'CREATE DOMAIN partial_binary AS jsonb; CREATE DOMAIN partial_raw AS json NOT NULL; CREATE DOMAIN partial_raw_list AS json[] CHECK(cardinality(VALUE)>0)',
+    )
     await pg.exec(
       `CREATE TABLE partial_jsonb(n integer,m integer,b boolean,doc json,bypass boolean,${profiles.map((p) => `CONSTRAINT "${p.name}" CHECK(CASE WHEN bypass THEN true ELSE (${p.sql}) IS NULL END)`).join(',')})`,
     )
@@ -113,7 +190,13 @@ it('retains nonnull JSONB builders through owned carriers without hiding convers
             fixtures.push({ name: `${declared}_${p.name}_${origin}`, row, expected })
       }
       const expected: Outcome =
-        'error' in p ? error(p.error) : 'unknown' in p ? { kind: 'Unknown' } : { kind: 'False' }
+        'error' in p
+          ? error(p.error)
+          : 'unknown' in p
+            ? { kind: 'Unknown' }
+            : 'null' in p
+              ? { kind: 'True' }
+              : { kind: 'False' }
       add(base, expected)
       add({ ...base, bypass: value(true) }, { kind: 'True' })
       add({ ...base, n: error('22003') }, error('22003'))

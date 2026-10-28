@@ -47,6 +47,15 @@ fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
     if let JsonbValue::Null = input {
         return TextValue::Null;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if facts.kind == 0 {
+            return TextValue::Null;
+        };
+        if facts.kind > 0 {
+            return TextValue::NonNull;
+        };
+        return TextValue::Unknown;
+    };
     if let JsonbValue::Value(value) = input {
         let node = value.nodes[value.root];
         if node.kind == 0 {

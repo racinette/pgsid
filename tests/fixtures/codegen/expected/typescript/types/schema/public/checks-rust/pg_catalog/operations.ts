@@ -20272,6 +20272,16 @@ function jsonbExtractText(input: checkruntime.JsonbValue, utf8: boolean): checkr
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    if (input.kind === "NonNull") {
+        const facts: checkruntime.JsonbKnowledge = input.value;
+        if (facts.kind === 0) {
+            return { kind: "Null" };
+        }
+        if (facts.kind > 0) {
+            return { kind: "NonNull" };
+        }
+        return { kind: "Unknown" };
+    }
     if (input.kind === "Value") {
         const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
         const node: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);

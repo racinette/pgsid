@@ -6536,22 +6536,36 @@ export function emitCheckRustEvaluator(
       const lines: string[] = []
       if (rendered.scalarRequired)
         lines.push(`let ${scalar} = array_element_to_${rendered.prefix}(${element});`)
-      const conversion =
-        node.sourceElementType === 'pg_catalog.jsonb'
-          ? `jsonb_text_context(${scalar}, ${executionContext.serverEncoding === 'UTF8'})`
-          : rendered.conversion
-      lines.push(`let ${event} = ${conversion};`)
-      let converted = renderArrayInputElement(
-        node.elementType,
-        node.enum,
-        event,
-        false,
-        lines,
-        undefined,
-        true,
-        node.inputConversion,
-        used,
-      )
+      let converted: string
+      if (
+        node.sourceElementType === 'pg_catalog.jsonb' &&
+        node.elementType === 'pg_catalog."json"' &&
+        !node.inputConversion
+      ) {
+        const value = fresh('array_io_json_value')
+        converted = fresh('array_io_json_element')
+        lines.push(
+          `let ${value} = jsonb_to_json_context(${scalar}, ${executionContext.serverEncoding === 'UTF8'});`,
+          `let ${converted} = array_element_from_json(${value});`,
+        )
+      } else {
+        const conversion =
+          node.sourceElementType === 'pg_catalog.jsonb'
+            ? `jsonb_text_context(${scalar}, ${executionContext.serverEncoding === 'UTF8'})`
+            : rendered.conversion
+        lines.push(`let ${event} = ${conversion};`)
+        converted = renderArrayInputElement(
+          node.elementType,
+          node.enum,
+          event,
+          false,
+          lines,
+          undefined,
+          true,
+          node.inputConversion,
+          used,
+        )
+      }
       if (node.modifier >= 0) {
         const modified = fresh('array_io_modified')
         lines.push(
