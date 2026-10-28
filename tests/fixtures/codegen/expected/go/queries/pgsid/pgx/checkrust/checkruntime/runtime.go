@@ -16011,6 +16011,47 @@ func DateFromText(value TextValue) DateValue {
 		for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
+		if start < end && langruntime.AsciiLowercase(chars[start]) == 'j' {
+			index := start
+			label := langruntime.NewTextBuffer("")
+			for index < end {
+				character := langruntime.AsciiLowercase(chars[index])
+				code := int(langruntime.CheckedChar(character))
+				if code < 97 || code > 122 {
+					break
+				}
+				label = append(label, string(langruntime.CheckedChar(character))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if string(label) != "j" && string(label) != "jd" && string(label) != "julian" {
+				return DateValue{Kind: DateValueUnknown}
+			}
+			for index < end && dateTextSpace(chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index == end {
+				return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
+			}
+			first := index
+			julian := 0
+			overflow := false
+			for index < end && dateTextDigit(chars[index]) >= 0 {
+				digit := dateTextDigit(chars[index])
+				if julian < 214748364 || (julian == 214748364 && digit <= 7) {
+					julian = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(julian, 10), digit))
+				} else {
+					overflow = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index != end || index == first {
+				return DateValue{Kind: DateValueUnknown}
+			}
+			if overflow {
+				return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+			}
+			return MakeDateValue(langruntime.CheckedSignedSubtract(julian, 2451545))
+		}
 		if langruntime.CheckedSubtract(end, start) == 5 && langruntime.AsciiLowercase(chars[start]) == 'e' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 1)]) == 'p' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 2)]) == 'o' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 3)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 4)]) == 'h' {
 			return DateFromYmd(1970, 1, 1)
 		}

@@ -128,6 +128,16 @@ it('routes JSON record scalar fields through captured input functions and modifi
           : []),
         '{"value":""}',
         '{"value":{"a":1}}',
+        ...(f.profile.type === 'date'
+          ? [
+              '{"value":"J2451545 BC"}',
+              '{"value":["JD0"]}',
+              '{"value":{"julian 2451545":""}}',
+              '{"value":"J2147483494"}',
+              '{"value":"J2147483648"}',
+              '{"value":"J"}',
+            ]
+          : []),
         ...(['date', 'timestamp'].includes(f.profile.type)
           ? ['{"value":{"12":"34"}}', '{"value":[12,34]}']
           : []),

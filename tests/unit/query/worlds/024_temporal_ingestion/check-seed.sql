@@ -102,3 +102,22 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 
 -- name: instant_skipped_calendar_error_no_zone
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-30', NULL, true);
+
+-- name: calendar_julian_epoch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2451545', '2000-01-01', false);
+-- name: calendar_julian_mismatch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'julian 2451544', '2000-01-01', false);
+-- name: calendar_julian_zero
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'JD0', '4714-11-24 BC', false);
+-- name: calendar_julian_era_is_not_reapplied
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2451545 BC', '2000-01-01', false);
+-- name: calendar_julian_upper_bound
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2147483493', '5874897-12-31', false);
+-- name: calendar_julian_range_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2147483494', NULL, false);
+-- name: calendar_julian_integer_overflow
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2147483648', NULL, false);
+-- name: calendar_julian_missing_number
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'julian', NULL, false);
+-- name: calendar_julian_skipped_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2147483648', NULL, true);

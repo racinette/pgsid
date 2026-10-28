@@ -35,6 +35,26 @@ export const dateHandledText = [
   ' EPOCH ',
   'epoch BC',
   'epoch AD',
+  'J2451545',
+  'j 2451545',
+  'JD2451545',
+  'JuLiAn 2451545',
+  '\tJ\n0002451545\r',
+  'J0',
+  'J1',
+  'J1721060',
+  'J2451544',
+  'J2451545 BC',
+  'J0 BC',
+  'J2451545ad',
+  'J2147483493',
+  'J2147483494',
+  'J2147483647',
+  'J2147483648',
+  'J99999999999999999999',
+  'J',
+  'jd  ',
+  'julian',
 ]
 
 export const dateDeferredText = [
@@ -52,6 +72,10 @@ export const dateDeferredText = [
   '2000-01-01Z',
   '2000-01--01',
   '2000-01-01-',
+  'J2451545.5',
+  'J2451545 12:00',
+  'J2451545Z',
+  'J1e2',
 ]
 
 export const timestampHandledText = [

@@ -100,6 +100,51 @@ pub fn date_from_text(value: TextValue) -> DateValue {
         while start < end && date_text_space(chars[end - 1]) {
             end = end - 1;
         }
+        if start < end && chars[start].to_ascii_lowercase() == 'j' {
+            let mut index = start;
+            let mut label = String::new();
+            while index < end {
+                let character = chars[index].to_ascii_lowercase();
+                let code = character as i32;
+                if code < 97 || code > 122 {
+                    break;
+                }
+                label.push(character);
+                index += 1;
+            }
+            if label != "j" && label != "jd" && label != "julian" {
+                return DateValue::Unknown;
+            }
+            while index < end && date_text_space(chars[index]) {
+                index += 1;
+            }
+            if index == end {
+                return DateValue::Error(SqlError {
+                    state: INVALID_DATE_TEXT,
+                });
+            }
+            let first = index;
+            let mut julian: i32 = 0;
+            let mut overflow = false;
+            while index < end && date_text_digit(chars[index]) >= 0 {
+                let digit = date_text_digit(chars[index]);
+                if julian < 214748364 || (julian == 214748364 && digit <= 7) {
+                    julian = julian * 10 + digit;
+                } else {
+                    overflow = true;
+                }
+                index += 1;
+            }
+            if index != end || index == first {
+                return DateValue::Unknown;
+            }
+            if overflow {
+                return DateValue::Error(SqlError {
+                    state: DATE_FIELD_OVERFLOW,
+                });
+            }
+            return make_date_value(julian - 2451545);
+        }
         if end - start == 5
             && chars[start].to_ascii_lowercase() == 'e'
             && chars[start + 1].to_ascii_lowercase() == 'p'
