@@ -2,14 +2,16 @@
 
 # pgsid query analysis tests — `sqlc-corpus/tickets/`
 
+
 These drafts turn adjudicated sqlc disagreements into reproducible upstream
 reports. They are pgsid-owned analysis, not part of the vendored sqlc corpus.
+
 
 ## Project layout
 
     sqlc-corpus/tickets/
     └─ [ticket].md  an upstream issue draft backed by a corpus adjudication
-                    (zero or more, any name)
+                    (zero or more matching files)
 
 ## `[ticket].md` — an upstream issue draft backed by a corpus adjudication
 
@@ -21,7 +23,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../../espalier/sqlc-corpus/tickets/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../../espalier/sqlc-corpus/tickets/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under sqlc-corpus/tickets/ must fit the project layout or a
 documented repository-specific purpose.

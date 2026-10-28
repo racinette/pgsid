@@ -2,15 +2,17 @@
 
 # pgsid query analysis tests — `fixtures/data/`
 
+
 Each file materializes one named data state used by the shared hand-authored
 corpus. Change these states as witness infrastructure: a row should expose a
 contract arm, not merely add volume.
 
+
 ## Project layout
 
     fixtures/data/
-    └─ [state].sql  one SQL data state for shared-schema fixtures (zero or more,
-                    any name)
+    └─ [state].sql  one SQL data state for shared-schema fixtures (zero or more
+                    matching files)
 
 ## `[state].sql` — one SQL data state for shared-schema fixtures
 
@@ -22,7 +24,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../../espalier/fixtures/data/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../../espalier/fixtures/data/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under fixtures/data/ must fit the project layout or a documented
 repository-specific purpose.

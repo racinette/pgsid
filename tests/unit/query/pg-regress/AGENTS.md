@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `pg-regress/`
 
+
 The SQL corpus replayed here is not authored by pgsid. The harness points at
 pglite/postgres-pglite/src/test/regress, which is a literal copy of the
 regression test suite from a PostgreSQL checkout. Preserve that provenance:
@@ -11,13 +12,15 @@ Files in this directory are pgsid-owned replay machinery. They split psql
 input, isolate PGlite crashes and hangs, and report the engine's shape and
 refusal behavior over the borrowed corpus.
 
+
 ## Project layout
 
     pg-regress/
-    ├─ [source].mjs  a process-isolated replay worker (zero or more, any name)
+    ├─ [source].mjs  a process-isolated replay worker (zero or more matching
+    │                files)
     │
     └─ [source].ts   TypeScript replay machinery for the PostgreSQL regression
-                     corpus (zero or more, any name)
+                     corpus (zero or more matching files)
 
 ## `[source].mjs` — a process-isolated replay worker
 
@@ -33,7 +36,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/pg-regress/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/pg-regress/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under pg-regress/ must fit the project layout or a documented
 repository-specific purpose.

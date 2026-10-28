@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests
 
+
 This directory combines several distinct sources of evidence for pgsid's query
 analysis. Keep their policies local: a hand-authored contract, a mechanically
 generated query, and an upstream corpus do not have the same authoring rules.
@@ -19,6 +20,7 @@ generated query, and an upstream corpus do not have the same authoring rules.
 TypeScript harnesses at this level orchestrate and compare those corpora. Read
 the nearest generated `AGENTS.md` before changing a corpus: provenance and
 whether a file may be authored by hand are directory-local facts.
+
 
 ## Project layout
 
@@ -97,7 +99,7 @@ whether a file may be authored by hand are directory-local facts.
     │                                 isolated world (required)
     │
     └─ [test].test.ts                 an executable query-analysis test suite
-                                      (zero or more, any name)
+                                      (zero or more matching files)
 
 ## `killable-evaluator.worker.mjs` — the process-isolated PGlite evaluator worker
 
@@ -121,7 +123,7 @@ These paths are part of the repository but serve specific purposes outside the p
 | --- | --- |
 | `.prettierignore` | Formatter policy is configuration, not part of the query-test layout. |
 | `.espalierignore`<br>`espalier`<br>`espalier.config.yaml` | Sources used to generate and check this repository guidance. |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](espalier/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](espalier/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path in this directory must fit the project layout or a documented
 repository-specific purpose.
@@ -129,25 +131,75 @@ repository-specific purpose.
 ## Working with Espalier
 
 Espalier is the architecture compiler for this repository. It turns structural
-rules and `ESPALIER.MD` guidance into this generated document, then checks the
+rules and `ESPALIER.mjs` guidance into this generated document, then checks the
 working tree against them. Use it to place new code, discover the constraints on
 a path, and catch architectural drift while a change is still small.
+
+`espalier help` prints this CLI version's manual. With no page it lists every
+page.
 
 Use this loop:
 
 1. Find the intended path in **Project layout** and read the generated guidance
-   in the nearest directory.
+   in the nearest directory. Choose by documented purpose, not just by which
+   pattern accepts the path. If the work needs a role the layout does not
+   express, follow the architecture guidance below before placing it.
 2. Run `espalier explain <path>` when you need to understand how a path is
    governed.
-3. Make the change without working around the declared structure.
-4. Run `espalier lint` and follow the rule text attached to each finding.
-5. Run `espalier build`, review and include any generated guidance changes,
+3. Create a declared file or directory with `espalier create <path>`.
+   Use `espalier create <path> help` when you need to inspect template options
+   or the directory's required and optional files. A file without a custom template
+   starts empty; use --with or --with-optional to include optional files.
+4. Review the created source, complete any placeholders, and make the remaining
+   change within the structure established for the task.
+5. Run `espalier lint` and follow the rule text attached to each finding.
+6. Run `espalier build`, review and include any generated guidance changes,
    then run `espalier build --check` immediately before committing.
 
-Generated guidance files are outputs, not edit targets. When a task explicitly
-changes the architecture, update the corresponding `ESPALIER.MD` for guidance
-or the structural rule modules for structure, then run `espalier build`.
-Otherwise, if the work has no valid place or conflicts with a rule, report the
-design gap instead of weakening the espalier. Use `espalier build --force` only
-to restore a generated file whose provenance marker was removed; it authorizes
-overwriting an unmarked document at a planned output path.
+Generated guidance files are outputs, not edit targets.
+
+A catch-all such as `modules/[module].ts` is appropriate for general-purpose
+code that fits its documented purpose. Passing lint alone does not establish
+that a concept belongs there. Repeated file structure, a shared contract, or a
+distinct dependency policy can indicate a role that needs explicit placement
+and guidance. Use an existing node that expresses that role, or add one when
+needed; every helper does not need its own node. Add checks for enforceable
+invariants and templates where they help create the files correctly.
+
+Prefer explicit static nodes for known architectural roles. Introduce a
+dynamic pattern when multiple instances share a defined responsibility and
+contract, rather than to accommodate hypothetical future variation or avoid
+naming distinct roles. Keep fixed parts of a repeated structure static. For
+example, `messages/languages/[language].ts` varies the language while keeping
+its architectural location explicit.
+
+A feature task can require architecture changes even when it does not mention
+rule files. Before changing the architecture, explain the gap in the current
+structure, present the reasonable placement options and their tradeoffs, and
+recommend an approach. Get agreement on that approach before changing
+architectural policy in rules, guidance, or configuration. A feature request authorizes
+implementing the feature; it does not by itself settle its architectural
+design. Raise a missing architectural role before placing the work in a
+catch-all.
+
+Include changes to constraint selectors, exclusions, and requiredness in that
+discussion. Explain which files become permitted, required, checked, or
+excluded, and identify any guarantees the proposal removes. Moving a file
+outside a check's scope changes enforcement even if the check stays intact.
+
+Once an approach is agreed, update the corresponding `ESPALIER.mjs` for guidance
+and the structural rule modules for structure, then run `espalier build`.
+Implement the agreed design without repeatedly requesting approval. Reopen
+the discussion if implementation requires a materially different design.
+Ordinary code changes that follow the agreed architecture can proceed.
+
+Preserve existing architectural guarantees unless changing them is part of
+the task's agreed design. Loosening checks, widening patterns, or adding
+exemptions merely to make the implementation pass weakens those guarantees.
+A new node can also bypass existing restrictions; check which rules will
+apply. When the work conflicts with the intended architecture, report the
+design gap instead of hiding it in a catch-all or relaxing the rules.
+
+Use `espalier build --force` only to restore a generated file whose provenance
+marker was removed; it authorizes overwriting an unmarked document at a
+planned output path.

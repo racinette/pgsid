@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `generated/`
 
+
 This directory contains the generator and the suites that consume its corpus.
 The corpus is produced mechanically from explicit structural axes; generated
 queries are not hand-authored fixtures and must not acquire copied engine
@@ -11,13 +12,21 @@ PostgreSQL remains the answer key. Change an axis, constructor, or survival
 expectation in the generator source and let the suites regenerate the corpus.
 Do not solve a generated failure by special-casing one emitted query.
 
+
 ## Project layout
 
     generated/
-    └─ [source].ts  generated-corpus machinery or an executable corpus gate
-                    (zero or more, any name)
+    ├─ [source].test.ts  an executable generated-corpus gate (zero or more
+    │                    matching files)
+    │
+    └─ [source].ts       generated-corpus machinery (zero or more matching
+                         files)
 
-## `[source].ts` — generated-corpus machinery or an executable corpus gate
+## `[source].test.ts` — an executable generated-corpus gate
+
+Keep generated-corpus behavior reproducible from source axes and judged against PostgreSQL. Do not encode per-generated-query answers.
+
+## `[source].ts` — generated-corpus machinery
 
 Keep generated-corpus behavior reproducible from source axes and judged against PostgreSQL. Do not encode per-generated-query answers.
 
@@ -27,7 +36,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/generated/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/generated/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under generated/ must fit the project layout or a documented
 repository-specific purpose.

@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `fixture-data/`
 
+
 This directory defines the reusable database states against which the
 hand-authored shared-schema fixtures are executed. It is infrastructure for
 witnessing contracts, not a query corpus and not a place for expected
@@ -11,10 +12,12 @@ Keep state construction deterministic and make each state's purpose legible:
 empty, sparse, dense, uniform, and generated states exist to expose different
 routes to NULL rather than to approximate production volume.
 
+
 ## Project layout
 
     fixture-data/
-    └─ [source].ts  a shared fixture-data state builder (zero or more, any name)
+    └─ [source].ts  a shared fixture-data state builder (zero or more matching
+                    files)
 
 ## `[source].ts` — a shared fixture-data state builder
 
@@ -26,7 +29,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/fixture-data/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/fixture-data/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under fixture-data/ must fit the project layout or a documented
 repository-specific purpose.
