@@ -136,6 +136,19 @@ it('routes JSON record scalar fields through captured input functions and modifi
               '{"value":"J2147483494"}',
               '{"value":"J2147483648"}',
               '{"value":"J"}',
+              '{"value":"000101"}',
+              '{"value":["690101"]}',
+              '{"value":{"00010101 BC":""}}',
+              '{"value":"00000101"}',
+            ]
+          : []),
+        ...(['timestamp', 'timestamptz'].includes(f.profile.type)
+          ? [
+              '{"value":"20000101 999999Z"}',
+              '{"value":["20000101","1234.5Z"]}',
+              '{"value":{"000101":"000000Z"}}',
+              '{"value":"20001301 999999+16"}',
+              '{"value":"47141120 999999Z BC"}',
             ]
           : []),
         ...(['date', 'timestamp'].includes(f.profile.type)

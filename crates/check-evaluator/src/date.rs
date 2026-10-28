@@ -44,6 +44,16 @@ fn date_text_digit(value: char) -> i32 {
     -1
 }
 
+fn calendar_short_year(year: i32, digits: usize, bc: bool) -> i32 {
+    if digits == 2 && bc == false {
+        if year < 70 {
+            return year + 2000;
+        }
+        return year + 1900;
+    }
+    year
+}
+
 pub fn date_from_text(value: TextValue) -> DateValue {
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
@@ -188,6 +198,26 @@ pub fn date_from_text(value: TextValue) -> DateValue {
             }
             year_digits += 1;
             index += 1;
+        }
+        if year_digits >= 6 && index == end {
+            let year_end = end - 4;
+            let mut position = start;
+            year = 0;
+            while position < year_end {
+                let digit = date_text_digit(chars[position]);
+                if year > 214748364 || (year == 214748364 && digit > 7) {
+                    return DateValue::Unknown;
+                }
+                year = year * 10 + digit;
+                position += 1;
+            }
+            year = calendar_short_year(year, year_end - start, bc);
+            if bc {
+                year = 0 - year;
+            }
+            let month = date_text_digit(chars[end - 4]) * 10 + date_text_digit(chars[end - 3]);
+            let day = date_text_digit(chars[end - 2]) * 10 + date_text_digit(chars[end - 1]);
+            return date_from_ymd(year, month, day);
         }
         if year_digits < 4 || index == end || chars[index] != '-' {
             return DateValue::Unknown;

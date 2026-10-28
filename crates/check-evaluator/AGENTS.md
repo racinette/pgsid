@@ -383,6 +383,9 @@ import them. Keep schema-only helpers with their callables.
   whitespace, signed infinities, and the context-independent `epoch` token.
   Integer Julian days use case-insensitive J/JD/julian labels, optional ASCII
   whitespace and leading zeroes; BC/AD does not alter their absolute day.
+  Compact dates reserve the last four digits for month/day and interpret exactly
+  two year digits using the fixed 1970–2069 window, except under BC. Compact
+  year fields outside int4 defer because native atoi overflow is not portable.
   Invalid supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
@@ -432,6 +435,12 @@ import them. Keep schema-only helpers with their callables.
   PostgreSQL. Both parsers share calendar construction and text decoding in
   Rust. Fractional input uses nearest-even microsecond rounding and can carry
   into the next day; epoch denotes the Unix epoch without session interpretation.
+  Compact dates share that year policy. Compact four/six-digit clocks retain
+  their native arithmetic normalization, including fields beyond ordinary clock
+  limits and carry across days; colon-separated clocks remain range-checked.
+  Fractional compact clocks share nearest-even rounding. Fixed numeric offsets
+  validate before calendar fields on this compact path; missing timezone still
+  defers after calendar validation. Timestamp range checks follow clock carry.
   Named zones, context-dependent spellings, precision
   coercions, other formats, and oversized text remain unknown.
 - Text-to-timestamptz casts and literals use the same Rust parser. It accepts
