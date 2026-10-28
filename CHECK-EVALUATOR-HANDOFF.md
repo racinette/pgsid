@@ -1,53 +1,83 @@
 # CHECK evaluator continuation handoff
 
-The goal is active. This handoff accompanies the integer-helper strict-NULL checkpoint after `aa63e04d` (integer arithmetic/comparisons). Earlier checkpoints are `bca3322f` (temporal field errors), `a8a0f022` (native cast-result identities), and `f348ec2e` (JSONPath character profiles). The original scope and unchecked audits remain in `CHECK-EVALUATOR-LEDGER.md`; no global completion is claimed.
+The user explicitly requested a usage-limit stop. The goal is paused, not complete. Do not resume implementation without a new user instruction. This checkpoint preserves unfinished code and a failing regression so another agent can continue at the same point. The full scope, contracts and unchecked audits are in `CHECK-EVALUATOR-LEDGER.md`.
 
 ## Exact stopping point
 
-Repository: `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`. Run commands there. Inspect `git status --short` and `git log` first. No next-slice semantic edit has been made.
+Repository: `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`. Inspect `git status --short` and `git log` first. Last verified semantic commit: `013e1233` (strict NULLs in integer support/state helpers), preceded by `aa63e04d` (integer arithmetic/comparison NULLs), `bca3322f` (temporal field errors), `a8a0f022` (native cast-result identities), and `f348ec2e` (JSONPath character profiles). The pause commit is deliberately unfinished, not a verified semantic release.
 
-The checkpoint reorders state checks in `crates/check-evaluator/src/operations/pg_catalog/{integer_support,integer_bitwise,integer_range,integer_hash}.rs`: original errors first, definite NULL second, Unknown third. This covers support comparators, min/max, GCD/LCM, strict Boolean state functions, bitwise/shift helpers, integer `in_range`, and seeded integer/Boolean hashes. Numeric algorithms and error codes are unchanged. The existing generated expression-validity tracking preserves possible and reached argument failures before a definite outer NULL; lazy branches still skip them.
+Unverified changes preserved in this checkpoint:
 
-`tests/sql-semantics/check-integer-functions.test.ts` now accepts `PGSID_CHECK_INTEGER_CASES=partial` or `all` (default). Partial mode skips numeric-value sampling but executes the original state cases plus every NULL argument position, unknown peers, multiple unknowns, argument errors, and NULL before negative frame-offset validation. Invalid selector values fail collection. The full gate in `tools/check-rust/check.sh` unsets the selector. This checkpoint ran partial mode; it does not claim a new complete numeric-sampling pass. The previous complete owner passed in `aa63e04d`.
+- `src/codegen/shared/check-rust-evaluator.ts`, `emitCall` around line 3147: removes only `node.strictNull &&` from the outer condition. The existing wrapper still resolves operator implementation metadata, requires catalog `implementation.strict`, aggregates operand datum-nullness and skips the body on definite NULL. Folded constants remain excluded. This aims to avoid repeating manual NULL-before-Unknown fixes across every family.
+- `tests/sql-semantics/check-strict-call-null.test.ts`: new cross-family source/stored matrix with native known-value queries and INSERTs, declared/absent context, synthetic partial inputs and nested expression validity. It currently fails.
+- `tools/check-rust/check.sh`: registers that owner alongside metadata and integer-NULL tests. Consequently the full gate includes the known failure until it is fixed.
 
-`check-integer-null-state.test.ts` beside it now discovers helper callables too and exercises nested support/bitwise/shift/hash/window expressions containing a potentially failing division, source/stored plans, error order and lazy branches. Constraint names are quoted after the first setup attempt failed on reserved `window`. The maintained owner writes observations to `artifacts/goal-checks/integer-null-active/observations.json`; a copy matching this checkpoint is retained in the packet below.
+No Rust implementation, AST, transpiler, WASM or generated golden was changed in this slice. The ignored Rust source mirror matched maintained files at the preceding checkpoint; do not mutate it while workers read it. Existing `node.strictNull` annotations and constant preparation remain; do not remove them as cleanup before proving behavior.
 
-The package-capacity world adds negative frame offsets skipped by NULL Boolean arguments, NULL before minimum-magnitude math, NULL bits with extreme shifts, a NULL hash seed, and strict Boolean state cases. Only three mixed-target `pg_catalog/operations.{go,ts}` snapshots changed: Go schema, Go pgx queries and TypeScript schema under `tests/fixtures/codegen/expected/`. They were regenerated through the producer. The ignored Rust source mirror matches maintained files; no AST/transpiler/API change or WASM rebuild was needed.
+## Current failure and next investigation
 
-## Evidence and reproduction
+Latest report: `artifacts/goal-checks/strict-call-null-active/parity-collated.json`. The Rust runner passes four fixture chunks and fails one:
 
-Packet: `artifacts/goal-checks/integer-helper-null-active/`. Ignored artifacts supplement tracked owners and commands; they are not required to continue from a fresh checkout.
-
-- `partial.json` and `matrix-partial.json`: selected helper state matrix passes native/Rust/Go/TypeScript. Numeric-value sampling is explicitly excluded.
-- `composition-quoted.json` and `composition-observations.json`: complete expanded composition matrix passes all targets. `composition.json` is the corrected SQL setup failure, not a current semantic blocker.
-- `world-package-capacity.json` and `artifacts/check-worlds/scoped/012_package_capacity/report.json`: complete selected public world passes with all constraints exercised, no Unknown and matching native/local rejections. It is not a global-world report.
-- `golden-regenerate.json` and `golden-compare.json`: selected mixed-target regeneration and independent byte comparison pass, including generated TypeScript checking. Other variants are deliberately filtered.
-- `typecheck.log`, `lint.log`, `rustfmt.log`, `corpus-declarations.log`: maintained typecheck, affected lint, Rust formatting and scoped INSERT declarations pass. Formatting, source-mirror equality, shell syntax and `git diff --check` also pass. Both parity owners compile maintained Rust and generated Go/TypeScript; no unrelated primitive-operation suite was rerun.
-
-Run semantic/golden owners serially with timeouts:
-
-```sh
-PGSID_CHECK_INTEGER_CASES=partial timeout --kill-after=5s 240s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-integer-functions.test.ts --maxWorkers=1
-timeout --kill-after=5s 280s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-integer-null-state.test.ts --maxWorkers=1
-PGSID_CHECK_WORLDS=012_package_capacity timeout --kill-after=5s 440s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-worlds.test.ts --maxWorkers=1
-UPDATE_CODEGEN_GOLDENS=1 timeout --kill-after=5s 95s node node_modules/vitest/vitest.mjs run tests/unit/codegen-goldens.test.ts --maxWorkers=1 -t 'emits the complete generated tree byte-for-byte:.*mixed targets'
-timeout --kill-after=5s 95s node node_modules/vitest/vitest.mjs run tests/unit/codegen-goldens.test.ts --maxWorkers=1 -t 'emits the complete generated tree byte-for-byte:.*mixed targets'
+```text
+declared_row_source 1000: unknown=true false=false null=false true=false error=0
 ```
 
-For complete integer numeric sampling use `PGSID_CHECK_INTEGER_CASES=all` and an outer timeout of 660 seconds. Do not describe a partial run as a complete owner pass. The old temporal combined Go owner hit its fixed 65-second limit; equivalent standalone generated Go tests passed. Its historical failed report is not a current blocker.
+The failing fixture is the `row` nested expression: `row_to_json(ROW(t,n)) IS NULL`, with `t` SQL NULL and `n` an unknown integer input. Expected False: the record datum is non-NULL and unknown integer contents should not erase the JSON result's nonnull fact. The preceding all-NULL-fields case passes. The root cause is not established; this may be a pre-existing precision gap exposed by the new owner, not a consequence of the guard. Do not weaken the expectation or classify it as missing database context without evidence. Go/TypeScript execution was not reached because parity stops at the Rust failure; passing other Rust chunks is not an all-target pass.
 
-## Exact next task
+The next action, after authorization to resume, is inspect these sites and trace the failing fixture:
 
-Assess generalizing the existing strict-call NULL control flow in `src/codegen/shared/check-rust-evaluator.ts`, in `emitCall`, currently enabled only by `node.strictNull`. It already resolves operator implementation metadata and requires `implementation.strict`, aggregates operand nullness, and skips the function body on definite NULL. Other families still contain Unknown-before-NULL helpers; investigate whether the shared control flow can close those CHECK-level gaps without a repeated manual sweep. This is a candidate approach, not a verified fix; no emitter change has been made.
+- `crates/check-evaluator/src/operations/pg_catalog/json_construct.rs`: `row_to_json` entrypoints around lines 362–367 and their record conversion helper.
+- Search for `JsonRecordInputPlan`, `json_record_input`, `JsonValue`, `json_is_null` and record finish helpers to locate where known nonnullness becomes Unknown.
+- `src/codegen/shared/check-rust-evaluator.ts`: JSON record input emission around line 5731 and the `row_to_json` branch around 6098–6155.
+- `src/codegen/shared/check-rust-validity.ts`: `rustScalarOwnCanFail` and `rustExpressionCanFail`; distinguish result-facet loss from possibly failing conversion validity.
 
-Preserve eager operand errors, possible operand failures via `src/codegen/shared/check-rust-validity.ts` and the outer validity scope, constant preparation, diagnostics, branch laziness, domain enforcement and non-strict call behavior. Check missing context independently from unknown input values. Cover representative scalar and container families and actual public INSERTs. Keep true datum NULL distinct from a composite whose fields are all NULL: `composite_is_null` currently delegates to `composite_datum_is_null`, while row null tests have separate helpers. Prove these boundaries with native/Rust/Go/TypeScript tests before broadening the guard. Integer hashes are excluded by `nativeHashContext`; do not generalize that observation to byte-sensitive hashes or infer host byte order.
+The test removes its temporary directory in `finally`, so the failed generated evaluator is no longer on disk. If needed, save `evaluatorSource` into the evidence packet before rerunning rather than leaking the temporary tree. A bounded fix or a separately retained precision-gap owner is still a decision to make; the current checkpoint does not settle it.
 
-Then continue all unchecked ledger audits: temporal split/Julian/English/escaped input and coercion; partial container structures and raw/SQL-coerced boundaries; overload/common-type/domain binding; session/collation/provider requirements; non-strict callback order and unavailable bodies; stable/volatile invariants; custom-schema/historical/default/projection/polymorphic forms; final global gates. Full `pnpm check-rust:check` and global world/type/surface/coercion/array/historical/non-strict measurements remain incomplete. Clear selectors, compare current fingerprints, and never infer completion from type census/preparation success.
+Separate unresolved binding observation: the original text-order profile `(a < b) IS NULL` lowers to uncertain even when later `prepareCheckRustGroup` receives `defaultCollation: 'C'`; `portableCheckAtoms` did not recover it. The current profile uses `(a COLLATE "C") < (b COLLATE "C")`, which binds. Preserve this default-collation/provenance question in the audit; explicit C coverage does not prove default C binding works. Earlier `parity.json` and `parity-portable.json` record those setup failures.
 
-## Process and contracts
+## Matrix scope and evidence
 
-All handles are terminal: helper parity `27777`, initial composition `34193`, corrected composition `55995`, world `83505`, regeneration `70652`, comparison `39040`, typecheck `14670`, lint `30499`. A host scan found no task test/compiler workers; unrelated MCP watchdogs were left alone. Only `/tmp/pgsid-check-rust-go-cache` and `/tmp/pgsid-codegen-go-cache` remain; preserve them. Poll exact live handles when quiet, never restart to recover output, bound every process, close PGlite in `finally`, and remove task-owned temporary trees after workers exit.
+Profiles cover Boolean equality, text concatenation and explicit C ordering, float8/numeric addition, JSONB/bytea concatenation, point equality, dynamic enum equality, array length, all-NULL-field record equality, context-sensitive text hashing, and non-strict concat/array_cat. Declared context supplies C, UTF8, little-endian hashes and array NULLs; the second group omits context. Strict profiles cover NULL/Unknown in either position, multiple unknowns, original errors, error order and skipped branches. Known-value native queries and actual INSERT acceptance/rejection establish the ordinary outcomes.
 
-Keep semantics in maintained Rust and generate targets through existing ASTs. Public rows are SQL-coerced: do not reapply input/domain/typmod coercion. Preserve NULL, Unknown, errors, eager constants, argument order, lazy branches and partial facts. Missing implementation is not database context. Never assume catalog OID consistency, even for builtins; capture qualified identities/definitions. Default C collation differs from C/C.UTF-8 character classification; retain explicit non-C facts. Hash byte order and character profiles are declared settings, not host detection. Never invent a transaction clock/date. JSON uses portable logical values and assumes ordinary resources.
+Nested profiles cover padding with division, nullable/NOT NULL domain enforcement, array construction with division, row-to-JSON, and literal-NULL strict calls. Preserve reached division/domain errors, possibly failing unknown operands, constant preparation and branch laziness. Native cannot directly supply evaluator Unknown; partial-input expectations are semantic assertions, not literal native observations.
 
-Commits along the way are authorized; no push. Use `git -c gc.auto=0 commit --file <message-file>`. No agents or external messages are authorized. Maintain the ledger at checkpoints and before task switches. Read applicable `AGENTS.md` before editing, especially the evaluator, dialect/transpilers and SQL corpus. Use focused affected tests during development and reserve global integration for the final gate.
+The packet contains `observations.json`, three parity reports and `typecheck.log`. These ignored artifacts supplement the tracked test; a fresh checkout can reproduce them. `typecheck.log` is an earlier failure from reading a nonexistent `group.checks.identity`. The test now collects `names` at plan creation, but typecheck has NOT been rerun. Do not claim a static pass. All recorded test handles (`77645`, `14493`, `61909`) and typecheck handle (`49058`) are terminal.
+
+Reproduce the current failure after resuming, from the repository root:
+
+```sh
+timeout --kill-after=5s 280s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-strict-call-null.test.ts --maxWorkers=1
+timeout --kill-after=5s 180s node node_modules/typescript/bin/tsc --noEmit
+```
+
+The owner has a 240-second test timeout. Use installed tools directly; avoid incidental package/store installation. Run expensive owners serially, poll exact session handles, and do not restart quiet jobs. No implementation or semantic tests were run to finish this pause; only checkpoint/document checks and a process scan.
+
+## Verification still required for this slice
+
+After fixing or explicitly separating the row precision issue, complete the new matrix in native/Rust/Go/TypeScript and rerun typecheck and affected lint/format. Preserve all known failure evidence until superseded. Then select the relevant existing boundaries:
+
+```sh
+timeout --kill-after=5s 360s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-constant-null.test.ts tests/sql-semantics/check-xml-xpath-preparation.test.ts tests/sql-semantics/check-row-comparisons.test.ts --maxWorkers=1
+```
+
+These cover constant preparation, XML diagnostics and existing strict-null row callers; none was run for the new emitter change yet. Add affected domain/non-strict owners only when findings justify them. Check gate coverage after registering the new test. Run appropriate generated public-world INSERT parity, including text/domain and container/composite coverage; native INSERTs inside the new matrix do not replace generated public APIs.
+
+The shared emitter may affect all golden variants. Regenerate affected trees through the producer, then independently compare; do not hand-edit generated snapshots. Select the `emits the complete generated tree byte-for-byte` owner in `tests/unit/codegen-goldens.test.ts`, setting `UPDATE_CODEGEN_GOLDENS=1` only for regeneration. Allow a bounded outer timeout appropriate to the number of selected variants; each owner has its own limit. No new golden verification or regeneration has run yet. Commit the verified fix only after applicable checks; the pause checkpoint itself remains explicitly unverified.
+
+## Last verified slice and remaining goal
+
+Commit `013e1233` reorders state checks in Rust integer support/bitwise/range/hash helpers: original errors first, definite NULL next, unknown values next. It does not change finite algorithms. `check-integer-functions.test.ts` accepts `PGSID_CHECK_INTEGER_CASES=partial|all`, default all; the integration script clears the selector. Partial state/helper coverage, expanded nested composition, complete package-capacity public world, mixed-target golden regeneration/comparison and affected static checks pass. Complete numeric sampling was last run in `aa63e04d`, not repeated for the unchanged algorithms.
+
+Evidence is `artifacts/goal-checks/integer-helper-null-active/`: `partial.json`, `matrix-partial.json`, `composition-quoted.json`, `composition-observations.json`, `world-package-capacity.json`, `golden-regenerate.json`, `golden-compare.json` and static logs. The initial `composition.json` failed on unquoted reserved constraint name `window`, corrected before the passing run. The new broad emitter work has not superseded this evidence with a complete pass.
+
+Remaining unchecked ledger work includes input/coercion/partial-structure audits; overload/common-type/domain binding; session/collation/provider requirements; non-strict callback order/unavailable bodies; stable/volatile invariants; custom-schema/historical/default/projection/polymorphic forms; and final global gates. Most type-family backends exist, but current work still fixes implementation gaps as well as audits them. No credible completion percentage is established. Full `pnpm check-rust:check` and global world/type/surface/coercion/array/historical/non-strict measurements remain incomplete. Clear selectors and compare current fingerprints at final integration; never infer completion from a census or preparation success.
+
+## Process, cleanup and persistent contracts
+
+The pause-time host scan found no pgsid/PGlite/test/compiler workers. No task processes needed killing. Only `/tmp/pgsid-check-rust-go-cache` and `/tmp/pgsid-codegen-go-cache` remain under the task prefix; preserve both. Unrelated MCP/watchdog and other-project processes were left alone. Bound every probe with an OS timeout, close PGlite in `finally`, and remove task-owned temporary trees after workers exit. Never kill processes merely because they use Node or share the workspace parent.
+
+Keep semantics in maintained Rust and generate targets through existing ASTs. Public rows are SQL-coerced: do not repeat input/domain/typmod coercion. Preserve NULL, Unknown, errors, eager constants, argument order, lazy branches and partial facts. The generic strict guard must use datum NULL, not the row predicate that treats all-NULL fields specially; `composite_is_null` currently delegates to `composite_datum_is_null`. Preserve argument-validity tracking and XML diagnostics when skipping strict bodies. Missing implementation is not database context.
+
+Never assume catalog OID consistency, including builtins; capture qualified identities/definitions. Default C ordering differs from C/C.UTF-8 character classification; retain explicit non-C facts. Hash byte order and character profiles are declared settings, not host detection. Never invent a transaction clock/date. JSON uses portable logical values and assumes ordinary execution resources.
+
+Commits along the way are authorized; no push. Use `git -c gc.auto=0 commit --file <message-file>`. No agents or external messages are authorized. Read applicable `AGENTS.md`, especially evaluator/dialect/transpiler/corpus rules. Update ledger and handoff at checkpoints and before task switches, keeping each below 300 lines. Use focused affected tests while developing; reserve full integration for the final gate. Resume only when the user asks.
