@@ -381,6 +381,8 @@ import them. Keep schema-only helpers with their callables.
   Its supported forms are year-first ISO dates with at least four year digits,
   one or two month/day digits, optional case-insensitive BC/AD suffixes, ASCII
   whitespace, signed infinities, and the context-independent `epoch` token.
+  Integer Julian days use case-insensitive J/JD/julian labels, optional ASCII
+  whitespace and leading zeroes; BC/AD does not alter their absolute day.
   Invalid supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not

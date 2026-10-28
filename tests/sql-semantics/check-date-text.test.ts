@@ -40,6 +40,7 @@ const expressions = {
   typed_text_literal: "anchor = ('2000-01-01'::text)::date",
   bc_literal: "anchor >= DATE '4714-11-24 bc'",
   infinity_literal: "anchor < DATE '+INFINITY'",
+  julian_literal: "anchor = DATE 'JD2451545 BC'",
 }
 const input = (value: string | number | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
@@ -174,6 +175,12 @@ describe('Rust text-to-date CHECK casts', () => {
       'epochbc',
       'epochad',
       'infinitybc',
+      'julianx2451545',
+      'J-1',
+      'J+1',
+      'J2451545.',
+      'J2451545 junk',
+      'J' + '0'.repeat(129),
     ])
       fixtures.push({
         name: 'null_test',
@@ -266,6 +273,11 @@ describe('Rust text-to-date CHECK casts', () => {
     for (const [raw, skip, code, result] of [
       ['2000-01-01', false, null, { certain: true, value: true }],
       ['1999-12-31', false, '23514', { certain: true, value: false }],
+      ['J2451545', false, null, { certain: true, value: true }],
+      ['julian 2451544', false, '23514', { certain: true, value: false }],
+      ['J2147483494', false, '22008', { certain: true, error: '22008' }],
+      ['J', false, '22007', { certain: true, error: '22007' }],
+      ['J2147483648', true, null, { certain: true, value: true }],
       ['1900-02-29', false, '22008', { certain: true, error: '22008' }],
       ['', false, '22007', { certain: true, error: '22007' }],
       [null, false, null, { certain: true, value: null }],

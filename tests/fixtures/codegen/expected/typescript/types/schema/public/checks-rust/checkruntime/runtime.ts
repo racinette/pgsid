@@ -15939,6 +15939,48 @@ export function dateFromText(value: TextValue): DateValue {
         while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
         }
+        if (start < end && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))) === "j") {
+            let index: number = start;
+            let label: string = "";
+            while (index < end) {
+                const character: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+                if (code < 97 || code > 122) {
+                    break;
+                }
+                label = label + langruntime.checkedChar(character);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (!(label === "j") && !(label === "jd") && !(label === "julian")) {
+                return { kind: "Unknown" };
+            }
+            while (index < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (index === end) {
+                return { kind: "Error", value: { state: invalidDateText } };
+            }
+            const first: number = index;
+            let julian: number = 0;
+            let overflow: boolean = false;
+            while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+                const digit: number = dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                if (julian < 214748364 || (julian === 214748364 && digit <= 7)) {
+                    julian = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(julian, 10), digit));
+                }
+                else {
+                    overflow = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (!(index === end) || index === first) {
+                return { kind: "Unknown" };
+            }
+            if (overflow) {
+                return { kind: "Error", value: { state: dateFieldOverflow } };
+            }
+            return makeDateValue(langruntime.checkedSignedSubtract(julian, 2451545));
+        }
         if (langruntime.checkedSubtract(end, start) === 5 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))) === "e" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "p" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "o" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)))) === "h") {
             return dateFromYmd(1970, 1, 1);
         }
