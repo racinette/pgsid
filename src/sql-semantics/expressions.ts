@@ -34,7 +34,11 @@ import {
 } from './range-profiles.js'
 export type { RangeType, MultirangeType } from './range-profiles.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
-import { equalityOperation, supportsTextCallableCollation } from './collation.js'
+import {
+  equalityOperation,
+  isTextOrderingCallable,
+  supportsTextCallableCollation,
+} from './collation.js'
 
 export const catalogScalarType = (name: string): ScalarType | null => {
   if (name.startsWith('anonymous-record:'))
@@ -838,6 +842,13 @@ export function emitSqlCallable<Ast>(
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const signature = node.signature
   if (signature === null) throw new Error('A relabel cast has no callable signature')
+  if (
+    node.kind !== 'cast' &&
+    node.collationDefault &&
+    isTextOrderingCallable(signature) &&
+    !supportsTextCallableCollation(signature, node.collation)
+  )
+    throw new Error('Default text ordering requires declared execution context')
   const operator = node.kind === 'operator'
   const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
   if ((metadata.kind !== 'operator' && metadata.kind !== 'function') || metadata.returnsSet)

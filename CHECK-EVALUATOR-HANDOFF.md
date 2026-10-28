@@ -1,142 +1,57 @@
 # CHECK evaluator continuation handoff
 
-The goal is paused at the user’s explicit request because usage limits are running low. Stop implementation and audits until the user authorizes resumption. Last implementation commit `b33dce7d` contains cross-family strict NULL handling, raw JSON nonnull facts and SQL-wrapper error ordering with bounded native/Rust/Go/TypeScript evidence. Full goal completion is not claimed. Keep all unchecked audits in `CHECK-EVALUATOR-LEDGER.md` open until individually verified.
+The goal is active after the user explicitly resumed pause checkpoint `c45c9bc5`. This checkpoint fixes default-C scalar ordering binding/emission. It does not complete the broad goal. Keep unchecked ledger audits open; most backends exist, but precision, binding and context gaps are still being fixed. No reliable completion percentage is established.
 
 ## Checkpoint and exact continuation
 
-Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`. Inspect `git status --short` and `git log` first. Strict-call/JSON checkpoint `b33dce7d` follows unfinished pause commit `c6c87370` and previously verified integer-helper commit `013e1233`. Earlier checkpoints are `aa63e04d` (integer arithmetic NULLs), `bca3322f` (temporal field errors), `a8a0f022` (native cast-result identities), and `f348ec2e` (JSONPath character profiles).
+Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`. Inspect `git status --short` and `git log` first; documentation may follow semantic commits. This checkpoint follows `b33dce7d` (strict-call NULLs, partial raw JSON and SQL-wrapper order), `013e1233` (integer helper NULLs), `aa63e04d` (integer arithmetic NULLs), `bca3322f` (temporal field errors), `a8a0f022` (native cast identities), and `f348ec2e` (JSONPath character profiles). Earlier pause `c6c87370` contained unfinished work, subsequently verified in `b33dce7d`.
 
-The final XML preparation recheck passed (`xml-preparation-sql-body.json`, terminal handle `79915`). All checkpoint checks are terminal. The inventory's SQL-body classification includes the two-argument XPath wrappers, which is why this owner was rechecked. Commit `b33dce7d` contains the verified slice; no unfinished semantic edit or live worker remains. The following binding investigation is diagnostic-only and has no implementation patch. Resume it only after user authorization.
+**Next target:** remaining JSONB and other-scalar partial-output facts. Start with `crates/check-evaluator/src/values.rs` (`JsonbInput::ScalarUnknown` and `JsonbInput::JsonNonNull`) and `operations/pg_catalog/jsonb_construct.rs`, `json_convert.rs`, `json_construct.rs` and `json_core.rs` beneath that crate. Raw JSON already preserves nonnullness after safe unknown numeric/Boolean conversions; JSONB output lacks analogous facets. Trace actual consumers and native error order before choosing a representation change. Preserve potentially failing conversions, unknown keys, custom cast requirements and later argument errors. A safe unknown value is not the same as an unavailable conversion. No JSONB implementation edits have been started in this checkpoint.
 
-**Exact stopping point:** a bounded native catalog/lowering probe reproduced the default-C binding gap for both source and stored CHECKs. `a < b`, `(a < b) IS NULL`, `pg_catalog.text_lt(a,b)` and `(a COLLATE "default") < (b COLLATE "default")` are already uncertain after `lowerTableCheck`; `portableCheckAtoms` leaves them uncertain. `(a COLLATE "C") < (b COLLATE "C")` binds. Supplying `{defaultCollation: 'C'}` to `prepareCheckRustGroup` is too late to recover the discarded expression. All groups report supported preparation, which does not prove definite evaluation. No execution-parity fix or wider-default-collation conclusion is established.
+Read `CHECK-EVALUATOR-LEDGER.md` for the complete queue. Remaining work includes temporal grammar/validation order; casts/common types/overloads/domains; collation/casing/provider inventory; non-strict and partial facts; runtime wrappers; historical/default/projection/polymorphic binding; remaining JSONPath boundaries; public INSERT witnesses and final global integration. `pg_collation_for` untyped/indeterminate cases and other default-provenance consumers remain open. Do not reopen the default scalar ordering reproducer as if unfixed.
 
-The probe completed with exit 0 under a 40-second OS timeout and closed PGlite in `finally`. Local supplementary files are `artifacts/goal-checks/default-c-binding-active/probe.ts` and `probe.json`; they are ignored and may not exist in a fresh checkout. Existing `check-strict-call-null.test.ts` keeps explicit C and passes; do not weaken it to pretend this gap is covered. The older `parity.json` and `parity-portable.json` in the strict-call packet preserve initial failures.
+## Current ordering change
 
-### Next implementation decision, not an implemented solution
+`src/sql-semantics/collation.ts` derives a text/name/bpchar callable set from captured B-tree operator/implementation/comparator links, with validated text/bpchar larger/smaller functions. `supportsBoundTextCallableCollation` admits default-provenance ordering without claiming its value is known. Existing collation-specific support remains separate.
 
-- In `src/sql-semantics/collation.ts`, inspect `supportsTextCallableCollation`, `BoundCollation`, `defaultCollation` and `combineCollations`. Default is represented as deterministic with identity default and a default flag. Do not globally change it to C: context can be absent, and default C ordering does not establish C character classification. Consider a catalog-derived ordering-callable classifier using B-tree operators, implementations and comparators, with separately verified selection helpers; avoid ad hoc overload substitution.
-- In `src/sql-semantics/catalog-check-binder.ts`, inspect the text-collation rejection sites around lines 1432, 2113 and 4080, plus `callDefaultCollation` around 2157. Ordinary scalar ordering is rejected before preparation, and that helper currently preserves default provenance only for other special families. Admit only the appropriate default-provenance calls and retain their marker. Preserve explicit non-C/conflicting collations and rank native overloads before implementation availability. Check row/minmax/scalar-array paths for manual propagation.
-- In `src/codegen/shared/check-rust-evaluator.ts`, inspect text-collation admission around 3865. It does not resolve ordinary scalar `collationDefault` through `executionContext.defaultCollation`; other array/range paths already do. Decide how absent ordering context produces typed Unknown while preserving catalog-strict NULLs, operand errors and lazy branches, instead of throwing away the whole expression. C ordering must not automatically enable lower/upper, ILIKE or Unicode regex classification.
-- **First unread follow-up:** inspect `scalarComparisons`, `rustCallCanFail`, `collationDefault` and `supportsTextCallableCollation` in `src/codegen/shared/check-rust-validity.ts`; inspect emitter handling around 3935–4005 and unsupported-group handling in `check-rust-source.ts`. The validity implications of retaining an unresolved ordering call have not yet been established. Also inspect legacy `emitSqlCallable` in `src/sql-semantics/expressions.ts` so new binder admission cannot silently assume C there.
-- Required focused evidence for a future fix: source/stored operator and function forms; declared/absent default context; explicit C/non-C/default; NULL/Unknown/error and lazy composition; character-sensitive neighbors remain distinct. Execute native/Rust/Go/TypeScript parity, affected binder/collation owners and a relevant selected public world. Refresh assets/goldens only as affected. No new tests or full suite were run for this diagnostic-only pause.
+`src/sql-semantics/catalog-check-binder.ts` uses that admission at candidate/comparison/stored-call boundaries and preserves `collationDefault` for these calls. Unqualified and pg_catalog-qualified COLLATE default retain the default marker plus explicit precedence. Explicit non-C and conflicting identities are not replaced by the default contract. Overload choice is still catalog based.
 
-### Standalone reproduction if ignored artifacts are absent
+`src/codegen/shared/check-rust-evaluator.ts` resolves the marker through declared `defaultCollation: 'C'`. Without that setting, reached unresolved ordering emits typed Unknown while folding operand error states in order; the shared strict-call guard preserves definite NULLs. `check-rust-validity.ts` treats the validated extrema as non-failing, as already done for B-tree comparisons. `src/sql-semantics/expressions.ts` prevents the legacy callable emitter from silently evaluating unresolved default ordering.
 
-Save the following as `artifacts/goal-checks/default-c-binding-active/probe.ts` (create that directory), then run `timeout --kill-after=5s 40s node --import tsx artifacts/goal-checks/default-c-binding-active/probe.ts` from the repo root. This diagnoses binding only; it does not execute generated evaluators.
+No locale-sensitive casing/ILIKE/regex behavior is enabled by C ordering. The new owner checks explicit ICU choices and character-sensitive neighbors. Text-to-name casts still require encoding and identifier-width facts; the matrix obtains native max_identifier_length and supplies UTF8 in both collation-context profiles to isolate ordering.
 
-```ts
-import { PGlite } from '@electric-sql/pglite'
-import { loadModule } from 'libpg-query'
-import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
-import { lowerTableCheck } from '../../../src/sql-semantics/catalog-checks.js'
-import { portableCheckAtoms } from '../../../src/codegen/shared/check-atom-support.js'
-import { prepareCheckRustGroup } from '../../../src/codegen/shared/check-rust-source.js'
-import { hasUncertain } from '../../../scripts/check-measurements/probes.js'
-await loadModule()
-const pg = await PGlite.create()
-try {
-  const expressions = {
-    direct: 'a<b',
-    nullness: '(a<b) IS NULL',
-    call: 'pg_catalog.text_lt(a,b)',
-    explicit: '(a COLLATE "C")<(b COLLATE "C")',
-    explicit_default: '(a COLLATE "default")<(b COLLATE "default")',
-  }
-  await pg.exec(
-    `CREATE TABLE comparison(a text,b text,${Object.entries(expressions)
-      .map(([n, s]) => `CONSTRAINT ${n} CHECK(${s})`)
-      .join(',')})`,
-  )
-  const catalog = await snapshotCatalog(pg)
-  const table = catalog.tables.find((t) => t.name === 'comparison')!
-  for (const c of table.constraints.filter((c) => c.type === 'check')) {
-    for (const origin of ['source', 'stored'] as const) {
-      const lowered = lowerTableCheck(
-        table,
-        c,
-        catalog.enums,
-        catalog.domains,
-        origin,
-        catalog.rangeTypes,
-        catalog.compositeTypeGraph,
-        origin === 'source'
-          ? `CHECK(${expressions[c.name as keyof typeof expressions]})`
-          : undefined,
-      )!
-      const portable = portableCheckAtoms(lowered.expression)
-      const group = prepareCheckRustGroup(
-        [
-          {
-            identity: {
-              schema: 'public',
-              kind: 'table',
-              owner: 'comparison',
-              constraint: c.name + '_' + origin,
-            },
-            expression: portable,
-          },
-        ],
-        { defaultCollation: 'C' },
-      )
-      console.log(
-        c.name,
-        origin,
-        hasUncertain(lowered.expression),
-        hasUncertain(portable),
-        group.checks.map((c) => c.kind),
-      )
-    }
-  }
-} finally {
-  await pg.close()
-}
-```
+`scripts/check-measurements/catalog.ts` and `surface.ts` report the input/default collation requirement for ordering that cannot use deterministic collation alone. Intrinsic pattern ordering and deterministic text equality do not acquire this requirement. An executing owner tests this distinction. No global measurement was regenerated in this bounded slice.
 
-Then continue partial JSONB/other-scalar conversion facts and all unchecked ledger audits. Raw JSON nonnull support does not close JSONB, text/context conversion, overload/common-type/domain, provider, historical/default/projection/polymorphic or final-integration work. Most type backends exist, but implementation gaps are still being fixed; no reliable completion percentage is established.
+No maintained Rust, source mirror, AST/dialect or WASM change was required. The ignored Rust source mirror matches maintained sources. Do not rebuild WASM or mutate the mirror unnecessarily while tests read it.
 
-## Implemented behavior and maintained sites
+## Evidence and reproduction
 
-`src/codegen/shared/check-rust-evaluator.ts`, `emitCall`, now guards non-folded catalog-strict calls, including internal row comparator calls. It resolves operator implementations and tests datum NULL. Guarded and ordinary calls share the existing per-call validity classification, retaining expression-specific exceptions. Folded constants skip guard and validity classification. Original operand errors and possibly failing expressions remain visible; lazy later row fields stay skipped. Existing strictNull annotations and constant preparation remain intact.
+Packet: `artifacts/goal-checks/default-c-binding-active/`. Ignored reports supplement maintained owners; a fresh checkout can reproduce them. All commands run from the repository root. Run expensive owners serially, retain exact handles and bound each with an OS timeout.
 
-`src/postgres/builtins/catalog.ts` adds optional `FunctionMetadata.sqlBody`, captured through an actual `pg_language` join without embedding IDs. The inventory producer regenerated the affected `src/postgres/builtins/*.generated.ts` files. SQL bodies bypass the generic runtime NULL guard because native inlining can expose inner conversions first; their maintained Rust implementations retain body order. Literal-NULL folding is unchanged. This is a catalog classification, not a hand-maintained function exception list.
+- `ordering-expanded.json`: the native/Rust/Go/TypeScript matrix and explicit non-C/character-boundary test pass. Source/stored forms, declared/absent default C, operators/functions/comparators/extrema, name/bpchar/cross-type comparisons, row ordering, scalar-array ALL, explicit C/default, NULL/Unknown/errors and skipped branches are covered. Concrete expectations come from native queries and INSERT witnesses, saved in `ordering-observations.json`. Run `timeout --kill-after=5s 420s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-text-default-ordering.test.ts --maxWorkers=1`. The expanded matrix ran before the final classifier-only test was appended; that test passed separately in `requirements.json` with `-t 'classifies ordering context'`. The final combined file was not rerun merely for that independent addition.
+- `affected-regressions.json`: complete existing collation, strict-call NULL, row comparison, constant-NULL and gate-coverage owners pass. Run `timeout --kill-after=5s 600s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-collation.test.ts tests/sql-semantics/check-strict-call-null.test.ts tests/sql-semantics/check-row-comparisons.test.ts tests/sql-semantics/check-constant-null.test.ts tests/sql-semantics/check-gate-coverage.test.ts --maxWorkers=1`. The old expectation that default ordering loses binding was replaced with explicit retained-binding coverage; custom non-C rejection remains.
+- `world-label-registry.json` and `artifacts/check-worlds/scoped/013_label_registry/report.json`: complete selected public world passes, no Unknown results, all constraints exercised and native/local rejections match. Run `PGSID_CHECK_WORLDS=013_label_registry timeout --kill-after=5s 600s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-worlds.test.ts --maxWorkers=1`. This does not claim a full-corpus pass.
+- All emission-variant generated-output comparisons pass in `golden-compare-all.json`; handle `20422` is terminal. Existing snapshots match without regeneration. Run `timeout --kill-after=5s 900s node node_modules/vitest/vitest.mjs run tests/unit/codegen-goldens.test.ts --maxWorkers=1 -t 'emits the complete generated tree byte-for-byte'`. This selects emission variants; native-Go golden owners and diagnostics are separate.
+- `typecheck-final.log` and `lint-final.log`: final TypeScript check and affected maintained-code lint pass. Formatter, source-mirror equality and final documentation/diff checks pass. The new owner is registered in `tools/check-rust/check.sh`.
 
-`crates/check-evaluator/src/values.rs` adds `JsonValue::NonNull`, `JsonbInput::ScalarUnknown` and `JsonbInput::JsonNonNull`. Safe unknown numeric/Boolean conversion remains distinct from unavailable or potentially failing conversion. No JSON contents or kind are fabricated. `array_elements.rs` preserves raw JSON nonnullness through array/record carriers and reports its JSON element family.
+Original ignored `probe.ts` / `probe.json` diagnose binding only. The original default direct comparison, IS NULL, text_lt and explicit default were uncertain at lowering; explicit C bound. The patched probe binds all forms, but supported preparation alone was never proof of evaluation. The maintained parity owner now supplies that proof. Early test attempts corrected a harness-name lookup and missing name-cast settings; no unresolved semantic failure remains in the passing matrix.
 
-Under `crates/check-evaluator/src/operations/pg_catalog/`, `json_construct.rs` and `json_convert.rs` preserve raw JSON nonnull output after safe unknown fields and continue to later conversions/errors. Unknown keys and unresolved conversions still defer. Record traversal stops on ordinary Unknown/errors, not the new safe scalar state. `json_core.rs` preserves nonnull JSON-to-text; `jsonb_construct.rs` defers unknown scalar keys instead of reporting an invalid key type. JSONB output still lacks analogous partial facets and remains an explicit remaining audit.
+## Previous checkpoint context to preserve
 
-`temporal_scalar.rs` preserves NULL dates and date-to-timestamp range errors before unknown units in the SQL date_part wrapper. Original argument errors remain first. Unknown dates can still hide a range error, so a runtime NULL unit cannot suppress them; literal-NULL preparation is separate.
+`b33dce7d` added a shared runtime guard for non-folded catalog-strict calls, including internal row comparators. It tests datum NULL and retains per-call validity, original argument errors, possibly failing operands and lazy later fields. Folded constant preparation stays separate. `FunctionMetadata.sqlBody` is generated through actual pg_language joins, without embedding IDs. SQL bodies bypass the runtime guard because native inlining can expose inner conversions before a runtime NULL; literal-NULL folding still applies. The date_part(text,date) wrapper preserves date-to-timestamp range errors and NULL dates before unknown units.
 
-Owners: `check-strict-call-null.test.ts` covers representative scalar/container strictness, non-strict neighbors, declared/absent context, source/stored forms, native queries/INSERTs, errors/domains/branches, recursive raw JSON nonnullness and later key/division/context failures. `check-row-comparisons.test.ts` now expects definite NULL when an unknown first operand meets a known NULL in ordering, across represented families; later fields remain skipped. `check-temporal-scalars.test.ts` adds direct/contained partial-unit cases. The strict-call owner is registered in `tools/check-rust/check.sh` by the pause commit.
+Raw JSON `JsonValue::NonNull` and safe unknown conversion inputs retain nonnullness through row/array builders and JSON-to-text, without fabricated contents. `ArrayElement::JsonNonNull` preserves the carrier through owned containers. Unknown keys and potentially failing conversions still defer. JSONB unknown scalar keys defer instead of producing an invalid-key error; output partial facets remain the next audit.
 
-No AST/transpiler/WASM extension was needed. The ignored `src/codegen/go/assets/check-rust-sources.json` matches maintained Rust. Regeneration changed only the mixed-target checks/runtime/operations snapshots under `tests/fixtures/codegen/expected/`; all variants were independently checked. Never hand-edit generated snapshots or rewrite the source mirror while workers read it.
+Previous packet `artifacts/goal-checks/strict-call-null-active/` has passing `row-and-strict-guard.json`, `constant-null.json`, `record-states.json`, `builder-context.json`, `jsonb-builders.json`, `gate-coverage.json`, `sql-wrapper-partial.json`, `xml-preparation-sql-body.json`, selected JSON/record worlds, golden regeneration/comparison and static checks. `builder-shapes.json` selected only the heterogeneous raw JSON test, not the expensive all-scalar/enum profile. Scoped temporal parity used `PGSID_CHECK_TEMPORAL_SCALAR_FUNCTIONS=date_part`. Some concrete-row world evidence was deliberately reused after changes affecting only partial inputs; see `b33dce7d` and its preceding handoff for exact scope.
 
-## Passing evidence and reproduction
-
-Packet: `artifacts/goal-checks/strict-call-null-active/`. Ignored artifacts supplement tracked owners; a fresh checkout can reproduce the checks. Run expensive owners serially with OS timeouts and poll exact handles.
-
-- `row-and-strict-guard.json`: complete row-comparison owner and expanded strict-call matrix pass native/Rust/Go/TypeScript. Earlier `parity-json-boundaries.json` and `observations.json` retain the raw JSON/native witnesses. Use `timeout --kill-after=5s 360s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-row-comparisons.test.ts tests/sql-semantics/check-strict-call-null.test.ts --maxWorkers=1`.
-- `constant-null.json`, `record-states.json`, `builder-context.json`, `jsonb-builders.json`, `gate-coverage.json`: complete corresponding affected owners pass. `builder-shapes.json` selects only `check-json-builders.test.ts -t 'builds heterogeneous raw JSON arrays'`; the expensive all-scalar/enum profile is filtered. Do not describe that as a full builder-file pass.
-- `general-guard-preparation.json`: complete constant-NULL and XPath preparation pass after the internal-call extension. The final SQL-body metadata recheck also passes in `xml-preparation-sql-body.json`; constant preparation did not change afterward.
-- `sql-wrapper-partial.json`: both scoped temporal tests pass native/Rust/Go/TypeScript, including the last partial-input fix. Reproduce with `PGSID_CHECK_TEMPORAL_SCALAR_FUNCTIONS=date_part timeout --kill-after=5s 480s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-temporal-scalars.test.ts --maxWorkers=1`. This excludes the unrelated epoch callable. `sql-wrapper-parity.json` is the earlier successful wrapper classification run.
-- `world-json.json`: complete selected `041_json_documents` public world passes, with exactly its declared missing-context deferrals and matching native/local rejections. `world-records-sql-body.json`: complete selected `044_inspection_records` passes with no Unknown and matching native/local rejections. Reproduce separately with `PGSID_CHECK_WORLDS=<directory> timeout --kill-after=5s 900s node node_modules/vitest/vitest.mjs run tests/sql-semantics/check-worlds.test.ts --maxWorkers=1`. JSON-world evidence precedes the targeted SQL-wrapper correction; record-world evidence precedes only the final partial-input date reorder. Concrete rows are unchanged by those follow-ups, so those passes were reused deliberately.
-- `golden-regenerate-all.json` and `golden-compare-all.json`: all emission-tree variants pass regeneration and independent byte comparison, including their generated TypeScript checks. Reproduce with `timeout --kill-after=5s 1200s node node_modules/vitest/vitest.mjs run tests/unit/codegen-goldens.test.ts --maxWorkers=1 -t 'emits the complete generated tree byte-for-byte'`. Set `UPDATE_CODEGEN_GOLDENS=1` only for regeneration. Native-Go golden owners and diagnostics are filtered; public-world Go execution is separate evidence.
-- `inventory-check.log`: `timeout --kill-after=5s 90s node --import tsx scripts/generate-builtin-inventory.ts --check` passes against the released PGlite oracle.
-- `typecheck-final.log`, `lint-final.log`, `rustfmt-final.log`: final maintained typecheck, affected lint and the changed normally formatted Rust operation files pass. Existing compact-style Rust files were not reformatted wholesale. Maintained formatter, source-mirror equality and `git diff --check` pass. No corpus declarations changed.
-
-## Corrected failures and limits
-
-The original `declared_row_source 1000` failure was `row_to_json(ROW(NULL, unknown_int)) IS NULL` returning Unknown instead of False. Safe scalar conversion knowledge and a nonnull raw JSON carrier fix it. The initial Rust `if let ... else` attempt was outside the dialect and replaced with supported control flow; no dialect change was made.
-
-`row-comparisons.json` initially failed on old Unknown expectations after integer-helper precision improved. The internal-call guard plus corrected NULL expectations supersede it in `row-and-strict-guard.json`.
-
-`world-records.json` exposed `LegacyFieldLargeDateNullUnit/legacy_field_array`: True instead of native 22008. `sql-wrapper-native.json` captures native LANGUAGE SQL/STRICT definition and EXPLAIN for `date_part(text,date)`: its date-to-timestamp cast is inlined before the inner strict call. Dynamic NULL units preserve the cast error; literal NULL units fold to NULL. The SQL-body classification and scoped/native/public tests fix this regression. The old aggregate-count failure was a consequence of that same failed INSERT case.
-
-Combined regression handle `87809` hit its outer 600-second timeout before JSON reporter completion; it is not a passing run. No worker remained, and its orphan temp tree was removed. The replacement runner `23378` used independent reports/timeouts (`affected-results.json`) and finished; its row failure is superseded as above. Avoid repeating the expensive all-scalar builder owner for unchanged scalar algorithms during this bounded audit. The complete owner/full gate remain part of final integration.
+Historical combined runner `87809` timed out; it was never a passing run. Its independent replacements passed after a real SQL-wrapper error-order regression was fixed. Do not repeat large unrelated suites during development or mistake an observation timeout for a terminal process.
 
 ## Process and persistent contracts
 
-At this pause, the worktree had no semantic changes after `b33dce7d`; only this handoff and ledger are being committed. The diagnostic probe is terminal. All prior handles, including final XPath `79915`, are terminal. The pause-time process scan showed no task test/compiler workers in the visible process namespace; prior terminal results and cleanup are confirmed. Only `/tmp/pgsid-check-rust-go-cache` and `/tmp/pgsid-codegen-go-cache` remain under the task prefix. Preserve both caches. Bound every probe, close PGlite in `finally`, poll exact handles, and remove task-owned temporary trees only after workers exit. Never kill unrelated Node/MCP processes.
+All checkpoint test/static handles are terminal, including generated-output comparison. Finished task trees are removed; only the reusable Go caches remain under the /tmp/pgsid- prefix. Recheck live handles and temporary paths on continuation, and remove only finished task-owned trees. Preserve `/tmp/pgsid-check-rust-go-cache` and `/tmp/pgsid-codegen-go-cache`. Close PGlite in finally, bound probes and never kill unrelated Node/MCP processes. A process scan inside a sandbox namespace cannot alone prove a separately managed handle is stopped.
 
-Keep semantics in maintained Rust and generate targets through existing ASTs. Public rows are SQL-coerced; do not reapply input/domain/typmod coercion. Preserve NULL/Unknown/errors, original errors, eager constants, argument order, lazy branches, diagnostics and partial facts. Datum NULL differs from all-NULL record fields. Missing implementation is not database context. Never assume deployment OID consistency, even builtins; capture qualified identities/definitions. Default C ordering differs from character classification; preserve explicit non-C facts. Native hash byte order and character profiles are declared settings, not host detection. Never invent transaction date/clock. JSON uses portable logical values and assumes ordinary resources.
+Keep semantics in maintained Rust and generate targets through existing ASTs. Public rows are SQL-coerced; never repeat input/domain/typmod coercion. Preserve NULL/Unknown/errors, eager constants, original errors, lazy branches, diagnostics and partial facts. Datum NULL differs from all-NULL record fields. Missing implementation is not database context. Never assume deployment OID consistency, even builtins; capture qualified identities/definitions. C ordering differs from character classification; preserve explicit non-C facts. Native hash byte order and character profiles are declared settings, not host detection. Never invent transaction date/clock. JSON uses portable logical values and assumes ordinary resources.
 
-Commits along the way are authorized: `git -c gc.auto=0 commit --file <message-file>`. No push, subagents or external messages. Read applicable AGENTS rules before editing. Keep ledger and handoff current, below 300 lines each. Use focused affected tests during development. Full `pnpm check-rust:check` and global world/type/surface/coercion/array/historical/non-strict measurements remain incomplete; clear selectors and compare current fingerprints at final integration. A census, successful preparation or bounded passes do not complete the goal.
+PGlite uses the released dependency; extension files come from checksummed prebuilt release assets via `scripts/fetch-plpgsql-check.sh` and authenticated gh. Do not compile PostgreSQL/PGlite or the extension as a routine prerequisite. On a fresh checkout, install locked dependencies and build parser/emitter assets using the established scripts. Installed CLIs can be invoked directly when pnpm store writes are restricted.
+
+Commits along the way are authorized; use `git -c gc.auto=0 commit --file <message-file>`. No push, subagents or external messages. Read applicable AGENTS rules before editing. Keep ledger and handoff current and below 300 lines each. Use focused affected tests during development. Full `pnpm check-rust:check` and global world/type/surface/coercion/array/historical/non-strict measurements remain incomplete; clear selectors and verify current fingerprints at final integration. A census, supported preparation or bounded passes do not complete the goal.
