@@ -47,6 +47,7 @@ fn timestamp_calendar_microseconds(
     missing_timezone: bool,
     compact_clock: bool,
     ordinal_day: i32,
+    date_only: bool,
 ) -> Int8Value {
     let mut max_fraction: i32 = 999999;
     if allow_fraction_carry {
@@ -97,6 +98,10 @@ fn timestamp_calendar_microseconds(
         return Int8Value::Error(error);
     }
     if let Int4Value::Value(day_value) = days {
+        if date_only {
+            let date_wide = day_value as i64;
+            return Int8Value::Value(date_wide);
+        }
         if missing_timezone {
             return Int8Value::Unknown;
         }
@@ -126,6 +131,10 @@ fn timestamp_calendar_microseconds(
 }
 
 fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
+    parse_temporal_text(value, with_timezone, false)
+}
+
+fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -> Int8Value {
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
@@ -203,6 +212,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 false,
                 false,
                 0,
+                date_only,
             );
         }
         let mut infinity_start = start;
@@ -311,6 +321,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 with_timezone,
                 false,
                 ordinal_day,
+                date_only,
             );
         }
         if text.chars[index].to_ascii_lowercase() == 't' {
@@ -468,6 +479,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             missing_timezone,
             compact_clock,
             ordinal_day,
+            date_only,
         );
     }
     Int8Value::Unknown
@@ -509,6 +521,7 @@ pub fn timestamp_from_calendar(
         false,
         false,
         0,
+        false,
     );
     timestamp_from_microseconds(parsed)
 }

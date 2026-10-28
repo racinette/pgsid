@@ -394,8 +394,10 @@ import them. Keep schema-only helpers with their callables.
   does; years whose signed intermediates leave int4 defer. One- and two-digit
   ordinal years defer because DateStyle field order decides them. Other
   two-field numeric dates return 22007, or 22008 when a field overflows int4
-  at the end of input. Date text with an appended clock defers. Invalid
-  supported calendar values return
+  at the end of input. A date followed by a timestamp clock and optional
+  numeric zone parses through the timestamp grammar: colon clock fields and
+  offsets validate in timestamp order, compact clock carry is ignored, and only
+  date range checks apply. Invalid supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.
