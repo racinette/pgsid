@@ -289,7 +289,14 @@ function causeState(outcome: Outcome): number {
 it('bounds partial JSONB storage and output before claiming nonnull nested results', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-partial-bounds-'))
-  const definitions = ['nested', 'later_error', 'dimensions', 'scalar_bound']
+  const definitions = [
+    'nested',
+    'later_error',
+    'dimensions',
+    'scalar_bound',
+    'concat',
+    'concat_empty',
+  ]
   const entries = definitions.map((constraint) =>
     checkRustEntryName({
       schema: 'public',
@@ -347,6 +354,26 @@ pub fn ${helpers[3]}(maximum:Int8Value)->CheckOutcome {
   return check_from_bool(result);
  };
  check_unknown()
+}
+pub fn ${helpers[4]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let first=jsonb_partial_shape(bound,5,1);
+  let second=jsonb_partial_shape(20i64,5,1);
+  let result=sql__pg_catalog__jsonb_concat__j7e0(first,second);
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
+}
+pub fn ${helpers[5]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let first=jsonb_partial_shape(bound,5,1);
+  let second=make_jsonb_value("[]");
+  let result=sql__pg_catalog__jsonb_concat__j7e0(first,second);
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
 }`
   const evaluatorSource = entries
     .map(
@@ -356,7 +383,7 @@ pub fn ${helpers[3]}(maximum:Int8Value)->CheckOutcome {
     .join('\n')
   const source = assembleCheckRust({
     source: evaluatorSource,
-    callables: ['sql__pg_catalog__jsonb_build_array__gfm5'],
+    callables: ['sql__pg_catalog__jsonb_build_array__gfm5', 'sql__pg_catalog__jsonb_concat__j7e0'],
   })
   source.modules
     .find((module) => module.name === 'pg_catalog')!
@@ -383,6 +410,12 @@ pub fn ${helpers[3]}(maximum:Int8Value)->CheckOutcome {
   add('later_error', 268435455n, error('22003'))
   add('dimensions', 100n, { kind: 'False' })
   add('dimensions', 134217707n, { kind: 'Unknown' })
+  add('concat', 100n, { kind: 'False' })
+  add('concat', 268435403n, { kind: 'False' })
+  add('concat', 268435404n, { kind: 'Unknown' })
+  add('concat', 9223372036854775807n, { kind: 'Unknown' })
+  add('concat_empty', 268435455n, { kind: 'False' })
+
   try {
     const sizes = (
       await pg.query<{ rendered: number; stored: number }>(

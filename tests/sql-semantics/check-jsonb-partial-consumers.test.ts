@@ -91,6 +91,147 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     partial: 'Error',
     error: '22023',
   },
+  { name: 'delete_key', sql: "(jsonb_build_object('n',n)-k) IS NULL", partial: 'False' },
+  { name: 'delete_array_key', sql: '(jsonb_build_array(n)-k) IS NULL', partial: 'False' },
+  { name: 'delete_index', sql: '(jsonb_build_array(n,2)-i) IS NULL', partial: 'False' },
+  {
+    name: 'delete_object_index',
+    sql: "(jsonb_build_object('n',n)-i) IS NULL",
+    partial: 'Error',
+    error: '22023',
+  },
+  { name: 'delete_length', sql: 'jsonb_array_length(jsonb_build_array(n,2)-0)=1', partial: 'True' },
+  {
+    name: 'delete_negative_length',
+    sql: 'jsonb_array_length(jsonb_build_array(n,2)-(-1))=1',
+    partial: 'True',
+  },
+  {
+    name: 'delete_outside',
+    sql: 'jsonb_array_length(jsonb_build_array(n,2)-2147483647)=2',
+    partial: 'True',
+  },
+  {
+    name: 'delete_before',
+    sql: 'jsonb_array_length(jsonb_build_array(n,2)-(-2147483648))=2',
+    partial: 'True',
+  },
+  { name: 'delete_empty', sql: "jsonb_build_array(n)-0='[]'::jsonb", partial: 'True' },
+  { name: 'delete_bulk', sql: "(jsonb_build_object('n',n)-ARRAY[k]) IS NULL", partial: 'False' },
+  {
+    name: 'delete_bulk_rank',
+    sql: '(jsonb_build_array(n)-ARRAY[ARRAY[k]]) IS NULL',
+    partial: 'Error',
+    error: '2202E',
+  },
+  {
+    name: 'strip',
+    sql: 'jsonb_strip_nulls(jsonb_build_array(n,NULL),i=0) IS NULL',
+    partial: 'False',
+  },
+  {
+    name: 'strip_length',
+    sql: 'jsonb_array_length(jsonb_strip_nulls(jsonb_build_array(n,NULL),false))=2',
+    partial: 'True',
+  },
+  {
+    name: 'strip_unknown_length',
+    sql: 'jsonb_array_length(jsonb_strip_nulls(jsonb_build_array(n,NULL),true))=2',
+    partial: 'Unknown',
+  },
+  {
+    name: 'strip_type',
+    sql: "jsonb_typeof(jsonb_strip_nulls(jsonb_build_object('n',n,'missing',NULL)))='object'",
+    partial: 'True',
+  },
+  {
+    name: 'concat_arrays',
+    sql: 'jsonb_array_length(jsonb_build_array(n)||jsonb_build_array(n))=2',
+    partial: 'True',
+  },
+  {
+    name: 'concat_scalar',
+    sql: "jsonb_array_length(jsonb_build_array(n)||'null'::jsonb)=2",
+    partial: 'True',
+  },
+  {
+    name: 'concat_scalar_left',
+    sql: "jsonb_array_length('null'::jsonb||jsonb_build_array(n))=2",
+    partial: 'True',
+  },
+  {
+    name: 'concat_object_array',
+    sql: "jsonb_array_length(jsonb_build_object('n',n)||'[]'::jsonb)=1",
+    partial: 'True',
+  },
+  {
+    name: 'concat_objects',
+    sql: "jsonb_typeof(jsonb_build_object('n',n)||jsonb_build_object('n',n))='object'",
+    partial: 'True',
+  },
+  {
+    name: 'concat_empty',
+    sql: "jsonb_array_length('[]'::jsonb||jsonb_build_array(n))=1",
+    partial: 'True',
+  },
+  {
+    name: 'concat_unknown_kind',
+    sql: '((jsonb_build_array(n)->0)||jsonb_build_object()) IS NULL',
+    partial: 'False',
+  },
+  {
+    name: 'populate_array',
+    sql: '(jsonb_populate_record(NULL::partial_population,jsonb_build_array(n))).n IS NULL',
+    partial: 'Error',
+    error: '22023',
+  },
+  {
+    name: 'populate_valid_array',
+    sql: 'jsonb_populate_record_valid(NULL::partial_population,jsonb_build_array(n))',
+    partial: 'False',
+  },
+  {
+    name: 'populate_object',
+    sql: "(jsonb_populate_record(NULL::partial_population,jsonb_build_object('n',n))).n IS NULL",
+    partial: 'Unknown',
+  },
+  {
+    name: 'populate_empty',
+    sql: "jsonb_populate_record_valid(NULL::partial_empty,jsonb_build_object('n',n))",
+    partial: 'True',
+  },
+  {
+    name: 'delete_nonnull_key',
+    sql: "(jsonb_build_object('n',n)-jsonb_build_array(n)::text) IS NULL",
+    partial: 'False',
+  },
+  {
+    name: 'delete_null_keys_length',
+    sql: 'jsonb_array_length(jsonb_build_array(n,2)-ARRAY[NULL]::text[])=2',
+    partial: 'True',
+  },
+  {
+    name: 'delete_bulk_length_unknown',
+    sql: "jsonb_array_length(jsonb_build_array(n,'x')-ARRAY['x'])=1",
+    partial: 'Unknown',
+  },
+  {
+    name: 'concat_chained',
+    sql: 'jsonb_array_length((jsonb_build_array(n)||jsonb_build_array(n))-0)=1',
+    partial: 'True',
+  },
+  {
+    name: 'delete_scalar_nonnull_key',
+    sql: "('1'::jsonb-jsonb_build_array(n)::text) IS NULL",
+    partial: 'Error',
+    error: '22023',
+  },
+  {
+    name: 'delete_bulk_unknown_root_rank',
+    sql: '((jsonb_build_array(n)->0)-ARRAY[ARRAY[k]]) IS NULL',
+    partial: 'Error',
+    error: '2202E',
+  },
 ]
 const value = (value: number | string | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }
@@ -105,6 +246,7 @@ it('preserves partial JSONB shape without inventing NULL extraction or compariso
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-consumers-'))
   try {
+    await pg.exec('CREATE TYPE partial_population AS(n int); CREATE TYPE partial_empty AS()')
     const checked = (sql: string) => `CASE WHEN bypass THEN true ELSE (${sql}) END`
     await pg.exec(
       `CREATE TABLE partial_consumers(n int,k text,i int,bypass bool,${profiles.map((p) => `CONSTRAINT "${p.name}" CHECK(${checked(p.sql)})`).join(',')})`,
@@ -156,15 +298,38 @@ it('preserves partial JSONB shape without inventing NULL extraction or compariso
       add(base, p.error ? error(p.error) : ({ kind: p.partial } as Outcome))
       add({ ...base, bypass: value(true) }, { kind: 'True' })
       add({ ...base, n: error('22003') }, error('22003'))
-      if (['element', 'element_text', 'object_index'].includes(p.name)) {
+      if (
+        [
+          'element',
+          'element_text',
+          'object_index',
+          'delete_index',
+          'delete_object_index',
+          'strip',
+        ].includes(p.name)
+      ) {
         add({ ...base, i: sqlNull }, { kind: 'True' })
         add({ ...base, i: error('22003') }, error('22003'))
         add({ ...base, i: unknown }, { kind: 'Unknown' })
       }
-      if (['field', 'field_text', 'array_field', 'exists', 'array_exists'].includes(p.name)) {
+      if (
+        [
+          'field',
+          'field_text',
+          'array_field',
+          'exists',
+          'array_exists',
+          'delete_key',
+          'delete_array_key',
+        ].includes(p.name)
+      ) {
         add({ ...base, k: sqlNull }, { kind: p.name.includes('exists') ? 'Null' : 'True' })
         add({ ...base, k: error('22003') }, error('22003'))
         add({ ...base, k: unknown }, { kind: 'Unknown' })
+      }
+      if (p.name === 'delete_bulk') {
+        add({ ...base, k: unknown }, { kind: 'False' })
+        add({ ...base, k: error('22003') }, error('22003'))
       }
       await pg.exec(
         `CREATE TABLE witness_${p.name}(n int,k text,i int,bypass bool,CHECK(${checked(p.sql)}))`,
@@ -189,6 +354,10 @@ it('preserves partial JSONB shape without inventing NULL extraction or compariso
           } catch (cause) {
             actual = error((cause as { code: string }).code)
           }
+          if (!nullArgs && p.partial !== 'Unknown')
+            expect(actual, p.name + ' native invariant').toEqual(
+              p.error ? error(p.error) : { kind: p.partial },
+            )
           add(row, actual)
           let code: string | undefined
           try {

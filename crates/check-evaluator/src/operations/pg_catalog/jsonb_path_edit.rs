@@ -57,6 +57,43 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
     if let ArrayValue::Null = keys {
         return JsonbValue::Null;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if let ArrayValue::Value(queries) = keys {
+            if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
+                return JsonbValue::Unknown;
+            };
+            if queries.dimensions.len() > 1 {
+                return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
+            };
+            if facts.kind >= 0 && facts.kind < 5 {
+                return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
+            };
+            if facts.kind == 5 || facts.kind == 6 {
+                let mut removes = false;
+                let mut position: usize = 0;
+                while position < queries.elements.len() {
+                    let key = queries.elements[position].clone();
+                    if let ArrayElement::Error(error) = key {
+                        return JsonbValue::Error(error);
+                    };
+                    let mut is_null = false;
+                    if let ArrayElement::Null = key {
+                        is_null = true;
+                    };
+                    if is_null == false {
+                        removes = true;
+                    };
+                    position += 1;
+                }
+                let mut length = facts.length;
+                if removes {
+                    length = -1;
+                };
+                return jsonb_partial_shape(facts.maximum, facts.kind, length);
+            };
+        };
+        return JsonbValue::Unknown;
+    };
     if let JsonbValue::Value(value) = input {
         if let ArrayValue::Value(queries) = keys {
             if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
