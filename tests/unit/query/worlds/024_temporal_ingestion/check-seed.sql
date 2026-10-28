@@ -121,3 +121,36 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'julian', NULL, false);
 -- name: calendar_julian_skipped_error
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2147483648', NULL, true);
+
+-- name: calendar_compact_epoch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '20000101', '2000-01-01', false);
+-- name: calendar_compact_short_year
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '690101', '2069-01-01', false);
+-- name: calendar_compact_short_year_mismatch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '700101', '2070-01-01', false);
+-- name: calendar_compact_bc_year
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '690101 BC', '0069-01-01 BC', false);
+-- name: calendar_compact_zero_year
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '00000101', NULL, false);
+-- name: calendar_compact_skipped_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '19000229', NULL, true);
+-- name: local_compact_clock_carry
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20000101 250000', '2000-01-02 01:00:00', false);
+-- name: local_compact_clock_carry_mismatch
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20000101 250000', '2000-01-01 01:00:00', false);
+-- name: local_compact_clock_fraction
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20000101 1234.5Z', '2000-01-01 12:34:00.5', false);
+-- name: local_compact_lower_boundary_carry
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '47141121 720000Z BC', '4714-11-24 00:00:00 BC', false);
+-- name: local_compact_zone_error_before_calendar
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20001301 999999+16', NULL, false);
+-- name: instant_compact_clock_carry
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20000101 999999Z', '2000-01-05 04:40:39+00', false);
+-- name: instant_compact_fraction_tie
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20000101 123456.0000015Z', '2000-01-01 12:34:56.000002+00', false);
+-- name: instant_compact_upper_boundary_offset
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2942761231 240000+00:00:01', '294276-12-31 23:59:59+00', false);
+-- name: instant_compact_lower_boundary_offset_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '47141120 999999+15:59:59 BC', NULL, false);
+-- name: instant_compact_skipped_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20001301 999999+16', NULL, true);

@@ -168,6 +168,7 @@ describe('Rust text-to-date CHECK casts', () => {
       }
     }
     for (const raw of [
+      '42949692960101',
       'not a date',
       '2000-01-01 junk',
       'λ',

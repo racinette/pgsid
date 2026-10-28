@@ -45,19 +45,21 @@ fn timestamp_calendar_microseconds(
     with_timezone: bool,
     allow_fraction_carry: bool,
     missing_timezone: bool,
+    compact_clock: bool,
 ) -> Int8Value {
     let mut max_fraction: i32 = 999999;
     if allow_fraction_carry {
         max_fraction = 1000000;
     }
-    if hour < 0
-        || hour > 24
-        || minute < 0
-        || minute > 59
-        || second < 0
-        || second > 60
-        || microsecond < 0
-        || microsecond > max_fraction
+    if compact_clock == false
+        && (hour < 0
+            || hour > 24
+            || minute < 0
+            || minute > 59
+            || second < 0
+            || second > 60
+            || microsecond < 0
+            || microsecond > max_fraction)
     {
         return Int8Value::Error(SqlError {
             state: TIMESTAMP_FIELD_OVERFLOW,
@@ -67,7 +69,7 @@ fn timestamp_calendar_microseconds(
     let clock_wide = clock_seconds as i64;
     let fraction_wide = microsecond as i64;
     let clock = clock_wide * 1000000i64 + fraction_wide;
-    if clock > 86400000000i64 {
+    if compact_clock == false && clock > 86400000000i64 {
         return Int8Value::Error(SqlError {
             state: TIMESTAMP_FIELD_OVERFLOW,
         });
@@ -85,7 +87,10 @@ fn timestamp_calendar_microseconds(
         if missing_timezone {
             return Int8Value::Unknown;
         }
-        if (year == -4714 && month < 11) || day_value < -2451546 || day_value > 106751983 {
+        if (year == -4714 && month < 11)
+            || (compact_clock == false && day_value < -2451546)
+            || day_value > 106751983
+        {
             return Int8Value::Error(SqlError {
                 state: TIMESTAMP_FIELD_OVERFLOW,
             });
@@ -183,6 +188,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 with_timezone,
                 false,
                 false,
+                false,
             );
         }
         let mut infinity_start = start;
@@ -211,34 +217,56 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             }
         }
         let year_field = read_timestamp_number(&text, start, end);
+        let mut year = year_field.value;
+        let mut year_overflow = year_field.overflow;
         let mut index = year_field.next;
-        if year_field.digits < 4 || index == end || text.chars[index] != '-' {
-            return Int8Value::Unknown;
+        let mut month: i32 = 0;
+        let mut day: i32 = 0;
+        if year_field.digits >= 6 && (index == end || text.chars[index] != '-') {
+            let compact_year = read_timestamp_number(&text, start, index - 4);
+            if compact_year.overflow {
+                return Int8Value::Unknown;
+            }
+            year = calendar_short_year(compact_year.value, compact_year.digits, bc);
+            year_overflow = false;
+            let compact_month = read_timestamp_number(&text, index - 4, index - 2);
+            let compact_day = read_timestamp_number(&text, index - 2, index);
+            month = compact_month.value;
+            day = compact_day.value;
+        } else {
+            if year_field.digits < 4 || index == end || text.chars[index] != '-' {
+                return Int8Value::Unknown;
+            }
+            let month_field = read_timestamp_number(&text, index + 1, end);
+            index = month_field.next;
+            if month_field.digits < 1
+                || month_field.digits > 2
+                || index == end
+                || text.chars[index] != '-'
+            {
+                return Int8Value::Unknown;
+            }
+            let day_field = read_timestamp_number(&text, index + 1, end);
+            index = day_field.next;
+            if day_field.digits < 1 || day_field.digits > 2 {
+                return Int8Value::Unknown;
+            }
+            month = month_field.value;
+            day = day_field.value;
         }
-        let month = read_timestamp_number(&text, index + 1, end);
-        index = month.next;
-        if month.digits < 1 || month.digits > 2 || index == end || text.chars[index] != '-' {
-            return Int8Value::Unknown;
-        }
-        let day = read_timestamp_number(&text, index + 1, end);
-        index = day.next;
-        if day.digits < 1 || day.digits > 2 {
-            return Int8Value::Unknown;
+        if bc {
+            year = 0 - year;
         }
         if index == end {
-            if year_field.overflow {
+            if year_overflow {
                 return Int8Value::Error(SqlError {
                     state: TIMESTAMP_FIELD_OVERFLOW,
                 });
             }
-            let mut year = year_field.value;
-            if bc {
-                year = 0 - year;
-            }
             return timestamp_calendar_microseconds(
                 year,
-                month.value,
-                day.value,
+                month,
+                day,
                 0,
                 0,
                 0,
@@ -247,6 +275,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 false,
                 false,
                 with_timezone,
+                false,
             );
         }
         if text.chars[index].to_ascii_lowercase() == 't' {
@@ -258,58 +287,74 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
         } else {
             return Int8Value::Unknown;
         }
-        let hour = read_timestamp_number(&text, index, end);
-        index = hour.next;
-        if hour.digits < 1 || index == end || text.chars[index] != ':' {
-            return Int8Value::Unknown;
-        }
-        let minute = read_timestamp_number(&text, index + 1, end);
-        index = minute.next;
-        if minute.digits < 1 {
-            return Int8Value::Unknown;
-        }
+        let hours = read_timestamp_number(&text, index, end);
+        index = hours.next;
+        let mut hour = hours.value;
+        let mut minute: i32 = 0;
         let mut second: i32 = 0;
         let mut fraction: i32 = 0;
-        if index < end && text.chars[index] == ':' {
-            let seconds = read_timestamp_number(&text, index + 1, end);
-            index = seconds.next;
-            if seconds.digits < 1 {
+        let mut fractional = false;
+        let mut compact_clock = false;
+        if hours.digits > 0 && index < end && text.chars[index] == ':' {
+            let minutes = read_timestamp_number(&text, index + 1, end);
+            index = minutes.next;
+            if minutes.digits < 1 {
                 return Int8Value::Unknown;
             }
-            second = seconds.value;
-            if index < end && text.chars[index] == '.' {
-                let fraction_start = index + 1;
-                let digits = read_timestamp_number(&text, index + 1, end);
-                index = digits.next;
-                if digits.digits < 1 {
+            minute = minutes.value;
+            if index < end && text.chars[index] == ':' {
+                let seconds = read_timestamp_number(&text, index + 1, end);
+                index = seconds.next;
+                if seconds.digits < 1 {
                     return Int8Value::Unknown;
                 }
-                if digits.digits <= 6 {
-                    fraction = digits.value;
-                    let mut fraction_digits = digits.digits;
-                    while fraction_digits < 6 {
-                        fraction = fraction * 10;
-                        fraction_digits += 1;
-                    }
-                } else {
-                    let mut fraction_text = String::new();
-                    fraction_text.push('0');
-                    fraction_text.push('.');
-                    let mut digit_index = fraction_start;
-                    while digit_index < index {
-                        fraction_text.push(text.chars[digit_index]);
-                        digit_index += 1;
-                    }
-                    let parsed = fraction_text.as_str().parse::<f64>().unwrap_or(0.0f64);
-                    let scaled = parsed * 1000000.0f64;
-                    fraction = scaled as i32;
-                    let integral = fraction as f64;
-                    let remainder = scaled - integral;
-                    if remainder > 0.5f64 || (remainder == 0.5f64 && fraction % 2 != 0) {
-                        fraction = fraction + 1;
-                    };
-                };
+                second = seconds.value;
+                fractional = true;
             }
+        } else if hours.digits == 4 || hours.digits == 6 {
+            compact_clock = true;
+            fractional = true;
+            if hours.digits == 6 {
+                second = hour % 100;
+                hour = hour / 100;
+            }
+            minute = hour % 100;
+            hour = hour / 100;
+        } else {
+            return Int8Value::Unknown;
+        }
+        if fractional && index < end && text.chars[index] == '.' {
+            let fraction_start = index + 1;
+            let digits = read_timestamp_number(&text, index + 1, end);
+            index = digits.next;
+            if digits.digits < 1 {
+                return Int8Value::Unknown;
+            }
+            if digits.digits <= 6 {
+                fraction = digits.value;
+                let mut fraction_digits = digits.digits;
+                while fraction_digits < 6 {
+                    fraction = fraction * 10;
+                    fraction_digits += 1;
+                }
+            } else {
+                let mut fraction_text = String::new();
+                fraction_text.push('0');
+                fraction_text.push('.');
+                let mut digit_index = fraction_start;
+                while digit_index < index {
+                    fraction_text.push(text.chars[digit_index]);
+                    digit_index += 1;
+                }
+                let parsed = fraction_text.as_str().parse::<f64>().unwrap_or(0.0f64);
+                let scaled = parsed * 1000000.0f64;
+                fraction = scaled as i32;
+                let integral = fraction as f64;
+                let remainder = scaled - integral;
+                if remainder > 0.5f64 || (remainder == 0.5f64 && fraction % 2 != 0) {
+                    fraction = fraction + 1;
+                };
+            };
         }
         while index < end && date_text_space(text.chars[index]) {
             index += 1;
@@ -369,27 +414,24 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
         if index != end {
             return Int8Value::Unknown;
         }
-        if year_field.overflow {
+        if year_overflow {
             return Int8Value::Error(SqlError {
                 state: TIMESTAMP_FIELD_OVERFLOW,
             });
         }
-        let mut year = year_field.value;
-        if bc {
-            year = 0 - year;
-        }
         return timestamp_calendar_microseconds(
             year,
-            month.value,
-            day.value,
-            hour.value,
-            minute.value,
+            month,
+            day,
+            hour,
+            minute,
             second,
             fraction,
             offset,
             with_timezone,
             true,
             missing_timezone,
+            compact_clock,
         );
     }
     Int8Value::Unknown
@@ -426,6 +468,7 @@ pub fn timestamp_from_calendar(
         second,
         microsecond,
         0,
+        false,
         false,
         false,
         false,

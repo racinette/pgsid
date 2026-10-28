@@ -181,6 +181,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       }
     }
     for (const raw of [
+      '42949692960101 000000Z',
       'not a timestamp',
       '2000-01-01 junk',
       'λ',
@@ -237,6 +238,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       [
         ['session_literal', "anchor = TIMESTAMPTZ 'now'"],
         ['precision_cast', 'raw::timestamptz(3) = anchor'],
+        ['compact_literal', "anchor = TIMESTAMPTZ '000101 000000Z'"],
       ].map(([name, sql]) => ({
         expression: lowerTableCheck(table, {
           name: name!,
@@ -251,11 +253,11 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       join(directory, 'literals'),
       'timestamptztextliterals',
       literals,
-      ['session_literal', 'precision_cast'],
-      ['session_literal', 'precision_cast'].map((name) => ({
+      ['session_literal', 'precision_cast', 'compact_literal'],
+      ['session_literal', 'precision_cast', 'compact_literal'].map((name) => ({
         name,
         row: { anchor: input(0n), raw: input('2000-01-01 00:00:00.000001Z') },
-        expected: { kind: name === 'precision_cast' ? 'True' : 'Unknown' },
+        expected: { kind: name === 'session_literal' ? 'Unknown' : 'True' },
       })),
     )
     await runCheckParity(directory, 'timestamptztext', group, names, fixtures)
