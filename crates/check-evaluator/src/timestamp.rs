@@ -324,7 +324,10 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 date_only,
             );
         }
-        let zone_only = text.chars[index] == '+';
+        let zone_only = text.chars[index] == '+'
+            || (ordinal.state == ORDINAL_DATE_FOUND
+                && ordinal.minus_zone
+                && text.chars[index] == '-');
         if text.chars[index].to_ascii_lowercase() == 't' {
             index += 1;
         } else if date_text_space(text.chars[index]) {

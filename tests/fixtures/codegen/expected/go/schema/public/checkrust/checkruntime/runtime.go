@@ -15975,15 +15975,16 @@ const ordinalDateSyntax = 3
 const ordinalDateOverflow = 4
 
 type ordinalDateText struct {
-	state    int
-	next     int
-	year     int
-	overflow bool
-	day      int
+	state     int
+	next      int
+	year      int
+	overflow  bool
+	day       int
+	minusZone bool
 }
 
 func copyordinalDateText(value ordinalDateText) ordinalDateText {
-	return ordinalDateText{state: langruntime.CheckedI32(value.state), next: langruntime.CheckedIndex(value.next), year: langruntime.CheckedI32(value.year), overflow: value.overflow, day: langruntime.CheckedI32(value.day)}
+	return ordinalDateText{state: langruntime.CheckedI32(value.state), next: langruntime.CheckedIndex(value.next), year: langruntime.CheckedI32(value.year), overflow: value.overflow, day: langruntime.CheckedI32(value.day), minusZone: value.minusZone}
 }
 
 type ordinalCalendar struct {
@@ -16003,6 +16004,7 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 	index := year.next
 	state := ordinalDateAbsent
 	day := 0
+	minusZone := false
 	if year.digits > 0 && index < end {
 		separator := text.chars[index]
 		if separator == '-' || separator == '/' || separator == '.' {
@@ -16012,6 +16014,7 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 				if field.digits == 3 && field.value >= 1 && field.value <= 366 {
 					state = langruntime.CheckedI32(ordinalDateFound)
 					day = langruntime.CheckedI32(field.value)
+					minusZone = separator != '-'
 					if year.digits <= 2 {
 						state = langruntime.CheckedI32(ordinalDateDeferred)
 					}
@@ -16037,7 +16040,7 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 			}
 		}
 	}
-	return ordinalDateText{state: state, next: index, year: year.value, overflow: year.overflow, day: day}
+	return ordinalDateText{state: state, next: index, year: year.value, overflow: year.overflow, day: day, minusZone: minusZone}
 }
 func ordinalInt4Range(value int64) bool {
 	return value >= int64(-2147483648) && value <= int64(2147483647)
@@ -16632,7 +16635,7 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			}
 			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly)
 		}
-		zoneOnly := text.chars[index] == '+'
+		zoneOnly := text.chars[index] == '+' || (ordinal.state == ordinalDateFound && ordinal.minusZone && text.chars[index] == '-')
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
 		} else if dateTextSpace(text.chars[index]) {
