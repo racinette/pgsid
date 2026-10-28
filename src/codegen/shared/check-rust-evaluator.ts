@@ -3147,7 +3147,7 @@ export function emitCheckRustEvaluator(
       destination = bindings,
       folded?: { name: string; type: string },
     ): { name: string; type: string } => {
-      if (node.kind === 'call' && node.strictNull && call === node.call && !folded) {
+      if (node.kind === 'call' && call === node.call && !folded) {
         const metadata = call.signature === null ? null : builtinMetadata(call.signature)
         const implementation =
           metadata?.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
