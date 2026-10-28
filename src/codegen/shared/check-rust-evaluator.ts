@@ -133,6 +133,7 @@ import {
   isRegexArrayCallable,
   isIdentifierParseCallable,
   supportsTextCallableCollation,
+  isTextOrderingCallable,
 } from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
@@ -3861,6 +3862,16 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable: ${call.signature}`,
         )
+      const defaultTextOrdering =
+        call.kind !== 'cast' &&
+        call.collationDefault === true &&
+        isTextOrderingCallable(call.signature)
+      const textCollation =
+        defaultTextOrdering && executionContext.defaultCollation === 'C'
+          ? 'C'
+          : call.kind === 'cast'
+            ? undefined
+            : call.collation
       if (
         implementation.args.some((type) =>
           [
@@ -3872,10 +3883,8 @@ export function emitCheckRustEvaluator(
         ) &&
         !arrayRegex &&
         !xmlCast &&
-        !supportsTextCallableCollation(
-          call.signature,
-          call.kind === 'cast' ? undefined : call.collation,
-        )
+        !supportsTextCallableCollation(call.signature, textCollation) &&
+        !defaultTextOrdering
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK text collation: ${call.signature}`,
@@ -3980,6 +3989,25 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (defaultTextOrdering && !supportsTextCallableCollation(call.signature, textCollation)) {
+        const guard = fresh('ordering_context')
+        destination.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
+        for (const operand of operands) {
+          const nullness = fresh('ordering_argument_null')
+          const state = fresh('ordering_argument_state')
+          destination.push(
+            `let ${nullness} = ${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)});`,
+            `let ${state} = check_from_bool(${nullness});`,
+            `${guard} = constant_finish(${guard}, ${state});`,
+          )
+        }
+        const name = fresh('ordering_unknown')
+        const prefix = rustValuePrefix(rustType(call.type))
+        destination.push(
+          `let ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+        )
+        return { name, type: call.type }
+      }
       if (rangeSubtype && implementation.result === 'pg_catalog.anyelement') {
         const cell = fresh('range_bound')
         const name = fresh('range_value')

@@ -109,7 +109,8 @@ import {
   combineCollations,
   defaultCollation,
   isRegexArrayCallable,
-  supportsTextCallableCollation,
+  supportsBoundTextCallableCollation,
+  isTextOrderingCallable,
   type BoundCollation,
 } from './collation.js'
 import {
@@ -1444,7 +1445,7 @@ const candidate = (
           'pg_catalog.bpchar',
         ].includes(type),
       ) &&
-      !supportsTextCallableCollation(signature, collation?.kind) &&
+      !supportsBoundTextCallableCollation(signature, collation) &&
       !isRegexArrayCallable(signature)
     )
       return []
@@ -2121,7 +2122,7 @@ const comparisonCandidate = (
         type,
       ),
     ) &&
-    !supportsTextCallableCollation(selected.signature, collation?.kind)
+    !supportsBoundTextCallableCollation(selected.signature, collation)
   )
     return null
   const operands = args.map((arg, index) =>
@@ -2165,7 +2166,8 @@ const callDefaultCollation = (
         : {}),
     }
   return collation?.default &&
-    (metadata.args.includes('pg_catalog.anyarray') ||
+    (isTextOrderingCallable(signature) ||
+      metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray') ||
       isRegexArrayCallable(signature) ||
       isTemporalTimestampFormatting(metadata) ||
@@ -4086,7 +4088,7 @@ export function bindCatalogCheck(
             'pg_catalog.name',
           ].includes(type),
         ) &&
-          !supportsTextCallableCollation(selected.signature, collation?.kind)) ||
+          !supportsBoundTextCallableCollation(selected.signature, collation)) ||
         (polymorphic
           ? !resolved ||
             resolved.signature !== selected.signature ||
@@ -7443,6 +7445,8 @@ export function bindCatalogCheck(
     if (collate) {
       const inner = bind(collate['arg'])
       const names = strings(collate['collname'])
+      if ((names?.length === 1 || names?.[0] === 'pg_catalog') && names.at(-1) === 'default')
+        return { ...inner, collation: { ...defaultCollation, explicit: true } }
       return {
         ...inner,
         collation: {

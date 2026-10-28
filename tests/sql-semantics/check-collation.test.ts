@@ -63,7 +63,6 @@ const unsupported = {
   explicit_unknown: "plain = ('a' COLLATE public.insensitive)",
   explicit_conflict: 'plain COLLATE pg_catalog."C" = (\'a\' COLLATE public.insensitive)',
   foreign_c: 'plain COLLATE public."C" = \'a\'',
-  ordering: "plain < 'z'",
   custom_ordering: "det > 'a'",
   prefix: "starts_with(plain, 'a')",
   literal_prefix: "starts_with('abc', 'a')",
@@ -136,6 +135,12 @@ describe('CHECK text collation', () => {
   it.each(Object.entries(unsupported))('keeps %s uncertain', (_name, sql) => {
     const expression = bind(sql)
     expect(expression).toEqual({ kind: 'uncertain' })
+  })
+
+  it('retains default ordering for resolution through declared execution context', () => {
+    const expression = bind("plain < 'z'")
+    expect(expression.kind).not.toBe('uncertain')
+    expect(prepareCheckRust(expression).kind).toBe('supported')
   })
 
   it('distinguishes PostgreSQL ICU equality from byte equality', async () => {

@@ -1,3 +1,7 @@
+import {
+  isTextOrderingCallable,
+  supportsTextCallableCollation,
+} from '../../src/sql-semantics/collation.js'
 import { isIdentifierQuote } from '../../src/sql-semantics/identifier-quote.js'
 import { isMoneyNumericConversion } from '../../src/sql-semantics/money-callables.js'
 import {
@@ -133,6 +137,24 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
     'Live default type comparison links differ from the generated inventory',
   )
   return catalog
+}
+
+export function textOrderingRequirements(item: BuiltinCallable) {
+  const signature = callableIdentity(item)
+  if (
+    !isTextOrderingCallable(signature) ||
+    supportsTextCallableCollation(signature, 'deterministic')
+  )
+    return null
+  return [
+    {
+      kind: 'database',
+      setting: 'input_collation / default_collation',
+      requirement:
+        'Scalar text, name and bpchar ordering requires C input collation. Captured default provenance can use the declared defaultCollation C setting; explicit non-C choices are never overridden. Without context, reached ordering defers while strict NULLs, operand errors and skipped branches retain their results. Ordering does not establish character classification.',
+      owner: 'tests/sql-semantics/check-text-default-ordering.test.ts',
+    },
+  ]
 }
 
 export function hashValueRequirements(item: BuiltinCallable) {
@@ -1478,6 +1500,8 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
           ? `platform-setting:${requirement.setting}`
           : `database-state:${requirement.setting}`,
     )
+  if (textOrderingRequirements(item))
+    categories.push('database-setting:input_collation/default_collation')
   if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
   if (jsonbTextRenderingContext(item)) categories.push('database-setting:server_encoding')
   if (xmlValueRequirements(item)?.some((r) => r.setting === 'xmloption'))

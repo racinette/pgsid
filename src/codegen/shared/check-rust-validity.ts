@@ -3,7 +3,10 @@ import { isNullCountCallable } from '../../sql-semantics/null-count-callables.js
 import { caseBoundExpression } from './check-rust-constants.js'
 import { isRecordComparison, recordComparisonLayouts } from './check-record-comparison.js'
 import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
-import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
+import {
+  isTextOrderingCallable,
+  supportsTextCallableCollation,
+} from '../../sql-semantics/collation.js'
 import {
   nativeHashContext,
   isArrayHash,
@@ -342,7 +345,12 @@ export function rustCallCanFail(
       (call.kind !== 'cast' && call.enum && call.enum.values.length > 0))
   )
     return false
-  if (scalarComparisons.has(call.signature) || arrayMetadata.has(call.signature)) return false
+  if (
+    scalarComparisons.has(call.signature) ||
+    isTextOrderingCallable(call.signature) ||
+    arrayMetadata.has(call.signature)
+  )
+    return false
   if (arrayComparisons.has(call.signature) && types.every(orderedElement)) return false
   if (types.length !== 1) return true
   const from = types[0]!,

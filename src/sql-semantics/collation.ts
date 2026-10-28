@@ -1,3 +1,4 @@
+import { callableIdentity } from '../postgres/builtins/catalog.js'
 import { isTextFormatCallable } from './text-format-callables.js'
 import { isLegacySimilarCallable } from './text-similar-callables.js'
 import { isTextConcatCallable } from './text-concat-callables.js'
@@ -18,6 +19,7 @@ import {
   isXmlXPathCallable,
 } from './xml-callables.js'
 import {
+  builtinBtreeComparisons,
   builtinCallables,
   builtinCast,
   builtinMetadata,
@@ -74,6 +76,49 @@ export function equalityOperation(signature: string, argumentType: string): '=' 
       (item.name === '=' || item.name === '<>'),
   )
   return operators.length === 1 ? (operators[0]!.name as '=' | '<>') : null
+}
+
+const textOrderingCallables = new Set<string>()
+for (const item of builtinCallables()) {
+  if (
+    !item.args.every((type) =>
+      ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(type),
+    )
+  )
+    continue
+  const signature = callableIdentity(item)
+  if (item.kind === 'operator') {
+    const comparisons = builtinBtreeComparisons(signature)
+    if (!comparisons.length) continue
+    textOrderingCallables.add(signature)
+    textOrderingCallables.add(item.implementation)
+    for (const comparison of comparisons)
+      if (comparison.comparator) textOrderingCallables.add(comparison.comparator)
+  } else if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.length === 2 &&
+    item.args.every((type) => type === item.result) &&
+    ['text_larger', 'text_smaller', 'bpchar_larger', 'bpchar_smaller'].includes(item.name)
+  )
+    textOrderingCallables.add(signature)
+}
+
+export function isTextOrderingCallable(signature: string): boolean {
+  return textOrderingCallables.has(signature)
+}
+
+export function supportsBoundTextCallableCollation(
+  signature: string,
+  collation?: BoundCollation | null,
+): boolean {
+  return (
+    supportsTextCallableCollation(signature, collation?.kind) ||
+    (collation?.default === true && isTextOrderingCallable(signature))
+  )
 }
 
 export function supportsTextCallableCollation(signature: string, collation?: string): boolean {
