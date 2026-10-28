@@ -324,13 +324,14 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 date_only,
             );
         }
+        let zone_only = text.chars[index] == '+';
         if text.chars[index].to_ascii_lowercase() == 't' {
             index += 1;
         } else if date_text_space(text.chars[index]) {
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
             }
-        } else {
+        } else if zone_only == false {
             return Int8Value::Unknown;
         }
         let hours = read_timestamp_number(&text, index, end);
@@ -366,7 +367,7 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             }
             minute = hour % 100;
             hour = hour / 100;
-        } else {
+        } else if zone_only == false {
             return Int8Value::Unknown;
         }
         if fractional && index < end && text.chars[index] == '.' {

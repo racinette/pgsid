@@ -318,6 +318,8 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       ['1999/365 235959.999999Z', false, '23514', { certain: true, value: false }],
       ['2000-367 000000+16', false, '22007', { certain: true, error: '22007' }],
       ['2000-002', false, null, { certain: false }],
+      ['2000-01-02+05', false, null, { certain: true, value: true }],
+      ['1999-12-31+05', false, '23514', { certain: true, value: false }],
       ['2000-01-01 00:00:00 America/New_York', false, null, { certain: false }],
     ] as const) {
       await pg.exec('BEGIN')

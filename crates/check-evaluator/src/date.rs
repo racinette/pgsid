@@ -102,7 +102,8 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
                 && field.value <= 366
                 && (field.next == end
                     || date_text_space(text.chars[field.next])
-                    || text.chars[field.next].to_ascii_lowercase() == 't')
+                    || text.chars[field.next].to_ascii_lowercase() == 't'
+                    || text.chars[field.next] == '+')
             {
                 state = ORDINAL_DATE_FOUND;
                 day = field.value;
@@ -409,7 +410,9 @@ pub fn date_from_text(value: TextValue) -> DateValue {
         }
         if year_digits >= 6
             && index < end
-            && (date_text_space(chars[index]) || chars[index].to_ascii_lowercase() == 't')
+            && (date_text_space(chars[index])
+                || chars[index].to_ascii_lowercase() == 't'
+                || chars[index] == '+')
         {
             return date_from_clock_text(TextValue::Value(text.clone()));
         }

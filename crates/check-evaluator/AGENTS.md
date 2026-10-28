@@ -397,7 +397,9 @@ import them. Keep schema-only helpers with their callables.
   at the end of input. A date followed by a timestamp clock and optional
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
-  date range checks apply. Invalid supported calendar values return
+  date range checks apply. A numeric zone may follow any of these dates
+  directly after a plus sign, with a midnight clock. Invalid supported calendar
+  values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.
