@@ -293,6 +293,59 @@ fn jsonb_order_walk(left: &JsonbPayload, right: &JsonbPayload) -> Int4Value {
     Int4Value::Value(0)
 }
 
+fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
+    if a.kind < 0 || b.kind < 0 {
+        return Int4Value::Unknown;
+    };
+    if a.kind == 5 && b.kind < 5 {
+        if a.length == 0 {
+            return make_int4_value(-1);
+        };
+        if a.length > 0 {
+            return make_int4_value(1);
+        };
+        return Int4Value::Unknown;
+    };
+    if a.kind < 5 && b.kind == 5 {
+        if b.length == 0 {
+            return make_int4_value(1);
+        };
+        if b.length > 0 {
+            return make_int4_value(-1);
+        };
+        return Int4Value::Unknown;
+    };
+    let first = jsonb_order_rank(a.kind);
+    let second = jsonb_order_rank(b.kind);
+    if first < second {
+        return make_int4_value(-1);
+    };
+    if first > second {
+        return make_int4_value(1);
+    };
+    if a.kind < 3 {
+        if a.kind < b.kind {
+            return make_int4_value(-1);
+        };
+        if a.kind > b.kind {
+            return make_int4_value(1);
+        };
+        return make_int4_value(0);
+    };
+    if a.kind >= 5 && a.length >= 0 && b.length >= 0 {
+        if a.length < b.length {
+            return make_int4_value(-1);
+        };
+        if a.length > b.length {
+            return make_int4_value(1);
+        };
+        if a.length == 0 {
+            return make_int4_value(0);
+        };
+    };
+    Int4Value::Unknown
+}
+
 pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> Int4Value {
     if let JsonbValue::Error(error) = left {
         return Int4Value::Error(error);
@@ -312,6 +365,18 @@ pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> 
     if let JsonbValue::Null = right {
         return Int4Value::Null;
     }
+    let mut partial = false;
+    if let JsonbValue::NonNull(_) = left {
+        partial = true;
+    };
+    if let JsonbValue::NonNull(_) = right {
+        partial = true;
+    };
+    if partial {
+        let a = jsonb_root_facts(left, false);
+        let b = jsonb_root_facts(right, false);
+        return jsonb_order_partial(a, b);
+    };
     if let JsonbValue::Value(a) = left {
         if let JsonbValue::Value(b) = right {
             return jsonb_order_walk(&a, &b);

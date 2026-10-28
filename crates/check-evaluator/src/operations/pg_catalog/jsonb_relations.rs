@@ -95,6 +95,33 @@ fn jsonb_relation_count(source: &JsonbPayload, node: JsonbNode) -> usize {
     count
 }
 
+fn jsonb_root_facts(input: JsonbValue, measure: bool) -> JsonbKnowledge {
+    if let JsonbValue::NonNull(facts) = input {
+        return facts;
+    };
+    if let JsonbValue::Value(value) = input {
+        let root = value.nodes[value.root];
+        let mut length: i32 = 1;
+        if root.kind >= 5 {
+            length = jsonb_relation_count(&value, root) as i32;
+        };
+        let mut maximum: i64 = -1i64;
+        if measure {
+            maximum = jsonb_partial_bound(&value);
+        };
+        return JsonbKnowledge {
+            maximum: maximum,
+            kind: root.kind,
+            length: length,
+        };
+    };
+    JsonbKnowledge {
+        maximum: -1i64,
+        kind: -1,
+        length: -1,
+    }
+}
+
 fn jsonb_relation_walk(left: &JsonbPayload, right: &JsonbPayload, contains: bool) -> bool {
     let mut frames: Vec<JsonbRelationFrame> = Vec::new();
     frames.push(jsonb_relation_cursor(left.root, right.root, 0, 0, 0));
@@ -248,6 +275,41 @@ fn jsonb_relation_walk(left: &JsonbPayload, right: &JsonbPayload, contains: bool
     result
 }
 
+fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) -> BoolValue {
+    if a.kind < 0 || b.kind < 0 {
+        return BoolValue::Unknown;
+    };
+    if a.kind != b.kind {
+        if contains && a.kind == 5 && b.kind < 5 && a.length != 0 {
+            return BoolValue::Unknown;
+        };
+        return make_bool_value(false);
+    };
+    if a.kind < 3 {
+        return make_bool_value(true);
+    };
+    if a.kind >= 5 {
+        if contains {
+            if b.length == 0 {
+                return make_bool_value(true);
+            };
+            if a.length >= 0 && b.length >= 0 {
+                if (a.length == 0 && b.length > 0) || (a.kind == 6 && a.length < b.length) {
+                    return make_bool_value(false);
+                };
+            };
+        } else if a.length >= 0 && b.length >= 0 {
+            if a.length != b.length {
+                return make_bool_value(false);
+            };
+            if a.length == 0 {
+                return make_bool_value(true);
+            };
+        };
+    };
+    BoolValue::Unknown
+}
+
 fn jsonb_relation_values(
     left: JsonbValue,
     right: JsonbValue,
@@ -271,6 +333,22 @@ fn jsonb_relation_values(
     };
     if let JsonbValue::Unknown = right {
         return BoolValue::Unknown;
+    };
+    let mut partial = false;
+    if let JsonbValue::NonNull(_) = left {
+        partial = true;
+    };
+    if let JsonbValue::NonNull(_) = right {
+        partial = true;
+    };
+    if partial {
+        let a = jsonb_root_facts(left, false);
+        let b = jsonb_root_facts(right, false);
+        let compared = jsonb_relation_partial(a, b, contains);
+        if let BoolValue::Value(result) = compared {
+            return make_bool_value(result != invert);
+        };
+        return compared;
     };
     if let JsonbValue::Value(a) = left {
         if let JsonbValue::Value(b) = right {

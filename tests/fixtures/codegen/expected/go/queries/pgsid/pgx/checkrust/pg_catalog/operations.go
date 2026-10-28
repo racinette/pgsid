@@ -19957,28 +19957,11 @@ func jsonbEditConcat(left checkruntime.JsonbPayload, right checkruntime.JsonbPay
 	nodes = append(nodes, checkruntime.JsonbNode{Kind: kind, Child: first, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
 	return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: root}}, true)
 }
-func jsonbEditFacts(input checkruntime.JsonbValue) checkruntime.JsonbKnowledge {
-	input = checkruntime.CopyJsonbValue(input)
-	if input.Kind == checkruntime.JsonbValueNonNull {
-		facts := input.NonNull
-		return facts
-	}
-	if input.Kind == checkruntime.JsonbValueValue {
-		value := checkruntime.CopyJsonbPayload(input.Value)
-		root := value.Nodes[value.Root]
-		length := 1
-		if root.Kind >= 5 {
-			length = langruntime.CheckedI32(int(int32(jsonbRelationCount(&value, root))))
-		}
-		return checkruntime.JsonbKnowledge{Maximum: checkruntime.JsonbPartialBound(&value), Kind: root.Kind, Length: length}
-	}
-	return checkruntime.JsonbKnowledge{Maximum: int64(-1), Kind: langruntime.CheckedSignedNegate(1), Length: langruntime.CheckedSignedNegate(1)}
-}
 func jsonbEditPartialConcat(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.JsonbValue {
 	left = checkruntime.CopyJsonbValue(left)
 	right = checkruntime.CopyJsonbValue(right)
-	a := jsonbEditFacts(checkruntime.CopyJsonbValue(left))
-	b := jsonbEditFacts(checkruntime.CopyJsonbValue(right))
+	a := jsonbRootFacts(checkruntime.CopyJsonbValue(left), true)
+	b := jsonbRootFacts(checkruntime.CopyJsonbValue(right), true)
 	if a.Kind == b.Kind && a.Kind >= 5 {
 		if a.Length == 0 {
 			return right
@@ -21097,6 +21080,58 @@ func jsonbOrderWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPa
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
 }
+func jsonbOrderPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowledge) checkruntime.Int4Value {
+	if a.Kind < 0 || b.Kind < 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if a.Kind == 5 && b.Kind < 5 {
+		if a.Length == 0 {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		if a.Length > 0 {
+			return checkruntime.MakeInt4Value(1)
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if a.Kind < 5 && b.Kind == 5 {
+		if b.Length == 0 {
+			return checkruntime.MakeInt4Value(1)
+		}
+		if b.Length > 0 {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	first := jsonbOrderRank(a.Kind)
+	second := jsonbOrderRank(b.Kind)
+	if first < second {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if first > second {
+		return checkruntime.MakeInt4Value(1)
+	}
+	if a.Kind < 3 {
+		if a.Kind < b.Kind {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		if a.Kind > b.Kind {
+			return checkruntime.MakeInt4Value(1)
+		}
+		return checkruntime.MakeInt4Value(0)
+	}
+	if a.Kind >= 5 && a.Length >= 0 && b.Length >= 0 {
+		if a.Length < b.Length {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		if a.Length > b.Length {
+			return checkruntime.MakeInt4Value(1)
+		}
+		if a.Length == 0 {
+			return checkruntime.MakeInt4Value(0)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
 func JsonbCmpN2cx(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.Int4Value {
 	left = checkruntime.CopyJsonbValue(left)
 	right = checkruntime.CopyJsonbValue(right)
@@ -21119,6 +21154,18 @@ func JsonbCmpN2cx(left checkruntime.JsonbValue, right checkruntime.JsonbValue) c
 	}
 	if right.Kind == checkruntime.JsonbValueNull {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	partial := false
+	if left.Kind == checkruntime.JsonbValueNonNull {
+		partial = true
+	}
+	if right.Kind == checkruntime.JsonbValueNonNull {
+		partial = true
+	}
+	if partial {
+		a := jsonbRootFacts(left, false)
+		b := jsonbRootFacts(right, false)
+		return jsonbOrderPartial(a, b)
 	}
 	if left.Kind == checkruntime.JsonbValueValue {
 		a := checkruntime.CopyJsonbPayload(left.Value)
@@ -21313,7 +21360,7 @@ func jsonbPathPartialGrowth(original checkruntime.JsonbKnowledge, replacement ch
 	replacement = checkruntime.CopyJsonbValue(replacement)
 	key = langruntime.CheckedString(key)
 	length = langruntime.CheckedI32(length)
-	added := jsonbEditFacts(replacement)
+	added := jsonbRootFacts(replacement, true)
 	maximum := checkruntime.JsonbPartialAdd(original.Maximum, added.Maximum)
 	maximum = checkruntime.JsonbPartialAdd(maximum, int64(32))
 	if original.Kind == 6 {
@@ -21887,6 +21934,27 @@ func jsonbRelationCount(source *checkruntime.JsonbPayload, node checkruntime.Jso
 	}
 	return count
 }
+func jsonbRootFacts(input checkruntime.JsonbValue, measure bool) checkruntime.JsonbKnowledge {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		return facts
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		root := value.Nodes[value.Root]
+		length := 1
+		if root.Kind >= 5 {
+			length = langruntime.CheckedI32(int(int32(jsonbRelationCount(&value, root))))
+		}
+		maximum := int64(-1)
+		if measure {
+			maximum = checkruntime.JsonbPartialBound(&value)
+		}
+		return checkruntime.JsonbKnowledge{Maximum: maximum, Kind: root.Kind, Length: length}
+	}
+	return checkruntime.JsonbKnowledge{Maximum: int64(-1), Kind: langruntime.CheckedSignedNegate(1), Length: langruntime.CheckedSignedNegate(1)}
+}
 func jsonbRelationWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, contains bool) bool {
 	frames := []jsonbRelationFrame{}
 	langruntime.CheckedAdd(len(frames), 1)
@@ -22019,6 +22087,40 @@ func jsonbRelationWalk(left *checkruntime.JsonbPayload, right *checkruntime.Json
 	}
 	return result
 }
+func jsonbRelationPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowledge, contains bool) checkruntime.BoolValue {
+	if a.Kind < 0 || b.Kind < 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if a.Kind != b.Kind {
+		if contains && a.Kind == 5 && b.Kind < 5 && a.Length != 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		return checkruntime.MakeBoolValue(false)
+	}
+	if a.Kind < 3 {
+		return checkruntime.MakeBoolValue(true)
+	}
+	if a.Kind >= 5 {
+		if contains {
+			if b.Length == 0 {
+				return checkruntime.MakeBoolValue(true)
+			}
+			if a.Length >= 0 && b.Length >= 0 {
+				if (a.Length == 0 && b.Length > 0) || (a.Kind == 6 && a.Length < b.Length) {
+					return checkruntime.MakeBoolValue(false)
+				}
+			}
+		} else if a.Length >= 0 && b.Length >= 0 {
+			if a.Length != b.Length {
+				return checkruntime.MakeBoolValue(false)
+			}
+			if a.Length == 0 {
+				return checkruntime.MakeBoolValue(true)
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbValue, contains bool, invert bool) checkruntime.BoolValue {
 	left = checkruntime.CopyJsonbValue(left)
 	right = checkruntime.CopyJsonbValue(right)
@@ -22041,6 +22143,23 @@ func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbV
 	}
 	if right.Kind == checkruntime.JsonbValueUnknown {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	partial := false
+	if left.Kind == checkruntime.JsonbValueNonNull {
+		partial = true
+	}
+	if right.Kind == checkruntime.JsonbValueNonNull {
+		partial = true
+	}
+	if partial {
+		a := jsonbRootFacts(left, false)
+		b := jsonbRootFacts(right, false)
+		compared := jsonbRelationPartial(a, b, contains)
+		if compared.Kind == checkruntime.BoolValueValue {
+			result := compared.Value
+			return checkruntime.MakeBoolValue(result != invert)
+		}
+		return compared
 	}
 	if left.Kind == checkruntime.JsonbValueValue {
 		a := checkruntime.CopyJsonbPayload(left.Value)

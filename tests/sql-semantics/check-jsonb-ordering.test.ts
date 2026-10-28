@@ -238,7 +238,14 @@ it('matches C/UTF8 JSONB ordering, exact comparator values, container counts, Un
     for (const name of ['lower', 'comparator', 'row_order']) {
       add(name, { ...base, lhs: error('22003'), rhs: error('22012') }, error('22003'))
       add(name, { ...base, lhs: known(null), rhs: error('22012') }, error('22012'))
-      add(name, { ...base, lhs: { kind: 'Unknown' }, rhs: known(null) }, { kind: 'Unknown' })
+      for (const lhs of ['1', 'null', null]) {
+        const witness = await pg.query<{ result: boolean }>(
+          `SELECT (${expressions[name]}) AS result FROM (SELECT $1::jsonb lhs,NULL::jsonb rhs,false expected_lower,0 expected_order,true expected_row) args`,
+          [lhs],
+        )
+        expect(witness.rows[0]!.result, name + ' strict NULL witness').toBe(false)
+      }
+      add(name, { ...base, lhs: { kind: 'Unknown' }, rhs: known(null) }, { kind: 'False' })
       add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unknown' })
     }
     add('lower', { ...base, expected_lower: known(true) }, { kind: 'False' })
