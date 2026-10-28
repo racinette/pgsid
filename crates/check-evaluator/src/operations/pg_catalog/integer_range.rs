@@ -22,14 +22,6 @@ fn integer_in_range(
     if let BoolValue::Error(error) = less {
         return BoolValue::Error(error);
     }
-    if value == Int8Value::Unknown
-        || base == Int8Value::Unknown
-        || offset == Int8Value::Unknown
-        || subtract == BoolValue::Unknown
-        || less == BoolValue::Unknown
-    {
-        return BoolValue::Unknown;
-    }
     if value == Int8Value::Null
         || base == Int8Value::Null
         || offset == Int8Value::Null
@@ -37,6 +29,14 @@ fn integer_in_range(
         || less == BoolValue::Null
     {
         return BoolValue::Null;
+    }
+    if value == Int8Value::Unknown
+        || base == Int8Value::Unknown
+        || offset == Int8Value::Unknown
+        || subtract == BoolValue::Unknown
+        || less == BoolValue::Unknown
+    {
+        return BoolValue::Unknown;
     }
     if let Int8Value::Value(input) = value {
         if let Int8Value::Value(center) = base {

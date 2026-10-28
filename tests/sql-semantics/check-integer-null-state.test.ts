@@ -24,7 +24,15 @@ const failure = (state: string): Input & Outcome => ({
   value: { state: parseInt(state, 36) },
 })
 const unknown: Input = { kind: 'Unknown' }
-const sources = ['integer', 'bigint', 'bigint_arithmetic', 'smallint']
+const sources = [
+  'integer',
+  'bigint',
+  'bigint_arithmetic',
+  'smallint',
+  'integer_support',
+  'integer_bitwise',
+  'integer_hash',
+]
   .map((name) =>
     readFileSync(`crates/check-evaluator/src/operations/pg_catalog/${name}.rs`, 'utf8'),
   )
@@ -59,6 +67,11 @@ it('preserves strict integer NULLs without hiding reached or possible operand fa
       { name: 'sum', sql: '(l4/r4)+n4' },
       { name: 'divisor', sql: 'n4/(l4/r4)' },
       { name: 'comparison', sql: '(l4/r4)=n4' },
+      { name: 'bitwise', sql: 'n4 & (l4/r4)' },
+      { name: 'shift', sql: 'n4 << (l4/r4)' },
+      { name: 'support', sql: 'int4larger(n4,l4/r4)' },
+      { name: 'hash', sql: 'hashint4extended(n4,(l4/r4)::bigint)' },
+      { name: 'window', sql: 'in_range(n4,l4/r4,n4,false,false)' },
       { name: 'selected', sql: '(CASE WHEN branch THEN l4/r4 ELSE n4 END)+n4' },
       { name: 'coalesced', sql: 'COALESCE(l4/r4,n4)' },
     ]
@@ -68,7 +81,7 @@ it('preserves strict integer NULLs without hiding reached or possible operand fa
     }))
     await pg.exec(`CREATE TABLE integer_null_inputs(
       l2 int2,r2 int2,l4 int4,r4 int4,l8 int8,r8 int8,n4 int4,branch bool,bypass bool,
-      ${checks.map((form) => `CONSTRAINT ${form.name} CHECK(${form.expression})`).join(',')})`)
+      ${checks.map((form) => `CONSTRAINT "${form.name}" CHECK(${form.expression})`).join(',')})`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((table) => table.name === 'integer_null_inputs')!
     const plans = checks.flatMap((form) =>

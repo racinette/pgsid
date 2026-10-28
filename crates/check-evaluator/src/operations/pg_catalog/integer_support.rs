@@ -5,11 +5,11 @@ fn integer_support_compare(left: Int8Value, right: Int8Value) -> Int4Value {
     if let Int8Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int8Value::Value(a) = left {
         if let Int8Value::Value(b) = right {
@@ -110,11 +110,11 @@ fn integer_boolean_merge(left: BoolValue, right: BoolValue, conjunction: bool) -
     if let BoolValue::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == BoolValue::Unknown || right == BoolValue::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == BoolValue::Null || right == BoolValue::Null {
         return BoolValue::Null;
+    }
+    if left == BoolValue::Unknown || right == BoolValue::Unknown {
+        return BoolValue::Unknown;
     }
     if let BoolValue::Value(a) = left {
         if let BoolValue::Value(b) = right {
@@ -142,11 +142,11 @@ pub fn sql__pg_catalog__int2larger__9kfl(left: Int2Value, right: Int2Value) -> I
     if let Int2Value::Error(error) = right {
         return Int2Value::Error(error);
     }
-    if left == Int2Value::Unknown || right == Int2Value::Unknown {
-        return Int2Value::Unknown;
-    }
     if left == Int2Value::Null || right == Int2Value::Null {
         return Int2Value::Null;
+    }
+    if left == Int2Value::Unknown || right == Int2Value::Unknown {
+        return Int2Value::Unknown;
     }
     if let Int2Value::Value(a) = left {
         if let Int2Value::Value(b) = right {
@@ -166,11 +166,11 @@ pub fn sql__pg_catalog__int2smaller__ng6s(left: Int2Value, right: Int2Value) -> 
     if let Int2Value::Error(error) = right {
         return Int2Value::Error(error);
     }
-    if left == Int2Value::Unknown || right == Int2Value::Unknown {
-        return Int2Value::Unknown;
-    }
     if left == Int2Value::Null || right == Int2Value::Null {
         return Int2Value::Null;
+    }
+    if left == Int2Value::Unknown || right == Int2Value::Unknown {
+        return Int2Value::Unknown;
     }
     if let Int2Value::Value(a) = left {
         if let Int2Value::Value(b) = right {
@@ -190,11 +190,11 @@ pub fn sql__pg_catalog__int4larger__fm8j(left: Int4Value, right: Int4Value) -> I
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(a) = left {
         if let Int4Value::Value(b) = right {
@@ -214,11 +214,11 @@ pub fn sql__pg_catalog__int4smaller__ip0x(left: Int4Value, right: Int4Value) -> 
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(a) = left {
         if let Int4Value::Value(b) = right {
@@ -238,11 +238,11 @@ pub fn sql__pg_catalog__int8larger__uf9y(left: Int8Value, right: Int8Value) -> I
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(a) = left {
         if let Int8Value::Value(b) = right {
@@ -262,11 +262,11 @@ pub fn sql__pg_catalog__int8smaller__weow(left: Int8Value, right: Int8Value) -> 
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(a) = left {
         if let Int8Value::Value(b) = right {
@@ -335,11 +335,11 @@ fn integer_support_gcd(left: Int8Value, right: Int8Value) -> Int8Value {
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(first) = left {
         if let Int8Value::Value(second) = right {
@@ -393,11 +393,11 @@ pub fn sql__pg_catalog__lcm__wnc0(left: Int8Value, right: Int8Value) -> Int8Valu
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(first) = left {
         if let Int8Value::Value(second) = right {

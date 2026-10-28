@@ -1263,3 +1263,18 @@ INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units,
 INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 1, 0, NULL, NULL, false, false);
 -- name: bulk_package_skipped_division_with_null_comparison
 INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 1, 0, NULL, NULL, true, true);
+
+-- name: stock_window_null_direction_skips_negative_offsets
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window) VALUES (2, 1, 1, 1, 0, 0, 0, -1, -1, -1, NULL, false, false);
+-- name: stock_window_null_comparison_skips_negative_offsets
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window) VALUES (2, 1, 1, 1, 0, 0, 0, -1, -1, -1, false, NULL, false);
+-- name: stock_math_null_count_skips_minimum_magnitude
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, skip_calculation) VALUES (2, NULL, -2147483648, NULL, -9223372036854775808, false);
+-- name: stock_null_bits_with_minimum_shift
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, shift_distance, small_shift_left, ordinary_shift_left, bulk_shift_left) VALUES (2, NULL, NULL, NULL, -2147483648, 0, 0, 0);
+-- name: stock_hash_null_seed
+INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash) VALUES (2, -32768, -2147483648, -9223372036854775808, true, NULL, 0, 0, 0, 0);
+-- name: stock_boolean_strict_null_after_false
+INSERT INTO stock_boolean_records (id, selected, permitted, recorded_both, recorded_either) VALUES (2, false, NULL, true, false);
+-- name: stock_boolean_strict_null_before_true
+INSERT INTO stock_boolean_records (id, selected, permitted, recorded_both, recorded_either) VALUES (2, NULL, true, true, false);
