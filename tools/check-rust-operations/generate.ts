@@ -520,8 +520,14 @@ try {
     }
     if (inputCount(fn.shape) === 2)
       cases.push(
-        { inputs: [{ kind: 'Unknown' }, { kind: 'Null' }], expected: { kind: 'Unknown' } },
-        { inputs: [{ kind: 'Null' }, { kind: 'Unknown' }], expected: { kind: 'Unknown' } },
+        {
+          inputs: [{ kind: 'Unknown' }, { kind: 'Null' }],
+          expected: { kind: fn.shape.startsWith('int') ? 'Null' : 'Unknown' },
+        },
+        {
+          inputs: [{ kind: 'Null' }, { kind: 'Unknown' }],
+          expected: { kind: fn.shape.startsWith('int') ? 'Null' : 'Unknown' },
+        },
         { inputs: [error, { kind: 'Null' }], expected: error },
         { inputs: [error, { kind: 'Unknown' }], expected: error },
       )

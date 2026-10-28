@@ -334,7 +334,7 @@ it('uses concrete argument types and resolved collation facts without inventing 
             fixtures.push({
               name,
               row: { ...row, divisor: { kind: 'Unknown' } },
-              expected: { kind: 'Unknown' },
+              expected,
             })
           }
         }

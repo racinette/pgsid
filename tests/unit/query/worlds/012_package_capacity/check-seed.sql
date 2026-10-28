@@ -1250,3 +1250,16 @@ INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_s
 INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (0,0,1,0,0,0,1,'0',0,false);
 -- name: StockSumSkippedErrors
 INSERT INTO stock_sum_states(bigint_state,small_amount,ordinary_amount,numeric_state,bulk_amount,expected_small,expected_ordinary,expected_numeric,denominator,bypass) VALUES (0,0,1,0,0,99,99,'wrong',0,true);
+
+-- name: package_null_numerator_zero_divisor
+INSERT INTO package_capacity (id, width, height, capacity, slots, batch_size, adjustment) VALUES (2, NULL, 2147483647, NULL, 0, 0, NULL);
+-- name: package_null_comparison_keeps_product_error
+INSERT INTO package_capacity (id, width, height, capacity, slots, batch_size, adjustment) VALUES (2, 2147483647, 2, NULL, NULL, 1, NULL);
+-- name: small_package_null_numerator_zero_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, NULL, 32767, NULL, 0, 0, NULL, false);
+-- name: bulk_package_null_numerator_zero_divisor
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, NULL, 0, 0, 0, false, false);
+-- name: bulk_package_null_comparison_keeps_division_error
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 1, 0, NULL, NULL, false, false);
+-- name: bulk_package_skipped_division_with_null_comparison
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 1, 0, NULL, NULL, true, true);

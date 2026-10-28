@@ -3847,11 +3847,11 @@ func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -3872,11 +3872,11 @@ func Int84ltZ0bo(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -3897,11 +3897,11 @@ func Int8ltCryd(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -3921,11 +3921,11 @@ func Int48le532p(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -3946,11 +3946,11 @@ func Int84le0gdr(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -3971,11 +3971,11 @@ func Int8le9fr4(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -3995,11 +3995,11 @@ func Int48neInar(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -4020,11 +4020,11 @@ func Int84ne6b8h(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4045,11 +4045,11 @@ func Int8neUr2k(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4069,11 +4069,11 @@ func Int48eq7ot5(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -4094,11 +4094,11 @@ func Int84eqBnoq(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4119,11 +4119,11 @@ func Int8eqJdhd(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4143,11 +4143,11 @@ func Int48gtSrgr(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -4168,11 +4168,11 @@ func Int84gtP7f5(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4193,11 +4193,11 @@ func Int8gt3ehj(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4217,11 +4217,11 @@ func Int48geD53z(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -4242,11 +4242,11 @@ func Int84geBiti(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4267,11 +4267,11 @@ func Int8geQfhv(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4291,11 +4291,11 @@ func Int8pl1v1h(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4321,11 +4321,11 @@ func Int8miJasl(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 		error := right.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4408,11 +4408,11 @@ func Int8mul6t1m(left checkruntime.Int8Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4444,11 +4444,11 @@ func Int8div8s66(left checkruntime.Int8Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -4474,11 +4474,11 @@ func Int8mod2t8f(left checkruntime.Int8Value, right checkruntime.Int8Value) chec
 		error := right.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
 	}
-	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
-		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
-	}
 	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int8ValueValue {
 		leftValue := left.Value
@@ -13893,11 +13893,11 @@ func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -13917,11 +13917,11 @@ func Int4eqLrxe(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -13941,11 +13941,11 @@ func Int4ge2xvk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -13965,11 +13965,11 @@ func Int4le9wb6(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -13989,11 +13989,11 @@ func Int4lt9gej(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14013,11 +14013,11 @@ func Int4neQhun(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14040,11 +14040,11 @@ func Int4plSj3s(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14071,11 +14071,11 @@ func Int4miDtqk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14105,11 +14105,11 @@ func Int4mul284v(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14142,11 +14142,11 @@ func Int4div8ogr(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)
@@ -14172,11 +14172,11 @@ func Int4modJ4pe(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 		error := right.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
 	}
-	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
 	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if left.Kind == checkruntime.Int4ValueValue {
 		leftValue := langruntime.CheckedI32(left.Value)

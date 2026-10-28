@@ -3843,11 +3843,11 @@ export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -3868,11 +3868,11 @@ export function int84ltZ0bo(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -3893,11 +3893,11 @@ export function int8ltCryd(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -3917,11 +3917,11 @@ export function int48le532p(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -3942,11 +3942,11 @@ export function int84le0gdr(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -3967,11 +3967,11 @@ export function int8le9fr4(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -3991,11 +3991,11 @@ export function int48neInar(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -4016,11 +4016,11 @@ export function int84ne6b8h(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4041,11 +4041,11 @@ export function int8neUr2k(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4065,11 +4065,11 @@ export function int48eq7ot5(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -4090,11 +4090,11 @@ export function int84eqBnoq(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4115,11 +4115,11 @@ export function int8eqJdhd(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4139,11 +4139,11 @@ export function int48gtSrgr(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -4164,11 +4164,11 @@ export function int84gtP7f5(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4189,11 +4189,11 @@ export function int8gt3ehj(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4213,11 +4213,11 @@ export function int48geD53z(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -4238,11 +4238,11 @@ export function int84geBiti(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4263,11 +4263,11 @@ export function int8geQfhv(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4287,11 +4287,11 @@ export function int8pl1v1h(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4317,11 +4317,11 @@ export function int8miJasl(left: checkruntime.Int8Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4404,11 +4404,11 @@ export function int8mul6t1m(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4440,11 +4440,11 @@ export function int8div8s66(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -4470,11 +4470,11 @@ export function int8mod2t8f(left: checkruntime.Int8Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: bigint = langruntime.checkedI64(left.value);
@@ -13978,11 +13978,11 @@ export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14002,11 +14002,11 @@ export function int4eqLrxe(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14026,11 +14026,11 @@ export function int4ge2xvk(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14050,11 +14050,11 @@ export function int4le9wb6(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14074,11 +14074,11 @@ export function int4lt9gej(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14098,11 +14098,11 @@ export function int4neQhun(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14123,11 +14123,11 @@ export function int4plSj3s(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14154,11 +14154,11 @@ export function int4miDtqk(left: checkruntime.Int4Value, right: checkruntime.Int
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14186,11 +14186,11 @@ export function int4mul284v(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14223,11 +14223,11 @@ export function int4div8ogr(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
@@ -14253,11 +14253,11 @@ export function int4modJ4pe(left: checkruntime.Int4Value, right: checkruntime.In
         const error: checkruntime.SqlError = right.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalInt4Value(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     if (left.kind === "Value") {
         const leftValue: number = langruntime.checkedI32(left.value);
