@@ -229,3 +229,13 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '1999/12/31 23:59:59.999999-15', '1999-12-31 23:59:59.999999', false);
 -- name: instant_wide_fields_zone
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000.01.01 12:00+05', '2000-01-01 07:00:00+00', false);
+-- name: calendar_space_separated_fields
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000  02 29', '2000-02-29', false);
+-- name: calendar_ordinal_trailing_separator
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-060-', '2000-02-29', false);
+-- name: calendar_ordinal_third_field_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-001-01', NULL, false);
+-- name: local_space_separated_fields_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 12 31 24:00:00', '2001-01-01 00:00:00', false);
+-- name: instant_space_separated_fields_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 01 01 12:00+05', '2000-01-01 07:00:00+00', false);
