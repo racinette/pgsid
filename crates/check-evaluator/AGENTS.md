@@ -386,7 +386,16 @@ import them. Keep schema-only helpers with their callables.
   Compact dates reserve the last four digits for month/day and interpret exactly
   two year digits using the fixed 1970–2069 window, except under BC. Compact
   year fields outside int4 defer because native atoi overflow is not portable.
-  Invalid supported calendar values return
+  Ordinal dates pair a year of at least three digits with a three-digit day of
+  year from 1 through 366, separated by a hyphen, slash or period, or by
+  whitespace after a three- to five-digit year. The day normalizes through
+  Julian-day arithmetic, so day 366 of a common year is the next January 1.
+  Days before the unsigned Julian split wrap as PostgreSQL's unsigned arithmetic
+  does; years whose signed intermediates leave int4 defer. One- and two-digit
+  ordinal years defer because DateStyle field order decides them. Other
+  two-field numeric dates return 22007, or 22008 when a field overflows int4
+  at the end of input. Date text with an appended clock defers. Invalid
+  supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.
@@ -435,7 +444,9 @@ import them. Keep schema-only helpers with their callables.
   PostgreSQL. Both parsers share calendar construction and text decoding in
   Rust. Fractional input uses nearest-even microsecond rounding and can carry
   into the next day; epoch denotes the Unix epoch without session interpretation.
-  Compact dates share that year policy. Compact four/six-digit clocks retain
+  Compact and ordinal dates share that year policy. Ordinal days convert after
+  numeric offsets validate and before missing-timezone deferral.
+  Compact four/six-digit clocks retain
   their native arithmetic normalization, including fields beyond ordinary clock
   limits and carry across days; colon-separated clocks remain range-checked.
   Fractional compact clocks share nearest-even rounding. Fixed numeric offsets

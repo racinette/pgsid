@@ -15894,6 +15894,131 @@ function dateTextDigit(value: string): number {
     }
     return langruntime.checkedSignedNegate(1);
 }
+const ordinalDateAbsent = 0;
+const ordinalDateFound = 1;
+const ordinalDateDeferred = 2;
+const ordinalDateSyntax = 3;
+const ordinalDateOverflow = 4;
+interface OrdinalDateText {
+    state: number;
+    next: number;
+    year: number;
+    overflow: boolean;
+    day: number;
+}
+function copyOrdinalDateText(value: OrdinalDateText): OrdinalDateText {
+    return { state: langruntime.checkedI32(value.state), next: langruntime.checkedIndex(value.next), year: langruntime.checkedI32(value.year), overflow: langruntime.checkedBool(value.overflow), day: langruntime.checkedI32(value.day) };
+}
+interface OrdinalCalendar {
+    known: boolean;
+    year: number;
+    month: number;
+    day: number;
+}
+function copyOrdinalCalendar(value: OrdinalCalendar): OrdinalCalendar {
+    return { known: langruntime.checkedBool(value.known), year: langruntime.checkedI32(value.year), month: langruntime.checkedI32(value.month), day: langruntime.checkedI32(value.day) };
+}
+function readOrdinalDate(text: TimestampText, start: number, end: number): OrdinalDateText {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    const year: TimestampNumber = readTimestampNumber(text, start, end);
+    let index: number = year.next;
+    let state: number = ordinalDateAbsent;
+    let day: number = 0;
+    if (year.digits > 0 && index < end) {
+        const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+        if (separator === "-" || separator === "/" || separator === ".") {
+            const field: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+            if (field.digits > 0 && (field.next === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next)) === separator))) {
+                index = langruntime.checkedIndex(field.next);
+                if (field.digits === 3 && field.value >= 1 && field.value <= 366) {
+                    state = langruntime.checkedI32(ordinalDateFound);
+                    day = langruntime.checkedI32(field.value);
+                    if (year.digits <= 2) {
+                        state = langruntime.checkedI32(ordinalDateDeferred);
+                    }
+                }
+                else if (year.overflow || field.overflow) {
+                    state = langruntime.checkedI32(ordinalDateDeferred);
+                    if (index === end) {
+                        state = langruntime.checkedI32(ordinalDateOverflow);
+                    }
+                }
+                else {
+                    state = langruntime.checkedI32(ordinalDateSyntax);
+                }
+            }
+        }
+        else if (dateTextSpace(separator) && year.digits >= 3 && year.digits <= 5) {
+            let position: number = index;
+            while (position < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(position)))) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const field: TimestampNumber = readTimestampNumber(text, position, end);
+            if (field.digits === 3 && field.value >= 1 && field.value <= 366 && (field.next === end || dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) === "t")) {
+                state = langruntime.checkedI32(ordinalDateFound);
+                day = langruntime.checkedI32(field.value);
+                index = langruntime.checkedIndex(field.next);
+            }
+        }
+    }
+    return { state: state, next: index, year: year.value, overflow: year.overflow, day: day };
+}
+function ordinalInt4Range(value: bigint): boolean {
+    value = langruntime.checkedI64(value);
+    return value >= -2147483648n && value <= 2147483647n;
+}
+function calendarFromOrdinal(year: number, day: number): OrdinalCalendar {
+    year = langruntime.checkedI32(year);
+    day = langruntime.checkedI32(day);
+    if (year === 0) {
+        return { known: true, year: 0, month: 1, day: 1 };
+    }
+    let astronomical: bigint = BigInt(langruntime.checkedI32(year));
+    if (year < 0) {
+        astronomical = langruntime.checkedI64(langruntime.checkedI64Add(astronomical, 1n));
+    }
+    const shifted: bigint = langruntime.checkedI64Add(astronomical, 4799n);
+    const century: bigint = langruntime.checkedI64Divide(shifted, 100n);
+    const scaled: bigint = langruntime.checkedI64Multiply(shifted, 365n);
+    const based: bigint = langruntime.checkedI64Subtract(scaled, 32167n);
+    const leap: bigint = langruntime.checkedI64Add(based, (langruntime.checkedI64Add(langruntime.checkedI64Subtract(langruntime.checkedI64Divide(shifted, 4n), century), langruntime.checkedI64Divide(century, 4n))));
+    const first: bigint = langruntime.checkedI64Add(leap, 429n);
+    const wideDay: bigint = BigInt(langruntime.checkedI32(day));
+    const counted: bigint = langruntime.checkedI64Add(first, wideDay);
+    const julianDay: bigint = langruntime.checkedI64Subtract(counted, 1n);
+    if (ordinalInt4Range(shifted) === false || ordinalInt4Range(scaled) === false || ordinalInt4Range(based) === false || ordinalInt4Range(leap) === false || ordinalInt4Range(first) === false || ordinalInt4Range(counted) === false || ordinalInt4Range(julianDay) === false) {
+        return { known: false, year: 0, month: 0, day: 0 };
+    }
+    let julian: bigint = langruntime.checkedI64Add(julianDay, 32044n);
+    if (julian < 0n) {
+        julian = langruntime.checkedI64(langruntime.checkedI64Add(julian, 4294967296n));
+    }
+    const era: bigint = langruntime.checkedI64Divide(julian, 146097n);
+    const extra: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(julian, langruntime.checkedI64Multiply(era, 146097n))), 4n), 3n);
+    julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(julian, 60n), langruntime.checkedI64Multiply(era, 3n)), langruntime.checkedI64Divide(extra, 146097n)));
+    if (julian >= 4294967296n) {
+        julian = langruntime.checkedI64(langruntime.checkedI64Subtract(julian, 4294967296n));
+    }
+    const cycle: bigint = langruntime.checkedI64Divide(julian, 1461n);
+    julian = langruntime.checkedI64(langruntime.checkedI64Subtract(julian, langruntime.checkedI64Multiply(cycle, 1461n)));
+    let cycleYear: bigint = langruntime.checkedI64Divide(langruntime.checkedI64Multiply(julian, 4n), 1461n);
+    if (!(cycleYear === 0n)) {
+        julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 305n)), 365n), 123n));
+    }
+    else {
+        julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 306n)), 366n), 123n));
+    }
+    cycleYear = langruntime.checkedI64(langruntime.checkedI64Add(cycleYear, langruntime.checkedI64Multiply(cycle, 4n)));
+    let calendarYear: bigint = langruntime.checkedI64Subtract(cycleYear, 4800n);
+    if (calendarYear <= 0n) {
+        calendarYear = langruntime.checkedI64(langruntime.checkedI64Subtract(calendarYear, 1n));
+    }
+    const monthIndex: bigint = langruntime.checkedI64Divide(langruntime.checkedI64Multiply(julian, 2141n), 65536n);
+    const calendarDay: bigint = langruntime.checkedI64Subtract(julian, langruntime.checkedI64Divide(langruntime.checkedI64Multiply(7834n, monthIndex), 256n));
+    const calendarMonth: bigint = langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(monthIndex, 10n)), 12n), 1n);
+    return { known: true, year: Number(BigInt.asIntN(32, langruntime.checkedI64(calendarYear))), month: Number(BigInt.asIntN(32, langruntime.checkedI64(calendarMonth))), day: Number(BigInt.asIntN(32, langruntime.checkedI64(calendarDay))) };
+}
 function calendarShortYear(year: number, digits: number, bc: boolean): number {
     year = langruntime.checkedI32(year);
     digits = langruntime.checkedIndex(digits);
@@ -16021,6 +16146,34 @@ export function dateFromText(value: TextValue): DateValue {
                 }
                 return { kind: "Value", value: 2147483647 };
             }
+        }
+        const ordinalText: TimestampText = { chars: Array.from(text) };
+        const ordinal: OrdinalDateText = readOrdinalDate(ordinalText, start, end);
+        if (ordinal.state === ordinalDateSyntax) {
+            return { kind: "Error", value: { state: invalidDateText } };
+        }
+        if (ordinal.state === ordinalDateOverflow) {
+            return { kind: "Error", value: { state: dateFieldOverflow } };
+        }
+        if (ordinal.state === ordinalDateDeferred) {
+            return { kind: "Unknown" };
+        }
+        if (ordinal.state === ordinalDateFound) {
+            if (!(ordinal.next === end)) {
+                return { kind: "Unknown" };
+            }
+            if (ordinal.overflow) {
+                return { kind: "Error", value: { state: dateFieldOverflow } };
+            }
+            let ordinalYear: number = ordinal.year;
+            if (bc) {
+                ordinalYear = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, ordinalYear));
+            }
+            const calendar: OrdinalCalendar = calendarFromOrdinal(ordinalYear, ordinal.day);
+            if (calendar.known === false) {
+                return { kind: "Unknown" };
+            }
+            return dateFromYmd(calendar.year, calendar.month, calendar.day);
         }
         let index: number = start;
         let year: number = 0;
@@ -16181,7 +16334,7 @@ function readTimestampNumber(text: TimestampText, start: number, end: number): T
     }
     return { next: index, digits: langruntime.checkedSubtract(index, start), value: value, overflow: overflow };
 }
-function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean, allowFractionCarry: boolean, missingTimezone: boolean, compactClock: boolean): Int8Value {
+function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean, allowFractionCarry: boolean, missingTimezone: boolean, compactClock: boolean, ordinalDay: number): Int8Value {
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
@@ -16194,6 +16347,7 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     allowFractionCarry = langruntime.checkedBool(allowFractionCarry);
     missingTimezone = langruntime.checkedBool(missingTimezone);
     compactClock = langruntime.checkedBool(compactClock);
+    ordinalDay = langruntime.checkedI32(ordinalDay);
     let maxFraction: number = 999999;
     if (allowFractionCarry) {
         maxFraction = langruntime.checkedI32(1000000);
@@ -16211,7 +16365,19 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     if (offsetSeconds < langruntime.checkedSignedNegate(57599) || offsetSeconds > 57599) {
         return { kind: "Error", value: { state: invalidTimestampZone } };
     }
-    const days: Int4Value = calendarDaysFromYmd(year, month, day);
+    let calendarYear: number = year;
+    let calendarMonth: number = month;
+    let calendarDay: number = day;
+    if (ordinalDay > 0) {
+        const ordinal: OrdinalCalendar = calendarFromOrdinal(year, ordinalDay);
+        if (ordinal.known === false) {
+            return { kind: "Unknown" };
+        }
+        calendarYear = langruntime.checkedI32(ordinal.year);
+        calendarMonth = langruntime.checkedI32(ordinal.month);
+        calendarDay = langruntime.checkedI32(ordinal.day);
+    }
+    const days: Int4Value = calendarDaysFromYmd(calendarYear, calendarMonth, calendarDay);
     if (days.kind === "Error") {
         const error: SqlError = days.value;
         return { kind: "Error", value: error };
@@ -16221,7 +16387,7 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
         if (missingTimezone) {
             return { kind: "Unknown" };
         }
-        if ((year === langruntime.checkedSignedNegate(4714) && month < 11) || (compactClock === false && dayValue < langruntime.checkedSignedNegate(2451546)) || dayValue > 106751983) {
+        if ((calendarYear === langruntime.checkedSignedNegate(4714) && calendarMonth < 11) || (compactClock === false && dayValue < langruntime.checkedSignedNegate(2451546)) || dayValue > 106751983) {
             return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
         const daysWide: bigint = BigInt(langruntime.checkedI32(dayValue));
@@ -16286,7 +16452,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
         }
         if (langruntime.checkedSubtract(end, start) === 5 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(start))) === "e" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "p" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "o" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)))) === "h") {
-            return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false);
+            return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false, 0);
         }
         let infinityStart: number = start;
         let negative: boolean = false;
@@ -16314,13 +16480,30 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
                 return makeInt8Value(9223372036854775807n);
             }
         }
+        const ordinal: OrdinalDateText = readOrdinalDate(text, start, end);
+        if (ordinal.state === ordinalDateSyntax) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        if (ordinal.state === ordinalDateOverflow) {
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
+        }
+        if (ordinal.state === ordinalDateDeferred) {
+            return { kind: "Unknown" };
+        }
         const yearField: TimestampNumber = readTimestampNumber(text, start, end);
         let year: number = yearField.value;
         let yearOverflow: boolean = yearField.overflow;
         let index: number = yearField.next;
         let month: number = 0;
         let day: number = 0;
-        if (yearField.digits >= 6 && (index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-"))) {
+        let ordinalDay: number = 0;
+        if (ordinal.state === ordinalDateFound) {
+            year = langruntime.checkedI32(ordinal.year);
+            yearOverflow = langruntime.checkedBool(ordinal.overflow);
+            index = langruntime.checkedIndex(ordinal.next);
+            ordinalDay = langruntime.checkedI32(ordinal.day);
+        }
+        else if (yearField.digits >= 6 && (index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-"))) {
             const compactYear: TimestampNumber = readTimestampNumber(text, start, langruntime.checkedSubtract(index, 4));
             if (compactYear.overflow) {
                 return { kind: "Unknown" };
@@ -16356,7 +16539,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             if (yearOverflow) {
                 return { kind: "Error", value: { state: timestampFieldOverflow } };
             }
-            return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false);
+            return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay);
         }
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
@@ -16507,7 +16690,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
         if (yearOverflow) {
             return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
-        return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock);
+        return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay);
     }
     return { kind: "Unknown" };
 }
@@ -16533,7 +16716,7 @@ export function timestampFromCalendar(year: number, month: number, day: number, 
     minute = langruntime.checkedI32(minute);
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false, 0);
     return timestampFromMicroseconds(parsed);
 }
 export function timestampFromText(value: TextValue): TimestampValue {
@@ -16563,7 +16746,7 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false, 0);
     return timestamptzFromMicroseconds(parsed);
 }
 export function timestamptzFromText(value: TextValue): TimestamptzValue {

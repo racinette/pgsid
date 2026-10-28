@@ -1,79 +1,27 @@
 # CHECK evaluator continuation handoff
 
-The user requested stopping and handing off; the goal is paused and incomplete. Resume implementation only after a new explicit request. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. Latest implementation commit is `2adde0cb` (compact calendar/clock input), preceded by `11b36543` (integer Julian dates) and `61e8c0f6` (JSONB overwrite/deletion). No production or test changes are pending. The broad goal remains incomplete; preserve every unchecked ledger audit and final integration requirement.
+The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit adds ordinal temporal input (identify it with `git log`), preceded by `2adde0cb` (compact calendar/clock input) and `11b36543` (integer Julian dates). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
 
 ## Current temporal checkpoint
 
-Baseline is PostgreSQL **18.6**, PGlite **0.5.9**, server_version_num **180006**. Native probes and source inspection use PostgreSQL 18 (REL_18_STABLE datetime.c); do not use 17. The last implementation turn made verified progress in `2adde0cb`, extending compact calendar/clock grammar. Evidence is in artifacts/goal-checks/temporal-compact-active/. The following turn only gathered ordinal-date evidence before the user requested this handoff.
+Baseline is PostgreSQL **18.6**, PGlite **0.5.9**, server_version_num **180006**. Source inspection uses REL_18_STABLE datetime.c. Evidence is in artifacts/goal-checks/temporal-ordinal-active/ (ignored; native.json, native-boundaries.json, edge-probe.log, oracle.tsv, owner/consumer/golden logs and JSON reports).
 
-Maintained src/date.rs accepts a standalone digit run of at least six digits, reserving its last four digits for month/day. Exactly two year digits expand through the fixed 1970–2069 window unless BC was specified; longer year widths keep their numeric year, including leading zeroes. Native atoi year overflow is outside the portable contract and returns Unknown: the native probe demonstrates an oversized year wrapping to a valid 2000 date. In-range int4 years still receive ordinary calendar/range validation. Existing ISO and Julian forms retain their prior paths.
+Ordinal grammar mirrors DecodeDate/DecodeNumber. A digit run, then `-`, `/` or `.`, then a digit run not followed by the same separator is a two-field date. With a year of at least three digits and a three-digit second field in 1–366 it is an ordinal date; with a one/two-digit year it defers, because DateStyle decides (`00-001` fails in MDY/DMY, succeeds in YMD). Any other two-field date returns 22007, except an int4 field overflow at end of input returns 22008; with trailing text an overflow defers, because ParseDateTime lexical failures (22007) win. Whitespace-separated ordinals need a three- to five-digit year and a three-digit day followed by end, whitespace or `t`; six-plus-digit first fields stay compact dates. Three-field dates keep their earlier paths. Date text keeps deferring for any appended clock.
 
-src/timestamp.rs decodes that same compact date prefix before the existing ISO/compact clock paths. Four/six-digit clocks split HHMM/HHMMSS and share the fractional-second nearest-even conversion. PostgreSQL deliberately normalizes these compact components arithmetically: 250000 can carry into tomorrow; 999999 carries several days. Colon-separated clocks retain their earlier field and end-of-day errors. The private calendar conversion now receives compact_clock; only the parser enables it, constructors and all existing calls pass false. Native compact clocks skip ordinary clock validation; numeric offset errors precede calendar validation. Missing timezone still defers after calendar validation; final timestamp range checks apply after carry and fixed offset. Compact carry can recover the lower date boundary from earlier calendar days, so only this path bypasses the former one-day lower precheck. The upper arithmetic guard remains.
+Day conversion reproduces date2j then j2date. date2j runs in i64 with every signed intermediate checked against int4; leaving int4 returns Unknown (PGlite wraps there, e.g. `2147483647-001` → 4453803-12-24; no portable signed-wrap contract is assumed). j2date emulates its two unsigned 32-bit additions modulo 2^32. That wrap is defined C behaviour and changes results: `4801-001 BC` natively becomes 4560-06-19 BC, while `4800-001 BC` and `5000-001 BC` fail. The private calendar conversion takes an ordinal day after compact_clock; constructors and non-ordinal parses pass 0. Conversion runs after clock-field and numeric-offset checks and before missing-timezone deferral, as ValidateDate does, so `0000-366 000000+16` is 22009 and `2000-367 000000+16` is lexical 22007.
 
-Affected owners are check-date-text.test.ts, check-timestamp-text.test.ts, check-timestamptz-text.test.ts and their shared form inventory. They cover binary exactness, date-field orders/session zones, raw casts, source literals, errors, Unknown, lazy branches and public APIs. JSON scalar population adds date/timestamp/timestamptz string/array/object forms and hard/soft errors. The 024_temporal_ingestion world adds named compact input/carry/boundary/error/skip cases. Crate guidance states the native distinction and overflow deferral. No AST or public value representation change is needed.
+Verification: a scratch Rust binary compared every probed input in all DateStyle orders (537 type/input pairs) with no mismatch; its Unknowns were reviewed as overflow, DateStyle, date-with-clock or out-of-slice grammar. The three parser owners pass (an initial run failed Go compilation because `OrdinalCalendar` and `ordinal_calendar` both lowered to `ordinalCalendar`; the helper is now `calendar_from_ordinal`; first-failure/ keeps those logs). check-time-input/check-temporal-input-rounding, JSON population with PGSID_CHECK_JSON_POPULATE_TYPES=date,timestamp,timestamptz, PGSID_CHECK_WORLDS=024_temporal_ingestion (0 Unknown; every native rejection matched), crate tests, rustfmt/Prettier/ESLint, espalier lint and build --check, and mixed-target golden regeneration plus independent comparison pass. The source mirror was refreshed only while no semantic job ran and equals every maintained file. Invoke espalier through `node --import tsx node_modules/espalier/dist/src/cli.js`; `.bin/espalier` is a shell shim. No global integration pass is claimed.
 
-Native probe handles `64540`, `76235`, `7707` are terminal; observations are native.json, native-clocks.json and native-bounds.json. Initial full-crate compile `24369` passed. The initial parser run `67665` failed target generation because TimestampNumber field assignment is outside the dialect; the implementation now uses scalar locals. parsers-final.json/log handle `52164` is terminal: complete date and timestamptz suites pass; timestamp parity/public owners hit their 120-second limits while corpus/static jobs also ran. No semantic mismatch was reported. A serial rerun of only those two owners passes in timestamp-retry.json/log (handle `32560` terminal). All affected parser owners are now verified. Static checks `26866` and final full-crate compile `32083` pass; the cargo target is removed. Espalier lint/build `2826` passes (explicit node --import tsx preload).
+## Next work
 
-JSON population passes for PGSID_CHECK_JSON_POPULATE_TYPES=date,timestamp,timestamptz (json-populate.json, handle `63967` terminal). Maintained formatting and Rust formatting pass. Temporal-ingestion world passes with PGSID_CHECK_WORLDS=024_temporal_ingestion (world-temporal.json, handle `75288` terminal); its scoped report exercises every constraint, has no Unknown results and matches every native rejection. Affected mixed-target regeneration passes (golden-regenerate.json, handle `78760` terminal); independent comparison passes (golden-compare.json, handle `74191` terminal). Only the expected three runtime snapshots changed and their diffs are reviewed. Checkpoint verification is complete: focused parser/consumer parity, public temporal-world INSERTs, crate/static/format checks, corpus lint/build and affected snapshots pass. All jobs are terminal; finished task trees are cleaned and shared Go caches retained. Final documentation/corpus build checks passed before commit `2adde0cb`. No global integration pass is claimed. Keep expensive owners serial and bounded. A prior golden owner sometimes hit its fixed 65-second limit; use both default and JSON reporters and never treat an uninformative failure as a pass. Update the Rust source mirror only with no semantic job reading it.
+Remaining temporal grammar audits, each separate from genuine DateStyle/transaction-clock/catalog requirements:
 
-## Exact stopping point and next work
+- Date input with appended clocks/zones (`2000-060 12:00`, `2000-001 25:00+16` → 22008). Date ignores compact clock carry; do not cast a normalized timestamp back to date.
+- Zones and punctuation directly after a date (`2000-060+05`, `2000-01-01+05`), punctuation-separated fields (` 2000 / 060`), BC/AD before the clock (`0002-366 BC 12:00Z`).
+- Three-field forms with wide fields (`2000-01-001`, `2000.06.01`, `2000-001-010203`), whitespace forms with non-ordinal second fields (`2000 367` → 22008, `2000 01` → 22007).
+- Split, English and escaped forms; combined Julian timestamp/fraction/clock/zone input; additional timezone-only and named-zone grammar. Inspect src/time.rs and JSON-population normalization before sharing grammar.
 
-Stopped immediately before implementing ordinal dates. No ordinal parser, helper, test owner or test selector has been added. Only a bounded read-only PGlite probe and PostgreSQL 18 source inspection were performed after `2adde0cb`. Probe handle `10895` completed with exit 0 and closed PGlite in finally. There are no live test/probe handles. All task temporary trees are removed; the shared Go cache is retained.
-
-Research is in artifacts/goal-checks/temporal-ordinal-active/{probe.mjs,native.json,probe.log}. native.json records the installed version and results for date/timestamp/timestamptz under MDY, DMY and YMD, with TimeZone=UTC. Artifacts are ignored local evidence, not required files in a fresh clone. The command below reconstructs the key probes if they are absent.
-
-Verified observations to preserve:
-
-- `2000-001`, `2000.060`, `2000/060` and `2000 060` are accepted in the probed date-field orders. `2001-366` becomes 2002-01-01; day 366 is not rejected simply because the year is non-leap.
-- `2000-000`, `2000-367`, `2000-01` and `2000-0001` fail with 22007. `2000-367 000000+16` still fails with 22007, before the bad timezone. `0000-366 000000+16` fails with 22009 before zero-year validation. Preserve lexical/field/offset order.
-- `0002-366 BC` becomes 0001-01-01 BC, whereas `0001-366 BC` stays 0001-12-31 BC. Era adjustment and the absence of a year zero matter.
-- `4714-328 BC` is the minimum input date; `4714-327 BC` fails. Timestamp/timestamptz `4714-324 999999Z BC` carries to 4714-11-24 04:40:39 BC. Date input with that same clock still fails: date ignores compact clock carry. Do not implement date-with-clock by casting a normalized timestamp back to date.
-- `5874897-365` is the maximum date; `5874897-366` fails. The wasm oracle accepts `2147483647-001` as date 4453803-12-24, while `2147483648-001` raises 22008. This exposes native intermediate arithmetic; it does not authorize portable signed overflow. Do not reject every large ordinal year prematurely or reproduce wasm wraparound without a justified contract.
-- Timestamptz `294276-366 240000+00:00:01` produces the final representable calendar date at 23:59:59 UTC; timestamp rejects the same input because it validates but ignores the offset. Missing timezone remains separate from known calendar errors.
-
-Read PostgreSQL 18 [datetime.c](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/datetime.c): DecodeNumber recognizes an ordinal only when a year is already present and the next field has exactly three digits with value 1–366. ValidateDate adjusts era/year, then calls j2date(date2j(year,1,1)+ordinal-1). date2j uses signed integer intermediates; j2date uses unsigned arithmetic. Signed overflow and defined unsigned wrap must not be conflated. No shared-helper design has been selected or implemented. Investigate these boundaries before changing the calendar conversion.
-
-The likely implementation sites are crates/check-evaluator/src/{date,timestamp,timestamptz}.rs and operations/pg_catalog/json_populate_input.rs. Preserve the existing compact_clock distinction in timestamp_calendar_microseconds. Constructors pass false; only compact text clocks enable arithmetic normalization. Space-separated ordinal input needs its own lexical audit: a long first digit run can instead be a compact date. Do not infer two-digit-year interpretation without the native field-order context.
-
-The intended next test task is a combined focused parity owner covering date/timestamp/timestamptz in one generated harness, with raw/stored plans, native binary reference values, source literals, lexical/calendar errors, Unknown/NULL/original errors and lazy branches. It has not been written. Existing per-type owners lack input-form selectors and compile separate harnesses; prefer focused cases and affected regressions during development, retaining full owners for shared refactors and final integration. Add matching 024_temporal_ingestion INSERT cases and select relevant JSON population profiles. No standalone regex rerun is warranted by a calendar parser change.
-
-After ordinal input, retain split/English/escaped forms, combined Julian timestamp/fraction/clock/zone input, date input with appended clocks, and additional timezone-only/named-zone grammar as open work. These are implementation/precision audits, separate from genuine DateStyle/transaction-clock/catalog requirements. Inspect src/time.rs and JSON-population normalization before sharing grammar. All broader unchecked ledger items and final integration remain open.
-
-Reproduce key research from the repository root (no extension compilation):
-
-```sh
-timeout --kill-after=5s 60s node --input-type=module <<'JS'
-import { PGlite } from '@electric-sql/pglite';
-const pg = await PGlite.create();
-const inputs = [
-  '2000-001', '2000.060', '2000/060', '2000 060', '2001-366',
-  '2000-000', '2000-367', '2000-01', '2000-0001', '001-001',
-  '000-001', '00-001', '0001-366 BC', '0002-366 BC',
-  '4714-327 BC', '4714-328 BC', '5874897-365', '5874897-366',
-  '2147483647-001', '2147483648-001',
-  '2000-001 12:34:56.000001Z', '2000.001T123456Z',
-  '2000-367 000000+16', '0000-366 000000+16',
-  '4714-324 999999Z BC', '294276-366 240000+00:00:01',
-];
-try {
-  console.log((await pg.query('SELECT version()')).rows);
-  for (const order of ['MDY', 'DMY', 'YMD']) {
-    await pg.exec(`SET DateStyle='ISO,${order}'; SET TimeZone='UTC'`);
-    for (const type of ['date', 'timestamp', 'timestamptz']) {
-      for (const raw of inputs) {
-        try {
-          const result = await pg.query(
-            `SELECT $1::${type}::text value, encode(${type}_send($1::${type}), 'hex') binary`,
-            [raw],
-          );
-          console.log({ order, type, raw, ...result.rows[0] });
-        } catch (error) { console.log({ order, type, raw, error: error.code }); }
-      }
-    }
-  }
-} finally { await pg.close(); }
-JS
-```
+Per-type owners compile separate harnesses (each finished in about a minute here); run them serially with JSON reporters. Add matching 024_temporal_ingestion INSERTs and selected JSON population profiles for new grammar. A golden owner can hit its fixed 65-second limit under load; never treat an uninformative failure as a pass. All broader unchecked ledger items and final integration remain open.
 
 ## Previous JSONB checkpoint
 

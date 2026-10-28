@@ -46,6 +46,7 @@ fn timestamp_calendar_microseconds(
     allow_fraction_carry: bool,
     missing_timezone: bool,
     compact_clock: bool,
+    ordinal_day: i32,
 ) -> Int8Value {
     let mut max_fraction: i32 = 999999;
     if allow_fraction_carry {
@@ -79,7 +80,19 @@ fn timestamp_calendar_microseconds(
             state: INVALID_TIMESTAMP_ZONE,
         });
     }
-    let days = calendar_days_from_ymd(year, month, day);
+    let mut calendar_year = year;
+    let mut calendar_month = month;
+    let mut calendar_day = day;
+    if ordinal_day > 0 {
+        let ordinal = calendar_from_ordinal(year, ordinal_day);
+        if ordinal.known == false {
+            return Int8Value::Unknown;
+        }
+        calendar_year = ordinal.year;
+        calendar_month = ordinal.month;
+        calendar_day = ordinal.day;
+    }
+    let days = calendar_days_from_ymd(calendar_year, calendar_month, calendar_day);
     if let Int4Value::Error(error) = days {
         return Int8Value::Error(error);
     }
@@ -87,7 +100,7 @@ fn timestamp_calendar_microseconds(
         if missing_timezone {
             return Int8Value::Unknown;
         }
-        if (year == -4714 && month < 11)
+        if (calendar_year == -4714 && calendar_month < 11)
             || (compact_clock == false && day_value < -2451546)
             || day_value > 106751983
         {
@@ -189,6 +202,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 false,
                 false,
                 false,
+                0,
             );
         }
         let mut infinity_start = start;
@@ -216,13 +230,33 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 return make_int8_value(9223372036854775807i64);
             }
         }
+        let ordinal = read_ordinal_date(&text, start, end);
+        if ordinal.state == ORDINAL_DATE_SYNTAX {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
+        }
+        if ordinal.state == ORDINAL_DATE_OVERFLOW {
+            return Int8Value::Error(SqlError {
+                state: TIMESTAMP_FIELD_OVERFLOW,
+            });
+        }
+        if ordinal.state == ORDINAL_DATE_DEFERRED {
+            return Int8Value::Unknown;
+        }
         let year_field = read_timestamp_number(&text, start, end);
         let mut year = year_field.value;
         let mut year_overflow = year_field.overflow;
         let mut index = year_field.next;
         let mut month: i32 = 0;
         let mut day: i32 = 0;
-        if year_field.digits >= 6 && (index == end || text.chars[index] != '-') {
+        let mut ordinal_day: i32 = 0;
+        if ordinal.state == ORDINAL_DATE_FOUND {
+            year = ordinal.year;
+            year_overflow = ordinal.overflow;
+            index = ordinal.next;
+            ordinal_day = ordinal.day;
+        } else if year_field.digits >= 6 && (index == end || text.chars[index] != '-') {
             let compact_year = read_timestamp_number(&text, start, index - 4);
             if compact_year.overflow {
                 return Int8Value::Unknown;
@@ -276,6 +310,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 false,
                 with_timezone,
                 false,
+                ordinal_day,
             );
         }
         if text.chars[index].to_ascii_lowercase() == 't' {
@@ -432,6 +467,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             true,
             missing_timezone,
             compact_clock,
+            ordinal_day,
         );
     }
     Int8Value::Unknown
@@ -472,6 +508,7 @@ pub fn timestamp_from_calendar(
         false,
         false,
         false,
+        0,
     );
     timestamp_from_microseconds(parsed)
 }
