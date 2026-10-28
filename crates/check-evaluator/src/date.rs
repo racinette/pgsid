@@ -360,7 +360,7 @@ pub fn date_from_text(value: TextValue) -> DateValue {
         }
         if ordinal.state == ORDINAL_DATE_FOUND {
             if ordinal.next != end {
-                return DateValue::Unknown;
+                return date_from_clock_text(TextValue::Value(text.clone()));
             }
             if ordinal.overflow {
                 return DateValue::Error(SqlError {
@@ -407,6 +407,12 @@ pub fn date_from_text(value: TextValue) -> DateValue {
             let day = date_text_digit(chars[end - 2]) * 10 + date_text_digit(chars[end - 1]);
             return date_from_ymd(year, month, day);
         }
+        if year_digits >= 6
+            && index < end
+            && (date_text_space(chars[index]) || chars[index].to_ascii_lowercase() == 't')
+        {
+            return date_from_clock_text(TextValue::Value(text.clone()));
+        }
         if year_digits < 4 || index == end || chars[index] != '-' {
             return DateValue::Unknown;
         }
@@ -438,6 +444,9 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 state: INVALID_DATE_TEXT,
             });
         }
+        if day_digits >= 1 && day_digits <= 2 && index != end {
+            return date_from_clock_text(TextValue::Value(text.clone()));
+        }
         if day_digits < 1 || day_digits > 2 || index != end {
             return DateValue::Unknown;
         }
@@ -445,6 +454,20 @@ pub fn date_from_text(value: TextValue) -> DateValue {
             year = 0 - year;
         }
         return date_from_ymd(year, month, day);
+    }
+    DateValue::Unknown
+}
+
+fn date_from_clock_text(value: TextValue) -> DateValue {
+    let parsed = parse_temporal_text(value, false, true);
+    if let Int8Value::Error(error) = parsed {
+        return DateValue::Error(error);
+    }
+    if let Int8Value::Value(days) = parsed {
+        if days >= -2147483648i64 && days <= 2147483647i64 {
+            let narrow = days as i32;
+            return make_date_value(narrow);
+        }
     }
     DateValue::Unknown
 }

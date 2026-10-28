@@ -154,7 +154,7 @@ describe('Rust text-to-date CHECK casts', () => {
               expected: { kind: 'True' },
             })
           } catch (error) {
-            expect(['22007', '22008']).toContain((error as { code: string }).code)
+            expect(['22007', '22008', '22009']).toContain((error as { code: string }).code)
           }
         }
       }
@@ -290,6 +290,11 @@ describe('Rust text-to-date CHECK casts', () => {
       ['4801-001 BC', false, '23514', { certain: true, value: false }],
       ['2000-01', false, '22007', { certain: true, error: '22007' }],
       ['2000-01', true, null, { certain: true, value: true }],
+      ['2000-01-01 23:59:59.999999-15', false, null, { certain: true, value: true }],
+      ['20000101 999999', false, null, { certain: true, value: true }],
+      ['1999-12-31 24:00:00', false, '23514', { certain: true, value: false }],
+      ['2000-01-01 25:00', false, '22008', { certain: true, error: '22008' }],
+      ['2000-13-01 00:00+16', false, '22009', { certain: true, error: '22009' }],
       ['today', false, null, { certain: false }],
     ] as const) {
       await pg.exec('BEGIN')

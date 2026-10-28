@@ -16229,7 +16229,7 @@ func DateFromText(value TextValue) DateValue {
 		}
 		if ordinal.state == ordinalDateFound {
 			if ordinal.next != end {
-				return DateValue{Kind: DateValueUnknown}
+				return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
 			}
 			if ordinal.overflow {
 				return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
@@ -16274,6 +16274,9 @@ func DateFromText(value TextValue) DateValue {
 			day := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(dateTextDigit(chars[langruntime.CheckedSubtract(end, 2)]), 10), dateTextDigit(chars[langruntime.CheckedSubtract(end, 1)]))
 			return DateFromYmd(year, month, day)
 		}
+		if yearDigits >= 6 && index < end && (dateTextSpace(chars[index]) || langruntime.AsciiLowercase(chars[index]) == 't') {
+			return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
+		}
 		if yearDigits < 4 || index == end || chars[index] != '-' {
 			return DateValue{Kind: DateValueUnknown}
 		}
@@ -16303,6 +16306,9 @@ func DateFromText(value TextValue) DateValue {
 		if dayDigits == 0 && index == end {
 			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
 		}
+		if dayDigits >= 1 && dayDigits <= 2 && index != end {
+			return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
+		}
 		if dayDigits < 1 || dayDigits > 2 || index != end {
 			return DateValue{Kind: DateValueUnknown}
 		}
@@ -16310,6 +16316,21 @@ func DateFromText(value TextValue) DateValue {
 			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
 		}
 		return DateFromYmd(year, month, day)
+	}
+	return DateValue{Kind: DateValueUnknown}
+}
+func dateFromClockText(value TextValue) DateValue {
+	parsed := parseTemporalText(value, false, true)
+	if parsed.Kind == Int8ValueError {
+		error := parsed.Error
+		return DateValue{Kind: DateValueError, Error: error}
+	}
+	if parsed.Kind == Int8ValueValue {
+		days := parsed.Value
+		if days >= int64(-2147483648) && days <= int64(2147483647) {
+			narrow := int(int32(days))
+			return MakeDateValue(narrow)
+		}
 	}
 	return DateValue{Kind: DateValueUnknown}
 }
@@ -16406,7 +16427,7 @@ func readTimestampNumber(text *timestampText, start int, end int) timestampNumbe
 	}
 	return timestampNumber{next: index, digits: langruntime.CheckedSubtract(index, start), value: value, overflow: overflow}
 }
-func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool, allowFractionCarry bool, missingTimezone bool, compactClock bool, ordinalDay int) Int8Value {
+func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool, allowFractionCarry bool, missingTimezone bool, compactClock bool, ordinalDay int, dateOnly bool) Int8Value {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)
 	day = langruntime.CheckedI32(day)
@@ -16452,6 +16473,10 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	}
 	if days.Kind == Int4ValueValue {
 		dayValue := langruntime.CheckedI32(days.Value)
+		if dateOnly {
+			dateWide := int64(langruntime.CheckedI32(dayValue))
+			return Int8Value{Kind: Int8ValueValue, Value: dateWide}
+		}
 		if missingTimezone {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}
@@ -16473,6 +16498,9 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	return Int8Value{Kind: Int8ValueUnknown}
 }
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
+	return parseTemporalText(value, withTimezone, false)
+}
+func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Value {
 	if value.Kind == TextValueError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -16518,7 +16546,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
 		if langruntime.CheckedSubtract(end, start) == 5 && langruntime.AsciiLowercase(text.chars[start]) == 'e' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 1)]) == 'p' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 2)]) == 'o' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 3)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 4)]) == 'h' {
-			return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false, 0)
+			return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false, 0, dateOnly)
 		}
 		infinityStart := start
 		negative := false
@@ -16602,7 +16630,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			if yearOverflow {
 				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 			}
-			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay)
+			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly)
 		}
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
@@ -16743,7 +16771,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 		if yearOverflow {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
-		return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay)
+		return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay, dateOnly)
 	}
 	return Int8Value{Kind: Int8ValueUnknown}
 }
@@ -16769,7 +16797,7 @@ func TimestampFromCalendar(year int, month int, day int, hour int, minute int, s
 	minute = langruntime.CheckedI32(minute)
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false, 0)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false, 0, false)
 	return timestampFromMicroseconds(parsed)
 }
 func TimestampFromText(value TextValue) TimestampValue {
@@ -16799,7 +16827,7 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false, 0)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false, 0, false)
 	return timestamptzFromMicroseconds(parsed)
 }
 func TimestamptzFromText(value TextValue) TimestamptzValue {

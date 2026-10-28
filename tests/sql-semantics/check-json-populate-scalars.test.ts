@@ -144,6 +144,8 @@ it('routes JSON record scalar fields through captured input functions and modifi
               '{"value":["2000 060"]}',
               '{"value":{"4801-001 BC":""}}',
               '{"value":"2000-01"}',
+              '{"value":"20000101 999999"}',
+              '{"value":["2000-01-01 25:00"]}',
             ]
           : []),
         ...(['timestamp', 'timestamptz'].includes(f.profile.type)

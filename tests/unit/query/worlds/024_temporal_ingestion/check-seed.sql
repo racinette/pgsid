@@ -189,3 +189,16 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-367 000000+16', NULL, false);
 -- name: instant_ordinal_skipped_error
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-000 000000Z', NULL, true);
+
+-- name: calendar_clock_ignored
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01 23:59:59.999999-15', '2000-01-01', false);
+-- name: calendar_compact_clock_carry_ignored
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '20000101 999999', '2000-01-01', false);
+-- name: calendar_clock_carry_mismatch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '1999-12-31 24:00:00', '2000-01-01', false);
+-- name: calendar_clock_field_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01 25:00', NULL, false);
+-- name: calendar_clock_zone_error_before_calendar
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-13-01 00:00+16', NULL, false);
+-- name: calendar_clock_skipped_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01 12:60', NULL, true);
