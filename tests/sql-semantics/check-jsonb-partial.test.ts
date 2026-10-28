@@ -299,6 +299,8 @@ it('bounds partial JSONB storage and output before claiming nonnull nested resul
     'path_replace',
     'path_object',
     'path_noop',
+    'path_discarded_target',
+    'path_replacement_limit',
   ]
   const entries = definitions.map((constraint) =>
     checkRustEntryName({
@@ -383,7 +385,7 @@ pub fn ${helpers[6]}(maximum:Int8Value)->CheckOutcome {
   let initial=make_array_arguments("pg_catalog.text",8);
   let keyed=append_array_argument(initial,ArrayElement::Text("0".to_owned()));
   let path=finish_array_constructor(keyed);
-  let original=jsonb_partial_shape(bound,5,1);
+  let original=jsonb_partial_shape(bound,5,2);
   let replacement=jsonb_partial_shape(20i64,5,1);
   let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(true));
   let nullness=jsonb_is_null(result);
@@ -408,6 +410,32 @@ pub fn ${helpers[8]}(maximum:Int8Value)->CheckOutcome {
  if let Int8Value::Value(bound)=maximum {
   let initial=make_array_arguments("pg_catalog.text",8);
   let keyed=append_array_argument(initial,ArrayElement::Text("9".to_owned()));
+  let path=finish_array_constructor(keyed);
+  let original=jsonb_partial_shape(100i64,5,1);
+  let replacement=jsonb_partial_shape(bound,5,1);
+  let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(false));
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
+}
+pub fn ${helpers[9]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let initial=make_array_arguments("pg_catalog.text",8);
+  let keyed=append_array_argument(initial,ArrayElement::Text("0".to_owned()));
+  let path=finish_array_constructor(keyed);
+  let original=jsonb_partial_shape(bound,5,1);
+  let replacement=jsonb_partial_shape(20i64,5,1);
+  let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(false));
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
+}
+pub fn ${helpers[10]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let initial=make_array_arguments("pg_catalog.text",8);
+  let keyed=append_array_argument(initial,ArrayElement::Text("0".to_owned()));
   let path=finish_array_constructor(keyed);
   let original=jsonb_partial_shape(100i64,5,1);
   let replacement=jsonb_partial_shape(bound,5,1);
@@ -466,6 +494,9 @@ pub fn ${helpers[8]}(maximum:Int8Value)->CheckOutcome {
   add('path_object', 268435391n, { kind: 'False' })
   add('path_object', 268435392n, { kind: 'Unknown' })
   add('path_noop', 268435455n, { kind: 'False' })
+  add('path_discarded_target', 268435455n, { kind: 'False' })
+  add('path_replacement_limit', 268435435n, { kind: 'False' })
+  add('path_replacement_limit', 268435436n, { kind: 'Unknown' })
 
   try {
     const sizes = (
