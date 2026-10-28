@@ -487,6 +487,81 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: 'jsonb_array_length(GREATEST(jsonb_build_array(n),jsonb_build_array(n,n)))=2',
     partial: 'True',
   },
+  {
+    name: 'overwrite_single',
+    sql: "jsonb_set(jsonb_build_array(n),'{0}','2')='[2]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'overwrite_negative',
+    sql: "jsonb_set(jsonb_build_array(n),'{-1}','null',false)='[null]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'overwrite_nested',
+    sql: "jsonb_set(jsonb_build_array(n),'{0}','[1,2]')='[[1,2]]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'overwrite_text',
+    sql: "jsonb_set(jsonb_build_array(n),'{0}','2')::text='[2]'",
+    partial: 'True',
+  },
+  {
+    name: 'overwrite_pretty',
+    sql: "jsonb_pretty(jsonb_set(jsonb_build_array(n),'{0}','2'))=E'[\\n    2\\n]'",
+    partial: 'True',
+  },
+  {
+    name: 'overwrite_not_insert',
+    sql: "jsonb_insert(jsonb_build_array(n),'{0}','2')='[2]'::jsonb",
+    partial: 'False',
+  },
+  {
+    name: 'overwrite_not_append',
+    sql: "jsonb_set(jsonb_build_array(n),'{1}','2')='[2]'::jsonb",
+    partial: 'False',
+  },
+  {
+    name: 'overwrite_partial_replacement',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{0}',jsonb_build_array(n)))=1",
+    partial: 'True',
+  },
+  {
+    name: 'delete_unknown_path_key',
+    sql: "(jsonb_build_object('n',n)#-ARRAY[jsonb_build_array(n)::text]) IS NULL",
+    partial: 'False',
+  },
+  {
+    name: 'delete_full_unknown_key',
+    sql: '(\'{"n":1}\'::jsonb-jsonb_build_array(n)::text) IS NULL',
+    partial: 'False',
+  },
+  {
+    name: 'delete_full_unknown_path_key',
+    sql: '(\'{"n":1}\'::jsonb#-ARRAY[jsonb_build_array(n)::text]) IS NULL',
+    partial: 'False',
+  },
+  {
+    name: 'delete_nested_unknown_path_key',
+    sql: "jsonb_array_length('[{\"n\":1}]'::jsonb#-ARRAY['0',jsonb_build_array(n)::text])=1",
+    partial: 'True',
+  },
+  {
+    name: 'delete_scalar_unknown_path_key',
+    sql: "('[1]'::jsonb#-ARRAY['0',jsonb_build_array(n)::text])='[1]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'delete_array_unknown_key',
+    sql: '(\'[1,"n"]\'::jsonb-jsonb_build_array(n)::text) IS NULL',
+    partial: 'False',
+  },
+  {
+    name: 'delete_empty_unknown_key',
+    sql: "('[]'::jsonb-jsonb_build_array(n)::text)='[]'::jsonb",
+    partial: 'True',
+  },
 ]
 const value = (value: number | string | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }

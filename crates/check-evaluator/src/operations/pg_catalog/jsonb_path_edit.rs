@@ -218,6 +218,9 @@ fn jsonb_path_edit_partial(
     if let TextValue::Error(error) = converted {
         return JsonbValue::Error(error);
     };
+    if converted == TextValue::NonNull && facts.kind == 6 && path.elements.len() == 1 && mode == 0 {
+        return jsonb_partial_shape(facts.maximum, 6, -1);
+    };
     if let TextValue::Value(key) = converted {
         let last = path.elements.len() == 1;
         if facts.kind == 6 {
@@ -257,6 +260,12 @@ fn jsonb_path_edit_partial(
                     JsonbValue::NonNull(facts),
                     make_int4_value(number),
                 );
+            };
+            if mode < 3 && outside == false && length == 1 {
+                let initial = make_jsonb_arguments();
+                let element = jsonb_input_from_jsonb(replacement);
+                let batch = append_jsonb_argument(initial, element);
+                return sql__pg_catalog__jsonb_build_array__gfm5(batch);
             };
             if length >= 0 && (outside || mode >= 3) {
                 if length == 2147483647 {
@@ -409,6 +418,21 @@ fn jsonb_path_edit_known(
             return JsonbValue::Error(make_sql_error(JSONB_PATH_NULL));
         };
         let converted = array_element_to_text(element);
+        if converted == TextValue::NonNull {
+            let node = input.nodes[parent];
+            if node.kind < 5 {
+                return JsonbValue::Value(input);
+            };
+            if node.kind == 6 && position + 1 == path.elements.len() && mode == 0 {
+                let root_changed = parent == input.root;
+                let facts = jsonb_root_facts(JsonbValue::Value(input), true);
+                let mut length = facts.length;
+                if root_changed {
+                    length = -1;
+                };
+                return jsonb_partial_shape(facts.maximum, facts.kind, length);
+            };
+        };
         let mut ready = false;
         if let TextValue::Value(key) = converted {
             ready = true;

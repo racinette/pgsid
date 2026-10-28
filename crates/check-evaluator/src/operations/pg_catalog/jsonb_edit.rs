@@ -288,6 +288,13 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
         if value.nodes[value.root].kind < 5 {
             return JsonbValue::Error(make_sql_error(JSONB_EDIT_PARAMETER));
         };
+        if key == TextValue::NonNull {
+            let root = value.nodes[value.root];
+            if root.child == 0 {
+                return JsonbValue::Value(value);
+            };
+            return jsonb_partial_shape(jsonb_partial_bound(&value), root.kind, -1);
+        };
         if let TextValue::Value(text) = key {
             let characters = JsonbExtractKey {
                 characters: text.chars().collect(),

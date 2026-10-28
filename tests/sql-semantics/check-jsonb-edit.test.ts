@@ -329,7 +329,14 @@ it('matches JSONB concatenation and top-level text/index deletion, ownership, ex
     ] as const) {
       add(name, { ...base, lhs: error('22003'), [key]: error('22012') }, error('22003'))
       add(name, { ...base, lhs: known(null), [key]: error('22012') }, error('22012'))
-      add(name, { ...base, lhs: { kind: 'Unknown' }, [key]: known(null) }, { kind: 'Unknown' })
+      for (const lhs of ['[1]', '{}', 'null', null]) {
+        const witness = await pg.query<{ result: boolean }>(
+          `SELECT (${expressions[name]}) AS result FROM (SELECT $1::jsonb lhs,NULL::jsonb rhs,NULL::text key_name,NULL::integer element_index,'{}'::jsonb expected) args`,
+          [lhs],
+        )
+        expect(witness.rows[0]!.result, name + ' strict NULL witness').toBe(false)
+      }
+      add(name, { ...base, lhs: { kind: 'Unknown' }, [key]: known(null) }, { kind: 'False' })
       add(name, { ...base, lhs: known('[1,]') }, { kind: 'Unknown' })
     }
     add('concat', { ...base, expected: known('{}') }, { kind: 'False' })

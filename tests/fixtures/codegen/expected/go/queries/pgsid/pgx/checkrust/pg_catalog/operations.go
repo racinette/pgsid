@@ -20132,6 +20132,13 @@ func JsonbDeleteCow2(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 		if value.Nodes[value.Root].Kind < 5 {
 			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbEditParameter)}
 		}
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+			root := value.Nodes[value.Root]
+			if root.Child == 0 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}
+			}
+			return checkruntime.JsonbPartialShape(checkruntime.JsonbPartialBound(&value), root.Kind, langruntime.CheckedSignedNegate(1))
+		}
 		if key.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(key.Value)
 			characters := jsonbExtractKey{characters: []rune(text)}
@@ -21401,6 +21408,9 @@ func jsonbPathEditPartial(facts checkruntime.JsonbKnowledge, path checkruntime.A
 		error := converted.Error
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
 	}
+	if converted == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) && facts.Kind == 6 && len(path.Elements) == 1 && mode == 0 {
+		return checkruntime.JsonbPartialShape(facts.Maximum, 6, langruntime.CheckedSignedNegate(1))
+	}
 	if converted.Kind == checkruntime.TextValueValue {
 		key := langruntime.CheckedString(converted.Value)
 		last := len(path.Elements) == 1
@@ -21439,6 +21449,12 @@ func jsonbPathEditPartial(facts checkruntime.JsonbKnowledge, path checkruntime.A
 			}
 			if mode == 0 {
 				return JsonbDeleteBtgy(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}, checkruntime.MakeInt4Value(number))
+			}
+			if mode < 3 && outside == false && length == 1 {
+				initial := checkruntime.MakeJsonbArguments()
+				element := checkruntime.JsonbInputFromJsonb(replacement)
+				batch := checkruntime.AppendJsonbArgument(initial, element)
+				return JsonbBuildArrayGfm5(batch)
 			}
 			if length >= 0 && (outside || mode >= 3) {
 				if length == 2147483647 {
@@ -21567,6 +21583,21 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathNull)}
 		}
 		converted := checkruntime.ArrayElementToText(element)
+		if converted == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+			node := input.Nodes[parent]
+			if node.Kind < 5 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+			}
+			if node.Kind == 6 && langruntime.CheckedAdd(position, 1) == len(path.Elements) && mode == 0 {
+				rootChanged := parent == input.Root
+				facts := jsonbRootFacts(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}, true)
+				length := facts.Length
+				if rootChanged {
+					length = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+				}
+				return checkruntime.JsonbPartialShape(facts.Maximum, facts.Kind, length)
+			}
+		}
 		ready := false
 		if converted.Kind == checkruntime.TextValueValue {
 			key := langruntime.CheckedString(converted.Value)
