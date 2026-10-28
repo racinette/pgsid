@@ -296,6 +296,9 @@ it('bounds partial JSONB storage and output before claiming nonnull nested resul
     'scalar_bound',
     'concat',
     'concat_empty',
+    'path_replace',
+    'path_object',
+    'path_noop',
   ]
   const entries = definitions.map((constraint) =>
     checkRustEntryName({
@@ -374,6 +377,45 @@ pub fn ${helpers[5]}(maximum:Int8Value)->CheckOutcome {
   return check_from_bool(nullness);
  };
  check_unknown()
+}
+pub fn ${helpers[6]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let initial=make_array_arguments("pg_catalog.text",8);
+  let keyed=append_array_argument(initial,ArrayElement::Text("0".to_owned()));
+  let path=finish_array_constructor(keyed);
+  let original=jsonb_partial_shape(bound,5,1);
+  let replacement=jsonb_partial_shape(20i64,5,1);
+  let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(true));
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
+}
+pub fn ${helpers[7]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let initial=make_array_arguments("pg_catalog.text",8);
+  let keyed=append_array_argument(initial,ArrayElement::Text("界🙂".to_owned()));
+  let path=finish_array_constructor(keyed);
+  let original=jsonb_partial_shape(bound,6,-1);
+  let replacement=jsonb_partial_shape(20i64,5,1);
+  let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(true));
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
+}
+pub fn ${helpers[8]}(maximum:Int8Value)->CheckOutcome {
+ if let Int8Value::Value(bound)=maximum {
+  let initial=make_array_arguments("pg_catalog.text",8);
+  let keyed=append_array_argument(initial,ArrayElement::Text("9".to_owned()));
+  let path=finish_array_constructor(keyed);
+  let original=jsonb_partial_shape(100i64,5,1);
+  let replacement=jsonb_partial_shape(bound,5,1);
+  let result=sql__pg_catalog__jsonb_set__6ysq(original,path,replacement,make_bool_value(false));
+  let nullness=jsonb_is_null(result);
+  return check_from_bool(nullness);
+ };
+ check_unknown()
 }`
   const evaluatorSource = entries
     .map(
@@ -383,7 +425,11 @@ pub fn ${helpers[5]}(maximum:Int8Value)->CheckOutcome {
     .join('\n')
   const source = assembleCheckRust({
     source: evaluatorSource,
-    callables: ['sql__pg_catalog__jsonb_build_array__gfm5', 'sql__pg_catalog__jsonb_concat__j7e0'],
+    callables: [
+      'sql__pg_catalog__jsonb_build_array__gfm5',
+      'sql__pg_catalog__jsonb_concat__j7e0',
+      'sql__pg_catalog__jsonb_set__6ysq',
+    ],
   })
   source.modules
     .find((module) => module.name === 'pg_catalog')!
@@ -415,6 +461,11 @@ pub fn ${helpers[5]}(maximum:Int8Value)->CheckOutcome {
   add('concat', 268435404n, { kind: 'Unknown' })
   add('concat', 9223372036854775807n, { kind: 'Unknown' })
   add('concat_empty', 268435455n, { kind: 'False' })
+  add('path_replace', 268435403n, { kind: 'False' })
+  add('path_replace', 268435404n, { kind: 'Unknown' })
+  add('path_object', 268435391n, { kind: 'False' })
+  add('path_object', 268435392n, { kind: 'Unknown' })
+  add('path_noop', 268435455n, { kind: 'False' })
 
   try {
     const sizes = (

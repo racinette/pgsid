@@ -232,6 +232,160 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     partial: 'Error',
     error: '2202E',
   },
+  {
+    name: 'path_delete_empty',
+    sql: "jsonb_array_length(jsonb_build_array(n)#- '{}')=1",
+    partial: 'True',
+  },
+  { name: 'path_delete_single', sql: "jsonb_build_array(n)#- '{0}'='[]'::jsonb", partial: 'True' },
+  {
+    name: 'path_delete_negative',
+    sql: "jsonb_array_length(jsonb_build_array(n,2)#- '{-1}')=1",
+    partial: 'True',
+  },
+  {
+    name: 'path_delete_missing',
+    sql: "jsonb_array_length(jsonb_build_array(n)#- '{2,NULL}')=1",
+    partial: 'True',
+  },
+  { name: 'path_delete_deep', sql: "(jsonb_build_array(n)#- '{0,n}') IS NULL", partial: 'Unknown' },
+  {
+    name: 'path_delete_null',
+    sql: "(jsonb_build_array(n)#- '{NULL}') IS NULL",
+    partial: 'Error',
+    error: '22004',
+  },
+  {
+    name: 'path_delete_bad_index',
+    sql: "(jsonb_build_array(n)#- '{bad}') IS NULL",
+    partial: 'Error',
+    error: '22P02',
+  },
+  {
+    name: 'path_delete_object',
+    sql: "(jsonb_build_object('n',n)#- '{n}') IS NULL",
+    partial: 'False',
+  },
+  {
+    name: 'path_delete_rank',
+    sql: "((jsonb_build_array(n)->0)#- '{{a},{b}}') IS NULL",
+    partial: 'Error',
+    error: '2202E',
+  },
+  {
+    name: 'path_set_empty',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{}','2'))=1",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_missing',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{2,NULL}','2'))=1",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_replace',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{0}','2',false))=1",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_append',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{2147483647}',jsonb_build_array(n)))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_prepend',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{-2147483648}','2'))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_no_create',
+    sql: "jsonb_array_length(jsonb_set(jsonb_build_array(n),'{8}','2',false))=1",
+    partial: 'True',
+  },
+  {
+    name: 'path_set_object',
+    sql: "jsonb_typeof(jsonb_set(jsonb_build_object('n',n),'{new}',jsonb_build_array(n)))='object'",
+    partial: 'True',
+  },
+  {
+    name: 'path_insert_array',
+    sql: "jsonb_array_length(jsonb_insert(jsonb_build_array(n),'{0}','2'))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_insert_after',
+    sql: "jsonb_array_length(jsonb_insert(jsonb_build_array(n),'{-1}','2',true))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_insert_object',
+    sql: "jsonb_insert(jsonb_build_object('n',n),'{n}','2') IS NULL",
+    partial: 'Unknown',
+  },
+  {
+    name: 'path_nullable_replacement',
+    sql: "jsonb_set(jsonb_build_array(n),'{}',to_jsonb(n)) IS NULL",
+    partial: 'Unknown',
+  },
+  {
+    name: 'path_known_target_replace',
+    sql: "jsonb_array_length(jsonb_set('[1,2]','{0}',jsonb_build_array(n)))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_known_target_append',
+    sql: "jsonb_array_length(jsonb_set('[1,2]','{8}',jsonb_build_array(n)))=3",
+    partial: 'True',
+  },
+  {
+    name: 'path_known_target_nested',
+    sql: "jsonb_array_length(jsonb_set('[[1],2]','{0,0}',jsonb_build_array(n)))=2",
+    partial: 'True',
+  },
+  {
+    name: 'path_known_target_insert',
+    sql: "jsonb_array_length(jsonb_insert('[1,2]','{0}',jsonb_build_array(n)))=3",
+    partial: 'True',
+  },
+  {
+    name: 'path_known_target_insert_after',
+    sql: "jsonb_array_length(jsonb_insert('[1,2]','{0}',jsonb_build_array(n),true))=3",
+    partial: 'True',
+  },
+  {
+    name: 'path_empty_target_null_key',
+    sql: "jsonb_set('[]','{NULL}',jsonb_build_array(n),false)='[]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'path_scalar_empty',
+    sql: "jsonb_set('1','{}',jsonb_build_array(n)) IS NULL",
+    partial: 'Error',
+    error: '22023',
+  },
+  {
+    name: 'path_unknown_key',
+    sql: '(jsonb_build_array(n)#- ARRAY[k]) IS NULL',
+    partial: 'Error',
+    error: '22P02',
+  },
+  {
+    name: 'path_delete_reached_null',
+    sql: "(jsonb_build_array(n)#- '{0,NULL}') IS NULL",
+    partial: 'Error',
+    error: '22004',
+  },
+  {
+    name: 'path_set_reached_null',
+    sql: "jsonb_set(jsonb_build_array(n),'{0,NULL}','2') IS NULL",
+    partial: 'Error',
+    error: '22004',
+  },
+  {
+    name: 'path_full_nested_object',
+    sql: "jsonb_array_length(jsonb_set('[{}]','{0,界🙂}',jsonb_build_array(n)))=1",
+    partial: 'True',
+  },
 ]
 const value = (value: number | string | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }
@@ -284,7 +438,7 @@ it('preserves partial JSONB shape without inventing NULL extraction or compariso
           }
         }),
       ),
-      { serverEncoding: 'UTF8', defaultCollation: 'C' },
+      { serverEncoding: 'UTF8', defaultCollation: 'C', arrayNulls: true },
     )
     for (const check of group.checks) expect(check.kind, JSON.stringify(check)).toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []

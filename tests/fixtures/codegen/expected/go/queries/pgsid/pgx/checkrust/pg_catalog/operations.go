@@ -21309,6 +21309,102 @@ func jsonbPathChild(node checkruntime.JsonbNode, child int) checkruntime.JsonbNo
 	child = langruntime.CheckedIndex(child)
 	return checkruntime.JsonbNode{Kind: node.Kind, Child: child, Next: node.Next, KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
 }
+func jsonbPathPartialGrowth(original checkruntime.JsonbKnowledge, replacement checkruntime.JsonbValue, key string, length int) checkruntime.JsonbValue {
+	replacement = checkruntime.CopyJsonbValue(replacement)
+	key = langruntime.CheckedString(key)
+	length = langruntime.CheckedI32(length)
+	added := jsonbEditFacts(replacement)
+	maximum := checkruntime.JsonbPartialAdd(original.Maximum, added.Maximum)
+	maximum = checkruntime.JsonbPartialAdd(maximum, int64(32))
+	if original.Kind == 6 {
+		characters := []rune(key)
+		index := 0
+		for index < len(characters) {
+			maximum = checkruntime.JsonbPartialAdd(maximum, int64(6))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	return checkruntime.JsonbPartialShape(maximum, original.Kind, length)
+}
+func jsonbPathEditPartial(facts checkruntime.JsonbKnowledge, path checkruntime.ArrayPayload, replacement checkruntime.JsonbValue, mode int) checkruntime.JsonbValue {
+	path = checkruntime.CopyArrayPayload(path)
+	replacement = checkruntime.CopyJsonbValue(replacement)
+	mode = langruntime.CheckedI32(mode)
+	if path.ElementType != "pg_catalog.text" || path.ElementKind != 8 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if len(path.Dimensions) > 1 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathRank)}
+	}
+	if facts.Kind < 0 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if facts.Kind < 5 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathParameter)}
+	}
+	if (facts.Length == 0 && mode < 2) || len(path.Elements) == 0 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}
+	}
+	first := checkruntime.CopyArrayElement(path.Elements[0])
+	if first.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathNull)}
+	}
+	converted := checkruntime.ArrayElementToText(first)
+	if converted.Kind == checkruntime.TextValueError {
+		error := converted.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if converted.Kind == checkruntime.TextValueValue {
+		key := langruntime.CheckedString(converted.Value)
+		last := len(path.Elements) == 1
+		if facts.Kind == 6 {
+			if last && mode == 0 {
+				return checkruntime.JsonbPartialShape(facts.Maximum, 6, langruntime.CheckedSignedNegate(1))
+			}
+			if last && mode < 3 {
+				return jsonbPathPartialGrowth(facts, replacement, key, langruntime.CheckedSignedNegate(1))
+			}
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+		}
+		parsed := checkruntime.JsonArrayPathIndex(key)
+		if parsed.Kind == checkruntime.Int4ValueValue {
+			number := langruntime.CheckedI32(parsed.Value)
+			length := facts.Length
+			outside := false
+			if length >= 0 {
+				index := int64(langruntime.CheckedI32(number))
+				if index < int64(0) {
+					index = langruntime.CheckedI64Add(index, int64(langruntime.CheckedI32(length)))
+				}
+				outside = index < int64(0) || index >= int64(langruntime.CheckedI32(length))
+				if outside && (last == false || mode < 2) {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}
+				}
+			}
+			if last == false {
+				if length >= 0 && outside == false {
+					second := checkruntime.CopyArrayElement(path.Elements[1])
+					if second.Kind == checkruntime.ArrayElementNull {
+						return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathNull)}
+					}
+				}
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+			}
+			if mode == 0 {
+				return JsonbDeleteBtgy(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}, checkruntime.MakeInt4Value(number))
+			}
+			if length >= 0 && (outside || mode >= 3) {
+				if length == 2147483647 {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+				}
+				length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+			}
+			return jsonbPathPartialGrowth(facts, replacement, "", length)
+		}
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathIndex)}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
 func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.JsonbValue, parent int, previous int, next int, key string, remove bool) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbPayload(input)
 	replacement = checkruntime.CopyJsonbValue(replacement)
@@ -21316,6 +21412,32 @@ func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.J
 	previous = langruntime.CheckedIndex(previous)
 	next = langruntime.CheckedIndex(next)
 	key = langruntime.CheckedString(key)
+	if remove == false {
+		if replacement.Kind == checkruntime.JsonbValueNonNull {
+			root := input.Nodes[input.Root]
+			length := langruntime.CheckedSignedNegate(1)
+			if root.Kind == 5 {
+				length = langruntime.CheckedI32(int(int32(jsonbRelationCount(&input, root))))
+				if parent == input.Root {
+					replaced := input.Nodes[parent].Child
+					if previous > 0 {
+						replaced = langruntime.CheckedIndex(input.Nodes[previous].Next)
+					}
+					if replaced == next {
+						length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+					}
+				}
+			}
+			facts := checkruntime.JsonbKnowledge{Maximum: checkruntime.JsonbPartialBound(&input), Kind: root.Kind, Length: length}
+			boundFacts := checkruntime.JsonbKnowledge{Maximum: facts.Maximum, Kind: input.Nodes[parent].Kind, Length: length}
+			admitted := jsonbPathPartialGrowth(boundFacts, replacement, key, length)
+			if admitted.Kind == checkruntime.JsonbValueNonNull {
+				bounds := admitted.NonNull
+				return checkruntime.JsonbPartialShape(bounds.Maximum, facts.Kind, length)
+			}
+			return admitted
+		}
+	}
 	characters := input.Characters
 	nodes := input.Nodes
 	inserted := next
@@ -21524,25 +21646,29 @@ func jsonbPathEdit(input checkruntime.JsonbValue, path checkruntime.ArrayValue, 
 			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
 		}
 	}
-	if input.Kind == checkruntime.JsonbValueValue {
-		value := checkruntime.CopyJsonbPayload(input.Value)
-		if path.Kind == checkruntime.ArrayValueValue {
-			keys := checkruntime.CopyArrayPayload(path.Value)
-			if flag.Kind == checkruntime.BoolValueValue {
-				setting := flag.Value
-				mode := 0
-				if operation > 0 {
-					if replacement.Kind == checkruntime.JsonbValueUnknown {
-						return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
-					}
-					mode = langruntime.CheckedI32(1)
-					if setting {
-						mode = langruntime.CheckedI32(2)
-					}
-					if operation == 2 {
-						mode = langruntime.CheckedI32(langruntime.CheckedSignedAdd(mode, 2))
-					}
+	if path.Kind == checkruntime.ArrayValueValue {
+		keys := checkruntime.CopyArrayPayload(path.Value)
+		if flag.Kind == checkruntime.BoolValueValue {
+			setting := flag.Value
+			mode := 0
+			if operation > 0 {
+				if replacement.Kind == checkruntime.JsonbValueUnknown {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 				}
+				mode = langruntime.CheckedI32(1)
+				if setting {
+					mode = langruntime.CheckedI32(2)
+				}
+				if operation == 2 {
+					mode = langruntime.CheckedI32(langruntime.CheckedSignedAdd(mode, 2))
+				}
+			}
+			if input.Kind == checkruntime.JsonbValueNonNull {
+				facts := input.NonNull
+				return jsonbPathEditPartial(facts, keys, replacement, mode)
+			}
+			if input.Kind == checkruntime.JsonbValueValue {
+				value := checkruntime.CopyJsonbPayload(input.Value)
 				return jsonbPathEditKnown(value, keys, replacement, mode)
 			}
 		}
