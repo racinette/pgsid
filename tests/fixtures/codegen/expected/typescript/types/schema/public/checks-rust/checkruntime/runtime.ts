@@ -15955,7 +15955,7 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
                 position = langruntime.checkedAdd(position, 1);
             }
             const field: TimestampNumber = readTimestampNumber(text, position, end);
-            if (field.digits === 3 && field.value >= 1 && field.value <= 366 && (field.next === end || dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) === "t")) {
+            if (field.digits === 3 && field.value >= 1 && field.value <= 366 && (field.next === end || dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next))) === "t" || langruntime.indexChar(text.chars, langruntime.checkedIndex(field.next)) === "+")) {
                 state = langruntime.checkedI32(ordinalDateFound);
                 day = langruntime.checkedI32(field.value);
                 index = langruntime.checkedIndex(field.next);
@@ -16205,7 +16205,7 @@ export function dateFromText(value: TextValue): DateValue {
             const day: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))), 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))));
             return dateFromYmd(year, month, day);
         }
-        if (yearDigits >= 6 && index < end && (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) || langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === "t")) {
+        if (yearDigits >= 6 && index < end && (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) || langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
             return dateFromClockText({ kind: "Value", value: langruntime.checkedString(text) });
         }
         if (yearDigits < 4 || index === end || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
@@ -16572,6 +16572,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
             return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
         }
+        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+";
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
         }
@@ -16580,7 +16581,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 index = langruntime.checkedAdd(index, 1);
             }
         }
-        else {
+        else if (zoneOnly === false) {
             return { kind: "Unknown" };
         }
         const hours: TimestampNumber = readTimestampNumber(text, index, end);
@@ -16618,7 +16619,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             minute = langruntime.checkedI32(langruntime.checkedSignedRemainder(hour, 100));
             hour = langruntime.checkedI32(langruntime.checkedSignedDivide(hour, 100));
         }
-        else {
+        else if (zoneOnly === false) {
             return { kind: "Unknown" };
         }
         if (fractional && index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".") {

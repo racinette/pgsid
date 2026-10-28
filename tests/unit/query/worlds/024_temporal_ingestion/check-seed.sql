@@ -202,3 +202,14 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-13-01 00:00+16', NULL, false);
 -- name: calendar_clock_skipped_error
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01 12:60', NULL, true);
+
+-- name: calendar_attached_zone
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '20000101+05', '2000-01-01', false);
+-- name: calendar_attached_zone_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-13-01+16', NULL, false);
+-- name: local_attached_zone_ignored
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-060+05', '2000-02-29 00:00:00', false);
+-- name: instant_attached_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01+05:30:15', '1999-12-31 18:29:45+00', false);
+-- name: instant_attached_zone_range_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '4714-11-24+01 BC', NULL, false);

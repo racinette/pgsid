@@ -16030,7 +16030,7 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 				position = langruntime.CheckedAdd(position, 1)
 			}
 			field := readTimestampNumber(text, position, end)
-			if field.digits == 3 && field.value >= 1 && field.value <= 366 && (field.next == end || dateTextSpace(text.chars[field.next]) || langruntime.AsciiLowercase(text.chars[field.next]) == 't') {
+			if field.digits == 3 && field.value >= 1 && field.value <= 366 && (field.next == end || dateTextSpace(text.chars[field.next]) || langruntime.AsciiLowercase(text.chars[field.next]) == 't' || text.chars[field.next] == '+') {
 				state = langruntime.CheckedI32(ordinalDateFound)
 				day = langruntime.CheckedI32(field.value)
 				index = langruntime.CheckedIndex(field.next)
@@ -16274,7 +16274,7 @@ func DateFromText(value TextValue) DateValue {
 			day := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(dateTextDigit(chars[langruntime.CheckedSubtract(end, 2)]), 10), dateTextDigit(chars[langruntime.CheckedSubtract(end, 1)]))
 			return DateFromYmd(year, month, day)
 		}
-		if yearDigits >= 6 && index < end && (dateTextSpace(chars[index]) || langruntime.AsciiLowercase(chars[index]) == 't') {
+		if yearDigits >= 6 && index < end && (dateTextSpace(chars[index]) || langruntime.AsciiLowercase(chars[index]) == 't' || chars[index] == '+') {
 			return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
 		}
 		if yearDigits < 4 || index == end || chars[index] != '-' {
@@ -16632,13 +16632,14 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			}
 			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly)
 		}
+		zoneOnly := text.chars[index] == '+'
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
 		} else if dateTextSpace(text.chars[index]) {
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}
-		} else {
+		} else if zoneOnly == false {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		hours := readTimestampNumber(&text, index, end)
@@ -16674,7 +16675,7 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			}
 			minute = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(hour, 100))
 			hour = langruntime.CheckedI32(langruntime.CheckedSignedDivide(hour, 100))
-		} else {
+		} else if zoneOnly == false {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		if fractional && index < end && text.chars[index] == '.' {

@@ -205,6 +205,26 @@ const dateClockText = [
   '0000-366 000000+16',
 ]
 
+const dateZoneText = [
+  '2000-01-01+05',
+  '2000-01-01+0530',
+  '2000-01-01+05:30:15',
+  '2000-01-01+16',
+  '2000-13-01+16',
+  '2000-13-01+05',
+  '2000-01-01+05 BC',
+  '2000-01-01+05bc',
+  '20000101+05',
+  '2000-060+05',
+  '2000/060+05',
+  '2000 060+05',
+  '2000-01-01+5',
+  '0000-01-01+16',
+  '294276-12-31+00',
+  '4714-11-24+01 BC',
+  '4714-11-23+00 BC',
+]
+
 export const ordinalUnknownText = [
   '00-001',
   '7-001',
@@ -218,6 +238,7 @@ export const dateHandledText = [
   ...ordinalDateText,
   ...ordinalErrorText,
   ...dateClockText,
+  ...dateZoneText,
   '4714-327 BC',
   '5874897.365',
   '2000-060 12:00',
@@ -304,6 +325,7 @@ export const timestampHandledText = [
   ...ordinalErrorText,
   ...ordinalTimestampText,
   '4714-327 BC',
+  ...dateZoneText,
   '5874897.365',
   '2000-060 12:00',
   '2000 060 12:00',
@@ -421,6 +443,7 @@ export const timestamptzHandledText = [
   ...compactTimestampText,
   ...ordinalErrorText,
   ...ordinalTimestampText,
+  ...dateZoneText,
   '00000101',
   '000101 BC',
   '20001301',

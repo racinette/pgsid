@@ -1,6 +1,6 @@
 # CHECK evaluator continuation handoff
 
-The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit parses dates with appended clocks (identify it with `git log`), preceded by `b82a95ab` (ordinal temporal input) and `2adde0cb` (compact calendar/clock input). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
+The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit accepts numeric zones attached to dates (identify it with `git log`), preceded by `ed534793` (dates with appended clocks) and `b82a95ab` (ordinal temporal input). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
 
 ## Current temporal checkpoint
 
@@ -14,11 +14,13 @@ Verification: a scratch Rust binary compared every probed input in all DateStyle
 
 Date text followed by a clock delegates, after the date parser recognizes an ISO, compact or ordinal date prefix, to the timestamp parser in a date-only mode, mirroring date_in's use of DecodeDateTime. The calendar conversion takes a date_only flag (every other caller passes false) and returns the validated day count before missing-timezone deferral and timestamp range checks. Colon clock fields (`25:00` → 22008) and numeric offsets (`+16` → 22009, before calendar errors such as `2000-13-01`) validate; compact clock carry (`20000101 999999`) and fractional carry (`1999-12-31 24:00:00` stays 1999-12-31) are ignored. Forms the timestamp grammar defers (`2000-01-01 12:`, ` T12:00`, trailing words, named zones) still defer. Evidence is in artifacts/goal-checks/temporal-date-clock-active/: oracle.tsv/rust-oracle.log (all DateStyle orders and three session zones; 383 definite, no mismatch), chain.status with owner/consumer/world/golden/corpus logs. The first date-owner run failed only because its binary-capture step allowed 22007/22008 native errors; it now also allows 22009, and the rerun passes (first-failure/ keeps the log).
 
+A `+` directly after any recognized date starts a numeric zone with a midnight clock (`2000-01-01+05`, `20000101+05`, `2000-060+05`, `2000 060+05`); offsets validate before calendar errors (`2000-13-01+16` → 22009) and timestamptz range checks follow the offset (`4714-11-24+01 BC` → 22008). A `-` stays deferred: natively it extends a `-`-separated or compact date field (22007) but starts a zone after `/` or `.` separators (`2000/060-05` is valid). Unparseable zone tails (`+05:`, `+`, `+05 12:00`, overflowing digits) defer as in the existing zone grammar. Evidence is in artifacts/goal-checks/temporal-date-zone-active/ (probe.log, oracle.tsv, rust-oracle.log with 437 definite and no mismatch, chain.status and logs; all passed on the first run).
+
 ## Next work
 
 Remaining temporal grammar audits, each separate from genuine DateStyle/transaction-clock/catalog requirements:
 
-- Zones and punctuation directly after a date (`2000-060+05`, `2000-01-01+05`), punctuation-separated fields (` 2000 / 060`), BC/AD before the clock (`0002-366 BC 12:00Z`).
+- Minus-signed zones after `/` or `.` dates (`2000/060-05`) and zone tails followed by clocks (`2000-01-01+05 12:00`), punctuation-separated fields (` 2000 / 060`), BC/AD before the clock (`0002-366 BC 12:00Z`).
 - Three-field forms with wide fields (`2000-01-001`, `2000.06.01`, `2000-001-010203`), whitespace forms with non-ordinal second fields (`2000 367` → 22008, `2000 01` → 22007).
 - Split, English and escaped forms; combined Julian timestamp/fraction/clock/zone input; additional timezone-only and named-zone grammar. Inspect src/time.rs and JSON-population normalization before sharing grammar.
 
