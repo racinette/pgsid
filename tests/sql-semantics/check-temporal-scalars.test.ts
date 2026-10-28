@@ -496,6 +496,11 @@ it('matches native date legacy fields and numeric epoch conversion with exact fl
           }
         }
       }
+    const oversizedDate = (
+      await pg.query<{ value: number }>(
+        "SELECT '5874897-12-31'::date - '2000-01-01'::date AS value",
+      )
+    ).rows[0]!.value
     for (const [index] of profiles.entries())
       for (const form of forms)
         for (const origin of ['source', 'stored']) {
@@ -529,6 +534,24 @@ it('matches native date legacy fields and numeric epoch conversion with exact fl
             row: { ...row, [field]: known(null) },
             expected: { kind: 'False' },
           })
+          if (form.name === 'date_direct' || form.name === 'date_contained') {
+            const partials: [Input, Input, Outcome][] = [
+              [known(null), { kind: 'Unknown' }, { kind: 'False' }],
+              [known(oversizedDate), { kind: 'Unknown' }, error('22008')],
+              [{ kind: 'Unknown' }, known(null), { kind: 'Unknown' }],
+              [known(0), { kind: 'Unknown' }, { kind: 'Unknown' }],
+              [known(oversizedDate), error('22003') as Input, error('22003')],
+            ]
+            for (const [day, unit, expected] of partials) {
+              const partial = { ...row, day_value: day, unit_name: unit }
+              fixtures.push({ name, row: partial, expected })
+              fixtures.push({
+                name,
+                row: { ...partial, bypass: known(true) },
+                expected: { kind: 'True' },
+              })
+            }
+          }
         }
     await mkdir(packet, { recursive: true })
     await writeFile(

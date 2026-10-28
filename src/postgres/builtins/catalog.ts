@@ -17,6 +17,7 @@ export interface CallableMetadata {
 export interface FunctionMetadata extends CallableMetadata {
   kind: 'function' | 'aggregate' | 'window'
   rustName: string
+  sqlBody?: true
   variadic: string | null
   numArgDefaults: number
   defaultArguments?: string
@@ -107,6 +108,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         strict: boolean
         volatility: 'i' | 's' | 'v'
         kind: 'f' | 'a' | 'w'
+        language: string
         returns_set: boolean
         variadic: string | null
         canonical_variadic: string | null
@@ -122,6 +124,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       format_type(p.prorettype, null) AS returns,
       (${typeIdentity} p.prorettype) AS result,
       p.proisstrict AS strict, p.provolatile AS volatility, p.prokind AS kind,
+      l.lanname AS language,
       p.proretset AS returns_set,
       CASE WHEN p.provariadic <> 0 THEN format_type(p.provariadic, null) END AS variadic,
       (${typeIdentity} p.provariadic) AS canonical_variadic,
@@ -129,6 +132,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       pg_get_expr(p.proargdefaults, 0) AS argument_defaults,
       a.aggkind AS agg_kind, a.aggnumdirectargs::int AS num_direct_args
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language l ON l.oid = p.prolang
       LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
       WHERE n.nspname = 'pg_catalog' AND p.prokind IN ('f', 'a', 'w')
       ORDER BY p.proname, 3`),
@@ -336,6 +340,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         args: r.canonical_args ?? [],
         result: r.result,
         strict: r.strict,
+        ...(r.language === 'sql' ? { sqlBody: true as const } : {}),
         volatility: r.volatility,
         returnsSet: r.returns_set,
         variadic: r.canonical_variadic,

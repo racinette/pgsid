@@ -352,6 +352,7 @@ export const PG18_NETWORK = {
     args: ['pg_catalog.int8', 'pg_catalog.inet'],
     result: 'pg_catalog.inet',
     strict: true,
+    sqlBody: true,
     volatility: 'i',
     returnsSet: false,
     variadic: null,

@@ -17334,6 +17334,7 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
         if (object && odd) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonBuildParameter) };
         }
+        let complete: boolean = true;
         let output: string = "";
         if (object) {
             output = output + langruntime.checkedChar("{");
@@ -17380,7 +17381,21 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
-            const converted: checkruntime.JsonValue = toJson25lg(checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput)), utf8);
+            const value: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput));
+            let converted: checkruntime.JsonValue = { kind: "NonNull" };
+            let scalarUnknown: boolean = false;
+            if (value.kind === "ScalarUnknown") {
+                scalarUnknown = langruntime.checkedBool(true);
+            }
+            if (scalarUnknown) {
+                complete = langruntime.checkedBool(false);
+            }
+            if (scalarUnknown === false) {
+                converted = toJson25lg(value, utf8);
+            }
+            if (converted.kind === "NonNull") {
+                complete = langruntime.checkedBool(false);
+            }
             if (converted.kind === "Error") {
                 const error: checkruntime.SqlError = converted.value;
                 return { kind: "Error", value: error };
@@ -17392,8 +17407,8 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
                 output = output + "null";
             }
             if (converted.kind === "Value") {
-                const value: checkruntime.JsonPayload = converted.value;
-                output = output + value.source;
+                const value1: checkruntime.JsonPayload = converted.value;
+                output = output + value1.source;
             }
             index = langruntime.checkedAdd(index, 1);
         }
@@ -17402,6 +17417,9 @@ function jsonBuildLayout(input: checkruntime.JsonbArguments, object: boolean, ut
         }
         else {
             output = output + langruntime.checkedChar("]");
+        }
+        if (complete === false) {
+            return { kind: "NonNull" };
         }
         return checkruntime.makeJsonValue(output);
     }
@@ -17676,6 +17694,9 @@ function jsonbPrettyContext(input: checkruntime.JsonbValue, utf8: boolean): chec
     return checkruntime.jsonbToPrettyText(input);
 }
 export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkruntime.JsonbInput {
+    if (input.kind === "Unknown") {
+        return { kind: "ScalarUnknown" };
+    }
     const output: checkruntime.TextValue = arrayNumericOutput(input);
     if (output.kind === "Error") {
         const error: checkruntime.SqlError = output.value;
@@ -17693,6 +17714,9 @@ export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkrun
 export function toJson25lg(input: checkruntime.JsonbInput, utf8: boolean): checkruntime.JsonValue {
     input = checkruntime.copyJsonbInput(input);
     utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "JsonNonNull") {
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -17767,6 +17791,7 @@ export function jsonArrayInputValue(input: checkruntime.JsonbArrayInputPayload, 
         const value: boolean = langruntime.checkedBool(pretty.value);
         spaced = langruntime.checkedBool(value);
     }
+    let complete: boolean = true;
     let output: string = "[";
     let frames: JsonOutputArrayFrame[] = [];
     langruntime.pushStruct(frames, { dimension: 0, count: 0 }, copyJsonOutputArrayFrame);
@@ -17800,7 +17825,21 @@ export function jsonArrayInputValue(input: checkruntime.JsonbArrayInputPayload, 
                 depth = langruntime.checkedAdd(depth, 1);
             }
             else {
-                const converted: checkruntime.JsonValue = toJson25lg(checkruntime.copyJsonbInput(langruntime.indexStruct(input.values, langruntime.checkedIndex(position), checkruntime.copyJsonbInput)), utf8);
+                const value: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(input.values, langruntime.checkedIndex(position), checkruntime.copyJsonbInput));
+                let converted: checkruntime.JsonValue = { kind: "NonNull" };
+                let scalarUnknown: boolean = false;
+                if (value.kind === "ScalarUnknown") {
+                    scalarUnknown = langruntime.checkedBool(true);
+                }
+                if (scalarUnknown) {
+                    complete = langruntime.checkedBool(false);
+                }
+                if (scalarUnknown === false) {
+                    converted = toJson25lg(value, utf8);
+                }
+                if (converted.kind === "NonNull") {
+                    complete = langruntime.checkedBool(false);
+                }
                 if (converted.kind === "Error") {
                     const error: checkruntime.SqlError = converted.value;
                     return { kind: "Error", value: error };
@@ -17812,12 +17851,15 @@ export function jsonArrayInputValue(input: checkruntime.JsonbArrayInputPayload, 
                     output = output + "null";
                 }
                 if (converted.kind === "Value") {
-                    const value: checkruntime.JsonPayload = converted.value;
-                    output = output + value.source;
+                    const value1: checkruntime.JsonPayload = converted.value;
+                    output = output + value1.source;
                 }
                 position = langruntime.checkedAdd(position, 1);
             }
         }
+    }
+    if (complete === false) {
+        return { kind: "NonNull" };
     }
     return checkruntime.makeJsonValue(output);
 }
@@ -17857,6 +17899,9 @@ export function jsonTypeofVzgr(input: checkruntime.JsonValue): checkruntime.Text
     return { kind: "Unknown" };
 }
 export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValue {
+    if (input.kind === "NonNull") {
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -18968,6 +19013,9 @@ function jsonbBuildKey(input: checkruntime.JsonbInput): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
+    }
+    if (input.kind === "ScalarUnknown") {
+        return { kind: "Unknown" };
     }
     if (input.kind === "Unknown") {
         return { kind: "Unknown" };
@@ -43493,9 +43541,6 @@ export function datePartG4hw(units: checkruntime.TextValue, input: checkruntime.
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
     }
-    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
-    }
     if (checkruntime.equalDateValue(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
@@ -43503,6 +43548,9 @@ export function datePartG4hw(units: checkruntime.TextValue, input: checkruntime.
     if (timestamp.kind === "Error") {
         const error: checkruntime.SqlError = timestamp.value;
         return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
     }
     const clipped: checkruntime.TextValue = nameFromTextContext(units, limit, utf8);
     return datePartNzwd(clipped, timestamp);

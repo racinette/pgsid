@@ -947,6 +947,7 @@ pub struct JsonPayload {
 #[derive(Clone)]
 pub enum JsonValue {
     Unknown,
+    NonNull,
     Null,
     Value(JsonPayload),
     Error(SqlError),
@@ -1034,6 +1035,8 @@ pub enum JsonbValue {
 #[derive(Clone)]
 pub enum JsonbInput {
     Unknown,
+    ScalarUnknown,
+    JsonNonNull,
     Null,
     Error(SqlError),
     ConvertedError(SqlError),
@@ -1114,7 +1117,7 @@ pub fn jsonb_input_from_bool(input: BoolValue) -> JsonbInput {
     if let BoolValue::Value(value) = input {
         return JsonbInput::Boolean(value);
     };
-    JsonbInput::Unknown
+    JsonbInput::ScalarUnknown
 }
 
 pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
@@ -1127,7 +1130,7 @@ pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
     if let NumericValue::Value(value) = input {
         return JsonbInput::Number(value);
     };
-    JsonbInput::Unknown
+    JsonbInput::ScalarUnknown
 }
 
 pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {
@@ -1146,6 +1149,9 @@ pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {
 pub fn jsonb_input_from_json(input: JsonValue) -> JsonbInput {
     if let JsonValue::Error(error) = input {
         return JsonbInput::Error(error);
+    };
+    if let JsonValue::NonNull = input {
+        return JsonbInput::JsonNonNull;
     };
     if let JsonValue::Null = input {
         return JsonbInput::Null;

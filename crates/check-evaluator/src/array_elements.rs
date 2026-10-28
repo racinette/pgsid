@@ -14,6 +14,7 @@ pub enum ArrayElement {
     Bool(bool),
     Numeric(String),
     Json(JsonPayload),
+    JsonNonNull,
     Jsonb(JsonbPayload),
     Network(NetworkAddress),
     Bit(String),
@@ -63,6 +64,9 @@ pub enum ArrayElement {
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::JsonNonNull = input {
+        return 11;
+    };
     if let ArrayElement::AclitemCatalog(_) = input { return 46; };
     if let ArrayElement::Tsquery(_) = input { return 48; };
     if let ArrayElement::Tsvector(_) = input { return 47; };
@@ -508,6 +512,9 @@ pub fn array_element_to_numeric(input: ArrayElement) -> NumericValue {
 }
 
 pub fn array_element_from_json(input: JsonValue) -> ArrayElement {
+    if let JsonValue::NonNull = input {
+        return ArrayElement::JsonNonNull;
+    };
     if let JsonValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -521,6 +528,9 @@ pub fn array_element_from_json(input: JsonValue) -> ArrayElement {
 }
 
 pub fn array_element_to_json(input: ArrayElement) -> JsonValue {
+    if let ArrayElement::JsonNonNull = input {
+        return JsonValue::NonNull;
+    };
     if let ArrayElement::Error(error) = input {
         return JsonValue::Error(error);
     };

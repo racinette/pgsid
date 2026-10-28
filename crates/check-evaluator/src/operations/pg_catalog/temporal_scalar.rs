@@ -10,15 +10,15 @@ pub fn sql__pg_catalog__date_part__g4hw(
     if let DateValue::Error(error) = input {
         return Float8Value::Error(error);
     };
-    if units == TextValue::Unknown || input == DateValue::Unknown {
-        return Float8Value::Unknown;
-    };
     if input == DateValue::Null {
         return Float8Value::Null;
     };
     let timestamp = sql__pg_catalog__timestamp__swxj(input);
     if let TimestampValue::Error(error) = timestamp {
         return Float8Value::Error(error);
+    };
+    if units == TextValue::Unknown || input == DateValue::Unknown {
+        return Float8Value::Unknown;
     };
     let clipped = name_from_text_context(units, limit, utf8);
     sql__pg_catalog__date_part__nzwd(clipped, timestamp)

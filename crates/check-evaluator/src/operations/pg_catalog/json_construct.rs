@@ -35,6 +35,7 @@ fn json_build_layout(
         if object && odd {
             return JsonValue::Error(make_sql_error(JSON_BUILD_PARAMETER));
         };
+        let mut complete = true;
         let mut output = String::new();
         if object {
             output.push('{');
@@ -75,7 +76,21 @@ fn json_build_layout(
                 };
                 index += 1;
             };
-            let converted = sql__pg_catalog__to_json__25lg(batch.values[index].clone(), utf8);
+            let value = batch.values[index].clone();
+            let mut converted = JsonValue::NonNull;
+            let mut scalar_unknown = false;
+            if let JsonbInput::ScalarUnknown = value {
+                scalar_unknown = true;
+            };
+            if scalar_unknown {
+                complete = false;
+            };
+            if scalar_unknown == false {
+                converted = sql__pg_catalog__to_json__25lg(value, utf8);
+            };
+            if let JsonValue::NonNull = converted {
+                complete = false;
+            };
             if let JsonValue::Error(error) = converted {
                 return JsonValue::Error(error);
             };
@@ -94,6 +109,9 @@ fn json_build_layout(
             output.push('}');
         } else {
             output.push(']');
+        };
+        if complete == false {
+            return JsonValue::NonNull;
         };
         return make_json_value(output.as_str());
     };

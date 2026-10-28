@@ -1065,6 +1065,7 @@ type JsonValueKind uint8
 
 const (
 	JsonValueUnknown JsonValueKind = iota
+	JsonValueNonNull
 	JsonValueNull
 	JsonValueValue
 	JsonValueError
@@ -1182,6 +1183,8 @@ type JsonbInputKind uint8
 
 const (
 	JsonbInputUnknown JsonbInputKind = iota
+	JsonbInputScalarUnknown
+	JsonbInputJsonNonNull
 	JsonbInputNull
 	JsonbInputError
 	JsonbInputConvertedError
@@ -1207,6 +1210,10 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 	switch value.Kind {
 	case JsonbInputUnknown:
 		return JsonbInput{Kind: JsonbInputUnknown}
+	case JsonbInputScalarUnknown:
+		return JsonbInput{Kind: JsonbInputScalarUnknown}
+	case JsonbInputJsonNonNull:
+		return JsonbInput{Kind: JsonbInputJsonNonNull}
 	case JsonbInputNull:
 		return JsonbInput{Kind: JsonbInputNull}
 	case JsonbInputError:
@@ -1341,7 +1348,7 @@ func JsonbInputFromBool(input BoolValue) JsonbInput {
 		value := input.Value
 		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value}
 	}
-	return JsonbInput{Kind: JsonbInputUnknown}
+	return JsonbInput{Kind: JsonbInputScalarUnknown}
 }
 func JsonbInputFromNumeric(input NumericValue) JsonbInput {
 	if input.Kind == NumericValueError {
@@ -1355,7 +1362,7 @@ func JsonbInputFromNumeric(input NumericValue) JsonbInput {
 		value := langruntime.CheckedString(input.Value)
 		return JsonbInput{Kind: JsonbInputNumber, Number: value}
 	}
-	return JsonbInput{Kind: JsonbInputUnknown}
+	return JsonbInput{Kind: JsonbInputScalarUnknown}
 }
 func JsonbInputFromText(input TextValue) JsonbInput {
 	if input.Kind == TextValueError {
@@ -1375,6 +1382,9 @@ func JsonbInputFromJson(input JsonValue) JsonbInput {
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == JsonValueNonNull {
+		return JsonbInput{Kind: JsonbInputJsonNonNull}
 	}
 	if input.Kind == JsonValueNull {
 		return JsonbInput{Kind: JsonbInputNull}
@@ -7804,6 +7814,7 @@ const (
 	ArrayElementBool
 	ArrayElementNumeric
 	ArrayElementJson
+	ArrayElementJsonNonNull
 	ArrayElementJsonb
 	ArrayElementNetwork
 	ArrayElementBit
@@ -7940,6 +7951,8 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementNumeric, Numeric: langruntime.CheckedString(value.Numeric)}
 	case ArrayElementJson:
 		return ArrayElement{Kind: ArrayElementJson, Json: value.Json}
+	case ArrayElementJsonNonNull:
+		return ArrayElement{Kind: ArrayElementJsonNonNull}
 	case ArrayElementJsonb:
 		return ArrayElement{Kind: ArrayElementJsonb, Jsonb: CopyJsonbPayload(value.Jsonb)}
 	case ArrayElementNetwork:
@@ -8037,6 +8050,9 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementJsonNonNull {
+		return 11
+	}
 	if input.Kind == ArrayElementAclitemCatalog {
 		return 46
 	}
@@ -8537,6 +8553,9 @@ func ArrayElementToNumeric(input ArrayElement) NumericValue {
 	return NumericValue{Kind: NumericValueUnknown}
 }
 func ArrayElementFromJson(input JsonValue) ArrayElement {
+	if input.Kind == JsonValueNonNull {
+		return ArrayElement{Kind: ArrayElementJsonNonNull}
+	}
 	if input.Kind == JsonValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -8552,6 +8571,9 @@ func ArrayElementFromJson(input JsonValue) ArrayElement {
 }
 func ArrayElementToJson(input ArrayElement) JsonValue {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementJsonNonNull {
+		return JsonValue{Kind: JsonValueNonNull}
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonValue{Kind: JsonValueError, Error: error}
