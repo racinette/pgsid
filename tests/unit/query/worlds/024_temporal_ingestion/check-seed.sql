@@ -81,3 +81,24 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 01:00:00.0000015+01', '2000-01-01 00:00:00.000002+00', false);
 -- name: local_clock_fraction_ignores_offset
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 01:00:00.0000015+01', '2000-01-01 01:00:00.000002', false);
+
+-- name: instant_calendar_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-30', NULL, false);
+
+-- name: instant_zero_year_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '0000-01-01', NULL, false);
+
+-- name: instant_month_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-13-01', NULL, false);
+
+-- name: instant_clock_calendar_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-30 00:00:00', NULL, false);
+
+-- name: instant_clock_field_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-29 25:00:00', NULL, false);
+
+-- name: instant_clock_midnight_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-29 24:00:00.000001', NULL, false);
+
+-- name: instant_skipped_calendar_error_no_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2024-02-30', NULL, true);

@@ -15997,7 +15997,7 @@ function readTimestampNumber(text: TimestampText, start: number, end: number): T
     }
     return { next: index, digits: langruntime.checkedSubtract(index, start), value: value, overflow: overflow };
 }
-function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean, allowFractionCarry: boolean): Int8Value {
+function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean, allowFractionCarry: boolean, missingTimezone: boolean): Int8Value {
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
@@ -16008,6 +16008,7 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
     withTimezone = langruntime.checkedBool(withTimezone);
     allowFractionCarry = langruntime.checkedBool(allowFractionCarry);
+    missingTimezone = langruntime.checkedBool(missingTimezone);
     let maxFraction: number = 999999;
     if (allowFractionCarry) {
         maxFraction = langruntime.checkedI32(1000000);
@@ -16032,6 +16033,9 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     }
     if (days.kind === "Value") {
         const dayValue: number = langruntime.checkedI32(days.value);
+        if (missingTimezone) {
+            return { kind: "Unknown" };
+        }
         if ((year === langruntime.checkedSignedNegate(4714) && month < 11) || dayValue < langruntime.checkedSignedNegate(2451546) || dayValue > 106751983) {
             return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
@@ -16097,7 +16101,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
         }
         if (langruntime.checkedSubtract(end, start) === 5 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(start))) === "e" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "p" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "o" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)))) === "h") {
-            return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false);
+            return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false);
         }
         let infinityStart: number = start;
         let negative: boolean = false;
@@ -16141,9 +16145,6 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             return { kind: "Unknown" };
         }
         if (index === end) {
-            if (withTimezone) {
-                return { kind: "Unknown" };
-            }
             if (yearField.overflow) {
                 return { kind: "Error", value: { state: timestampFieldOverflow } };
             }
@@ -16151,7 +16152,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             if (bc) {
                 year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
             }
-            return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false, false);
+            return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false, false, withTimezone);
         }
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
@@ -16222,6 +16223,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             index = langruntime.checkedAdd(index, 1);
         }
         let offset: number = 0;
+        let missingTimezone: boolean = false;
         if (index < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z") {
             index = langruntime.checkedAdd(index, 1);
         }
@@ -16271,8 +16273,11 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
                 }
             }
         }
-        else if (withTimezone || !(index === end)) {
+        else if (!(index === end)) {
             return { kind: "Unknown" };
+        }
+        else if (withTimezone) {
+            missingTimezone = langruntime.checkedBool(true);
         }
         if (!(index === end)) {
             return { kind: "Unknown" };
@@ -16284,7 +16289,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
         if (bc) {
             year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
         }
-        return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone, true);
+        return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone, true, missingTimezone);
     }
     return { kind: "Unknown" };
 }
@@ -16310,7 +16315,7 @@ export function timestampFromCalendar(year: number, month: number, day: number, 
     minute = langruntime.checkedI32(minute);
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false);
     return timestampFromMicroseconds(parsed);
 }
 export function timestampFromText(value: TextValue): TimestampValue {
@@ -16340,7 +16345,7 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false);
     return timestamptzFromMicroseconds(parsed);
 }
 export function timestamptzFromText(value: TextValue): TimestamptzValue {
