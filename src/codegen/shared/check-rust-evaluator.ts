@@ -7273,6 +7273,20 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'text-to-json') {
       if (
+        node.type === 'pg_catalog."json"' &&
+        node.operand.kind === 'io-to-text' &&
+        scalarType(node.operand.operand) === 'pg_catalog.jsonb' &&
+        node.operand.output === builtinTypeIO('pg_catalog.jsonb')?.output
+      ) {
+        const value = emitScalar(node.operand.operand, bindings, used)
+        return {
+          name: bind(
+            `jsonb_to_json_context(${ownedOperand(value)}, ${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: node.type,
+        }
+      }
+      if (
         node.type === 'pg_catalog.jsonb' &&
         jsonPopulateInput &&
         node.operand.kind === 'input' &&

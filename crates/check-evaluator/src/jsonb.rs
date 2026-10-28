@@ -525,6 +525,12 @@ struct JsonbOutputFrame {
 }
 
 fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextValue {
+    if let JsonbValue::NonNull(_maximum) = input {
+        if pretty {
+            return TextValue::Unknown;
+        };
+        return TextValue::NonNull;
+    };
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };

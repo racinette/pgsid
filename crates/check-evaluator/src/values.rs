@@ -1027,6 +1027,7 @@ pub struct JsonbPayload {
 #[derive(Clone)]
 pub enum JsonbValue {
     Unknown,
+    NonNull(i64),
     Null,
     Value(JsonbPayload),
     Error(SqlError),
@@ -1037,6 +1038,7 @@ pub enum JsonbInput {
     Unknown,
     ScalarUnknown,
     JsonNonNull,
+    JsonbNonNull(i64),
     Null,
     Error(SqlError),
     ConvertedError(SqlError),
@@ -1163,6 +1165,9 @@ pub fn jsonb_input_from_json(input: JsonValue) -> JsonbInput {
 }
 
 pub fn jsonb_input_from_jsonb(input: JsonbValue) -> JsonbInput {
+    if let JsonbValue::NonNull(maximum) = input {
+        return JsonbInput::JsonbNonNull(maximum);
+    };
     if let JsonbValue::Error(error) = input {
         return JsonbInput::Error(error);
     };

@@ -66,6 +66,9 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
 }
 
 pub fn sql__pg_catalog__to_json__25lg(input: JsonbInput, utf8: bool) -> JsonValue {
+    if let JsonbInput::JsonbNonNull(_maximum) = input {
+        return JsonValue::NonNull;
+    };
     if let JsonbInput::JsonNonNull = input {
         return JsonValue::NonNull;
     };
@@ -234,4 +237,11 @@ pub fn sql__pg_catalog__array_to_json__fydb(
         return json_array_input_value(value, pretty, utf8);
     };
     JsonValue::Unknown
+}
+
+pub fn jsonb_to_json_context(input: JsonbValue, utf8: bool) -> JsonValue {
+    if let JsonbValue::NonNull(_maximum) = input {
+        return JsonValue::NonNull;
+    };
+    json_from_coerced_text(jsonb_text_context(input, utf8))
 }

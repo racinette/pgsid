@@ -1154,21 +1154,25 @@ type JsonbValueKind uint8
 
 const (
 	JsonbValueUnknown JsonbValueKind = iota
+	JsonbValueNonNull
 	JsonbValueNull
 	JsonbValueValue
 	JsonbValueError
 )
 
 type JsonbValue struct {
-	Kind  JsonbValueKind
-	Value JsonbPayload
-	Error SqlError
+	Kind    JsonbValueKind
+	NonNull int64
+	Value   JsonbPayload
+	Error   SqlError
 }
 
 func CopyJsonbValue(value JsonbValue) JsonbValue {
 	switch value.Kind {
 	case JsonbValueUnknown:
 		return JsonbValue{Kind: JsonbValueUnknown}
+	case JsonbValueNonNull:
+		return JsonbValue{Kind: JsonbValueNonNull, NonNull: value.NonNull}
 	case JsonbValueNull:
 		return JsonbValue{Kind: JsonbValueNull}
 	case JsonbValueValue:
@@ -1185,6 +1189,7 @@ const (
 	JsonbInputUnknown JsonbInputKind = iota
 	JsonbInputScalarUnknown
 	JsonbInputJsonNonNull
+	JsonbInputJsonbNonNull
 	JsonbInputNull
 	JsonbInputError
 	JsonbInputConvertedError
@@ -1197,6 +1202,7 @@ const (
 
 type JsonbInput struct {
 	Kind           JsonbInputKind
+	JsonbNonNull   int64
 	Error          SqlError
 	ConvertedError SqlError
 	Boolean        bool
@@ -1214,6 +1220,8 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 		return JsonbInput{Kind: JsonbInputScalarUnknown}
 	case JsonbInputJsonNonNull:
 		return JsonbInput{Kind: JsonbInputJsonNonNull}
+	case JsonbInputJsonbNonNull:
+		return JsonbInput{Kind: JsonbInputJsonbNonNull, JsonbNonNull: value.JsonbNonNull}
 	case JsonbInputNull:
 		return JsonbInput{Kind: JsonbInputNull}
 	case JsonbInputError:
@@ -1397,6 +1405,10 @@ func JsonbInputFromJson(input JsonValue) JsonbInput {
 }
 func JsonbInputFromJsonb(input JsonbValue) JsonbInput {
 	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueNonNull {
+		maximum := input.NonNull
+		return JsonbInput{Kind: JsonbInputJsonbNonNull, JsonbNonNull: maximum}
+	}
 	if input.Kind == JsonbValueError {
 		error := input.Error
 		return JsonbInput{Kind: JsonbInputError, Error: error}
@@ -6711,6 +6723,14 @@ func copyjsonbOutputFrame(value jsonbOutputFrame) jsonbOutputFrame {
 }
 func jsonbRender(input JsonbValue, requireOrder bool, pretty bool) TextValue {
 	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueNonNull {
+		maximum := input.NonNull
+		_ = maximum
+		if pretty {
+			return TextValue{Kind: TextValueUnknown}
+		}
+		return TextValue{Kind: TextValueNonNull}
+	}
 	if input.Kind == JsonbValueError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -7519,6 +7539,44 @@ func JsonbStorageAdmission(source *JsonbPayload) BoolValue {
 	source = langruntime.CheckedBorrowed(source, CopyJsonbPayload)
 	return jsonbStorageDecision(jsonbStorageLayout(source))
 }
+func JsonbPartialAdd(current int64, extra int64) int64 {
+	if current < int64(0) || extra < int64(0) || current > jsonbStorageLimit || extra > jsonbStorageLimit {
+		return langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))
+	}
+	total := langruntime.CheckedI64Add(current, extra)
+	if total > jsonbStorageLimit {
+		return langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))
+	}
+	return total
+}
+func JsonbPartialScalarBound() int64 {
+	return langruntime.CheckedI64Add(langruntime.CheckedI64Add(int64(131072), int64(16383)), int64(16))
+}
+func JsonbPartialValue(maximum int64) JsonbValue {
+	if maximum < int64(0) || maximum > jsonbStorageLimit {
+		return JsonbValue{Kind: JsonbValueUnknown}
+	}
+	return JsonbValue{Kind: JsonbValueNonNull, NonNull: maximum}
+}
+func JsonbPartialBound(value *JsonbPayload) int64 {
+	value = langruntime.CheckedBorrowed(value, CopyJsonbPayload)
+	maximum := int64(16)
+	index := 0
+	for index < len(value.Characters) {
+		maximum = JsonbPartialAdd(maximum, int64(6))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	index = langruntime.CheckedIndex(0)
+	for index < len(value.Nodes) {
+		maximum = JsonbPartialAdd(maximum, int64(16))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	storage := jsonbStorageLayout(value)
+	if storage.high > maximum {
+		maximum = storage.high
+	}
+	return JsonbPartialAdd(int64(0), maximum)
+}
 
 const JsonpathNodeRoot = 1
 const JsonpathNodeCurrent = 2
@@ -7816,6 +7874,7 @@ const (
 	ArrayElementJson
 	ArrayElementJsonNonNull
 	ArrayElementJsonb
+	ArrayElementJsonbNonNull
 	ArrayElementNetwork
 	ArrayElementBit
 	ArrayElementBytea
@@ -7878,6 +7937,7 @@ type ArrayElement struct {
 	Numeric            string
 	Json               JsonPayload
 	Jsonb              JsonbPayload
+	JsonbNonNull       int64
 	Network            NetworkAddress
 	Bit                string
 	Bytea              string
@@ -7955,6 +8015,8 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementJsonNonNull}
 	case ArrayElementJsonb:
 		return ArrayElement{Kind: ArrayElementJsonb, Jsonb: CopyJsonbPayload(value.Jsonb)}
+	case ArrayElementJsonbNonNull:
+		return ArrayElement{Kind: ArrayElementJsonbNonNull, JsonbNonNull: value.JsonbNonNull}
 	case ArrayElementNetwork:
 		return ArrayElement{Kind: ArrayElementNetwork, Network: value.Network}
 	case ArrayElementBit:
@@ -8050,6 +8112,11 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementJsonbNonNull {
+		maximum := input.JsonbNonNull
+		_ = maximum
+		return 12
+	}
 	if input.Kind == ArrayElementJsonNonNull {
 		return 11
 	}
@@ -8589,6 +8656,10 @@ func ArrayElementToJson(input ArrayElement) JsonValue {
 }
 func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueNonNull {
+		maximum := input.NonNull
+		return ArrayElement{Kind: ArrayElementJsonbNonNull, JsonbNonNull: maximum}
+	}
 	if input.Kind == JsonbValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -8604,6 +8675,10 @@ func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 }
 func ArrayElementToJsonb(input ArrayElement) JsonbValue {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementJsonbNonNull {
+		maximum := input.JsonbNonNull
+		return JsonbValue{Kind: JsonbValueNonNull, NonNull: maximum}
+	}
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonbValue{Kind: JsonbValueError, Error: error}

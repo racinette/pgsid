@@ -339,7 +339,13 @@ it('matches heterogeneous JSONB builders, scalar keys, eager arguments, normaliz
         }
         row['v_' + target.name] = state
         for (const prefix of ['array_', 'object_']) {
-          add(prefix + target.name, row, state)
+          const expected: Outcome =
+            state.kind === 'Unknown' &&
+            prefix === 'array_' &&
+            ['number', 'big', 'boolean'].includes(target.name)
+              ? { kind: 'False' }
+              : state
+          add(prefix + target.name, row, expected)
           add('guard_' + prefix + target.name, { ...row, bypass: known(true) }, { kind: 'True' })
         }
       }
