@@ -87,6 +87,13 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
     if arrays == BoolValue::Null {
         return JsonbValue::Null;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        let mut length = facts.length;
+        if arrays == BoolValue::Value(true) && facts.kind == 5 && length != 0 {
+            length = -1;
+        };
+        return jsonb_partial_shape(facts.maximum, facts.kind, length);
+    };
     if let JsonbValue::Value(value) = input {
         if let BoolValue::Value(remove) = arrays {
             return jsonb_format_strip(value, remove);

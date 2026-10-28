@@ -3,6 +3,9 @@ const JSON_POPULATE_ARRAY_ERROR: u32 = 3484946;
 const JSON_POPULATE_CALENDAR_ERROR: u32 = 3452551;
 
 pub(crate) fn json_populate_kind(input: JsonbInput) -> i32 {
+    if let JsonbInput::JsonbNonNull(facts) = input {
+        return facts.kind;
+    };
     if let JsonbInput::Json(value) = input {
         return value.kind;
     };

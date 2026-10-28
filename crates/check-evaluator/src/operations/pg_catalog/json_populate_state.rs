@@ -64,11 +64,24 @@ pub(crate) fn prepare_json_populate(
             if let JsonbInput::Json(value) = raw_source {
                 status = json_read_object_ready(JsonValue::Value(value), utf8);
             };
-            let binary_source = input.clone();
-            if let JsonbInput::Jsonb(value) = binary_source {
-                status = CheckOutcome::True;
-                if value.nodes[value.root].kind != 6 {
-                    status = CheckOutcome::Error(make_sql_error(JSON_POPULATE_OBJECT_ERROR));
+            let mut binary = false;
+            let mut partial = false;
+            if let JsonbInput::Jsonb(_) = input {
+                binary = true;
+            };
+            if let JsonbInput::JsonbNonNull(_) = input {
+                binary = true;
+                partial = true;
+            };
+            if binary {
+                let kind = json_populate_kind(input.clone());
+                if kind >= 0 {
+                    if kind != 6 {
+                        status = CheckOutcome::Error(make_sql_error(JSON_POPULATE_OBJECT_ERROR));
+                    } else if partial == false || count == 0 {
+                        // Unknown keys may leave base fields untouched and skip input callbacks.
+                        status = CheckOutcome::True;
+                    };
                 };
             };
         };
