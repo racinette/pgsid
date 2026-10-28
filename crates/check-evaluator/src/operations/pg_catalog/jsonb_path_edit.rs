@@ -168,6 +168,109 @@ fn jsonb_path_child(node: JsonbNode, child: usize) -> JsonbNode {
     }
 }
 
+fn jsonb_path_partial_growth(
+    original: JsonbKnowledge,
+    replacement: JsonbValue,
+    key: &str,
+    length: i32,
+) -> JsonbValue {
+    let added = jsonb_edit_facts(replacement);
+    let mut maximum = jsonb_partial_add(original.maximum, added.maximum);
+    // New entries, alignment and an object key can exceed the replaced subtree.
+    maximum = jsonb_partial_add(maximum, 32i64);
+    if original.kind == 6 {
+        let characters: Vec<char> = key.chars().collect();
+        let mut index: usize = 0;
+        while index < characters.len() {
+            maximum = jsonb_partial_add(maximum, 6i64);
+            index += 1;
+        }
+    };
+    jsonb_partial_shape(maximum, original.kind, length)
+}
+
+fn jsonb_path_edit_partial(
+    facts: JsonbKnowledge,
+    path: ArrayPayload,
+    replacement: JsonbValue,
+    mode: i32,
+) -> JsonbValue {
+    if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
+        return JsonbValue::Unknown;
+    };
+    if path.dimensions.len() > 1 {
+        return JsonbValue::Error(make_sql_error(JSONB_PATH_RANK));
+    };
+    if facts.kind < 0 {
+        return JsonbValue::Unknown;
+    };
+    if facts.kind < 5 {
+        return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
+    };
+    if (facts.length == 0 && mode < 2) || path.elements.len() == 0 {
+        return JsonbValue::NonNull(facts);
+    };
+    let first = path.elements[0].clone();
+    if let ArrayElement::Null = first {
+        return JsonbValue::Error(make_sql_error(JSONB_PATH_NULL));
+    };
+    let converted = array_element_to_text(first);
+    if let TextValue::Error(error) = converted {
+        return JsonbValue::Error(error);
+    };
+    if let TextValue::Value(key) = converted {
+        let last = path.elements.len() == 1;
+        if facts.kind == 6 {
+            if last && mode == 0 {
+                return jsonb_partial_shape(facts.maximum, 6, -1);
+            };
+            if last && mode < 3 {
+                return jsonb_path_partial_growth(facts, replacement, key.as_str(), -1);
+            };
+            return JsonbValue::Unknown;
+        };
+        let parsed = json_array_path_index(key.as_str());
+        if let Int4Value::Value(number) = parsed {
+            let mut length = facts.length;
+            let mut outside = false;
+            if length >= 0 {
+                let mut index = number as i64;
+                if index < 0i64 {
+                    index = index + length as i64;
+                };
+                outside = index < 0i64 || index >= length as i64;
+                if outside && (last == false || mode < 2) {
+                    return JsonbValue::NonNull(facts);
+                };
+            };
+            if last == false {
+                if length >= 0 && outside == false {
+                    let second = path.elements[1].clone();
+                    if let ArrayElement::Null = second {
+                        return JsonbValue::Error(make_sql_error(JSONB_PATH_NULL));
+                    };
+                };
+                return JsonbValue::Unknown;
+            };
+            if mode == 0 {
+                return sql__pg_catalog__jsonb_delete__btgy(
+                    JsonbValue::NonNull(facts),
+                    make_int4_value(number),
+                );
+            };
+            if length >= 0 && (outside || mode >= 3) {
+                if length == 2147483647 {
+                    return JsonbValue::Unknown;
+                };
+                length = length + 1;
+            };
+            return jsonb_path_partial_growth(facts, replacement, "", length);
+        };
+        return JsonbValue::Error(make_sql_error(JSONB_PATH_INDEX));
+    };
+    JsonbValue::Unknown
+}
+
 fn jsonb_path_splice(
     input: JsonbPayload,
     replacement: JsonbValue,
@@ -177,6 +280,40 @@ fn jsonb_path_splice(
     key: &str,
     remove: bool,
 ) -> JsonbValue {
+    if remove == false {
+        if let JsonbValue::NonNull(_) = replacement {
+            let root = input.nodes[input.root];
+            let mut length: i32 = -1;
+            if root.kind == 5 {
+                length = jsonb_relation_count(&input, root) as i32;
+                if parent == input.root {
+                    let mut replaced = input.nodes[parent].child;
+                    if previous > 0 {
+                        replaced = input.nodes[previous].next;
+                    };
+                    if replaced == next {
+                        length = length + 1;
+                    };
+                };
+            };
+            let facts = JsonbKnowledge {
+                maximum: jsonb_partial_bound(&input),
+                kind: root.kind,
+                length: length,
+            };
+            // A nested object key also contributes when the root is an array.
+            let bound_facts = JsonbKnowledge {
+                maximum: facts.maximum,
+                kind: input.nodes[parent].kind,
+                length: length,
+            };
+            let admitted = jsonb_path_partial_growth(bound_facts, replacement, key, length);
+            if let JsonbValue::NonNull(bounds) = admitted {
+                return jsonb_partial_shape(bounds.maximum, facts.kind, length);
+            };
+            return admitted;
+        };
+    };
     let mut characters = input.characters;
     let mut nodes = input.nodes;
     let mut inserted = next;
@@ -405,22 +542,25 @@ fn jsonb_path_edit(
             return JsonbValue::Null;
         };
     };
-    if let JsonbValue::Value(value) = input {
-        if let ArrayValue::Value(keys) = path {
-            if let BoolValue::Value(setting) = flag {
-                let mut mode: i32 = 0;
-                if operation > 0 {
-                    if let JsonbValue::Unknown = replacement {
-                        return JsonbValue::Unknown;
-                    };
-                    mode = 1;
-                    if setting {
-                        mode = 2;
-                    };
-                    if operation == 2 {
-                        mode = mode + 2;
-                    };
+    if let ArrayValue::Value(keys) = path {
+        if let BoolValue::Value(setting) = flag {
+            let mut mode: i32 = 0;
+            if operation > 0 {
+                if let JsonbValue::Unknown = replacement {
+                    return JsonbValue::Unknown;
                 };
+                mode = 1;
+                if setting {
+                    mode = 2;
+                };
+                if operation == 2 {
+                    mode = mode + 2;
+                };
+            };
+            if let JsonbValue::NonNull(facts) = input {
+                return jsonb_path_edit_partial(facts, keys, replacement, mode);
+            };
+            if let JsonbValue::Value(value) = input {
                 return jsonb_path_edit_known(value, keys, replacement, mode);
             };
         };

@@ -176,17 +176,7 @@ const sessionDependentCases = new Map<string, string>([
     'world_039_report_cursors.cursor_labels.cursor_wire',
   ],
 ])
-const catalogBinaryCases = new Map<string, string>(
-  ['empty', 'null_cells', 'values'].map((name) => [
-    `043_lane_allocations/binary_exports_${name}/binary_array_context`,
-    'world_043_lane_allocations.lane_binary_exports.binary_array_context',
-  ]),
-)
-const binaryContextCases = new Map([
-  ...platformDependentCases,
-  ...sessionDependentCases,
-  ...catalogBinaryCases,
-])
+const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
 const arraySortContextCases = new Map<string, string>([
   [
     '043_lane_allocations/sorted_precision_ambiguous_ties/sorted_precision_text',
@@ -260,10 +250,7 @@ const declaredValueContextCases = new Map<string, string>([
       ] as const,
   ),
 ])
-if (
-  binaryContextCases.size !==
-  platformDependentCases.size + sessionDependentCases.size + catalogBinaryCases.size
-)
+if (binaryContextCases.size !== platformDependentCases.size + sessionDependentCases.size)
   throw new Error('Duplicate binary context case declarations')
 const binaryDeferrals = (identity: string): number =>
   [...binaryContextCases.values()].filter((name) => name === identity).length
@@ -1983,7 +1970,7 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
-    for (const [identity, constraint] of [...declaredValueContextCases, ...catalogBinaryCases]) {
+    for (const [identity, constraint] of declaredValueContextCases) {
       const slash = identity.lastIndexOf('/')
       const item = caseResults.find((row) => row.name === identity.slice(0, slash))
       if (selectedWorldNames && !worlds.some((world) => identity.startsWith(world.name + '/')))
