@@ -1,7 +1,5 @@
----
-description: hand-authored query contracts over the shared fixture schema
----
-
+export const description = 'hand-authored query contracts over the shared fixture schema'
+export const guidance = `
 These fixtures are independently authored regression contracts over the shared
 schema and data states. Their inline annotations state expected engine results
 and the PostgreSQL-backed suites adjudicate those expectations.
@@ -24,19 +22,19 @@ The sequence:
 
 1. **Spot the imprecision.** The engine claims nullable; PostgreSQL never
    produces a NULL, and you understand why.
-2. **Capture it RED.** Add an `it.fails` case asserting the TARGET contract —
+2. **Capture it RED.** Add an \`it.fails\` case asserting the TARGET contract —
    what the engine must claim once the fix lands. It passes today precisely
    because the engine does not claim it yet, so the suite is green before the
    work starts.
 3. **Fix the engine.**
-4. **Graduate.** The `it.fails` starts failing, which forces the flip to a
-   plain `it` in the same commit. Then move the case into the fixture corpus
+4. **Graduate.** The \`it.fails\` starts failing, which forces the flip to a
+   plain \`it\` in the same commit. Then move the case into the fixture corpus
    as a green fixture with its claims and its controls.
 
 The suite is green before, during and after. Each flip is the acceptance test
-of the change that caused it. `subtree-evaluation-red.test.ts`,
-`always-null-red.test.ts`, `bare-name-gates-red.test.ts` and
-`overload-merge-red.test.ts` are the existing instances — follow their shape.
+of the change that caused it. \`subtree-evaluation-red.test.ts\`,
+\`always-null-red.test.ts\`, \`bare-name-gates-red.test.ts\` and
+\`overload-merge-red.test.ts\` are the existing instances — follow their shape.
 
 **Adjudicate the target against PostgreSQL BEFORE writing it down.** A red
 case claims what PostgreSQL does, ahead of what the engine sees. A target the
@@ -60,7 +58,7 @@ like honesty: "reach, measured: one fixture — a small return for a rule."
 That sentence is in this repo, and it is wrong twice over. It ranks a rule by
 a number that says nothing about whether the engine is right, and it teaches
 the next reader to hesitate before checking a case that looks rare. The
-hesitation is the real cost: `docs/deferred-tasks.md` carried a row reading
+hesitation is the real cost: \`docs/deferred-tasks.md\` carried a row reading
 "closable, **if ever worth it**", and behind it the kernel could not read a
 boolean literal in a CHECK at all.
 
@@ -76,7 +74,7 @@ ASSERTS the count — see rule 3.
 
 After adding a gate, break it deliberately and re-run. If the suite stays
 green the gate is untested — write the case that kills it. Prefer a kill by
-`PostgreSQL returned NULL` over a kill by a stale-annotation check: the first
+\`PostgreSQL returned NULL\` over a kill by a stale-annotation check: the first
 is the database contradicting the engine, the second is bookkeeping.
 
 If a gate cannot be killed by any fixture, say so in its comment and say why.
@@ -86,14 +84,14 @@ widening.**
 ### 4. A control that adds an excuse is not a control
 
 A control column that claims nullable on a value which is never NULL costs an
-`@unwitnessable` annotation, and has bought nothing: it trades one recorded
+\`@unwitnessable\` annotation, and has bought nothing: it trades one recorded
 excuse for another. Before adding one, check whether a sibling fixture already
 kills the mutation. If the branch you are guarding is a REFUSAL — it can only
 under-claim — it needs no witness at all.
 
 ### 5. The recorded reason is usually the route
 
-An `@unwitnessable` reason that explains why a claim is imprecise has, more
+An \`@unwitnessable\` reason that explains why a claim is imprecise has, more
 often than not, described the fix. Read the existing reasons before designing
 anything; several closures in this corpus were a reason someone had already
 written and nobody had asked the engine to act on.
@@ -125,7 +123,7 @@ Check that a fixture returns rows somewhere before believing it tests
 anything.
 
 Where a fixture's own claim genuinely cannot be witnessed, look for a
-DIFFERENT ROUTE TO THE SAME CATALOG BIT. `convalidated = false` is set by NOT
+DIFFERENT ROUTE TO THE SAME CATALOG BIT. \`convalidated = false\` is set by NOT
 VALID (which gates writes, so nothing can dangle it) and by NOT ENFORCED
 (which gates nothing, so a data-modifying CTE can) — one bit, and the
 witnessable spelling stands behind both.
@@ -133,35 +131,35 @@ witnessable spelling stands behind both.
 ### 8. Anything you send to PostgreSQL needs a WORK bound
 
 Closure — "this expression has no free variables" — is a soundness property
-and says nothing about cost. `generate_series(1, 10000000000)` is perfectly
+and says nothing about cost. \`generate_series(1, 10000000000)\` is perfectly
 closed and immutable, and the corpus contains it. A probe that counts it
 without a bound does not fail; it HANGS, and in production it takes the
 process with it.
 
-The bound is a `LIMIT` at `SUBLINK_SRF_ROW_CAP + 1`, reading a result at the
+The bound is a \`LIMIT\` at \`SUBLINK_SRF_ROW_CAP + 1\`, reading a result at the
 cap as "no answer" and falling back to whatever the conservative default was.
 **A whitelist of safe FUNCTIONS is the wrong axis** — the hazard is in the
-ARGUMENTS, and `generate_series(1, 3)` and `generate_series(1, 10^10)` are the
+ARGUMENTS, and \`generate_series(1, 3)\` and \`generate_series(1, 10^10)\` are the
 same name. Bounding the work needs no per-function knowledge and no
 maintenance.
 
 **Where the call sits decides whether the bound works at all.** A target-list
-SRF is a `ProjectSet` and LIMIT stops it lazily; the same call in a FROM item
-is a `FunctionScan`, which materialises before any LIMIT above it applies.
-That is Trap 1 in `docs/subtree-evaluation.md` — read it before writing a
+SRF is a \`ProjectSet\` and LIMIT stops it lazily; the same call in a FROM item
+is a \`FunctionScan\`, which materialises before any LIMIT above it applies.
+That is Trap 1 in \`docs/subtree-evaluation.md\` — read it before writing a
 probe, because a bound that reads as protection and is not is worse than no
 bound.
 
-**Never hand a raw `pg` to `WalkOptions.evaluate` in a harness.** Use
-`createKillableEvaluator` (`killable-evaluator.ts`), which runs PGlite in a
+**Never hand a raw \`pg\` to \`WalkOptions.evaluate\` in a harness.** Use
+\`createKillableEvaluator\` (\`killable-evaluator.ts\`), which runs PGlite in a
 worker and kills it from the main thread on a 500ms default. Nothing inside
-that thread can end a runaway — `statement_timeout` does not fire under PGlite
+that thread can end a runaway — \`statement_timeout\` does not fire under PGlite
 and a same-thread timer never runs, because the event loop is blocked in WASM
 — so a probe that does not finish does not FAIL the suite, it HANGS it. That
 is not hypothetical; it is how this file's rule 8 came to be written.
 
-Assert on `evaluator.killedSql`, not on the warning sink. A closed subtree may
-RAISE on its own (`5 / 0`, a NULL into a NOT NULL domain) and the evaluator
+Assert on \`evaluator.killedSql\`, not on the warning sink. A closed subtree may
+RAISE on its own (\`5 / 0\`, a NULL into a NOT NULL domain) and the evaluator
 core is built around that — the corpus has five, all ordinary. Only a KILL
 means a probe could not be answered in the time allowed.
 
@@ -184,6 +182,7 @@ recording a conviction — the loop-closer caught the same name twice.
 
 ### 11. Corpus parity
 
-Any corner value used to convict must join `probe-values.ts`, or the standing
+Any corner value used to convict must join \`probe-values.ts\`, or the standing
 probe cannot re-find what you found.
 <!-- espalier adopt: end /fixtures/AGENTS.md -->
+`

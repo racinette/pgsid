@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `sqlc-corpus/cases/`
 
+
 Every case keeps sqlc's schema, query, configuration, and extracted expected
 IR verdicts together. Optional pgsid-owned data.sql supplies executable witness
 rows; optional adjudication.json records conclusions about observed
@@ -11,10 +12,11 @@ Do not edit an upstream-owned file to make pgsid pass. Fix the engine, record a
 PostgreSQL-backed adjudication, or refresh the pinned corpus according to the
 root provenance document.
 
+
 ## Project layout
 
     sqlc-corpus/cases/
-    └─ [case]/               (zero or more, any name)
+    └─ [case]/               (zero or more matching directories)
        │
        ├─ adjudication.json  an optional PostgreSQL-backed disposition of sqlc
        │                     and pgsid disagreements (optional)
@@ -71,7 +73,7 @@ These paths are part of the repository but serve specific purposes outside the p
 | --- | --- |
 | `.prettierignore` | Formatter policy is configuration, not part of the borrowed case layout. |
 | `.espalierignore` | Sources used to generate and check this repository guidance. |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../../espalier/sqlc-corpus/cases/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../../espalier/sqlc-corpus/cases/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under sqlc-corpus/cases/ must fit the project layout or a documented
 repository-specific purpose.

@@ -1,13 +1,12 @@
-import { tsImport } from 'tsx/esm/api'
+import { register } from 'tsx/esm/api'
 
-const { combineRungSources, measureRungReach, pairMembers } = await tsImport(
-  '../../../rung-cooccurrence.ts',
-  import.meta.url,
-)
+// A namespaced tsx import also namespaces PGlite's runtime builtin imports, which then fail.
+register()
+const { combineRungSources, measureRungReach, pairMembers } =
+  await import('../../../rung-cooccurrence.ts')
 
 export const aggregate = true
 export const targets = ['*/*.sql']
-export const unobservedImplementationDependencies = ['killable-evaluator.worker.mjs']
 
 export const rule = `Require every query world to exercise at least nine
 query-analysis decision rungs and eighteen rung pairs. Across the worlds, the

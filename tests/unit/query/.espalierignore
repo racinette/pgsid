@@ -1,2 +1,5 @@
 # Formatter policy is configuration, not part of the query-test layout.
 .prettierignore
+
+# Version control metadata. Remove this entry to govern it explicitly.
+.git

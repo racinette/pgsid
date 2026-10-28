@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `worlds/`
 
+
 Each directory is one database world. Query worlds test independently declared
 query contracts and may also provide CHECK INSERT cases. A schema marked
 `-- @world checks` defines a focused CHECK world with no query fixtures.
@@ -55,7 +56,7 @@ the full suite green before it has produced a useful result.
 
 The structural and composition rules through "No dead schema" are enforced by
 the Espalier aggregate constraint
-`worlds/[...world]/world-health.sql.mjs`. Its explicit `targets` selector
+`worlds/[...world]/world-health.mjs`. Its explicit `targets` selector
 collects the complete governed SQL corpus into one deterministic invocation.
 Complete nullable contracts are enforced separately by the per-fixture
 Espalier rule and `tests/unit/query/worlds-contract.test.ts`, as described in
@@ -65,7 +66,7 @@ Run the health aggregate alone while authoring:
 
 ```
 pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
-  --rule 'worlds/[...world]/world-health.sql.mjs' --no-cache
+  --rule 'worlds/[...world]/world-health.mjs'
 ```
 
 Absolute violations name the world and attach to its schema or malformed
@@ -100,7 +101,7 @@ frontier.
 
 ```
 pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
-  --rule 'worlds/[...world]/rung-reach.sql.mjs' --no-cache
+  --rule 'worlds/[...world]/rung-reach.mjs' --no-cache
 ```
 
 Every query world must exercise at least nine rungs and eighteen pairs. The first
@@ -305,10 +306,11 @@ shared one spends the isolation that made the finding legible, and grows the
 shared world on behalf of everyone who never needed it.
 <!-- espalier adopt: end /worlds/AGENTS.md -->
 
+
 ## Project layout
 
     worlds/
-    └─ [world]/           (zero or more, any name)
+    └─ [world]/           (zero or more matching directories)
        │
        ├─ check-seed.sql  independent INSERT cases for generated CHECK evaluator
        │                  parity (required)
@@ -319,7 +321,7 @@ shared world on behalf of everyone who never needed it.
        ├─ schema.sql      the schema of one isolated database world (required)
        │
        └─ [fixture].sql   a hand-authored query with an independently stated
-                          contract (zero or more, any name)
+                          contract (zero or more matching files)
 
 ## `[world]/check-seed.sql` — independent INSERT cases for generated CHECK evaluator parity
 
@@ -369,19 +371,11 @@ suite compares them to the engine in both directions and asks PostgreSQL to
 witness each claimed arm. A generated corpus may adjudicate emitted claims,
 but it cannot replace these independent expectations.
 
-Example: worlds/001_shipping/legs-outer.sql
+Reference implementation: worlds/001_shipping/legs-outer.sql
 
-## Constraints
+## rung-reach
 
-### SQL files
-
-These rules apply to all SQL files under this directory.
-
-#### rung-reach
-
-Only governed paths matching `*/*.sql` under this constraint's scope are selected.
-
-This constraint analyzes all matching files as one group.
+Together, paths matching `*/*.sql` under `worlds/` must follow this rule.
 
 Require every query world to exercise at least nine
 query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
@@ -393,11 +387,9 @@ rung measurements. Admission ordinals still cover all worlds.
 Presence-group and joint-parameter mechanisms do not emit column-trace
 conclusions and are outside this constraint.
 
-#### world-health
+## world-health
 
-Only governed paths matching `*/*.sql` under this constraint's scope are selected.
-
-This constraint analyzes all matching files as one group.
+Together, paths matching `*/*.sql` under `worlds/` must follow this rule.
 
 Keep the isolated-world corpus structurally healthy as a
 whole. Query worlds must meet the table, constraint, key, and live-schema floors;
@@ -415,7 +407,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/worlds/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/worlds/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under worlds/ must fit the project layout or a documented
 repository-specific purpose.

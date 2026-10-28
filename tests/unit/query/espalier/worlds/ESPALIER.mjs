@@ -1,10 +1,8 @@
----
-description: hand-authored database worlds for query and CHECK testing
----
-
+export const description = 'hand-authored database worlds for query and CHECK testing'
+export const guidance = `
 Each directory is one database world. Query worlds test independently declared
 query contracts and may also provide CHECK INSERT cases. A schema marked
-`-- @world checks` defines a focused CHECK world with no query fixtures.
+\`-- @world checks\` defines a focused CHECK world with no query fixtures.
 
 CHECK worlds require a schema containing CHECK constraints, seed data, and named
 INSERT cases that reference every table. The CHECK suite requires definite
@@ -20,9 +18,9 @@ those measurements. Admission ordinals cover both kinds of world.
 
 Run CHECK parity after adding or changing constraint implementations or inputs:
 
-```sh
+\`\`\`sh
 pnpm exec vitest run tests/sql-semantics/check-worlds.test.ts
-```
+\`\`\`
 
 <!-- espalier adopt: begin /worlds/AGENTS.md -->
 
@@ -55,18 +53,18 @@ the full suite green before it has produced a useful result.
 
 The structural and composition rules through "No dead schema" are enforced by
 the Espalier aggregate constraint
-`worlds/[...world]/world-health.sql.mjs`. Its explicit `targets` selector
+\`worlds/[...world]/world-health.mjs\`. Its explicit \`targets\` selector
 collects the complete governed SQL corpus into one deterministic invocation.
 Complete nullable contracts are enforced separately by the per-fixture
-Espalier rule and `tests/unit/query/worlds-contract.test.ts`, as described in
+Espalier rule and \`tests/unit/query/worlds-contract.test.ts\`, as described in
 rule 9. Both are part of the ordinary development gates.
 
 Run the health aggregate alone while authoring:
 
-```
-pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
-  --rule 'worlds/[...world]/world-health.sql.mjs' --no-cache
-```
+\`\`\`
+pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \\
+  --rule 'worlds/[...world]/world-health.mjs'
+\`\`\`
 
 Absolute violations name the world and attach to its schema or malformed
 fixture. A proportion out of range names the ratio and its bound. The
@@ -76,7 +74,7 @@ current structural, ratio, and composition measurement, including dormant
 ratio thresholds.
 
 A corpus-wide proportion only binds once its denominator reaches
-`ceil(1/floor)`. Below that point it is arithmetic rather than a measurement,
+\`ceil(1/floor)\`. Below that point it is arithmetic rather than a measurement,
 so the aggregate deliberately emits no verdict for it.
 
 The ratchet floors live beside the measuring code in the aggregate rule.
@@ -98,10 +96,10 @@ PAIRS of decisions, fire while analysing each world's statements. Nearly every
 decision already fires somewhere; compositions between them remain the useful
 frontier.
 
-```
-pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
-  --rule 'worlds/[...world]/rung-reach.sql.mjs' --no-cache
-```
+\`\`\`
+pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \\
+  --rule 'worlds/[...world]/rung-reach.mjs' --no-cache
+\`\`\`
 
 Every query world must exercise at least nine rungs and eighteen pairs. The first
 world establishes the pair union; each later query world must add at least four pairs
@@ -118,14 +116,14 @@ executable contracts remain the gate for those mechanisms.
 
 Run those contracts after every fixture or witness-data change:
 
-```
+\`\`\`
 pnpm exec vitest run tests/unit/query/worlds-contract.test.ts
-```
+\`\`\`
 
 ### 1. A world is a directory
 
-Directory names are `NNN_name`, with a unique three-digit ordinal contiguous
-from `001`. The ordinal is admission order: it makes every later world's
+Directory names are \`NNN_name\`, with a unique three-digit ordinal contiguous
+from \`001\`. The ordinal is admission order: it makes every later world's
 marginal contribution stable without a hand-maintained ordering list. Naming
 is enforced by the aggregate because Espalier has no general filename grammar.
 
@@ -143,7 +141,7 @@ Named tables, named columns, a domain a person could describe out loud. An
 order has a customer, a line item has a quantity, a shipment has a carrier.
 
 This is the rule nothing can enforce, and it is the one that matters most. A
-world of single-letter tables over columns called `a` and `b` makes it
+world of single-letter tables over columns called \`a\` and \`b\` makes it
 impossible to see whether a claim is PLAUSIBLE — the reviewer can check that
 the engine agrees with PostgreSQL, and nothing else. A fixture nobody can
 judge by reading is a fixture only its author can review, which is the failure
@@ -167,7 +165,7 @@ onto one table and leaving the rest bare.
 real schema, not decoration on one column.
 
 **CHECKs average at least two columns.** This is the guard that makes the
-density rule mean something: a single-column `CHECK (qty > 0)` satisfies
+density rule mean something: a single-column \`CHECK (qty > 0)\` satisfies
 density at no thought, and averaging pulls filler back down. If this rule is
 ever relaxed, density becomes a formality — the two travel together.
 
@@ -189,7 +187,7 @@ one thing should not be forced to carry every shape.
 **Every one binds only once its denominator can express it.** A five percent
 floor says nothing over twelve statements — one statement is already eight
 percent. The gate comes from the threshold itself: a floor of _p_ starts
-binding at `ceil(1/p)` items, and below that the aggregate emits no verdict.
+binding at \`ceil(1/p)\` items, and below that the aggregate emits no verdict.
 That is what lets these be written now, while the corpus is still small enough
 that a percentage is arithmetic.
 
@@ -204,15 +202,15 @@ that a percentage is arithmetic.
   and the LITERAL path starves — the entailment kernel matches literals against
   constraint constants, and a parameter never matches one.
 - **A parameter only counts where its nullness can matter**: a predicate, a
-  written value, a function argument. One in `LIMIT` or `OFFSET` bounds a row
+  written value, a function argument. One in \`LIMIT\` or \`OFFSET\` bounds a row
   count and nothing else, and a bare one in a select list is a nullable output
   column with no reasoning behind it. Neither counts, which is what stops a
-  world satisfying the band by tacking `LIMIT $1` onto every query.
+  world satisfying the band by tacking \`LIMIT $1\` onto every query.
 - **Parametrized statements average more than one and a half parameters.** A
   corpus of one-parameter queries never asks whether two bindings interact.
 - **Half of CHECKs carry a null test, and a tenth carry a literal NULL.** Two
-  thresholds because they are two different things. `IS NULL` and `IS NOT NULL`
-  are what real schemas write and what the fact harvest reads; a bare `NULL`
+  thresholds because they are two different things. \`IS NULL\` and \`IS NOT NULL\`
+  are what real schemas write and what the fact harvest reads; a bare \`NULL\`
   inside a constraint is rare in real modelling, which is why its floor is low
   — it is a parse shape worth having, not a shape worth forcing.
 - **Three tenths of generation expressions carry a literal NULL.** Higher than
@@ -304,3 +302,4 @@ A world graduates whole and keeps its directory. Folding its schema into the
 shared one spends the isolation that made the finding legible, and grows the
 shared world on behalf of everyone who never needed it.
 <!-- espalier adopt: end /worlds/AGENTS.md -->
+`

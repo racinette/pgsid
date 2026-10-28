@@ -1,5 +1,4 @@
-version: 1
-pin: 0.2.0
+pin: 0.9.2
 
 name: pgsid query analysis tests
 
@@ -9,3 +8,10 @@ ignoreFiles: []
 
 build:
   filename: AGENTS.md
+
+skip:
+  - AGENTS.MD
+  - AGENTS.md
+  - CLAUDE.md
+  - .git
+  - .gitkeep

@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `fixtures/`
 
+
 These fixtures are independently authored regression contracts over the shared
 schema and data states. Their inline annotations state expected engine results
 and the PostgreSQL-backed suites adjudicate those expectations.
@@ -188,6 +189,7 @@ Any corner value used to convict must join `probe-values.ts`, or the standing
 probe cannot re-find what you found.
 <!-- espalier adopt: end /fixtures/AGENTS.md -->
 
+
 ## Project layout
 
     fixtures/
@@ -197,7 +199,7 @@ probe cannot re-find what you found.
     │                 (required)
     │
     └─ [fixture].sql  a hand-authored query contract over the shared schema
-                      (zero or more, any name)
+                      (zero or more matching files)
 
 ## `schema.sql` — the shared schema for hand-authored query fixtures
 
@@ -222,7 +224,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/fixtures/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/fixtures/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under fixtures/ must fit the project layout or a documented
 repository-specific purpose.

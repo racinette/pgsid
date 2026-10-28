@@ -2,16 +2,18 @@
 
 # pgsid query analysis tests — `value-lineage/dml/`
 
+
 These fixtures define the write-boundary shapes the value-lineage analyzer must
 eventually interpret. Keep each query executable by PostgreSQL and pin its root,
 projected column order, and the syntax features that make its row-image contract
 distinct.
 
+
 ## Project layout
 
     value-lineage/dml/
-    └─ [fixture].sql  a DML value-lineage shape contract (zero or more, any
-                      name)
+    └─ [fixture].sql  a DML value-lineage shape contract (zero or more matching
+                      files)
 
 ## `[fixture].sql` — a DML value-lineage shape contract
 
@@ -23,7 +25,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../../espalier/value-lineage/dml/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../../espalier/value-lineage/dml/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under value-lineage/dml/ must fit the project layout or a documented
 repository-specific purpose.

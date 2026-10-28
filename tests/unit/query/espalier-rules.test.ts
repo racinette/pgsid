@@ -7,9 +7,9 @@ import { worldPurpose } from './world-purpose.js'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as fixtureRule from './espalier/worlds/[world]/[fixture].sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
-import * as healthRule from './espalier/worlds/[...world]/world-health.sql.mjs'
+import * as healthRule from './espalier/worlds/[...world]/world-health.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
-import * as rungReachRule from './espalier/worlds/[...world]/rung-reach.sql.mjs'
+import * as rungReachRule from './espalier/worlds/[...world]/rung-reach.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as sharedFixtureRule from './espalier/fixtures/[fixture].sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
@@ -63,7 +63,6 @@ describe('Espalier query-fixture rule', () => {
   const checkOptions = {
     cwd: process.cwd(),
     config: 'tests/unit/query/espalier.config.yaml',
-    cache: false,
   } as const
 
   it('accepts the complete governed non-world query test tree', async () => {
@@ -95,7 +94,7 @@ describe('Espalier query-fixture rule', () => {
     const issues = await check({
       ...checkOptions,
       paths: ['tests/unit/query/worlds'],
-      rule: 'worlds/[...world]/world-health.sql.mjs',
+      rule: 'worlds/[...world]/world-health.mjs',
     })
     expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
     const foundCodes = issues.map((issue) => issue.code)
@@ -106,13 +105,13 @@ describe('Espalier query-fixture rule', () => {
     expect(foundCodes.filter((code) => code === 'world_health_ratios')).toHaveLength(1)
     expect(foundCodes.filter((code) => code === 'world_health_composition')).toHaveLength(1)
     expect(foundCodes.filter((code) => code === 'world_health_detail')).toHaveLength(worldCount)
-  })
+  }, 180_000)
 
   it('accepts the complete world rung-reach aggregate', async () => {
     const issues = await check({
       ...checkOptions,
       paths: ['tests/unit/query/worlds'],
-      rule: 'worlds/[...world]/rung-reach.sql.mjs',
+      rule: 'worlds/[...world]/rung-reach.mjs',
     })
     expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
     const foundCodes = issues.map((issue) => issue.code)

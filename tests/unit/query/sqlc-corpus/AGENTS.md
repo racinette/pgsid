@@ -2,6 +2,7 @@
 
 # pgsid query analysis tests — `sqlc-corpus/`
 
+
 This is a borrowed corpus vendored from sqlc's PostgreSQL end-to-end testdata.
 Read PROVENANCE.md before refreshing it. Upstream schema, query, config, and
 expected files remain attributable to the pinned sqlc release.
@@ -9,6 +10,7 @@ expected files remain attributable to the pinned sqlc release.
 The exceptions are explicit: per-case data.sql and adjudication.json, and the
 root tickets/ directory, are pgsid-owned. A refresh must preserve them and must
 not blur borrowed expectations with conclusions adjudicated against PostgreSQL.
+
 
 ## Project layout
 
@@ -37,7 +39,7 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../espalier/sqlc-corpus/ESPALIER.MD) to change this document's persistent guidance. |
+| `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.mjs`](../espalier/sqlc-corpus/ESPALIER.mjs) to change this document's persistent guidance. |
 
 Every path under sqlc-corpus/ must fit the project layout or a documented
 repository-specific purpose.
