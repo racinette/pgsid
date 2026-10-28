@@ -1,5 +1,8 @@
 pub fn sql__pg_catalog__jsonb_typeof__68xu(input: JsonbValue) -> TextValue {
-    if let JsonbValue::NonNull(_maximum) = input {
+    if let JsonbValue::NonNull(facts) = input {
+        if facts.kind >= 0 {
+            return json_kind_text(facts.kind);
+        };
         return TextValue::NonNull;
     };
     if let JsonbValue::Error(error) = input {

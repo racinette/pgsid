@@ -1024,10 +1024,17 @@ pub struct JsonbPayload {
     pub root: usize,
 }
 
+#[derive(Clone, Copy)]
+pub struct JsonbKnowledge {
+    pub maximum: i64,
+    pub kind: i32,
+    pub length: i32,
+}
+
 #[derive(Clone)]
 pub enum JsonbValue {
     Unknown,
-    NonNull(i64),
+    NonNull(JsonbKnowledge),
     Null,
     Value(JsonbPayload),
     Error(SqlError),
@@ -1038,7 +1045,7 @@ pub enum JsonbInput {
     Unknown,
     ScalarUnknown,
     JsonNonNull,
-    JsonbNonNull(i64),
+    JsonbNonNull(JsonbKnowledge),
     Null,
     Error(SqlError),
     ConvertedError(SqlError),

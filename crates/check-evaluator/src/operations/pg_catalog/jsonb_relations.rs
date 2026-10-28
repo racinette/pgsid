@@ -260,6 +260,12 @@ fn jsonb_relation_values(
     if let JsonbValue::Error(error) = right {
         return BoolValue::Error(error);
     };
+    if let JsonbValue::Null = left {
+        return BoolValue::Null;
+    };
+    if let JsonbValue::Null = right {
+        return BoolValue::Null;
+    };
     if let JsonbValue::Unknown = left {
         return BoolValue::Unknown;
     };
@@ -272,7 +278,7 @@ fn jsonb_relation_values(
             return BoolValue::Value(result != invert);
         };
     };
-    BoolValue::Null
+    BoolValue::Unknown
 }
 
 pub fn sql__pg_catalog__jsonb_eq__tfah(left: JsonbValue, right: JsonbValue) -> BoolValue {

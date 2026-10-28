@@ -7,6 +7,12 @@ pub fn sql__pg_catalog__numeric__unkz(input: JsonbValue) -> NumericValue {
     if let JsonbValue::Null = input {
         return NumericValue::Null;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if facts.kind == 5 || facts.kind == 6 {
+            return NumericValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
+        };
+        return NumericValue::Unknown;
+    };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
         if root.kind == 0 {
@@ -26,6 +32,12 @@ pub fn sql__pg_catalog__bool__k8bw(input: JsonbValue) -> BoolValue {
     };
     if let JsonbValue::Null = input {
         return BoolValue::Null;
+    };
+    if let JsonbValue::NonNull(facts) = input {
+        if facts.kind == 5 || facts.kind == 6 {
+            return BoolValue::Error(make_sql_error(JSONB_SCALAR_CAST_ERROR));
+        };
+        return BoolValue::Unknown;
     };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];

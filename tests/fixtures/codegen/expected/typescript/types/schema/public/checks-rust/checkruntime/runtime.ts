@@ -1181,11 +1181,16 @@ export interface JsonbPayload {
 export function copyJsonbPayload(value: JsonbPayload): JsonbPayload {
     return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonbNode), root: langruntime.checkedIndex(value.root) };
 }
+export interface JsonbKnowledge {
+    readonly maximum: bigint;
+    readonly kind: number;
+    readonly length: number;
+}
 export type JsonbValue = {
     readonly kind: "Unknown";
 } | {
     readonly kind: "NonNull";
-    readonly value: bigint;
+    readonly value: JsonbKnowledge;
 } | {
     readonly kind: "Null";
 } | {
@@ -1198,7 +1203,7 @@ export type JsonbValue = {
 export function copyJsonbValue(value: JsonbValue): JsonbValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
-        case "NonNull": return { kind: "NonNull", value: langruntime.checkedI64(value.value) };
+        case "NonNull": return { kind: "NonNull", value: value.value };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -1212,7 +1217,7 @@ export type JsonbInput = {
     readonly kind: "JsonNonNull";
 } | {
     readonly kind: "JsonbNonNull";
-    readonly value: bigint;
+    readonly value: JsonbKnowledge;
 } | {
     readonly kind: "Null";
 } | {
@@ -1242,7 +1247,7 @@ export function copyJsonbInput(value: JsonbInput): JsonbInput {
         case "Unknown": return { kind: "Unknown" };
         case "ScalarUnknown": return { kind: "ScalarUnknown" };
         case "JsonNonNull": return { kind: "JsonNonNull" };
-        case "JsonbNonNull": return { kind: "JsonbNonNull", value: langruntime.checkedI64(value.value) };
+        case "JsonbNonNull": return { kind: "JsonbNonNull", value: value.value };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "ConvertedError": return { kind: "ConvertedError", value: value.value };
@@ -1393,7 +1398,7 @@ export function jsonbInputFromJson(input: JsonValue): JsonbInput {
 export function jsonbInputFromJsonb(input: JsonbValue): JsonbInput {
     input = copyJsonbValue(input);
     if (input.kind === "NonNull") {
-        const maximum: bigint = langruntime.checkedI64(input.value);
+        const maximum: JsonbKnowledge = input.value;
         return { kind: "JsonbNonNull", value: maximum };
     }
     if (input.kind === "Error") {
@@ -6894,7 +6899,7 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean, pretty: boolean):
     requireOrder = langruntime.checkedBool(requireOrder);
     pretty = langruntime.checkedBool(pretty);
     if (input.kind === "NonNull") {
-        const maximum: bigint = langruntime.checkedI64(input.value);
+        const maximum: JsonbKnowledge = input.value;
         if (pretty) {
             return { kind: "Unknown" };
         }
@@ -7714,10 +7719,16 @@ export function jsonbPartialScalarBound(): bigint {
 }
 export function jsonbPartialValue(maximum: bigint): JsonbValue {
     maximum = langruntime.checkedI64(maximum);
+    return jsonbPartialShape(maximum, langruntime.checkedSignedNegate(1), langruntime.checkedSignedNegate(1));
+}
+export function jsonbPartialShape(maximum: bigint, kind: number, length: number): JsonbValue {
+    maximum = langruntime.checkedI64(maximum);
+    kind = langruntime.checkedI32(kind);
+    length = langruntime.checkedI32(length);
     if (maximum < 0n || maximum > jsonbStorageLimit) {
         return { kind: "Unknown" };
     }
-    return { kind: "NonNull", value: maximum };
+    return { kind: "NonNull", value: { maximum: maximum, kind: kind, length: length } };
 }
 export function jsonbPartialBound(value: JsonbPayload): bigint {
     value = copyJsonbPayload(value);
@@ -8045,7 +8056,7 @@ export type ArrayElement = {
     readonly value: JsonbPayload;
 } | {
     readonly kind: "JsonbNonNull";
-    readonly value: bigint;
+    readonly value: JsonbKnowledge;
 } | {
     readonly kind: "Network";
     readonly value: NetworkAddress;
@@ -8196,7 +8207,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Json": return { kind: "Json", value: value.value };
         case "JsonNonNull": return { kind: "JsonNonNull" };
         case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
-        case "JsonbNonNull": return { kind: "JsonbNonNull", value: langruntime.checkedI64(value.value) };
+        case "JsonbNonNull": return { kind: "JsonbNonNull", value: value.value };
         case "Network": return { kind: "Network", value: value.value };
         case "Bit": return { kind: "Bit", value: langruntime.checkedString(value.value) };
         case "Bytea": return { kind: "Bytea", value: langruntime.checkedString(value.value) };
@@ -8247,7 +8258,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
     if (input.kind === "JsonbNonNull") {
-        const maximum: bigint = langruntime.checkedI64(input.value);
+        const maximum: JsonbKnowledge = input.value;
         return 12;
     }
     if (input.kind === "JsonNonNull") {
@@ -8790,7 +8801,7 @@ export function arrayElementToJson(input: ArrayElement): JsonValue {
 export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
     input = copyJsonbValue(input);
     if (input.kind === "NonNull") {
-        const maximum: bigint = langruntime.checkedI64(input.value);
+        const maximum: JsonbKnowledge = input.value;
         return { kind: "JsonbNonNull", value: maximum };
     }
     if (input.kind === "Error") {
@@ -8809,7 +8820,7 @@ export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
 export function arrayElementToJsonb(input: ArrayElement): JsonbValue {
     input = copyArrayElement(input);
     if (input.kind === "JsonbNonNull") {
-        const maximum: bigint = langruntime.checkedI64(input.value);
+        const maximum: JsonbKnowledge = input.value;
         return { kind: "NonNull", value: maximum };
     }
     if (input.kind === "Error") {

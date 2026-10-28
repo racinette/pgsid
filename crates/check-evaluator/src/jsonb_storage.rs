@@ -417,10 +417,18 @@ pub fn jsonb_partial_scalar_bound() -> i64 {
 }
 
 pub fn jsonb_partial_value(maximum: i64) -> JsonbValue {
+    jsonb_partial_shape(maximum, -1, -1)
+}
+
+pub fn jsonb_partial_shape(maximum: i64, kind: i32, length: i32) -> JsonbValue {
     if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
         return JsonbValue::Unknown;
     };
-    JsonbValue::NonNull(maximum)
+    JsonbValue::NonNull(JsonbKnowledge {
+        maximum: maximum,
+        kind: kind,
+        length: length,
+    })
 }
 
 pub fn jsonb_partial_bound(value: &JsonbPayload) -> i64 {

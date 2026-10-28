@@ -223,7 +223,16 @@ it('matches JSONB equality and iterative containment, exact numerics, unordered 
     for (const name of ['equal', 'contains', 'contained']) {
       add(name, { ...baseline, lhs: error('22003'), rhs: error('22012') }, error('22003'))
       add(name, { ...baseline, lhs: known(null), rhs: error('22012') }, error('22012'))
-      add(name, { ...baseline, lhs: { kind: 'Unknown' }, rhs: known(null) }, { kind: 'Unknown' })
+      const operator = name === 'equal' ? '=' : name === 'contains' ? '@>' : '<@'
+      expect(
+        (
+          await pg.query<{ result: boolean }>(
+            `SELECT (lhs ${operator} NULL::jsonb) IS NOT DISTINCT FROM true result
+           FROM (VALUES ('1'::jsonb), ('[]'::jsonb), (NULL::jsonb)) args(lhs)`,
+          )
+        ).rows.map((row) => row.result),
+      ).toEqual([false, false, false])
+      add(name, { ...baseline, lhs: { kind: 'Unknown' }, rhs: known(null) }, { kind: 'False' })
     }
     add('equal', { ...baseline, expected_equal: known(false) }, { kind: 'False' })
     add('implicit', baseline, { kind: 'True' })

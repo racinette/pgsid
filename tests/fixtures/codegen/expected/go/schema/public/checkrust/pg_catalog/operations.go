@@ -17012,6 +17012,39 @@ func jsonbArrayPathSelect(input checkruntime.JsonbValue, path checkruntime.Array
 	if state == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if path.Kind == checkruntime.ArrayValueValue {
+			keys := checkruntime.CopyArrayPayload(path.Value)
+			selected := checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}
+			position := 0
+			for position < len(keys.Elements) {
+				if selected.Kind == checkruntime.JsonbValueNull {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+				}
+				kind := langruntime.CheckedSignedNegate(1)
+				if selected.Kind == checkruntime.JsonbValueNonNull {
+					current := selected.NonNull
+					kind = langruntime.CheckedI32(current.Kind)
+				}
+				key := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(keys.Elements[position]))
+				if kind == 5 {
+					index := checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+					if key.Kind == checkruntime.TextValueValue {
+						text := langruntime.CheckedString(key.Value)
+						index = checkruntime.JsonArrayPathIndex(text)
+					}
+					selected = checkruntime.CopyJsonbValue(JsonbArrayElement08oi(selected, index))
+				} else if kind == 6 {
+					selected = checkruntime.CopyJsonbValue(JsonbObjectField4uf3(selected, key))
+				} else {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return selected
+		}
+	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		if path.Kind == checkruntime.ArrayValueValue {
@@ -18771,7 +18804,7 @@ func JsonbArrayInputValue(input checkruntime.JsonbArrayInputPayload) checkruntim
 	}
 	if flat.Kind == checkruntime.JsonbValueNonNull {
 		bound := flat.NonNull
-		maximum := bound
+		maximum := bound.Maximum
 		containers := int64(1)
 		level := 1
 		for level < len(dimensions) {
@@ -18780,7 +18813,7 @@ func JsonbArrayInputValue(input checkruntime.JsonbArrayInputPayload) checkruntim
 			maximum = checkruntime.JsonbPartialAdd(maximum, langruntime.CheckedI64Multiply(containers, int64(16)))
 			level = langruntime.CheckedAdd(level, 1)
 		}
-		return checkruntime.JsonbPartialValue(maximum)
+		return checkruntime.JsonbPartialShape(maximum, 5, dimensions[0].Length)
 	}
 	if flat.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(flat.Value)
@@ -18870,6 +18903,13 @@ func NumericUnkz(input checkruntime.JsonbValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.JsonbValueNull {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if facts.Kind == 5 || facts.Kind == 6 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonbScalarCastError)}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		root := value.Nodes[value.Root]
@@ -18891,6 +18931,13 @@ func BoolK8bw(input checkruntime.JsonbValue) checkruntime.BoolValue {
 	}
 	if input.Kind == checkruntime.JsonbValueNull {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if facts.Kind == 5 || facts.Kind == 6 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(jsonbScalarCastError)}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
@@ -19047,14 +19094,14 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 			if input.Kind == checkruntime.JsonbInputScalarUnknown {
 				scalarUnknown = true
 			}
-			converted := checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: checkruntime.JsonbPartialScalarBound()}
+			converted := checkruntime.JsonbPartialValue(checkruntime.JsonbPartialScalarBound())
 			if scalarUnknown == false {
 				converted = checkruntime.CopyJsonbValue(ToJsonb9y7o(input))
 			}
 			if converted.Kind == checkruntime.JsonbValueNonNull {
 				bound := converted.NonNull
 				complete = false
-				maximum = checkruntime.JsonbPartialAdd(maximum, bound)
+				maximum = checkruntime.JsonbPartialAdd(maximum, bound.Maximum)
 			}
 			if converted.Kind == checkruntime.JsonbValueNull {
 				converted = checkruntime.CopyJsonbValue(checkruntime.MakeJsonbValue("null"))
@@ -19108,7 +19155,11 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		if complete == false {
-			return checkruntime.JsonbPartialValue(maximum)
+			length := langruntime.CheckedSignedNegate(1)
+			if object == false {
+				length = langruntime.CheckedI32(int(int32(len(batch.Values))))
+			}
+			return checkruntime.JsonbPartialShape(maximum, kind, length)
 		}
 		nodes[1] = checkruntime.JsonbNode{Kind: kind, Child: first, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
 		return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: 1}}, true)
@@ -19780,8 +19831,10 @@ func JsonbInputFromEnum(input checkruntime.EnumValue) checkruntime.JsonbInput {
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if input.Kind == checkruntime.JsonbValueNonNull {
-		maximum := input.NonNull
-		_ = maximum
+		facts := input.NonNull
+		if facts.Kind >= 0 {
+			return checkruntime.JsonKindText(facts.Kind)
+		}
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
 	}
 	if input.Kind == checkruntime.JsonbValueError {
@@ -20130,6 +20183,13 @@ func JsonbObjectField4uf3(input checkruntime.JsonbValue, key checkruntime.TextVa
 	if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || (facts.Kind >= 0 && facts.Kind != 6) {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+		}
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		if key.Kind == checkruntime.TextValueValue {
@@ -20162,6 +20222,29 @@ func JsonbArrayElement08oi(input checkruntime.JsonbValue, index checkruntime.Int
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
 	if index.Kind == checkruntime.Int4ValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if index == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+		}
+		if index.Kind == checkruntime.Int4ValueValue {
+			position := langruntime.CheckedI32(index.Value)
+			if facts.Kind == 6 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+			}
+			if facts.Kind == 5 && facts.Length >= 0 {
+				offset := int64(langruntime.CheckedI32(position))
+				if offset < int64(0) {
+					offset = langruntime.CheckedI64Add(offset, int64(langruntime.CheckedI32(facts.Length)))
+				}
+				if offset < int64(0) || offset >= int64(langruntime.CheckedI32(facts.Length)) {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+				}
+				return checkruntime.JsonbPartialValue(facts.Maximum)
+			}
+		}
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
@@ -20217,6 +20300,16 @@ func JsonbArrayLength1gng(input checkruntime.JsonbValue) checkruntime.Int4Value 
 	if input.Kind == checkruntime.JsonbValueNull {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		if facts.Kind >= 0 && facts.Kind != 5 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonbExtractParameter)}
+		}
+		if facts.Kind == 5 && facts.Length >= 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: facts.Length}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		root := value.Nodes[value.Root]
@@ -20247,6 +20340,14 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if key == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || key == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		facts := input.NonNull
+		_ = facts
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbValueValue {
@@ -21618,6 +21719,12 @@ func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbV
 		error := right.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
+	if left.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
 	if left.Kind == checkruntime.JsonbValueUnknown {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 	}
@@ -21632,7 +21739,7 @@ func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbV
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: result != invert}
 		}
 	}
-	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func JsonbEqTfah(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
 	left = checkruntime.CopyJsonbValue(left)

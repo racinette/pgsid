@@ -276,10 +276,18 @@ it('matches JSONB subtree extraction, decoded text, scalar indexing, top-level e
     }
     add('field', { ...base, document: error('22003'), field_name: error('22012') }, error('22003'))
     add('field', { ...base, document: known(null), field_name: error('22012') }, error('22012'))
+    expect(
+      (
+        await pg.query<{ result: boolean }>(
+          `SELECT (document->NULL::text)::text IS NOT DISTINCT FROM '2' result
+         FROM (VALUES ('{"a":2}'::jsonb), ('[1]'::jsonb), (NULL::jsonb)) args(document)`,
+        )
+      ).rows.map((row) => row.result),
+    ).toEqual([false, false, false])
     add(
       'field',
       { ...base, document: { kind: 'Unknown' }, field_name: known(null) },
-      { kind: 'Unknown' },
+      { kind: 'False' },
     )
     add(
       'field',

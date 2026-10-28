@@ -32,7 +32,7 @@ pub(crate) fn jsonb_array_input_value(input: JsonbArrayInputPayload) -> JsonbVal
         return flat;
     };
     if let JsonbValue::NonNull(bound) = flat {
-        let mut maximum = bound;
+        let mut maximum = bound.maximum;
         let mut containers = 1i64;
         let mut level: usize = 1;
         while level < dimensions.len() {
@@ -41,7 +41,7 @@ pub(crate) fn jsonb_array_input_value(input: JsonbArrayInputPayload) -> JsonbVal
             maximum = jsonb_partial_add(maximum, containers * 16i64);
             level += 1;
         }
-        return jsonb_partial_value(maximum);
+        return jsonb_partial_shape(maximum, 5, dimensions[0].length);
     };
     if let JsonbValue::Value(value) = flat {
         let mut nodes = value.nodes;
