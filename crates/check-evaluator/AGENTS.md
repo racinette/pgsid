@@ -377,9 +377,13 @@ import them. Keep schema-only helpers with their callables.
   validation live in Rust and return
   SQLSTATE 22008 for invalid values. Negative constructor years mean BC;
   year zero is invalid. Native target date objects require caller conversion.
-- Text-to-date casts and date literals use the same maintained Rust parser.
-  Its supported forms are year-first ISO dates with at least four year digits,
-  one or two month/day digits, optional case-insensitive BC/AD suffixes, ASCII
+- Text-to-date casts and date literals share the timestamp parser's date grammar
+  after their own Julian, epoch and infinity tokens. Year-first three-field dates
+  need at least three year digits and one repeated hyphen, slash or period
+  separator; month and day fields take any width, except that a three-digit
+  month field from 1 through 366 defers because it is a day of year. A missing
+  final day returns 22007, or 22008 after an int4 field overflow. Forms accept
+  optional case-insensitive BC/AD suffixes, ASCII
   whitespace, signed infinities, and the context-independent `epoch` token.
   Integer Julian days use case-insensitive J/JD/julian labels, optional ASCII
   whitespace and leading zeroes; BC/AD does not alter their absolute day.
@@ -394,7 +398,10 @@ import them. Keep schema-only helpers with their callables.
   does; years whose signed intermediates leave int4 defer. One- and two-digit
   ordinal years defer because DateStyle field order decides them. Other
   two-field numeric dates return 22007, or 22008 when a field overflows int4
-  at the end of input. A date followed by a timestamp clock and optional
+  at the end of input. A whitespace-separated year followed only by another
+  number is a year and month: 22007 for months 1 through 12 or a field of six
+  or more digits, otherwise 22008, including year zero. A date followed by a
+  timestamp clock and optional
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
   date range checks apply. A numeric zone may follow any of these dates
@@ -460,7 +467,7 @@ import them. Keep schema-only helpers with their callables.
   Named zones, context-dependent spellings, precision
   coercions, other formats, and oversized text remain unknown.
 - Text-to-timestamptz casts and literals use the same Rust parser. It accepts
-  year-first ISO dates with at least four year digits, a time separated by T
+  the shared year-first date grammar, a time separated by T
   or ASCII whitespace, and an explicit Z or numeric offset. Fractional seconds
   round to microseconds using nearest-even binary fractional conversion;
   seconds may be omitted. Numeric offsets accept

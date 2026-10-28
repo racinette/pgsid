@@ -217,3 +217,15 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000/060-05', '2000-02-29 05:00:00+00', false);
 -- name: calendar_ordinal_minus_zone_error
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000.060-16', NULL, false);
+-- name: calendar_wide_fields
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000/0002/0029', '2000-02-29', false);
+-- name: calendar_three_digit_year
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '200.03.01', '0200-03-01', false);
+-- name: calendar_missing_final_day_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01- BC', NULL, false);
+-- name: calendar_space_month_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 13', NULL, false);
+-- name: local_wide_fields_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '1999/12/31 23:59:59.999999-15', '1999-12-31 23:59:59.999999', false);
+-- name: instant_wide_fields_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000.01.01 12:00+05', '2000-01-01 07:00:00+00', false);
