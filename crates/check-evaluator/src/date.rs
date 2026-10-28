@@ -44,6 +44,158 @@ fn date_text_digit(value: char) -> i32 {
     -1
 }
 
+const ORDINAL_DATE_ABSENT: i32 = 0;
+const ORDINAL_DATE_FOUND: i32 = 1;
+const ORDINAL_DATE_DEFERRED: i32 = 2;
+const ORDINAL_DATE_SYNTAX: i32 = 3;
+const ORDINAL_DATE_OVERFLOW: i32 = 4;
+
+struct OrdinalDateText {
+    state: i32,
+    next: usize,
+    year: i32,
+    overflow: bool,
+    day: i32,
+}
+
+struct OrdinalCalendar {
+    known: bool,
+    year: i32,
+    month: i32,
+    day: i32,
+}
+
+fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
+    let year = read_timestamp_number(text, start, end);
+    let mut index = year.next;
+    let mut state = ORDINAL_DATE_ABSENT;
+    let mut day: i32 = 0;
+    if year.digits > 0 && index < end {
+        let separator = text.chars[index];
+        if separator == '-' || separator == '/' || separator == '.' {
+            let field = read_timestamp_number(text, index + 1, end);
+            if field.digits > 0 && (field.next == end || text.chars[field.next] != separator) {
+                index = field.next;
+                if field.digits == 3 && field.value >= 1 && field.value <= 366 {
+                    state = ORDINAL_DATE_FOUND;
+                    day = field.value;
+                    if year.digits <= 2 {
+                        state = ORDINAL_DATE_DEFERRED;
+                    };
+                } else if year.overflow || field.overflow {
+                    state = ORDINAL_DATE_DEFERRED;
+                    if index == end {
+                        state = ORDINAL_DATE_OVERFLOW;
+                    };
+                } else {
+                    state = ORDINAL_DATE_SYNTAX;
+                };
+            };
+        } else if date_text_space(separator) && year.digits >= 3 && year.digits <= 5 {
+            let mut position = index;
+            while position < end && date_text_space(text.chars[position]) {
+                position += 1;
+            }
+            let field = read_timestamp_number(text, position, end);
+            if field.digits == 3
+                && field.value >= 1
+                && field.value <= 366
+                && (field.next == end
+                    || date_text_space(text.chars[field.next])
+                    || text.chars[field.next].to_ascii_lowercase() == 't')
+            {
+                state = ORDINAL_DATE_FOUND;
+                day = field.value;
+                index = field.next;
+            };
+        };
+    };
+    OrdinalDateText {
+        state: state,
+        next: index,
+        year: year.value,
+        overflow: year.overflow,
+        day: day,
+    }
+}
+
+fn ordinal_int4_range(value: i64) -> bool {
+    value >= -2147483648i64 && value <= 2147483647i64
+}
+
+fn calendar_from_ordinal(year: i32, day: i32) -> OrdinalCalendar {
+    if year == 0 {
+        return OrdinalCalendar {
+            known: true,
+            year: 0,
+            month: 1,
+            day: 1,
+        };
+    }
+    let mut astronomical = year as i64;
+    if year < 0 {
+        astronomical = astronomical + 1i64;
+    }
+    let shifted = astronomical + 4799i64;
+    let century = shifted / 100i64;
+    let scaled = shifted * 365i64;
+    let based = scaled - 32167i64;
+    let leap = based + (shifted / 4i64 - century + century / 4i64);
+    let first = leap + 429i64;
+    let wide_day = day as i64;
+    let counted = first + wide_day;
+    let julian_day = counted - 1i64;
+    if ordinal_int4_range(shifted) == false
+        || ordinal_int4_range(scaled) == false
+        || ordinal_int4_range(based) == false
+        || ordinal_int4_range(leap) == false
+        || ordinal_int4_range(first) == false
+        || ordinal_int4_range(counted) == false
+        || ordinal_int4_range(julian_day) == false
+    {
+        return OrdinalCalendar {
+            known: false,
+            year: 0,
+            month: 0,
+            day: 0,
+        };
+    }
+    // PostgreSQL splits Julian days with unsigned 32-bit arithmetic; days before its
+    // supported range wrap rather than fail.
+    let mut julian = julian_day + 32044i64;
+    if julian < 0i64 {
+        julian = julian + 4294967296i64;
+    }
+    let era = julian / 146097i64;
+    let extra = (julian - era * 146097i64) * 4i64 + 3i64;
+    julian = julian + 60i64 + era * 3i64 + extra / 146097i64;
+    if julian >= 4294967296i64 {
+        julian = julian - 4294967296i64;
+    }
+    let cycle = julian / 1461i64;
+    julian = julian - cycle * 1461i64;
+    let mut cycle_year = julian * 4i64 / 1461i64;
+    if cycle_year != 0i64 {
+        julian = (julian + 305i64) % 365i64 + 123i64;
+    } else {
+        julian = (julian + 306i64) % 366i64 + 123i64;
+    }
+    cycle_year = cycle_year + cycle * 4i64;
+    let mut calendar_year = cycle_year - 4800i64;
+    if calendar_year <= 0i64 {
+        calendar_year = calendar_year - 1i64;
+    }
+    let month_index = julian * 2141i64 / 65536i64;
+    let calendar_day = julian - 7834i64 * month_index / 256i64;
+    let calendar_month = (month_index + 10i64) % 12i64 + 1i64;
+    OrdinalCalendar {
+        known: true,
+        year: calendar_year as i32,
+        month: calendar_month as i32,
+        day: calendar_day as i32,
+    }
+}
+
 fn calendar_short_year(year: i32, digits: usize, bc: bool) -> i32 {
     if digits == 2 && bc == false {
         if year < 70 {
@@ -188,6 +340,42 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 }
                 return DateValue::Value(2147483647);
             }
+        }
+        let ordinal_text = TimestampText {
+            chars: text.chars().collect(),
+        };
+        let ordinal = read_ordinal_date(&ordinal_text, start, end);
+        if ordinal.state == ORDINAL_DATE_SYNTAX {
+            return DateValue::Error(SqlError {
+                state: INVALID_DATE_TEXT,
+            });
+        }
+        if ordinal.state == ORDINAL_DATE_OVERFLOW {
+            return DateValue::Error(SqlError {
+                state: DATE_FIELD_OVERFLOW,
+            });
+        }
+        if ordinal.state == ORDINAL_DATE_DEFERRED {
+            return DateValue::Unknown;
+        }
+        if ordinal.state == ORDINAL_DATE_FOUND {
+            if ordinal.next != end {
+                return DateValue::Unknown;
+            }
+            if ordinal.overflow {
+                return DateValue::Error(SqlError {
+                    state: DATE_FIELD_OVERFLOW,
+                });
+            }
+            let mut ordinal_year = ordinal.year;
+            if bc {
+                ordinal_year = 0 - ordinal_year;
+            }
+            let calendar = calendar_from_ordinal(ordinal_year, ordinal.day);
+            if calendar.known == false {
+                return DateValue::Unknown;
+            }
+            return date_from_ymd(calendar.year, calendar.month, calendar.day);
         }
         let mut index = start;
         let mut year: i32 = 0;

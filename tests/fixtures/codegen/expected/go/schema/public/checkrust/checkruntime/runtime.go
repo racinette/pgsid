@@ -15967,6 +15967,131 @@ func dateTextDigit(value rune) int {
 	}
 	return langruntime.CheckedSignedNegate(1)
 }
+
+const ordinalDateAbsent = 0
+const ordinalDateFound = 1
+const ordinalDateDeferred = 2
+const ordinalDateSyntax = 3
+const ordinalDateOverflow = 4
+
+type ordinalDateText struct {
+	state    int
+	next     int
+	year     int
+	overflow bool
+	day      int
+}
+
+func copyordinalDateText(value ordinalDateText) ordinalDateText {
+	return ordinalDateText{state: langruntime.CheckedI32(value.state), next: langruntime.CheckedIndex(value.next), year: langruntime.CheckedI32(value.year), overflow: value.overflow, day: langruntime.CheckedI32(value.day)}
+}
+
+type ordinalCalendar struct {
+	known bool
+	year  int
+	month int
+	day   int
+}
+
+func copyordinalCalendar(value ordinalCalendar) ordinalCalendar {
+	return ordinalCalendar{known: value.known, year: langruntime.CheckedI32(value.year), month: langruntime.CheckedI32(value.month), day: langruntime.CheckedI32(value.day)}
+}
+func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	year := readTimestampNumber(text, start, end)
+	index := year.next
+	state := ordinalDateAbsent
+	day := 0
+	if year.digits > 0 && index < end {
+		separator := text.chars[index]
+		if separator == '-' || separator == '/' || separator == '.' {
+			field := readTimestampNumber(text, langruntime.CheckedAdd(index, 1), end)
+			if field.digits > 0 && (field.next == end || text.chars[field.next] != separator) {
+				index = langruntime.CheckedIndex(field.next)
+				if field.digits == 3 && field.value >= 1 && field.value <= 366 {
+					state = langruntime.CheckedI32(ordinalDateFound)
+					day = langruntime.CheckedI32(field.value)
+					if year.digits <= 2 {
+						state = langruntime.CheckedI32(ordinalDateDeferred)
+					}
+				} else if year.overflow || field.overflow {
+					state = langruntime.CheckedI32(ordinalDateDeferred)
+					if index == end {
+						state = langruntime.CheckedI32(ordinalDateOverflow)
+					}
+				} else {
+					state = langruntime.CheckedI32(ordinalDateSyntax)
+				}
+			}
+		} else if dateTextSpace(separator) && year.digits >= 3 && year.digits <= 5 {
+			position := index
+			for position < end && dateTextSpace(text.chars[position]) {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			field := readTimestampNumber(text, position, end)
+			if field.digits == 3 && field.value >= 1 && field.value <= 366 && (field.next == end || dateTextSpace(text.chars[field.next]) || langruntime.AsciiLowercase(text.chars[field.next]) == 't') {
+				state = langruntime.CheckedI32(ordinalDateFound)
+				day = langruntime.CheckedI32(field.value)
+				index = langruntime.CheckedIndex(field.next)
+			}
+		}
+	}
+	return ordinalDateText{state: state, next: index, year: year.value, overflow: year.overflow, day: day}
+}
+func ordinalInt4Range(value int64) bool {
+	return value >= int64(-2147483648) && value <= int64(2147483647)
+}
+func calendarFromOrdinal(year int, day int) ordinalCalendar {
+	year = langruntime.CheckedI32(year)
+	day = langruntime.CheckedI32(day)
+	if year == 0 {
+		return ordinalCalendar{known: true, year: 0, month: 1, day: 1}
+	}
+	astronomical := int64(langruntime.CheckedI32(year))
+	if year < 0 {
+		astronomical = langruntime.CheckedI64Add(astronomical, int64(1))
+	}
+	shifted := langruntime.CheckedI64Add(astronomical, int64(4799))
+	century := langruntime.CheckedI64Divide(shifted, int64(100))
+	scaled := langruntime.CheckedI64Multiply(shifted, int64(365))
+	based := langruntime.CheckedI64Subtract(scaled, int64(32167))
+	leap := langruntime.CheckedI64Add(based, (langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(langruntime.CheckedI64Divide(shifted, int64(4)), century), langruntime.CheckedI64Divide(century, int64(4)))))
+	first := langruntime.CheckedI64Add(leap, int64(429))
+	wideDay := int64(langruntime.CheckedI32(day))
+	counted := langruntime.CheckedI64Add(first, wideDay)
+	julianDay := langruntime.CheckedI64Subtract(counted, int64(1))
+	if ordinalInt4Range(shifted) == false || ordinalInt4Range(scaled) == false || ordinalInt4Range(based) == false || ordinalInt4Range(leap) == false || ordinalInt4Range(first) == false || ordinalInt4Range(counted) == false || ordinalInt4Range(julianDay) == false {
+		return ordinalCalendar{known: false, year: 0, month: 0, day: 0}
+	}
+	julian := langruntime.CheckedI64Add(julianDay, int64(32044))
+	if julian < int64(0) {
+		julian = langruntime.CheckedI64Add(julian, int64(4294967296))
+	}
+	era := langruntime.CheckedI64Divide(julian, int64(146097))
+	extra := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(era, int64(146097)))), int64(4)), int64(3))
+	julian = langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(julian, int64(60)), langruntime.CheckedI64Multiply(era, int64(3))), langruntime.CheckedI64Divide(extra, int64(146097)))
+	if julian >= int64(4294967296) {
+		julian = langruntime.CheckedI64Subtract(julian, int64(4294967296))
+	}
+	cycle := langruntime.CheckedI64Divide(julian, int64(1461))
+	julian = langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(cycle, int64(1461)))
+	cycleYear := langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(4)), int64(1461))
+	if cycleYear != int64(0) {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(305))), int64(365)), int64(123))
+	} else {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(306))), int64(366)), int64(123))
+	}
+	cycleYear = langruntime.CheckedI64Add(cycleYear, langruntime.CheckedI64Multiply(cycle, int64(4)))
+	calendarYear := langruntime.CheckedI64Subtract(cycleYear, int64(4800))
+	if calendarYear <= int64(0) {
+		calendarYear = langruntime.CheckedI64Subtract(calendarYear, int64(1))
+	}
+	monthIndex := langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(2141)), int64(65536))
+	calendarDay := langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), monthIndex), int64(256)))
+	calendarMonth := langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(monthIndex, int64(10))), int64(12)), int64(1))
+	return ordinalCalendar{known: true, year: int(int32(calendarYear)), month: int(int32(calendarMonth)), day: int(int32(calendarDay))}
+}
 func calendarShortYear(year int, digits int, bc bool) int {
 	year = langruntime.CheckedI32(year)
 	digits = langruntime.CheckedIndex(digits)
@@ -16090,6 +16215,34 @@ func DateFromText(value TextValue) DateValue {
 				}
 				return DateValue{Kind: DateValueValue, Value: 2147483647}
 			}
+		}
+		ordinalText := timestampText{chars: []rune(text)}
+		ordinal := readOrdinalDate(&ordinalText, start, end)
+		if ordinal.state == ordinalDateSyntax {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
+		}
+		if ordinal.state == ordinalDateOverflow {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+		}
+		if ordinal.state == ordinalDateDeferred {
+			return DateValue{Kind: DateValueUnknown}
+		}
+		if ordinal.state == ordinalDateFound {
+			if ordinal.next != end {
+				return DateValue{Kind: DateValueUnknown}
+			}
+			if ordinal.overflow {
+				return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+			}
+			ordinalYear := ordinal.year
+			if bc {
+				ordinalYear = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, ordinalYear))
+			}
+			calendar := calendarFromOrdinal(ordinalYear, ordinal.day)
+			if calendar.known == false {
+				return DateValue{Kind: DateValueUnknown}
+			}
+			return DateFromYmd(calendar.year, calendar.month, calendar.day)
 		}
 		index := start
 		year := 0
@@ -16253,7 +16406,7 @@ func readTimestampNumber(text *timestampText, start int, end int) timestampNumbe
 	}
 	return timestampNumber{next: index, digits: langruntime.CheckedSubtract(index, start), value: value, overflow: overflow}
 }
-func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool, allowFractionCarry bool, missingTimezone bool, compactClock bool) Int8Value {
+func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool, allowFractionCarry bool, missingTimezone bool, compactClock bool, ordinalDay int) Int8Value {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)
 	day = langruntime.CheckedI32(day)
@@ -16262,6 +16415,7 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
+	ordinalDay = langruntime.CheckedI32(ordinalDay)
 	maxFraction := 999999
 	if allowFractionCarry {
 		maxFraction = langruntime.CheckedI32(1000000)
@@ -16279,7 +16433,19 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	if offsetSeconds < langruntime.CheckedSignedNegate(57599) || offsetSeconds > 57599 {
 		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampZone}}
 	}
-	days := calendarDaysFromYmd(year, month, day)
+	calendarYear := year
+	calendarMonth := month
+	calendarDay := day
+	if ordinalDay > 0 {
+		ordinal := calendarFromOrdinal(year, ordinalDay)
+		if ordinal.known == false {
+			return Int8Value{Kind: Int8ValueUnknown}
+		}
+		calendarYear = langruntime.CheckedI32(ordinal.year)
+		calendarMonth = langruntime.CheckedI32(ordinal.month)
+		calendarDay = langruntime.CheckedI32(ordinal.day)
+	}
+	days := calendarDaysFromYmd(calendarYear, calendarMonth, calendarDay)
 	if days.Kind == Int4ValueError {
 		error := days.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -16289,7 +16455,7 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 		if missingTimezone {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}
-		if (year == langruntime.CheckedSignedNegate(4714) && month < 11) || (compactClock == false && dayValue < langruntime.CheckedSignedNegate(2451546)) || dayValue > 106751983 {
+		if (calendarYear == langruntime.CheckedSignedNegate(4714) && calendarMonth < 11) || (compactClock == false && dayValue < langruntime.CheckedSignedNegate(2451546)) || dayValue > 106751983 {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		daysWide := int64(langruntime.CheckedI32(dayValue))
@@ -16352,7 +16518,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
 		if langruntime.CheckedSubtract(end, start) == 5 && langruntime.AsciiLowercase(text.chars[start]) == 'e' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 1)]) == 'p' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 2)]) == 'o' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 3)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 4)]) == 'h' {
-			return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false)
+			return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false, false, false, 0)
 		}
 		infinityStart := start
 		negative := false
@@ -16379,13 +16545,29 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 				return MakeInt8Value(int64(9223372036854775807))
 			}
 		}
+		ordinal := readOrdinalDate(&text, start, end)
+		if ordinal.state == ordinalDateSyntax {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		if ordinal.state == ordinalDateOverflow {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+		}
+		if ordinal.state == ordinalDateDeferred {
+			return Int8Value{Kind: Int8ValueUnknown}
+		}
 		yearField := readTimestampNumber(&text, start, end)
 		year := yearField.value
 		yearOverflow := yearField.overflow
 		index := yearField.next
 		month := 0
 		day := 0
-		if yearField.digits >= 6 && (index == end || text.chars[index] != '-') {
+		ordinalDay := 0
+		if ordinal.state == ordinalDateFound {
+			year = langruntime.CheckedI32(ordinal.year)
+			yearOverflow = ordinal.overflow
+			index = langruntime.CheckedIndex(ordinal.next)
+			ordinalDay = langruntime.CheckedI32(ordinal.day)
+		} else if yearField.digits >= 6 && (index == end || text.chars[index] != '-') {
 			compactYear := readTimestampNumber(&text, start, langruntime.CheckedSubtract(index, 4))
 			if compactYear.overflow {
 				return Int8Value{Kind: Int8ValueUnknown}
@@ -16420,7 +16602,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			if yearOverflow {
 				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 			}
-			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false)
+			return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay)
 		}
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
@@ -16561,7 +16743,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 		if yearOverflow {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
-		return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock)
+		return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay)
 	}
 	return Int8Value{Kind: Int8ValueUnknown}
 }
@@ -16587,7 +16769,7 @@ func TimestampFromCalendar(year int, month int, day int, hour int, minute int, s
 	minute = langruntime.CheckedI32(minute)
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false, false, false, 0)
 	return timestampFromMicroseconds(parsed)
 }
 func TimestampFromText(value TextValue) TimestampValue {
@@ -16617,7 +16799,7 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false, false, false, 0)
 	return timestamptzFromMicroseconds(parsed)
 }
 func TimestamptzFromText(value TextValue) TimestamptzValue {

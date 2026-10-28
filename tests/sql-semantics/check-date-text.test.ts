@@ -1,6 +1,7 @@
 import {
   dateHandledText as supportedText,
   dateDeferredText as unsupportedText,
+  ordinalUnknownText,
 } from './check-temporal-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -168,6 +169,7 @@ describe('Rust text-to-date CHECK casts', () => {
       }
     }
     for (const raw of [
+      ...ordinalUnknownText,
       '42949692960101',
       'not a date',
       '2000-01-01 junk',
@@ -283,6 +285,11 @@ describe('Rust text-to-date CHECK casts', () => {
       ['', false, '22007', { certain: true, error: '22007' }],
       [null, false, null, { certain: true, value: null }],
       ['1900-02-29', true, null, { certain: true, value: true }],
+      ['2000-001', false, null, { certain: true, value: true }],
+      ['1999.365', false, '23514', { certain: true, value: false }],
+      ['4801-001 BC', false, '23514', { certain: true, value: false }],
+      ['2000-01', false, '22007', { certain: true, error: '22007' }],
+      ['2000-01', true, null, { certain: true, value: true }],
       ['today', false, null, { certain: false }],
     ] as const) {
       await pg.exec('BEGIN')

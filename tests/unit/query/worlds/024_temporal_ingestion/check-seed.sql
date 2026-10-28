@@ -154,3 +154,38 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '47141120 999999+15:59:59 BC', NULL, false);
 -- name: instant_compact_skipped_error
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '20001301 999999+16', NULL, true);
+
+-- name: calendar_ordinal_leap_day
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000.060', '2000-02-29', false);
+-- name: calendar_ordinal_space_separated
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 060', '2000-02-29', false);
+-- name: calendar_ordinal_year_rollover
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2001-366', '2002-01-01', false);
+-- name: calendar_ordinal_rollover_mismatch
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2001-366', '2001-12-31', false);
+-- name: calendar_ordinal_bc_rollover
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '0002-366 BC', '0001-01-01 BC', false);
+-- name: calendar_ordinal_wrapped_bc_day
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '4801-001 BC', '4560-06-19 BC', false);
+-- name: calendar_ordinal_lower_boundary_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '4714-327 BC', NULL, false);
+-- name: calendar_ordinal_missing_day_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01', NULL, false);
+-- name: calendar_ordinal_skipped_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-367', NULL, true);
+-- name: local_ordinal_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-060T12:00:00Z', '2000-02-29 12:00:00', false);
+-- name: local_ordinal_compact_carry
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '4714-324 999999Z BC', '4714-11-24 04:40:39 BC', false);
+-- name: local_ordinal_zero_year_zone_error
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '0000-366 000000+16', NULL, false);
+-- name: local_ordinal_upper_offset_error
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '294276-366 240000+00:00:01', NULL, false);
+-- name: instant_ordinal_offset
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 060 12:00 -05', '2000-02-29 17:00:00+00', false);
+-- name: instant_ordinal_upper_boundary_offset
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '294276-366 240000+00:00:01', '294276-12-31 23:59:59+00', false);
+-- name: instant_ordinal_lexical_error_before_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-367 000000+16', NULL, false);
+-- name: instant_ordinal_skipped_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-000 000000Z', NULL, true);
