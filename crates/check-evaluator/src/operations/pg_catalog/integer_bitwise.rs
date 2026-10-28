@@ -50,11 +50,11 @@ fn integer_bitwise(left: Int8Value, right: Int8Value, operation: i32) -> Int8Val
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(first) = left {
         if let Int8Value::Value(second) = right {
@@ -94,11 +94,11 @@ fn integer_shift(input: Int8Value, amount: Int4Value, width: i32, left: bool) ->
     if let Int4Value::Error(error) = amount {
         return Int8Value::Error(error);
     }
-    if input == Int8Value::Unknown || amount == Int4Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if input == Int8Value::Null || amount == Int4Value::Null {
         return Int8Value::Null;
+    }
+    if input == Int8Value::Unknown || amount == Int4Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(value) = input {
         if let Int4Value::Value(distance) = amount {

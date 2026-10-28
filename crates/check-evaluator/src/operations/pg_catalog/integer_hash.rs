@@ -24,11 +24,11 @@ fn integer_hash_extended(input: Int8Value, seed: Int8Value) -> Int8Value {
     if let Int8Value::Error(error) = seed {
         return Int8Value::Error(error);
     }
-    if input == Int8Value::Unknown || seed == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if input == Int8Value::Null || seed == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if input == Int8Value::Unknown || seed == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(value) = input {
         if let Int8Value::Value(initial) = seed {

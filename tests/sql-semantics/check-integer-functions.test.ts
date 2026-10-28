@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -19,6 +19,10 @@ import {
   type Row,
   type Outcome,
 } from '../../tools/check-rust/parity.js'
+
+const selection = process.env['PGSID_CHECK_INTEGER_CASES'] ?? 'all'
+if (!['all', 'partial'].includes(selection))
+  throw new Error('PGSID_CHECK_INTEGER_CASES must be all or partial')
 
 const sourceNames = new Set(
   [
@@ -119,7 +123,7 @@ describe('Rust CHECK integer and Boolean functions', () => {
     if (pg && !pg.closed) await pg.close()
     if (directory) await rm(directory, { recursive: true, force: true })
   })
-  it('preserves catalog overloads, operator aliases, integer boundaries, NULL, partial inputs and SQL errors in raw and stored CHECKs', async () => {
+  it(`preserves catalog overloads, operator aliases and integer semantics in raw and stored CHECKs (${selection})`, async () => {
     expect(callables).toHaveLength(74)
     expect(sourceNames.size).toBe(callables.length)
     const catalog = await snapshotCatalog(pg)
@@ -217,36 +221,39 @@ describe('Rust CHECK integer and Boolean functions', () => {
             record(name, row, { kind: 'Error', value: { state: parseInt(code!, 36) } })
         }
       }
-      if (fn.args.length <= 2) {
-        for (const first of samples(fn.args[0]!)) {
-          if (fn.args.length === 1) await evaluate([input(first)])
-          else
-            for (const second of samples(fn.args[1]!)) await evaluate([input(first), input(second)])
+      if (selection === 'all') {
+        if (fn.args.length <= 2) {
+          for (const first of samples(fn.args[0]!)) {
+            if (fn.args.length === 1) await evaluate([input(first)])
+            else
+              for (const second of samples(fn.args[1]!))
+                await evaluate([input(first), input(second)])
+          }
+          if (fn.name.includes('shl') || fn.name.includes('shr'))
+            for (const first of samples(fn.args[0]!))
+              for (const shift of [
+                -65, -64, -63, -33, -32, -31, -16, -15, 15, 16, 32, 63, 65, 127, 128,
+              ])
+                await evaluate([input(first), input(shift)])
+        } else {
+          expect(fn.name).toBe('in_range')
+          const ranges = fn.args.slice(0, 3).map((type) => {
+            const values = samples(type)
+            return [values[0]!, values[3]!, values[4]!, values[5]!, values.at(-1)!]
+          })
+          for (const first of ranges[0]!)
+            for (const second of ranges[1]!)
+              for (const offset of ranges[2]!)
+                for (const subtract of [false, true])
+                  for (const less of [false, true])
+                    await evaluate([
+                      input(first),
+                      input(second),
+                      input(offset),
+                      input(subtract),
+                      input(less),
+                    ])
         }
-        if (fn.name.includes('shl') || fn.name.includes('shr'))
-          for (const first of samples(fn.args[0]!))
-            for (const shift of [
-              -65, -64, -63, -33, -32, -31, -16, -15, 15, 16, 32, 63, 65, 127, 128,
-            ])
-              await evaluate([input(first), input(shift)])
-      } else {
-        expect(fn.name).toBe('in_range')
-        const ranges = fn.args.slice(0, 3).map((type) => {
-          const values = samples(type)
-          return [values[0]!, values[3]!, values[4]!, values[5]!, values.at(-1)!]
-        })
-        for (const first of ranges[0]!)
-          for (const second of ranges[1]!)
-            for (const offset of ranges[2]!)
-              for (const subtract of [false, true])
-                for (const less of [false, true])
-                  await evaluate([
-                    input(first),
-                    input(second),
-                    input(offset),
-                    input(subtract),
-                    input(less),
-                  ])
       }
       const row = defaults()
       for (const [index, name] of args.entries()) {
@@ -266,7 +273,58 @@ describe('Rust CHECK integer and Boolean functions', () => {
         }
         row[name] = known
       }
+      expect(fn.strict, fn.name).toBe(true)
+      for (const [nullIndex, nullName] of args.entries()) {
+        const nullable = defaults()
+        nullable[nullName] = input(null)
+        expect(
+          await execute(
+            query,
+            args.map((name) => nullable[name]!),
+          ),
+          fn.rustName,
+        ).toBeNull()
+        for (const [unknownIndex, unknownName] of args.entries()) {
+          if (unknownIndex === nullIndex) continue
+          const partial = { ...nullable, [unknownName]: { kind: 'Unknown' } as Input }
+          for (const name of caseNames) record(name, partial, { kind: 'Null' })
+          const manyUnknowns = { ...nullable }
+          for (const name of args) if (name !== nullName) manyUnknowns[name] = { kind: 'Unknown' }
+          for (const name of caseNames) record(name, manyUnknowns, { kind: 'Null' })
+          for (const errorName of args) {
+            const errored = { ...partial, [errorName]: errorOne }
+            for (const name of caseNames)
+              record(name, errored, { kind: 'Error', value: errorOne.value })
+          }
+        }
+        if (fn.name === 'in_range' && nullIndex !== 2) {
+          const invalidOffset = { ...nullable, [args[2]!]: input(-1) }
+          expect(
+            await execute(
+              query,
+              args.map((name) => invalidOffset[name]!),
+            ),
+          ).toBeNull()
+          for (const name of caseNames) record(name, invalidOffset, { kind: 'Null' })
+        }
+      }
     }
+    const packet = 'artifacts/goal-checks/integer-helper-null-active'
+    await mkdir(packet, { recursive: true })
+    await writeFile(
+      join(packet, `matrix-${selection}.json`),
+      JSON.stringify(
+        {
+          selection,
+          callables: callables.length,
+          checks: fixtureNames.length,
+          fixtures: fixtures.length,
+          nativeExecutions: executions,
+        },
+        null,
+        2,
+      ) + '\n',
+    )
     await runCheckParity(directory, 'pgsid-check-integer-functions', group, fixtureNames, fixtures)
   }, 600_000)
 })
