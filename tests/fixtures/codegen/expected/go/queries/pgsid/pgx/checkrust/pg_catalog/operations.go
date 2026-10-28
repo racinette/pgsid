@@ -17577,6 +17577,11 @@ func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInp
 }
 func ToJson25lg(input checkruntime.JsonbInput, utf8 bool) checkruntime.JsonValue {
 	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputJsonbNonNull {
+		maximum := input.JsonbNonNull
+		_ = maximum
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
+	}
 	if input.Kind == checkruntime.JsonbInputJsonNonNull {
 		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
 	}
@@ -17744,6 +17749,15 @@ func ArrayToJsonFydb(input checkruntime.JsonbArrayInputPlan, pretty checkruntime
 		return JsonArrayInputValue(value, pretty, utf8)
 	}
 	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func JsonbToJsonContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		maximum := input.NonNull
+		_ = maximum
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
+	}
+	return checkruntime.JsonFromCoercedText(JsonbTextContext(input, utf8))
 }
 func JsonTypeofVzgr(input checkruntime.JsonValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.JsonValueError {
@@ -18755,6 +18769,19 @@ func JsonbArrayInputValue(input checkruntime.JsonbArrayInputPayload) checkruntim
 	if len(dimensions) < 2 || empty {
 		return flat
 	}
+	if flat.Kind == checkruntime.JsonbValueNonNull {
+		bound := flat.NonNull
+		maximum := bound
+		containers := int64(1)
+		level := 1
+		for level < len(dimensions) {
+			width := int64(langruntime.CheckedI32(dimensions[langruntime.CheckedSubtract(level, 1)].Length))
+			containers = checkruntime.JsonbPartialAdd(int64(0), langruntime.CheckedI64Multiply(containers, width))
+			maximum = checkruntime.JsonbPartialAdd(maximum, langruntime.CheckedI64Multiply(containers, int64(16)))
+			level = langruntime.CheckedAdd(level, 1)
+		}
+		return checkruntime.JsonbPartialValue(maximum)
+	}
 	if flat.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(flat.Value)
 		nodes := value.Nodes
@@ -18949,11 +18976,20 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 		batch := checkruntime.CopyJsonbArgumentPayload(input.Values)
 		index := 0
 		odd := false
+		partial := false
 		for index < len(batch.Values) {
 			argument := checkruntime.CopyJsonbInput(batch.Values[index])
 			if argument.Kind == checkruntime.JsonbInputError {
 				error := argument.Error
 				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+			}
+			if argument.Kind == checkruntime.JsonbInputScalarUnknown {
+				partial = true
+			}
+			if argument.Kind == checkruntime.JsonbInputJsonbNonNull {
+				maximum := argument.JsonbNonNull
+				_ = maximum
+				partial = true
 			}
 			odd = odd == false
 			index = langruntime.CheckedAdd(index, 1)
@@ -18971,10 +19007,15 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 		nodes = append(nodes, checkruntime.JsonbNode{Kind: langruntime.CheckedSignedNegate(1), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
 		langruntime.CheckedAdd(len(nodes), 1)
 		nodes = append(nodes, checkruntime.JsonbNode{Kind: kind, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+		complete := true
+		maximum := int64(4)
 		first := 0
 		tail := 0
 		index = langruntime.CheckedIndex(0)
 		for index < len(batch.Values) {
+			if partial {
+				maximum = checkruntime.JsonbPartialAdd(maximum, int64(16))
+			}
 			keyStart := len(characters)
 			if object {
 				key := jsonbBuildKey(checkruntime.CopyJsonbInput(batch.Values[index]))
@@ -18992,13 +19033,29 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 					for position < len(keyCharacters) {
 						langruntime.CheckedAdd(len(characters), 1)
 						characters = append(characters, langruntime.CheckedChar(keyCharacters[position]))
+						if partial {
+							maximum = checkruntime.JsonbPartialAdd(maximum, int64(6))
+						}
 						position = langruntime.CheckedAdd(position, 1)
 					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
 			keyEnd := len(characters)
-			converted := ToJsonb9y7o(checkruntime.CopyJsonbInput(batch.Values[index]))
+			input := checkruntime.CopyJsonbInput(batch.Values[index])
+			scalarUnknown := false
+			if input.Kind == checkruntime.JsonbInputScalarUnknown {
+				scalarUnknown = true
+			}
+			converted := checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: checkruntime.JsonbPartialScalarBound()}
+			if scalarUnknown == false {
+				converted = checkruntime.CopyJsonbValue(ToJsonb9y7o(input))
+			}
+			if converted.Kind == checkruntime.JsonbValueNonNull {
+				bound := converted.NonNull
+				complete = false
+				maximum = checkruntime.JsonbPartialAdd(maximum, bound)
+			}
 			if converted.Kind == checkruntime.JsonbValueNull {
 				converted = checkruntime.CopyJsonbValue(checkruntime.MakeJsonbValue("null"))
 			}
@@ -19011,6 +19068,10 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 			}
 			if converted.Kind == checkruntime.JsonbValueValue {
 				value := checkruntime.CopyJsonbPayload(converted.Value)
+				if partial {
+					bound := checkruntime.JsonbPartialBound(&value)
+					maximum = checkruntime.JsonbPartialAdd(maximum, bound)
+				}
 				textShift := len(characters)
 				nodeShift := langruntime.CheckedSubtract(len(nodes), 1)
 				root := langruntime.CheckedAdd(nodeShift, value.Root)
@@ -19046,6 +19107,9 @@ func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.Jso
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
+		if complete == false {
+			return checkruntime.JsonbPartialValue(maximum)
+		}
 		nodes[1] = checkruntime.JsonbNode{Kind: kind, Child: first, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
 		return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: 1}}, true)
 	}
@@ -19067,6 +19131,10 @@ func JsonbBuildObjectA8ms() checkruntime.JsonbValue {
 }
 func ToJsonb9y7o(input checkruntime.JsonbInput) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputJsonbNonNull {
+		maximum := input.JsonbNonNull
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: maximum}
+	}
 	if input.Kind == checkruntime.JsonbInputError {
 		error := input.Error
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
@@ -19711,6 +19779,11 @@ func JsonbInputFromEnum(input checkruntime.EnumValue) checkruntime.JsonbInput {
 }
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueNonNull {
+		maximum := input.NonNull
+		_ = maximum
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
 	if input.Kind == checkruntime.JsonbValueError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}

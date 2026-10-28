@@ -47,10 +47,17 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
     if let JsonbArguments::Values(batch) = input {
         let mut index: usize = 0;
         let mut odd = false;
+        let mut partial = false;
         while index < batch.values.len() {
             let argument = batch.values[index].clone();
             if let JsonbInput::Error(error) = argument {
                 return JsonbValue::Error(error);
+            };
+            if let JsonbInput::ScalarUnknown = argument {
+                partial = true;
+            };
+            if let JsonbInput::JsonbNonNull(_maximum) = argument {
+                partial = true;
             };
             odd = odd == false;
             index += 1;
@@ -82,10 +89,15 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             text_start: 0,
             text_end: 0,
         });
+        let mut complete = true;
+        let mut maximum = 4i64;
         let mut first: usize = 0;
         let mut tail: usize = 0;
         index = 0;
         while index < batch.values.len() {
+            if partial {
+                maximum = jsonb_partial_add(maximum, 16i64);
+            };
             let key_start = characters.len();
             if object {
                 let key = jsonb_build_key(batch.values[index].clone());
@@ -100,13 +112,28 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                     let mut position: usize = 0;
                     while position < key_characters.len() {
                         characters.push(key_characters[position]);
+                        if partial {
+                            maximum = jsonb_partial_add(maximum, 6i64);
+                        };
                         position += 1;
                     }
                 };
                 index += 1;
             };
             let key_end = characters.len();
-            let mut converted = sql__pg_catalog__to_jsonb__9y7o(batch.values[index].clone());
+            let input = batch.values[index].clone();
+            let mut scalar_unknown = false;
+            if let JsonbInput::ScalarUnknown = input {
+                scalar_unknown = true;
+            };
+            let mut converted = JsonbValue::NonNull(jsonb_partial_scalar_bound());
+            if scalar_unknown == false {
+                converted = sql__pg_catalog__to_jsonb__9y7o(input);
+            };
+            if let JsonbValue::NonNull(bound) = converted {
+                complete = false;
+                maximum = jsonb_partial_add(maximum, bound);
+            };
             if let JsonbValue::Null = converted {
                 converted = make_jsonb_value("null");
             };
@@ -117,6 +144,10 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                 return JsonbValue::Unknown;
             };
             if let JsonbValue::Value(value) = converted {
+                if partial {
+                    let bound = jsonb_partial_bound(&value);
+                    maximum = jsonb_partial_add(maximum, bound);
+                };
                 let text_shift = characters.len();
                 let node_shift = nodes.len() - 1;
                 let root = node_shift + value.root;
@@ -159,6 +190,9 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             };
             index += 1;
         }
+        if complete == false {
+            return jsonb_partial_value(maximum);
+        };
         nodes[1] = JsonbNode {
             kind: kind,
             child: first,

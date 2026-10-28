@@ -1,4 +1,7 @@
 pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
+    if let JsonbInput::JsonbNonNull(maximum) = input {
+        return JsonbValue::NonNull(maximum);
+    };
     if let JsonbInput::Error(error) = input {
         return JsonbValue::Error(error);
     };

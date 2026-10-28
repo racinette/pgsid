@@ -396,3 +396,48 @@ pub fn jsonb_ordered_object_offsets(source: &JsonbPayload, utf8: bool) -> Vec<Nu
 pub fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {
     jsonb_storage_decision(jsonb_storage_layout(source))
 }
+
+pub fn jsonb_partial_add(current: i64, extra: i64) -> i64 {
+    if current < 0i64
+        || extra < 0i64
+        || current > JSONB_STORAGE_LIMIT
+        || extra > JSONB_STORAGE_LIMIT
+    {
+        return JSONB_STORAGE_LIMIT + 1i64;
+    };
+    let total = current + extra;
+    if total > JSONB_STORAGE_LIMIT {
+        return JSONB_STORAGE_LIMIT + 1i64;
+    };
+    total
+}
+
+pub fn jsonb_partial_scalar_bound() -> i64 {
+    131072i64 + 16383i64 + 16i64
+}
+
+pub fn jsonb_partial_value(maximum: i64) -> JsonbValue {
+    if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
+        return JsonbValue::Unknown;
+    };
+    JsonbValue::NonNull(maximum)
+}
+
+pub fn jsonb_partial_bound(value: &JsonbPayload) -> i64 {
+    let mut maximum = 16i64;
+    let mut index: usize = 0;
+    while index < value.characters.len() {
+        maximum = jsonb_partial_add(maximum, 6i64);
+        index += 1;
+    }
+    index = 0;
+    while index < value.nodes.len() {
+        maximum = jsonb_partial_add(maximum, 16i64);
+        index += 1;
+    }
+    let storage = jsonb_storage_layout(value);
+    if storage.high > maximum {
+        maximum = storage.high;
+    };
+    jsonb_partial_add(0i64, maximum)
+}

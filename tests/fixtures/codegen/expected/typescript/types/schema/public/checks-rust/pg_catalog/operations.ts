@@ -17714,6 +17714,10 @@ export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkrun
 export function toJson25lg(input: checkruntime.JsonbInput, utf8: boolean): checkruntime.JsonValue {
     input = checkruntime.copyJsonbInput(input);
     utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "JsonbNonNull") {
+        const maximum: bigint = langruntime.checkedI64(input.value);
+        return { kind: "NonNull" };
+    }
     if (input.kind === "JsonNonNull") {
         return { kind: "NonNull" };
     }
@@ -17883,6 +17887,15 @@ export function arrayToJsonFydb(input: checkruntime.JsonbArrayInputPlan, pretty:
         return jsonArrayInputValue(value, pretty, utf8);
     }
     return { kind: "Unknown" };
+}
+export function jsonbToJsonContext(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.JsonValue {
+    input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "NonNull") {
+        const maximum: bigint = langruntime.checkedI64(input.value);
+        return { kind: "NonNull" };
+    }
+    return checkruntime.jsonFromCoercedText(jsonbTextContext(input, utf8));
 }
 export function jsonTypeofVzgr(input: checkruntime.JsonValue): checkruntime.TextValue {
     if (input.kind === "Error") {
@@ -18866,6 +18879,19 @@ export function jsonbArrayInputValue(input: checkruntime.JsonbArrayInputPayload)
     if (dimensions.length < 2 || empty) {
         return flat;
     }
+    if (flat.kind === "NonNull") {
+        const bound: bigint = langruntime.checkedI64(flat.value);
+        let maximum: bigint = bound;
+        let containers: bigint = 1n;
+        let level: number = 1;
+        while (level < dimensions.length) {
+            const width: bigint = BigInt(langruntime.checkedI32(langruntime.indexStruct(dimensions, langruntime.checkedIndex(langruntime.checkedSubtract(level, 1)), checkruntime.copyArrayDimension).length));
+            containers = langruntime.checkedI64(checkruntime.jsonbPartialAdd(0n, langruntime.checkedI64Multiply(containers, width)));
+            maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, langruntime.checkedI64Multiply(containers, 16n)));
+            level = langruntime.checkedAdd(level, 1);
+        }
+        return checkruntime.jsonbPartialValue(maximum);
+    }
     if (flat.kind === "Value") {
         const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(flat.value);
         let nodes: checkruntime.JsonbNode[] = value.nodes;
@@ -19057,11 +19083,19 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
         const batch: checkruntime.JsonbArgumentPayload = checkruntime.copyJsonbArgumentPayload(input.value);
         let index: number = 0;
         let odd: boolean = false;
+        let partial: boolean = false;
         while (index < batch.values.length) {
             const argument: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput));
             if (argument.kind === "Error") {
                 const error: checkruntime.SqlError = argument.value;
                 return { kind: "Error", value: error };
+            }
+            if (argument.kind === "ScalarUnknown") {
+                partial = langruntime.checkedBool(true);
+            }
+            if (argument.kind === "JsonbNonNull") {
+                const maximum: bigint = langruntime.checkedI64(argument.value);
+                partial = langruntime.checkedBool(true);
             }
             odd = langruntime.checkedBool(odd === false);
             index = langruntime.checkedAdd(index, 1);
@@ -19077,10 +19111,15 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
         let nodes: checkruntime.JsonbNode[] = [];
         langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
         langruntime.pushStruct(nodes, { kind: kind, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
+        let complete: boolean = true;
+        let maximum: bigint = 4n;
         let first: number = 0;
         let tail: number = 0;
         index = langruntime.checkedIndex(0);
         while (index < batch.values.length) {
+            if (partial) {
+                maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, 16n));
+            }
             const keyStart: number = characters.length;
             if (object) {
                 const key: checkruntime.TextValue = jsonbBuildKey(checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput)));
@@ -19097,13 +19136,29 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
                     let position: number = 0;
                     while (position < keyCharacters.length) {
                         langruntime.pushChar(characters, langruntime.indexChar(keyCharacters, langruntime.checkedIndex(position)));
+                        if (partial) {
+                            maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, 6n));
+                        }
                         position = langruntime.checkedAdd(position, 1);
                     }
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
             const keyEnd: number = characters.length;
-            let converted: checkruntime.JsonbValue = toJsonb9y7o(checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput)));
+            const input1: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput));
+            let scalarUnknown: boolean = false;
+            if (input1.kind === "ScalarUnknown") {
+                scalarUnknown = langruntime.checkedBool(true);
+            }
+            let converted: checkruntime.JsonbValue = { kind: "NonNull", value: checkruntime.jsonbPartialScalarBound() };
+            if (scalarUnknown === false) {
+                converted = checkruntime.copyJsonbValue(toJsonb9y7o(input1));
+            }
+            if (converted.kind === "NonNull") {
+                const bound: bigint = langruntime.checkedI64(converted.value);
+                complete = langruntime.checkedBool(false);
+                maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, bound));
+            }
             if (converted.kind === "Null") {
                 converted = checkruntime.copyJsonbValue(checkruntime.makeJsonbValue("null"));
             }
@@ -19116,6 +19171,10 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
             }
             if (converted.kind === "Value") {
                 const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(converted.value);
+                if (partial) {
+                    const bound: bigint = checkruntime.jsonbPartialBound(value);
+                    maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, bound));
+                }
                 const textShift: number = characters.length;
                 const nodeShift: number = langruntime.checkedSubtract(nodes.length, 1);
                 const root: number = langruntime.checkedAdd(nodeShift, value.root);
@@ -19150,6 +19209,9 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
             }
             index = langruntime.checkedAdd(index, 1);
         }
+        if (complete === false) {
+            return checkruntime.jsonbPartialValue(maximum);
+        }
         nodes[langruntime.checkedIndexIn(nodes, 1)] = { kind: kind, child: first, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
         return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: characters, nodes: nodes, root: 1 } }, true);
     }
@@ -19171,6 +19233,10 @@ export function jsonbBuildObjectA8ms(): checkruntime.JsonbValue {
 }
 export function toJsonb9y7o(input: checkruntime.JsonbInput): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbInput(input);
+    if (input.kind === "JsonbNonNull") {
+        const maximum: bigint = langruntime.checkedI64(input.value);
+        return { kind: "NonNull", value: maximum };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -19834,6 +19900,10 @@ export function jsonbInputFromEnum(input: checkruntime.EnumValue): checkruntime.
 }
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "NonNull") {
+        const maximum: bigint = langruntime.checkedI64(input.value);
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };

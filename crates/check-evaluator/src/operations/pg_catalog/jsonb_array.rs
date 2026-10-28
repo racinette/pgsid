@@ -31,6 +31,18 @@ pub(crate) fn jsonb_array_input_value(input: JsonbArrayInputPayload) -> JsonbVal
     if dimensions.len() < 2 || empty {
         return flat;
     };
+    if let JsonbValue::NonNull(bound) = flat {
+        let mut maximum = bound;
+        let mut containers = 1i64;
+        let mut level: usize = 1;
+        while level < dimensions.len() {
+            let width = dimensions[level - 1].length as i64;
+            containers = jsonb_partial_add(0i64, containers * width);
+            maximum = jsonb_partial_add(maximum, containers * 16i64);
+            level += 1;
+        }
+        return jsonb_partial_value(maximum);
+    };
     if let JsonbValue::Value(value) = flat {
         let mut nodes = value.nodes;
         let mut leaf = nodes[value.root].child;

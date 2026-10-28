@@ -16,6 +16,7 @@ pub enum ArrayElement {
     Json(JsonPayload),
     JsonNonNull,
     Jsonb(JsonbPayload),
+    JsonbNonNull(i64),
     Network(NetworkAddress),
     Bit(String),
     Bytea(String),
@@ -64,6 +65,9 @@ pub enum ArrayElement {
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::JsonbNonNull(_maximum) = input {
+        return 12;
+    };
     if let ArrayElement::JsonNonNull = input {
         return 11;
     };
@@ -544,6 +548,9 @@ pub fn array_element_to_json(input: ArrayElement) -> JsonValue {
 }
 
 pub fn array_element_from_jsonb(input: JsonbValue) -> ArrayElement {
+    if let JsonbValue::NonNull(maximum) = input {
+        return ArrayElement::JsonbNonNull(maximum);
+    };
     if let JsonbValue::Error(error) = input {
         return ArrayElement::Error(error);
     };
@@ -557,6 +564,9 @@ pub fn array_element_from_jsonb(input: JsonbValue) -> ArrayElement {
 }
 
 pub fn array_element_to_jsonb(input: ArrayElement) -> JsonbValue {
+    if let ArrayElement::JsonbNonNull(maximum) = input {
+        return JsonbValue::NonNull(maximum);
+    };
     if let ArrayElement::Error(error) = input {
         return JsonbValue::Error(error);
     };
