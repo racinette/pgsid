@@ -5,11 +5,11 @@ pub fn sql__pg_catalog__int8pl__1v1h(left: Int8Value, right: Int8Value) -> Int8V
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -32,11 +32,11 @@ pub fn sql__pg_catalog__int8mi__jasl(left: Int8Value, right: Int8Value) -> Int8V
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -126,11 +126,11 @@ pub fn sql__pg_catalog__int8mul__6t1m(left: Int8Value, right: Int8Value) -> Int8
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -171,11 +171,11 @@ pub fn sql__pg_catalog__int8div__8s66(left: Int8Value, right: Int8Value) -> Int8
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {
@@ -198,11 +198,11 @@ pub fn sql__pg_catalog__int8mod__2t8f(left: Int8Value, right: Int8Value) -> Int8
     if let Int8Value::Error(error) = right {
         return Int8Value::Error(error);
     }
-    if left == Int8Value::Unknown || right == Int8Value::Unknown {
-        return Int8Value::Unknown;
-    }
     if left == Int8Value::Null || right == Int8Value::Null {
         return Int8Value::Null;
+    }
+    if left == Int8Value::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
     }
     if let Int8Value::Value(left_value) = left {
         if let Int8Value::Value(right_value) = right {

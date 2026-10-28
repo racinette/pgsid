@@ -5,11 +5,11 @@ pub fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -26,11 +26,11 @@ pub fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -47,11 +47,11 @@ pub fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -68,11 +68,11 @@ pub fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -89,11 +89,11 @@ pub fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -110,11 +110,11 @@ pub fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolV
     if let Int4Value::Error(error) = right {
         return BoolValue::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return BoolValue::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return BoolValue::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return BoolValue::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -133,11 +133,11 @@ pub fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4V
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -161,11 +161,11 @@ pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4V
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -191,11 +191,11 @@ pub fn sql__pg_catalog__int4mul__284v(left: Int4Value, right: Int4Value) -> Int4
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -225,11 +225,11 @@ pub fn sql__pg_catalog__int4div__8ogr(left: Int4Value, right: Int4Value) -> Int4
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
@@ -252,11 +252,11 @@ pub fn sql__pg_catalog__int4mod__j4pe(left: Int4Value, right: Int4Value) -> Int4
     if let Int4Value::Error(error) = right {
         return Int4Value::Error(error);
     }
-    if left == Int4Value::Unknown || right == Int4Value::Unknown {
-        return Int4Value::Unknown;
-    }
     if left == Int4Value::Null || right == Int4Value::Null {
         return Int4Value::Null;
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
     }
     if let Int4Value::Value(left_value) = left {
         if let Int4Value::Value(right_value) = right {
