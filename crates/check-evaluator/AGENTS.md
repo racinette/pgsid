@@ -398,8 +398,9 @@ import them. Keep schema-only helpers with their callables.
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
   date range checks apply. A numeric zone may follow any of these dates
-  directly after a plus sign, with a midnight clock. Invalid supported calendar
-  values return
+  directly after a plus sign, with a midnight clock; after a slash- or
+  period-separated ordinal date a minus sign also starts a zone. Invalid
+  supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.

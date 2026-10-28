@@ -56,6 +56,7 @@ struct OrdinalDateText {
     year: i32,
     overflow: bool,
     day: i32,
+    minus_zone: bool,
 }
 
 struct OrdinalCalendar {
@@ -70,6 +71,7 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
     let mut index = year.next;
     let mut state = ORDINAL_DATE_ABSENT;
     let mut day: i32 = 0;
+    let mut minus_zone = false;
     if year.digits > 0 && index < end {
         let separator = text.chars[index];
         if separator == '-' || separator == '/' || separator == '.' {
@@ -79,6 +81,7 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
                 if field.digits == 3 && field.value >= 1 && field.value <= 366 {
                     state = ORDINAL_DATE_FOUND;
                     day = field.value;
+                    minus_zone = separator != '-';
                     if year.digits <= 2 {
                         state = ORDINAL_DATE_DEFERRED;
                     };
@@ -117,6 +120,7 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         year: year.value,
         overflow: year.overflow,
         day: day,
+        minus_zone: minus_zone,
     }
 }
 

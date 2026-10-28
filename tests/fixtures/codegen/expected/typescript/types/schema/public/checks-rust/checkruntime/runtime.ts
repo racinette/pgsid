@@ -15905,9 +15905,10 @@ interface OrdinalDateText {
     year: number;
     overflow: boolean;
     day: number;
+    minusZone: boolean;
 }
 function copyOrdinalDateText(value: OrdinalDateText): OrdinalDateText {
-    return { state: langruntime.checkedI32(value.state), next: langruntime.checkedIndex(value.next), year: langruntime.checkedI32(value.year), overflow: langruntime.checkedBool(value.overflow), day: langruntime.checkedI32(value.day) };
+    return { state: langruntime.checkedI32(value.state), next: langruntime.checkedIndex(value.next), year: langruntime.checkedI32(value.year), overflow: langruntime.checkedBool(value.overflow), day: langruntime.checkedI32(value.day), minusZone: langruntime.checkedBool(value.minusZone) };
 }
 interface OrdinalCalendar {
     known: boolean;
@@ -15925,6 +15926,7 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
     let index: number = year.next;
     let state: number = ordinalDateAbsent;
     let day: number = 0;
+    let minusZone: boolean = false;
     if (year.digits > 0 && index < end) {
         const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
         if (separator === "-" || separator === "/" || separator === ".") {
@@ -15934,6 +15936,7 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
                 if (field.digits === 3 && field.value >= 1 && field.value <= 366) {
                     state = langruntime.checkedI32(ordinalDateFound);
                     day = langruntime.checkedI32(field.value);
+                    minusZone = langruntime.checkedBool(!(separator === "-"));
                     if (year.digits <= 2) {
                         state = langruntime.checkedI32(ordinalDateDeferred);
                     }
@@ -15962,7 +15965,7 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
             }
         }
     }
-    return { state: state, next: index, year: year.value, overflow: year.overflow, day: day };
+    return { state: state, next: index, year: year.value, overflow: year.overflow, day: day, minusZone: minusZone };
 }
 function ordinalInt4Range(value: bigint): boolean {
     value = langruntime.checkedI64(value);
@@ -16572,7 +16575,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
             return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
         }
-        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+";
+        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
         }

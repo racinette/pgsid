@@ -213,3 +213,7 @@ INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01+05:30:15', '1999-12-31 18:29:45+00', false);
 -- name: instant_attached_zone_range_error
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '4714-11-24+01 BC', NULL, false);
+-- name: instant_ordinal_minus_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000/060-05', '2000-02-29 05:00:00+00', false);
+-- name: calendar_ordinal_minus_zone_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000.060-16', NULL, false);
