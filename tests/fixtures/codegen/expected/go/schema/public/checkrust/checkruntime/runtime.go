@@ -1150,6 +1150,11 @@ func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
 	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
 }
 
+type JsonbKnowledge struct {
+	Maximum int64
+	Kind    int
+	Length  int
+}
 type JsonbValueKind uint8
 
 const (
@@ -1162,7 +1167,7 @@ const (
 
 type JsonbValue struct {
 	Kind    JsonbValueKind
-	NonNull int64
+	NonNull JsonbKnowledge
 	Value   JsonbPayload
 	Error   SqlError
 }
@@ -1202,7 +1207,7 @@ const (
 
 type JsonbInput struct {
 	Kind           JsonbInputKind
-	JsonbNonNull   int64
+	JsonbNonNull   JsonbKnowledge
 	Error          SqlError
 	ConvertedError SqlError
 	Boolean        bool
@@ -7553,10 +7558,15 @@ func JsonbPartialScalarBound() int64 {
 	return langruntime.CheckedI64Add(langruntime.CheckedI64Add(int64(131072), int64(16383)), int64(16))
 }
 func JsonbPartialValue(maximum int64) JsonbValue {
+	return JsonbPartialShape(maximum, langruntime.CheckedSignedNegate(1), langruntime.CheckedSignedNegate(1))
+}
+func JsonbPartialShape(maximum int64, kind int, length int) JsonbValue {
+	kind = langruntime.CheckedI32(kind)
+	length = langruntime.CheckedI32(length)
 	if maximum < int64(0) || maximum > jsonbStorageLimit {
 		return JsonbValue{Kind: JsonbValueUnknown}
 	}
-	return JsonbValue{Kind: JsonbValueNonNull, NonNull: maximum}
+	return JsonbValue{Kind: JsonbValueNonNull, NonNull: JsonbKnowledge{Maximum: maximum, Kind: kind, Length: length}}
 }
 func JsonbPartialBound(value *JsonbPayload) int64 {
 	value = langruntime.CheckedBorrowed(value, CopyJsonbPayload)
@@ -7937,7 +7947,7 @@ type ArrayElement struct {
 	Numeric            string
 	Json               JsonPayload
 	Jsonb              JsonbPayload
-	JsonbNonNull       int64
+	JsonbNonNull       JsonbKnowledge
 	Network            NetworkAddress
 	Bit                string
 	Bytea              string

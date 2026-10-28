@@ -79,6 +79,12 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
     if key == TextValue::Unknown || key == TextValue::NonNull {
         return JsonbValue::Unknown;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if key == TextValue::Null || (facts.kind >= 0 && facts.kind != 6) {
+            return JsonbValue::Null;
+        };
+        return JsonbValue::Unknown;
+    };
     if let JsonbValue::Value(value) = input {
         if let TextValue::Value(text) = key {
             let characters = JsonbExtractKey {
@@ -120,6 +126,27 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
         return JsonbValue::Unknown;
     };
     if let Int4Value::Unknown = index {
+        return JsonbValue::Unknown;
+    };
+    if let JsonbValue::NonNull(facts) = input {
+        if index == Int4Value::Null {
+            return JsonbValue::Null;
+        };
+        if let Int4Value::Value(position) = index {
+            if facts.kind == 6 {
+                return JsonbValue::Null;
+            };
+            if facts.kind == 5 && facts.length >= 0 {
+                let mut offset = position as i64;
+                if offset < 0i64 {
+                    offset = offset + facts.length as i64;
+                };
+                if offset < 0i64 || offset >= facts.length as i64 {
+                    return JsonbValue::Null;
+                };
+                return jsonb_partial_value(facts.maximum);
+            };
+        };
         return JsonbValue::Unknown;
     };
     if let JsonbValue::Value(value) = input {
@@ -180,6 +207,15 @@ pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value
     if let JsonbValue::Null = input {
         return Int4Value::Null;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if facts.kind >= 0 && facts.kind != 5 {
+            return Int4Value::Error(make_sql_error(JSONB_EXTRACT_PARAMETER));
+        };
+        if facts.kind == 5 && facts.length >= 0 {
+            return Int4Value::Value(facts.length);
+        };
+        return Int4Value::Unknown;
+    };
     if let JsonbValue::Value(value) = input {
         let root = value.nodes[value.root];
         if root.kind != 5 {
@@ -207,6 +243,12 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
         return BoolValue::Unknown;
     };
     if key == TextValue::Unknown || key == TextValue::NonNull {
+        return BoolValue::Unknown;
+    };
+    if let JsonbValue::NonNull(_facts) = input {
+        if key == TextValue::Null {
+            return BoolValue::Null;
+        };
         return BoolValue::Unknown;
     };
     if let JsonbValue::Value(value) = input {

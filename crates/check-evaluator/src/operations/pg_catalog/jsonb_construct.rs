@@ -126,13 +126,13 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             if let JsonbInput::ScalarUnknown = input {
                 scalar_unknown = true;
             };
-            let mut converted = JsonbValue::NonNull(jsonb_partial_scalar_bound());
+            let mut converted = jsonb_partial_value(jsonb_partial_scalar_bound());
             if scalar_unknown == false {
                 converted = sql__pg_catalog__to_jsonb__9y7o(input);
             };
             if let JsonbValue::NonNull(bound) = converted {
                 complete = false;
-                maximum = jsonb_partial_add(maximum, bound);
+                maximum = jsonb_partial_add(maximum, bound.maximum);
             };
             if let JsonbValue::Null = converted {
                 converted = make_jsonb_value("null");
@@ -191,7 +191,11 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             index += 1;
         }
         if complete == false {
-            return jsonb_partial_value(maximum);
+            let mut length = -1;
+            if object == false {
+                length = batch.values.len() as i32;
+            };
+            return jsonb_partial_shape(maximum, kind, length);
         };
         nodes[1] = JsonbNode {
             kind: kind,

@@ -16,7 +16,7 @@ pub enum ArrayElement {
     Json(JsonPayload),
     JsonNonNull,
     Jsonb(JsonbPayload),
-    JsonbNonNull(i64),
+    JsonbNonNull(JsonbKnowledge),
     Network(NetworkAddress),
     Bit(String),
     Bytea(String),

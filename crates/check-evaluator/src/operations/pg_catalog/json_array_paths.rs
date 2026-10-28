@@ -44,6 +44,35 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
     if state == Int4Value::Unknown {
         return JsonbValue::Unknown;
     };
+    if let JsonbValue::NonNull(facts) = input {
+        if let ArrayValue::Value(keys) = path {
+            let mut selected = JsonbValue::NonNull(facts);
+            let mut position: usize = 0;
+            while position < keys.elements.len() {
+                if let JsonbValue::Null = selected {
+                    return JsonbValue::Null;
+                };
+                let mut kind = -1;
+                if let JsonbValue::NonNull(current) = selected {
+                    kind = current.kind;
+                };
+                let key = array_element_to_text(keys.elements[position].clone());
+                if kind == 5 {
+                    let mut index = Int4Value::Unknown;
+                    if let TextValue::Value(text) = key {
+                        index = json_array_path_index(text.as_str());
+                    };
+                    selected = sql__pg_catalog__jsonb_array_element__08oi(selected, index);
+                } else if kind == 6 {
+                    selected = sql__pg_catalog__jsonb_object_field__4uf3(selected, key);
+                } else {
+                    return JsonbValue::Unknown;
+                };
+                position += 1;
+            }
+            return selected;
+        };
+    };
     if let JsonbValue::Value(value) = input {
         if let ArrayValue::Value(keys) = path {
             let mut root = value.root;
