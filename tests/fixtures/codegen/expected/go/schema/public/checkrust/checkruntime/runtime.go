@@ -16037,6 +16037,12 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 				state = langruntime.CheckedI32(ordinalDateFound)
 				day = langruntime.CheckedI32(field.value)
 				index = langruntime.CheckedIndex(field.next)
+			} else if field.digits > 0 && field.next == end {
+				index = langruntime.CheckedIndex(field.next)
+				state = langruntime.CheckedI32(ordinalDateOverflow)
+				if field.digits >= 6 || (year.value != 0 && field.value >= 1 && field.value <= 12) {
+					state = langruntime.CheckedI32(ordinalDateSyntax)
+				}
 			}
 		}
 	}
@@ -16134,12 +16140,10 @@ func DateFromText(value TextValue) DateValue {
 		if start == end {
 			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
 		}
-		bc := false
 		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
 				return DateValue{Kind: DateValueUnknown}
 			}
-			bc = true
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
@@ -16219,110 +16223,11 @@ func DateFromText(value TextValue) DateValue {
 				return DateValue{Kind: DateValueValue, Value: 2147483647}
 			}
 		}
-		ordinalText := timestampText{chars: []rune(text)}
-		ordinal := readOrdinalDate(&ordinalText, start, end)
-		if ordinal.state == ordinalDateSyntax {
-			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
-		}
-		if ordinal.state == ordinalDateOverflow {
-			return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
-		}
-		if ordinal.state == ordinalDateDeferred {
-			return DateValue{Kind: DateValueUnknown}
-		}
-		if ordinal.state == ordinalDateFound {
-			if ordinal.next != end {
-				return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
-			}
-			if ordinal.overflow {
-				return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
-			}
-			ordinalYear := ordinal.year
-			if bc {
-				ordinalYear = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, ordinalYear))
-			}
-			calendar := calendarFromOrdinal(ordinalYear, ordinal.day)
-			if calendar.known == false {
-				return DateValue{Kind: DateValueUnknown}
-			}
-			return DateFromYmd(calendar.year, calendar.month, calendar.day)
-		}
-		index := start
-		year := 0
-		yearDigits := 0
-		for index < end && dateTextDigit(chars[index]) >= 0 {
-			if year < 5874898 {
-				year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(year, 10), dateTextDigit(chars[index])))
-			}
-			yearDigits = langruntime.CheckedAdd(yearDigits, 1)
-			index = langruntime.CheckedAdd(index, 1)
-		}
-		if yearDigits >= 6 && index == end {
-			yearEnd := langruntime.CheckedSubtract(end, 4)
-			position := start
-			year = langruntime.CheckedI32(0)
-			for position < yearEnd {
-				digit := dateTextDigit(chars[position])
-				if year > 214748364 || (year == 214748364 && digit > 7) {
-					return DateValue{Kind: DateValueUnknown}
-				}
-				year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(year, 10), digit))
-				position = langruntime.CheckedAdd(position, 1)
-			}
-			year = langruntime.CheckedI32(calendarShortYear(year, langruntime.CheckedSubtract(yearEnd, start), bc))
-			if bc {
-				year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
-			}
-			month := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(dateTextDigit(chars[langruntime.CheckedSubtract(end, 4)]), 10), dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]))
-			day := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(dateTextDigit(chars[langruntime.CheckedSubtract(end, 2)]), 10), dateTextDigit(chars[langruntime.CheckedSubtract(end, 1)]))
-			return DateFromYmd(year, month, day)
-		}
-		if yearDigits >= 6 && index < end && (dateTextSpace(chars[index]) || langruntime.AsciiLowercase(chars[index]) == 't' || chars[index] == '+') {
-			return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
-		}
-		if yearDigits < 4 || index == end || chars[index] != '-' {
-			return DateValue{Kind: DateValueUnknown}
-		}
-		index = langruntime.CheckedAdd(index, 1)
-		month := 0
-		monthDigits := 0
-		for index < end && dateTextDigit(chars[index]) >= 0 {
-			if monthDigits < 2 {
-				month = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(month, 10), dateTextDigit(chars[index])))
-			}
-			monthDigits = langruntime.CheckedAdd(monthDigits, 1)
-			index = langruntime.CheckedAdd(index, 1)
-		}
-		if monthDigits < 1 || monthDigits > 2 || index == end || chars[index] != '-' {
-			return DateValue{Kind: DateValueUnknown}
-		}
-		index = langruntime.CheckedAdd(index, 1)
-		day := 0
-		dayDigits := 0
-		for index < end && dateTextDigit(chars[index]) >= 0 {
-			if dayDigits < 2 {
-				day = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(day, 10), dateTextDigit(chars[index])))
-			}
-			dayDigits = langruntime.CheckedAdd(dayDigits, 1)
-			index = langruntime.CheckedAdd(index, 1)
-		}
-		if dayDigits == 0 && index == end {
-			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
-		}
-		if dayDigits >= 1 && dayDigits <= 2 && index != end {
-			return dateFromClockText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
-		}
-		if dayDigits < 1 || dayDigits > 2 || index != end {
-			return DateValue{Kind: DateValueUnknown}
-		}
-		if bc {
-			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
-		}
-		return DateFromYmd(year, month, day)
+		return dateFromTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
 	}
 	return DateValue{Kind: DateValueUnknown}
 }
-func dateFromClockText(value TextValue) DateValue {
+func dateFromTemporalText(value TextValue) DateValue {
 	parsed := parseTemporalText(value, false, true)
 	if parsed.Kind == Int8ValueError {
 		error := parsed.Error
@@ -16598,7 +16503,7 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			yearOverflow = ordinal.overflow
 			index = langruntime.CheckedIndex(ordinal.next)
 			ordinalDay = langruntime.CheckedI32(ordinal.day)
-		} else if yearField.digits >= 6 && (index == end || text.chars[index] != '-') {
+		} else if yearField.digits >= 6 && (index == end || (text.chars[index] != '-' && text.chars[index] != '/' && text.chars[index] != '.')) {
 			compactYear := readTimestampNumber(&text, start, langruntime.CheckedSubtract(index, 4))
 			if compactYear.overflow {
 				return Int8Value{Kind: Int8ValueUnknown}
@@ -16610,18 +16515,40 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			month = langruntime.CheckedI32(compactMonth.value)
 			day = langruntime.CheckedI32(compactDay.value)
 		} else {
-			if yearField.digits < 4 || index == end || text.chars[index] != '-' {
+			if yearField.digits < 3 || index == end {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			separator := text.chars[index]
+			if separator != '-' && separator != '/' && separator != '.' {
 				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			monthField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(monthField.next)
-			if monthField.digits < 1 || monthField.digits > 2 || index == end || text.chars[index] != '-' {
+			if monthField.digits < 1 || index == end || text.chars[index] != separator {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			if monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366 {
 				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			dayField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(dayField.next)
-			if dayField.digits < 1 || dayField.digits > 2 {
+			if dayField.digits < 1 {
+				if index < end && text.chars[index] == separator {
+					return Int8Value{Kind: Int8ValueUnknown}
+				}
+				if yearOverflow || monthField.overflow {
+					if index == end {
+						return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+					}
+					return Int8Value{Kind: Int8ValueUnknown}
+				}
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+			}
+			if index < end && text.chars[index] == separator {
 				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			if monthField.overflow || dayField.overflow {
+				yearOverflow = true
 			}
 			month = langruntime.CheckedI32(monthField.value)
 			day = langruntime.CheckedI32(dayField.value)

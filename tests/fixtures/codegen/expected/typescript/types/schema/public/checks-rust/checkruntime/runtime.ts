@@ -15963,6 +15963,13 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
                 day = langruntime.checkedI32(field.value);
                 index = langruntime.checkedIndex(field.next);
             }
+            else if (field.digits > 0 && field.next === end) {
+                index = langruntime.checkedIndex(field.next);
+                state = langruntime.checkedI32(ordinalDateOverflow);
+                if (field.digits >= 6 || (!(year.value === 0) && field.value >= 1 && field.value <= 12)) {
+                    state = langruntime.checkedI32(ordinalDateSyntax);
+                }
+            }
         }
     }
     return { state: state, next: index, year: year.value, overflow: year.overflow, day: day, minusZone: minusZone };
@@ -16062,12 +16069,10 @@ export function dateFromText(value: TextValue): DateValue {
         if (start === end) {
             return { kind: "Error", value: { state: invalidDateText } };
         }
-        let bc: boolean = false;
         if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "b") {
             if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
                 return { kind: "Unknown" };
             }
-            bc = langruntime.checkedBool(true);
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
         }
         else if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "d" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "a") {
@@ -16150,110 +16155,11 @@ export function dateFromText(value: TextValue): DateValue {
                 return { kind: "Value", value: 2147483647 };
             }
         }
-        const ordinalText: TimestampText = { chars: Array.from(text) };
-        const ordinal: OrdinalDateText = readOrdinalDate(ordinalText, start, end);
-        if (ordinal.state === ordinalDateSyntax) {
-            return { kind: "Error", value: { state: invalidDateText } };
-        }
-        if (ordinal.state === ordinalDateOverflow) {
-            return { kind: "Error", value: { state: dateFieldOverflow } };
-        }
-        if (ordinal.state === ordinalDateDeferred) {
-            return { kind: "Unknown" };
-        }
-        if (ordinal.state === ordinalDateFound) {
-            if (!(ordinal.next === end)) {
-                return dateFromClockText({ kind: "Value", value: langruntime.checkedString(text) });
-            }
-            if (ordinal.overflow) {
-                return { kind: "Error", value: { state: dateFieldOverflow } };
-            }
-            let ordinalYear: number = ordinal.year;
-            if (bc) {
-                ordinalYear = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, ordinalYear));
-            }
-            const calendar: OrdinalCalendar = calendarFromOrdinal(ordinalYear, ordinal.day);
-            if (calendar.known === false) {
-                return { kind: "Unknown" };
-            }
-            return dateFromYmd(calendar.year, calendar.month, calendar.day);
-        }
-        let index: number = start;
-        let year: number = 0;
-        let yearDigits: number = 0;
-        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-            if (year < 5874898) {
-                year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(year, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
-            }
-            yearDigits = langruntime.checkedAdd(yearDigits, 1);
-            index = langruntime.checkedAdd(index, 1);
-        }
-        if (yearDigits >= 6 && index === end) {
-            const yearEnd: number = langruntime.checkedSubtract(end, 4);
-            let position: number = start;
-            year = langruntime.checkedI32(0);
-            while (position < yearEnd) {
-                const digit: number = dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
-                if (year > 214748364 || (year === 214748364 && digit > 7)) {
-                    return { kind: "Unknown" };
-                }
-                year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(year, 10), digit));
-                position = langruntime.checkedAdd(position, 1);
-            }
-            year = langruntime.checkedI32(calendarShortYear(year, langruntime.checkedSubtract(yearEnd, start), bc));
-            if (bc) {
-                year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
-            }
-            const month: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 4)))), 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))));
-            const day: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))), 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))));
-            return dateFromYmd(year, month, day);
-        }
-        if (yearDigits >= 6 && index < end && (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) || langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
-            return dateFromClockText({ kind: "Value", value: langruntime.checkedString(text) });
-        }
-        if (yearDigits < 4 || index === end || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
-            return { kind: "Unknown" };
-        }
-        index = langruntime.checkedAdd(index, 1);
-        let month: number = 0;
-        let monthDigits: number = 0;
-        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-            if (monthDigits < 2) {
-                month = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(month, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
-            }
-            monthDigits = langruntime.checkedAdd(monthDigits, 1);
-            index = langruntime.checkedAdd(index, 1);
-        }
-        if (monthDigits < 1 || monthDigits > 2 || index === end || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
-            return { kind: "Unknown" };
-        }
-        index = langruntime.checkedAdd(index, 1);
-        let day: number = 0;
-        let dayDigits: number = 0;
-        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-            if (dayDigits < 2) {
-                day = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(day, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
-            }
-            dayDigits = langruntime.checkedAdd(dayDigits, 1);
-            index = langruntime.checkedAdd(index, 1);
-        }
-        if (dayDigits === 0 && index === end) {
-            return { kind: "Error", value: { state: invalidDateText } };
-        }
-        if (dayDigits >= 1 && dayDigits <= 2 && !(index === end)) {
-            return dateFromClockText({ kind: "Value", value: langruntime.checkedString(text) });
-        }
-        if (dayDigits < 1 || dayDigits > 2 || !(index === end)) {
-            return { kind: "Unknown" };
-        }
-        if (bc) {
-            year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
-        }
-        return dateFromYmd(year, month, day);
+        return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) });
     }
     return { kind: "Unknown" };
 }
-function dateFromClockText(value: TextValue): DateValue {
+function dateFromTemporalText(value: TextValue): DateValue {
     const parsed: Int8Value = parseTemporalText(value, false, true);
     if (parsed.kind === "Error") {
         const error: SqlError = parsed.value;
@@ -16537,7 +16443,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             index = langruntime.checkedIndex(ordinal.next);
             ordinalDay = langruntime.checkedI32(ordinal.day);
         }
-        else if (yearField.digits >= 6 && (index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-"))) {
+        else if (yearField.digits >= 6 && (index === end || (!(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "/") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".")))) {
             const compactYear: TimestampNumber = readTimestampNumber(text, start, langruntime.checkedSubtract(index, 4));
             if (compactYear.overflow) {
                 return { kind: "Unknown" };
@@ -16550,18 +16456,40 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             day = langruntime.checkedI32(compactDay.value);
         }
         else {
-            if (yearField.digits < 4 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-")) {
+            if (yearField.digits < 3 || index === end) {
+                return { kind: "Unknown" };
+            }
+            const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+            if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
                 return { kind: "Unknown" };
             }
             const monthField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
             index = langruntime.checkedIndex(monthField.next);
-            if (monthField.digits < 1 || monthField.digits > 2 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-")) {
+            if (monthField.digits < 1 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                return { kind: "Unknown" };
+            }
+            if (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366) {
                 return { kind: "Unknown" };
             }
             const dayField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
             index = langruntime.checkedIndex(dayField.next);
-            if (dayField.digits < 1 || dayField.digits > 2) {
+            if (dayField.digits < 1) {
+                if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator) {
+                    return { kind: "Unknown" };
+                }
+                if (yearOverflow || monthField.overflow) {
+                    if (index === end) {
+                        return { kind: "Error", value: { state: timestampFieldOverflow } };
+                    }
+                    return { kind: "Unknown" };
+                }
+                return { kind: "Error", value: { state: invalidTimestampText } };
+            }
+            if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator) {
                 return { kind: "Unknown" };
+            }
+            if (monthField.overflow || dayField.overflow) {
+                yearOverflow = langruntime.checkedBool(true);
             }
             month = langruntime.checkedI32(monthField.value);
             day = langruntime.checkedI32(dayField.value);

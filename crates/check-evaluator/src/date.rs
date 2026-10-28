@@ -111,6 +111,12 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
                 state = ORDINAL_DATE_FOUND;
                 day = field.value;
                 index = field.next;
+            } else if field.digits > 0 && field.next == end {
+                index = field.next;
+                state = ORDINAL_DATE_OVERFLOW;
+                if field.digits >= 6 || (year.value != 0 && field.value >= 1 && field.value <= 12) {
+                    state = ORDINAL_DATE_SYNTAX;
+                };
             };
         };
     };
@@ -239,7 +245,6 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 state: INVALID_DATE_TEXT,
             });
         }
-        let mut bc = false;
         if end - start >= 2
             && chars[end - 1].to_ascii_lowercase() == 'c'
             && chars[end - 2].to_ascii_lowercase() == 'b'
@@ -250,7 +255,6 @@ pub fn date_from_text(value: TextValue) -> DateValue {
             {
                 return DateValue::Unknown;
             }
-            bc = true;
             end = end - 2;
         } else if end - start >= 2
             && chars[end - 1].to_ascii_lowercase() == 'd'
@@ -346,126 +350,12 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 return DateValue::Value(2147483647);
             }
         }
-        let ordinal_text = TimestampText {
-            chars: text.chars().collect(),
-        };
-        let ordinal = read_ordinal_date(&ordinal_text, start, end);
-        if ordinal.state == ORDINAL_DATE_SYNTAX {
-            return DateValue::Error(SqlError {
-                state: INVALID_DATE_TEXT,
-            });
-        }
-        if ordinal.state == ORDINAL_DATE_OVERFLOW {
-            return DateValue::Error(SqlError {
-                state: DATE_FIELD_OVERFLOW,
-            });
-        }
-        if ordinal.state == ORDINAL_DATE_DEFERRED {
-            return DateValue::Unknown;
-        }
-        if ordinal.state == ORDINAL_DATE_FOUND {
-            if ordinal.next != end {
-                return date_from_clock_text(TextValue::Value(text.clone()));
-            }
-            if ordinal.overflow {
-                return DateValue::Error(SqlError {
-                    state: DATE_FIELD_OVERFLOW,
-                });
-            }
-            let mut ordinal_year = ordinal.year;
-            if bc {
-                ordinal_year = 0 - ordinal_year;
-            }
-            let calendar = calendar_from_ordinal(ordinal_year, ordinal.day);
-            if calendar.known == false {
-                return DateValue::Unknown;
-            }
-            return date_from_ymd(calendar.year, calendar.month, calendar.day);
-        }
-        let mut index = start;
-        let mut year: i32 = 0;
-        let mut year_digits = 0;
-        while index < end && date_text_digit(chars[index]) >= 0 {
-            if year < 5874898 {
-                year = year * 10 + date_text_digit(chars[index]);
-            }
-            year_digits += 1;
-            index += 1;
-        }
-        if year_digits >= 6 && index == end {
-            let year_end = end - 4;
-            let mut position = start;
-            year = 0;
-            while position < year_end {
-                let digit = date_text_digit(chars[position]);
-                if year > 214748364 || (year == 214748364 && digit > 7) {
-                    return DateValue::Unknown;
-                }
-                year = year * 10 + digit;
-                position += 1;
-            }
-            year = calendar_short_year(year, year_end - start, bc);
-            if bc {
-                year = 0 - year;
-            }
-            let month = date_text_digit(chars[end - 4]) * 10 + date_text_digit(chars[end - 3]);
-            let day = date_text_digit(chars[end - 2]) * 10 + date_text_digit(chars[end - 1]);
-            return date_from_ymd(year, month, day);
-        }
-        if year_digits >= 6
-            && index < end
-            && (date_text_space(chars[index])
-                || chars[index].to_ascii_lowercase() == 't'
-                || chars[index] == '+')
-        {
-            return date_from_clock_text(TextValue::Value(text.clone()));
-        }
-        if year_digits < 4 || index == end || chars[index] != '-' {
-            return DateValue::Unknown;
-        }
-        index += 1;
-        let mut month: i32 = 0;
-        let mut month_digits = 0;
-        while index < end && date_text_digit(chars[index]) >= 0 {
-            if month_digits < 2 {
-                month = month * 10 + date_text_digit(chars[index]);
-            }
-            month_digits += 1;
-            index += 1;
-        }
-        if month_digits < 1 || month_digits > 2 || index == end || chars[index] != '-' {
-            return DateValue::Unknown;
-        }
-        index += 1;
-        let mut day: i32 = 0;
-        let mut day_digits = 0;
-        while index < end && date_text_digit(chars[index]) >= 0 {
-            if day_digits < 2 {
-                day = day * 10 + date_text_digit(chars[index]);
-            }
-            day_digits += 1;
-            index += 1;
-        }
-        if day_digits == 0 && index == end {
-            return DateValue::Error(SqlError {
-                state: INVALID_DATE_TEXT,
-            });
-        }
-        if day_digits >= 1 && day_digits <= 2 && index != end {
-            return date_from_clock_text(TextValue::Value(text.clone()));
-        }
-        if day_digits < 1 || day_digits > 2 || index != end {
-            return DateValue::Unknown;
-        }
-        if bc {
-            year = 0 - year;
-        }
-        return date_from_ymd(year, month, day);
+        return date_from_temporal_text(TextValue::Value(text.clone()));
     }
     DateValue::Unknown
 }
 
-fn date_from_clock_text(value: TextValue) -> DateValue {
+fn date_from_temporal_text(value: TextValue) -> DateValue {
     let parsed = parse_temporal_text(value, false, true);
     if let Int8Value::Error(error) = parsed {
         return DateValue::Error(error);

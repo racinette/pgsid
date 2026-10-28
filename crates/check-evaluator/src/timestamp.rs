@@ -266,7 +266,12 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             year_overflow = ordinal.overflow;
             index = ordinal.next;
             ordinal_day = ordinal.day;
-        } else if year_field.digits >= 6 && (index == end || text.chars[index] != '-') {
+        } else if year_field.digits >= 6
+            && (index == end
+                || (text.chars[index] != '-'
+                    && text.chars[index] != '/'
+                    && text.chars[index] != '.'))
+        {
             let compact_year = read_timestamp_number(&text, start, index - 4);
             if compact_year.overflow {
                 return Int8Value::Unknown;
@@ -278,22 +283,44 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             month = compact_month.value;
             day = compact_day.value;
         } else {
-            if year_field.digits < 4 || index == end || text.chars[index] != '-' {
+            if year_field.digits < 3 || index == end {
+                return Int8Value::Unknown;
+            }
+            let separator = text.chars[index];
+            if separator != '-' && separator != '/' && separator != '.' {
                 return Int8Value::Unknown;
             }
             let month_field = read_timestamp_number(&text, index + 1, end);
             index = month_field.next;
-            if month_field.digits < 1
-                || month_field.digits > 2
-                || index == end
-                || text.chars[index] != '-'
-            {
+            if month_field.digits < 1 || index == end || text.chars[index] != separator {
+                return Int8Value::Unknown;
+            }
+            if month_field.digits == 3 && month_field.value >= 1 && month_field.value <= 366 {
                 return Int8Value::Unknown;
             }
             let day_field = read_timestamp_number(&text, index + 1, end);
             index = day_field.next;
-            if day_field.digits < 1 || day_field.digits > 2 {
+            if day_field.digits < 1 {
+                if index < end && text.chars[index] == separator {
+                    return Int8Value::Unknown;
+                }
+                if year_overflow || month_field.overflow {
+                    if index == end {
+                        return Int8Value::Error(SqlError {
+                            state: TIMESTAMP_FIELD_OVERFLOW,
+                        });
+                    }
+                    return Int8Value::Unknown;
+                }
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_TEXT,
+                });
+            }
+            if index < end && text.chars[index] == separator {
                 return Int8Value::Unknown;
+            }
+            if month_field.overflow || day_field.overflow {
+                year_overflow = true;
             }
             month = month_field.value;
             day = day_field.value;
