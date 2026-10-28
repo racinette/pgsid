@@ -100,32 +100,9 @@ fn jsonb_edit_concat(left: JsonbPayload, right: JsonbPayload) -> JsonbValue {
     )
 }
 
-fn jsonb_edit_facts(input: JsonbValue) -> JsonbKnowledge {
-    if let JsonbValue::NonNull(facts) = input {
-        return facts;
-    };
-    if let JsonbValue::Value(value) = input {
-        let root = value.nodes[value.root];
-        let mut length: i32 = 1;
-        if root.kind >= 5 {
-            length = jsonb_relation_count(&value, root) as i32;
-        };
-        return JsonbKnowledge {
-            maximum: jsonb_partial_bound(&value),
-            kind: root.kind,
-            length: length,
-        };
-    };
-    JsonbKnowledge {
-        maximum: -1i64,
-        kind: -1,
-        length: -1,
-    }
-}
-
 fn jsonb_edit_partial_concat(left: JsonbValue, right: JsonbValue) -> JsonbValue {
-    let a = jsonb_edit_facts(left.clone());
-    let b = jsonb_edit_facts(right.clone());
+    let a = jsonb_root_facts(left.clone(), true);
+    let b = jsonb_root_facts(right.clone(), true);
     if a.kind == b.kind && a.kind >= 5 {
         if a.length == 0 {
             return right;

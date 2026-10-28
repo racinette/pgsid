@@ -174,7 +174,7 @@ fn jsonb_path_partial_growth(
     key: &str,
     length: i32,
 ) -> JsonbValue {
-    let added = jsonb_edit_facts(replacement);
+    let added = jsonb_root_facts(replacement, true);
     let mut maximum = jsonb_partial_add(original.maximum, added.maximum);
     // New entries, alignment and an object key can exceed the replaced subtree.
     maximum = jsonb_partial_add(maximum, 32i64);

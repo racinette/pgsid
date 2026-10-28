@@ -386,6 +386,107 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: "jsonb_array_length(jsonb_set('[{}]','{0,界🙂}',jsonb_build_array(n)))=1",
     partial: 'True',
   },
+  {
+    name: 'equal_different_kind',
+    sql: "jsonb_build_array(n)=jsonb_build_object('n',n)",
+    partial: 'False',
+  },
+  {
+    name: 'unequal_different_kind',
+    sql: "jsonb_build_array(n)<>jsonb_build_object('n',n)",
+    partial: 'True',
+  },
+  {
+    name: 'equal_different_length',
+    sql: 'jsonb_build_array(n)=jsonb_build_array(n,n)',
+    partial: 'False',
+  },
+  { name: 'equal_empty', sql: "jsonb_build_array(n)='[]'::jsonb", partial: 'False' },
+  { name: 'contains_empty_array', sql: "jsonb_build_array(n) @> '[]'::jsonb", partial: 'True' },
+  {
+    name: 'contains_empty_object',
+    sql: "jsonb_build_object('n',n) @> '{}'::jsonb",
+    partial: 'True',
+  },
+  { name: 'contained_empty_array', sql: "'[]'::jsonb <@ jsonb_build_array(n)", partial: 'True' },
+  {
+    name: 'contains_wrong_container',
+    sql: "jsonb_build_array(n) @> jsonb_build_object('n',n)",
+    partial: 'False',
+  },
+  {
+    name: 'contained_wrong_container',
+    sql: "jsonb_build_array(n) <@ jsonb_build_object('n',n)",
+    partial: 'False',
+  },
+  {
+    name: 'contains_scalar_in_array',
+    sql: "jsonb_build_array(n) @> '1'::jsonb",
+    partial: 'Unknown',
+  },
+  {
+    name: 'contains_scalar_in_object',
+    sql: "jsonb_build_object('n',n) @> '1'::jsonb",
+    partial: 'False',
+  },
+  { name: 'contains_array_in_scalar', sql: "'1'::jsonb @> jsonb_build_array(n)", partial: 'False' },
+  {
+    name: 'contains_duplicate_counts',
+    sql: 'jsonb_build_array(n) @> jsonb_build_array(n,n)',
+    partial: 'Unknown',
+  },
+  {
+    name: 'ordered_root_kind',
+    sql: "jsonb_build_array(n)<jsonb_build_object('n',n)",
+    partial: 'True',
+  },
+  {
+    name: 'ordered_root_kind_reverse',
+    sql: "jsonb_build_object('n',n)<jsonb_build_array(n)",
+    partial: 'False',
+  },
+  {
+    name: 'ordered_array_counts',
+    sql: 'jsonb_build_array(n)<jsonb_build_array(n,n)',
+    partial: 'True',
+  },
+  {
+    name: 'ordered_array_counts_reverse',
+    sql: 'jsonb_build_array(n,n)<=jsonb_build_array(n)',
+    partial: 'False',
+  },
+  { name: 'ordered_nonempty_scalar', sql: "jsonb_build_array(n)>'true'::jsonb", partial: 'True' },
+  { name: 'ordered_scalar_nonempty', sql: "'null'::jsonb<jsonb_build_array(n)", partial: 'True' },
+  {
+    name: 'ordered_unknown_length',
+    sql: "jsonb_strip_nulls(jsonb_build_array(n),true)>'null'::jsonb",
+    partial: 'Unknown',
+  },
+  {
+    name: 'compared_root_kind',
+    sql: "jsonb_cmp(jsonb_build_array(n),jsonb_build_object('n',n))=-1",
+    partial: 'True',
+  },
+  {
+    name: 'compared_same_shape',
+    sql: 'jsonb_cmp(jsonb_build_array(n),jsonb_build_array(n))=0',
+    partial: 'Unknown',
+  },
+  {
+    name: 'ordered_row',
+    sql: 'ROW(jsonb_build_array(n),1)<ROW(jsonb_build_array(n,n),0)',
+    partial: 'True',
+  },
+  {
+    name: 'ordered_any',
+    sql: 'jsonb_build_array(n)<ANY(ARRAY[jsonb_build_array(n,n)])',
+    partial: 'True',
+  },
+  {
+    name: 'ordered_selected',
+    sql: 'jsonb_array_length(GREATEST(jsonb_build_array(n),jsonb_build_array(n,n)))=2',
+    partial: 'True',
+  },
 ]
 const value = (value: number | string | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }
