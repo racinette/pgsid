@@ -49,6 +49,9 @@ fn jsonb_pretty_context(input: JsonbValue, utf8: bool) -> TextValue {
 }
 
 pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
+    if let NumericValue::Unknown = input {
+        return JsonbInput::ScalarUnknown;
+    };
     let output = array_numeric_output(input);
     if let TextValue::Error(error) = output {
         return JsonbInput::Error(error);
@@ -63,6 +66,9 @@ pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
 }
 
 pub fn sql__pg_catalog__to_json__25lg(input: JsonbInput, utf8: bool) -> JsonValue {
+    if let JsonbInput::JsonNonNull = input {
+        return JsonValue::NonNull;
+    };
     if let JsonbInput::Error(error) = input {
         return JsonValue::Error(error);
     };
@@ -132,6 +138,7 @@ pub(crate) fn json_array_input_value(
     if let BoolValue::Value(value) = pretty {
         spaced = value;
     };
+    let mut complete = true;
     let mut output = "[".to_owned();
     let mut frames: Vec<JsonOutputArrayFrame> = Vec::new();
     frames.push(JsonOutputArrayFrame {
@@ -170,8 +177,21 @@ pub(crate) fn json_array_input_value(
                 };
                 depth += 1;
             } else {
-                let converted =
-                    sql__pg_catalog__to_json__25lg(input.values[position].clone(), utf8);
+                let value = input.values[position].clone();
+                let mut converted = JsonValue::NonNull;
+                let mut scalar_unknown = false;
+                if let JsonbInput::ScalarUnknown = value {
+                    scalar_unknown = true;
+                };
+                if scalar_unknown {
+                    complete = false;
+                };
+                if scalar_unknown == false {
+                    converted = sql__pg_catalog__to_json__25lg(value, utf8);
+                };
+                if let JsonValue::NonNull = converted {
+                    complete = false;
+                };
                 if let JsonValue::Error(error) = converted {
                     return JsonValue::Error(error);
                 };
@@ -188,6 +208,9 @@ pub(crate) fn json_array_input_value(
             };
         };
     }
+    if complete == false {
+        return JsonValue::NonNull;
+    };
     make_json_value(output.as_str())
 }
 

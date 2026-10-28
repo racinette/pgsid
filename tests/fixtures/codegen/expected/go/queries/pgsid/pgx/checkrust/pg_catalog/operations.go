@@ -17208,6 +17208,7 @@ func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, 
 		if object && odd {
 			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonBuildParameter)}
 		}
+		complete := true
 		output := langruntime.NewTextBuffer("")
 		if object {
 			output = append(output, string(langruntime.CheckedChar('{'))...)
@@ -17250,7 +17251,21 @@ func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, 
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			converted := ToJson25lg(checkruntime.CopyJsonbInput(batch.Values[index]), utf8)
+			value := checkruntime.CopyJsonbInput(batch.Values[index])
+			converted := checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
+			scalarUnknown := false
+			if value.Kind == checkruntime.JsonbInputScalarUnknown {
+				scalarUnknown = true
+			}
+			if scalarUnknown {
+				complete = false
+			}
+			if scalarUnknown == false {
+				converted = ToJson25lg(value, utf8)
+			}
+			if converted.Kind == checkruntime.JsonValueNonNull {
+				complete = false
+			}
 			if converted.Kind == checkruntime.JsonValueError {
 				error := converted.Error
 				return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
@@ -17271,6 +17286,9 @@ func jsonBuildLayout(input checkruntime.JsonbArguments, object bool, utf8 bool, 
 			output = append(output, string(langruntime.CheckedChar('}'))...)
 		} else {
 			output = append(output, string(langruntime.CheckedChar(']'))...)
+		}
+		if complete == false {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
 		}
 		return checkruntime.MakeJsonValue(string(output))
 	}
@@ -17540,6 +17558,9 @@ func jsonbPrettyContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.T
 	return checkruntime.JsonbToPrettyText(input)
 }
 func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.NumericValueUnknown {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputScalarUnknown}
+	}
 	output := ArrayNumericOutput(input)
 	if output.Kind == checkruntime.TextValueError {
 		error := output.Error
@@ -17556,6 +17577,9 @@ func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInp
 }
 func ToJson25lg(input checkruntime.JsonbInput, utf8 bool) checkruntime.JsonValue {
 	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputJsonNonNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
+	}
 	if input.Kind == checkruntime.JsonbInputError {
 		error := input.Error
 		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
@@ -17632,6 +17656,7 @@ func JsonArrayInputValue(input checkruntime.JsonbArrayInputPayload, pretty check
 		value := pretty.Value
 		spaced = value
 	}
+	complete := true
 	output := langruntime.NewTextBuffer("[")
 	frames := []jsonOutputArrayFrame{}
 	langruntime.CheckedAdd(len(frames), 1)
@@ -17663,7 +17688,21 @@ func JsonArrayInputValue(input checkruntime.JsonbArrayInputPayload, pretty check
 				}
 				depth = langruntime.CheckedAdd(depth, 1)
 			} else {
-				converted := ToJson25lg(checkruntime.CopyJsonbInput(input.Values[position]), utf8)
+				value := checkruntime.CopyJsonbInput(input.Values[position])
+				converted := checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
+				scalarUnknown := false
+				if value.Kind == checkruntime.JsonbInputScalarUnknown {
+					scalarUnknown = true
+				}
+				if scalarUnknown {
+					complete = false
+				}
+				if scalarUnknown == false {
+					converted = ToJson25lg(value, utf8)
+				}
+				if converted.Kind == checkruntime.JsonValueNonNull {
+					complete = false
+				}
 				if converted.Kind == checkruntime.JsonValueError {
 					error := converted.Error
 					return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
@@ -17681,6 +17720,9 @@ func JsonArrayInputValue(input checkruntime.JsonbArrayInputPayload, pretty check
 				position = langruntime.CheckedAdd(position, 1)
 			}
 		}
+	}
+	if complete == false {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNonNull}
 	}
 	return checkruntime.MakeJsonValue(string(output))
 }
@@ -17718,6 +17760,9 @@ func JsonTypeofVzgr(input checkruntime.JsonValue) checkruntime.TextValue {
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonValueNonNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+	}
 	if input.Kind == checkruntime.JsonValueError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
@@ -18861,6 +18906,9 @@ func jsonbBuildKey(input checkruntime.JsonbInput) checkruntime.TextValue {
 	if input.Kind == checkruntime.JsonbInputError {
 		error := input.Error
 		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputScalarUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 	}
 	if input.Kind == checkruntime.JsonbInputUnknown {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -43242,9 +43290,6 @@ func DatePartG4hw(units checkruntime.TextValue, input checkruntime.DateValue, li
 		error := input.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
 	}
-	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
-		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
-	}
 	if input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
@@ -43252,6 +43297,9 @@ func DatePartG4hw(units checkruntime.TextValue, input checkruntime.DateValue, li
 	if timestamp.Kind == checkruntime.TimestampValueError {
 		error := timestamp.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 	}
 	clipped := NameFromTextContext(units, limit, utf8)
 	return DatePartNzwd(clipped, timestamp)

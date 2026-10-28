@@ -1914,6 +1914,7 @@ export const PG18_ARRAYS = {
     args: ['pg_catalog.text', 'pg_catalog.xml'],
     result: 'pg_catalog._xml',
     strict: true,
+    sqlBody: true,
     volatility: 'i',
     returnsSet: false,
     variadic: null,

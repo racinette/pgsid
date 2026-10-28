@@ -1103,6 +1103,8 @@ export interface JsonPayload {
 export type JsonValue = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "NonNull";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
@@ -1201,6 +1203,10 @@ export function copyJsonbValue(value: JsonbValue): JsonbValue {
 export type JsonbInput = {
     readonly kind: "Unknown";
 } | {
+    readonly kind: "ScalarUnknown";
+} | {
+    readonly kind: "JsonNonNull";
+} | {
     readonly kind: "Null";
 } | {
     readonly kind: "Error";
@@ -1227,6 +1233,8 @@ export type JsonbInput = {
 export function copyJsonbInput(value: JsonbInput): JsonbInput {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
+        case "ScalarUnknown": return { kind: "ScalarUnknown" };
+        case "JsonNonNull": return { kind: "JsonNonNull" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "ConvertedError": return { kind: "ConvertedError", value: value.value };
@@ -1327,7 +1335,7 @@ export function jsonbInputFromBool(input: BoolValue): JsonbInput {
         const value: boolean = langruntime.checkedBool(input.value);
         return { kind: "Boolean", value: value };
     }
-    return { kind: "Unknown" };
+    return { kind: "ScalarUnknown" };
 }
 export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
     if (input.kind === "Error") {
@@ -1341,7 +1349,7 @@ export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
         const value: string = langruntime.checkedString(input.value);
         return { kind: "Number", value: value };
     }
-    return { kind: "Unknown" };
+    return { kind: "ScalarUnknown" };
 }
 export function jsonbInputFromText(input: TextValue): JsonbInput {
     if (input.kind === "Error") {
@@ -1361,6 +1369,9 @@ export function jsonbInputFromJson(input: JsonValue): JsonbInput {
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
+    }
+    if (input.kind === "NonNull") {
+        return { kind: "JsonNonNull" };
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
@@ -7968,6 +7979,8 @@ export type ArrayElement = {
     readonly kind: "Json";
     readonly value: JsonPayload;
 } | {
+    readonly kind: "JsonNonNull";
+} | {
     readonly kind: "Jsonb";
     readonly value: JsonbPayload;
 } | {
@@ -8118,6 +8131,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Bool": return { kind: "Bool", value: langruntime.checkedBool(value.value) };
         case "Numeric": return { kind: "Numeric", value: langruntime.checkedString(value.value) };
         case "Json": return { kind: "Json", value: value.value };
+        case "JsonNonNull": return { kind: "JsonNonNull" };
         case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
         case "Network": return { kind: "Network", value: value.value };
         case "Bit": return { kind: "Bit", value: langruntime.checkedString(value.value) };
@@ -8168,6 +8182,9 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "JsonNonNull") {
+        return 11;
+    }
     if (input.kind === "AclitemCatalog") {
         return 46;
     }
@@ -8668,6 +8685,9 @@ export function arrayElementToNumeric(input: ArrayElement): NumericValue {
     return { kind: "Unknown" };
 }
 export function arrayElementFromJson(input: JsonValue): ArrayElement {
+    if (input.kind === "NonNull") {
+        return { kind: "JsonNonNull" };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -8683,6 +8703,9 @@ export function arrayElementFromJson(input: JsonValue): ArrayElement {
 }
 export function arrayElementToJson(input: ArrayElement): JsonValue {
     input = copyArrayElement(input);
+    if (input.kind === "JsonNonNull") {
+        return { kind: "NonNull" };
+    }
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };

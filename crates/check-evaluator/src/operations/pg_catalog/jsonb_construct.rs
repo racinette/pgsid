@@ -4,6 +4,9 @@ fn jsonb_build_key(input: JsonbInput) -> TextValue {
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
     };
+    if let JsonbInput::ScalarUnknown = input {
+        return TextValue::Unknown;
+    };
     if let JsonbInput::Unknown = input {
         return TextValue::Unknown;
     };

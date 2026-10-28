@@ -9,19 +9,31 @@ export function evaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdC
     const arrayValueValidity3: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness2, true);
     expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity3);
     const value4: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
-    const value5: checkruntime.BoolValue = pg_catalog.int84gtP7f5(inputValue, value4);
-    const arrayValueNullness6: checkruntime.BoolValue = checkruntime.boolIsNull(value5);
-    const arrayValueValidity7: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness6, true);
-    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity7);
-    const arrayValueNullness8: checkruntime.BoolValue = checkruntime.boolIsNull(value5);
-    const arrayValueValidity9: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness8, true);
-    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity9);
-    const scalarResult10: checkruntime.CheckOutcome = checkruntime.checkFromBool(value5);
-    let validatedExpression11: checkruntime.CheckOutcome = scalarResult10;
-    if (checkruntime.caseGuardStops(expressionValidity1)) {
-        validatedExpression11 = expressionValidity1;
+    const strictCallStart6: checkruntime.BoolValue = checkruntime.makeBoolValue(false);
+    let strictCallNull5: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictCallStart6);
+    const strictArgumentNull7: checkruntime.BoolValue = checkruntime.int8IsNull(inputValue);
+    const strictArgumentState8: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictArgumentNull7);
+    strictCallNull5 = checkruntime.orFinish(strictCallNull5, strictArgumentState8);
+    const strictArgumentNull9: checkruntime.BoolValue = checkruntime.int4IsNull(value4);
+    const strictArgumentState10: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictArgumentNull9);
+    strictCallNull5 = checkruntime.orFinish(strictCallNull5, strictArgumentState10);
+    let strictCall14: checkruntime.BoolValue = checkruntime.boolNull();
+    if (checkruntime.caseGuardTakes(strictCallNull5) === false) {
+        const value11: checkruntime.BoolValue = pg_catalog.int84gtP7f5(inputValue, value4);
+        const arrayValueNullness12: checkruntime.BoolValue = checkruntime.boolIsNull(value11);
+        const arrayValueValidity13: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness12, true);
+        expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity13);
+        strictCall14 = value11;
     }
-    return validatedExpression11;
+    const arrayValueNullness15: checkruntime.BoolValue = checkruntime.boolIsNull(strictCall14);
+    const arrayValueValidity16: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness15, true);
+    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity16);
+    const scalarResult17: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictCall14);
+    let validatedExpression18: checkruntime.CheckOutcome = scalarResult17;
+    if (checkruntime.caseGuardStops(expressionValidity1)) {
+        validatedExpression18 = expressionValidity1;
+    }
+    return validatedExpression18;
 }
 export function evaluateCheckPublicDomainEventIdEventIdCheckHcydw(inputValue: checkruntime.Int8Value): checkruntime.CheckOutcome {
     const expressionValidityStart0: checkruntime.BoolValue = checkruntime.makeBoolValue(true);
@@ -30,17 +42,29 @@ export function evaluateCheckPublicDomainEventIdEventIdCheckHcydw(inputValue: ch
     const arrayValueValidity3: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness2, true);
     expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity3);
     const value4: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
-    const value5: checkruntime.BoolValue = pg_catalog.int84gtP7f5(inputValue, value4);
-    const arrayValueNullness6: checkruntime.BoolValue = checkruntime.boolIsNull(value5);
-    const arrayValueValidity7: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness6, true);
-    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity7);
-    const arrayValueNullness8: checkruntime.BoolValue = checkruntime.boolIsNull(value5);
-    const arrayValueValidity9: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness8, true);
-    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity9);
-    const scalarResult10: checkruntime.CheckOutcome = checkruntime.checkFromBool(value5);
-    let validatedExpression11: checkruntime.CheckOutcome = scalarResult10;
-    if (checkruntime.caseGuardStops(expressionValidity1)) {
-        validatedExpression11 = expressionValidity1;
+    const strictCallStart6: checkruntime.BoolValue = checkruntime.makeBoolValue(false);
+    let strictCallNull5: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictCallStart6);
+    const strictArgumentNull7: checkruntime.BoolValue = checkruntime.int8IsNull(inputValue);
+    const strictArgumentState8: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictArgumentNull7);
+    strictCallNull5 = checkruntime.orFinish(strictCallNull5, strictArgumentState8);
+    const strictArgumentNull9: checkruntime.BoolValue = checkruntime.int4IsNull(value4);
+    const strictArgumentState10: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictArgumentNull9);
+    strictCallNull5 = checkruntime.orFinish(strictCallNull5, strictArgumentState10);
+    let strictCall14: checkruntime.BoolValue = checkruntime.boolNull();
+    if (checkruntime.caseGuardTakes(strictCallNull5) === false) {
+        const value11: checkruntime.BoolValue = pg_catalog.int84gtP7f5(inputValue, value4);
+        const arrayValueNullness12: checkruntime.BoolValue = checkruntime.boolIsNull(value11);
+        const arrayValueValidity13: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness12, true);
+        expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity13);
+        strictCall14 = value11;
     }
-    return validatedExpression11;
+    const arrayValueNullness15: checkruntime.BoolValue = checkruntime.boolIsNull(strictCall14);
+    const arrayValueValidity16: checkruntime.CheckOutcome = checkruntime.arrayValueValidity(arrayValueNullness15, true);
+    expressionValidity1 = checkruntime.arrayValidityFinish(expressionValidity1, arrayValueValidity16);
+    const scalarResult17: checkruntime.CheckOutcome = checkruntime.checkFromBool(strictCall14);
+    let validatedExpression18: checkruntime.CheckOutcome = scalarResult17;
+    if (checkruntime.caseGuardStops(expressionValidity1)) {
+        validatedExpression18 = expressionValidity1;
+    }
+    return validatedExpression18;
 }

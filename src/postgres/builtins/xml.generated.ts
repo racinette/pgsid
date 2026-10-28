@@ -341,6 +341,7 @@ export const PG18_XML = {
     args: ['pg_catalog.text', 'pg_catalog.xml'],
     result: 'pg_catalog.bool',
     strict: true,
+    sqlBody: true,
     volatility: 'i',
     returnsSet: false,
     variadic: null,

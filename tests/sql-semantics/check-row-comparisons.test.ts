@@ -249,7 +249,7 @@ describe('fixed ROW constructor comparisons in CHECKs', () => {
             divisor: input(1),
           },
           ordered.has(label)
-            ? { kind: 'Unknown' }
+            ? { kind: 'Null' }
             : { kind: label === 'eq' || label === 'same' ? 'False' : 'True' },
         )
         add(
@@ -260,7 +260,9 @@ describe('fixed ROW constructor comparisons in CHECKs', () => {
             amount: error('22003'),
             divisor: input(0),
           },
-          label === 'eq' || label === 'ne' ? error('22003') : { kind: 'Unknown' },
+          label === 'eq' || label === 'ne'
+            ? error('22003')
+            : { kind: ordered.has(label) ? 'Null' : 'Unknown' },
         )
         add(
           `${family.name}_${label}`,

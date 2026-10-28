@@ -12,6 +12,9 @@ pub fn sql__pg_catalog__json_typeof__vzgr(input: JsonValue) -> TextValue {
 }
 
 pub fn json_to_text(input: JsonValue) -> TextValue {
+    if let JsonValue::NonNull = input {
+        return TextValue::NonNull;
+    };
     if let JsonValue::Error(error) = input {
         return TextValue::Error(error);
     };

@@ -3147,11 +3147,25 @@ export function emitCheckRustEvaluator(
       destination = bindings,
       folded?: { name: string; type: string },
     ): { name: string; type: string } => {
-      if (node.kind === 'call' && call === node.call && !folded) {
+      const unknownValid =
+        !folded &&
+        (!rustCallCanFail(
+          call,
+          operands.map((operand) => operand.type),
+          executionContext,
+        ) ||
+          (node.kind === 'call' &&
+            call === node.call &&
+            !rustScalarOwnCanFail(node, executionContext)))
+      if (!folded) {
         const metadata = call.signature === null ? null : builtinMetadata(call.signature)
         const implementation =
           metadata?.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
-        if (implementation?.kind === 'function' && implementation.strict) {
+        if (
+          implementation?.kind === 'function' &&
+          implementation.strict &&
+          !implementation.sqlBody
+        ) {
           const guard = fresh('strict_call_null')
           const initial = fresh('strict_call_start')
           destination.push(
@@ -3169,7 +3183,7 @@ export function emitCheckRustEvaluator(
           }
           const lines: string[] = []
           const value = emitCallInner(call, operands, lines)
-          appendArrayValidity(value, !rustScalarOwnCanFail(node, executionContext), lines)
+          appendArrayValidity(value, unknownValid, lines)
           const name = fresh('strict_call')
           if (diagnostics.enabled) {
             if (diagnosticCall(call)) diagnostics.flow(value, operands, lines)
@@ -3189,19 +3203,7 @@ export function emitCheckRustEvaluator(
       }
       const value = emitCallInner(call, operands, destination, folded)
       if (!folded && diagnosticCall(call)) diagnostics.flow(value, operands, destination)
-      if (!folded)
-        appendArrayValidity(
-          value,
-          !rustCallCanFail(
-            call,
-            operands.map((operand) => operand.type),
-            executionContext,
-          ) ||
-            (node.kind === 'call' &&
-              call === node.call &&
-              !rustScalarOwnCanFail(node, executionContext)),
-          destination,
-        )
+      if (!folded) appendArrayValidity(value, unknownValid, destination)
       return value
     }
     const emitCallInner = (

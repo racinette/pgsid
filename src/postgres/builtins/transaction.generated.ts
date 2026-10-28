@@ -218,6 +218,7 @@ export const PG18_TRANSACTION = {
     args: ['pg_catalog."numeric"', 'pg_catalog.pg_lsn'],
     result: 'pg_catalog.pg_lsn',
     strict: true,
+    sqlBody: true,
     volatility: 'i',
     returnsSet: false,
     variadic: null,

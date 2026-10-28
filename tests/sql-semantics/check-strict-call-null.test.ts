@@ -200,6 +200,16 @@ it('uses catalog strictness across scalar and container calls without discarding
       { name: 'required_domain', sql: 'n::required_input+m' },
       { name: 'array', sql: 'array_length(ARRAY[n/d],m)' },
       { name: 'row', sql: 'row_to_json(ROW(t,n))' },
+      { name: 'json_array', sql: 'json_build_array(n)' },
+      { name: 'json_boolean', sql: 'json_build_array(n<>0)' },
+      { name: 'json_array_to', sql: 'array_to_json(ARRAY[n])' },
+      { name: 'json_nested', sql: 'row_to_json(ROW(row_to_json(ROW(n))))' },
+      { name: 'json_container', sql: 'array_to_json(ARRAY[row_to_json(ROW(n))])' },
+      { name: 'json_text', sql: 'row_to_json(ROW(n))::text' },
+      { name: 'json_later_key', sql: "json_build_object('first',n,NULL,1)" },
+      { name: 'json_key', sql: 'json_build_object(n,1)' },
+      { name: 'json_later_context', sql: "row_to_json(ROW(n,decode('01','hex')))" },
+      { name: 'json_later_error', sql: 'row_to_json(ROW(n,1/d))' },
       { name: 'literal_null', sql: 'lpad(NULL::text,n/d,u)' },
     ]
     for (const p of profiles)
@@ -339,31 +349,73 @@ it('uses catalog strictness across scalar and container calls without discarding
         d: { kind: 'Value', value: 0 },
         bypass: { kind: 'Value', value: false },
       }
+      if (f.name === 'row' || f.name.startsWith('json_')) {
+        for (const n of ['NULL', '1', '-1']) {
+          let actual: Outcome
+          try {
+            const value = (
+              await pg.query<{ value: boolean }>(
+                `SELECT (${f.sql}) IS NULL AS value FROM (VALUES(NULL::text,'x'::text,${n}::int,NULL::int,0,false)) AS v(t,u,n,m,d,bypass)`,
+              )
+            ).rows[0]!.value
+            actual = { kind: value ? 'True' : 'False' }
+          } catch (cause) {
+            actual = error((cause as { code: string }).code)
+          }
+          const expected: Outcome =
+            f.name === 'json_later_key' || (f.name === 'json_key' && n === 'NULL')
+              ? error('22004')
+              : f.name === 'json_later_error'
+                ? error('22012')
+                : { kind: 'False' }
+          expect(actual, f.name + ':' + n).toEqual(expected)
+          observations.push({ name: f.name, n, expected })
+        }
+      }
       const cases: [Row, Outcome][] =
-        f.name === 'row'
-          ? [
-              [{ ...base, n: nil }, { kind: 'False' }],
-              [{ ...base, n: unknown }, { kind: 'False' }],
-            ]
-          : f.name === 'domain' || f.name === 'required_domain'
+        f.name === 'json_later_key'
+          ? [[{ ...base, n: unknown }, error('22004')]]
+          : f.name === 'json_key'
             ? [
                 [{ ...base, n: unknown }, { kind: 'Unknown' }],
-                [{ ...base, n: nil }, f.name === 'domain' ? { kind: 'True' } : error('23502')],
-                [
-                  { ...base, n: { kind: 'Value', value: -1 } },
-                  f.name === 'domain' ? error('23514') : { kind: 'True' },
-                ],
+                [{ ...base, n: nil }, error('22004')],
+                [base, { kind: 'False' }],
               ]
-            : f.name === 'literal_null'
-              ? [
-                  [base, { kind: 'True' }],
-                  [{ ...base, n: unknown }, { kind: 'True' }],
-                ]
-              : [
-                  [base, error('22012')],
-                  [{ ...base, n: unknown }, { kind: 'Unknown' }],
-                  [{ ...base, n: nil }, { kind: 'True' }],
-                ]
+            : f.name === 'json_later_context'
+              ? [[{ ...base, n: unknown }, { kind: 'Unknown' }]]
+              : f.name === 'json_later_error'
+                ? [
+                    [{ ...base, n: unknown }, error('22012')],
+                    [{ ...base, n: unknown, d: unknown }, { kind: 'Unknown' }],
+                    [{ ...base, n: unknown, d: { kind: 'Value', value: 1 } }, { kind: 'False' }],
+                  ]
+                : f.name === 'row' || f.name.startsWith('json_')
+                  ? [
+                      [{ ...base, n: nil }, { kind: 'False' }],
+                      [{ ...base, n: unknown }, { kind: 'False' }],
+                    ]
+                  : f.name === 'domain' || f.name === 'required_domain'
+                    ? [
+                        [{ ...base, n: unknown }, { kind: 'Unknown' }],
+                        [
+                          { ...base, n: nil },
+                          f.name === 'domain' ? { kind: 'True' } : error('23502'),
+                        ],
+                        [
+                          { ...base, n: { kind: 'Value', value: -1 } },
+                          f.name === 'domain' ? error('23514') : { kind: 'True' },
+                        ],
+                      ]
+                    : f.name === 'literal_null'
+                      ? [
+                          [base, { kind: 'True' }],
+                          [{ ...base, n: unknown }, { kind: 'True' }],
+                        ]
+                      : [
+                          [base, error('22012')],
+                          [{ ...base, n: unknown }, { kind: 'Unknown' }],
+                          [{ ...base, n: nil }, { kind: 'True' }],
+                        ]
       for (const [row, expected] of cases) {
         add(f.name, row, expected)
         add(f.name, { ...row, bypass: { kind: 'Value', value: true } }, { kind: 'True' })
