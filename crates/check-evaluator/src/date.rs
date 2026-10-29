@@ -224,6 +224,54 @@ fn english_date_fields(
     )
 }
 
+fn read_english_trailing_month(
+    text: &TimestampText,
+    first: &TimestampNumber,
+    second_start: usize,
+    end: usize,
+) -> OrdinalDateText {
+    let absent = english_date_result(ORDINAL_DATE_ABSENT, second_start, 0, 0, 0);
+    let second = read_timestamp_number(text, second_start, end);
+    let word_start = english_date_gap(text, second.next, end);
+    if word_start == end || english_date_letter(text.chars[word_start]) == false {
+        return absent;
+    }
+    let word = english_date_word(text, word_start, end);
+    let month = english_date_month(word.as_str());
+    if month == 0 {
+        return absent;
+    }
+    let word_end = english_date_word_end(text, word_start, end);
+    if word_end < end
+        && date_text_space(text.chars[word_end]) == false
+        && text.chars[word_end].to_ascii_lowercase() != 't'
+        && text.chars[word_end] != '+'
+    {
+        return english_date_result(ORDINAL_DATE_DEFERRED, word_end, 0, 0, 0);
+    }
+    if first.digits >= 6 || second.digits >= 6 {
+        return english_date_result(ORDINAL_DATE_SYNTAX, word_end, 0, 0, 0);
+    }
+    if first.digits <= 2 {
+        return english_date_result(ORDINAL_DATE_DEFERRED, word_end, 0, 0, 0);
+    }
+    // The second number is first a numeric month (or a day of year when it has three
+    // digits); the textual month moves only a month from 1 through 31 to the day.
+    if (second.digits == 3 && second.value >= 1 && second.value <= 366)
+        || second.value < 1
+        || second.value > 31
+    {
+        return english_date_result(ORDINAL_DATE_SYNTAX, word_end, 0, 0, 0);
+    }
+    english_date_result(
+        ORDINAL_DATE_CALENDAR,
+        word_end,
+        first.value,
+        month,
+        second.value,
+    )
+}
+
 fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
     let absent = english_date_result(ORDINAL_DATE_ABSENT, start, 0, 0, 0);
     let mut index = start;
@@ -302,6 +350,9 @@ fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         return english_date_fields(&first, &second, month, second.next, true, true);
     }
     let word_start = english_date_gap(text, after, end);
+    if word_start < end && word_start > after && date_text_digit(text.chars[word_start]) >= 0 {
+        return read_english_trailing_month(text, &first, word_start, end);
+    }
     if word_start == end || english_date_letter(text.chars[word_start]) == false {
         return absent;
     }

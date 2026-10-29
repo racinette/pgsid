@@ -271,3 +271,7 @@ INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01-0530', NULL, false);
 -- name: calendar_english_adjacent
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '29Feb2000', '2000-02-29', false);
+-- name: calendar_english_trailing_month
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 29 Feb', '2000-02-29', false);
+-- name: calendar_english_trailing_month_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 32 Jan', NULL, false);
