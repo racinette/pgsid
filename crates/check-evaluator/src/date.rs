@@ -59,6 +59,8 @@ struct OrdinalDateText {
     month: i32,
     day: i32,
     minus_zone: bool,
+    julian: bool,
+    julian_time: i64,
 }
 
 struct OrdinalCalendar {
@@ -178,6 +180,8 @@ fn english_date_result(
         month: month,
         day: day,
         minus_zone: false,
+        julian: false,
+        julian_time: -1i64,
     }
 }
 
@@ -324,7 +328,88 @@ fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
     english_date_fields(&first, &second, month, second.next, false, true)
 }
 
+fn read_julian_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
+    let absent = english_date_result(ORDINAL_DATE_ABSENT, start, 0, 0, 0);
+    let label = english_date_word(text, start, end);
+    if label != "j" && label != "jd" && label != "julian" {
+        return absent;
+    }
+    let mut index = english_date_word_end(text, start, end);
+    while index < end && date_text_space(text.chars[index]) {
+        index += 1;
+    }
+    let number = read_timestamp_number(text, index, end);
+    if number.digits == 0 {
+        if index == end {
+            return english_date_result(ORDINAL_DATE_SYNTAX, index, 0, 0, 0);
+        }
+        return english_date_result(ORDINAL_DATE_DEFERRED, index, 0, 0, 0);
+    }
+    if number.overflow {
+        if number.next == end {
+            return english_date_result(ORDINAL_DATE_OVERFLOW, index, 0, 0, 0);
+        }
+        return english_date_result(ORDINAL_DATE_DEFERRED, index, 0, 0, 0);
+    }
+    index = number.next;
+    let mut julian_time: i64 = -1i64;
+    if index < end && text.chars[index] == '.' {
+        let fraction = read_timestamp_number(text, index + 1, end);
+        if fraction.digits == 0 {
+            return english_date_result(ORDINAL_DATE_DEFERRED, index, 0, 0, 0);
+        }
+        let mut fraction_text = String::new();
+        fraction_text.push('0');
+        let mut digit = index;
+        while digit < fraction.next {
+            fraction_text.push(text.chars[digit]);
+            digit += 1;
+        }
+        // PostgreSQL scales the fractional day in double precision, then truncates;
+        // the second split keeps that truncation exact within i32 conversions.
+        let parsed = fraction_text.as_str().parse::<f64>().unwrap_or(0.0f64);
+        let scaled = parsed * 86400000000.0f64;
+        let mut seconds = (scaled / 1000000.0f64) as i32;
+        let seconds_float = seconds as f64;
+        let mut remainder = scaled - seconds_float * 1000000.0f64;
+        if remainder < 0.0f64 {
+            seconds = seconds - 1;
+            remainder = remainder + 1000000.0f64;
+        }
+        let microseconds = remainder as i32;
+        let wide_seconds = seconds as i64;
+        let wide_microseconds = microseconds as i64;
+        julian_time = wide_seconds * 1000000i64 + wide_microseconds;
+        index = fraction.next;
+    }
+    if index < end
+        && date_text_space(text.chars[index]) == false
+        && text.chars[index].to_ascii_lowercase() != 't'
+        && text.chars[index].to_ascii_lowercase() != 'z'
+        && text.chars[index] != '+'
+    {
+        return english_date_result(ORDINAL_DATE_DEFERRED, index, 0, 0, 0);
+    }
+    let wide_day = number.value as i64;
+    let calendar = julian_calendar(wide_day);
+    OrdinalDateText {
+        state: ORDINAL_DATE_CALENDAR,
+        next: index,
+        year: calendar.year,
+        overflow: false,
+        month: calendar.month,
+        day: calendar.day,
+        minus_zone: false,
+        julian: true,
+        julian_time: julian_time,
+    }
+}
+
 fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
+    let julian = read_julian_date(text, start, end);
+    if julian.state != ORDINAL_DATE_ABSENT {
+        return julian;
+    }
     let english = read_english_date(text, start, end);
     if english.state != ORDINAL_DATE_ABSENT {
         return english;
@@ -412,6 +497,8 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         month: month,
         day: day,
         minus_zone: minus_zone,
+        julian: false,
+        julian_time: -1i64,
     }
 }
 
@@ -456,6 +543,10 @@ fn calendar_from_ordinal(year: i32, day: i32) -> OrdinalCalendar {
             day: 0,
         };
     }
+    julian_calendar(julian_day)
+}
+
+fn julian_calendar(julian_day: i64) -> OrdinalCalendar {
     // PostgreSQL splits Julian days with unsigned 32-bit arithmetic; days before its
     // supported range wrap rather than fail.
     let mut julian = julian_day + 32044i64;
@@ -589,8 +680,11 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 }
                 index += 1;
             }
-            if index != end || index == first {
+            if index == first {
                 return DateValue::Unknown;
+            }
+            if index != end {
+                return date_from_temporal_text(TextValue::Value(text.clone()));
             }
             if overflow {
                 return DateValue::Error(SqlError {

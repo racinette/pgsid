@@ -15908,9 +15908,11 @@ interface OrdinalDateText {
     month: number;
     day: number;
     minusZone: boolean;
+    julian: boolean;
+    julianTime: bigint;
 }
 function copyOrdinalDateText(value: OrdinalDateText): OrdinalDateText {
-    return { state: langruntime.checkedI32(value.state), next: langruntime.checkedIndex(value.next), year: langruntime.checkedI32(value.year), overflow: langruntime.checkedBool(value.overflow), month: langruntime.checkedI32(value.month), day: langruntime.checkedI32(value.day), minusZone: langruntime.checkedBool(value.minusZone) };
+    return { state: langruntime.checkedI32(value.state), next: langruntime.checkedIndex(value.next), year: langruntime.checkedI32(value.year), overflow: langruntime.checkedBool(value.overflow), month: langruntime.checkedI32(value.month), day: langruntime.checkedI32(value.day), minusZone: langruntime.checkedBool(value.minusZone), julian: langruntime.checkedBool(value.julian), julianTime: langruntime.checkedI64(value.julianTime) };
 }
 interface OrdinalCalendar {
     known: boolean;
@@ -16009,7 +16011,7 @@ function englishDateResult(state: number, next: number, year: number, month: num
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
-    return { state: state, next: next, year: year, overflow: false, month: month, day: day, minusZone: false };
+    return { state: state, next: next, year: year, overflow: false, month: month, day: day, minusZone: false, julian: false, julianTime: -1n };
 }
 function englishDateFields(first: TimestampNumber, second: TimestampNumber, month: number, next: number, delimited: boolean, numberFirst: boolean): OrdinalDateText {
     month = langruntime.checkedI32(month);
@@ -16113,9 +16115,74 @@ function readEnglishDate(text: TimestampText, start: number, end: number): Ordin
     }
     return englishDateFields(first, second, month, second.next, false, true);
 }
+function readJulianDate(text: TimestampText, start: number, end: number): OrdinalDateText {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    const absent: OrdinalDateText = englishDateResult(ordinalDateAbsent, start, 0, 0, 0);
+    const label: string = englishDateWord(text, start, end);
+    if (!(label === "j") && !(label === "jd") && !(label === "julian")) {
+        return absent;
+    }
+    let index: number = englishDateWordEnd(text, start, end);
+    while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const number: TimestampNumber = readTimestampNumber(text, index, end);
+    if (number.digits === 0) {
+        if (index === end) {
+            return englishDateResult(ordinalDateSyntax, index, 0, 0, 0);
+        }
+        return englishDateResult(ordinalDateDeferred, index, 0, 0, 0);
+    }
+    if (number.overflow) {
+        if (number.next === end) {
+            return englishDateResult(ordinalDateOverflow, index, 0, 0, 0);
+        }
+        return englishDateResult(ordinalDateDeferred, index, 0, 0, 0);
+    }
+    index = langruntime.checkedIndex(number.next);
+    let julianTime: bigint = -1n;
+    if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".") {
+        const fraction: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+        if (fraction.digits === 0) {
+            return englishDateResult(ordinalDateDeferred, index, 0, 0, 0);
+        }
+        let fractionText: string = "";
+        fractionText = fractionText + langruntime.checkedChar("0");
+        let digit: number = index;
+        while (digit < fraction.next) {
+            fractionText = fractionText + langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(digit)));
+            digit = langruntime.checkedAdd(digit, 1);
+        }
+        const parsed: number = langruntime.f64FromText(fractionText, 0.0);
+        const scaled: number = langruntime.f64Multiply(parsed, 86400000000.0);
+        let seconds: number = langruntime.f64ToI32((langruntime.f64Divide(scaled, 1000000.0)));
+        const secondsFloat: number = Number(langruntime.checkedI32(seconds));
+        let remainder: number = langruntime.f64Subtract(scaled, langruntime.f64Multiply(secondsFloat, 1000000.0));
+        if (remainder < 0.0) {
+            seconds = langruntime.checkedI32(langruntime.checkedSignedSubtract(seconds, 1));
+            remainder = langruntime.checkedF64(langruntime.f64Add(remainder, 1000000.0));
+        }
+        const microseconds: number = langruntime.f64ToI32(remainder);
+        const wideSeconds: bigint = BigInt(langruntime.checkedI32(seconds));
+        const wideMicroseconds: bigint = BigInt(langruntime.checkedI32(microseconds));
+        julianTime = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(wideSeconds, 1000000n), wideMicroseconds));
+        index = langruntime.checkedIndex(fraction.next);
+    }
+    if (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+")) {
+        return englishDateResult(ordinalDateDeferred, index, 0, 0, 0);
+    }
+    const wideDay: bigint = BigInt(langruntime.checkedI32(number.value));
+    const calendar: OrdinalCalendar = julianCalendar(wideDay);
+    return { state: ordinalDateCalendar, next: index, year: calendar.year, overflow: false, month: calendar.month, day: calendar.day, minusZone: false, julian: true, julianTime: julianTime };
+}
 function readOrdinalDate(text: TimestampText, start: number, end: number): OrdinalDateText {
     start = langruntime.checkedIndex(start);
     end = langruntime.checkedIndex(end);
+    const julian: OrdinalDateText = readJulianDate(text, start, end);
+    if (!(julian.state === ordinalDateAbsent)) {
+        return julian;
+    }
     const english: OrdinalDateText = readEnglishDate(text, start, end);
     if (!(english.state === ordinalDateAbsent)) {
         return english;
@@ -16190,7 +16257,7 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
             }
         }
     }
-    return { state: state, next: index, year: year.value, overflow: year.overflow, month: month, day: day, minusZone: minusZone };
+    return { state: state, next: index, year: year.value, overflow: year.overflow, month: month, day: day, minusZone: minusZone, julian: false, julianTime: -1n };
 }
 function ordinalInt4Range(value: bigint): boolean {
     value = langruntime.checkedI64(value);
@@ -16218,6 +16285,10 @@ function calendarFromOrdinal(year: number, day: number): OrdinalCalendar {
     if (ordinalInt4Range(shifted) === false || ordinalInt4Range(scaled) === false || ordinalInt4Range(based) === false || ordinalInt4Range(leap) === false || ordinalInt4Range(first) === false || ordinalInt4Range(counted) === false || ordinalInt4Range(julianDay) === false) {
         return { known: false, year: 0, month: 0, day: 0 };
     }
+    return julianCalendar(julianDay);
+}
+function julianCalendar(julianDay: bigint): OrdinalCalendar {
+    julianDay = langruntime.checkedI64(julianDay);
     let julian: bigint = langruntime.checkedI64Add(julianDay, 32044n);
     if (julian < 0n) {
         julian = langruntime.checkedI64(langruntime.checkedI64Add(julian, 4294967296n));
@@ -16334,8 +16405,11 @@ export function dateFromText(value: TextValue): DateValue {
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
-            if (!(index === end) || index === first) {
+            if (index === first) {
                 return { kind: "Unknown" };
+            }
+            if (!(index === end)) {
+                return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) });
             }
             if (overflow) {
                 return { kind: "Error", value: { state: dateFieldOverflow } };
@@ -16653,6 +16727,8 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         let month: number = 0;
         let day: number = 0;
         let ordinalDay: number = 0;
+        let julianDate: boolean = false;
+        let julianTime: bigint = -1n;
         if (ordinal.state === ordinalDateFound) {
             year = langruntime.checkedI32(ordinal.year);
             yearOverflow = langruntime.checkedBool(ordinal.overflow);
@@ -16665,6 +16741,8 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             index = langruntime.checkedIndex(ordinal.next);
             month = langruntime.checkedI32(ordinal.month);
             day = langruntime.checkedI32(ordinal.day);
+            julianDate = langruntime.checkedBool(ordinal.julian);
+            julianTime = langruntime.checkedI64(ordinal.julianTime);
         }
         else if (yearField.digits >= 6 && (index === end || (!(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "/") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".")))) {
             const compactYear: TimestampNumber = readTimestampNumber(text, start, langruntime.checkedSubtract(index, 4));
@@ -16728,16 +16806,26 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 day = langruntime.checkedI32(dayField.value);
             }
         }
-        if (bc) {
+        if (bc && julianDate === false) {
             year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
+        }
+        let julianHour: number = 0;
+        let julianMinute: number = 0;
+        let julianSecond: number = 0;
+        let julianFraction: number = 0;
+        if (julianTime >= 0n) {
+            julianHour = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(julianTime, 3600000000n))))));
+            julianMinute = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(langruntime.checkedI64Divide(julianTime, 60000000n), 60n))))));
+            julianSecond = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(langruntime.checkedI64Divide(julianTime, 1000000n), 60n))))));
+            julianFraction = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(julianTime, 1000000n))))));
         }
         if (index === end) {
             if (yearOverflow) {
                 return { kind: "Error", value: { state: timestampFieldOverflow } };
             }
-            return timestampCalendarMicroseconds(year, month, day, 0, 0, 0, 0, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
+            return timestampCalendarMicroseconds(year, month, day, julianHour, julianMinute, julianSecond, julianFraction, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
         }
-        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
+        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
         }
@@ -16786,6 +16874,15 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         else if (zoneOnly === false) {
             return { kind: "Unknown" };
+        }
+        if (julianTime >= 0n) {
+            if (hours.digits > 0) {
+                return { kind: "Error", value: { state: invalidTimestampText } };
+            }
+            hour = langruntime.checkedI32(julianHour);
+            minute = langruntime.checkedI32(julianMinute);
+            second = langruntime.checkedI32(julianSecond);
+            fraction = langruntime.checkedI32(julianFraction);
         }
         if (fractional && index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".") {
             const fractionStart: number = langruntime.checkedAdd(index, 1);
