@@ -221,6 +221,72 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: "(jsonb_build_object('n',n) - ARRAY[NULL,'n']::text[]) = '{}'::jsonb",
     partial: 'True',
   },
+  {
+    name: 'insert_existing',
+    sql: "jsonb_insert(jsonb_build_object('n',n),'{n}','2') IS NULL",
+    partial: 'Error',
+    error: '22023',
+  },
+  {
+    name: 'insert_new',
+    sql: "jsonb_insert(jsonb_build_object('n',n),'{m}','2') ? 'm'",
+    partial: 'True',
+  },
+  {
+    name: 'set_member',
+    sql: "jsonb_set(jsonb_build_object('n',n,'s','x'),'{n}','2') = '{\"n\":2,\"s\":\"x\"}'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'set_without_create',
+    sql: "jsonb_set(jsonb_build_object('n',n),'{m}','2',false) ? 'm'",
+    partial: 'False',
+  },
+  {
+    name: 'set_create',
+    sql: "jsonb_set(jsonb_build_object('n',n),'{m}','2') ->> 'm' = '2'",
+    partial: 'True',
+  },
+  {
+    name: 'set_partial_replacement',
+    sql: "jsonb_array_length(jsonb_set('{\"a\":1}'::jsonb,'{b}',jsonb_build_array(n))->'b') = 1",
+    partial: 'True',
+  },
+  {
+    name: 'delete_path',
+    sql: "(jsonb_build_object('n',n,'s','x') #- '{n}') = '{\"s\":\"x\"}'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'delete_path_through_hole',
+    sql: "((jsonb_build_array(n) #- '{0,n}')->0) IS NULL",
+    partial: 'False',
+  },
+  {
+    name: 'set_element',
+    sql: "jsonb_set(jsonb_build_array(n,'x'),'{0}','\"y\"') = '[\"y\",\"x\"]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'insert_before',
+    sql: "jsonb_insert(jsonb_build_array(n),'{0}','\"y\"')->>0 = 'y'",
+    partial: 'True',
+  },
+  {
+    name: 'insert_after',
+    sql: "jsonb_insert(jsonb_build_array(n),'{0}','\"y\"',true)->>1 = 'y'",
+    partial: 'True',
+  },
+  {
+    name: 'set_nested',
+    sql: "jsonb_set(jsonb_build_object('a',jsonb_build_object('n',n)),'{a,m}','1') #>> '{a,m}' = '1'",
+    partial: 'True',
+  },
+  {
+    name: 'set_through_hole',
+    sql: "jsonb_set(jsonb_build_object('n',n),'{n,x}','1') ?& ARRAY['n']",
+    partial: 'True',
+  },
 ]
 const value = (value: number | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }
