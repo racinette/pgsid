@@ -14139,6 +14139,101 @@ export function cosXj1c(input: checkruntime.Float8Value, fdlibm: boolean): check
     fdlibm = langruntime.checkedBool(fdlibm);
     return float8Trigonometry(input, fdlibm, true);
 }
+function float8Fmod360(number: number): number {
+    number = langruntime.checkedF64(number);
+    let remainder: number = langruntime.f64Abs(number);
+    let step: number = 360.0;
+    while (langruntime.f64Multiply(step, 2.0) <= remainder) {
+        step = langruntime.checkedF64(langruntime.f64Multiply(step, 2.0));
+    }
+    while (step >= 360.0) {
+        if (remainder >= step) {
+            remainder = langruntime.checkedF64(langruntime.f64Subtract(remainder, step));
+        }
+        step = langruntime.checkedF64(langruntime.f64Multiply(step, 0.5));
+    }
+    if (number < 0.0 || (number === 0.0 && langruntime.f64Divide(1.0, number) < 0.0)) {
+        return langruntime.f64Negate(remainder);
+    }
+    return remainder;
+}
+function float8DegreeSine(x: number): number {
+    x = langruntime.checkedF64(x);
+    const sinX: number = circleTrigonometry(langruntime.f64Multiply(x, radiansPerDegree), false);
+    const sin30: number = circleTrigonometry(langruntime.f64Multiply(30.0, radiansPerDegree), false);
+    return langruntime.f64Divide((langruntime.f64Divide(sinX, sin30)), 2.0);
+}
+function float8DegreeCosine(x: number): number {
+    x = langruntime.checkedF64(x);
+    const oneMinusCosX: number = langruntime.f64Subtract(1.0, circleTrigonometry(langruntime.f64Multiply(x, radiansPerDegree), true));
+    const oneMinusCos60: number = langruntime.f64Subtract(1.0, circleTrigonometry(langruntime.f64Multiply(60.0, radiansPerDegree), true));
+    return langruntime.f64Subtract(1.0, langruntime.f64Divide((langruntime.f64Divide(oneMinusCosX, oneMinusCos60)), 2.0));
+}
+function float8DegreeTrigonometry(input: checkruntime.Float8Value, fdlibm: boolean, cosine: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    cosine = langruntime.checkedBool(cosine);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (langruntime.f64Abs(number) === langruntime.f64Divide(1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (fdlibm === false) {
+            return { kind: "Unknown" };
+        }
+        let angle: number = float8Fmod360(number);
+        let sign: number = 1.0;
+        if (angle < 0.0) {
+            angle = langruntime.checkedF64(langruntime.f64Negate(angle));
+            if (cosine === false) {
+                sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+            }
+        }
+        if (angle > 180.0) {
+            angle = langruntime.checkedF64(langruntime.f64Subtract(360.0, angle));
+            if (cosine === false) {
+                sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+            }
+        }
+        if (angle > 90.0) {
+            angle = langruntime.checkedF64(langruntime.f64Subtract(180.0, angle));
+            if (cosine) {
+                sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+            }
+        }
+        let quadrant: number = 0.0;
+        if (cosine) {
+            if (angle <= 60.0) {
+                quadrant = langruntime.checkedF64(float8DegreeCosine(angle));
+            }
+            else {
+                quadrant = langruntime.checkedF64(float8DegreeSine(langruntime.f64Subtract(90.0, angle)));
+            }
+        }
+        else if (angle <= 30.0) {
+            quadrant = langruntime.checkedF64(float8DegreeSine(angle));
+        }
+        else {
+            quadrant = langruntime.checkedF64(float8DegreeCosine(langruntime.f64Subtract(90.0, angle)));
+        }
+        return checkruntime.makeFloat8Value(langruntime.f64Multiply(sign, quadrant));
+    }
+    return input;
+}
+export function sindN2je(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8DegreeTrigonometry(input, fdlibm, false);
+}
+export function cosdYkq9(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8DegreeTrigonometry(input, fdlibm, true);
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
