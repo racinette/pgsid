@@ -265,10 +265,12 @@ export function trigonometryValueRequirements(item: BuiltinCallable) {
       {
         kind: 'platform',
         requirement:
-          'Finite exponential, logarithm, root, power and hyperbolic results require the declared musl math library, which reproduces PostgreSQL builds such as PGlite; target-language math libraries do not establish it.',
+          'Finite exponential, logarithm, root, power, hyperbolic, error and gamma results require the declared musl math library, which reproduces PostgreSQL builds such as PGlite; target-language math libraries do not establish it.',
         owner: ['sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh'].includes(item.name)
           ? 'tests/sql-semantics/check-float-hyperbolic.test.ts'
-          : 'tests/sql-semantics/check-float-exponential.test.ts',
+          : ['erf', 'erfc', 'gamma', 'lgamma'].includes(item.name)
+            ? 'tests/sql-semantics/check-float-error-function.test.ts'
+            : 'tests/sql-semantics/check-float-exponential.test.ts',
       },
     ]
   if (floatTrigonometry(item))

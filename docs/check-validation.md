@@ -45,9 +45,10 @@ Circle-to-polygon conversion and the float8 trigonometric functions (`sin`,
 `cos`, `tan`, `cot`, their inverses, `atan2` and the degree variants) depend on
 the PostgreSQL build's math library. Declare `trigonometry: fdlibm` when the
 deployment uses the fdlibm kernels with binary64 arithmetic and rounding to
-nearest. Float8 exponentials, logarithms, cube roots, powers and hyperbolic functions
+nearest. Float8 exponentials, logarithms, cube roots, powers, hyperbolic, error
+and gamma functions
 (`exp`, `ln`, `log`, `log10`, `cbrt`, `power`, the `^` and `||/` operators,
-`sinh`, `cosh`, `tanh` and their inverses) come from
+`sinh`, `cosh`, `tanh` and their inverses, `erf`, `erfc`, `gamma` and `lgamma`) come from
 newer routines that differ between libraries; declare `mathLibrary: musl` when
 PostgreSQL is built against musl, as PGlite is. musl's trigonometry is fdlibm's,
 so `mathLibrary: musl` also covers the trigonometric functions. Either setting
