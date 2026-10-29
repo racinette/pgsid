@@ -50,14 +50,14 @@ func (g *generator) goType(value *node) ast.Expr {
 		reject("missing type")
 	}
 	if value.Kind == "reference" {
-		if value.Inner.Kind == "slice" {
-			return &ast.ArrayType{Elt: g.goType(value.Inner.Inner)}
+		if value.cold().Inner.Kind == "slice" {
+			return &ast.ArrayType{Elt: g.goType(value.cold().Inner.cold().Inner)}
 		}
-		if path(value.Inner) == "str" {
+		if path(value.cold().Inner) == "str" {
 			return goIdent("string")
 		}
-		if g.structs[path(value.Inner)] != nil {
-			return &ast.StarExpr{X: g.goType(value.Inner)}
+		if g.structs[path(value.cold().Inner)] != nil {
+			return &ast.StarExpr{X: g.goType(value.cold().Inner)}
 		}
 		reject("unsupported reference type")
 	}
@@ -65,18 +65,18 @@ func (g *generator) goType(value *node) ast.Expr {
 		reject("unsupported type kind " + value.Kind)
 	}
 	name := path(value)
-	if len(value.TypeArguments) != 0 {
-		if name != "Vec" || len(value.TypeArguments) != 1 {
+	if len(value.cold().TypeArguments) != 0 {
+		if name != "Vec" || len(value.cold().TypeArguments) != 1 {
 			reject("unsupported generic type")
 		}
-		switch path(value.TypeArguments[0]) {
+		switch path(value.cold().TypeArguments[0]) {
 		case "char":
 			return &ast.ArrayType{Elt: goIdent("rune")}
 		case "usize":
 			return &ast.ArrayType{Elt: goIdent("int")}
 		default:
-			if g.types[path(value.TypeArguments[0])] {
-				return &ast.ArrayType{Elt: g.goType(value.TypeArguments[0])}
+			if g.types[path(value.cold().TypeArguments[0])] {
+				return &ast.ArrayType{Elt: g.goType(value.cold().TypeArguments[0])}
 			}
 			reject("unsupported vector element type")
 			return nil
@@ -108,7 +108,7 @@ func (g *generator) goType(value *node) ast.Expr {
 
 func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	if valueType.Kind == "reference" {
-		name := path(valueType.Inner)
+		name := path(valueType.cold().Inner)
 		if name == "str" {
 			return goCall("checkedString", value)
 		}
@@ -137,14 +137,14 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	case "char":
 		return goCall("checkedChar", value)
 	case "Vec":
-		if len(valueType.TypeArguments) == 1 && path(valueType.TypeArguments[0]) == "usize" {
+		if len(valueType.cold().TypeArguments) == 1 && path(valueType.cold().TypeArguments[0]) == "usize" {
 			return goCall("checkedIndices", value)
 		}
-		if len(valueType.TypeArguments) == 1 && path(valueType.TypeArguments[0]) == "char" {
+		if len(valueType.cold().TypeArguments) == 1 && path(valueType.cold().TypeArguments[0]) == "char" {
 			return goCall("checkedChars", value)
 		}
-		if len(valueType.TypeArguments) == 1 && g.types[path(valueType.TypeArguments[0])] {
-			return goCall("checkedStructs", value, goIdent("copy"+g.name(path(valueType.TypeArguments[0]))))
+		if len(valueType.cold().TypeArguments) == 1 && g.types[path(valueType.cold().TypeArguments[0])] {
+			return goCall("checkedStructs", value, goIdent("copy"+g.name(path(valueType.cold().TypeArguments[0]))))
 		}
 		reject("unsupported vector element type")
 		return nil
@@ -202,11 +202,11 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
 	case "index-from-signed":
-		return goCall("indexFromI32", g.goExpression(value.Value), g.goExpression(value.Fallback))
+		return goCall("indexFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "float-from-text":
-		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.Fallback))
+		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "float-bits":
-		helper := map[string]string{"decode-double": "f64FromI64Bits", "encode-double": "f64ToI64Bits", "decode-single": "f32FromI32Bits", "encode-single": "f32ToI32Bits"}[value.Operation]
+		helper := map[string]string{"decode-double": "f64FromI64Bits", "encode-double": "f64ToI64Bits", "decode-single": "f32FromI32Bits", "encode-single": "f32ToI32Bits"}[value.cold().Operation]
 		if helper == "" {
 			reject("unknown float bit conversion")
 		}
@@ -221,14 +221,14 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: value.Digits})
 	case "integer":
-		if value.IntegerType == "i64" {
+		if value.cold().IntegerType == "i64" {
 			return goCall("int64", goInteger(value.Digits))
 		}
 		return goInteger(value.Digits)
 	case "character-from-codepoint":
-		return goCall("characterFromI32", g.goExpression(value.Value), g.goExpression(value.Fallback))
+		return goCall("characterFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "character":
-		characters := []rune(value.Scalar)
+		characters := []rune(value.cold().Scalar)
 		if len(characters) != 1 {
 			reject("character literal must be one Unicode scalar")
 		}
@@ -239,13 +239,13 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goIdent("false")
 	case "string":
-		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(value.Text)}
+		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(value.cold().Text)}
 	case "parenthesized":
-		return &ast.ParenExpr{X: g.goExpression(value.Inner)}
+		return &ast.ParenExpr{X: g.goExpression(value.cold().Inner)}
 	case "borrow":
 		return &ast.UnaryExpr{Op: token.AND, X: g.goExpression(value.Value)}
 	case "unary":
-		if value.Operator != "negate" {
+		if value.cold().Operator != "negate" {
 			reject("unsupported unary operator")
 		}
 		if path(g.inferType(value.Value)) == "f64" {
@@ -253,7 +253,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goCall("checkedSignedNegate", g.goExpression(value.Value))
 	case "cast":
-		switch path(value.TargetType) {
+		switch path(value.cold().TargetType) {
 		case "f64":
 			return goCall("float64", g.goExpression(value.Value))
 		case "i32":
@@ -278,14 +278,14 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
-		if (value.Operator == "add" || value.Operator == "subtract" || value.Operator == "multiply" || value.Operator == "divide") && path(g.inferType(value.Left)) == "f64" {
+		if (value.cold().Operator == "add" || value.cold().Operator == "subtract" || value.cold().Operator == "multiply" || value.cold().Operator == "divide") && path(g.inferType(value.Left)) == "f64" {
 			helpers := map[string]string{"add": "f64Add", "subtract": "f64Subtract", "multiply": "f64Multiply", "divide": "f64Divide"}
-			if helper, ok := helpers[value.Operator]; ok {
+			if helper, ok := helpers[value.cold().Operator]; ok {
 				return goCall(helper, left, right)
 			}
 		}
-		if (value.Operator == "multiply" || value.Operator == "add" || value.Operator == "subtract" || value.Operator == "divide" || value.Operator == "remainder") && path(g.inferType(value.Left)) == "i64" {
-			switch value.Operator {
+		if (value.cold().Operator == "multiply" || value.cold().Operator == "add" || value.cold().Operator == "subtract" || value.cold().Operator == "divide" || value.cold().Operator == "remainder") && path(g.inferType(value.Left)) == "i64" {
+			switch value.cold().Operator {
 			case "multiply":
 				return goCall("checkedI64Multiply", left, right)
 			case "add":
@@ -298,7 +298,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 				return goCall("checkedI64Remainder", left, right)
 			}
 		}
-		switch value.Operator {
+		switch value.cold().Operator {
 		case "multiply":
 			return goCall("checkedSignedMultiply", left, right)
 		case "divide":
@@ -324,9 +324,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			"equal": token.EQL, "not-equal": token.NEQ,
 			"and": token.LAND, "or": token.LOR,
 		}
-		operator, ok := operators[value.Operator]
+		operator, ok := operators[value.cold().Operator]
 		if !ok {
-			reject("expression operator needs statement lowering: " + value.Operator)
+			reject("expression operator needs statement lowering: " + value.cold().Operator)
 		}
 		if _, composite := left.(*ast.CompositeLit); composite {
 			left = &ast.ParenExpr{X: left}
@@ -336,9 +336,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return &ast.BinaryExpr{X: left, Op: operator, Y: right}
 	case "field":
-		return goSelect(g.goExpression(value.Base), g.fieldName(g.fieldOwner(value.Base), value.Member))
+		return goSelect(g.goExpression(value.cold().Base), g.fieldName(g.fieldOwner(value.cold().Base), value.cold().Member))
 	case "index":
-		return &ast.IndexExpr{X: g.goExpression(value.Base), Index: g.goExpression(value.Index)}
+		return &ast.IndexExpr{X: g.goExpression(value.cold().Base), Index: g.goExpression(value.cold().Index)}
 	case "method-call":
 		switch {
 		case value.Method == "abs" && len(value.Arguments) == 0:
@@ -362,9 +362,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		reject("unsupported method " + value.Method)
 	case "struct-literal":
-		name := strings.Join(value.Path, "::")
-		fields := make([]ast.Expr, 0, len(value.Fields))
-		for _, field := range value.Fields {
+		name := strings.Join(value.cold().Path, "::")
+		fields := make([]ast.Expr, 0, len(value.cold().Fields))
+		for _, field := range value.cold().Fields {
 			fields = append(fields, goKey(g.fieldName(name, field.Name), g.goExpression(field.Value)))
 		}
 		return goComposite(g.name(name), fields...)
@@ -378,7 +378,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if value.Callee != nil && value.Callee.Kind == "path" && len(value.Callee.Segments) == 1 {
 			name := value.Callee.Segments[0]
 			function := g.functions[name]
-			if function == nil || len(function.Parameters) != len(value.Arguments) {
+			if function == nil || len(function.cold().Parameters) != len(value.Arguments) {
 				reject("unknown function or wrong argument count " + name)
 			}
 			arguments := make([]ast.Expr, 0, len(value.Arguments))
@@ -411,7 +411,7 @@ func (g *generator) crateRecordTransfer(value *node, destination *node) bool {
 		return false
 	}
 	function := g.functions[value.Callee.Segments[0]]
-	return function != nil && function.Visibility == "crate" && path(function.ReturnType) == path(destination)
+	return function != nil && function.cold().Visibility == "crate" && path(function.cold().ReturnType) == path(destination)
 }
 
 func (g *generator) goStatements(statements []*node) []ast.Stmt {
@@ -423,7 +423,7 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 		if statement.Kind == "local" {
 			generated := casedName(statement.Binding.Name, false)
 			value := g.goExpression(statement.Initializer)
-			if statement.Type != nil && path(statement.Type) == "Vec" && len(statement.Type.TypeArguments) == 1 && statement.Initializer.Kind == "call" && statement.Initializer.Callee != nil && len(statement.Initializer.Callee.Segments) == 2 && statement.Initializer.Callee.Segments[0] == "Vec" && statement.Initializer.Callee.Segments[1] == "new" {
+			if statement.Type != nil && path(statement.Type) == "Vec" && len(statement.Type.cold().TypeArguments) == 1 && statement.Initializer.Kind == "call" && statement.Initializer.Callee != nil && len(statement.Initializer.Callee.Segments) == 2 && statement.Initializer.Callee.Segments[0] == "Vec" && statement.Initializer.Callee.Segments[1] == "new" {
 				value = &ast.CompositeLit{Type: g.goType(statement.Type)}
 			}
 			if statement.Type != nil {
@@ -486,10 +486,10 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				receiver := g.goExpression(value.Receiver)
 				result = append(result, &ast.ExprStmt{X: goCall("checkedAdd", goCall("len", receiver), goInteger("1"))})
 				receiverType := g.inferType(value.Receiver)
-				if receiverType == nil || path(receiverType) != "Vec" || len(receiverType.TypeArguments) != 1 {
+				if receiverType == nil || path(receiverType) != "Vec" || len(receiverType.cold().TypeArguments) != 1 {
 					reject("push receiver is not a vector")
 				}
-				element := receiverType.TypeArguments[0]
+				element := receiverType.cold().TypeArguments[0]
 				result = append(result, goAssign(receiver, goCall("append", receiver, g.goDetach(g.goExpression(value.Arguments[0]), element)), token.ASSIGN))
 				continue
 			}
@@ -500,40 +500,40 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				result = append(result, &ast.ExprStmt{X: generated})
 			}
 		case "if-let":
-			if value.Source == nil || value.Source.Kind != "path" || len(value.Source.Segments) != 1 || value.ElseBody != nil {
+			if value.cold().Source == nil || value.cold().Source.Kind != "path" || len(value.cold().Source.Segments) != 1 || value.cold().ElseBody != nil {
 				reject("if-let source or else branch is outside the AST contract")
 			}
 			var payload *node
 			variantFound := false
-			for _, variant := range g.enums[value.EnumName] {
-				if variant.Name == value.Variant {
+			for _, variant := range g.enums[value.cold().EnumName] {
+				if variant.Name == value.cold().Variant {
 					variantFound = true
 					payload = variant.Payload
 				}
 			}
-			if !variantFound || (payload == nil && value.PayloadBinding != nil) || (value.PayloadBinding != nil && *value.PayloadBinding == "") || path(g.inferType(value.Source)) != value.EnumName {
+			if !variantFound || (payload == nil && value.cold().PayloadBinding != nil) || (value.cold().PayloadBinding != nil && *value.cold().PayloadBinding == "") || path(g.inferType(value.cold().Source)) != value.cold().EnumName {
 				reject("if-let pattern is not a matching payload enum variant")
 			}
-			source := g.goExpression(value.Source)
+			source := g.goExpression(value.cold().Source)
 			condition := &ast.BinaryExpr{
-				X:  goSelect(source, g.enumKindField(value.EnumName)),
+				X:  goSelect(source, g.enumKindField(value.cold().EnumName)),
 				Op: token.EQL,
-				Y:  goIdent(g.name(value.EnumName) + value.Variant),
+				Y:  goIdent(g.name(value.cold().EnumName) + value.cold().Variant),
 			}
 			originalLocals, originalTypes := g.locals, g.localTypes
 			g.locals, g.localTypes = cloneLocals(originalLocals), cloneTypes(originalTypes)
 			var body []ast.Stmt
-			if value.PayloadBinding != nil {
-				binding := *value.PayloadBinding
+			if value.cold().PayloadBinding != nil {
+				binding := *value.cold().PayloadBinding
 				generated := casedName(binding, false)
 				g.locals[binding] = generated
 				g.localTypes[binding] = payload
-				body = append(body, goAssign(goIdent(generated), g.goDetach(goSelect(source, g.enumPayloadField(value.EnumName, value.Variant)), payload), token.DEFINE))
+				body = append(body, goAssign(goIdent(generated), g.goDetach(goSelect(source, g.enumPayloadField(value.cold().EnumName, value.cold().Variant)), payload), token.DEFINE))
 				if strings.HasPrefix(binding, "_") {
 					body = append(body, goAssign(goIdent("_"), goIdent(generated), token.ASSIGN))
 				}
 			}
-			for _, parameter := range value.Parameters {
+			for _, parameter := range value.cold().Parameters {
 				if parameter.Mutable && path(parameter.Type) == "String" {
 					original := g.locals[parameter.Name]
 					buffer := "_string_" + original
@@ -542,23 +542,23 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 					g.markTextBuilder(parameter.Name)
 				}
 			}
-			body = append(body, g.goStatements(value.Body)...)
+			body = append(body, g.goStatements(value.cold().Body)...)
 			g.locals, g.localTypes = originalLocals, originalTypes
 			result = append(result, &ast.IfStmt{Cond: condition, Body: &ast.BlockStmt{List: body}})
 		case "if", "while":
-			condition := g.goExpression(value.Condition)
+			condition := g.goExpression(value.cold().Condition)
 			originalLocals, originalTypes := g.locals, g.localTypes
 			g.locals, g.localTypes = cloneLocals(originalLocals), cloneTypes(originalTypes)
-			body := g.goStatements(value.Body)
+			body := g.goStatements(value.cold().Body)
 			g.locals, g.localTypes = originalLocals, originalTypes
 			if value.Kind == "while" {
 				result = append(result, &ast.ForStmt{Cond: condition, Body: &ast.BlockStmt{List: body}})
 				continue
 			}
 			branch := &ast.IfStmt{Cond: condition, Body: &ast.BlockStmt{List: body}}
-			if value.ElseBody != nil {
+			if value.cold().ElseBody != nil {
 				g.locals, g.localTypes = cloneLocals(originalLocals), cloneTypes(originalTypes)
-				alternate := g.goStatements(value.ElseBody)
+				alternate := g.goStatements(value.cold().ElseBody)
 				if len(alternate) == 1 {
 					if continuation, ok := alternate[0].(*ast.IfStmt); ok {
 						branch.Else = continuation
@@ -571,7 +571,7 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			}
 			result = append(result, branch)
 		case "binary":
-			if value.Operator == "add-assign" {
+			if value.cold().Operator == "add-assign" {
 				left := g.goExpression(value.Left)
 				result = append(result, goAssign(left, goCall("checkedAdd", left, g.goExpression(value.Right)), token.ASSIGN))
 				continue
@@ -595,10 +595,10 @@ func (g *generator) goItem(value *node) []ast.Decl {
 	}
 	switch value.Kind {
 	case "constant":
-		if value.Type.Kind == "reference" && value.Type.Inner.Kind == "slice" {
+		if value.Type.Kind == "reference" && value.Type.cold().Inner.Kind == "slice" {
 			literal := value.Value.Value
-			elements := make([]ast.Expr, 0, len(literal.Elements))
-			for _, element := range literal.Elements {
+			elements := make([]ast.Expr, 0, len(literal.cold().Elements))
+			for _, element := range literal.cold().Elements {
 				if element.Kind == "unary" && element.Value.Kind == "integer" {
 					elements = append(elements, &ast.UnaryExpr{Op: token.SUB, X: g.goExpression(element.Value)})
 				} else {
@@ -606,7 +606,7 @@ func (g *generator) goItem(value *node) []ast.Decl {
 				}
 			}
 			return []ast.Decl{&ast.GenDecl{Tok: token.VAR, Specs: []ast.Spec{&ast.ValueSpec{
-				Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{&ast.CompositeLit{Type: g.goType(value.Type), Elts: elements}},
+				Names: []*ast.Ident{goIdent(g.name(value.cold().Name))}, Values: []ast.Expr{&ast.CompositeLit{Type: g.goType(value.Type), Elts: elements}},
 			}}}}
 		}
 		declarationToken := token.CONST
@@ -614,19 +614,19 @@ func (g *generator) goItem(value *node) []ast.Decl {
 			declarationToken = token.VAR
 		}
 		return []ast.Decl{&ast.GenDecl{Tok: declarationToken, Specs: []ast.Spec{&ast.ValueSpec{
-			Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{g.goExpression(value.Value)},
+			Names: []*ast.Ident{goIdent(g.name(value.cold().Name))}, Values: []ast.Expr{g.goExpression(value.Value)},
 		}}}}
 	case "struct":
-		generated := g.name(value.Name)
-		fields := make([]*ast.Field, 0, len(value.Fields))
-		copyFields := make([]ast.Expr, 0, len(value.Fields))
-		for _, field := range value.Fields {
-			name := g.fieldName(value.Name, field.Name)
+		generated := g.name(value.cold().Name)
+		fields := make([]*ast.Field, 0, len(value.cold().Fields))
+		copyFields := make([]ast.Expr, 0, len(value.cold().Fields))
+		for _, field := range value.cold().Fields {
+			name := g.fieldName(value.cold().Name, field.Name)
 			fields = append(fields, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(field.Type)})
 			copyFields = append(copyFields, goKey(name, g.goDetach(goSelect(goIdent("value"), name), field.Type)))
 		}
 		structure := &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: goIdent(generated), Type: &ast.StructType{Fields: &ast.FieldList{List: fields}}}}}
-		if g.immutable[value.Name] && !g.vectorElements[value.Name] {
+		if g.immutable[value.cold().Name] && !g.vectorElements[value.cold().Name] {
 			return []ast.Decl{structure}
 		}
 		copy := goFunction("copy"+generated, []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
@@ -634,13 +634,13 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		})
 		return []ast.Decl{structure, copy}
 	case "enum":
-		generated := g.name(value.Name)
-		kindField := g.enumKindField(value.Name)
+		generated := g.name(value.cold().Name)
+		kindField := g.enumKindField(value.cold().Name)
 		kindType := &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: goIdent(generated + "Kind"), Type: goIdent("uint8")}}}
-		variants := make([]ast.Spec, 0, len(value.Variants))
+		variants := make([]ast.Spec, 0, len(value.cold().Variants))
 		fields := []*ast.Field{{Names: []*ast.Ident{goIdent(kindField)}, Type: goIdent(generated + "Kind")}}
-		cases := make([]ast.Stmt, 0, len(value.Variants))
-		for index, variant := range value.Variants {
+		cases := make([]ast.Stmt, 0, len(value.cold().Variants))
+		for index, variant := range value.cold().Variants {
 			variantName := generated + variant.Name
 			spec := &ast.ValueSpec{Names: []*ast.Ident{goIdent(variantName)}}
 			if index == 0 {
@@ -650,7 +650,7 @@ func (g *generator) goItem(value *node) []ast.Decl {
 			variants = append(variants, spec)
 			values := []ast.Expr{goKey(kindField, goIdent(variantName))}
 			if variant.Payload != nil {
-				name := g.enumPayloadField(value.Name, variant.Name)
+				name := g.enumPayloadField(value.cold().Name, variant.Name)
 				fields = append(fields, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(variant.Payload)})
 				values = append(values, goKey(name, g.goDetach(goSelect(goIdent("value"), name), variant.Payload)))
 			}
@@ -660,7 +660,7 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		}
 		constants := &ast.GenDecl{Tok: token.CONST, Lparen: token.Pos(1), Specs: variants}
 		structure := &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: goIdent(generated), Type: &ast.StructType{Fields: &ast.FieldList{List: fields}}}}}
-		if g.immutable[value.Name] && !g.vectorElements[value.Name] {
+		if g.immutable[value.cold().Name] && !g.vectorElements[value.cold().Name] {
 			return []ast.Decl{kindType, constants, structure}
 		}
 		copy := goFunction("copy"+generated, []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
@@ -670,18 +670,18 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		return []ast.Decl{kindType, constants, structure, copy}
 	case "function":
 		g.locals, g.localTypes = make(map[string]string), make(map[string]*node)
-		parameters := make([]*ast.Field, 0, len(value.Parameters))
-		body := make([]ast.Stmt, 0, len(value.Body)+len(value.Parameters))
-		for _, parameter := range value.Parameters {
+		parameters := make([]*ast.Field, 0, len(value.cold().Parameters))
+		body := make([]ast.Stmt, 0, len(value.cold().Body)+len(value.cold().Parameters))
+		for _, parameter := range value.cold().Parameters {
 			name := casedName(parameter.Name, false)
 			g.locals[parameter.Name], g.localTypes[parameter.Name] = name, parameter.Type
 			parameters = append(parameters, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(parameter.Type)})
 		}
-		for _, parameter := range value.Parameters {
-			if value.Visibility == "crate" {
+		for _, parameter := range value.cold().Parameters {
+			if value.cold().Visibility == "crate" {
 				continue
 			}
-			if value.Visibility != "public" && parameter.Type.Kind == "reference" && g.types[path(parameter.Type.Inner)] {
+			if value.cold().Visibility != "public" && parameter.Type.Kind == "reference" && g.types[path(parameter.Type.cold().Inner)] {
 				continue
 			}
 			name := g.locals[parameter.Name]
@@ -690,9 +690,9 @@ func (g *generator) goItem(value *node) []ast.Decl {
 				body = append(body, goAssign(goIdent(name), checked, token.ASSIGN))
 			}
 		}
-		body = append(body, g.goStatements(value.Body)...)
+		body = append(body, g.goStatements(value.cold().Body)...)
 		g.locals, g.localTypes = nil, nil
-		return []ast.Decl{goFunction(g.name(value.Name), parameters, g.goType(value.ReturnType), body)}
+		return []ast.Decl{goFunction(g.name(value.cold().Name), parameters, g.goType(value.cold().ReturnType), body)}
 	default:
 		reject("unknown item kind " + value.Kind)
 		return nil

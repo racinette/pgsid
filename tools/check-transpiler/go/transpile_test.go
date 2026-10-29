@@ -13,10 +13,10 @@ func TestNamesKeepFieldVisibilityByOwner(t *testing.T) {
 	document := document{
 		SchemaVersion: 1,
 		Items: []*node{
-			{Kind: "struct", Visibility: "public", Name: "PublicSpan", Fields: []field{{Name: "shared_name", Visibility: "public", Type: indexType}}},
-			{Kind: "struct", Visibility: "private", Name: "PrivateSpan", Fields: []field{{Name: "shared_name", Visibility: "private", Type: indexType}}},
-			{Kind: "function", Visibility: "public", Name: "read_public", Parameters: []parameter{{Name: "input_value", Type: publicType}}, ReturnType: indexType, Body: []*node{{Kind: "expression", Value: &node{Kind: "field", Base: &node{Kind: "path", Segments: []string{"input_value"}}, Member: "shared_name"}}}},
-			{Kind: "function", Visibility: "private", Name: "read_private", Parameters: []parameter{{Name: "input_value", Type: privateType}}, ReturnType: indexType, Body: []*node{{Kind: "expression", Value: &node{Kind: "field", Base: &node{Kind: "path", Segments: []string{"input_value"}}, Member: "shared_name"}}}},
+			{Kind: "struct", NodeDetail: &NodeDetail{Visibility: "public", Name: "PublicSpan", Fields: []field{{Name: "shared_name", Visibility: "public", Type: indexType}}}},
+			{Kind: "struct", NodeDetail: &NodeDetail{Visibility: "private", Name: "PrivateSpan", Fields: []field{{Name: "shared_name", Visibility: "private", Type: indexType}}}},
+			{Kind: "function", NodeDetail: &NodeDetail{Visibility: "public", Name: "read_public", Parameters: []parameter{{Name: "input_value", Type: publicType}}, ReturnType: indexType, Body: []*node{{Kind: "expression", Value: &node{Kind: "field", NodeDetail: &NodeDetail{Base: &node{Kind: "path", Segments: []string{"input_value"}}, Member: "shared_name"}}}}}},
+			{Kind: "function", NodeDetail: &NodeDetail{Visibility: "private", Name: "read_private", Parameters: []parameter{{Name: "input_value", Type: privateType}}, ReturnType: indexType, Body: []*node{{Kind: "expression", Value: &node{Kind: "field", NodeDetail: &NodeDetail{Base: &node{Kind: "path", Segments: []string{"input_value"}}, Member: "shared_name"}}}}}},
 		},
 	}
 	input, err := json.Marshal(document)
@@ -46,17 +46,17 @@ func TestSplitModuleReferencesPreserveShadowedLocals(t *testing.T) {
 	scalarType := &node{Kind: "path", Segments: []string{"Scalar"}}
 	integer := func(value string) *node { return &node{Kind: "integer", Digits: value} }
 	document := document{SchemaVersion: 1, Items: []*node{
-		{Kind: "struct", Module: "checkruntime", Visibility: "public", Name: "Scalar", Fields: []field{{Name: "value", Visibility: "public", Type: indexType}}},
-		{Kind: "function", Module: "regex_engine", Visibility: "public", Name: "count", ReturnType: indexType, Body: []*node{
+		{Kind: "struct", NodeDetail: &NodeDetail{Module: "checkruntime", Visibility: "public", Name: "Scalar", Fields: []field{{Name: "value", Visibility: "public", Type: indexType}}}},
+		{Kind: "function", NodeDetail: &NodeDetail{Module: "regex_engine", Visibility: "public", Name: "count", ReturnType: indexType, Body: []*node{
 			{Kind: "expression", Value: integer("9")},
-		}},
-		{Kind: "function", Module: "pg_catalog", Visibility: "public", Name: "read_count", Parameters: []parameter{{Name: "input", Type: scalarType}}, ReturnType: indexType, Body: []*node{
+		}}},
+		{Kind: "function", NodeDetail: &NodeDetail{Module: "pg_catalog", Visibility: "public", Name: "read_count", Parameters: []parameter{{Name: "input", Type: scalarType}}, ReturnType: indexType, Body: []*node{
 			{Kind: "local", Binding: binding{Name: "count"}, Type: indexType, Initializer: integer("2")},
 			{Kind: "expression", Value: &node{Kind: "path", Segments: []string{"count"}}},
-		}},
-		{Kind: "function", Module: "pg_catalog", Visibility: "public", Name: "call_count", ReturnType: indexType, Body: []*node{
+		}}},
+		{Kind: "function", NodeDetail: &NodeDetail{Module: "pg_catalog", Visibility: "public", Name: "call_count", ReturnType: indexType, Body: []*node{
 			{Kind: "expression", Value: &node{Kind: "call", Callee: &node{Kind: "path", Segments: []string{"count"}}}},
-		}},
+		}}},
 	}}
 	input, err := json.Marshal(document)
 	if err != nil {
@@ -83,15 +83,15 @@ func TestSplitModuleReferencesPreserveShadowedLocals(t *testing.T) {
 func TestVectorElementCopyDetectionAcceptsBorrowedFields(t *testing.T) {
 	pointType := &node{Kind: "path", Segments: []string{"Point"}}
 	document := document{SchemaVersion: 1, Items: []*node{
-		{Kind: "struct", Visibility: "public", Name: "Point", Derives: []string{"Clone", "Copy"}, Fields: []field{
+		{Kind: "struct", NodeDetail: &NodeDetail{Visibility: "public", Name: "Point", Derives: []string{"Clone", "Copy"}, Fields: []field{
 			{Name: "x", Visibility: "public", Type: &node{Kind: "path", Segments: []string{"i32"}}},
-		}},
-		{Kind: "struct", Visibility: "private", Name: "Description", Fields: []field{
-			{Name: "message", Visibility: "private", Type: &node{Kind: "reference", Inner: &node{Kind: "path", Segments: []string{"str"}}}},
-		}},
-		{Kind: "struct", Visibility: "private", Name: "Points", Derives: []string{"Clone"}, Fields: []field{
-			{Name: "values", Visibility: "private", Type: &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{pointType}}},
-		}},
+		}}},
+		{Kind: "struct", NodeDetail: &NodeDetail{Visibility: "private", Name: "Description", Fields: []field{
+			{Name: "message", Visibility: "private", Type: &node{Kind: "reference", NodeDetail: &NodeDetail{Inner: &node{Kind: "path", Segments: []string{"str"}}}}},
+		}}},
+		{Kind: "struct", NodeDetail: &NodeDetail{Visibility: "private", Name: "Points", Derives: []string{"Clone"}, Fields: []field{
+			{Name: "values", Visibility: "private", Type: &node{Kind: "path", Segments: []string{"Vec"}, NodeDetail: &NodeDetail{TypeArguments: []*node{pointType}}}},
+		}}},
 	}}
 	input, err := json.Marshal(document)
 	if err != nil {

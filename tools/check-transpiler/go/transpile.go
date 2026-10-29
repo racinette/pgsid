@@ -17,36 +17,46 @@ import (
 )
 
 type node struct {
-	stringBuilder  bool
-	Kind           string      `json:"kind"`
+	stringBuilder bool
+	Kind          string   `json:"kind"`
+	Type          *node    `json:"type"`
+	Value         *node    `json:"value"`
+	Digits        string   `json:"digits"`
+	Boolean       bool     `json:"state"`
+	Left          *node    `json:"left"`
+	Right         *node    `json:"right"`
+	Receiver      *node    `json:"receiver"`
+	Callee        *node    `json:"callee"`
+	Initializer   *node    `json:"initializer"`
+	Arguments     []*node  `json:"arguments"`
+	Segments      []string `json:"segments"`
+	Method        string   `json:"method"`
+	Semicolon     bool     `json:"semicolon"`
+	Binding       binding  `json:"binding"`
+	*NodeDetail
+}
+
+// NodeDetail holds fields that few syntax nodes carry, so most nodes stay small.
+type NodeDetail struct {
 	Module         string      `json:"module,omitempty"`
 	SourceFile     string      `json:"sourceFile,omitempty"`
 	Name           string      `json:"name"`
 	Visibility     string      `json:"visibility"`
 	Derives        []string    `json:"derives"`
-	Type           *node       `json:"type"`
 	ReturnType     *node       `json:"returnType"`
 	TargetType     *node       `json:"targetType"`
 	Inner          *node       `json:"inner"`
-	Value          *node       `json:"value"`
 	Fallback       *node       `json:"fallback"`
 	IntegerType    string      `json:"integerType"`
-	Digits         string      `json:"digits"`
 	Scalar         string      `json:"scalar"`
 	Text           string      `json:"text"`
-	Boolean        bool        `json:"state"`
-	Left           *node       `json:"left"`
-	Right          *node       `json:"right"`
 	Base           *node       `json:"base"`
 	Index          *node       `json:"index"`
-	Receiver       *node       `json:"receiver"`
-	Callee         *node       `json:"callee"`
 	Condition      *node       `json:"condition"`
 	Source         *node       `json:"source"`
 	EnumName       string      `json:"enumName"`
 	Variant        string      `json:"variant"`
 	PayloadBinding *string     `json:"payloadBinding"`
-	Initializer    *node       `json:"initializer"`
 	Payload        *node       `json:"payload"`
 	TypeArguments  []*node     `json:"typeArguments"`
 	Fields         []field     `json:"fields"`
@@ -55,16 +65,20 @@ type node struct {
 	Body           []*node     `json:"body"`
 	ElseBody       []*node     `json:"elseBody"`
 	Elements       []*node     `json:"elements"`
-	Arguments      []*node     `json:"arguments"`
-	Segments       []string    `json:"segments"`
 	Path           []string    `json:"path"`
 	Operator       string      `json:"operator"`
 	Operation      string      `json:"operation"`
 	Member         string      `json:"member"`
-	Method         string      `json:"method"`
-	Semicolon      bool        `json:"semicolon"`
-	Binding        binding     `json:"binding"`
 	Mutable        bool        `json:"mutable"`
+}
+
+var emptyNodeDetail NodeDetail
+
+func (n *node) cold() *NodeDetail {
+	if n.NodeDetail == nil {
+		return &emptyNodeDetail
+	}
+	return n.NodeDetail
 }
 
 type field struct {
@@ -109,9 +123,10 @@ type Options struct {
 	EmitModules         []string `json:"emitModules,omitempty"`
 }
 
+// The AST decodes in the same pass as the options because the full corpus is too large to buffer twice.
 type configuredInput struct {
-	AST     json.RawMessage `json:"ast"`
-	Options Options         `json:"options"`
+	AST     *document `json:"ast"`
+	Options Options   `json:"options"`
 }
 
 func TranspileConfigured(input []byte) ([]byte, error) {
@@ -121,10 +136,10 @@ func TranspileConfigured(input []byte) ([]byte, error) {
 	if err := decoder.Decode(&configured); err != nil {
 		return nil, err
 	}
-	if len(configured.AST) == 0 {
+	if configured.AST == nil {
 		return nil, fmt.Errorf("missing configured AST")
 	}
-	return TranspileWithOptions(configured.AST, configured.Options)
+	return transpileDocument(configured.AST, configured.Options)
 }
 
 type contractError string
@@ -154,25 +169,25 @@ func (g *generator) collectVectorElements(value *node) {
 	if value == nil {
 		return
 	}
-	if value.Kind == "path" && path(value) == "Vec" && len(value.TypeArguments) == 1 {
-		g.vectorElements[path(value.TypeArguments[0])] = true
+	if value.Kind == "path" && path(value) == "Vec" && len(value.cold().TypeArguments) == 1 {
+		g.vectorElements[path(value.cold().TypeArguments[0])] = true
 	}
-	for _, child := range []*node{value.Type, value.ReturnType, value.Value, value.Initializer, value.Inner} {
+	for _, child := range []*node{value.Type, value.cold().ReturnType, value.Value, value.Initializer, value.cold().Inner} {
 		g.collectVectorElements(child)
 	}
-	for _, field := range value.Fields {
+	for _, field := range value.cold().Fields {
 		g.collectVectorElements(field.Type)
 	}
-	for _, variant := range value.Variants {
+	for _, variant := range value.cold().Variants {
 		g.collectVectorElements(variant.Payload)
 	}
-	for _, parameter := range value.Parameters {
+	for _, parameter := range value.cold().Parameters {
 		g.collectVectorElements(parameter.Type)
 	}
-	for _, child := range value.Body {
+	for _, child := range value.cold().Body {
 		g.collectVectorElements(child)
 	}
-	for _, child := range value.ElseBody {
+	for _, child := range value.cold().ElseBody {
 		g.collectVectorElements(child)
 	}
 }
@@ -251,10 +266,10 @@ func inspectModuleIdentifiers(node ast.Node, visit func(*ast.Ident)) {
 }
 
 func opaqueStruct(value *node) bool {
-	if value == nil || value.Kind != "struct" || value.Visibility != "public" || len(value.Fields) == 0 {
+	if value == nil || value.Kind != "struct" || value.cold().Visibility != "public" || len(value.cold().Fields) == 0 {
 		return false
 	}
-	for _, field := range value.Fields {
+	for _, field := range value.cold().Fields {
 		if field.Visibility != "private" {
 			return false
 		}
@@ -291,7 +306,7 @@ func (g *generator) name(name string) string {
 func (g *generator) fieldName(owner, name string) string {
 	structure := g.structs[owner]
 	if structure != nil {
-		for _, field := range structure.Fields {
+		for _, field := range structure.cold().Fields {
 			if field.Name == name {
 				return casedName(name, field.Visibility == "public")
 			}
@@ -321,21 +336,21 @@ func (g *generator) inferType(value *node) *node {
 			return namedType(value.Segments[0])
 		}
 	case "parenthesized":
-		return g.inferType(value.Inner)
+		return g.inferType(value.cold().Inner)
 	case "borrow":
-		return &node{Kind: "reference", Inner: g.inferType(value.Value)}
+		return &node{Kind: "reference", NodeDetail: &NodeDetail{Inner: g.inferType(value.Value)}}
 	case "struct-literal":
-		return namedType(strings.Join(value.Path, "::"))
+		return namedType(strings.Join(value.cold().Path, "::"))
 	case "field":
-		base := g.inferType(value.Base)
+		base := g.inferType(value.cold().Base)
 		if base != nil && base.Kind == "reference" {
-			base = base.Inner
+			base = base.cold().Inner
 		}
 		if base != nil && base.Kind == "path" {
 			structure := g.structs[path(base)]
 			if structure != nil {
-				for _, field := range structure.Fields {
-					if field.Name == value.Member {
+				for _, field := range structure.cold().Fields {
+					if field.Name == value.cold().Member {
 						return field.Type
 					}
 				}
@@ -346,7 +361,7 @@ func (g *generator) inferType(value *node) *node {
 	case "float", "float-from-text":
 		return namedType("f64")
 	case "float-bits":
-		switch value.Operation {
+		switch value.cold().Operation {
 		case "decode-double", "decode-single":
 			return namedType("f64")
 		case "encode-double":
@@ -357,12 +372,12 @@ func (g *generator) inferType(value *node) *node {
 			reject("unknown float bit conversion")
 		}
 	case "integer":
-		if value.IntegerType == "i64" {
+		if value.cold().IntegerType == "i64" {
 			return namedType("i64")
 		}
 		return namedType("usize")
 	case "unary":
-		if value.Operator == "negate" {
+		if value.cold().Operator == "negate" {
 			if path(g.inferType(value.Value)) == "f64" {
 				return namedType("f64")
 			}
@@ -373,11 +388,11 @@ func (g *generator) inferType(value *node) *node {
 	case "boolean":
 		return namedType("bool")
 	case "string":
-		return &node{Kind: "reference", Inner: namedType("str")}
+		return &node{Kind: "reference", NodeDetail: &NodeDetail{Inner: namedType("str")}}
 	case "cast":
-		return value.TargetType
+		return value.cold().TargetType
 	case "binary":
-		if value.Operator == "add" || value.Operator == "subtract" || value.Operator == "multiply" || value.Operator == "divide" || value.Operator == "remainder" {
+		if value.cold().Operator == "add" || value.cold().Operator == "subtract" || value.cold().Operator == "multiply" || value.cold().Operator == "divide" || value.cold().Operator == "remainder" {
 			if path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32" {
 				return namedType("i32")
 			}
@@ -385,12 +400,12 @@ func (g *generator) inferType(value *node) *node {
 		}
 		return namedType("bool")
 	case "index":
-		base := g.inferType(value.Base)
-		if base != nil && base.Kind == "reference" && base.Inner.Kind == "slice" {
-			return base.Inner.Inner
+		base := g.inferType(value.cold().Base)
+		if base != nil && base.Kind == "reference" && base.cold().Inner.Kind == "slice" {
+			return base.cold().Inner.cold().Inner
 		}
-		if base != nil && path(base) == "Vec" && len(base.TypeArguments) == 1 {
-			return base.TypeArguments[0]
+		if base != nil && path(base) == "Vec" && len(base.cold().TypeArguments) == 1 {
+			return base.cold().TypeArguments[0]
 		}
 		return nil
 	case "method-call":
@@ -404,20 +419,20 @@ func (g *generator) inferType(value *node) *node {
 		case "to_owned":
 			return namedType("String")
 		case "as_str":
-			return &node{Kind: "reference", Inner: namedType("str")}
+			return &node{Kind: "reference", NodeDetail: &NodeDetail{Inner: namedType("str")}}
 		case "clone":
 			return g.inferType(value.Receiver)
 		case "collect":
-			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("char")}}
+			return &node{Kind: "path", Segments: []string{"Vec"}, NodeDetail: &NodeDetail{TypeArguments: []*node{namedType("char")}}}
 		}
 	case "call":
 		if value.Callee != nil && len(value.Callee.Segments) == 1 {
 			if function := g.functions[value.Callee.Segments[0]]; function != nil {
-				return function.ReturnType
+				return function.cold().ReturnType
 			}
 		}
 		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" {
-			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("usize")}}
+			return &node{Kind: "path", Segments: []string{"Vec"}, NodeDetail: &NodeDetail{TypeArguments: []*node{namedType("usize")}}}
 		}
 		if value.Callee != nil && len(value.Callee.Segments) == 2 {
 			return namedType(value.Callee.Segments[0])
@@ -429,7 +444,7 @@ func (g *generator) inferType(value *node) *node {
 func (g *generator) fieldOwner(value *node) string {
 	valueType := g.inferType(value)
 	if valueType != nil && valueType.Kind == "reference" {
-		valueType = valueType.Inner
+		valueType = valueType.cold().Inner
 	}
 	if valueType == nil || valueType.Kind != "path" {
 		reject("cannot resolve struct field owner")
@@ -481,17 +496,7 @@ func Transpile(input []byte) ([]byte, error) {
 	return TranspileWithOptions(input, Options{})
 }
 
-func TranspileWithOptions(input []byte, options Options) (output []byte, err error) {
-	defer func() {
-		if value := recover(); value != nil {
-			if contract, ok := value.(contractError); ok {
-				err = fmt.Errorf("AST contract violation: %s", contract)
-				output = nil
-			} else {
-				panic(value)
-			}
-		}
-	}()
+func TranspileWithOptions(input []byte, options Options) ([]byte, error) {
 	decoder := json.NewDecoder(bytes.NewReader(input))
 	decoder.DisallowUnknownFields()
 	var document document
@@ -502,6 +507,20 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return nil, fmt.Errorf("trailing JSON: %v", err)
 	}
+	return transpileDocument(&document, options)
+}
+
+func transpileDocument(document *document, options Options) (output []byte, err error) {
+	defer func() {
+		if value := recover(); value != nil {
+			if contract, ok := value.(contractError); ok {
+				err = fmt.Errorf("AST contract violation: %s", contract)
+				output = nil
+			} else {
+				panic(value)
+			}
+		}
+	}()
 	if document.SchemaVersion != 1 {
 		return nil, fmt.Errorf("unsupported AST version %d", document.SchemaVersion)
 	}
@@ -521,37 +540,37 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		if item == nil {
 			continue
 		}
-		generatedName := item.Name
-		if options.Split && item.Module != "regex_engine" {
+		generatedName := item.cold().Name
+		if options.Split && item.cold().Module != "regex_engine" {
 			generatedName = schemaFunctionName(generatedName)
 		}
-		exported := (item.Visibility == "public" || item.Visibility == "crate") && !(options.Split && item.Module == "regex_engine" && item.Kind == "function")
-		if options.Split && strings.HasPrefix(item.Name, "sql__pg_catalog__") {
+		exported := (item.cold().Visibility == "public" || item.cold().Visibility == "crate") && !(options.Split && item.cold().Module == "regex_engine" && item.Kind == "function")
+		if options.Split && strings.HasPrefix(item.cold().Name, "sql__pg_catalog__") {
 			exported = true
 		}
-		generator.names[item.Name] = casedName(generatedName, exported)
+		generator.names[item.cold().Name] = casedName(generatedName, exported)
 		if item.Kind == "constant" {
-			generator.constants[item.Name] = item.Type
+			generator.constants[item.cold().Name] = item.Type
 		}
 		if item.Kind == "function" {
-			generator.functions[item.Name] = item
+			generator.functions[item.cold().Name] = item
 		}
 		if item != nil && item.Kind == "enum" {
-			generator.enums[item.Name] = item.Variants
-			generator.publicEnum[item.Name] = item.Visibility == "public"
+			generator.enums[item.cold().Name] = item.cold().Variants
+			generator.publicEnum[item.cold().Name] = item.cold().Visibility == "public"
 		}
 		if item != nil && (item.Kind == "enum" || item.Kind == "struct") {
-			generator.types[item.Name] = true
+			generator.types[item.cold().Name] = true
 		}
 		if item.Kind == "struct" {
-			generator.structs[item.Name] = item
+			generator.structs[item.cold().Name] = item
 		}
 	}
 	for _, name := range options.ReadonlyValueTypes {
 		item := generator.structs[name]
 		if item == nil {
 			for _, candidate := range document.Items {
-				if candidate != nil && candidate.Kind == "enum" && candidate.Name == name {
+				if candidate != nil && candidate.Kind == "enum" && candidate.cold().Name == name {
 					item = candidate
 					break
 				}
@@ -568,7 +587,7 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		item := generator.structs[name]
 		if item == nil {
 			for _, candidate := range document.Items {
-				if candidate != nil && candidate.Kind == "enum" && candidate.Name == name {
+				if candidate != nil && candidate.Kind == "enum" && candidate.cold().Name == name {
 					item = candidate
 					break
 				}
@@ -578,13 +597,13 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 			return nil, fmt.Errorf("immutable value type must be a nonopaque Clone type: %s", name)
 		}
 		if item.Kind == "struct" {
-			for _, field := range item.Fields {
+			for _, field := range item.cold().Fields {
 				if !generator.immutableField(field.Type) {
 					return nil, fmt.Errorf("immutable value type has an unsupported field: %s", name)
 				}
 			}
 		} else {
-			for _, variant := range item.Variants {
+			for _, variant := range item.cold().Variants {
 				if variant.Payload != nil && !generator.immutableField(variant.Payload) {
 					return nil, fmt.Errorf("immutable value type has an unsupported field: %s", name)
 				}
@@ -629,13 +648,13 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 	files["langruntime"].Decls = runtime.Decls
 	collectDeclarationNames(runtime.Decls, owned["langruntime"])
 	for _, item := range document.Items {
-		file := files[item.Module]
-		if file == nil || item.Module == "langruntime" {
-			return nil, fmt.Errorf("CHECK item has no supported module: %s", item.Name)
+		file := files[item.cold().Module]
+		if file == nil || item.cold().Module == "langruntime" {
+			return nil, fmt.Errorf("CHECK item has no supported module: %s", item.cold().Name)
 		}
 		declarations := generator.goItem(item)
 		file.Decls = append(file.Decls, declarations...)
-		collectDeclarationNames(declarations, owned[item.Module])
+		collectDeclarationNames(declarations, owned[item.cold().Module])
 	}
 	var flat bytes.Buffer
 	var declarations []ast.Decl
@@ -751,7 +770,7 @@ func collectDeclarationNames(declarations []ast.Decl, names map[string]bool) {
 }
 
 func hasDerive(item *node, name string) bool {
-	for _, derive := range item.Derives {
+	for _, derive := range item.cold().Derives {
 		if derive == name {
 			return true
 		}
@@ -764,7 +783,7 @@ func (g *generator) immutableField(value *node) bool {
 		return false
 	}
 	if value.Kind == "reference" {
-		return path(value.Inner) == "str"
+		return path(value.cold().Inner) == "str"
 	}
 	switch path(value) {
 	case "usize", "u32", "i32", "i64", "f64", "bool", "char", "String":
