@@ -14135,6 +14135,95 @@ func SindN2je(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Va
 func CosdYkq9(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
 	return float8DegreeTrigonometry(input, fdlibm, true)
 }
+func float8ClearLowWord(value float64) float64 {
+	bits := langruntime.F64ToI64Bits(value)
+	low := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add((langruntime.CheckedI64Remainder(bits, int64(4294967296))), int64(4294967296))), int64(4294967296))
+	return langruntime.F64FromI64Bits((langruntime.CheckedI64Subtract(bits, low)))
+}
+func float8TanKernel(head float64, tail float64, odd bool) float64 {
+	x := head
+	y := tail
+	big := circleMathHighWord(x) >= 1072010280
+	negative := false
+	if big {
+		if x < float64(0.0) || (x == float64(0.0) && langruntime.F64Divide(float64(1.0), x) < float64(0.0)) {
+			negative = true
+			x = langruntime.F64Negate(x)
+			y = langruntime.F64Negate(y)
+		}
+		x = langruntime.F64Add((langruntime.F64Subtract(float64(7.85398163397448278999e-01), x)), (langruntime.F64Subtract(float64(3.06161699786838301793e-17), y)))
+		y = float64(0.0)
+	}
+	z := langruntime.F64Multiply(x, x)
+	w := langruntime.F64Multiply(z, z)
+	r := langruntime.F64Add(float64(1.33333333333201242699e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(2.18694882948595424599e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(3.59207910759131235356e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(5.88041240820264096874e-04), langruntime.F64Multiply(w, (langruntime.F64Add(float64(7.81794442939557092300e-05), langruntime.F64Multiply(w, float64(-1.85586374855275456654e-05)))))))))))))))
+	v := langruntime.F64Multiply(z, (langruntime.F64Add(float64(5.39682539762260521377e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(8.86323982359930005737e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(1.45620945432529025516e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(2.46463134818469906812e-04), langruntime.F64Multiply(w, (langruntime.F64Add(float64(7.14072491382608190305e-05), langruntime.F64Multiply(w, float64(2.59073051863633712884e-05)))))))))))))))))
+	s := langruntime.F64Multiply(z, x)
+	r = langruntime.F64Add(langruntime.F64Add(y, langruntime.F64Multiply(z, (langruntime.F64Add(langruntime.F64Multiply(s, (langruntime.F64Add(r, v))), y)))), langruntime.F64Multiply(s, float64(3.33333333333334091986e-01)))
+	w = langruntime.F64Add(x, r)
+	if big {
+		s = float64(1.0)
+		if odd {
+			s = float64(-1.0)
+		}
+		v = langruntime.F64Subtract(s, langruntime.F64Multiply(float64(2.0), (langruntime.F64Add(x, (langruntime.F64Subtract(r, langruntime.F64Divide(langruntime.F64Multiply(w, w), (langruntime.F64Add(w, s)))))))))
+		if negative {
+			return langruntime.F64Negate(v)
+		}
+		return v
+	}
+	if odd == false {
+		return w
+	}
+	w0 := float8ClearLowWord(w)
+	v = langruntime.F64Subtract(r, (langruntime.F64Subtract(w0, x)))
+	a := langruntime.F64Divide(float64(-1.0), w)
+	a0 := float8ClearLowWord(a)
+	return langruntime.F64Add(a0, langruntime.F64Multiply(a, (langruntime.F64Add(langruntime.F64Add(float64(1.0), langruntime.F64Multiply(a0, w0)), langruntime.F64Multiply(a0, v)))))
+}
+func float8Tangent(input checkruntime.Float8Value, fdlibm bool, cotangent bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		magnitude := langruntime.F64Abs(number)
+		if magnitude == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		high := circleMathHighWord(magnitude)
+		if fdlibm == false || high >= 1094263291 {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		result := magnitude
+		if high <= 1072243195 {
+			if high >= 1044381696 {
+				result = float8TanKernel(magnitude, float64(0.0), false)
+			}
+		} else {
+			reduced := circleReduceAngle(magnitude)
+			result = float8TanKernel(langruntime.F64FromI64Bits(reduced.head), langruntime.F64FromI64Bits(reduced.tail), langruntime.CheckedSignedRemainder(reduced.quadrant, 2) != 0)
+		}
+		if bits < int64(0) {
+			result = langruntime.F64Negate(result)
+		}
+		if cotangent {
+			result = langruntime.F64Divide(float64(1.0), result)
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func Tan9kzu(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8Tangent(input, fdlibm, false)
+}
+func Cot8cml(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8Tangent(input, fdlibm, true)
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

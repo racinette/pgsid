@@ -264,7 +264,7 @@ export function trigonometryValueRequirements(item: BuiltinCallable) {
       {
         kind: 'platform',
         requirement:
-          'Finite sin, cos, sind and cosd results require the declared PostgreSQL fdlibm binary64 trigonometry profile; target-language math libraries do not establish that profile.',
+          'Finite sin, cos, tan, cot, sind and cosd results require the declared PostgreSQL fdlibm binary64 trigonometry profile; target-language math libraries do not establish that profile.',
         owner: 'tests/sql-semantics/check-float-trigonometry.test.ts',
       },
     ]

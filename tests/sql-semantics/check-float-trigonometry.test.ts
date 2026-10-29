@@ -82,7 +82,7 @@ for (let index = 0; index < 256; index++) {
   samples.push(String((unit * 2 - 1) * [1, 10, 1e3, 1.6e6][index % 4]!))
 }
 
-describe('float8 sine and cosine in radians and degrees under the declared fdlibm profile', () => {
+describe('float8 sine, cosine and tangent in radians and degrees under the declared fdlibm profile', () => {
   let pg: PGlite
   let directory: string
   beforeAll(async () => {
@@ -104,7 +104,7 @@ describe('float8 sine and cosine in radians and degrees under the declared fdlib
         fn.args.length === 1 &&
         source.includes('pub fn ' + fn.rustName + '('),
     )
-    expect(functions).toHaveLength(4)
+    expect(functions).toHaveLength(6)
     const expressions: Record<string, string> = {}
     for (const fn of functions) {
       expect(fn).toMatchObject({

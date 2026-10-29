@@ -14234,6 +14234,104 @@ export function cosdYkq9(input: checkruntime.Float8Value, fdlibm: boolean): chec
     fdlibm = langruntime.checkedBool(fdlibm);
     return float8DegreeTrigonometry(input, fdlibm, true);
 }
+function float8ClearLowWord(value: number): number {
+    value = langruntime.checkedF64(value);
+    const bits: bigint = langruntime.f64ToI64Bits(value);
+    const low: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add((langruntime.checkedI64Remainder(bits, 4294967296n)), 4294967296n)), 4294967296n);
+    return langruntime.f64FromI64Bits((langruntime.checkedI64Subtract(bits, low)));
+}
+function float8TanKernel(head: number, tail: number, odd: boolean): number {
+    head = langruntime.checkedF64(head);
+    tail = langruntime.checkedF64(tail);
+    odd = langruntime.checkedBool(odd);
+    let x: number = head;
+    let y: number = tail;
+    const big: boolean = circleMathHighWord(x) >= 1072010280;
+    let negative: boolean = false;
+    if (big) {
+        if (x < 0.0 || (x === 0.0 && langruntime.f64Divide(1.0, x) < 0.0)) {
+            negative = langruntime.checkedBool(true);
+            x = langruntime.checkedF64(langruntime.f64Negate(x));
+            y = langruntime.checkedF64(langruntime.f64Negate(y));
+        }
+        x = langruntime.checkedF64(langruntime.f64Add((langruntime.f64Subtract(7.85398163397448278999e-01, x)), (langruntime.f64Subtract(3.06161699786838301793e-17, y))));
+        y = langruntime.checkedF64(0.0);
+    }
+    const z: number = langruntime.f64Multiply(x, x);
+    let w: number = langruntime.f64Multiply(z, z);
+    let r: number = langruntime.f64Add(1.33333333333201242699e-01, langruntime.f64Multiply(w, (langruntime.f64Add(2.18694882948595424599e-02, langruntime.f64Multiply(w, (langruntime.f64Add(3.59207910759131235356e-03, langruntime.f64Multiply(w, (langruntime.f64Add(5.88041240820264096874e-04, langruntime.f64Multiply(w, (langruntime.f64Add(7.81794442939557092300e-05, langruntime.f64Multiply(w, -1.85586374855275456654e-05))))))))))))));
+    let v: number = langruntime.f64Multiply(z, (langruntime.f64Add(5.39682539762260521377e-02, langruntime.f64Multiply(w, (langruntime.f64Add(8.86323982359930005737e-03, langruntime.f64Multiply(w, (langruntime.f64Add(1.45620945432529025516e-03, langruntime.f64Multiply(w, (langruntime.f64Add(2.46463134818469906812e-04, langruntime.f64Multiply(w, (langruntime.f64Add(7.14072491382608190305e-05, langruntime.f64Multiply(w, 2.59073051863633712884e-05))))))))))))))));
+    let s: number = langruntime.f64Multiply(z, x);
+    r = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Add(y, langruntime.f64Multiply(z, (langruntime.f64Add(langruntime.f64Multiply(s, (langruntime.f64Add(r, v))), y)))), langruntime.f64Multiply(s, 3.33333333333334091986e-01)));
+    w = langruntime.checkedF64(langruntime.f64Add(x, r));
+    if (big) {
+        s = langruntime.checkedF64(1.0);
+        if (odd) {
+            s = langruntime.checkedF64(-1.0);
+        }
+        v = langruntime.checkedF64(langruntime.f64Subtract(s, langruntime.f64Multiply(2.0, (langruntime.f64Add(x, (langruntime.f64Subtract(r, langruntime.f64Divide(langruntime.f64Multiply(w, w), (langruntime.f64Add(w, s))))))))));
+        if (negative) {
+            return langruntime.f64Negate(v);
+        }
+        return v;
+    }
+    if (odd === false) {
+        return w;
+    }
+    const w0: number = float8ClearLowWord(w);
+    v = langruntime.checkedF64(langruntime.f64Subtract(r, (langruntime.f64Subtract(w0, x))));
+    const a: number = langruntime.f64Divide(-1.0, w);
+    const a0: number = float8ClearLowWord(a);
+    return langruntime.f64Add(a0, langruntime.f64Multiply(a, (langruntime.f64Add(langruntime.f64Add(1.0, langruntime.f64Multiply(a0, w0)), langruntime.f64Multiply(a0, v)))));
+}
+function float8Tangent(input: checkruntime.Float8Value, fdlibm: boolean, cotangent: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    cotangent = langruntime.checkedBool(cotangent);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        const magnitude: number = langruntime.f64Abs(number);
+        if (magnitude === langruntime.f64Divide(1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        const high: number = circleMathHighWord(magnitude);
+        if (fdlibm === false || high >= 1094263291) {
+            return { kind: "Unknown" };
+        }
+        let result: number = magnitude;
+        if (high <= 1072243195) {
+            if (high >= 1044381696) {
+                result = langruntime.checkedF64(float8TanKernel(magnitude, 0.0, false));
+            }
+        }
+        else {
+            const reduced: CircleAngleReduction = copyCircleAngleReduction(circleReduceAngle(magnitude));
+            result = langruntime.checkedF64(float8TanKernel(langruntime.f64FromI64Bits(reduced.head), langruntime.f64FromI64Bits(reduced.tail), !(langruntime.checkedSignedRemainder(reduced.quadrant, 2) === 0)));
+        }
+        if (bits < 0n) {
+            result = langruntime.checkedF64(langruntime.f64Negate(result));
+        }
+        if (cotangent) {
+            result = langruntime.checkedF64(langruntime.f64Divide(1.0, result));
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function tan9kzu(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8Tangent(input, fdlibm, false);
+}
+export function cot8cml(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8Tangent(input, fdlibm, true);
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
