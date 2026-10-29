@@ -46,13 +46,22 @@ const definite = [
   '2000-01-01 00:00:00+05',
   '2000-13-01',
   '2000-01-01 25:00',
+  '2000-01-01 00:00 America/New_York',
+  '2021-03-14 02:30 america/new_york',
+  '2000-01-01 00:00 BC Europe/Dublin',
+  '2000-01-01 12:00 :Asia/Kathmandu',
+  '2000-01-01 25:00 America/New_York',
 ]
-// Local times beside the range limits, runtime words and named zones still defer.
+// Local times beside the range limits, runtime words, abbreviations and zone names that are
+// unknown, not trailing or after an offset still defer.
 const deferred = [
   '4714-11-24 BC',
   '294276-12-31 23:59',
   'today',
-  '2000-01-01 00:00 America/New_York',
+  '2000-01-01 00:00 America/Nowhere',
+  '2000-01-01 12:00 UTC',
+  '2000-01-01 America/New_York 12:00',
+  '2000-01-01 00:00+05 America/New_York',
 ]
 const input = (value: string | bigint | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
@@ -139,7 +148,7 @@ it('resolves timestamptz text without a zone through the configured session time
             ).readBigInt64BE()
             anchorText = raw
           } catch (error) {
-            expect(['22007', '22008']).toContain((error as { code: string }).code)
+            expect(['22007', '22008', '22023']).toContain((error as { code: string }).code)
           }
         for (const flag of [false, true])
           for (const [name, sql] of Object.entries(expressions)) {
