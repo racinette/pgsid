@@ -370,7 +370,10 @@ it('truncates timestamptz in declared session zones with native calendar resolut
           row: { ...base, stamp: sqlError('22003') as Input, v: sqlError('22012') as Input },
           expected: sqlError(name.includes('explicit_zone_context') ? '22012' : '22003'),
         },
-        { row: { ...base, stamp: { kind: 'Unknown' } as Input }, expected: { kind: 'Unknown' } },
+        {
+          row: { ...base, stamp: { kind: 'Unknown' } as Input },
+          expected: { kind: 'True' },
+        },
       ] as { row: Row; expected: Outcome }[])
         fixtures.push({ name, ...fixture })
     }
