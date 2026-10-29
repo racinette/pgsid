@@ -15974,6 +15974,193 @@ func Tand3ov2(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Va
 func CotdAlh0(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
 	return float8DegreeTangent(input, fdlibm, true)
 }
+
+const floatInvalidFrameSize = 3452583
+const floatInvalidBucketArgument = 3452596
+
+func floatInRange(value checkruntime.Float8Value, base checkruntime.Float8Value, offset checkruntime.Float8Value, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.Float8ValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.Float8ValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.Float8ValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || base == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || offset == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || base == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || offset == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	knownValue := checkruntime.Float8Semantic(value)
+	knownBase := checkruntime.Float8Semantic(base)
+	knownOffset := checkruntime.Float8Semantic(offset)
+	if knownValue.Kind == checkruntime.Float8ValueValue {
+		valueBits := knownValue.Value
+		if knownBase.Kind == checkruntime.Float8ValueValue {
+			baseBits := knownBase.Value
+			if knownOffset.Kind == checkruntime.Float8ValueValue {
+				offsetBits := knownOffset.Value
+				if subtract.Kind == checkruntime.BoolValueValue {
+					sub := subtract.Value
+					if less.Kind == checkruntime.BoolValueValue {
+						lower := less.Value
+						input := checkruntime.Float8Number(valueBits)
+						center := checkruntime.Float8Number(baseBits)
+						distance := checkruntime.Float8Number(offsetBits)
+						if distance != distance || distance < float64(0.0) {
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(floatInvalidFrameSize)}
+						}
+						if input != input {
+							if center != center {
+								return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+							}
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: lower == false}
+						}
+						if center != center {
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: lower}
+						}
+						infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+						if distance == infinity && langruntime.F64Abs(center) == infinity && ((sub && center > float64(0.0)) || (sub == false && center < float64(0.0))) {
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+						}
+						boundary := langruntime.F64Add(center, distance)
+						if sub {
+							boundary = langruntime.F64Subtract(center, distance)
+						}
+						if lower {
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: input <= boundary}
+						}
+						return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: input >= boundary}
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func InRangeT6r5(value checkruntime.Float8Value, base checkruntime.Float8Value, offset checkruntime.Float8Value, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	return floatInRange(value, base, offset, subtract, less)
+}
+func InRangeKw9k(value checkruntime.Float4Value, base checkruntime.Float4Value, offset checkruntime.Float8Value, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	return floatInRange(float4Widen(value), float4Widen(base), offset, subtract, less)
+}
+func floatBucket(operand float64, first float64, last float64, count int) checkruntime.Int4Value {
+	count = langruntime.CheckedI32(count)
+	if count <= 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(floatInvalidBucketArgument)}
+	}
+	if operand != operand || first != first || last != last {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(floatInvalidBucketArgument)}
+	}
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if langruntime.F64Abs(first) == infinity || langruntime.F64Abs(last) == infinity {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(floatInvalidBucketArgument)}
+	}
+	if first == last {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(floatInvalidBucketArgument)}
+	}
+	ascending := first < last
+	if (ascending && operand < first) || (ascending == false && operand > first) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+	}
+	if (ascending && operand >= last) || (ascending == false && operand <= last) {
+		if count == 2147483647 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(count, 1)}
+	}
+	quotient := langruntime.F64Divide((langruntime.F64Subtract(operand, first)), (langruntime.F64Subtract(last, first)))
+	if ascending == false {
+		quotient = langruntime.F64Divide((langruntime.F64Subtract(first, operand)), (langruntime.F64Subtract(first, last)))
+	}
+	if langruntime.F64Abs((langruntime.F64Subtract(last, first))) == infinity {
+		quotient = langruntime.F64Divide((langruntime.F64Subtract(langruntime.F64Divide(operand, float64(2.0)), langruntime.F64Divide(first, float64(2.0)))), (langruntime.F64Subtract(langruntime.F64Divide(last, float64(2.0)), langruntime.F64Divide(first, float64(2.0)))))
+		if ascending == false {
+			quotient = langruntime.F64Divide((langruntime.F64Subtract(langruntime.F64Divide(first, float64(2.0)), langruntime.F64Divide(operand, float64(2.0)))), (langruntime.F64Subtract(langruntime.F64Divide(first, float64(2.0)), langruntime.F64Divide(last, float64(2.0)))))
+		}
+	}
+	bucket := langruntime.F64ToI32((langruntime.F64Multiply((float64(count)), quotient)))
+	if bucket >= count {
+		bucket = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(count, 1))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(bucket, 1)}
+}
+func WidthBucketWbi9(operand checkruntime.Float8Value, lower checkruntime.Float8Value, upper checkruntime.Float8Value, count checkruntime.Int4Value) checkruntime.Int4Value {
+	if operand.Kind == checkruntime.Float8ValueError {
+		error := operand.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if lower.Kind == checkruntime.Float8ValueError {
+		error := lower.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if upper.Kind == checkruntime.Float8ValueError {
+		error := upper.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if count.Kind == checkruntime.Int4ValueError {
+		error := count.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if operand == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || lower == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || upper == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if operand == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || lower == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || upper == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	knownOperand := checkruntime.Float8Semantic(operand)
+	knownLower := checkruntime.Float8Semantic(lower)
+	knownUpper := checkruntime.Float8Semantic(upper)
+	if knownOperand.Kind == checkruntime.Float8ValueValue {
+		operandBits := knownOperand.Value
+		if knownLower.Kind == checkruntime.Float8ValueValue {
+			lowerBits := knownLower.Value
+			if knownUpper.Kind == checkruntime.Float8ValueValue {
+				upperBits := knownUpper.Value
+				if count.Kind == checkruntime.Int4ValueValue {
+					buckets := langruntime.CheckedI32(count.Value)
+					return floatBucket(checkruntime.Float8Number(operandBits), checkruntime.Float8Number(lowerBits), checkruntime.Float8Number(upperBits), buckets)
+				}
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int8incFloat8Float8Naop(count checkruntime.Int8Value, left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.Int8Value {
+	if count.Kind == checkruntime.Int8ValueError {
+		error := count.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.Float8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Float8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	return Int8incKe95(count)
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

@@ -16193,6 +16193,194 @@ export function cotdAlh0(input: checkruntime.Float8Value, fdlibm: boolean): chec
     fdlibm = langruntime.checkedBool(fdlibm);
     return float8DegreeTangent(input, fdlibm, true);
 }
+const floatInvalidFrameSize = 3452583;
+const floatInvalidBucketArgument = 3452596;
+function floatInRange(value: checkruntime.Float8Value, base: checkruntime.Float8Value, offset: checkruntime.Float8Value, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(value, { kind: "Unknown" }) || checkruntime.equalFloat8Value(base, { kind: "Unknown" }) || checkruntime.equalFloat8Value(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(value, { kind: "Null" }) || checkruntime.equalFloat8Value(base, { kind: "Null" }) || checkruntime.equalFloat8Value(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const knownValue: checkruntime.Float8Value = checkruntime.float8Semantic(value);
+    const knownBase: checkruntime.Float8Value = checkruntime.float8Semantic(base);
+    const knownOffset: checkruntime.Float8Value = checkruntime.float8Semantic(offset);
+    if (knownValue.kind === "Value") {
+        const valueBits: bigint = langruntime.checkedI64(knownValue.value);
+        if (knownBase.kind === "Value") {
+            const baseBits: bigint = langruntime.checkedI64(knownBase.value);
+            if (knownOffset.kind === "Value") {
+                const offsetBits: bigint = langruntime.checkedI64(knownOffset.value);
+                if (subtract.kind === "Value") {
+                    const sub: boolean = langruntime.checkedBool(subtract.value);
+                    if (less.kind === "Value") {
+                        const lower: boolean = langruntime.checkedBool(less.value);
+                        const input: number = checkruntime.float8Number(valueBits);
+                        const center: number = checkruntime.float8Number(baseBits);
+                        const distance: number = checkruntime.float8Number(offsetBits);
+                        if (!(distance === distance) || distance < 0.0) {
+                            return { kind: "Error", value: checkruntime.makeSqlError(floatInvalidFrameSize) };
+                        }
+                        if (!(input === input)) {
+                            if (!(center === center)) {
+                                return { kind: "Value", value: true };
+                            }
+                            return { kind: "Value", value: lower === false };
+                        }
+                        if (!(center === center)) {
+                            return { kind: "Value", value: lower };
+                        }
+                        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+                        if (distance === infinity && langruntime.f64Abs(center) === infinity && ((sub && center > 0.0) || (sub === false && center < 0.0))) {
+                            return { kind: "Value", value: true };
+                        }
+                        let boundary: number = langruntime.f64Add(center, distance);
+                        if (sub) {
+                            boundary = langruntime.checkedF64(langruntime.f64Subtract(center, distance));
+                        }
+                        if (lower) {
+                            return { kind: "Value", value: input <= boundary };
+                        }
+                        return { kind: "Value", value: input >= boundary };
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inRangeT6r5(value: checkruntime.Float8Value, base: checkruntime.Float8Value, offset: checkruntime.Float8Value, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    return floatInRange(value, base, offset, subtract, less);
+}
+export function inRangeKw9k(value: checkruntime.Float4Value, base: checkruntime.Float4Value, offset: checkruntime.Float8Value, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    return floatInRange(float4Widen(value), float4Widen(base), offset, subtract, less);
+}
+function floatBucket(operand: number, first: number, last: number, count: number): checkruntime.Int4Value {
+    operand = langruntime.checkedF64(operand);
+    first = langruntime.checkedF64(first);
+    last = langruntime.checkedF64(last);
+    count = langruntime.checkedI32(count);
+    if (count <= 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInvalidBucketArgument) };
+    }
+    if (!(operand === operand) || !(first === first) || !(last === last)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInvalidBucketArgument) };
+    }
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (langruntime.f64Abs(first) === infinity || langruntime.f64Abs(last) === infinity) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInvalidBucketArgument) };
+    }
+    if (first === last) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInvalidBucketArgument) };
+    }
+    const ascending: boolean = first < last;
+    if ((ascending && operand < first) || (ascending === false && operand > first)) {
+        return { kind: "Value", value: 0 };
+    }
+    if ((ascending && operand >= last) || (ascending === false && operand <= last)) {
+        if (count === 2147483647) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return { kind: "Value", value: langruntime.checkedSignedAdd(count, 1) };
+    }
+    let quotient: number = langruntime.f64Divide((langruntime.f64Subtract(operand, first)), (langruntime.f64Subtract(last, first)));
+    if (ascending === false) {
+        quotient = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(first, operand)), (langruntime.f64Subtract(first, last))));
+    }
+    if (langruntime.f64Abs((langruntime.f64Subtract(last, first))) === infinity) {
+        quotient = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(langruntime.f64Divide(operand, 2.0), langruntime.f64Divide(first, 2.0))), (langruntime.f64Subtract(langruntime.f64Divide(last, 2.0), langruntime.f64Divide(first, 2.0)))));
+        if (ascending === false) {
+            quotient = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(langruntime.f64Divide(first, 2.0), langruntime.f64Divide(operand, 2.0))), (langruntime.f64Subtract(langruntime.f64Divide(first, 2.0), langruntime.f64Divide(last, 2.0)))));
+        }
+    }
+    let bucket: number = langruntime.f64ToI32((langruntime.f64Multiply((Number(langruntime.checkedI32(count))), quotient)));
+    if (bucket >= count) {
+        bucket = langruntime.checkedI32(langruntime.checkedSignedSubtract(count, 1));
+    }
+    return { kind: "Value", value: langruntime.checkedSignedAdd(bucket, 1) };
+}
+export function widthBucketWbi9(operand: checkruntime.Float8Value, lower: checkruntime.Float8Value, upper: checkruntime.Float8Value, count: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (operand.kind === "Error") {
+        const error: checkruntime.SqlError = operand.value;
+        return { kind: "Error", value: error };
+    }
+    if (lower.kind === "Error") {
+        const error: checkruntime.SqlError = lower.value;
+        return { kind: "Error", value: error };
+    }
+    if (upper.kind === "Error") {
+        const error: checkruntime.SqlError = upper.value;
+        return { kind: "Error", value: error };
+    }
+    if (count.kind === "Error") {
+        const error: checkruntime.SqlError = count.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(operand, { kind: "Unknown" }) || checkruntime.equalFloat8Value(lower, { kind: "Unknown" }) || checkruntime.equalFloat8Value(upper, { kind: "Unknown" }) || checkruntime.equalInt4Value(count, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(operand, { kind: "Null" }) || checkruntime.equalFloat8Value(lower, { kind: "Null" }) || checkruntime.equalFloat8Value(upper, { kind: "Null" }) || checkruntime.equalInt4Value(count, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const knownOperand: checkruntime.Float8Value = checkruntime.float8Semantic(operand);
+    const knownLower: checkruntime.Float8Value = checkruntime.float8Semantic(lower);
+    const knownUpper: checkruntime.Float8Value = checkruntime.float8Semantic(upper);
+    if (knownOperand.kind === "Value") {
+        const operandBits: bigint = langruntime.checkedI64(knownOperand.value);
+        if (knownLower.kind === "Value") {
+            const lowerBits: bigint = langruntime.checkedI64(knownLower.value);
+            if (knownUpper.kind === "Value") {
+                const upperBits: bigint = langruntime.checkedI64(knownUpper.value);
+                if (count.kind === "Value") {
+                    const buckets: number = langruntime.checkedI32(count.value);
+                    return floatBucket(checkruntime.float8Number(operandBits), checkruntime.float8Number(lowerBits), checkruntime.float8Number(upperBits), buckets);
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int8incFloat8Float8Naop(count: checkruntime.Int8Value, left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Int8Value {
+    if (count.kind === "Error") {
+        const error: checkruntime.SqlError = count.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(count, { kind: "Unknown" }) || checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(count, { kind: "Null" }) || checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return int8incKe95(count);
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
