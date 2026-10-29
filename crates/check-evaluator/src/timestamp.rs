@@ -173,6 +173,29 @@ fn temporal_skipped_punctuation(value: char) -> bool {
         || value == '~'
 }
 
+// PostgreSQL decodes a clock before any later field, so a number after the clock reports the
+// clock's range error first and otherwise rejects the extra field. An hour of 24, whose carry
+// rules apply only after the loop, defers.
+fn temporal_number_after_clock(
+    hour: i32,
+    minute: i32,
+    second: i32,
+    compact_clock: bool,
+    year_overflow: bool,
+) -> Int8Value {
+    if year_overflow || compact_clock || hour == 24 {
+        return Int8Value::Unknown;
+    }
+    if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 {
+        return Int8Value::Error(SqlError {
+            state: TIMESTAMP_FIELD_OVERFLOW,
+        });
+    }
+    Int8Value::Error(SqlError {
+        state: INVALID_TIMESTAMP_TEXT,
+    })
+}
+
 fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
     parse_temporal_text(value, with_timezone, false)
 }
@@ -566,6 +589,23 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                     index += 1;
                 }
             }
+            // `T` after whitespace still separates the date from the clock.
+            if index < end
+                && text.chars[index].to_ascii_lowercase() == 't'
+                && (index + 1 == end
+                    || date_text_digit(text.chars[index + 1]) >= 0
+                    || date_text_space(text.chars[index + 1]))
+            {
+                index += 1;
+                while index < end && date_text_space(text.chars[index]) {
+                    index += 1;
+                }
+                if index == end {
+                    return Int8Value::Error(SqlError {
+                        state: INVALID_TIMESTAMP_TEXT,
+                    });
+                }
+            }
             let clock_word = english_date_word(&text, index, end);
             if index == end
                 || text.chars[index] == '+'
@@ -778,6 +818,12 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                     offset = 0 - offset;
                 }
             };
+        } else if index < end
+            && deferred_zone == false
+            && hours.digits > 0
+            && date_text_digit(text.chars[index]) >= 0
+        {
+            return temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
         } else if index != end {
             return Int8Value::Unknown;
         } else if with_timezone {
@@ -816,6 +862,25 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
             }
+        }
+        if index < end
+            && deferred_zone == false
+            && hours.digits > 0
+            && date_text_digit(text.chars[index]) >= 0
+        {
+            let after_clock =
+                temporal_number_after_clock(hour, minute, second, compact_clock, year_overflow);
+            if after_clock == Int8Value::Unknown {
+                return Int8Value::Unknown;
+            }
+            if let Int8Value::Error(error) = after_clock {
+                if error.state == INVALID_TIMESTAMP_TEXT && (offset < -57599 || offset > 57599) {
+                    return Int8Value::Error(SqlError {
+                        state: INVALID_TIMESTAMP_ZONE,
+                    });
+                }
+            }
+            return after_clock;
         }
         if index != end {
             return Int8Value::Unknown;

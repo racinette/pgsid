@@ -532,11 +532,16 @@ fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
                     month = field.value;
                     day = third.value;
                     index = third.next;
-                } else if (third.digits > 0 && third.next < end && text.chars[third.next] == ':')
-                    || (third.digits == 0
-                        && third_start < end
-                        && text.chars[third_start].to_ascii_lowercase() == 't')
+                } else if third.digits == 0
+                    && third_start < end
+                    && text.chars[third_start].to_ascii_lowercase() == 't'
+                    && (third_start + 1 == end
+                        || date_text_digit(text.chars[third_start + 1]) >= 0
+                        || date_text_space(text.chars[third_start + 1]))
                 {
+                    // The `T` filler requires a complete date before it.
+                    state = ORDINAL_DATE_SYNTAX;
+                } else if third.digits > 0 && third.next < end && text.chars[third.next] == ':' {
                     // A clock follows a year and month; the missing day is reported after the
                     // clock and zone decode.
                     state = ORDINAL_DATE_CALENDAR;

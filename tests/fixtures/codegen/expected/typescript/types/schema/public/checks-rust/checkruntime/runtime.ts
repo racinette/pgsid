@@ -16286,7 +16286,10 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
                     day = langruntime.checkedI32(third.value);
                     index = langruntime.checkedIndex(third.next);
                 }
-                else if ((third.digits > 0 && third.next < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(third.next)) === ":") || (third.digits === 0 && thirdStart < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(thirdStart))) === "t")) {
+                else if (third.digits === 0 && thirdStart < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(thirdStart))) === "t" && (langruntime.checkedAdd(thirdStart, 1) === end || dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(thirdStart, 1)))) >= 0 || dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(thirdStart, 1)))))) {
+                    state = langruntime.checkedI32(ordinalDateSyntax);
+                }
+                else if (third.digits > 0 && third.next < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(third.next)) === ":") {
                     state = langruntime.checkedI32(ordinalDateCalendar);
                     month = langruntime.checkedI32(field.value);
                     day = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
@@ -16677,6 +16680,20 @@ function temporalSkippedPunctuation(value: string): boolean {
     value = langruntime.checkedChar(value);
     return value === "!" || value === "\"" || value === "#" || value === "$" || value === "%" || value === "&" || value === "'" || value === "(" || value === ")" || value === "*" || value === "," || value === ";" || value === "<" || value === "=" || value === ">" || value === "?" || value === "@" || value === "[" || value === "\\" || value === "]" || value === "^" || value === "`" || value === "{" || value === "|" || value === "}" || value === "~";
 }
+function temporalNumberAfterClock(hour: number, minute: number, second: number, compactClock: boolean, yearOverflow: boolean): Int8Value {
+    hour = langruntime.checkedI32(hour);
+    minute = langruntime.checkedI32(minute);
+    second = langruntime.checkedI32(second);
+    compactClock = langruntime.checkedBool(compactClock);
+    yearOverflow = langruntime.checkedBool(yearOverflow);
+    if (yearOverflow || compactClock || hour === 24) {
+        return { kind: "Unknown" };
+    }
+    if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60) {
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
+    }
+    return { kind: "Error", value: { state: invalidTimestampText } };
+}
 function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     return parseTemporalText(value, withTimezone, false);
@@ -16990,6 +17007,15 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                     index = langruntime.checkedAdd(index, 1);
                 }
             }
+            if (index < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t" && (langruntime.checkedAdd(index, 1) === end || dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) >= 0 || dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))))) {
+                index = langruntime.checkedAdd(index, 1);
+                while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (index === end) {
+                    return { kind: "Error", value: { state: invalidTimestampText } };
+                }
+            }
             const clockWord: string = englishDateWord(text, index, end);
             if (index === end || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || clockWord === "am" || clockWord === "pm") {
                 zoneOnly = langruntime.checkedBool(true);
@@ -17189,6 +17215,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 }
             }
         }
+        else if (index < end && deferredZone === false && hours.digits > 0 && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) >= 0) {
+            return temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow);
+        }
         else if (!(index === end)) {
             return { kind: "Unknown" };
         }
@@ -17225,6 +17254,19 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
             }
+        }
+        if (index < end && deferredZone === false && hours.digits > 0 && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) >= 0) {
+            const afterClock: Int8Value = temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow);
+            if (equalInt8Value(afterClock, { kind: "Unknown" })) {
+                return { kind: "Unknown" };
+            }
+            if (afterClock.kind === "Error") {
+                const error: SqlError = afterClock.value;
+                if (error.state === invalidTimestampText && (offset < langruntime.checkedSignedNegate(57599) || offset > 57599)) {
+                    return { kind: "Error", value: { state: invalidTimestampZone } };
+                }
+            }
+            return afterClock;
         }
         if (!(index === end)) {
             return { kind: "Unknown" };
