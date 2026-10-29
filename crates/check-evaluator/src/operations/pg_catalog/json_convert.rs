@@ -50,7 +50,7 @@ fn jsonb_pretty_context(input: JsonbValue, utf8: bool) -> TextValue {
 
 pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {
     if let NumericValue::Unknown = input {
-        return JsonbInput::ScalarUnknown;
+        return JsonbInput::ScalarUnknown("1001000".to_owned());
     };
     let output = array_numeric_output(input);
     if let TextValue::Error(error) = output {
@@ -183,7 +183,7 @@ pub(crate) fn json_array_input_value(
                 let value = input.values[position].clone();
                 let mut converted = JsonValue::NonNull;
                 let mut scalar_unknown = false;
-                if let JsonbInput::ScalarUnknown = value {
+                if let JsonbInput::ScalarUnknown(_) = value {
                     scalar_unknown = true;
                 };
                 if scalar_unknown {

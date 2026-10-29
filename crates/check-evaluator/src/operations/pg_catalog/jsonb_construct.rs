@@ -4,7 +4,7 @@ fn jsonb_build_key(input: JsonbInput) -> TextValue {
     if let JsonbInput::Error(error) = input {
         return TextValue::Error(error);
     };
-    if let JsonbInput::ScalarUnknown = input {
+    if let JsonbInput::ScalarUnknown(_) = input {
         return TextValue::Unknown;
     };
     if let JsonbInput::Unknown = input {
@@ -53,7 +53,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             if let JsonbInput::Error(error) = argument {
                 return JsonbValue::Error(error);
             };
-            if let JsonbInput::ScalarUnknown = argument {
+            if let JsonbInput::ScalarUnknown(_) = argument {
                 partial = true;
             };
             if let JsonbInput::JsonbNonNull(_maximum) = argument {
@@ -123,16 +123,32 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             let key_end = characters.len();
             let input = batch.values[index].clone();
             let mut scalar_unknown = false;
-            if let JsonbInput::ScalarUnknown = input {
+            let mut flags = "1111111".to_owned();
+            let scalar_input = input.clone();
+            if let JsonbInput::ScalarUnknown(mask) = scalar_input {
                 scalar_unknown = true;
+                flags = mask;
             };
             let mut converted = jsonb_partial_value(jsonb_partial_scalar_bound());
             if scalar_unknown == false {
                 converted = sql__pg_catalog__to_jsonb__9y7o(input);
             };
-            if let JsonbValue::NonNull(bound) = converted {
+            // A partial value keeps its place in the tree as its own shape or as a hole, so keys,
+            // positions and possible kinds survive; its bound already covers that subtree.
+            let mut spliced = false;
+            let partial_value = converted.clone();
+            if let JsonbValue::NonNull(bound) = partial_value {
                 complete = false;
+                spliced = true;
                 maximum = jsonb_partial_add(maximum, bound.maximum);
+                if jsonb_has_shape(&bound) {
+                    converted = JsonbValue::Value(bound.shape);
+                } else {
+                    if scalar_unknown == false {
+                        flags = jsonb_kind_flags(bound.kind);
+                    };
+                    converted = JsonbValue::Value(jsonb_hole_payload(flags.as_str()));
+                };
             };
             if let JsonbValue::Null = converted {
                 converted = make_jsonb_value("null");
@@ -144,7 +160,7 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
                 return JsonbValue::Unknown;
             };
             if let JsonbValue::Value(value) = converted {
-                if partial {
+                if partial && spliced == false {
                     let bound = jsonb_partial_bound(&value);
                     maximum = jsonb_partial_add(maximum, bound);
                 };
@@ -190,13 +206,6 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             };
             index += 1;
         }
-        if complete == false {
-            let mut length = -1;
-            if object == false {
-                length = batch.values.len() as i32;
-            };
-            return jsonb_partial_shape(maximum, kind, length);
-        };
         nodes[1] = JsonbNode {
             kind: kind,
             child: first,
@@ -205,6 +214,14 @@ fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
             key_end: 0,
             text_start: 0,
             text_end: 0,
+        };
+        if complete == false {
+            let shape = jsonb_normalize_shape(JsonbPayload {
+                characters: characters,
+                nodes: nodes,
+                root: 1,
+            });
+            return jsonb_partial_tree(maximum, shape);
         };
         return jsonb_rebuild(
             JsonbValue::Value(JsonbPayload {

@@ -113,18 +113,30 @@ fn jsonb_root_facts(input: JsonbValue, measure: bool) -> JsonbKnowledge {
             maximum: maximum,
             kind: root.kind,
             length: length,
+            shape: jsonb_empty_shape(),
         };
     };
     JsonbKnowledge {
         maximum: -1i64,
         kind: -1,
         length: -1,
+        shape: jsonb_empty_shape(),
     }
 }
 
 fn jsonb_relation_walk(left: &JsonbPayload, right: &JsonbPayload, contains: bool) -> bool {
+    jsonb_relation_walk_from(left, left.root, right, right.root, contains)
+}
+
+fn jsonb_relation_walk_from(
+    left: &JsonbPayload,
+    left_root: usize,
+    right: &JsonbPayload,
+    right_root: usize,
+    contains: bool,
+) -> bool {
     let mut frames: Vec<JsonbRelationFrame> = Vec::new();
-    frames.push(jsonb_relation_cursor(left.root, right.root, 0, 0, 0));
+    frames.push(jsonb_relation_cursor(left_root, right_root, 0, 0, 0));
     let mut depth: usize = 1;
     let mut returning = false;
     let mut result = false;
@@ -310,6 +322,148 @@ fn jsonb_relation_partial(a: JsonbKnowledge, b: JsonbKnowledge, contains: bool) 
     BoolValue::Unknown
 }
 
+// Whether two nodes, either of which may be a hole, can have the same kind.
+fn jsonb_shape_kinds_meet(a: &JsonbPayload, ai: usize, b: &JsonbPayload, bi: usize) -> bool {
+    let mut kind: i32 = 0;
+    while kind < 7 {
+        if jsonb_hole_allows(a, ai, kind) && jsonb_hole_allows(b, bi, kind) {
+            return true;
+        };
+        kind = kind + 1;
+    }
+    false
+}
+
+fn jsonb_shape_member(
+    shape: &JsonbPayload,
+    parent: usize,
+    key: &JsonbPayload,
+    member: usize,
+) -> usize {
+    let wanted = key.nodes[member];
+    let mut child = shape.nodes[parent].child;
+    while child > 0 {
+        let node = shape.nodes[child];
+        if node.key_end - node.key_start == wanted.key_end - wanted.key_start {
+            let mut offset: usize = 0;
+            let mut same = true;
+            while same && node.key_start + offset < node.key_end {
+                if shape.characters[node.key_start + offset]
+                    != key.characters[wanted.key_start + offset]
+                {
+                    same = false;
+                };
+                offset += 1;
+            }
+            if same {
+                return child;
+            };
+        };
+        child = node.next;
+    }
+    0
+}
+
+// Equality or nested containment between subtrees that may hold holes: 1 holds, 0 fails, -1
+// depends on a hole. Containment below the root follows PostgreSQL: kinds must match, objects
+// need every right key, and each right element needs some left element containing it.
+fn jsonb_shape_relation(
+    a: &JsonbPayload,
+    ai: usize,
+    b: &JsonbPayload,
+    bi: usize,
+    contains: bool,
+) -> i32 {
+    let left = a.nodes[ai];
+    let right = b.nodes[bi];
+    if left.kind == 7 || right.kind == 7 {
+        if jsonb_shape_kinds_meet(a, ai, b, bi) {
+            return -1;
+        };
+        return 0;
+    };
+    if left.kind != right.kind {
+        return 0;
+    };
+    if left.kind < 5 {
+        if jsonb_relation_scalar(a, b, left, right) {
+            return 1;
+        };
+        return 0;
+    };
+    if jsonb_shape_exact(a, ai) && jsonb_shape_exact(b, bi) {
+        if jsonb_relation_walk_from(a, ai, b, bi, contains) {
+            return 1;
+        };
+        return 0;
+    };
+    let first = jsonb_relation_count(a, left);
+    let second = jsonb_relation_count(b, right);
+    if (contains == false && first != second) || (left.kind == 6 && first < second) {
+        return 0;
+    };
+    let mut result: i32 = 1;
+    let mut member = right.child;
+    let mut paired = left.child;
+    while member > 0 {
+        let mut outcome: i32 = 0;
+        if left.kind == 6 {
+            let found = jsonb_shape_member(a, ai, b, member);
+            if found > 0 {
+                outcome = jsonb_shape_relation(a, found, b, member, contains);
+            };
+        } else if contains == false {
+            outcome = jsonb_shape_relation(a, paired, b, member, false);
+            paired = a.nodes[paired].next;
+        } else {
+            let mut candidate = left.child;
+            while candidate > 0 && outcome != 1 {
+                let found = jsonb_shape_relation(a, candidate, b, member, true);
+                if found == 1 || (found == -1 && outcome == 0) {
+                    outcome = found;
+                };
+                candidate = a.nodes[candidate].next;
+            }
+        };
+        if outcome == 0 {
+            return 0;
+        };
+        if outcome == -1 {
+            result = -1;
+        };
+        member = b.nodes[member].next;
+    }
+    result
+}
+
+// The root comparison adds PostgreSQL's one exception: an array contains a raw scalar that
+// equals one of its scalar elements.
+fn jsonb_shape_root_relation(a: &JsonbPayload, b: &JsonbPayload, contains: bool) -> i32 {
+    let left = a.nodes[a.root];
+    let right = b.nodes[b.root];
+    if contains && right.kind < 5 {
+        let mut result: i32 = 0;
+        if left.kind == 5 {
+            let mut child = left.child;
+            while child > 0 {
+                let candidate = a.nodes[child];
+                if candidate.kind < 5 && jsonb_relation_scalar(a, b, candidate, right) {
+                    return 1;
+                };
+                if candidate.kind == 7 && jsonb_hole_allows(a, child, right.kind) {
+                    result = -1;
+                };
+                child = candidate.next;
+            }
+            return result;
+        };
+        if left.kind == 7 && jsonb_hole_allows(a, a.root, 5) {
+            return -1;
+        };
+    };
+    jsonb_shape_relation(a, a.root, b, b.root, contains)
+}
+
 fn jsonb_relation_values(
     left: JsonbValue,
     right: JsonbValue,
@@ -342,6 +496,31 @@ fn jsonb_relation_values(
         partial = true;
     };
     if partial {
+        let mut first = jsonb_empty_shape();
+        let mut second = jsonb_empty_shape();
+        let left_shape = left.clone();
+        if let JsonbValue::NonNull(facts) = left_shape {
+            first = facts.shape;
+        };
+        let left_exact = left.clone();
+        if let JsonbValue::Value(value) = left_exact {
+            first = value;
+        };
+        let right_shape = right.clone();
+        if let JsonbValue::NonNull(facts) = right_shape {
+            second = facts.shape;
+        };
+        let right_exact = right.clone();
+        if let JsonbValue::Value(value) = right_exact {
+            second = value;
+        };
+        if first.nodes.len() > 1 && second.nodes.len() > 1 {
+            let related = jsonb_shape_root_relation(&first, &second, contains);
+            if related >= 0 {
+                return make_bool_value((related == 1) != invert);
+            };
+            return BoolValue::Unknown;
+        };
         let a = jsonb_root_facts(left, false);
         let b = jsonb_root_facts(right, false);
         let compared = jsonb_relation_partial(a, b, contains);

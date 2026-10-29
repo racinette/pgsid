@@ -1185,6 +1185,10 @@ export interface JsonbKnowledge {
     readonly maximum: bigint;
     readonly kind: number;
     readonly length: number;
+    readonly shape: JsonbPayload;
+}
+export function copyJsonbKnowledge(value: JsonbKnowledge): JsonbKnowledge {
+    return { maximum: langruntime.checkedI64(value.maximum), kind: langruntime.checkedI32(value.kind), length: langruntime.checkedI32(value.length), shape: copyJsonbPayload(value.shape) };
 }
 export type JsonbValue = {
     readonly kind: "Unknown";
@@ -1203,7 +1207,7 @@ export type JsonbValue = {
 export function copyJsonbValue(value: JsonbValue): JsonbValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
-        case "NonNull": return { kind: "NonNull", value: value.value };
+        case "NonNull": return { kind: "NonNull", value: copyJsonbKnowledge(value.value) };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
         case "Error": return { kind: "Error", value: value.value };
@@ -1213,6 +1217,7 @@ export type JsonbInput = {
     readonly kind: "Unknown";
 } | {
     readonly kind: "ScalarUnknown";
+    readonly value: string;
 } | {
     readonly kind: "JsonNonNull";
 } | {
@@ -1245,9 +1250,9 @@ export type JsonbInput = {
 export function copyJsonbInput(value: JsonbInput): JsonbInput {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
-        case "ScalarUnknown": return { kind: "ScalarUnknown" };
+        case "ScalarUnknown": return { kind: "ScalarUnknown", value: langruntime.checkedString(value.value) };
         case "JsonNonNull": return { kind: "JsonNonNull" };
-        case "JsonbNonNull": return { kind: "JsonbNonNull", value: value.value };
+        case "JsonbNonNull": return { kind: "JsonbNonNull", value: copyJsonbKnowledge(value.value) };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
         case "ConvertedError": return { kind: "ConvertedError", value: value.value };
@@ -1348,7 +1353,7 @@ export function jsonbInputFromBool(input: BoolValue): JsonbInput {
         const value: boolean = langruntime.checkedBool(input.value);
         return { kind: "Boolean", value: value };
     }
-    return { kind: "ScalarUnknown" };
+    return { kind: "ScalarUnknown", value: "1110000" };
 }
 export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
     if (input.kind === "Error") {
@@ -1362,7 +1367,7 @@ export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
         const value: string = langruntime.checkedString(input.value);
         return { kind: "Number", value: value };
     }
-    return { kind: "ScalarUnknown" };
+    return { kind: "ScalarUnknown", value: "1001000" };
 }
 export function jsonbInputFromText(input: TextValue): JsonbInput {
     if (input.kind === "Error") {
@@ -1398,7 +1403,7 @@ export function jsonbInputFromJson(input: JsonValue): JsonbInput {
 export function jsonbInputFromJsonb(input: JsonbValue): JsonbInput {
     input = copyJsonbValue(input);
     if (input.kind === "NonNull") {
-        const maximum: JsonbKnowledge = input.value;
+        const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         return { kind: "JsonbNonNull", value: maximum };
     }
     if (input.kind === "Error") {
@@ -6899,7 +6904,7 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean, pretty: boolean):
     requireOrder = langruntime.checkedBool(requireOrder);
     pretty = langruntime.checkedBool(pretty);
     if (input.kind === "NonNull") {
-        const maximum: JsonbKnowledge = input.value;
+        const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         if (pretty) {
             return { kind: "Unknown" };
         }
@@ -7222,6 +7227,19 @@ export function jsonbRebuild(input: JsonbValue, admission: boolean): JsonbValue 
         return { kind: "Value", value: normalized };
     }
     return input;
+}
+export function jsonbNormalizeShape(input: JsonbPayload): JsonbPayload {
+    input = copyJsonbPayload(input);
+    return jsonbNormalizeObjects(jsonbPreorder(input));
+}
+export function jsonbShapeValue(maximum: bigint, shape: JsonbPayload): JsonbValue {
+    maximum = langruntime.checkedI64(maximum);
+    shape = copyJsonbPayload(shape);
+    const normalized: JsonbPayload = jsonbNormalizeShape(shape);
+    if (jsonbShapeExact(normalized, normalized.root)) {
+        return jsonbRebuild({ kind: "Value", value: normalized }, true);
+    }
+    return jsonbPartialTree(maximum, normalized);
 }
 export function jsonbFromString(input: TextValue): JsonbValue {
     if (input.kind === "Error") {
@@ -7728,7 +7746,147 @@ export function jsonbPartialShape(maximum: bigint, kind: number, length: number)
     if (maximum < 0n || maximum > jsonbStorageLimit) {
         return { kind: "Unknown" };
     }
-    return { kind: "NonNull", value: { maximum: maximum, kind: kind, length: length } };
+    return { kind: "NonNull", value: { maximum: maximum, kind: kind, length: length, shape: jsonbEmptyShape() } };
+}
+export function jsonbEmptyShape(): JsonbPayload {
+    const characters: string[] = [];
+    const nodes: JsonbNode[] = [];
+    return { characters: characters, nodes: nodes, root: 0 };
+}
+export function jsonbPartialTree(maximum: bigint, shape: JsonbPayload): JsonbValue {
+    maximum = langruntime.checkedI64(maximum);
+    shape = copyJsonbPayload(shape);
+    if (maximum < 0n || maximum > jsonbStorageLimit) {
+        return { kind: "Unknown" };
+    }
+    const root: JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(shape.root), copyJsonbNode);
+    let length: number = langruntime.checkedSignedNegate(1);
+    if (root.kind >= 5) {
+        length = langruntime.checkedI32(0);
+        let member: number = root.child;
+        while (member > 0) {
+            length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
+            member = langruntime.checkedIndex(langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(member), copyJsonbNode).next);
+        }
+    }
+    let kind: number = root.kind;
+    if (kind === 7) {
+        kind = langruntime.checkedI32(jsonbHoleKind(shape, shape.root));
+    }
+    return { kind: "NonNull", value: { maximum: maximum, kind: kind, length: length, shape: shape } };
+}
+export function jsonbHoleKind(shape: JsonbPayload, index: number): number {
+    shape = copyJsonbPayload(shape);
+    index = langruntime.checkedIndex(index);
+    const node: JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(index), copyJsonbNode);
+    if (!(node.kind === 7)) {
+        return node.kind;
+    }
+    let found: number = langruntime.checkedSignedNegate(1);
+    let kind: number = 0;
+    while (kind < 7) {
+        if (jsonbHoleAllows(shape, index, kind)) {
+            if (found >= 0) {
+                return langruntime.checkedSignedNegate(1);
+            }
+            found = langruntime.checkedI32(kind);
+        }
+        kind = langruntime.checkedI32(langruntime.checkedSignedAdd(kind, 1));
+    }
+    return found;
+}
+export function jsonbHoleAllows(shape: JsonbPayload, index: number, kind: number): boolean {
+    shape = copyJsonbPayload(shape);
+    index = langruntime.checkedIndex(index);
+    kind = langruntime.checkedI32(kind);
+    const node: JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(index), copyJsonbNode);
+    if (!(node.kind === 7)) {
+        return node.kind === kind;
+    }
+    let position: number = node.textStart;
+    let current: number = 0;
+    while (position < node.textEnd) {
+        if (current === kind) {
+            return langruntime.indexChar(shape.characters, langruntime.checkedIndex(position)) === "1";
+        }
+        current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return false;
+}
+export function jsonbKindFlags(kind: number): string {
+    kind = langruntime.checkedI32(kind);
+    let flags: string = "";
+    let current: number = 0;
+    while (current < 7) {
+        if (kind < 0 || current === kind) {
+            flags = flags + langruntime.checkedChar("1");
+        }
+        else {
+            flags = flags + langruntime.checkedChar("0");
+        }
+        current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+    }
+    return flags;
+}
+export function jsonbHolePayload(flags: string): JsonbPayload {
+    flags = langruntime.checkedString(flags);
+    const characters: string[] = Array.from(flags);
+    let nodes: JsonbNode[] = [];
+    langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, copyJsonbNode);
+    langruntime.pushStruct(nodes, { kind: 7, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: characters.length }, copyJsonbNode);
+    return { characters: characters, nodes: nodes, root: 1 };
+}
+export function jsonbRootAllows(facts: JsonbKnowledge, kind: number): boolean {
+    facts = copyJsonbKnowledge(facts);
+    kind = langruntime.checkedI32(kind);
+    if (facts.shape.nodes.length < 2) {
+        return true;
+    }
+    const node: JsonbNode = langruntime.indexStruct(facts.shape.nodes, langruntime.checkedIndex(facts.shape.root), copyJsonbNode);
+    if (!(node.kind === 7)) {
+        return node.kind === kind;
+    }
+    let position: number = node.textStart;
+    let current: number = 0;
+    while (position < node.textEnd) {
+        if (current === kind) {
+            return langruntime.indexChar(facts.shape.characters, langruntime.checkedIndex(position)) === "1";
+        }
+        current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return false;
+}
+export function jsonbShapeExact(shape: JsonbPayload, index: number): boolean {
+    shape = copyJsonbPayload(shape);
+    index = langruntime.checkedIndex(index);
+    let pending: number[] = [];
+    langruntime.pushIndex(pending, index);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const node: JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(langruntime.indexNumber(pending, langruntime.checkedIndex(depth))), copyJsonbNode);
+        if (node.kind === 7) {
+            return false;
+        }
+        let child: number = node.child;
+        while (child > 0) {
+            if (depth === pending.length) {
+                langruntime.pushIndex(pending, child);
+            }
+            else {
+                pending[langruntime.checkedIndexIn(pending, depth)] = langruntime.checkedIndex(child);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+            child = langruntime.checkedIndex(langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(child), copyJsonbNode).next);
+        }
+    }
+    return true;
+}
+export function jsonbHasShape(facts: JsonbKnowledge): boolean {
+    facts = copyJsonbKnowledge(facts);
+    return facts.shape.nodes.length > 1;
 }
 export function jsonbPartialBound(value: JsonbPayload): bigint {
     value = copyJsonbPayload(value);
@@ -8207,7 +8365,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Json": return { kind: "Json", value: value.value };
         case "JsonNonNull": return { kind: "JsonNonNull" };
         case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
-        case "JsonbNonNull": return { kind: "JsonbNonNull", value: value.value };
+        case "JsonbNonNull": return { kind: "JsonbNonNull", value: copyJsonbKnowledge(value.value) };
         case "Network": return { kind: "Network", value: value.value };
         case "Bit": return { kind: "Bit", value: langruntime.checkedString(value.value) };
         case "Bytea": return { kind: "Bytea", value: langruntime.checkedString(value.value) };
@@ -8258,7 +8416,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
     if (input.kind === "JsonbNonNull") {
-        const maximum: JsonbKnowledge = input.value;
+        const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         return 12;
     }
     if (input.kind === "JsonNonNull") {
@@ -8801,7 +8959,7 @@ export function arrayElementToJson(input: ArrayElement): JsonValue {
 export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
     input = copyJsonbValue(input);
     if (input.kind === "NonNull") {
-        const maximum: JsonbKnowledge = input.value;
+        const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         return { kind: "JsonbNonNull", value: maximum };
     }
     if (input.kind === "Error") {
@@ -8820,7 +8978,7 @@ export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
 export function arrayElementToJsonb(input: ArrayElement): JsonbValue {
     input = copyArrayElement(input);
     if (input.kind === "JsonbNonNull") {
-        const maximum: JsonbKnowledge = input.value;
+        const maximum: JsonbKnowledge = copyJsonbKnowledge(input.value);
         return { kind: "NonNull", value: maximum };
     }
     if (input.kind === "Error") {

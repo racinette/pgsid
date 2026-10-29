@@ -40,6 +40,58 @@ fn jsonb_extract_member(source: &JsonbPayload, key: &JsonbExtractKey) -> usize {
     0
 }
 
+// A member or element of a shape is exact unless it holds a hole; the whole value's bound
+// still bounds any part of it.
+fn jsonb_shape_select(facts: &JsonbKnowledge, index: usize) -> JsonbValue {
+    let shape = facts.shape.clone();
+    let selected = JsonbPayload {
+        characters: shape.characters,
+        nodes: shape.nodes,
+        root: index,
+    };
+    if jsonb_shape_exact(&selected, index) {
+        return JsonbValue::Value(selected);
+    };
+    jsonb_partial_tree(facts.maximum, selected)
+}
+
+// The ? operator over a shape: 1 when the key is present, 0 when absent, -1 when a hole decides.
+fn jsonb_shape_has_key(shape: &JsonbPayload, key: &JsonbExtractKey) -> i32 {
+    let root = shape.nodes[shape.root];
+    if root.kind == 6 {
+        if jsonb_extract_member(shape, key) > 0 {
+            return 1;
+        };
+        return 0;
+    };
+    if root.kind == 5 {
+        let mut result: i32 = 0;
+        let mut child = root.child;
+        while child > 0 {
+            let node = shape.nodes[child];
+            if node.kind == 4 && jsonb_extract_matches(shape, node.text_start, node.text_end, key) {
+                return 1;
+            };
+            if node.kind == 7 && jsonb_hole_allows(shape, child, 4) {
+                result = -1;
+            };
+            child = node.next;
+        }
+        return result;
+    };
+    if root.kind == 7
+        && (jsonb_hole_allows(shape, shape.root, 4)
+            || jsonb_hole_allows(shape, shape.root, 5)
+            || jsonb_hole_allows(shape, shape.root, 6))
+    {
+        return -1;
+    };
+    if root.kind == 4 && jsonb_extract_matches(shape, root.text_start, root.text_end, key) {
+        return 1;
+    };
+    0
+}
+
 fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
@@ -91,6 +143,25 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
     if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null || (facts.kind >= 0 && facts.kind != 6) {
             return JsonbValue::Null;
+        };
+        if jsonb_has_shape(&facts) {
+            let root = facts.shape.nodes[facts.shape.root];
+            if root.kind == 6 {
+                if let TextValue::Value(text) = key {
+                    let characters = JsonbExtractKey {
+                        characters: text.chars().collect(),
+                    };
+                    let shape = facts.shape.clone();
+                    let member = jsonb_extract_member(&shape, &characters);
+                    if member > 0 {
+                        return jsonb_shape_select(&facts, member);
+                    };
+                };
+                return JsonbValue::Null;
+            };
+            if jsonb_root_allows(&facts, 6) == false {
+                return JsonbValue::Null;
+            };
         };
         return JsonbValue::Unknown;
     };
@@ -153,7 +224,26 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
                 if offset < 0i64 || offset >= facts.length as i64 {
                     return JsonbValue::Null;
                 };
+                if jsonb_has_shape(&facts) {
+                    let mut selected = facts.shape.nodes[facts.shape.root].child;
+                    while selected > 0 && offset > 0i64 {
+                        selected = facts.shape.nodes[selected].next;
+                        offset = offset - 1i64;
+                    }
+                    if selected > 0 {
+                        return jsonb_shape_select(&facts, selected);
+                    };
+                };
                 return jsonb_partial_value(facts.maximum);
+            };
+            // A scalar answers indexes 0 and -1 with itself, as for exact values.
+            if jsonb_has_shape(&facts) && jsonb_root_allows(&facts, 5) == false {
+                if position != 0 && position != -1 {
+                    return JsonbValue::Null;
+                };
+                if jsonb_root_allows(&facts, 6) == false {
+                    return JsonbValue::NonNull(facts);
+                };
             };
         };
         return JsonbValue::Unknown;
@@ -223,6 +313,9 @@ pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value
         if facts.kind == 5 && facts.length >= 0 {
             return Int4Value::Value(facts.length);
         };
+        if jsonb_has_shape(&facts) && jsonb_root_allows(&facts, 5) == false {
+            return Int4Value::Error(make_sql_error(JSONB_EXTRACT_PARAMETER));
+        };
         return Int4Value::Unknown;
     };
     if let JsonbValue::Value(value) = input {
@@ -254,9 +347,21 @@ pub fn sql__pg_catalog__jsonb_exists__f8f8(input: JsonbValue, key: TextValue) ->
     if key == TextValue::Unknown || key == TextValue::NonNull {
         return BoolValue::Unknown;
     };
-    if let JsonbValue::NonNull(_facts) = input {
+    if let JsonbValue::NonNull(facts) = input {
         if key == TextValue::Null {
             return BoolValue::Null;
+        };
+        if jsonb_has_shape(&facts) {
+            if let TextValue::Value(text) = key {
+                let characters = JsonbExtractKey {
+                    characters: text.chars().collect(),
+                };
+                let shape = facts.shape.clone();
+                let found = jsonb_shape_has_key(&shape, &characters);
+                if found >= 0 {
+                    return BoolValue::Value(found == 1);
+                };
+            };
         };
         return BoolValue::Unknown;
     };

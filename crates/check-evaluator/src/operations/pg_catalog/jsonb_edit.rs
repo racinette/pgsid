@@ -23,6 +23,14 @@ fn jsonb_edit_concat(left: JsonbPayload, right: JsonbPayload) -> JsonbValue {
             return JsonbValue::Value(left);
         };
     };
+    jsonb_rebuild(JsonbValue::Value(jsonb_edit_concat_tree(left, right)), true)
+}
+
+// The unnormalized concatenation. A scalar root, including a hole that cannot be a container,
+// becomes one element; two objects merge, and normalization keeps the right value of a key.
+fn jsonb_edit_concat_tree(left: JsonbPayload, right: JsonbPayload) -> JsonbPayload {
+    let a = left.nodes[left.root];
+    let b = right.nodes[right.root];
     let mut characters = left.characters;
     let text_shift = characters.len();
     let mut index: usize = 0;
@@ -90,19 +98,64 @@ fn jsonb_edit_concat(left: JsonbPayload, right: JsonbPayload) -> JsonbValue {
         text_start: 0,
         text_end: 0,
     });
-    jsonb_rebuild(
-        JsonbValue::Value(JsonbPayload {
-            characters: characters,
-            nodes: nodes,
-            root: root,
-        }),
-        true,
-    )
+    JsonbPayload {
+        characters: characters,
+        nodes: nodes,
+        root: root,
+    }
+}
+
+// A hole root decides nothing about merging unless it cannot be a container.
+fn jsonb_edit_shape_root(shape: &JsonbPayload) -> bool {
+    let root = shape.nodes[shape.root];
+    if root.kind != 7 {
+        return true;
+    };
+    jsonb_hole_allows(shape, shape.root, 5) == false
+        && jsonb_hole_allows(shape, shape.root, 6) == false
 }
 
 fn jsonb_edit_partial_concat(left: JsonbValue, right: JsonbValue) -> JsonbValue {
     let a = jsonb_root_facts(left.clone(), true);
     let b = jsonb_root_facts(right.clone(), true);
+    let mut first = jsonb_empty_shape();
+    let mut second = jsonb_empty_shape();
+    let left_shape = left.clone();
+    if let JsonbValue::NonNull(facts) = left_shape {
+        first = facts.shape;
+    };
+    let left_exact = left.clone();
+    if let JsonbValue::Value(value) = left_exact {
+        first = value;
+    };
+    let right_shape = right.clone();
+    if let JsonbValue::NonNull(facts) = right_shape {
+        second = facts.shape;
+    };
+    let right_exact = right.clone();
+    if let JsonbValue::Value(value) = right_exact {
+        second = value;
+    };
+    if first.nodes.len() > 1
+        && second.nodes.len() > 1
+        && jsonb_edit_shape_root(&first)
+        && jsonb_edit_shape_root(&second)
+    {
+        let root_a = first.nodes[first.root];
+        let root_b = second.nodes[second.root];
+        let both = root_a.kind == root_b.kind && root_a.kind >= 5 && root_a.kind < 7;
+        if both && root_a.child == 0 {
+            return right;
+        };
+        if both && root_b.child == 0 {
+            return left;
+        };
+        let combined = jsonb_partial_add(a.maximum, b.maximum);
+        return jsonb_shape_value(
+            jsonb_partial_add(combined, 32i64),
+            jsonb_edit_concat_tree(first, second),
+        );
+    };
     if a.kind == b.kind && a.kind >= 5 {
         if a.length == 0 {
             return right;
@@ -256,6 +309,21 @@ fn jsonb_edit_remove(
     )
 }
 
+// Removal over a shape keeps the original bound, since removing only shrinks the value.
+fn jsonb_edit_remove_shape(
+    maximum: i64,
+    shape: JsonbPayload,
+    key: &JsonbExtractKey,
+    selected: i64,
+    by_index: bool,
+) -> JsonbValue {
+    let removed = jsonb_edit_remove(shape, key, selected, by_index);
+    if let JsonbValue::Value(tree) = removed {
+        return jsonb_shape_value(maximum, tree);
+    };
+    removed
+}
+
 pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) -> JsonbValue {
     if let JsonbValue::Error(error) = input {
         return JsonbValue::Error(error);
@@ -278,6 +346,27 @@ pub fn sql__pg_catalog__jsonb_delete__cow2(input: JsonbValue, key: TextValue) ->
     if let JsonbValue::NonNull(facts) = input {
         if facts.kind >= 0 && facts.kind < 5 {
             return JsonbValue::Error(make_sql_error(JSONB_EDIT_PARAMETER));
+        };
+        if jsonb_has_shape(&facts) && (facts.kind == 5 || facts.kind == 6) {
+            if let TextValue::Value(text) = key {
+                let shape = facts.shape.clone();
+                let mut decided = true;
+                if facts.kind == 5 {
+                    let mut child = shape.nodes[shape.root].child;
+                    while child > 0 {
+                        if shape.nodes[child].kind == 7 && jsonb_hole_allows(&shape, child, 4) {
+                            decided = false;
+                        };
+                        child = shape.nodes[child].next;
+                    }
+                };
+                if decided {
+                    let characters = JsonbExtractKey {
+                        characters: text.chars().collect(),
+                    };
+                    return jsonb_edit_remove_shape(facts.maximum, shape, &characters, 0i64, false);
+                };
+            };
         };
         if facts.kind == 5 || facts.kind == 6 {
             return jsonb_partial_shape(facts.maximum, facts.kind, -1);
@@ -341,6 +430,21 @@ pub fn sql__pg_catalog__jsonb_delete__btgy(input: JsonbValue, index: Int4Value) 
                     };
                     if length == 0 {
                         return make_jsonb_value("[]");
+                    };
+                    if jsonb_has_shape(&facts) {
+                        if selected < 0i64 || selected >= facts.length as i64 {
+                            return JsonbValue::NonNull(facts);
+                        };
+                        let empty: Vec<char> = Vec::new();
+                        let marker = JsonbExtractKey { characters: empty };
+                        let shape = facts.shape.clone();
+                        return jsonb_edit_remove_shape(
+                            facts.maximum,
+                            shape,
+                            &marker,
+                            selected,
+                            true,
+                        );
                     };
                 };
                 return jsonb_partial_shape(facts.maximum, 5, length);

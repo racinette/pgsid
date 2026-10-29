@@ -93,6 +93,21 @@ pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
     input
 }
 
+// Orders and deduplicates object members as normalization does, without storage admission:
+// a shape with holes has no exact storage size.
+pub fn jsonb_normalize_shape(input: JsonbPayload) -> JsonbPayload {
+    jsonb_normalize_objects(jsonb_preorder(input))
+}
+
+// An edited shape becomes an exact, admitted value once no hole remains.
+pub fn jsonb_shape_value(maximum: i64, shape: JsonbPayload) -> JsonbValue {
+    let normalized = jsonb_normalize_shape(shape);
+    if jsonb_shape_exact(&normalized, normalized.root) {
+        return jsonb_rebuild(JsonbValue::Value(normalized), true);
+    };
+    jsonb_partial_tree(maximum, normalized)
+}
+
 pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
