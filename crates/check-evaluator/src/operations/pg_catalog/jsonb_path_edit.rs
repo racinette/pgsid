@@ -305,6 +305,8 @@ fn jsonb_path_edit_partial(
     JsonbValue::Unknown
 }
 
+// A partial replacement is spliced as its own shape or a hole, and a partial input stays a
+// shape; either way the result keeps a bound and is exact again once no hole remains.
 fn jsonb_path_splice(
     input: JsonbPayload,
     replacement: JsonbValue,
@@ -313,9 +315,25 @@ fn jsonb_path_splice(
     next: usize,
     key: &str,
     remove: bool,
+    partial: bool,
+    maximum: i64,
 ) -> JsonbValue {
+    let mut shaped = partial;
+    let mut bound = maximum;
+    let mut addition = replacement.clone();
+    if remove == false && partial {
+        let exact = replacement.clone();
+        if let JsonbValue::Value(value) = exact {
+            let grown = jsonb_partial_add(maximum, jsonb_partial_bound(&value));
+            let key_characters: Vec<char> = key.chars().collect();
+            let key_length = key_characters.len() as i32;
+            let keyed = jsonb_partial_add(grown, 6i64 * (key_length as i64));
+            bound = jsonb_partial_add(keyed, 32i64);
+        };
+    };
     if remove == false {
-        if let JsonbValue::NonNull(_) = replacement {
+        let partial_replacement = replacement.clone();
+        if let JsonbValue::NonNull(replacement_facts) = partial_replacement {
             let root = input.nodes[input.root];
             let mut length: i32 = -1;
             if root.kind == 5 {
@@ -330,8 +348,12 @@ fn jsonb_path_splice(
                     };
                 };
             };
+            let mut measured = maximum;
+            if partial == false {
+                measured = jsonb_partial_bound(&input);
+            };
             let facts = JsonbKnowledge {
-                maximum: jsonb_partial_bound(&input),
+                maximum: measured,
                 kind: root.kind,
                 length: length,
                 shape: jsonb_empty_shape(),
@@ -344,10 +366,22 @@ fn jsonb_path_splice(
                 shape: jsonb_empty_shape(),
             };
             let admitted = jsonb_path_partial_growth(bound_facts, replacement, key, length);
-            if let JsonbValue::NonNull(bounds) = admitted {
-                return jsonb_partial_shape(bounds.maximum, facts.kind, length);
+            let mut grown = false;
+            let admitted_value = admitted.clone();
+            if let JsonbValue::NonNull(bounds) = admitted_value {
+                grown = true;
+                bound = bounds.maximum;
             };
-            return admitted;
+            if grown == false {
+                return admitted;
+            };
+            shaped = true;
+            if jsonb_has_shape(&replacement_facts) {
+                addition = JsonbValue::Value(replacement_facts.shape);
+            } else {
+                let flags = jsonb_kind_flags(replacement_facts.kind);
+                addition = JsonbValue::Value(jsonb_hole_payload(flags.as_str()));
+            };
         };
     };
     let mut characters = input.characters;
@@ -355,7 +389,7 @@ fn jsonb_path_splice(
     let mut inserted = next;
     if remove == false {
         let mut ready = false;
-        if let JsonbValue::Value(value) = replacement {
+        if let JsonbValue::Value(value) = addition {
             ready = true;
             let key_start = characters.len();
             if nodes[parent].kind == 6 {
@@ -408,21 +442,33 @@ fn jsonb_path_splice(
     } else {
         nodes[previous] = jsonb_edit_link(nodes[previous], inserted);
     };
-    jsonb_rebuild(
-        JsonbValue::Value(JsonbPayload {
-            characters: characters,
-            nodes: nodes,
-            root: input.root,
-        }),
-        true,
-    )
+    let edited = JsonbPayload {
+        characters: characters,
+        nodes: nodes,
+        root: input.root,
+    };
+    if shaped {
+        return jsonb_shape_value(bound, edited);
+    };
+    jsonb_rebuild(JsonbValue::Value(edited), true)
 }
 
+fn jsonb_path_same(input: JsonbPayload, partial: bool, maximum: i64) -> JsonbValue {
+    if partial {
+        return jsonb_partial_tree(maximum, input);
+    };
+    JsonbValue::Value(input)
+}
+
+// Also edits a shape (partial true): keys and positions are exact there, a step through a hole
+// that may be a container returns Unknown so the caller falls back to root facts.
 fn jsonb_path_edit_known(
     input: JsonbPayload,
     path: ArrayPayload,
     replacement: JsonbValue,
     mode: i32,
+    partial: bool,
+    maximum: i64,
 ) -> JsonbValue {
     if path.element_type != "pg_catalog.text" || path.element_kind != 8 {
         return JsonbValue::Unknown;
@@ -435,7 +481,7 @@ fn jsonb_path_edit_known(
         return JsonbValue::Error(make_sql_error(JSONB_PATH_PARAMETER));
     };
     if (root.child == 0 && mode < 2) || path.elements.len() == 0 {
-        return JsonbValue::Value(input);
+        return jsonb_path_same(input, partial, maximum);
     };
     let mut parent = input.root;
     let mut position: usize = 0;
@@ -445,10 +491,13 @@ fn jsonb_path_edit_known(
             return JsonbValue::Error(make_sql_error(JSONB_PATH_NULL));
         };
         let converted = array_element_to_text(element);
+        if partial && converted == TextValue::NonNull {
+            return JsonbValue::Unknown;
+        };
         if converted == TextValue::NonNull {
             let node = input.nodes[parent];
             if node.kind < 5 {
-                return JsonbValue::Value(input);
+                return jsonb_path_same(input, partial, maximum);
             };
             if node.kind == 6 && position + 1 == path.elements.len() && mode == 0 {
                 let root_changed = parent == input.root;
@@ -464,8 +513,14 @@ fn jsonb_path_edit_known(
         if let TextValue::Value(key) = converted {
             ready = true;
             let node = input.nodes[parent];
+            if node.kind == 7 {
+                if jsonb_hole_allows(&input, parent, 5) || jsonb_hole_allows(&input, parent, 6) {
+                    return JsonbValue::Unknown;
+                };
+                return jsonb_path_same(input, partial, maximum);
+            };
             if node.kind < 5 {
-                return JsonbValue::Value(input);
+                return jsonb_path_same(input, partial, maximum);
             };
             let mut selected: usize = 0;
             let mut previous: usize = 0;
@@ -535,7 +590,7 @@ fn jsonb_path_edit_known(
             };
             if last {
                 if selected == 0 && mode < 2 {
-                    return JsonbValue::Value(input);
+                    return jsonb_path_same(input, partial, maximum);
                 };
                 return jsonb_path_splice(
                     input,
@@ -545,10 +600,12 @@ fn jsonb_path_edit_known(
                     next,
                     key.as_str(),
                     mode == 0,
+                    partial,
+                    maximum,
                 );
             };
             if selected == 0 {
-                return JsonbValue::Value(input);
+                return jsonb_path_same(input, partial, maximum);
             };
             parent = selected;
         };
@@ -609,10 +666,28 @@ fn jsonb_path_edit(
                 };
             };
             if let JsonbValue::NonNull(facts) = input {
+                if jsonb_has_shape(&facts) && (facts.kind == 5 || facts.kind == 6) {
+                    let shape = facts.shape.clone();
+                    let edited = jsonb_path_edit_known(
+                        shape,
+                        keys.clone(),
+                        replacement.clone(),
+                        mode,
+                        true,
+                        facts.maximum,
+                    );
+                    let mut fallback = false;
+                    if let JsonbValue::Unknown = edited {
+                        fallback = true;
+                    };
+                    if fallback == false {
+                        return edited;
+                    };
+                };
                 return jsonb_path_edit_partial(facts, keys, replacement, mode);
             };
             if let JsonbValue::Value(value) = input {
-                return jsonb_path_edit_known(value, keys, replacement, mode);
+                return jsonb_path_edit_known(value, keys, replacement, mode, false, 0i64);
             };
         };
     };

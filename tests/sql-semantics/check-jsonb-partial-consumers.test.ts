@@ -249,7 +249,7 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: "jsonb_array_length(jsonb_build_array(n)#- '{2,NULL}')=1",
     partial: 'True',
   },
-  { name: 'path_delete_deep', sql: "(jsonb_build_array(n)#- '{0,n}') IS NULL", partial: 'Unknown' },
+  { name: 'path_delete_deep', sql: "(jsonb_build_array(n)#- '{0,n}') IS NULL", partial: 'False' },
   {
     name: 'path_delete_null',
     sql: "(jsonb_build_array(n)#- '{NULL}') IS NULL",
@@ -321,7 +321,8 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
   {
     name: 'path_insert_object',
     sql: "jsonb_insert(jsonb_build_object('n',n),'{n}','2') IS NULL",
-    partial: 'Unknown',
+    partial: 'Error',
+    error: '22023',
   },
   {
     name: 'path_nullable_replacement',

@@ -24007,15 +24007,31 @@ func jsonbPathEditPartial(facts checkruntime.JsonbKnowledge, path checkruntime.A
 	}
 	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 }
-func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.JsonbValue, parent int, previous int, next int, key string, remove bool) checkruntime.JsonbValue {
+func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.JsonbValue, parent int, previous int, next int, key string, remove bool, partial bool, maximum int64) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbPayload(input)
 	replacement = checkruntime.CopyJsonbValue(replacement)
 	parent = langruntime.CheckedIndex(parent)
 	previous = langruntime.CheckedIndex(previous)
 	next = langruntime.CheckedIndex(next)
 	key = langruntime.CheckedString(key)
+	shaped := partial
+	bound := maximum
+	addition := checkruntime.CopyJsonbValue(replacement)
+	if remove == false && partial {
+		exact := checkruntime.CopyJsonbValue(replacement)
+		if exact.Kind == checkruntime.JsonbValueValue {
+			value := checkruntime.CopyJsonbPayload(exact.Value)
+			grown := checkruntime.JsonbPartialAdd(maximum, checkruntime.JsonbPartialBound(&value))
+			keyCharacters := []rune(key)
+			keyLength := int(int32(len(keyCharacters)))
+			keyed := checkruntime.JsonbPartialAdd(grown, langruntime.CheckedI64Multiply(int64(6), (int64(langruntime.CheckedI32(keyLength)))))
+			bound = checkruntime.JsonbPartialAdd(keyed, int64(32))
+		}
+	}
 	if remove == false {
-		if replacement.Kind == checkruntime.JsonbValueNonNull {
+		partialReplacement := checkruntime.CopyJsonbValue(replacement)
+		if partialReplacement.Kind == checkruntime.JsonbValueNonNull {
+			replacementFacts := checkruntime.CopyJsonbKnowledge(partialReplacement.NonNull)
 			root := input.Nodes[input.Root]
 			length := langruntime.CheckedSignedNegate(1)
 			if root.Kind == 5 {
@@ -24030,14 +24046,30 @@ func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.J
 					}
 				}
 			}
-			facts := checkruntime.JsonbKnowledge{Maximum: checkruntime.JsonbPartialBound(&input), Kind: root.Kind, Length: length, Shape: checkruntime.JsonbEmptyShape()}
+			measured := maximum
+			if partial == false {
+				measured = checkruntime.JsonbPartialBound(&input)
+			}
+			facts := checkruntime.JsonbKnowledge{Maximum: measured, Kind: root.Kind, Length: length, Shape: checkruntime.JsonbEmptyShape()}
 			boundFacts := checkruntime.JsonbKnowledge{Maximum: facts.Maximum, Kind: input.Nodes[parent].Kind, Length: length, Shape: checkruntime.JsonbEmptyShape()}
 			admitted := jsonbPathPartialGrowth(boundFacts, replacement, key, length)
-			if admitted.Kind == checkruntime.JsonbValueNonNull {
-				bounds := checkruntime.CopyJsonbKnowledge(admitted.NonNull)
-				return checkruntime.JsonbPartialShape(bounds.Maximum, facts.Kind, length)
+			grown := false
+			admittedValue := checkruntime.CopyJsonbValue(admitted)
+			if admittedValue.Kind == checkruntime.JsonbValueNonNull {
+				bounds := checkruntime.CopyJsonbKnowledge(admittedValue.NonNull)
+				grown = true
+				bound = bounds.Maximum
 			}
-			return admitted
+			if grown == false {
+				return admitted
+			}
+			shaped = true
+			if checkruntime.JsonbHasShape(&replacementFacts) {
+				addition = checkruntime.CopyJsonbValue(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: replacementFacts.Shape})
+			} else {
+				flags := checkruntime.JsonbKindFlags(replacementFacts.Kind)
+				addition = checkruntime.CopyJsonbValue(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbHolePayload(flags)})
+			}
 		}
 	}
 	characters := input.Characters
@@ -24045,8 +24077,8 @@ func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.J
 	inserted := next
 	if remove == false {
 		ready := false
-		if replacement.Kind == checkruntime.JsonbValueValue {
-			value := checkruntime.CopyJsonbPayload(replacement.Value)
+		if addition.Kind == checkruntime.JsonbValueValue {
+			value := checkruntime.CopyJsonbPayload(addition.Value)
 			ready = true
 			keyStart := len(characters)
 			if nodes[parent].Kind == 6 {
@@ -24094,9 +24126,20 @@ func jsonbPathSplice(input checkruntime.JsonbPayload, replacement checkruntime.J
 	} else {
 		nodes[previous] = jsonbEditLink(nodes[previous], inserted)
 	}
-	return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: input.Root}}, true)
+	edited := checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: input.Root}
+	if shaped {
+		return checkruntime.JsonbShapeValue(bound, edited)
+	}
+	return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: edited}, true)
 }
-func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.ArrayPayload, replacement checkruntime.JsonbValue, mode int) checkruntime.JsonbValue {
+func jsonbPathSame(input checkruntime.JsonbPayload, partial bool, maximum int64) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbPayload(input)
+	if partial {
+		return checkruntime.JsonbPartialTree(maximum, input)
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+}
+func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.ArrayPayload, replacement checkruntime.JsonbValue, mode int, partial bool, maximum int64) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbPayload(input)
 	path = checkruntime.CopyArrayPayload(path)
 	replacement = checkruntime.CopyJsonbValue(replacement)
@@ -24112,7 +24155,7 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathParameter)}
 	}
 	if (root.Child == 0 && mode < 2) || len(path.Elements) == 0 {
-		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+		return jsonbPathSame(input, partial, maximum)
 	}
 	parent := input.Root
 	position := 0
@@ -24122,10 +24165,13 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbPathNull)}
 		}
 		converted := checkruntime.ArrayElementToText(element)
+		if partial && converted == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+		}
 		if converted == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
 			node := input.Nodes[parent]
 			if node.Kind < 5 {
-				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+				return jsonbPathSame(input, partial, maximum)
 			}
 			if node.Kind == 6 && langruntime.CheckedAdd(position, 1) == len(path.Elements) && mode == 0 {
 				rootChanged := parent == input.Root
@@ -24142,8 +24188,14 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 			key := langruntime.CheckedString(converted.Value)
 			ready = true
 			node := input.Nodes[parent]
+			if node.Kind == 7 {
+				if checkruntime.JsonbHoleAllows(&input, parent, 5) || checkruntime.JsonbHoleAllows(&input, parent, 6) {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+				}
+				return jsonbPathSame(input, partial, maximum)
+			}
 			if node.Kind < 5 {
-				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+				return jsonbPathSame(input, partial, maximum)
 			}
 			selected := 0
 			previous := 0
@@ -24212,12 +24264,12 @@ func jsonbPathEditKnown(input checkruntime.JsonbPayload, path checkruntime.Array
 			}
 			if last {
 				if selected == 0 && mode < 2 {
-					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+					return jsonbPathSame(input, partial, maximum)
 				}
-				return jsonbPathSplice(input, replacement, parent, previous, next, key, mode == 0)
+				return jsonbPathSplice(input, replacement, parent, previous, next, key, mode == 0, partial, maximum)
 			}
 			if selected == 0 {
-				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+				return jsonbPathSame(input, partial, maximum)
 			}
 			parent = langruntime.CheckedIndex(selected)
 		}
@@ -24282,11 +24334,22 @@ func jsonbPathEdit(input checkruntime.JsonbValue, path checkruntime.ArrayValue, 
 			}
 			if input.Kind == checkruntime.JsonbValueNonNull {
 				facts := checkruntime.CopyJsonbKnowledge(input.NonNull)
+				if checkruntime.JsonbHasShape(&facts) && (facts.Kind == 5 || facts.Kind == 6) {
+					shape := checkruntime.CopyJsonbPayload(facts.Shape)
+					edited := jsonbPathEditKnown(shape, checkruntime.CopyArrayPayload(keys), checkruntime.CopyJsonbValue(replacement), mode, true, facts.Maximum)
+					fallback := false
+					if edited.Kind == checkruntime.JsonbValueUnknown {
+						fallback = true
+					}
+					if fallback == false {
+						return edited
+					}
+				}
 				return jsonbPathEditPartial(facts, keys, replacement, mode)
 			}
 			if input.Kind == checkruntime.JsonbValueValue {
 				value := checkruntime.CopyJsonbPayload(input.Value)
-				return jsonbPathEditKnown(value, keys, replacement, mode)
+				return jsonbPathEditKnown(value, keys, replacement, mode, false, int64(0))
 			}
 		}
 	}
