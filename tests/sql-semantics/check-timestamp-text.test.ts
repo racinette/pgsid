@@ -2,6 +2,7 @@ import {
   timestampHandledText as supportedText,
   timestampDeferredText as unsupportedText,
   ordinalUnknownText,
+  eraUnknownText,
 } from './check-temporal-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -183,6 +184,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
     }
     for (const raw of [
       ...ordinalUnknownText,
+      ...eraUnknownText,
       '42949692960101 000000Z',
       'not a timestamp',
       '2000-01-01 junk',
