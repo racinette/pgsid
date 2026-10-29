@@ -1,8 +1,14 @@
 # CHECK evaluator continuation handoff
 
-The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit accepts clocks after attached zones and leading weekdays (identify it with `git log`), preceded by `71d1838a` (clocks after spaced zones) and `0289772a` (meridians after the zone). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
+The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit is `47168d19` (float in_range, float8 width_bucket, int8inc_float8_float8), closing the float math batch below; the last temporal commit is `255b2cb2` (zone-less timetz text). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement. Per the user, the next work is the JSONB precision gaps (see the JSONB checkpoint), then the remaining audits; the full gate runs only once that implementation is finished.
 
-## Current temporal checkpoint
+## Current float checkpoint
+
+Every immutable float4/float8 callable now has an implementation except `to_char(float, text)` (stable, locale formatting, not math). Commits: `ca36f8b6` rounding, sign, degrees/radians; `c4035b04` name LIKE/ILIKE/regex under the C collation; `b00d5351`, `42ef2eed`, `a5346637`, `8f84484e`, `3443a0b4` trigonometry (sin/cos, sind/cosd, tan/cot, inverses with atan2, tand/cotd); `5aa5a641` exp/ln/log/log10/cbrt/pow; `3cc57f45` hyperbolic functions; `b7d33f33` erf/erfc/gamma/lgamma; `47168d19` in_range and width_bucket. PGlite's libm is emscripten musl: the trigonometry, log10, cbrt, expm1, log1p, erf and lgamma are fdlibm-derived, exp/log/pow are Arm optimized-routines without FMA, and musl sets no errno, so PostgreSQL's ERANGE checks only see infinite or zero results. Finite trigonometric results need `sql.codegen.checks.trigonometry: fdlibm` or `mathLibrary: musl`; every other libm-backed result needs `mathLibrary: musl` (the emitter passes a flag; without it finite results are Unknown, while NaN, infinities and domain errors stay definite). The circle-to-polygon reduction bound was corrected while porting sin/cos. Each function was diffed bit for bit against a PGlite oracle (2,538–8,066 arguments per function plus boundary sets; artifacts/goal-checks/float-*-active/ and the scratch float-check binary) before its Rust/Go/TypeScript parity suite; all are scheduled in the gate.
+
+Dialect rules learned here: no bitwise operators (floor division for unsigned shifts, subtract i64::MIN for the sign); static tables hold only integers or &str, so f64 tables are stored as bit patterns; f64 cannot be a struct field; slices cannot be parameters; casts are limited (i64→f64 through i32, i64→usize by counting); usize allows no multiplication, division or remainder; i64 locals need typed literals; f64 methods are limited to abs/ln/log10/sqrt, and ln/log10 are not bit-exact, so the ports carry their own. The shared log answers only positive finite and infinite arguments; callers handle zero.
+
+## Temporal checkpoint
 
 Baseline is PostgreSQL **18.6**, PGlite **0.5.9**, server_version_num **180006**. Source inspection uses REL_18_STABLE datetime.c. Evidence is in artifacts/goal-checks/temporal-ordinal-active/ (ignored; native.json, native-boundaries.json, edge-probe.log, oracle.tsv, owner/consumer/golden logs and JSON reports).
 
@@ -30,7 +36,7 @@ Meridians and weekdays: after the clock (adjacent or spaced) the parser consumes
 
 ## Next work
 
-Remaining temporal grammar audits, each separate from genuine DateStyle/transaction-clock/catalog requirements:
+Next is the JSONB precision work listed under the JSONB checkpoint. Remaining temporal grammar audits, each separate from genuine DateStyle/transaction-clock/catalog requirements:
 
 - Era (`0b40e644`): one BC/AD anywhere after the first field is blanked before parsing; a leading era is 22007, repeated eras and eras beside punctuation (`BC-05`, `.BC`) defer (artifacts/goal-checks/temporal-era-position-active/). A field after a delimited day of year is 22007 in every width.
 - Numeric tails: punctuation that ParseDateTime skips at a field start (`,` `;` `(` `)` anywhere; `/` `:` `_` after whitespace) separates fields; a year and month followed by a clock report the missing day after clock and zone validation (22007 for months 1–12, else 22008); a non-clock number after any complete date is 22007, deferring after an overflowing date field or a zone written before it (artifacts/goal-checks/temporal-numeric-tail-active/).
