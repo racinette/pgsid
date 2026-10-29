@@ -11081,7 +11081,7 @@ function circleReduceAngle(x: number): CircleAngleReduction {
             quadrant = langruntime.checkedI32(3);
         }
     }
-    else if (!(high === 1075388923)) {
+    else if (high <= 1075594811 && !(high === 1075388923)) {
         quadrant = langruntime.checkedI32(4);
     }
     if (!(quadrant === 0)) {
@@ -14103,6 +14103,41 @@ export function float8send3bqt(input: checkruntime.Float8Value): checkruntime.By
         return binarySendBits({ kind: "Value", value: bits }, 8);
     }
     return { kind: "Unknown" };
+}
+function float8Trigonometry(input: checkruntime.Float8Value, fdlibm: boolean, cosine: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    cosine = langruntime.checkedBool(cosine);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        const magnitude: number = langruntime.f64Abs(number);
+        if (magnitude === langruntime.f64Divide(1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (fdlibm === false || circleMathHighWord(magnitude) >= 1094263291) {
+            return { kind: "Unknown" };
+        }
+        let result: number = circleTrigonometry(magnitude, cosine);
+        if (cosine === false && bits < 0n) {
+            result = langruntime.checkedF64(langruntime.f64Negate(result));
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function sinVhu2(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8Trigonometry(input, fdlibm, false);
+}
+export function cosXj1c(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8Trigonometry(input, fdlibm, true);
 }
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
