@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -188,6 +188,7 @@ CREATE OPERATOR CLASS custom_hash DEFAULT FOR TYPE custom USING hash AS OPERATOR
       })
     }
     await runCheckParity(root, 'compositehashcontext', group, names, fixtures)
+    await mkdir('artifacts/goal-checks/composite-hash-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/composite-hash-active/context-report.json',
       JSON.stringify({ fixtures: fixtures.length, contexts: Object.keys(contexts) }, null, 2) +

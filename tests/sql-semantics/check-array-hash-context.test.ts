@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -169,6 +169,7 @@ it('retains whole-array endian alternatives, cancellation, UTF8 and NaN requirem
         add(context, 'collation_lazy', { ...row, bypass: known(true) }, { kind: 'True' })
       }
     await runCheckParity(directory, 'arrayhashcontext', group, names, fixtures)
+    await mkdir('artifacts/goal-checks/array-hash-dispatch', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash-dispatch/context-measurements.json',
       JSON.stringify(
