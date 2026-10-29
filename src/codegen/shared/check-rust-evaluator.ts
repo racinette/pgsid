@@ -90,7 +90,7 @@ import {
   rangeHashSupport,
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
-import { trigonometryContext } from './check-trigonometry-context.js'
+import { floatMathLibrary, trigonometryContext } from './check-trigonometry-context.js'
 import { jsonbTextRenderingContext, jsonScalarExtractionContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
@@ -828,6 +828,7 @@ export type CheckExecutionContext = {
   nativeByteOrder?: 'little' | 'big'
   maxIdentifierBytes?: number
   trigonometry?: 'fdlibm'
+  mathLibrary?: 'musl'
   arrayNulls?: boolean
   quoteAllIdentifiers?: boolean
   byteaOutput?: 'hex' | 'escape'
@@ -6287,8 +6288,15 @@ export function emitCheckRustEvaluator(
         )
       if (textSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (jsonExtraction) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      // musl's trigonometry is fdlibm's, so a declared musl library also pins it down.
       if (trigonometryContext(implementation))
-        arguments_.push(String(executionContext.trigonometry === 'fdlibm'))
+        arguments_.push(
+          String(
+            executionContext.trigonometry === 'fdlibm' || executionContext.mathLibrary === 'musl',
+          ),
+        )
+      if (floatMathLibrary(implementation))
+        arguments_.push(String(executionContext.mathLibrary === 'musl'))
       if (jsonbTextRenderingContext(implementation))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (

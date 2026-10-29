@@ -13209,6 +13209,631 @@ export function int8Kmmw(input: checkruntime.Float8Value): checkruntime.Int8Valu
 export function float4Frus(input: checkruntime.Float8Value): checkruntime.Float4Value {
     return float8Narrow(input);
 }
+const muslExpPoly: ReadonlyArray<bigint> = [4602678819172646333n, 4595172819793695804n, 4586165622581701521n, 4575957462836105239n];
+const muslExpTable: ReadonlyArray<bigint> = [0n, 4607182418800017408n, 4367149474599452526n, 4607171688528556853n, -4868004084858692515n, 4607161091040444513n, -4859280119576434991n, 4607150627056680837n, 4363093389540324883n, 4607140297302181236n, -4860564323061625094n, 4607130102505797342n, 4350749156061923425n, 4607120043400338376n, 4364168240100004761n, 4607110120722592643n, 4366128403083131757n, 4607100335213349135n, 4363624214708482044n, 4607090687617419255n, 4341116261916187857n, 4607081178683658658n, -4870076522866643445n, 4607071809164989211n, -4857881712154133234n, 4607062579818421073n, -4877256630102726059n, 4607053491405074892n, -4858881367677209578n, 4607044544690204128n, 4359717415120819631n, 4607035740443217489n, -4863857816615152824n, 4607027079437701499n, -4859630355816238531n, 4607018562451443178n, 4362731899485115327n, 4607010190266452853n, -4857455882053489882n, 4607001963668987092n, 4367063335334195040n, 4606993883449571754n, -4859410923963139939n, 4606985950403025181n, 4362421515177083789n, 4606978165328481494n, 4359618604155798653n, 4606970529029414038n, 4365834109879625876n, 4606963042313658936n, 4361558225371547773n, 4606955705993438783n, 4359562691856033778n, 4606948520885386461n, -4857492308587640738n, 4606941487810569089n, 4360319936817113905n, 4606934607594512097n, -4882709470952570886n, 4606927881067223440n, 4362641697437125300n, 4606921309063217931n, 4354440509323660175n, 4606914892421541718n, 4360414030434708406n, 4606908631985796885n, 4361245865020257356n, 4606902528604166193n, 4363949802402347082n, 4606896583129437951n, -4862018976549545212n, 4606890796419031025n, -4858738662784151448n, 4606885169335019979n, -4856841960950780530n, 4606879702744160358n, -4867878926798276910n, 4606874397517914103n, -4856823124960863467n, 4606869254532475109n, 4361066948569222253n, 4606864274668794914n, -4858519367427004022n, 4606859458812608540n, -4874962362796897957n, 4606854807854460458n, -4864964451502548453n, 4606850322689730711n, 4342424336897059857n, 4606846004218661165n, 4365789078613288175n, 4606841853346381911n, 4354643160121541497n, 4606837870982937808n, 4365113450260533808n, 4606834058043315166n, 4356828907110576048n, 4606830415447468583n, 4364865165386375287n, 4606826944120347917n, -4859502521842818162n, 4606823644991925415n, -4861672301267803319n, 4606820518997222978n, -4865894452217038753n, 4606817567076339586n, -4862178651875353354n, 4606814790174478863n, 4364890759862540174n, 4606812189241976794n, 4358244976955136773n, 4606809765234329597n, 4364097860734309385n, 4606807519112221737n, 4338311716453074666n, 4606805451841554103n, 4365169902980743221n, 4606803564393472328n, -4860258889723447649n, 4606801857744395273n, -4860452975632495192n, 4606800332876043653n, -4862669920490755666n, 4606798990775468832n, -4858312122400614312n, 4606797832435081765n, 4347962289735735652n, 4606796858852682099n, -4858341730713460184n, 4606796071031487437n, -4870059510540748414n, 4606795469980162751n, -4871936092595705362n, 4606795056712849967n, -4863645441585018799n, 4606794832249197700n, -4866104880896786737n, 4606794797614391156n, -4861936742874514000n, 4606794953839182196n, -4862171044651866486n, 4606795301959919561n, 4364160436192007379n, 4606795843018579263n, -4865239048860621539n, 4606796578062795143n, 4365374511615819883n, 4606797508145889586n, 4352143969406577749n, 4606798634326904418n, -4861457929465508030n, 4606799957670631954n, -4858423338550479052n, 4606801479247646227n, -4863783675556659426n, 4606803200134334381n, -4858024654332078226n, 4606805121412928237n, 4364178698342926848n, 4606807244171536025n, 4363345029737015988n, 4606809569504174299n, -4871286895867992065n, 4606812098510800012n, 4358348108421357380n, 4606814832297342774n, -4858529541450220157n, 4606817771975737286n, -4873552611666813399n, 4606820918663955941n, -4869477542650660519n, 4606824273486041615n, -4858747092350994006n, 4606827837572140624n, -4862257653857481141n, 4606831612058535866n, 4355455812241575463n, 4606835598087680144n, 4354367543587795899n, 4606839796808229667n, -4861700651175763357n, 4606844209375077733n, 4362612029712904661n, 4606848836949388595n, -4858896013081134315n, 4606853680698631517n, 4364212552380330450n, 4606858741796615000n, 4360726356711135923n, 4606864021423521215n, -4863078573502718540n, 4606869520765940602n, 4362891239881388935n, 4606875241016906669n, -4859248142566958598n, 4606881183375930982n, -4875775683326071110n, 4606887349049038331n, -4859203616861915584n, 4606893739248802106n, -4870406652589927628n, 4606900355194379847n, -4858839866725070283n, 4606907198111549002n, 4356388038631218637n, 4606914269232742866n, -4858893633017702228n, 4606921569797086729n, 4355946959017544883n, 4606929101050434204n, 4363674894410448276n, 4606936864245403770n, 4360857247493478828n, 4606944860641415499n, 4351547817417644647n, 4606953091504727989n, 4352565403421120872n, 4606961558108475497n, -4863735759665056302n, 4606970261732705274n, -4859474856892171665n, 4606979203664415100n, -4859368956010059447n, 4606988385197591026n, 4356286533989107623n, 4606997807633245319n, -4863164539274780145n, 4607007472279454616n, 4363524392198705836n, 4607017380451398277n, 4360674496013757259n, 4607027533471396960n, -4863090309766824417n, 4607037932668951391n, -4861307347717911095n, 4607048579380781353n, 4356306869484685523n, 4607059474950864886n, 4360546482996998769n, 4607070620730477699n, -4859393813814996496n, 4607082018078232794n, -4860036451210660739n, 4607093668360120305n, 4363640302291525640n, 4607105572949547559n, 4360658257139329842n, 4607117733227379351n, 4362409866909812206n, 4607130150581978432n, -4859885672053611539n, 4607142826409246228n, 4357102052301720989n, 4607155762112663768n, 4346824392926350473n, 4607168959103332849n];
+const muslLogPoly1: ReadonlyArray<bigint> = [-4620693217682128896n, 4599676419421066615n, -4625196817309499957n, 4596373779694083340n, -4628199217059904089n, 4594314991578177072n, -4629700418476032667n, 4592670532434581194n, -4631501506041845505n, 4591280744628736133n, -4632706398146181683n];
+const muslLogPoly: ReadonlyArray<bigint> = [-4620693217682128895n, 4599676419420794971n, -4625196817310857840n, 4596373889406271761n, -4628199077211354977n];
+const muslLogTable: ReadonlyArray<bigint> = [4609210952320081567n, -4623001644594458624n, 4609174151535323423n, -4623103421223993344n, 4609137762941711776n, -4623204626469888000n, 4609101780076432509n, -4623305265525524480n, 4609066195948516561n, -4623405345371293696n, 4609031003647708346n, -4623504873091497984n, 4608996196778918435n, -4623603854631464960n, 4608961770493910745n, -4623702291801485312n, 4608927715981993156n, -4623800198040436736n, 4608894029497490452n, -4623897572561891328n, 4608860704429464652n, -4623994423069792256n, 4608827733622991951n, -4624090759183681536n, 4608795113711964382n, -4624186579721687040n, 4608762837695273592n, -4624281894387867648n, 4608730900845713031n, -4624376706469822464n, 4608699297346055123n, -4624471022728323072n, 4608668021725560723n, -4624564849163466752n, 4608637069496305027n, -4624658189065416704n, 4608606436072799711n, -4624751046222612480n, 4608576115407380183n, -4624843429099472896n, 4608546104468711488n, -4624935337201788928n, 4608516395921613768n, -4625026783432208384n, 4608486988337653130n, -4625117762759182336n, 4608457874380981300n, -4625219759858323456n, 4608429050692185355n, -4625399907168571392n, 4608400513723603028n, -4625579154273718272n, 4608372259037676634n, -4625757511248924672n, 4608344281559988475n, -4625934992642936832n, 4608316577295561905n, -4626111606611931136n, 4608289143243931279n, -4626287355298770944n, 4608261974399864041n, -4626462254034776064n, 4608235066966982955n, -4626636310817026048n, 4608208418496699064n, -4626809525216571392n, 4608182024348356610n, -4626981911345106944n, 4608155880746416668n, -4627153478089166848n, 4608129984310884066n, -4627324232080703488n, 4608104331790373952n, -4627494179410006016n, 4608078919386516260n, -4627663330115162112n, 4608053745083813193n, -4627831682652217344n, 4608028803162061200n, -4627999260573982720n, 4608004092140582977n, -4628166059363127296n, 4607979607715064273n, -4628332093779070976n, 4607955348240203050n, -4628497360864804864n, 4607931308525231019n, -4628661882092060672n, 4607907488200963376n, -4628825646262845440n, 4607883882914095605n, -4628988669709762560n, 4607860489364257727n, -4629150961896939520n, 4607837304735659453n, -4629312529226752000n, 4607814327318677563n, -4629473370604888064n, 4607791553269285046n, -4629633500104974336n, 4607768980718633266n, -4629885419494080512n, 4607746606204386459n, -4630202856870232064n, 4607724427722704907n, -4630518899208011776n, 4607702441940444521n, -4630833569720655872n, 4607680648182201980n, -4631146854008004608n, 4607659041870259945n, -4631458794144497664n, 4607637621113100982n, -4631769394161991680n, 4607616384371159229n, -4632078653278388224n, 4607595329002388662n, -4632386587106738176n, 4607574451424080346n, -4632693225620537344n, 4607553751206027229n, -4632998552948056064n, 4607533225893614156n, -4633302583234355200n, 4607512871202519514n, -4633605358374002688n, 4607492687924081969n, -4633906845220462592n, 4607472672061011119n, -4634210147985391616n, 4607452821607836595n, -4634808141119799296n, 4607433134784028622n, -4635403665815568384n, 4607413609963496737n, -4635996730543652864n, 4607394244387313690n, -4636587378960318464n, 4607375037409146577n, -4637175591025082368n, 4607355985284043577n, -4637761442254848000n, 4607337087808759775n, -4638344900229382144n, 4607318342423685371n, -4639144394989273088n, 4607299746773962521n, -4640301971095257088n, 4607281300320876844n, -4641454871361257472n, 4607263000134495376n, -4642603205003706368n, 4607244845192359337n, -4644282710821896192n, 4607226833383535273n, -4646561198544125952n, 4607208962367583048n, -4649946807895588864n, 4607191232174928277n, -4656717575967473664n, 4607147371718441498n, 4571135975984463872n, 4607078088715659892n, 4577869718869573632n, 4607009867155216686n, 4581232448741998592n, 4606942683337764301n, 4583432697401638912n, 4606876514109166567n, 4585140340856520704n, 4606811335652258219n, 4586223922483150848n, 4606747126592769179n, 4587299414251962368n, 4606683865489775029n, 4588366935595909120n, 4606621530588224086n, 4589297319838007296n, 4606560103363492760n, 4589823285785337856n, 4606499562142339331n, 4590345449255731200n, 4606439889401765070n, 4590863851743330304n, 4606381066660273821n, 4591378546364645376n, 4606323074200710349n, 4591889600642572288n, 4606265896982771970n, 4592397044266393600n, 4606209516050516077n, 4592900944725221376n, 4606153914748590084n, 4593401352421269504n, 4606099078592044940n, 4593784960540819456n, 4606044990914488127n, 4594031733641490432n, 4605991636799559361n, 4594276827212165120n, 4605939000208149032n, 4594520269598838784n, 4605887068574268972n, 4594762074469634048n, 4605835828034898059n, 4595002262718939136n, 4605785262199222346n, 4595240868508725248n, 4605735360665939838n, 4595477899084623872n, 4605686108857056674n, 4595713382617092096n, 4605637494364657831n, 4595947338221678592n, 4605589505339650955n, 4596179783459962880n, 4605542130267147047n, 4596410735360753664n, 4605495355974611665n, 4596640220181168128n, 4605449172481162267n, 4596868249655824384n, 4605403567997038992n, 4597094845431726080n, 4605358530648067631n, 4597320030710423552n, 4605314051900459893n, 4597543812985176064n, 4605270121620391992n, 4597766208615342080n, 4605226727711920870n, 4597987244934402048n, 4605183861247170461n, 4598191076868601856n, 4605141513151447164n, 4598300254877765632n, 4605099672569037582n, 4598408778231476224n, 4605058332693305339n, 4598516648831078400n, 4605017483302377992n, 4598623877854349312n, 4604977115906260565n, 4598730472393834496n, 4604937222866862688n, 4598836437669079040n, 4604897794226955049n, 4598941785460615168n, 4604858822028998061n, 4599046522653597696n, 4604820300194325954n, 4599150651412060160n, 4604782219042948695n, 4599254183977103360n, 4604744573281243916n, 4599357121047289856n];
+const muslLogTable2: ReadonlyArray<bigint> = [4604385261240956523n, 4358924154657987388n, 4604420445646468245n, 4363354626943114561n, 4604455630190990456n, 4363565446467069367n, 4604490814457802669n, 4351036798769833292n, 4604525998688374702n, -4864874790217249027n, 4604561183203378620n, -4860860194149836287n, 4604596367960883702n, 4360398256355250961n, 4604631551471646270n, -4864309792394302125n, 4604666736439367552n, 4358357879859280210n, 4604701920507455762n, 4362863110327732004n, 4604737104394654058n, -4868951323486125614n, 4604772289570380944n, -4870646906271523724n, 4604807473591666741n, 4359975653076173955n, 4604842658024702694n, -4868252559236897691n, 4604877842113612032n, -4863746370303194340n, 4604913026416908918n, 4363354893862173102n, 4604948211249751016n, 4362158255378877491n, 4604983395939986575n, -4860792568055532671n, 4605018580020589468n, 4362228542946489788n, 4605053764829874630n, -4860580928225707147n, 4605088948324497668n, -4861353847601378473n, 4605124133615568095n, -4864731063758337270n, 4605159316952718218n, -4861635311223988475n, 4605194501719428675n, 4360471233003417656n, 4605229686668812231n, 4362086508570588163n, 4605264870844562361n, 4359344038081987190n, 4605300054472656751n, -4859525899994832338n, 4605335238698865361n, -4868247528012367686n, 4605370423440673293n, -4861776416831395601n, 4605405607432302142n, -4861845939585117385n, 4605440792067701606n, 4341415102811725824n, 4605475977306414161n, -4861002847752791286n, 4605511161415577606n, 4356387426849577558n, 4605546345627645690n, 4363071782981954840n, 4605581530148314489n, 4362016386360834352n, 4605616714744671816n, -4859593496809919525n, 4605651899089761106n, -4859736930348009966n, 4605687083696078411n, -4870083327379423393n, 4605722266681876177n, -4863255485436890956n, 4605757451433739384n, 4353298856923815587n, 4605792635488374107n, 4348795847184419513n, 4605827820452235863n, -4865856692087997411n, 4605863004202187484n, -4865577476458927457n, 4605898189833135516n, 4362579864378036030n, 4605933373482276416n, 4358638328971707385n, 4605968557191514959n, -4871769824907088956n, 4606003741567573061n, -4869235931653346783n, 4606038926579403231n, -4863534638906340516n, 4606074110571017811n, 4362793301774395929n, 4606109295216056291n, -4871488592088611091n, 4606144479231992868n, -4862691978574542987n, 4606179663882271223n, 4360749581778280684n, 4606214848225316821n, 4355969328772387569n, 4606250033495744922n, -4870364208994710012n, 4606285216734267036n, 4363564443960339058n, 4606320401331373174n, 4363634243903916286n, 4606355586435184683n, 4356526279105272433n, 4606390770647168797n, 4362230540073486298n, 4606425954438942660n, -4875130963931628020n, 4606461139958400997n, -4864027414620991676n, 4606496324112384682n, -4867128341158863780n, 4606531507252298371n, 4363001904853246334n, 4606566692983424825n, 4361738020227887443n, 4606601876212060405n, 4354418794984295561n, 4606637060188272276n, -4864024761095853614n, 4606672244789397725n, 4358077896730544228n, 4606707429546268399n, 4355824889602812753n, 4606742613755321873n, -4875157094838321575n, 4606777798816628493n, -4862620352996718591n, 4606812982350255940n, 4357232668828704949n, 4606848167702593441n, -4877395130650829678n, 4606883351766940868n, -4862409560310815215n, 4606918535832833282n, -4877403682574987003n, 4606953720899799751n, 4362441768863732053n, 4606988904577512596n, 4362368741038081859n, 4607024089069603947n, -4872328599386425227n, 4607059272993981505n, 4357089505207379787n, 4607094457112781694n, -4868671462686547151n, 4607129642719503518n, 4355405175118015665n, 4607164826477708081n, -4868948413335435430n, 4607200010791379054n, -4860933565072012582n, 4607235195148859992n, -4857273580859378976n, 4607270379696426263n, 4366169462287340635n, 4607305564166114690n, 4360047955124967115n, 4607340748372888552n, -4868954285683542758n, 4607375932864125541n, -4859032705328339221n, 4607411117246174008n, 4359622954024738807n, 4607446301504372221n, -4866416450936083520n, 4607481486159576470n, 4363566739211750242n, 4607516670249268317n, 4367858295776294639n, 4607551854939052761n, 4366803301670473902n, 4607587039332881818n, 4363422863687147246n, 4607622223386596390n, 4364269723752034931n, 4607657408129219673n, 4366661473527857544n, 4607692592063815351n, -4871213425908282265n, 4607727776375165952n, 4364972924812614635n, 4607762961149953700n, 4368351363071826722n, 4607798145370637059n, 4365113676493995827n, 4607833329679267460n, 4356671783293562482n, 4607868513873895897n, 4359480846395051105n, 4607903698773031484n, -4867825179620654805n, 4607938883141067539n, -4858679751273734398n, 4607974066836361787n, -4861354880170730254n, 4608009251740757398n, -4862199497973808699n, 4608044435840361135n, -4863605634964248419n, 4608079620266024831n, -4858821746990008555n, 4608114804872603478n, 4365535610707608253n, 4608149989334185761n, 4359485241447798220n, 4608185173292953529n, -4858188153716824239n, 4608220357858284098n, 4361031913603217633n, 4608255541975894359n, 4357798037846692401n, 4608290726163297304n, 4366379946586755760n, 4608325911248547828n, 4352720481579271460n, 4608361095655557929n, 4360330953505919299n, 4608396279227462755n, 4362298543620393306n, 4608431463606810080n, -4857764753994223020n, 4608466648103371239n, 4367154675128609394n, 4608501832312858372n, -4857976933376492219n, 4608537017512372190n, -4856639185502836163n, 4608572201764929250n, 4366098590339519260n, 4608607386186042321n, 4350482073780659254n, 4608642570611140474n, -4857484253129919991n, 4608677754292629580n, -4861351634035957289n, 4608712938706916521n, 4367295258477290514n, 4608748123758923794n, 4361875625857773456n, 4608783307793579666n, -4855090370486268736n, 4608818492593478076n, -4856990176516946135n, 4608853676066896521n, -4858118771418765052n];
+const floatLogArgument = 3452594;
+function muslIndex(value: bigint): number {
+    value = langruntime.checkedI64(value);
+    let index: number = 0;
+    let remaining: bigint = value;
+    while (remaining > 0n) {
+        index = langruntime.checkedAdd(index, 1);
+        remaining = langruntime.checkedI64(langruntime.checkedI64Subtract(remaining, 1n));
+    }
+    return index;
+}
+function muslTop12(x: number): bigint {
+    x = langruntime.checkedF64(x);
+    return BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide(circleMathHighWord(x), 1048576))));
+}
+function muslExpSpecial(tmp: number, base: bigint, quotient: bigint, positive: boolean): number {
+    tmp = langruntime.checkedF64(tmp);
+    base = langruntime.checkedI64(base);
+    quotient = langruntime.checkedI64(quotient);
+    positive = langruntime.checkedBool(positive);
+    if (positive) {
+        const scale: number = langruntime.f64FromI64Bits((langruntime.checkedI64Add(base, langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(quotient, 1009n)), 4503599627370496n))));
+        return langruntime.f64Multiply(5.486124068793689e+303, (langruntime.f64Add(scale, langruntime.f64Multiply(scale, tmp))));
+    }
+    const scale: number = langruntime.f64FromI64Bits((langruntime.checkedI64Add(base, langruntime.checkedI64Multiply((langruntime.checkedI64Add(quotient, 1022n)), 4503599627370496n))));
+    let y: number = langruntime.f64Add(scale, langruntime.f64Multiply(scale, tmp));
+    if (y < 1.0) {
+        let lo: number = langruntime.f64Add(langruntime.f64Subtract(scale, y), langruntime.f64Multiply(scale, tmp));
+        const hi: number = langruntime.f64Add(1.0, y);
+        lo = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Add(langruntime.f64Subtract(1.0, hi), y), lo));
+        y = langruntime.checkedF64(langruntime.f64Subtract((langruntime.f64Add(hi, lo)), 1.0));
+        if (y === 0.0) {
+            y = langruntime.checkedF64(0.0);
+        }
+    }
+    return langruntime.f64Multiply(2.2250738585072014e-308, y);
+}
+function muslExp(x: number): number {
+    x = langruntime.checkedF64(x);
+    let abstop: bigint = muslTop12(x);
+    if (abstop < 969n || abstop >= 1032n) {
+        if (abstop < 969n) {
+            return langruntime.f64Add(1.0, x);
+        }
+        if (abstop >= 1033n) {
+            if (x === langruntime.f64Divide(-1.0, 0.0)) {
+                return 0.0;
+            }
+            if (abstop >= 2047n) {
+                return langruntime.f64Add(1.0, x);
+            }
+            if (x < 0.0) {
+                return 0.0;
+            }
+            return langruntime.f64Divide(1.0, 0.0);
+        }
+        abstop = langruntime.checkedI64(0n);
+    }
+    const z: number = langruntime.f64Multiply(184.6649652337873, x);
+    let kd: number = langruntime.f64Add(z, 6755399441055744.0);
+    const ki: bigint = langruntime.f64ToI64Bits(kd);
+    kd = langruntime.checkedF64(langruntime.f64Subtract(kd, 6755399441055744.0));
+    const r: number = langruntime.f64Add(langruntime.f64Add(x, langruntime.f64Multiply(kd, -0.005415212348111709)), langruntime.f64Multiply(kd, -1.2864023111638346e-14));
+    const k: bigint = langruntime.checkedI64Subtract(ki, 4843621399236968448n);
+    const j: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add((langruntime.checkedI64Remainder(k, 128n)), 128n)), 128n);
+    const quotient: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(k, j)), 128n);
+    const index: number = muslIndex(langruntime.checkedI64Multiply(2n, j));
+    const tail: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpTable, langruntime.checkedIndex(index)));
+    const base: bigint = langruntime.checkedI64Add(langruntime.indexStatic(muslExpTable, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))), langruntime.checkedI64Multiply(j, 35184372088832n));
+    const r2: number = langruntime.f64Multiply(r, r);
+    const tmp: number = langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(tail, r), langruntime.f64Multiply(r2, (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(0))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(1)))))))), langruntime.f64Multiply(langruntime.f64Multiply(r2, r2), (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(2))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(3))))))));
+    if (abstop === 0n) {
+        return muslExpSpecial(tmp, base, quotient, k > 0n);
+    }
+    const scale: number = langruntime.f64FromI64Bits((langruntime.checkedI64Add(base, langruntime.checkedI64Multiply(quotient, 4503599627370496n))));
+    return langruntime.f64Add(scale, langruntime.f64Multiply(scale, tmp));
+}
+function muslLog(input: number): number {
+    input = langruntime.checkedF64(input);
+    let ix: bigint = langruntime.f64ToI64Bits(input);
+    if (langruntime.checkedI64Subtract(ix, 4606619468846596096n) < langruntime.checkedI64Subtract(4607473789381378048n, 4606619468846596096n) && ix >= 4606619468846596096n) {
+        if (input === 1.0) {
+            return 0.0;
+        }
+        const r: number = langruntime.f64Subtract(input, 1.0);
+        const r2: number = langruntime.f64Multiply(r, r);
+        const r3: number = langruntime.f64Multiply(r, r2);
+        let y: number = langruntime.f64Multiply(r3, (langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(1))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(2))))), langruntime.f64Multiply(r2, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(3))))), langruntime.f64Multiply(r3, (langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(4))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(5))))), langruntime.f64Multiply(r2, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(6))))), langruntime.f64Multiply(r3, (langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(7))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(8))))), langruntime.f64Multiply(r2, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(9))))), langruntime.f64Multiply(r3, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(10)))))))))))));
+        let w: number = langruntime.f64Multiply(r, 134217728.0);
+        const rhi: number = langruntime.f64Subtract(langruntime.f64Add(r, w), w);
+        const rlo: number = langruntime.f64Subtract(r, rhi);
+        w = langruntime.checkedF64(langruntime.f64Multiply(langruntime.f64Multiply(rhi, rhi), langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(0)))));
+        const hi: number = langruntime.f64Add(r, w);
+        let lo: number = langruntime.f64Add(langruntime.f64Subtract(r, hi), w);
+        lo = langruntime.checkedF64(langruntime.f64Add(lo, langruntime.f64Multiply(langruntime.f64Multiply(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly1, langruntime.checkedIndex(0))), rlo), (langruntime.f64Add(rhi, r)))));
+        y = langruntime.checkedF64(langruntime.f64Add(y, lo));
+        y = langruntime.checkedF64(langruntime.f64Add(y, hi));
+        return y;
+    }
+    if (ix < 4503599627370496n) {
+        ix = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.f64ToI64Bits((langruntime.f64Multiply(input, 4503599627370496.0))), 234187180623265792n));
+    }
+    const tmp: bigint = langruntime.checkedI64Subtract(ix, 4604367669032910848n);
+    let step: bigint = langruntime.checkedI64Divide(tmp, 35184372088832n);
+    if (tmp < 0n && !(langruntime.checkedI64Remainder(tmp, 35184372088832n) === 0n)) {
+        step = langruntime.checkedI64(langruntime.checkedI64Subtract(step, 1n));
+    }
+    const i: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Remainder(step, 128n), 128n)), 128n);
+    let k: bigint = langruntime.checkedI64Divide(tmp, 4503599627370496n);
+    if (tmp < 0n && !(langruntime.checkedI64Remainder(tmp, 4503599627370496n) === 0n)) {
+        k = langruntime.checkedI64(langruntime.checkedI64Subtract(k, 1n));
+    }
+    const iz: bigint = langruntime.checkedI64Subtract(ix, langruntime.checkedI64Multiply(k, 4503599627370496n));
+    const invc: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogTable, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Multiply(2n, i)))));
+    const logc: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogTable, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Add(langruntime.checkedI64Multiply(2n, i), 1n)))));
+    const z: number = langruntime.f64FromI64Bits(iz);
+    const r: number = langruntime.f64Multiply((langruntime.f64Subtract(langruntime.f64Subtract(z, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogTable2, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Multiply(2n, i)))))), langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogTable2, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Add(langruntime.checkedI64Multiply(2n, i), 1n))))))), invc);
+    const kd: number = Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(k))))));
+    const w: number = langruntime.f64Add(langruntime.f64Multiply(kd, 0.6931471805598903), logc);
+    const hi: number = langruntime.f64Add(w, r);
+    const lo: number = langruntime.f64Add(langruntime.f64Add(langruntime.f64Subtract(w, hi), r), langruntime.f64Multiply(kd, 5.497923018708371e-14));
+    const r2: number = langruntime.f64Multiply(r, r);
+    return langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(lo, langruntime.f64Multiply(r2, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly, langruntime.checkedIndex(0))))), langruntime.f64Multiply(langruntime.f64Multiply(r, r2), (langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly, langruntime.checkedIndex(1))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly, langruntime.checkedIndex(2))))), langruntime.f64Multiply(r2, (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly, langruntime.checkedIndex(3))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslLogPoly, langruntime.checkedIndex(4))))))))))), hi);
+}
+export function dexpWe7o(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (number === langruntime.f64Divide(1.0, 0.0)) {
+            return input;
+        }
+        if (number === langruntime.f64Divide(-1.0, 0.0)) {
+            return checkruntime.makeFloat8Value(0.0);
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        const result: number = muslExp(number);
+        if (langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0) || result === 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function expBiel(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dexpWe7o(input, musl);
+}
+export function dlog16b2t(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (number === 0.0 || number < 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatLogArgument) };
+        }
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (number === langruntime.f64Divide(1.0, 0.0)) {
+            return input;
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeFloat8Value(muslLog(number));
+    }
+    return input;
+}
+export function lnXk3s(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dlog16b2t(input, musl);
+}
+function muslLog10(input: number): number {
+    input = langruntime.checkedF64(input);
+    if (input === 1.0) {
+        return 0.0;
+    }
+    let x: number = input;
+    let k: bigint = 0n;
+    let bits: bigint = langruntime.f64ToI64Bits(x);
+    let hx: bigint = langruntime.checkedI64Divide(bits, 4294967296n);
+    if (hx < 1048576n) {
+        k = langruntime.checkedI64(langruntime.checkedI64Subtract(k, 54n));
+        x = langruntime.checkedF64(langruntime.f64Multiply(x, 18014398509481984.0));
+        bits = langruntime.checkedI64(langruntime.f64ToI64Bits(x));
+        hx = langruntime.checkedI64(langruntime.checkedI64Divide(bits, 4294967296n));
+    }
+    const low: bigint = langruntime.checkedI64Remainder(bits, 4294967296n);
+    hx = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Add(hx, 1072693248n), 1072079006n));
+    k = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Add(k, langruntime.checkedI64Divide(hx, 1048576n)), 1023n));
+    hx = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder(hx, 1048576n), 1072079006n));
+    x = langruntime.checkedF64(langruntime.f64FromI64Bits((langruntime.checkedI64Add(langruntime.checkedI64Multiply(hx, 4294967296n), low))));
+    const f: number = langruntime.f64Subtract(x, 1.0);
+    const hfsq: number = langruntime.f64Multiply(langruntime.f64Multiply(0.5, f), f);
+    const s: number = langruntime.f64Divide(f, (langruntime.f64Add(2.0, f)));
+    const z: number = langruntime.f64Multiply(s, s);
+    let w: number = langruntime.f64Multiply(z, z);
+    const t1: number = langruntime.f64Multiply(w, (langruntime.f64Add(3.999999999940941908e-01, langruntime.f64Multiply(w, (langruntime.f64Add(2.222219843214978396e-01, langruntime.f64Multiply(w, 1.531383769920937332e-01)))))));
+    const t2: number = langruntime.f64Multiply(z, (langruntime.f64Add(6.666666666666735130e-01, langruntime.f64Multiply(w, (langruntime.f64Add(2.857142874366239149e-01, langruntime.f64Multiply(w, (langruntime.f64Add(1.818357216161805012e-01, langruntime.f64Multiply(w, 1.479819860511658591e-01))))))))));
+    const r: number = langruntime.f64Add(t2, t1);
+    const hi: number = float8ClearLowWord(langruntime.f64Subtract(f, hfsq));
+    const lo: number = langruntime.f64Add(langruntime.f64Subtract(langruntime.f64Subtract(f, hi), hfsq), langruntime.f64Multiply(s, (langruntime.f64Add(hfsq, r))));
+    let valHi: number = langruntime.f64Multiply(hi, 4.34294481878168880939e-01);
+    const dk: number = Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(k))))));
+    const y: number = langruntime.f64Multiply(dk, 3.01029995663611771306e-01);
+    let valLo: number = langruntime.f64Add(langruntime.f64Add(langruntime.f64Multiply(dk, 3.69423907715893078616e-13), langruntime.f64Multiply((langruntime.f64Add(lo, hi)), 2.50829467116452752298e-11)), langruntime.f64Multiply(lo, 4.34294481878168880939e-01));
+    w = langruntime.checkedF64(langruntime.f64Add(y, valHi));
+    valLo = langruntime.checkedF64(langruntime.f64Add(valLo, (langruntime.f64Add((langruntime.f64Subtract(y, w)), valHi))));
+    valHi = langruntime.checkedF64(w);
+    return langruntime.f64Add(valLo, valHi);
+}
+export function dlog10Uzhv(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (number === 0.0 || number < 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatLogArgument) };
+        }
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (number === langruntime.f64Divide(1.0, 0.0)) {
+            return input;
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeFloat8Value(muslLog10(number));
+    }
+    return input;
+}
+export function log1092y3(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dlog10Uzhv(input, musl);
+}
+export function logTlyk(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dlog10Uzhv(input, musl);
+}
+function muslCbrt(x: number): number {
+    x = langruntime.checkedF64(x);
+    const bits: bigint = langruntime.f64ToI64Bits(x);
+    const negative: boolean = bits < 0n;
+    let high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    if (high >= 2146435072n) {
+        return langruntime.f64Add(x, x);
+    }
+    if (high < 1048576n) {
+        const scaled: number = langruntime.f64Multiply(x, 18014398509481984.0);
+        high = langruntime.checkedI64(BigInt(langruntime.checkedI32(circleMathHighWord(scaled))));
+        if (high === 0n) {
+            return x;
+        }
+        high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide(high, 3n), 696219795n));
+    }
+    else {
+        high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide(high, 3n), 715094163n));
+    }
+    let t: number = langruntime.f64FromI64Bits((langruntime.checkedI64Multiply(high, 4294967296n)));
+    if (negative) {
+        t = langruntime.checkedF64(langruntime.f64Negate(t));
+    }
+    let r: number = langruntime.f64Multiply((langruntime.f64Multiply(t, t)), (langruntime.f64Divide(t, x)));
+    t = langruntime.checkedF64(langruntime.f64Multiply(t, (langruntime.f64Add((langruntime.f64Add(1.87595182427177009643, langruntime.f64Multiply(r, (langruntime.f64Add(-1.88497979543377169875, langruntime.f64Multiply(r, 1.621429720105354466140)))))), langruntime.f64Multiply((langruntime.f64Multiply((langruntime.f64Multiply(r, r)), r)), (langruntime.f64Add(-0.758397934778766047437, langruntime.f64Multiply(r, 0.145996192886612446982))))))));
+    let magnitude: bigint = langruntime.f64ToI64Bits(t);
+    if (magnitude < 0n) {
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(magnitude, (langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n))));
+    }
+    magnitude = langruntime.checkedI64(langruntime.checkedI64Add(magnitude, 2147483648n));
+    magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(magnitude, langruntime.checkedI64Remainder(magnitude, 1073741824n)));
+    t = langruntime.checkedF64(langruntime.f64FromI64Bits(magnitude));
+    if (negative) {
+        t = langruntime.checkedF64(langruntime.f64Negate(t));
+    }
+    const s: number = langruntime.f64Multiply(t, t);
+    r = langruntime.checkedF64(langruntime.f64Divide(x, s));
+    const w: number = langruntime.f64Add(t, t);
+    r = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(r, t)), (langruntime.f64Add(w, r))));
+    return langruntime.f64Add(t, langruntime.f64Multiply(t, r));
+}
+export function dcbrtQu0u(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (number === 0.0 || langruntime.f64Abs(number) === langruntime.f64Divide(1.0, 0.0)) {
+            return input;
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeFloat8Value(muslCbrt(number));
+    }
+    return input;
+}
+export function cbrtGp8w(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dcbrtQu0u(input, musl);
+}
+const muslPowPoly: ReadonlyArray<bigint> = [-4620693217682128896n, -4619192017806338720n, 4602678819172646918n, 4605380978944857422n, -4619192017809202054n, -4615546010305280535n, 4607182605818150851n];
+const muslPowLogTable: ReadonlyArray<bigint> = [4609047190520725504n, -4623459026519603200n, 4394022453839877760n, 4609012006148636672n, -4623558829536704512n, -4819796043776329952n, 4608976821776547840n, -4623659188562339840n, -4817898716256645011n, 4608941637404459008n, -4623760109826344960n, -4835031032485877803n, 4608906453032370176n, -4623861599663851520n, -4826702760379859232n, 4608871268660281344n, -4623963664517668864n, 4401098958459143372n, 4608836084288192512n, -4624066310940743680n, 4385453752581229370n, 4608800899916103680n, -4624169545598679040n, 4404715901783479392n, 4608765715544014848n, -4624273375272337408n, 4406026001268965522n, 4608730531171926016n, -4624377806860509184n, 4406344656786762712n, 4608695346799837184n, -4624482847382665216n, 4401646401139748927n, 4608695346799837184n, -4624482847382665216n, 4401646401139748927n, 4608660162427748352n, -4624588503981787136n, -4821567239711630730n, 4608624978055659520n, -4624694783927281664n, -4818939852514438140n, 4608589793683570688n, -4624801694617982976n, 4404273896719821040n, 4608554609311481856n, -4624909243585247232n, -4816977187414123930n, 4608519424939393024n, -4625017438496124928n, -4824362428744334578n, 4608484240567304192n, -4625126287156654080n, -4832302233599857281n, 4608484240567304192n, -4625126287156654080n, -4832302233599857281n, 4608449056195215360n, -4625274777720963072n, 4399268251790032007n, 4608413871823126528n, -4625495138022694912n, 4407659230359105316n, 4608378687451037696n, -4625716854396358656n, -4821332858314424560n, 4608343503078948864n, -4625939943635566592n, 4405007045628684315n, 4608308318706860032n, -4626164422847848448n, 4406624142369981492n, 4608308318706860032n, -4626164422847848448n, 4406624142369981492n, 4608273134334771200n, -4626390309462503424n, 4402636629383821199n, 4608237949962682368n, -4626617621238726656n, 4375896176123023462n, 4608202765590593536n, -4626846376273989632n, -4817289861582634518n, 4608202765590593536n, -4626846376273989632n, -4817289861582634518n, 4608167581218504704n, -4627076593012682752n, -4815806121501403933n, 4608132396846415872n, -4627308290255040512n, 4407825290493688329n, 4608097212474327040n, -4627541487166365696n, 4407858073751997016n, 4608097212474327040n, -4627541487166365696n, 4407858073751997016n, 4608062028102238208n, -4627776203286523904n, -4823104054249725338n, 4608026843730149376n, -4628012458539773952n, -4819240537971208135n, 4608026843730149376n, -4628012458539773952n, -4819240537971208135n, 4607991659358060544n, -4628250273244925952n, -4818606910288209009n, 4607956474985971712n, -4628489668125818880n, 4402001185477064764n, 4607956474985971712n, -4628489668125818880n, 4402001185477064764n, 4607921290613882880n, -4628730664322166784n, 4391423629878318138n, 4607886106241794048n, -4628973283400749056n, -4817570463688309752n, 4607850921869705216n, -4629217547366998016n, -4814769509345680490n, 4607850921869705216n, -4629217547366998016n, -4814769509345680490n, 4607815737497616384n, -4629463478676975616n, 4398444081343650804n, 4607815737497616384n, -4629463478676975616n, 4398444081343650804n, 4607780553125527552n, -4629721783562674176n, -4817315221210975246n, 4607745368753438720n, -4630220454023725056n, 4407392549639028796n, 4607745368753438720n, -4630220454023725056n, 4407392549639028796n, 4607710184381349888n, -4630722599568293888n, -4819682456932205050n, 4607675000009261056n, -4631228268970057728n, 4405990714146269896n, 4607675000009261056n, -4631228268970057728n, 4405990714146269896n, 4607639815637172224n, -4631737512036818944n, 4400997777701557864n, 4607639815637172224n, -4631737512036818944n, 4400997777701557864n, 4607604631265083392n, -4632250379639889920n, -4816996485571578918n, 4607569446892994560n, -4632766923744600064n, 4404241552097304151n, 4607569446892994560n, -4632766923744600064n, 4404241552097304151n, 4607534262520905728n, -4633287197441925120n, 4408002429123630047n, 4607534262520905728n, -4633287197441925120n, 4408002429123630047n, 4607499078148816896n, -4633811254981197824n, 4401279481005712137n, 4607463893776728064n, -4634474287043870720n, 4408278147606679185n, 4607463893776728064n, -4634474287043870720n, 4408278147606679185n, 4607428709404639232n, -4635537872595091456n, 4403538000015159372n, 4607428709404639232n, -4635537872595091456n, 4403538000015159372n, 4607393525032550400n, -4636609365918171136n, -4815196523099676178n, 4607393525032550400n, -4636609365918171136n, -4815196523099676178n, 4607358340660461568n, -4637688885483225088n, 4392420000685031082n, 4607358340660461568n, -4637688885483225088n, 4392420000685031082n, 4607323156288372736n, -4638845488694034432n, -4816177423710287388n, 4607323156288372736n, -4638845488694034432n, -4816177423710287388n, 4607287971916283904n, -4641037365235318784n, -4816444407073298887n, 4607252787544195072n, -4643280860039348224n, -4837113952706779492n, 4607252787544195072n, -4643280860039348224n, -4837113952706779492n, 4607217603172106240n, -4647749817633603584n, -4820573165680181020n, 4607217603172106240n, -4647749817633603584n, -4820573165680181020n, 4607182418800017408n, 0n, 0n, 4607182418800017408n, 0n, 0n, 4607112050055839744n, 4575674905760694272n, -4823135935961158680n, 4607041681311662080n, 4580196376261132288n, -4817764892840626222n, 4606971312567484416n, 4582493044796358656n, -4815860129950200780n, 4606900943823306752n, 4584736290664562688n, 4395814229181060947n, 4606830575079129088n, 4585903221640134656n, -4815449216413467352n, 4606760206334951424n, 4587079678688215040n, -4820688241770748291n, 4606689837590773760n, 4588265818619232256n, -4820425061349971961n, 4606654653218684928n, 4588862569733079040n, -4823899191542989957n, 4606584284474507264n, 4589615778437160960n, -4817388849945796965n, 4606513915730329600n, 4590221308000854016n, 4408118444123967191n, 4606443546986151936n, 4590831969232199680n, -4815358426062447330n, 4606408362614063104n, 4591139251548766208n, 4389917330564312370n, 4606337993869885440n, 4591757775467003904n, 4405383948318623706n, 4606267625125707776n, 4592381654637305856n, -4822351895815821083n, 4606232440753618944n, 4592695631578677248n, 4406287152218549459n, 4606162072009441280n, 4593327719790026752n, -4814980870728956448n, 4606126887637352448n, 4593645855379808256n, -4817386131339277571n, 4606056518893174784n, 4593978995731062784n, 4405065212679227378n, 4606021334521085952n, 4594140198671216640n, 4408082364760627508n, 4605950965776908288n, 4594464784623501312n, 4396530751840040097n, 4605915781404819456n, 4594628180808404992n, 4379240086857544329n, 4605845412660641792n, 4594957213204983808n, 4406072367592093304n, 4605810228288552960n, 4595122863138254848n, 4406266360802934215n, 4605739859544375296n, 4595456465494085632n, 4402778307380915832n, 4605704675172286464n, 4595624432217976832n, -4817424925262601759n, 4605669490800197632n, 4595793185674121216n, -4819865280399195387n, 4605599122056019968n, 4596133082506526720n, -4825821041850241839n, 4605563937683931136n, 4596304241009033216n, 4397749816250138479n, 4605493568939753472n, 4596649016817278976n, -4816474168036548247n, 4605458384567664640n, 4596822649910054912n, -4824422219794030166n, 4605423200195575808n, 4596997123844333568n, -4815109119904836938n, 4605388015823486976n, 4597172446803529728n, -4831820947506451502n, 4605317647079309312n, 4597525673132986368n, -4815756291520221131n, 4605282462707220480n, 4597703593479835648n, 4378081748085503024n, 4605247278335131648n, 4597882396809691136n, -4843022073498726895n, 4605212093963042816n, 4598062091930415104n, 4403337278547353392n, 4605141725218865152n, 4598299706493065216n, 4393433901296340625n, 4605106540846776320n, 4598390918832283648n, 4406517746057931497n, 4605071356474687488n, 4598482595358435328n, -4815437555880824804n, 4605036172102598656n, 4598574740820260864n, 4407786869725927041n, 4605000987730509824n, 4598667360039757824n, 4408081673489989047n, 4604965803358420992n, 4598760457913677824n, 4398477376758397674n, 4604895434614243328n, 4598948109594955776n, 4407507784137966836n, 4604860250242154496n, 4599042673583808512n, -4816350784316687176n, 4604825065870065664n, 4599137736593379328n, 4400420140633651144n, 4604789881497976832n, 4599233303918358528n, 4402333870771846492n, 4604754697125888000n, 4599329380938147840n, 4398015960675573917n, 4604719512753799168n, 4599425973118683136n, -4814585710761224587n, 4604684328381710336n, 4599523086014296064n, -4814875178376177500n, 4604649144009621504n, 4599620725269635072n, 4408670475658774361n, 4604613959637532672n, 4599718896621637632n, 4404430198009577711n, 4604578775265443840n, 4599817605901541376n, -4825031775612541476n];
+const floatPowerArgument = 3452595;
+function muslClearLow27(value: number): number {
+    value = langruntime.checkedF64(value);
+    const bits: bigint = langruntime.f64ToI64Bits(value);
+    const low: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add((langruntime.checkedI64Remainder(bits, 134217728n)), 134217728n)), 134217728n);
+    return langruntime.f64FromI64Bits((langruntime.checkedI64Subtract(bits, low)));
+}
+function muslTop12Signed(x: number): bigint {
+    x = langruntime.checkedF64(x);
+    const bits: bigint = langruntime.f64ToI64Bits(x);
+    if (bits < 0n) {
+        return langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(bits, (langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n)))), 4503599627370496n), 2048n);
+    }
+    return langruntime.checkedI64Divide(bits, 4503599627370496n);
+}
+function muslCheckint(y: number): number {
+    y = langruntime.checkedF64(y);
+    const magnitude: bigint = langruntime.f64ToI64Bits(langruntime.f64Abs(y));
+    const exponent: bigint = langruntime.checkedI64Divide(magnitude, 4503599627370496n);
+    if (exponent < 1023n) {
+        return 0;
+    }
+    if (exponent > 1075n) {
+        return 2;
+    }
+    let unit: bigint = 1n;
+    let shift: bigint = langruntime.checkedI64Subtract(1075n, exponent);
+    while (shift > 0n) {
+        unit = langruntime.checkedI64(langruntime.checkedI64Multiply(unit, 2n));
+        shift = langruntime.checkedI64(langruntime.checkedI64Subtract(shift, 1n));
+    }
+    if (!(langruntime.checkedI64Remainder(magnitude, unit) === 0n)) {
+        return 0;
+    }
+    if (langruntime.checkedI64Remainder((langruntime.checkedI64Divide(magnitude, unit)), 2n) === 1n) {
+        return 1;
+    }
+    return 2;
+}
+function muslPowExp(x: number, xtail: number, negative: boolean): number {
+    x = langruntime.checkedF64(x);
+    xtail = langruntime.checkedF64(xtail);
+    negative = langruntime.checkedBool(negative);
+    let abstop: bigint = muslTop12(x);
+    let result: number = 0.0;
+    if (abstop < 969n || abstop >= 1032n) {
+        if (abstop < 969n) {
+            result = langruntime.checkedF64(langruntime.f64Add(1.0, x));
+            if (negative) {
+                return langruntime.f64Negate(result);
+            }
+            return result;
+        }
+        if (abstop >= 1033n) {
+            result = langruntime.checkedF64(langruntime.f64Divide(1.0, 0.0));
+            if (x < 0.0) {
+                result = langruntime.checkedF64(0.0);
+            }
+            if (negative) {
+                return langruntime.f64Negate(result);
+            }
+            return result;
+        }
+        abstop = langruntime.checkedI64(0n);
+    }
+    const z: number = langruntime.f64Multiply(184.6649652337873, x);
+    let kd: number = langruntime.f64Add(z, 6755399441055744.0);
+    const ki: bigint = langruntime.f64ToI64Bits(kd);
+    kd = langruntime.checkedF64(langruntime.f64Subtract(kd, 6755399441055744.0));
+    let r: number = langruntime.f64Add(langruntime.f64Add(x, langruntime.f64Multiply(kd, -0.005415212348111709)), langruntime.f64Multiply(kd, -1.2864023111638346e-14));
+    r = langruntime.checkedF64(langruntime.f64Add(r, xtail));
+    const k: bigint = langruntime.checkedI64Subtract(ki, 4843621399236968448n);
+    const j: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add((langruntime.checkedI64Remainder(k, 128n)), 128n)), 128n);
+    const quotient: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(k, j)), 128n);
+    const index: number = muslIndex(langruntime.checkedI64Multiply(2n, j));
+    const tail: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpTable, langruntime.checkedIndex(index)));
+    const base: bigint = langruntime.checkedI64Add(langruntime.indexStatic(muslExpTable, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))), langruntime.checkedI64Multiply(j, 35184372088832n));
+    const r2: number = langruntime.f64Multiply(r, r);
+    const tmp: number = langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(tail, r), langruntime.f64Multiply(r2, (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(0))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(1)))))))), langruntime.f64Multiply(langruntime.f64Multiply(r2, r2), (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(2))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslExpPoly, langruntime.checkedIndex(3))))))));
+    if (abstop === 0n) {
+        result = langruntime.checkedF64(muslExpSpecial(tmp, base, quotient, k >= 0n));
+    }
+    else {
+        const scale: number = langruntime.f64FromI64Bits((langruntime.checkedI64Add(base, langruntime.checkedI64Multiply(quotient, 4503599627370496n))));
+        result = langruntime.checkedF64(langruntime.f64Add(scale, langruntime.f64Multiply(scale, tmp)));
+    }
+    if (negative) {
+        return langruntime.f64Negate(result);
+    }
+    return result;
+}
+function muslPow(x: number, y: number): number {
+    x = langruntime.checkedF64(x);
+    y = langruntime.checkedF64(y);
+    if (y === 0.0) {
+        return 1.0;
+    }
+    if (x === 0.0) {
+        let x2: number = langruntime.f64Multiply(x, x);
+        if (langruntime.f64ToI64Bits(x) < 0n && muslCheckint(y) === 1) {
+            x2 = langruntime.checkedF64(langruntime.f64Negate(x2));
+        }
+        if (y < 0.0) {
+            return langruntime.f64Divide(1.0, x2);
+        }
+        return x2;
+    }
+    let negative: boolean = false;
+    let magnitude: number = x;
+    if (x < 0.0) {
+        if (muslCheckint(y) === 1) {
+            negative = langruntime.checkedBool(true);
+        }
+        magnitude = langruntime.checkedF64(langruntime.f64Negate(x));
+    }
+    let ix: bigint = langruntime.f64ToI64Bits(magnitude);
+    const topy: bigint = muslTop12Signed(y);
+    const aty: bigint = langruntime.checkedI64Remainder(topy, 2048n);
+    if (aty < 958n || aty >= 1086n) {
+        if (magnitude === 1.0) {
+            return 1.0;
+        }
+        if (aty < 958n) {
+            if (magnitude > 1.0) {
+                return langruntime.f64Add(1.0, y);
+            }
+            return langruntime.f64Subtract(1.0, y);
+        }
+        if ((magnitude > 1.0) === (topy < 2048n)) {
+            return langruntime.f64Divide(1.0, 0.0);
+        }
+        return 0.0;
+    }
+    if (ix < 4503599627370496n) {
+        ix = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.f64ToI64Bits((langruntime.f64Multiply(magnitude, 4503599627370496.0))), 234187180623265792n));
+    }
+    const tmp: bigint = langruntime.checkedI64Subtract(ix, 4604531861337669632n);
+    let step: bigint = langruntime.checkedI64Divide(tmp, 35184372088832n);
+    if (tmp < 0n && !(langruntime.checkedI64Remainder(tmp, 35184372088832n) === 0n)) {
+        step = langruntime.checkedI64(langruntime.checkedI64Subtract(step, 1n));
+    }
+    const entry: bigint = langruntime.checkedI64Multiply(3n, (langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Remainder(step, 128n), 128n)), 128n)));
+    let k: bigint = langruntime.checkedI64Divide(tmp, 4503599627370496n);
+    if (tmp < 0n && !(langruntime.checkedI64Remainder(tmp, 4503599627370496n) === 0n)) {
+        k = langruntime.checkedI64(langruntime.checkedI64Subtract(k, 1n));
+    }
+    const iz: bigint = langruntime.checkedI64Subtract(ix, langruntime.checkedI64Multiply(k, 4503599627370496n));
+    const z: number = langruntime.f64FromI64Bits(iz);
+    const kd: number = Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(k))))));
+    const invc: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowLogTable, langruntime.checkedIndex(muslIndex(entry))));
+    const logc: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowLogTable, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Add(entry, 1n)))));
+    const logctail: number = langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowLogTable, langruntime.checkedIndex(muslIndex(langruntime.checkedI64Add(entry, 2n)))));
+    const rounded: bigint = langruntime.checkedI64Add(iz, 2147483648n);
+    const zhi: number = langruntime.f64FromI64Bits((langruntime.checkedI64Subtract(rounded, langruntime.checkedI64Remainder(rounded, 4294967296n))));
+    const zlo: number = langruntime.f64Subtract(z, zhi);
+    const rhi: number = langruntime.f64Subtract(langruntime.f64Multiply(zhi, invc), 1.0);
+    const rlo: number = langruntime.f64Multiply(zlo, invc);
+    const r: number = langruntime.f64Add(rhi, rlo);
+    const t1: number = langruntime.f64Add(langruntime.f64Multiply(kd, 0.6931471805598903), logc);
+    const t2: number = langruntime.f64Add(t1, r);
+    const lo1: number = langruntime.f64Add(langruntime.f64Multiply(kd, 5.497923018708371e-14), logctail);
+    const lo2: number = langruntime.f64Add(langruntime.f64Subtract(t1, t2), r);
+    const ar: number = langruntime.f64Multiply(langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(0))), r);
+    const ar2: number = langruntime.f64Multiply(r, ar);
+    const ar3: number = langruntime.f64Multiply(r, ar2);
+    const arhi: number = langruntime.f64Multiply(langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(0))), rhi);
+    const arhi2: number = langruntime.f64Multiply(rhi, arhi);
+    const hi: number = langruntime.f64Add(t2, arhi2);
+    const lo3: number = langruntime.f64Multiply(rlo, (langruntime.f64Add(ar, arhi)));
+    const lo4: number = langruntime.f64Add(langruntime.f64Subtract(t2, hi), arhi2);
+    const p: number = langruntime.f64Multiply(ar3, (langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(1))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(2))))), langruntime.f64Multiply(ar2, (langruntime.f64Add(langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(3))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(4))))), langruntime.f64Multiply(ar2, (langruntime.f64Add(langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(5))), langruntime.f64Multiply(r, langruntime.f64FromI64Bits(langruntime.indexStatic(muslPowPoly, langruntime.checkedIndex(6)))))))))))));
+    const lo: number = langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(langruntime.f64Add(lo1, lo2), lo3), lo4), p);
+    const head: number = langruntime.f64Add(hi, lo);
+    const logTail: number = langruntime.f64Add(langruntime.f64Subtract(hi, head), lo);
+    const yhi: number = muslClearLow27(y);
+    const ylo: number = langruntime.f64Subtract(y, yhi);
+    const lhi: number = muslClearLow27(head);
+    const llo: number = langruntime.f64Add(langruntime.f64Subtract(head, lhi), logTail);
+    const ehi: number = langruntime.f64Multiply(yhi, lhi);
+    const elo: number = langruntime.f64Add(langruntime.f64Multiply(ylo, lhi), langruntime.f64Multiply(y, llo));
+    return muslPowExp(ehi, elo, negative);
+}
+function float8FloorValue(value: number): number {
+    value = langruntime.checkedF64(value);
+    const floored: checkruntime.Float8Value = float8Rounded(checkruntime.makeFloat8Value(value), 1);
+    if (floored.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(floored.value);
+        return checkruntime.float8Number(bits);
+    }
+    return value;
+}
+export function dpowAnie(left: checkruntime.Float8Value, right: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const knownLeft: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const knownRight: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (knownLeft.kind === "Value") {
+        const leftBits: bigint = langruntime.checkedI64(knownLeft.value);
+        if (knownRight.kind === "Value") {
+            const rightBits: bigint = langruntime.checkedI64(knownRight.value);
+            const x: number = checkruntime.float8Number(leftBits);
+            const y: number = checkruntime.float8Number(rightBits);
+            const infinity: number = langruntime.f64Divide(1.0, 0.0);
+            if (!(x === x)) {
+                if (!(y === y) || !(y === 0.0)) {
+                    return { kind: "UnspecifiedNan" };
+                }
+                return checkruntime.makeFloat8Value(1.0);
+            }
+            if (!(y === y)) {
+                if (!(x === 1.0)) {
+                    return { kind: "UnspecifiedNan" };
+                }
+                return checkruntime.makeFloat8Value(1.0);
+            }
+            if (x === 0.0 && y < 0.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatPowerArgument) };
+            }
+            if (x < 0.0 && !(float8FloorValue(y) === y)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatPowerArgument) };
+            }
+            if (langruntime.f64Abs(y) === infinity) {
+                const absx: number = langruntime.f64Abs(x);
+                if (absx === 1.0) {
+                    return checkruntime.makeFloat8Value(1.0);
+                }
+                if (y > 0.0) {
+                    if (absx > 1.0) {
+                        return checkruntime.makeFloat8Value(y);
+                    }
+                    return checkruntime.makeFloat8Value(0.0);
+                }
+                if (absx > 1.0) {
+                    return checkruntime.makeFloat8Value(0.0);
+                }
+                return checkruntime.makeFloat8Value(langruntime.f64Negate(y));
+            }
+            if (langruntime.f64Abs(x) === infinity) {
+                if (y === 0.0) {
+                    return checkruntime.makeFloat8Value(1.0);
+                }
+                if (x > 0.0) {
+                    if (y > 0.0) {
+                        return checkruntime.makeFloat8Value(x);
+                    }
+                    return checkruntime.makeFloat8Value(0.0);
+                }
+                const halfy: number = langruntime.f64Divide(y, 2.0);
+                const odd: boolean = !(float8FloorValue(halfy) === halfy);
+                if (y > 0.0) {
+                    if (odd) {
+                        return checkruntime.makeFloat8Value(x);
+                    }
+                    return checkruntime.makeFloat8Value(langruntime.f64Negate(x));
+                }
+                if (odd) {
+                    return checkruntime.makeFloat8Value(-0.0);
+                }
+                return checkruntime.makeFloat8Value(0.0);
+            }
+            if (musl === false) {
+                return { kind: "Unknown" };
+            }
+            const result: number = muslPow(x, y);
+            if (!(result === result)) {
+                return { kind: "Unknown" };
+            }
+            if (langruntime.f64Abs(result) === infinity || (result === 0.0 && !(x === 0.0))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            return checkruntime.makeFloat8Value(result);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function powHjab(left: checkruntime.Float8Value, right: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dpowAnie(left, right, musl);
+}
+export function power2ram(left: checkruntime.Float8Value, right: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return dpowAnie(left, right, musl);
+}
 function floatHashBytes(bits: bigint): checkruntime.HashByte[] {
     bits = langruntime.checkedI64(bits);
     let bytes: checkruntime.HashByte[] = [];

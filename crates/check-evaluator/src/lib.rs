@@ -210,6 +210,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex_name.rs");
     include!("operations/pg_catalog/float_trigonometry.rs");
     include!("operations/pg_catalog/float_inverse_trigonometry.rs");
+    include!("operations/pg_catalog/float_exponential.rs");
     include!("operations/pg_catalog/point_core.rs");
     include!("operations/pg_catalog/line_core.rs");
     include!("operations/pg_catalog/point_operations.rs");

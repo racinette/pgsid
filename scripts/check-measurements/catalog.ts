@@ -29,6 +29,7 @@ import {
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
 import {
   circlePolygonTrigonometry,
+  floatMathLibrary,
   floatTrigonometry,
 } from '../../src/codegen/shared/check-trigonometry-context.js'
 import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
@@ -259,6 +260,15 @@ export function hashValueRequirements(item: BuiltinCallable) {
 }
 
 export function trigonometryValueRequirements(item: BuiltinCallable) {
+  if (floatMathLibrary(item))
+    return [
+      {
+        kind: 'platform',
+        requirement:
+          'Finite exponential, logarithm, root and power results require the declared musl math library, which reproduces PostgreSQL builds such as PGlite; target-language math libraries do not establish it.',
+        owner: 'tests/sql-semantics/check-float-exponential.test.ts',
+      },
+    ]
   if (floatTrigonometry(item))
     return [
       {

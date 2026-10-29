@@ -347,6 +347,7 @@ export const codegenSchema = z
         nativeByteOrder: z.enum(['little', 'big']).optional(),
         maxIdentifierBytes: z.number().int().min(0).max(2147483647).optional(),
         trigonometry: z.literal('fdlibm').optional(),
+        mathLibrary: z.literal('musl').optional(),
         arrayNulls: z.boolean().optional(),
         quoteAllIdentifiers: z.boolean().optional(),
         byteaOutput: z.enum(['hex', 'escape']).optional(),
