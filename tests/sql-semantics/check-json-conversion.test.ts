@@ -173,7 +173,8 @@ it('converts scalar and nested arrays to raw JSON with exact numeric/text/source
           }
           const deferred =
             expected.kind === 'True' &&
-            ((name === 'scalar_float' && ['1.2300', '1e100', '2.5'].includes(payload ?? '')) ||
+            // 1e100 renders as 1e+100 under every extra_float_digits setting, so it stays known.
+            ((name === 'scalar_float' && ['1.2300', '2.5'].includes(payload ?? '')) ||
               (['{-0,0,1,-9,2.5}', '{1.2300,-0.000,NaN,Infinity,-Infinity}'].includes(
                 payload ?? '',
               ) &&

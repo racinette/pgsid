@@ -258,7 +258,13 @@ it('matches recursive JSONB null stripping, default arguments, optional array re
         'edited',
         'root_null',
       ])
-        add(name, { ...baseline, strip_arrays: operand }, expected)
+        // The baseline has no selected key, so the extracted argument is a known NULL that
+        // makes the strict call NULL whatever strip_arrays is.
+        add(
+          name,
+          { ...baseline, strip_arrays: operand },
+          name === 'extracted' && operand.kind === 'Unknown' ? { kind: 'True' } : expected,
+        )
       for (const name of ['guarded_strip', 'guarded_pretty'])
         add(name, { ...baseline, document: operand, bypass: known(true) }, { kind: 'True' })
       add(
@@ -277,10 +283,11 @@ it('matches recursive JSONB null stripping, default arguments, optional array re
       { ...baseline, document: known(null), strip_arrays: error('22012') },
       error('22012'),
     )
+    // A NULL flag makes the strict call NULL whatever the document is.
     add(
       'strip_flag',
       { ...baseline, document: { kind: 'Unknown' }, strip_arrays: known(null) },
-      { kind: 'Unknown' },
+      { kind: 'False' },
     )
     add('strip_default', { ...baseline, expected_default: known('{}') }, { kind: 'False' })
     add('pretty', { ...baseline, expected_pretty: known('{}') }, { kind: 'False' })
