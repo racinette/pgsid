@@ -31090,6 +31090,24 @@ export function btnamecmp9x5j(left: checkruntime.TextValue, right: checkruntime.
     }
     return { kind: "Unknown" };
 }
+export function namelike8szr(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, false, false);
+}
+export function namenlikeHgo6(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, false, true);
+}
+export function nameiclikeQo7r(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, true, false);
+}
+export function nameicnlikeTmbm(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, true, true);
+}
+export function like4uwr(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, false, false);
+}
+export function notlike5dzp(input: checkruntime.TextValue, pattern: checkruntime.TextValue): checkruntime.BoolValue {
+    return textLike(input, pattern, false, true);
+}
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

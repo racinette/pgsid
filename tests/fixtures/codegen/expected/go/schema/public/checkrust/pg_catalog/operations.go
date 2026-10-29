@@ -30890,6 +30890,24 @@ func Btnamecmp9x5j(left checkruntime.TextValue, right checkruntime.TextValue) ch
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
+func Namelike8szr(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, false)
+}
+func NamenlikeHgo6(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, true)
+}
+func NameiclikeQo7r(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, false)
+}
+func NameicnlikeTmbm(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, true)
+}
+func Like4uwr(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, false)
+}
+func Notlike5dzp(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, true)
+}
 
 const sqlstateInvalidParameterValue = 3452619
 
