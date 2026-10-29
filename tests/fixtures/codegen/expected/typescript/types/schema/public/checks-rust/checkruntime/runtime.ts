@@ -16869,7 +16869,15 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
             }
-            if (index < end && (langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z")) {
+            const leadingWord: string = englishDateWord(text, index, end);
+            if (englishDateWeekday(leadingWord)) {
+                index = langruntime.checkedIndex(englishDateWordEnd(text, index, end));
+                while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
+            const clockWord: string = englishDateWord(text, index, end);
+            if (index === end || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || clockWord === "am" || clockWord === "pm") {
                 zoneOnly = langruntime.checkedBool(true);
             }
         }
@@ -16960,6 +16968,26 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
             index = langruntime.checkedAdd(index, 1);
         }
+        let meridian: number = 0;
+        while (index < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+            const word: string = englishDateWord(text, index, end);
+            if (word === "am" || word === "pm") {
+                if (!(meridian === 0)) {
+                    return { kind: "Error", value: { state: invalidTimestampText } };
+                }
+                meridian = langruntime.checkedI32(1);
+                if (word === "pm") {
+                    meridian = langruntime.checkedI32(2);
+                }
+            }
+            else if (englishDateWeekday(word) === false) {
+                break;
+            }
+            index = langruntime.checkedIndex(englishDateWordEnd(text, index, end));
+            while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
         let offset: number = 0;
         let missingTimezone: boolean = false;
         if (index < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z") {
@@ -17022,6 +17050,20 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         if (yearOverflow) {
             return { kind: "Error", value: { state: timestampFieldOverflow } };
+        }
+        if (!(meridian === 0)) {
+            if (hour > 12) {
+                if (offset < langruntime.checkedSignedNegate(57599) || offset > 57599) {
+                    return { kind: "Error", value: { state: invalidTimestampZone } };
+                }
+                return { kind: "Error", value: { state: timestampFieldOverflow } };
+            }
+            if (meridian === 1 && hour === 12) {
+                hour = langruntime.checkedI32(0);
+            }
+            else if (meridian === 2 && !(hour === 12)) {
+                hour = langruntime.checkedI32(langruntime.checkedSignedAdd(hour, 12));
+            }
         }
         return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay, dateOnly);
     }

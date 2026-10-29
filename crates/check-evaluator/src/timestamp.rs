@@ -411,10 +411,20 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
             }
-            if index < end
-                && (text.chars[index] == '+'
-                    || text.chars[index] == '-'
-                    || text.chars[index].to_ascii_lowercase() == 'z')
+            let leading_word = english_date_word(&text, index, end);
+            if english_date_weekday(leading_word.as_str()) {
+                index = english_date_word_end(&text, index, end);
+                while index < end && date_text_space(text.chars[index]) {
+                    index += 1;
+                }
+            }
+            let clock_word = english_date_word(&text, index, end);
+            if index == end
+                || text.chars[index] == '+'
+                || text.chars[index] == '-'
+                || text.chars[index].to_ascii_lowercase() == 'z'
+                || clock_word == "am"
+                || clock_word == "pm"
             {
                 zone_only = true;
             }
@@ -504,6 +514,27 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
         while index < end && date_text_space(text.chars[index]) {
             index += 1;
         }
+        let mut meridian: i32 = 0;
+        while index < end && english_date_letter(text.chars[index]) {
+            let word = english_date_word(&text, index, end);
+            if word == "am" || word == "pm" {
+                if meridian != 0 {
+                    return Int8Value::Error(SqlError {
+                        state: INVALID_TIMESTAMP_TEXT,
+                    });
+                }
+                meridian = 1;
+                if word == "pm" {
+                    meridian = 2;
+                }
+            } else if english_date_weekday(word.as_str()) == false {
+                break;
+            }
+            index = english_date_word_end(&text, index, end);
+            while index < end && date_text_space(text.chars[index]) {
+                index += 1;
+            }
+        }
         let mut offset: i32 = 0;
         let mut missing_timezone = false;
         if index < end && text.chars[index].to_ascii_lowercase() == 'z' {
@@ -563,6 +594,24 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             return Int8Value::Error(SqlError {
                 state: TIMESTAMP_FIELD_OVERFLOW,
             });
+        }
+        if meridian != 0 {
+            // PostgreSQL rejects a meridian hour above twelve only after zone fields decode.
+            if hour > 12 {
+                if offset < -57599 || offset > 57599 {
+                    return Int8Value::Error(SqlError {
+                        state: INVALID_TIMESTAMP_ZONE,
+                    });
+                }
+                return Int8Value::Error(SqlError {
+                    state: TIMESTAMP_FIELD_OVERFLOW,
+                });
+            }
+            if meridian == 1 && hour == 12 {
+                hour = 0;
+            } else if meridian == 2 && hour != 12 {
+                hour = hour + 12;
+            };
         }
         return timestamp_calendar_microseconds(
             year,

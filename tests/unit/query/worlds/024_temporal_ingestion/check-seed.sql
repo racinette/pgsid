@@ -275,3 +275,9 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 29 Feb', '2000-02-29', false);
 -- name: calendar_english_trailing_month_error
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 32 Jan', NULL, false);
+-- name: local_meridian_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 Sat 12:30 am', '2000-01-01 00:30:00', false);
+-- name: instant_meridian_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 1:30 pm -05', '2000-01-01 18:30:00+00', false);
+-- name: local_meridian_hour_error
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 13:00 pm', NULL, false);
