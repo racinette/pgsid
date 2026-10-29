@@ -567,7 +567,7 @@ describe('portable Rust CHECK INET/CIDR', () => {
       record(
         name,
         { a: { kind: 'Unknown' }, b: { kind: 'Null' }, delta: input(0n) },
-        { kind: 'Unknown' },
+        { kind: 'Null' },
       )
     }
     const extendedDirectory = join(directory, 'extended')

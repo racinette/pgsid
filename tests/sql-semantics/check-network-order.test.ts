@@ -227,8 +227,8 @@ describe('portable Rust CHECK network ordering functions', () => {
           value.kind === 'Error' ? error : otherError,
         )
         record(name, { ...known, a: otherError, b: value }, otherError)
-        record(name, { ...known, a: { kind: 'Unknown' }, b: input(null) }, { kind: 'Unknown' })
-        record(name, { ...known, a: input(null), b: { kind: 'Unknown' } }, { kind: 'Unknown' })
+        record(name, { ...known, a: { kind: 'Unknown' }, b: input(null) }, { kind: 'Null' })
+        record(name, { ...known, a: input(null), b: { kind: 'Unknown' } }, { kind: 'Null' })
       }
       for (const name of ['cmp_null', 'larger_null', 'smaller_null'])
         record(

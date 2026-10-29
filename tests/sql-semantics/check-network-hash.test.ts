@@ -183,7 +183,7 @@ describe('portable PostgreSQL network hashes', () => {
         record(
           name,
           { ...known, [column]: { kind: 'Unknown' }, seed: input(null) },
-          { kind: 'Unknown' },
+          { kind: 'Null' },
         )
       }
       record('lazy', { ...known, a: value, seed: otherError, skip: input(true) }, { kind: 'True' })

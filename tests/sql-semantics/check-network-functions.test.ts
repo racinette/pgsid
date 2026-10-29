@@ -320,7 +320,7 @@ describe('portable Rust CHECK network inspection and construction', () => {
           { ...known, a: value, b: otherError },
           name === 'merge_reverse' || value.kind !== 'Error' ? otherError : error,
         )
-        record(name, { ...known, a: { kind: 'Unknown' }, b: { kind: 'Null' } }, { kind: 'Unknown' })
+        record(name, { ...known, a: { kind: 'Unknown' }, b: { kind: 'Null' } }, { kind: 'Null' })
       }
       for (const name of ['set_inet', 'set_cidr', 'set_small']) {
         const column = name === 'set_small' ? 'smallstep' : 'step'
@@ -334,7 +334,7 @@ describe('portable Rust CHECK network inspection and construction', () => {
         record(
           name,
           { ...known, [address]: { kind: 'Unknown' }, [column]: input(null) },
-          { kind: 'Unknown' },
+          { kind: 'Null' },
         )
       }
       record(
