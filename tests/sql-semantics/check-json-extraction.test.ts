@@ -253,10 +253,11 @@ it('preserves JSON extraction source spans, last duplicate keys, signed indices,
     }
     add('field', { ...base, document: error('22003'), field_name: error('22012') }, error('22003'))
     add('field', { ...base, document: known(null), field_name: error('22012') }, error('22012'))
+    // A NULL key makes the strict field access NULL whatever the document is.
     add(
       'field',
       { ...base, document: { kind: 'Unknown' }, field_name: known(null) },
-      { kind: 'Unknown' },
+      { kind: 'False' },
     )
     add(
       'field',
