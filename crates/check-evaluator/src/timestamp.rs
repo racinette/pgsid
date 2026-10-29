@@ -81,6 +81,18 @@ fn timestamp_calendar_microseconds(
             state: INVALID_TIMESTAMP_ZONE,
         });
     }
+    // A year and month followed by a clock (`2000 01 12:00`) leave the day missing, which
+    // PostgreSQL reports only after the clock and zone fields decode.
+    if day < 0 {
+        if year != 0 && month >= 1 && month <= 12 {
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
+        }
+        return Int8Value::Error(SqlError {
+            state: TIMESTAMP_FIELD_OVERFLOW,
+        });
+    }
     let mut calendar_year = year;
     let mut calendar_month = month;
     let mut calendar_day = day;
@@ -130,6 +142,37 @@ fn timestamp_calendar_microseconds(
     Int8Value::Unknown
 }
 
+// ParseDateTime skips ASCII punctuation where a field would start; these characters never
+// continue a field, so they separate fields wherever they appear.
+fn temporal_skipped_punctuation(value: char) -> bool {
+    value == '!'
+        || value == '"'
+        || value == '#'
+        || value == '$'
+        || value == '%'
+        || value == '&'
+        || value == '\''
+        || value == '('
+        || value == ')'
+        || value == '*'
+        || value == ','
+        || value == ';'
+        || value == '<'
+        || value == '='
+        || value == '>'
+        || value == '?'
+        || value == '@'
+        || value == '['
+        || value == '\\'
+        || value == ']'
+        || value == '^'
+        || value == '`'
+        || value == '{'
+        || value == '|'
+        || value == '}'
+        || value == '~'
+}
+
 fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
     parse_temporal_text(value, with_timezone, false)
 }
@@ -150,7 +193,8 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             return Int8Value::Unknown;
         }
         // PostgreSQL reads BC or AD as an ordinary field anywhere after the first one, so the era
-        // is blanked before the date and clock grammar runs. A leading era is rejected before
+        // is blanked before the date and clock grammar runs, as is punctuation its lexer skips
+        // where a field would start. A leading era is rejected before
         // other fields are validated; a repeated era is reported in field order, after clock and
         // zone errors but before date validation, so it defers.
         let mut bc = false;
@@ -163,7 +207,17 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 era_end += 1;
             }
             if era_end == era_index {
-                scanned.push(chars[era_index]);
+                let era_character = chars[era_index];
+                let era_field_start =
+                    scanned.len() == 0 || date_text_space(scanned[scanned.len() - 1]);
+                if temporal_skipped_punctuation(era_character)
+                    || (era_field_start
+                        && (era_character == '/' || era_character == ':' || era_character == '_'))
+                {
+                    scanned.push(' ');
+                } else {
+                    scanned.push(era_character);
+                }
                 era_index += 1;
             } else {
                 let era_letter = chars[era_index].to_ascii_lowercase();
@@ -596,6 +650,15 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             }
             minute = hour % 100;
             hour = hour / 100;
+        } else if hours.digits > 0 {
+            // A number that is not a clock after a complete date is rejected in the field loop,
+            // after earlier date overflow and zone errors.
+            if year_overflow || deferred_zone {
+                return Int8Value::Unknown;
+            }
+            return Int8Value::Error(SqlError {
+                state: INVALID_TIMESTAMP_TEXT,
+            });
         } else if zone_only == false {
             return Int8Value::Unknown;
         }

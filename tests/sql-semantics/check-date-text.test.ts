@@ -3,6 +3,7 @@ import {
   dateDeferredText as unsupportedText,
   ordinalUnknownText,
   eraUnknownText,
+  numericTailUnknownText,
 } from './check-temporal-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -172,6 +173,7 @@ describe('Rust text-to-date CHECK casts', () => {
     for (const raw of [
       ...ordinalUnknownText,
       ...eraUnknownText,
+      ...numericTailUnknownText,
       '42949692960101',
       'not a date',
       '2000-01-01 junk',

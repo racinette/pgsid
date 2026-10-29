@@ -16286,6 +16286,12 @@ function readOrdinalDate(text: TimestampText, start: number, end: number): Ordin
                     day = langruntime.checkedI32(third.value);
                     index = langruntime.checkedIndex(third.next);
                 }
+                else if ((third.digits > 0 && third.next < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(third.next)) === ":") || (third.digits === 0 && thirdStart < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(thirdStart))) === "t")) {
+                    state = langruntime.checkedI32(ordinalDateCalendar);
+                    month = langruntime.checkedI32(field.value);
+                    day = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                    index = langruntime.checkedIndex(field.next);
+                }
             }
         }
     }
@@ -16618,6 +16624,12 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     if (offsetSeconds < langruntime.checkedSignedNegate(57599) || offsetSeconds > 57599) {
         return { kind: "Error", value: { state: invalidTimestampZone } };
     }
+    if (day < 0) {
+        if (!(year === 0) && month >= 1 && month <= 12) {
+            return { kind: "Error", value: { state: invalidTimestampText } };
+        }
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
+    }
     let calendarYear: number = year;
     let calendarMonth: number = month;
     let calendarDay: number = day;
@@ -16661,6 +16673,10 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     }
     return { kind: "Unknown" };
 }
+function temporalSkippedPunctuation(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === "!" || value === "\"" || value === "#" || value === "$" || value === "%" || value === "&" || value === "'" || value === "(" || value === ")" || value === "*" || value === "," || value === ";" || value === "<" || value === "=" || value === ">" || value === "?" || value === "@" || value === "[" || value === "\\" || value === "]" || value === "^" || value === "`" || value === "{" || value === "|" || value === "}" || value === "~";
+}
 function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     return parseTemporalText(value, withTimezone, false);
@@ -16694,7 +16710,14 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 eraEnd = langruntime.checkedAdd(eraEnd, 1);
             }
             if (eraEnd === eraIndex) {
-                langruntime.pushChar(scanned, langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex)));
+                const eraCharacter: string = langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex));
+                const eraFieldStart: boolean = scanned.length === 0 || dateTextSpace(langruntime.indexChar(scanned, langruntime.checkedIndex(langruntime.checkedSubtract(scanned.length, 1))));
+                if (temporalSkippedPunctuation(eraCharacter) || (eraFieldStart && (eraCharacter === "/" || eraCharacter === ":" || eraCharacter === "_"))) {
+                    langruntime.pushChar(scanned, " ");
+                }
+                else {
+                    langruntime.pushChar(scanned, eraCharacter);
+                }
                 eraIndex = langruntime.checkedAdd(eraIndex, 1);
             }
             else {
@@ -17038,6 +17061,12 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
             minute = langruntime.checkedI32(langruntime.checkedSignedRemainder(hour, 100));
             hour = langruntime.checkedI32(langruntime.checkedSignedDivide(hour, 100));
+        }
+        else if (hours.digits > 0) {
+            if (yearOverflow || deferredZone) {
+                return { kind: "Unknown" };
+            }
+            return { kind: "Error", value: { state: invalidTimestampText } };
         }
         else if (zoneOnly === false) {
             return { kind: "Unknown" };
