@@ -250,8 +250,8 @@ describe('portable Rust CHECK network bitwise operators', () => {
           value.kind === 'Error' ? error : otherError,
         )
         record(name, { ...known, a: otherError, b: value }, otherError)
-        record(name, { ...known, a: { kind: 'Unknown' }, b: input(null) }, { kind: 'Unknown' })
-        record(name, { ...known, a: input(null), b: { kind: 'Unknown' } }, { kind: 'Unknown' })
+        record(name, { ...known, a: { kind: 'Unknown' }, b: input(null) }, { kind: 'Null' })
+        record(name, { ...known, a: input(null), b: { kind: 'Unknown' } }, { kind: 'Null' })
       }
       for (const name of ['lazy_intersection', 'lazy_union'])
         record(name, { ...known, a: value, b: otherError, flag: input(true) }, { kind: 'True' })
