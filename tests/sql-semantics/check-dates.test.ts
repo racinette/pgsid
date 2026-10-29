@@ -145,20 +145,32 @@ describe('portable Rust CHECK dates', () => {
       expect(group.checks[0]!.kind, sql).toBe('supported')
     }
   })
-  it('defers session-dependent timestamp conversions', () => {
-    for (const sql of ["a > '2000-01-01+00'::timestamptz", 'a::timestamptz IS NOT NULL']) {
-      const expression = bind(sql)
-      const group = prepareCheckRustGroup([
-        {
-          expression,
-          identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
-        },
-      ])
-      expect(group.checks[0]!.kind === 'unsupported' || expression.kind === 'uncertain', sql).toBe(
-        true,
-      )
-    }
-  })
+  it('defers session-dependent timestamp conversions', async () => {
+    const sqls = ["a > '2000-01-01+00'::timestamptz", 'a::timestamptz IS NOT NULL']
+    const names = ['instant_literal', 'instant_cast']
+    const group = prepareCheckRustGroup(
+      sqls.map((sql, index) => ({
+        expression: bind(sql),
+        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: names[index]! },
+      })),
+    )
+    for (const [index, check] of group.checks.entries())
+      expect(check.kind, sqls[index]).toBe('supported')
+    await mkdir(join(directory, 'session-deferral'))
+    await runCheckParity(
+      join(directory, 'session-deferral'),
+      'datesessiondeferral',
+      group,
+      names,
+      names.flatMap((name) =>
+        [-1, 0, 1].map((day) => ({
+          name,
+          row: { a: { kind: 'Value', value: day } },
+          expected: { kind: 'Unknown' },
+        })),
+      ),
+    )
+  }, 120_000)
   it('matches the PostgreSQL epoch, range, BC years, and infinity representation', () => {
     expect(days.get('2000-01-01')).toBe(0)
     expect(days.get('1999-12-31')).toBe(-1)
