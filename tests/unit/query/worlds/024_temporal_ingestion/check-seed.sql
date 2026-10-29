@@ -307,3 +307,11 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '0002-366 BC 12:00Z', '0001-01-01 12:00:00+00 BC', false);
 -- name: calendar_ordinal_clock_digits_error
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-001-010203', NULL, false);
+-- name: calendar_year_month_clock_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 01 12:00', NULL, false);
+-- name: calendar_comma_fields
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000,01,01', '2000-01-01', false);
+-- name: local_clock_ordinal_compact_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 060 1230', '2000-02-29 12:30:00', false);
+-- name: instant_bare_number_after_date_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 01', NULL, false);
