@@ -41,13 +41,20 @@ catalog identities or session settings.
 Floating NaN hashes remain uncertain because byte order does not establish the
 PostgreSQL build's canonical NaN bits.
 
-Circle-to-polygon conversion also depends on the PostgreSQL build's sine and
-cosine implementation. Declare `trigonometry: fdlibm` when the deployment uses
-the fdlibm kernels with binary64 arithmetic and rounding to nearest. This
-selects shared arithmetic in every generated language. It describes PostgreSQL,
+Circle-to-polygon conversion and the float8 trigonometric functions (`sin`,
+`cos`, `tan`, `cot`, their inverses, `atan2` and the degree variants) depend on
+the PostgreSQL build's math library. Declare `trigonometry: fdlibm` when the
+deployment uses the fdlibm kernels with binary64 arithmetic and rounding to
+nearest. Float8 exponentials, logarithms, cube roots and powers (`exp`, `ln`,
+`log`, `log10`, `cbrt`, `power` and the `^` and `||/` operators) come from
+newer routines that differ between libraries; declare `mathLibrary: musl` when
+PostgreSQL is built against musl, as PGlite is. musl's trigonometry is fdlibm's,
+so `mathLibrary: musl` also covers the trigonometric functions. Either setting
+selects shared arithmetic in every generated language and describes PostgreSQL,
 independently of the math library on the client machine. Without a declared
-profile, reached coordinate generation stays uncertain; context-independent
-NULL results, input errors and skipped branches remain available.
+profile, reached results stay uncertain; context-independent NULL results,
+domain and range errors, NaN and infinity cases, and skipped branches remain
+available.
 
 Interval output uses `intervalStyle: postgres`, `postgres_verbose`,
 `sql_standard` or `iso_8601`. The shared formatter preserves independent signs

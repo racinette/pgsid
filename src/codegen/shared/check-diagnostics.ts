@@ -9,7 +9,7 @@ import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/ran
 import { compositeProfile, compositeFieldType } from '../../sql-semantics/composite-profiles.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { CheckExecutionContext } from './check-rust-evaluator.js'
-import { trigonometryContext } from './check-trigonometry-context.js'
+import { floatMathLibrary, trigonometryContext } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
@@ -125,6 +125,16 @@ function needsIdentifierQuote(value: unknown): boolean {
 }
 
 const trigonometry = new Set(builtinCallables().filter(trigonometryContext).map(callableIdentity))
+const mathLibrary = new Set(builtinCallables().filter(floatMathLibrary).map(callableIdentity))
+// Operators such as ^ and ||/ are bound by their implementing function's signature.
+function needsMathLibrary(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([key, item]) =>
+      (key === 'signature' && typeof item === 'string' && mathLibrary.has(item)) ||
+      needsMathLibrary(item),
+  )
+}
 function needsTrigonometry(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   return Object.entries(value).some(
@@ -421,7 +431,12 @@ export function checkUnknownMessage(
     message += ' Binary text output can require an explicit sql.codegen.checks.byteaOutput setting.'
   if (needsAclRoleCatalog(expression))
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
-  return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
+  if (context.mathLibrary !== 'musl' && needsMathLibrary(expression))
+    message +=
+      ' Float8 exponentials, logarithms, roots and powers also require sql.codegen.checks.mathLibrary: musl.'
+  return context.trigonometry !== 'fdlibm' &&
+    context.mathLibrary !== 'musl' &&
+    needsTrigonometry(expression)
     ? message +
         ' Circle-to-polygon coordinate generation and float8 trigonometry also require sql.codegen.checks.trigonometry: fdlibm.'
     : message

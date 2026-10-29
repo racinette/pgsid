@@ -50,3 +50,32 @@ export function floatTrigonometry(item: BuiltinCallable): boolean {
 export function trigonometryContext(item: BuiltinCallable): boolean {
   return circlePolygonTrigonometry(item) || floatTrigonometry(item)
 }
+
+// Exponentials, logarithms, roots and powers come from musl's Arm-derived routines, so only a
+// PostgreSQL built against musl, as PGlite is, reproduces their exact bits.
+const unaryMathLibrary = new Set([
+  'exp',
+  'dexp',
+  'ln',
+  'dlog1',
+  'log',
+  'log10',
+  'dlog10',
+  'cbrt',
+  'dcbrt',
+])
+const binaryMathLibrary = new Set(['pow', 'power', 'dpow'])
+
+export function floatMathLibrary(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.result === 'pg_catalog.float8' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    ((unaryMathLibrary.has(item.name) && item.args.join(',') === 'pg_catalog.float8') ||
+      (binaryMathLibrary.has(item.name) &&
+        item.args.join(',') === 'pg_catalog.float8,pg_catalog.float8'))
+  )
+}
