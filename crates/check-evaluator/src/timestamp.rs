@@ -385,7 +385,7 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 date_only,
             );
         }
-        let zone_only = text.chars[index] == '+'
+        let mut zone_only = text.chars[index] == '+'
             || text.chars[index].to_ascii_lowercase() == 'z'
             || (ordinal.state == ORDINAL_DATE_FOUND
                 && ordinal.minus_zone
@@ -395,6 +395,13 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
         } else if date_text_space(text.chars[index]) {
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
+            }
+            if index < end
+                && (text.chars[index] == '+'
+                    || text.chars[index] == '-'
+                    || text.chars[index].to_ascii_lowercase() == 'z')
+            {
+                zone_only = true;
             }
         } else if zone_only == false {
             return Int8Value::Unknown;
