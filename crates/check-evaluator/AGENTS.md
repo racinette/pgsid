@@ -422,7 +422,7 @@ import them. Keep schema-only helpers with their callables.
   offsets validate in timestamp order, compact clock carry is ignored, and only
   date range checks apply. A numeric zone or Z may follow any of these dates
   directly or after whitespace, with a midnight clock. Weekday names are
-  ignored around the clock, and AM or PM after it (or alone) maps twelve-hour
+  ignored around the clock and zone, and AM or PM after either (or alone) maps twelve-hour
   clocks once zone fields decode: hours above twelve return 22008 and a second
   meridian 22007; after a slash- or
   period-separated ordinal date a minus sign also starts a zone. Invalid

@@ -1,6 +1,6 @@
 # CHECK evaluator continuation handoff
 
-The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit parses AM/PM meridians and weekday words around clocks (identify it with `git log`), preceded by `494e552c` (trailing English months) and `59e0fecb` (letter/digit adjacency). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
+The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit accepts meridians and weekdays after the zone (identify it with `git log`), preceded by `0bfede53` (meridians and weekdays around clocks) and `494e552c` (trailing English months). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
 
 ## Current temporal checkpoint
 
@@ -26,7 +26,7 @@ Julian input follows DecodeDateTime's DTK_JULIAN path: j2date sets the date (the
 
 A fourth delimited field after a complete date is 22007 in every width, including four or six digits (natively not a clock on this path); an int4 overflow in it is 22008 natively and defers. Evidence: temporal-fourth-field-active/.
 
-Meridians and weekdays: after the clock (adjacent or spaced) the parser consumes `am`/`pm` and weekday words before the zone; a weekday may also precede the clock, and `am`/`pm` alone after a date means midnight/noon. The hour check (above twelve → 22008) runs after zone decoding, so an invalid offset still reports 22009 first, and it is definite even when a timestamptz zone is missing. Deferred: a meridian after the zone (`12:00+05 pm`), `a.m.`/`p.m.` (22023 natively), `noon`, `at`, a weekday before an ISO date. Evidence: temporal-meridian-active/.
+Meridians and weekdays: after the clock (adjacent or spaced) the parser consumes `am`/`pm` and weekday words before the zone; a weekday may also precede the clock, and `am`/`pm` alone after a date means midnight/noon. The hour check (above twelve → 22008) runs after zone decoding, so an invalid offset still reports 22009 first, and it is definite even when a timestamptz zone is missing. The same words may also follow the zone (`12:00+05 pm`, temporal-meridian-zone-active/). Deferred: a clock after the zone (`2000-01-01 -05 12:00`), `a.m.`/`p.m.` (22023 natively), `noon`, `at`, a weekday before an ISO date. Evidence: temporal-meridian-active/.
 
 ## Next work
 

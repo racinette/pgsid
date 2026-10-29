@@ -281,3 +281,5 @@ INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 1:30 pm -05', '2000-01-01 18:30:00+00', false);
 -- name: local_meridian_hour_error
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 13:00 pm', NULL, false);
+-- name: instant_meridian_after_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 1:00 -05 pm', '2000-01-01 18:00:00+00', false);

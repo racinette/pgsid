@@ -571,9 +571,6 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 hours = zone_hour.value / 100;
                 minutes = zone_hour.value % 100;
             }
-            if index != end {
-                return Int8Value::Unknown;
-            }
             if hours > 15 || minutes > 59 || seconds > 59 {
                 offset = 57600;
             } else {
@@ -586,6 +583,29 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             return Int8Value::Unknown;
         } else if with_timezone {
             missing_timezone = true;
+        }
+        while index < end && date_text_space(text.chars[index]) {
+            index += 1;
+        }
+        while index < end && english_date_letter(text.chars[index]) {
+            let word = english_date_word(&text, index, end);
+            if word == "am" || word == "pm" {
+                if meridian != 0 {
+                    return Int8Value::Error(SqlError {
+                        state: INVALID_TIMESTAMP_TEXT,
+                    });
+                }
+                meridian = 1;
+                if word == "pm" {
+                    meridian = 2;
+                }
+            } else if english_date_weekday(word.as_str()) == false {
+                break;
+            }
+            index = english_date_word_end(&text, index, end);
+            while index < end && date_text_space(text.chars[index]) {
+                index += 1;
+            }
         }
         if index != end {
             return Int8Value::Unknown;
