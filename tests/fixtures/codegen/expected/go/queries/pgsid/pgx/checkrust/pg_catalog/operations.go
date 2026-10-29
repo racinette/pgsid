@@ -14568,6 +14568,69 @@ func Tan9kzu(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Val
 func Cot8cml(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
 	return float8Tangent(input, fdlibm, true)
 }
+func float8DegreeSineQ1(x float64) float64 {
+	if x <= float64(30.0) {
+		return float8DegreeSine(x)
+	}
+	return float8DegreeCosine(langruntime.F64Subtract(float64(90.0), x))
+}
+func float8DegreeCosineQ1(x float64) float64 {
+	if x <= float64(60.0) {
+		return float8DegreeCosine(x)
+	}
+	return float8DegreeSine(langruntime.F64Subtract(float64(90.0), x))
+}
+func float8DegreeTangent(input checkruntime.Float8Value, fdlibm bool, cotangent bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if langruntime.F64Abs(number) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if fdlibm == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		angle := float8Fmod360(number)
+		sign := float64(1.0)
+		if angle < float64(0.0) {
+			angle = langruntime.F64Negate(angle)
+			sign = langruntime.F64Negate(sign)
+		}
+		if angle > float64(180.0) {
+			angle = langruntime.F64Subtract(float64(360.0), angle)
+			sign = langruntime.F64Negate(sign)
+		}
+		if angle > float64(90.0) {
+			angle = langruntime.F64Subtract(float64(180.0), angle)
+			sign = langruntime.F64Negate(sign)
+		}
+		tan45 := langruntime.F64Divide(float8DegreeSineQ1(float64(45.0)), float8DegreeCosineQ1(float64(45.0)))
+		result := float64(0.0)
+		if cotangent {
+			cot45 := langruntime.F64Divide(float8DegreeCosineQ1(float64(45.0)), float8DegreeSineQ1(float64(45.0)))
+			result = langruntime.F64Multiply(sign, (langruntime.F64Divide((langruntime.F64Divide(float8DegreeCosineQ1(angle), float8DegreeSineQ1(angle))), cot45)))
+		} else {
+			result = langruntime.F64Multiply(sign, (langruntime.F64Divide((langruntime.F64Divide(float8DegreeSineQ1(angle), float8DegreeCosineQ1(angle))), tan45)))
+		}
+		if result == float64(0.0) {
+			result = float64(0.0)
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func Tand3ov2(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8DegreeTangent(input, fdlibm, false)
+}
+func CotdAlh0(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8DegreeTangent(input, fdlibm, true)
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

@@ -14698,6 +14698,76 @@ export function cot8cml(input: checkruntime.Float8Value, fdlibm: boolean): check
     fdlibm = langruntime.checkedBool(fdlibm);
     return float8Tangent(input, fdlibm, true);
 }
+function float8DegreeSineQ1(x: number): number {
+    x = langruntime.checkedF64(x);
+    if (x <= 30.0) {
+        return float8DegreeSine(x);
+    }
+    return float8DegreeCosine(langruntime.f64Subtract(90.0, x));
+}
+function float8DegreeCosineQ1(x: number): number {
+    x = langruntime.checkedF64(x);
+    if (x <= 60.0) {
+        return float8DegreeCosine(x);
+    }
+    return float8DegreeSine(langruntime.f64Subtract(90.0, x));
+}
+function float8DegreeTangent(input: checkruntime.Float8Value, fdlibm: boolean, cotangent: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    cotangent = langruntime.checkedBool(cotangent);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (langruntime.f64Abs(number) === langruntime.f64Divide(1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (fdlibm === false) {
+            return { kind: "Unknown" };
+        }
+        let angle: number = float8Fmod360(number);
+        let sign: number = 1.0;
+        if (angle < 0.0) {
+            angle = langruntime.checkedF64(langruntime.f64Negate(angle));
+            sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+        }
+        if (angle > 180.0) {
+            angle = langruntime.checkedF64(langruntime.f64Subtract(360.0, angle));
+            sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+        }
+        if (angle > 90.0) {
+            angle = langruntime.checkedF64(langruntime.f64Subtract(180.0, angle));
+            sign = langruntime.checkedF64(langruntime.f64Negate(sign));
+        }
+        const tan45: number = langruntime.f64Divide(float8DegreeSineQ1(45.0), float8DegreeCosineQ1(45.0));
+        let result: number = 0.0;
+        if (cotangent) {
+            const cot45: number = langruntime.f64Divide(float8DegreeCosineQ1(45.0), float8DegreeSineQ1(45.0));
+            result = langruntime.checkedF64(langruntime.f64Multiply(sign, (langruntime.f64Divide((langruntime.f64Divide(float8DegreeCosineQ1(angle), float8DegreeSineQ1(angle))), cot45))));
+        }
+        else {
+            result = langruntime.checkedF64(langruntime.f64Multiply(sign, (langruntime.f64Divide((langruntime.f64Divide(float8DegreeSineQ1(angle), float8DegreeCosineQ1(angle))), tan45))));
+        }
+        if (result === 0.0) {
+            result = langruntime.checkedF64(0.0);
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function tand3ov2(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8DegreeTangent(input, fdlibm, false);
+}
+export function cotdAlh0(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8DegreeTangent(input, fdlibm, true);
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

@@ -242,3 +242,74 @@ pub fn sql__pg_catalog__tan__9kzu(input: Float8Value, fdlibm: bool) -> Float8Val
 pub fn sql__pg_catalog__cot__8cml(input: Float8Value, fdlibm: bool) -> Float8Value {
     float8_tangent(input, fdlibm, true)
 }
+
+fn float8_degree_sine_q1(x: f64) -> f64 {
+    if x <= 30.0f64 {
+        return float8_degree_sine(x);
+    };
+    float8_degree_cosine(90.0f64 - x)
+}
+
+fn float8_degree_cosine_q1(x: f64) -> f64 {
+    if x <= 60.0f64 {
+        return float8_degree_cosine(x);
+    };
+    float8_degree_sine(90.0f64 - x)
+}
+
+// tand and cotd follow PostgreSQL's dtand and dcotd: the sine and cosine folds, a quotient scaled
+// by tan(45) or cot(45) so that 45 degrees is exactly one, and zero normalized to positive zero.
+fn float8_degree_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
+    if input == Float8Value::UnspecifiedNan {
+        return Float8Value::UnspecifiedNan;
+    };
+    if let Float8Value::Value(bits) = input {
+        let number = float8_number(bits);
+        if number != number {
+            return Float8Value::UnspecifiedNan;
+        };
+        if number.abs() == 1.0f64 / 0.0f64 {
+            return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
+        };
+        if fdlibm == false {
+            return Float8Value::Unknown;
+        };
+        let mut angle = float8_fmod_360(number);
+        let mut sign = 1.0f64;
+        if angle < 0.0f64 {
+            angle = -angle;
+            sign = -sign;
+        };
+        if angle > 180.0f64 {
+            angle = 360.0f64 - angle;
+            sign = -sign;
+        };
+        if angle > 90.0f64 {
+            angle = 180.0f64 - angle;
+            sign = -sign;
+        };
+        let tan_45 = float8_degree_sine_q1(45.0f64) / float8_degree_cosine_q1(45.0f64);
+        let mut result = 0.0f64;
+        if cotangent {
+            let cot_45 = float8_degree_cosine_q1(45.0f64) / float8_degree_sine_q1(45.0f64);
+            result =
+                sign * ((float8_degree_cosine_q1(angle) / float8_degree_sine_q1(angle)) / cot_45);
+        } else {
+            result =
+                sign * ((float8_degree_sine_q1(angle) / float8_degree_cosine_q1(angle)) / tan_45);
+        };
+        if result == 0.0f64 {
+            result = 0.0f64;
+        };
+        return make_float8_value(result);
+    };
+    input
+}
+
+pub fn sql__pg_catalog__tand__3ov2(input: Float8Value, fdlibm: bool) -> Float8Value {
+    float8_degree_tangent(input, fdlibm, false)
+}
+
+pub fn sql__pg_catalog__cotd__alh0(input: Float8Value, fdlibm: bool) -> Float8Value {
+    float8_degree_tangent(input, fdlibm, true)
+}
