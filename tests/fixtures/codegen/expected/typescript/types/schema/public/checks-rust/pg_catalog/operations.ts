@@ -23798,8 +23798,13 @@ function jsonbOrderWalk(left: checkruntime.JsonbPayload, right: checkruntime.Jso
         }
         return { kind: "Value", value: 1 };
     }
+    return jsonbOrderWalkFrom(left, left.root, right, right.root);
+}
+function jsonbOrderWalkFrom(left: checkruntime.JsonbPayload, leftRoot: number, right: checkruntime.JsonbPayload, rightRoot: number): checkruntime.Int4Value {
+    leftRoot = langruntime.checkedIndex(leftRoot);
+    rightRoot = langruntime.checkedIndex(rightRoot);
     let frames: JsonbOrderFrame[] = [];
-    langruntime.pushStruct(frames, { left: left.root, right: right.root, key: false }, copyJsonbOrderFrame);
+    langruntime.pushStruct(frames, { left: leftRoot, right: rightRoot, key: false }, copyJsonbOrderFrame);
     let depth: number = 1;
     while (depth > 0) {
         depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
@@ -23878,6 +23883,104 @@ function jsonbOrderWalk(left: checkruntime.JsonbPayload, right: checkruntime.Jso
         }
     }
     return { kind: "Value", value: 0 };
+}
+function jsonbOrderRankBound(shape: checkruntime.JsonbPayload, index: number, highest: boolean): number {
+    index = langruntime.checkedIndex(index);
+    highest = langruntime.checkedBool(highest);
+    let found: number = langruntime.checkedSignedNegate(1);
+    let kind: number = 0;
+    while (kind < 7) {
+        if (checkruntime.jsonbHoleAllows(shape, index, kind)) {
+            const rank: number = jsonbOrderRank(kind);
+            if (found < 0 || (highest && rank > found) || (highest === false && rank < found)) {
+                found = langruntime.checkedI32(rank);
+            }
+        }
+        kind = langruntime.checkedI32(langruntime.checkedSignedAdd(kind, 1));
+    }
+    return found;
+}
+function jsonbOrderShape(a: checkruntime.JsonbPayload, ai: number, b: checkruntime.JsonbPayload, bi: number): number {
+    ai = langruntime.checkedIndex(ai);
+    bi = langruntime.checkedIndex(bi);
+    const left: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(ai), checkruntime.copyJsonbNode);
+    const right: checkruntime.JsonbNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(bi), checkruntime.copyJsonbNode);
+    if (left.kind === 7 || right.kind === 7) {
+        if (jsonbOrderRankBound(a, ai, true) < jsonbOrderRankBound(b, bi, false)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (jsonbOrderRankBound(a, ai, false) > jsonbOrderRankBound(b, bi, true)) {
+            return 1;
+        }
+        return langruntime.checkedSignedNegate(2);
+    }
+    const rankA: number = jsonbOrderRank(left.kind);
+    const rankB: number = jsonbOrderRank(right.kind);
+    if (rankA < rankB) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (rankA > rankB) {
+        return 1;
+    }
+    if (left.kind < 5 || (checkruntime.jsonbShapeExact(a, ai) && checkruntime.jsonbShapeExact(b, bi))) {
+        const compared: checkruntime.Int4Value = jsonbOrderWalkFrom(a, ai, b, bi);
+        if (compared.kind === "Value") {
+            const order: number = langruntime.checkedI32(compared.value);
+            return order;
+        }
+        return langruntime.checkedSignedNegate(2);
+    }
+    const countA: number = jsonbRelationCount(a, left);
+    const countB: number = jsonbRelationCount(b, right);
+    if (countA < countB) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (countA > countB) {
+        return 1;
+    }
+    const childrenA: number[] = jsonbOrderChildren(a, left);
+    const childrenB: number[] = jsonbOrderChildren(b, right);
+    let index: number = 0;
+    while (index < countA) {
+        const childA: number = langruntime.indexNumber(childrenA, langruntime.checkedIndex(index));
+        const childB: number = langruntime.indexNumber(childrenB, langruntime.checkedIndex(index));
+        if (left.kind === 6) {
+            const first: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(childA), checkruntime.copyJsonbNode);
+            const second: checkruntime.JsonbNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(childB), checkruntime.copyJsonbNode);
+            const keyed: number = jsonbOrderSpan(a, b, first.keyStart, first.keyEnd, second.keyStart, second.keyEnd);
+            if (!(keyed === 0)) {
+                return keyed;
+            }
+        }
+        const compared: number = jsonbOrderShape(a, childA, b, childB);
+        if (!(compared === 0)) {
+            return compared;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return 0;
+}
+function jsonbOrderShapeRoot(a: checkruntime.JsonbPayload, b: checkruntime.JsonbPayload): number {
+    const left: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(a.root), checkruntime.copyJsonbNode);
+    const right: checkruntime.JsonbNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(b.root), checkruntime.copyJsonbNode);
+    const scalarA: boolean = left.kind < 5 || (left.kind === 7 && checkruntime.jsonbHoleAllows(a, a.root, 5) === false && checkruntime.jsonbHoleAllows(a, a.root, 6) === false);
+    const scalarB: boolean = right.kind < 5 || (right.kind === 7 && checkruntime.jsonbHoleAllows(b, b.root, 5) === false && checkruntime.jsonbHoleAllows(b, b.root, 6) === false);
+    if (scalarA && right.kind === 5) {
+        if (right.child === 0) {
+            return 1;
+        }
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.kind === 5 && scalarB) {
+        if (left.child === 0) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        return 1;
+    }
+    if ((left.kind === 7 && scalarA === false) || (right.kind === 7 && scalarB === false)) {
+        return langruntime.checkedSignedNegate(2);
+    }
+    return jsonbOrderShape(a, a.root, b, b.root);
 }
 function jsonbOrderPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.JsonbKnowledge): checkruntime.Int4Value {
     a = checkruntime.copyJsonbKnowledge(a);
@@ -23964,6 +24067,34 @@ export function jsonbCmpN2cx(left: checkruntime.JsonbValue, right: checkruntime.
         partial = langruntime.checkedBool(true);
     }
     if (partial) {
+        let first: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+        let second: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+        const leftShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+        if (leftShape.kind === "NonNull") {
+            const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(leftShape.value);
+            first = checkruntime.copyJsonbPayload(facts.shape);
+        }
+        const leftExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+        if (leftExact.kind === "Value") {
+            const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(leftExact.value);
+            first = checkruntime.copyJsonbPayload(value);
+        }
+        const rightShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+        if (rightShape.kind === "NonNull") {
+            const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(rightShape.value);
+            second = checkruntime.copyJsonbPayload(facts.shape);
+        }
+        const rightExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+        if (rightExact.kind === "Value") {
+            const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(rightExact.value);
+            second = checkruntime.copyJsonbPayload(value);
+        }
+        if (first.nodes.length > 1 && second.nodes.length > 1) {
+            const ordered: number = jsonbOrderShapeRoot(first, second);
+            if (!(ordered === langruntime.checkedSignedNegate(2))) {
+                return checkruntime.makeInt4Value(ordered);
+            }
+        }
         const a: checkruntime.JsonbKnowledge = jsonbRootFacts(left, false);
         const b: checkruntime.JsonbKnowledge = jsonbRootFacts(right, false);
         return jsonbOrderPartial(a, b);

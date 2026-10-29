@@ -195,10 +195,19 @@ fn jsonb_order_walk(left: &JsonbPayload, right: &JsonbPayload) -> Int4Value {
         };
         return Int4Value::Value(1);
     };
+    jsonb_order_walk_from(left, left.root, right, right.root)
+}
+
+fn jsonb_order_walk_from(
+    left: &JsonbPayload,
+    left_root: usize,
+    right: &JsonbPayload,
+    right_root: usize,
+) -> Int4Value {
     let mut frames: Vec<JsonbOrderFrame> = Vec::new();
     frames.push(JsonbOrderFrame {
-        left: left.root,
-        right: right.root,
+        left: left_root,
+        right: right_root,
         key: false,
     });
     let mut depth: usize = 1;
@@ -293,6 +302,120 @@ fn jsonb_order_walk(left: &JsonbPayload, right: &JsonbPayload) -> Int4Value {
     Int4Value::Value(0)
 }
 
+// The lowest and highest ordering rank a node may have; a hole spans its possible kinds.
+fn jsonb_order_rank_bound(shape: &JsonbPayload, index: usize, highest: bool) -> i32 {
+    let mut found: i32 = -1;
+    let mut kind: i32 = 0;
+    while kind < 7 {
+        if jsonb_hole_allows(shape, index, kind) {
+            let rank = jsonb_order_rank(kind);
+            if found < 0 || (highest && rank > found) || (highest == false && rank < found) {
+                found = rank;
+            };
+        };
+        kind = kind + 1;
+    }
+    found
+}
+
+// Ordering below the root over subtrees that may hold holes, in PostgreSQL's traversal order:
+// rank, then member count, then each key and value in key order. -2 means a hole decides.
+fn jsonb_order_shape(a: &JsonbPayload, ai: usize, b: &JsonbPayload, bi: usize) -> i32 {
+    let left = a.nodes[ai];
+    let right = b.nodes[bi];
+    if left.kind == 7 || right.kind == 7 {
+        if jsonb_order_rank_bound(a, ai, true) < jsonb_order_rank_bound(b, bi, false) {
+            return -1;
+        };
+        if jsonb_order_rank_bound(a, ai, false) > jsonb_order_rank_bound(b, bi, true) {
+            return 1;
+        };
+        return -2;
+    };
+    let rank_a = jsonb_order_rank(left.kind);
+    let rank_b = jsonb_order_rank(right.kind);
+    if rank_a < rank_b {
+        return -1;
+    };
+    if rank_a > rank_b {
+        return 1;
+    };
+    if left.kind < 5 || (jsonb_shape_exact(a, ai) && jsonb_shape_exact(b, bi)) {
+        let compared = jsonb_order_walk_from(a, ai, b, bi);
+        if let Int4Value::Value(order) = compared {
+            return order;
+        };
+        return -2;
+    };
+    let count_a = jsonb_relation_count(a, left);
+    let count_b = jsonb_relation_count(b, right);
+    if count_a < count_b {
+        return -1;
+    };
+    if count_a > count_b {
+        return 1;
+    };
+    let children_a = jsonb_order_children(a, left);
+    let children_b = jsonb_order_children(b, right);
+    let mut index: usize = 0;
+    while index < count_a {
+        let child_a = children_a[index];
+        let child_b = children_b[index];
+        if left.kind == 6 {
+            let first = a.nodes[child_a];
+            let second = b.nodes[child_b];
+            let keyed = jsonb_order_span(
+                a,
+                b,
+                first.key_start,
+                first.key_end,
+                second.key_start,
+                second.key_end,
+            );
+            if keyed != 0 {
+                return keyed;
+            };
+        };
+        let compared = jsonb_order_shape(a, child_a, b, child_b);
+        if compared != 0 {
+            return compared;
+        };
+        index += 1;
+    }
+    0
+}
+
+// The root keeps PostgreSQL's exception: a raw scalar sorts below a nonempty array and above
+// an empty one.
+fn jsonb_order_shape_root(a: &JsonbPayload, b: &JsonbPayload) -> i32 {
+    let left = a.nodes[a.root];
+    let right = b.nodes[b.root];
+    let scalar_a = left.kind < 5
+        || (left.kind == 7
+            && jsonb_hole_allows(a, a.root, 5) == false
+            && jsonb_hole_allows(a, a.root, 6) == false);
+    let scalar_b = right.kind < 5
+        || (right.kind == 7
+            && jsonb_hole_allows(b, b.root, 5) == false
+            && jsonb_hole_allows(b, b.root, 6) == false);
+    if scalar_a && right.kind == 5 {
+        if right.child == 0 {
+            return 1;
+        };
+        return -1;
+    };
+    if left.kind == 5 && scalar_b {
+        if left.child == 0 {
+            return -1;
+        };
+        return 1;
+    };
+    if (left.kind == 7 && scalar_a == false) || (right.kind == 7 && scalar_b == false) {
+        return -2;
+    };
+    jsonb_order_shape(a, a.root, b, b.root)
+}
+
 fn jsonb_order_partial(a: JsonbKnowledge, b: JsonbKnowledge) -> Int4Value {
     if a.kind < 0 || b.kind < 0 {
         return Int4Value::Unknown;
@@ -373,6 +496,30 @@ pub fn sql__pg_catalog__jsonb_cmp__n2cx(left: JsonbValue, right: JsonbValue) -> 
         partial = true;
     };
     if partial {
+        let mut first = jsonb_empty_shape();
+        let mut second = jsonb_empty_shape();
+        let left_shape = left.clone();
+        if let JsonbValue::NonNull(facts) = left_shape {
+            first = facts.shape;
+        };
+        let left_exact = left.clone();
+        if let JsonbValue::Value(value) = left_exact {
+            first = value;
+        };
+        let right_shape = right.clone();
+        if let JsonbValue::NonNull(facts) = right_shape {
+            second = facts.shape;
+        };
+        let right_exact = right.clone();
+        if let JsonbValue::Value(value) = right_exact {
+            second = value;
+        };
+        if first.nodes.len() > 1 && second.nodes.len() > 1 {
+            let ordered = jsonb_order_shape_root(&first, &second);
+            if ordered != -2 {
+                return make_int4_value(ordered);
+            };
+        };
         let a = jsonb_root_facts(left, false);
         let b = jsonb_root_facts(right, false);
         return jsonb_order_partial(a, b);
