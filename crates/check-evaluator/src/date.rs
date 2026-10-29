@@ -452,6 +452,158 @@ fn read_julian_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDa
     }
 }
 
+// With a known DateStyle order, whitespace-separated numeric and month-name date fields follow
+// DecodeNumber's field-mask state machine: an order-dependent first field, a text month that turns
+// an earlier numeric month into the day, and a four- or five-digit field after a two-digit first
+// guess becoming the year. Three-digit fields (days of year), six-digit fields and incomplete
+// dates defer; the first token that is not a date field ends the date.
+fn read_ordered_date(
+    text: &TimestampText,
+    start: usize,
+    end: usize,
+    date_order: i32,
+    bc: bool,
+) -> OrdinalDateText {
+    let absent = english_date_result(ORDINAL_DATE_ABSENT, start, 0, 0, 0);
+    let mut have_year = false;
+    let mut have_month = false;
+    let mut have_day = false;
+    let mut text_month = false;
+    let mut two_digit_year = false;
+    let mut year: i32 = 0;
+    let mut month: i32 = 0;
+    let mut day: i32 = 0;
+    let mut fields = 0;
+    let mut index = start;
+    let mut date_end = start;
+    while index < end && (have_year && have_month && have_day) == false {
+        let token_start = index;
+        let word = english_date_word(text, token_start, end);
+        let word_month = english_date_month(word.as_str());
+        if word_month > 0 {
+            let word_end = english_date_word_end(text, token_start, end);
+            if word_end < end && date_text_space(text.chars[word_end]) == false {
+                break;
+            }
+            if have_month {
+                if text_month || have_day || month < 1 || month > 31 {
+                    return english_date_result(ORDINAL_DATE_SYNTAX, word_end, 0, 0, 0);
+                }
+                day = month;
+                have_day = true;
+            }
+            month = word_month;
+            have_month = true;
+            text_month = true;
+            index = word_end;
+        } else {
+            let number = read_timestamp_number(text, token_start, end);
+            if number.digits == 0 {
+                break;
+            }
+            if number.next < end && date_text_space(text.chars[number.next]) == false {
+                break;
+            }
+            if number.digits == 3 || number.digits >= 6 || number.overflow {
+                if fields == 0 {
+                    return absent;
+                }
+                return english_date_result(ORDINAL_DATE_DEFERRED, number.next, 0, 0, 0);
+            }
+            let value = number.value;
+            let long = number.digits >= 3;
+            let mut assigned_year = false;
+            if have_year == false && have_month == false && have_day == false {
+                if long || date_order == 3 {
+                    year = value;
+                    have_year = true;
+                    assigned_year = true;
+                } else if date_order == 2 {
+                    day = value;
+                    have_day = true;
+                } else {
+                    month = value;
+                    have_month = true;
+                };
+            } else if have_year && have_month == false && have_day == false {
+                month = value;
+                have_month = true;
+            } else if have_month && have_year == false && have_day == false {
+                if text_month && (long || date_order == 3) {
+                    year = value;
+                    have_year = true;
+                    assigned_year = true;
+                } else {
+                    day = value;
+                    have_day = true;
+                };
+            } else if have_year && have_month && have_day == false {
+                if text_month && long && two_digit_year {
+                    day = year;
+                    year = value;
+                    two_digit_year = false;
+                } else {
+                    day = value;
+                }
+                have_day = true;
+            } else if have_day && have_year == false && have_month == false {
+                month = value;
+                have_month = true;
+            } else if have_month && have_day && have_year == false {
+                year = value;
+                have_year = true;
+                assigned_year = true;
+            } else {
+                return english_date_result(ORDINAL_DATE_SYNTAX, number.next, 0, 0, 0);
+            };
+            if assigned_year {
+                two_digit_year = number.digits <= 2;
+            }
+            index = number.next;
+        };
+        fields += 1;
+        date_end = index;
+        while index < end && date_text_space(text.chars[index]) {
+            index += 1;
+        }
+    }
+    if fields < 2 {
+        return absent;
+    }
+    if (have_year && have_month && have_day) == false {
+        return english_date_result(ORDINAL_DATE_DEFERRED, date_end, 0, 0, 0);
+    }
+    if two_digit_year && bc == false {
+        if year < 70 {
+            year = year + 2000;
+        } else {
+            year = year + 1900;
+        };
+    }
+    english_date_result(ORDINAL_DATE_CALENDAR, date_end, year, month, day)
+}
+
+// The order-dependent reading applies only where the order-independent readers find nothing
+// definite.
+fn read_date_fields(
+    text: &TimestampText,
+    start: usize,
+    end: usize,
+    date_order: i32,
+    bc: bool,
+) -> OrdinalDateText {
+    let ordinal = read_ordinal_date(text, start, end);
+    if date_order > 0
+        && (ordinal.state == ORDINAL_DATE_ABSENT || ordinal.state == ORDINAL_DATE_DEFERRED)
+    {
+        let ordered = read_ordered_date(text, start, end, date_order, bc);
+        if ordered.state != ORDINAL_DATE_ABSENT {
+            return ordered;
+        }
+    }
+    ordinal
+}
+
 fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
     let julian = read_julian_date(text, start, end);
     if julian.state != ORDINAL_DATE_ABSENT {
