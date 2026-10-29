@@ -433,7 +433,7 @@ export function checkUnknownMessage(
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   if (context.mathLibrary !== 'musl' && needsMathLibrary(expression))
     message +=
-      ' Float8 exponentials, logarithms, roots and powers also require sql.codegen.checks.mathLibrary: musl.'
+      ' Float8 exponentials, logarithms, roots, powers and hyperbolic functions also require sql.codegen.checks.mathLibrary: musl.'
   return context.trigonometry !== 'fdlibm' &&
     context.mathLibrary !== 'musl' &&
     needsTrigonometry(expression)

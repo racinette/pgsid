@@ -888,8 +888,11 @@ fn musl_exp(x: f64) -> f64 {
     scale + scale * tmp
 }
 
-// Arguments are positive and finite; PostgreSQL rejects others first.
+// Arguments are positive; log(inf) is inf, as the hyperbolic functions rely on.
 fn musl_log(input: f64) -> f64 {
+    if input == 1.0f64 / 0.0f64 {
+        return input;
+    };
     let mut ix = input.to_bits() as i64;
     if ix - 4606619468846596096i64 < 4607473789381378048i64 - 4606619468846596096i64
         && ix >= 4606619468846596096i64
