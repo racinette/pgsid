@@ -16861,6 +16861,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
             return timestampCalendarMicroseconds(year, month, day, julianHour, julianMinute, julianSecond, julianFraction, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
         }
+        let deferredZone: boolean = false;
+        let deferredZoneStart: number = index;
+        let deferredZoneEnd: number = index;
         let zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
@@ -16868,6 +16871,30 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         else if (dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
             while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
+            }
+            const zoneMark: string = langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)));
+            if (zoneMark === "+" || zoneMark === "-" || zoneMark === "z") {
+                let tokenEnd: number = langruntime.checkedAdd(index, 1);
+                if (!(zoneMark === "z")) {
+                    while (tokenEnd < end && (dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(tokenEnd))) >= 0 || langruntime.indexChar(text.chars, langruntime.checkedIndex(tokenEnd)) === ":")) {
+                        tokenEnd = langruntime.checkedAdd(tokenEnd, 1);
+                    }
+                }
+                let clockStart: number = tokenEnd;
+                while (clockStart < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(clockStart)))) {
+                    clockStart = langruntime.checkedAdd(clockStart, 1);
+                }
+                let digitStart: number = clockStart;
+                if (digitStart < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(digitStart))) === "t") {
+                    digitStart = langruntime.checkedAdd(digitStart, 1);
+                }
+                const zoneBody: boolean = zoneMark === "z" || tokenEnd > langruntime.checkedAdd(index, 1);
+                if (zoneBody && clockStart > tokenEnd && digitStart < end && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(digitStart))) >= 0) {
+                    deferredZone = langruntime.checkedBool(true);
+                    deferredZoneStart = langruntime.checkedIndex(index);
+                    deferredZoneEnd = langruntime.checkedIndex(tokenEnd);
+                    index = langruntime.checkedIndex(digitStart);
+                }
             }
             const leadingWord: string = englishDateWord(text, index, end);
             if (englishDateWeekday(leadingWord)) {
@@ -16988,6 +17015,10 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 index = langruntime.checkedAdd(index, 1);
             }
         }
+        const resumeIndex: number = index;
+        if (deferredZone) {
+            index = langruntime.checkedIndex(deferredZoneStart);
+        }
         let offset: number = 0;
         let missingTimezone: boolean = false;
         if (index < end && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z") {
@@ -17041,6 +17072,15 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         else if (withTimezone) {
             missingTimezone = langruntime.checkedBool(true);
+        }
+        if (deferredZone) {
+            if (!(index === deferredZoneEnd)) {
+                return { kind: "Unknown" };
+            }
+            if (offset < langruntime.checkedSignedNegate(57599) || offset > 57599) {
+                return { kind: "Error", value: { state: invalidTimestampZone } };
+            }
+            index = langruntime.checkedIndex(resumeIndex);
         }
         while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
             index = langruntime.checkedAdd(index, 1);

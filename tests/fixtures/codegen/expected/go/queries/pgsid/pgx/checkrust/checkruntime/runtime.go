@@ -16912,12 +16912,39 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			}
 			return timestampCalendarMicroseconds(year, month, day, julianHour, julianMinute, julianSecond, julianFraction, 0, false, false, withTimezone, false, ordinalDay, dateOnly)
 		}
+		deferredZone := false
+		deferredZoneStart := index
+		deferredZoneEnd := index
 		zoneOnly := text.chars[index] == '+' || langruntime.AsciiLowercase(text.chars[index]) == 'z' || (ordinal.state == ordinalDateFound && ordinal.minusZone && text.chars[index] == '-')
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
 		} else if dateTextSpace(text.chars[index]) {
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
+			}
+			zoneMark := langruntime.AsciiLowercase(text.chars[index])
+			if zoneMark == '+' || zoneMark == '-' || zoneMark == 'z' {
+				tokenEnd := langruntime.CheckedAdd(index, 1)
+				if zoneMark != 'z' {
+					for tokenEnd < end && (dateTextDigit(text.chars[tokenEnd]) >= 0 || text.chars[tokenEnd] == ':') {
+						tokenEnd = langruntime.CheckedAdd(tokenEnd, 1)
+					}
+				}
+				clockStart := tokenEnd
+				for clockStart < end && dateTextSpace(text.chars[clockStart]) {
+					clockStart = langruntime.CheckedAdd(clockStart, 1)
+				}
+				digitStart := clockStart
+				if digitStart < end && langruntime.AsciiLowercase(text.chars[digitStart]) == 't' {
+					digitStart = langruntime.CheckedAdd(digitStart, 1)
+				}
+				zoneBody := zoneMark == 'z' || tokenEnd > langruntime.CheckedAdd(index, 1)
+				if zoneBody && clockStart > tokenEnd && digitStart < end && dateTextDigit(text.chars[digitStart]) >= 0 {
+					deferredZone = true
+					deferredZoneStart = langruntime.CheckedIndex(index)
+					deferredZoneEnd = langruntime.CheckedIndex(tokenEnd)
+					index = langruntime.CheckedIndex(digitStart)
+				}
 			}
 			leadingWord := englishDateWord(&text, index, end)
 			if englishDateWeekday(leadingWord) {
@@ -17033,6 +17060,10 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 				index = langruntime.CheckedAdd(index, 1)
 			}
 		}
+		resumeIndex := index
+		if deferredZone {
+			index = langruntime.CheckedIndex(deferredZoneStart)
+		}
 		offset := 0
 		missingTimezone := false
 		if index < end && langruntime.AsciiLowercase(text.chars[index]) == 'z' {
@@ -17081,6 +17112,15 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			return Int8Value{Kind: Int8ValueUnknown}
 		} else if withTimezone {
 			missingTimezone = true
+		}
+		if deferredZone {
+			if index != deferredZoneEnd {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			if offset < langruntime.CheckedSignedNegate(57599) || offset > 57599 {
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampZone}}
+			}
+			index = langruntime.CheckedIndex(resumeIndex)
 		}
 		for index < end && dateTextSpace(text.chars[index]) {
 			index = langruntime.CheckedAdd(index, 1)
