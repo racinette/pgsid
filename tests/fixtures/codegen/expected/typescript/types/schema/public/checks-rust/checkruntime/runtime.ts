@@ -16069,7 +16069,7 @@ function readEnglishDate(text: TimestampText, start: number, end: number): Ordin
         }
         const firstStart: number = englishDateGap(text, after, end);
         const first: TimestampNumber = readTimestampNumber(text, firstStart, end);
-        if (firstStart === after || first.digits === 0) {
+        if (first.digits === 0) {
             return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
         }
         const secondStart: number = englishDateGap(text, first.next, end);
@@ -16099,7 +16099,7 @@ function readEnglishDate(text: TimestampText, start: number, end: number): Ordin
         return englishDateFields(first, second, month, second.next, true, true);
     }
     const wordStart: number = englishDateGap(text, after, end);
-    if (wordStart === after || wordStart === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) === false) {
+    if (wordStart === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) === false) {
         return absent;
     }
     const word: string = englishDateWord(text, wordStart, end);
@@ -16110,7 +16110,7 @@ function readEnglishDate(text: TimestampText, start: number, end: number): Ordin
     const wordEnd: number = englishDateWordEnd(text, wordStart, end);
     const secondStart: number = englishDateGap(text, wordEnd, end);
     const second: TimestampNumber = readTimestampNumber(text, secondStart, end);
-    if (secondStart === wordEnd || second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === "t") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next)) === "+"))) {
+    if (second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === "t") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next)) === "+"))) {
         return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
     }
     return englishDateFields(first, second, month, second.next, false, true);

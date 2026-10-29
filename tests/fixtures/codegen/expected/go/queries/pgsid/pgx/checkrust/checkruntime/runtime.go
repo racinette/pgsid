@@ -16145,7 +16145,7 @@ func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
 		}
 		firstStart := englishDateGap(text, after, end)
 		first := readTimestampNumber(text, firstStart, end)
-		if firstStart == after || first.digits == 0 {
+		if first.digits == 0 {
 			return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
 		}
 		secondStart := englishDateGap(text, first.next, end)
@@ -16175,7 +16175,7 @@ func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
 		return englishDateFields(&first, &second, month, second.next, true, true)
 	}
 	wordStart := englishDateGap(text, after, end)
-	if wordStart == after || wordStart == end || englishDateLetter(text.chars[wordStart]) == false {
+	if wordStart == end || englishDateLetter(text.chars[wordStart]) == false {
 		return absent
 	}
 	word := englishDateWord(text, wordStart, end)
@@ -16186,7 +16186,7 @@ func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
 	wordEnd := englishDateWordEnd(text, wordStart, end)
 	secondStart := englishDateGap(text, wordEnd, end)
 	second := readTimestampNumber(text, secondStart, end)
-	if secondStart == wordEnd || second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false && langruntime.AsciiLowercase(text.chars[second.next]) != 't' && text.chars[second.next] != '+') {
+	if second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false && langruntime.AsciiLowercase(text.chars[second.next]) != 't' && text.chars[second.next] != '+') {
 		return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
 	}
 	return englishDateFields(&first, &second, month, second.next, false, true)
