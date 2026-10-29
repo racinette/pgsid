@@ -403,7 +403,13 @@ import them. Keep schema-only helpers with their callables.
   or more digits, otherwise 22008, including year zero. Whitespace-separated
   year, month and day fields form a calendar date. A day of year followed by a
   third field returns 22007 unless that field has four or six digits, which
-  defers; a separator ending the text after it is ignored. A date followed by a
+  defers; a separator ending the text after it is ignored. English month names
+  and abbreviations pair with two numbers, either around the month or after it,
+  separated by whitespace and commas or by one repeated hyphen, slash or period;
+  an optional leading weekday is ignored. A first number of three or more digits
+  is the year and the second the day; otherwise a second number of three or more
+  digits is the year. Two short numbers defer because DateStyle assigns them, and
+  a whitespace-separated field of six or more digits returns 22007. A date followed by a
   timestamp clock and optional
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only

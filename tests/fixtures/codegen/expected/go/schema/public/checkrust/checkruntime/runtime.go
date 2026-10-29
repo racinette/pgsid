@@ -15999,9 +15999,203 @@ type ordinalCalendar struct {
 func copyordinalCalendar(value ordinalCalendar) ordinalCalendar {
 	return ordinalCalendar{known: value.known, year: langruntime.CheckedI32(value.year), month: langruntime.CheckedI32(value.month), day: langruntime.CheckedI32(value.day)}
 }
+func englishDateLetter(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	code := int(langruntime.CheckedChar(langruntime.AsciiLowercase(value)))
+	return code >= 97 && code <= 122
+}
+func englishDateWord(text *timestampText, start int, end int) string {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	word := langruntime.NewTextBuffer("")
+	index := start
+	for index < end && englishDateLetter(text.chars[index]) {
+		word = append(word, string(langruntime.CheckedChar(langruntime.AsciiLowercase(text.chars[index])))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(word)
+}
+func englishDateWordEnd(text *timestampText, start int, end int) int {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	index := start
+	for index < end && englishDateLetter(text.chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return index
+}
+func englishDateMonth(word string) int {
+	word = langruntime.CheckedString(word)
+	if word == "jan" || word == "january" {
+		return 1
+	}
+	if word == "feb" || word == "february" {
+		return 2
+	}
+	if word == "mar" || word == "march" {
+		return 3
+	}
+	if word == "apr" || word == "april" {
+		return 4
+	}
+	if word == "may" {
+		return 5
+	}
+	if word == "jun" || word == "june" {
+		return 6
+	}
+	if word == "jul" || word == "july" {
+		return 7
+	}
+	if word == "aug" || word == "august" {
+		return 8
+	}
+	if word == "sep" || word == "sept" || word == "september" {
+		return 9
+	}
+	if word == "oct" || word == "october" {
+		return 10
+	}
+	if word == "nov" || word == "november" {
+		return 11
+	}
+	if word == "dec" || word == "december" {
+		return 12
+	}
+	return 0
+}
+func englishDateWeekday(word string) bool {
+	word = langruntime.CheckedString(word)
+	return word == "sun" || word == "sunday" || word == "mon" || word == "monday" || word == "tue" || word == "tues" || word == "tuesday" || word == "wed" || word == "wednesday" || word == "thu" || word == "thur" || word == "thurs" || word == "thursday" || word == "fri" || word == "friday" || word == "sat" || word == "saturday"
+}
+func englishDateGap(text *timestampText, start int, end int) int {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	index := start
+	for index < end && (dateTextSpace(text.chars[index]) || text.chars[index] == ',') {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return index
+}
+func englishDateDelimiter(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return value == '-' || value == '/' || value == '.'
+}
+func englishDateResult(state int, next int, year int, month int, day int) ordinalDateText {
+	state = langruntime.CheckedI32(state)
+	next = langruntime.CheckedIndex(next)
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	return ordinalDateText{state: state, next: next, year: year, overflow: false, month: month, day: day, minusZone: false}
+}
+func englishDateFields(first *timestampNumber, second *timestampNumber, month int, next int, delimited bool, numberFirst bool) ordinalDateText {
+	month = langruntime.CheckedI32(month)
+	next = langruntime.CheckedIndex(next)
+	if delimited == false && (first.digits >= 6 || second.digits >= 6) {
+		return englishDateResult(ordinalDateSyntax, next, 0, 0, 0)
+	}
+	if delimited && (first.digits >= 10 || second.digits >= 10) {
+		return englishDateResult(ordinalDateDeferred, next, 0, 0, 0)
+	}
+	if first.digits >= 3 {
+		return englishDateResult(ordinalDateCalendar, next, first.value, month, second.value)
+	}
+	if second.digits < 3 || (delimited == false && numberFirst && (first.value < 1 || first.value > 31)) {
+		return englishDateResult(ordinalDateDeferred, next, 0, 0, 0)
+	}
+	return englishDateResult(ordinalDateCalendar, next, second.value, month, first.value)
+}
+func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	absent := englishDateResult(ordinalDateAbsent, start, 0, 0, 0)
+	index := start
+	leading := englishDateWord(text, index, end)
+	if englishDateWeekday(leading) {
+		leadingEnd := englishDateWordEnd(text, index, end)
+		index = langruntime.CheckedIndex(englishDateGap(text, leadingEnd, end))
+		if index == leadingEnd {
+			return absent
+		}
+	}
+	if index == end {
+		return absent
+	}
+	if englishDateLetter(text.chars[index]) {
+		word := englishDateWord(text, index, end)
+		month := englishDateMonth(word)
+		if month == 0 {
+			return absent
+		}
+		after := englishDateWordEnd(text, index, end)
+		if after < end && englishDateDelimiter(text.chars[after]) {
+			delimiter := text.chars[after]
+			first := readTimestampNumber(text, langruntime.CheckedAdd(after, 1), end)
+			if first.digits == 0 || first.next == end || text.chars[first.next] != delimiter {
+				return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+			}
+			second := readTimestampNumber(text, langruntime.CheckedAdd(first.next, 1), end)
+			if second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false) {
+				return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+			}
+			return englishDateFields(&first, &second, month, second.next, true, false)
+		}
+		firstStart := englishDateGap(text, after, end)
+		first := readTimestampNumber(text, firstStart, end)
+		if firstStart == after || first.digits == 0 {
+			return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+		}
+		secondStart := englishDateGap(text, first.next, end)
+		second := readTimestampNumber(text, secondStart, end)
+		if secondStart == first.next || second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false && langruntime.AsciiLowercase(text.chars[second.next]) != 't' && text.chars[second.next] != '+') {
+			return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+		}
+		return englishDateFields(&first, &second, month, second.next, false, false)
+	}
+	first := readTimestampNumber(text, index, end)
+	if first.digits == 0 || first.next == end {
+		return absent
+	}
+	after := first.next
+	if englishDateDelimiter(text.chars[after]) && langruntime.CheckedAdd(after, 1) < end && englishDateLetter(text.chars[langruntime.CheckedAdd(after, 1)]) {
+		delimiter := text.chars[after]
+		word := englishDateWord(text, langruntime.CheckedAdd(after, 1), end)
+		month := englishDateMonth(word)
+		wordEnd := englishDateWordEnd(text, langruntime.CheckedAdd(after, 1), end)
+		if month == 0 || wordEnd == end || text.chars[wordEnd] != delimiter {
+			return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+		}
+		second := readTimestampNumber(text, langruntime.CheckedAdd(wordEnd, 1), end)
+		if second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false) {
+			return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+		}
+		return englishDateFields(&first, &second, month, second.next, true, true)
+	}
+	wordStart := englishDateGap(text, after, end)
+	if wordStart == after || wordStart == end || englishDateLetter(text.chars[wordStart]) == false {
+		return absent
+	}
+	word := englishDateWord(text, wordStart, end)
+	month := englishDateMonth(word)
+	if month == 0 {
+		return absent
+	}
+	wordEnd := englishDateWordEnd(text, wordStart, end)
+	secondStart := englishDateGap(text, wordEnd, end)
+	second := readTimestampNumber(text, secondStart, end)
+	if secondStart == wordEnd || second.digits == 0 || (second.next < end && dateTextSpace(text.chars[second.next]) == false && langruntime.AsciiLowercase(text.chars[second.next]) != 't' && text.chars[second.next] != '+') {
+		return englishDateResult(ordinalDateDeferred, after, 0, 0, 0)
+	}
+	return englishDateFields(&first, &second, month, second.next, false, true)
+}
 func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 	start = langruntime.CheckedIndex(start)
 	end = langruntime.CheckedIndex(end)
+	english := readEnglishDate(text, start, end)
+	if english.state != ordinalDateAbsent {
+		return english
+	}
 	year := readTimestampNumber(text, start, end)
 	index := year.next
 	state := ordinalDateAbsent
@@ -16173,21 +16367,19 @@ func DateFromText(value TextValue) DateValue {
 		for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
-		if start < end && langruntime.AsciiLowercase(chars[start]) == 'j' {
-			index := start
-			label := langruntime.NewTextBuffer("")
-			for index < end {
-				character := langruntime.AsciiLowercase(chars[index])
-				code := int(langruntime.CheckedChar(character))
-				if code < 97 || code > 122 {
-					break
-				}
-				label = append(label, string(langruntime.CheckedChar(character))...)
-				index = langruntime.CheckedAdd(index, 1)
+		label := langruntime.NewTextBuffer("")
+		labelEnd := start
+		for labelEnd < end {
+			character := langruntime.AsciiLowercase(chars[labelEnd])
+			code := int(langruntime.CheckedChar(character))
+			if code < 97 || code > 122 {
+				break
 			}
-			if string(label) != "j" && string(label) != "jd" && string(label) != "julian" {
-				return DateValue{Kind: DateValueUnknown}
-			}
+			label = append(label, string(langruntime.CheckedChar(character))...)
+			labelEnd = langruntime.CheckedAdd(labelEnd, 1)
+		}
+		if string(label) == "j" || string(label) == "jd" || string(label) == "julian" {
+			index := labelEnd
 			for index < end && dateTextSpace(chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}

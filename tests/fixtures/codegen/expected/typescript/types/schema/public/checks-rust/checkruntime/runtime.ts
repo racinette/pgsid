@@ -15921,9 +15921,205 @@ interface OrdinalCalendar {
 function copyOrdinalCalendar(value: OrdinalCalendar): OrdinalCalendar {
     return { known: langruntime.checkedBool(value.known), year: langruntime.checkedI32(value.year), month: langruntime.checkedI32(value.month), day: langruntime.checkedI32(value.day) };
 }
+function englishDateLetter(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    const code: number = langruntime.checkedChar(langruntime.asciiLowercase(value)).codePointAt(0)!;
+    return code >= 97 && code <= 122;
+}
+function englishDateWord(text: TimestampText, start: number, end: number): string {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let word: string = "";
+    let index: number = start;
+    while (index < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return word;
+}
+function englishDateWordEnd(text: TimestampText, start: number, end: number): number {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let index: number = start;
+    while (index < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return index;
+}
+function englishDateMonth(word: string): number {
+    word = langruntime.checkedString(word);
+    if (word === "jan" || word === "january") {
+        return 1;
+    }
+    if (word === "feb" || word === "february") {
+        return 2;
+    }
+    if (word === "mar" || word === "march") {
+        return 3;
+    }
+    if (word === "apr" || word === "april") {
+        return 4;
+    }
+    if (word === "may") {
+        return 5;
+    }
+    if (word === "jun" || word === "june") {
+        return 6;
+    }
+    if (word === "jul" || word === "july") {
+        return 7;
+    }
+    if (word === "aug" || word === "august") {
+        return 8;
+    }
+    if (word === "sep" || word === "sept" || word === "september") {
+        return 9;
+    }
+    if (word === "oct" || word === "october") {
+        return 10;
+    }
+    if (word === "nov" || word === "november") {
+        return 11;
+    }
+    if (word === "dec" || word === "december") {
+        return 12;
+    }
+    return 0;
+}
+function englishDateWeekday(word: string): boolean {
+    word = langruntime.checkedString(word);
+    return word === "sun" || word === "sunday" || word === "mon" || word === "monday" || word === "tue" || word === "tues" || word === "tuesday" || word === "wed" || word === "wednesday" || word === "thu" || word === "thur" || word === "thurs" || word === "thursday" || word === "fri" || word === "friday" || word === "sat" || word === "saturday";
+}
+function englishDateGap(text: TimestampText, start: number, end: number): number {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let index: number = start;
+    while (index < end && (dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ",")) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return index;
+}
+function englishDateDelimiter(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === "-" || value === "/" || value === ".";
+}
+function englishDateResult(state: number, next: number, year: number, month: number, day: number): OrdinalDateText {
+    state = langruntime.checkedI32(state);
+    next = langruntime.checkedIndex(next);
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    return { state: state, next: next, year: year, overflow: false, month: month, day: day, minusZone: false };
+}
+function englishDateFields(first: TimestampNumber, second: TimestampNumber, month: number, next: number, delimited: boolean, numberFirst: boolean): OrdinalDateText {
+    month = langruntime.checkedI32(month);
+    next = langruntime.checkedIndex(next);
+    delimited = langruntime.checkedBool(delimited);
+    numberFirst = langruntime.checkedBool(numberFirst);
+    if (delimited === false && (first.digits >= 6 || second.digits >= 6)) {
+        return englishDateResult(ordinalDateSyntax, next, 0, 0, 0);
+    }
+    if (delimited && (first.digits >= 10 || second.digits >= 10)) {
+        return englishDateResult(ordinalDateDeferred, next, 0, 0, 0);
+    }
+    if (first.digits >= 3) {
+        return englishDateResult(ordinalDateCalendar, next, first.value, month, second.value);
+    }
+    if (second.digits < 3 || (delimited === false && numberFirst && (first.value < 1 || first.value > 31))) {
+        return englishDateResult(ordinalDateDeferred, next, 0, 0, 0);
+    }
+    return englishDateResult(ordinalDateCalendar, next, second.value, month, first.value);
+}
+function readEnglishDate(text: TimestampText, start: number, end: number): OrdinalDateText {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    const absent: OrdinalDateText = englishDateResult(ordinalDateAbsent, start, 0, 0, 0);
+    let index: number = start;
+    const leading: string = englishDateWord(text, index, end);
+    if (englishDateWeekday(leading)) {
+        const leadingEnd: number = englishDateWordEnd(text, index, end);
+        index = langruntime.checkedIndex(englishDateGap(text, leadingEnd, end));
+        if (index === leadingEnd) {
+            return absent;
+        }
+    }
+    if (index === end) {
+        return absent;
+    }
+    if (englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        const word: string = englishDateWord(text, index, end);
+        const month: number = englishDateMonth(word);
+        if (month === 0) {
+            return absent;
+        }
+        const after: number = englishDateWordEnd(text, index, end);
+        if (after < end && englishDateDelimiter(langruntime.indexChar(text.chars, langruntime.checkedIndex(after)))) {
+            const delimiter: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(after));
+            const first: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(after, 1), end);
+            if (first.digits === 0 || first.next === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(first.next)) === delimiter)) {
+                return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+            }
+            const second: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(first.next, 1), end);
+            if (second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false)) {
+                return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+            }
+            return englishDateFields(first, second, month, second.next, true, false);
+        }
+        const firstStart: number = englishDateGap(text, after, end);
+        const first: TimestampNumber = readTimestampNumber(text, firstStart, end);
+        if (firstStart === after || first.digits === 0) {
+            return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+        }
+        const secondStart: number = englishDateGap(text, first.next, end);
+        const second: TimestampNumber = readTimestampNumber(text, secondStart, end);
+        if (secondStart === first.next || second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === "t") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next)) === "+"))) {
+            return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+        }
+        return englishDateFields(first, second, month, second.next, false, false);
+    }
+    const first: TimestampNumber = readTimestampNumber(text, index, end);
+    if (first.digits === 0 || first.next === end) {
+        return absent;
+    }
+    const after: number = first.next;
+    if (englishDateDelimiter(langruntime.indexChar(text.chars, langruntime.checkedIndex(after))) && langruntime.checkedAdd(after, 1) < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(after, 1))))) {
+        const delimiter: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(after));
+        const word: string = englishDateWord(text, langruntime.checkedAdd(after, 1), end);
+        const month: number = englishDateMonth(word);
+        const wordEnd: number = englishDateWordEnd(text, langruntime.checkedAdd(after, 1), end);
+        if (month === 0 || wordEnd === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordEnd)) === delimiter)) {
+            return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+        }
+        const second: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(wordEnd, 1), end);
+        if (second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false)) {
+            return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+        }
+        return englishDateFields(first, second, month, second.next, true, true);
+    }
+    const wordStart: number = englishDateGap(text, after, end);
+    if (wordStart === after || wordStart === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) === false) {
+        return absent;
+    }
+    const word: string = englishDateWord(text, wordStart, end);
+    const month: number = englishDateMonth(word);
+    if (month === 0) {
+        return absent;
+    }
+    const wordEnd: number = englishDateWordEnd(text, wordStart, end);
+    const secondStart: number = englishDateGap(text, wordEnd, end);
+    const second: TimestampNumber = readTimestampNumber(text, secondStart, end);
+    if (secondStart === wordEnd || second.digits === 0 || (second.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next))) === "t") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(second.next)) === "+"))) {
+        return englishDateResult(ordinalDateDeferred, after, 0, 0, 0);
+    }
+    return englishDateFields(first, second, month, second.next, false, true);
+}
 function readOrdinalDate(text: TimestampText, start: number, end: number): OrdinalDateText {
     start = langruntime.checkedIndex(start);
     end = langruntime.checkedIndex(end);
+    const english: OrdinalDateText = readEnglishDate(text, start, end);
+    if (!(english.state === ordinalDateAbsent)) {
+        return english;
+    }
     const year: TimestampNumber = readTimestampNumber(text, start, end);
     let index: number = year.next;
     let state: number = ordinalDateAbsent;
@@ -16106,21 +16302,19 @@ export function dateFromText(value: TextValue): DateValue {
         while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
         }
-        if (start < end && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))) === "j") {
-            let index: number = start;
-            let label: string = "";
-            while (index < end) {
-                const character: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                const code: number = langruntime.checkedChar(character).codePointAt(0)!;
-                if (code < 97 || code > 122) {
-                    break;
-                }
-                label = label + langruntime.checkedChar(character);
-                index = langruntime.checkedAdd(index, 1);
+        let label: string = "";
+        let labelEnd: number = start;
+        while (labelEnd < end) {
+            const character: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(labelEnd)));
+            const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+            if (code < 97 || code > 122) {
+                break;
             }
-            if (!(label === "j") && !(label === "jd") && !(label === "julian")) {
-                return { kind: "Unknown" };
-            }
+            label = label + langruntime.checkedChar(character);
+            labelEnd = langruntime.checkedAdd(labelEnd, 1);
+        }
+        if (label === "j" || label === "jd" || label === "julian") {
+            let index: number = labelEnd;
             while (index < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
             }

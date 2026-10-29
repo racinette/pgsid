@@ -239,3 +239,13 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 12 31 24:00:00', '2001-01-01 00:00:00', false);
 -- name: instant_space_separated_fields_zone
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 01 01 12:00+05', '2000-01-01 07:00:00+00', false);
+-- name: calendar_english_month
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'January 1, 2000', '2000-01-01', false);
+-- name: calendar_english_delimited
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '29-Feb-2000', '2000-02-29', false);
+-- name: calendar_english_invalid_day_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'Feb 30 2000', NULL, false);
+-- name: local_english_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Mon, 03 Jan 2000 12:00:00+05', '2000-01-03 12:00:00', false);
+-- name: instant_english_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Jan 01 2000 12:00:00+05', '2000-01-01 07:00:00+00', false);
