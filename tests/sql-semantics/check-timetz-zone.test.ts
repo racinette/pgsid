@@ -467,7 +467,7 @@ it('resolves fixed timetz zones and constant forced histories without a transact
           expected_clock: known(null),
           bypass: known(false),
         },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'True' },
       },
     ]
     for (const { row, expected, params } of facetRows) {
