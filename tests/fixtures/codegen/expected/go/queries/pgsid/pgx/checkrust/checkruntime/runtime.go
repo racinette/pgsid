@@ -16435,6 +16435,10 @@ func calendarShortYear(year int, digits int, bc bool) int {
 	return year
 }
 func DateFromText(value TextValue) DateValue {
+	return DateFromTextOrder(value, 0)
+}
+func DateFromTextOrder(value TextValue, dateOrder int) DateValue {
+	dateOrder = langruntime.CheckedI32(dateOrder)
 	if value.Kind == TextValueError {
 		error := value.Error
 		return DateValue{Kind: DateValueError, Error: error}
@@ -16511,7 +16515,7 @@ func DateFromText(value TextValue) DateValue {
 				return DateValue{Kind: DateValueUnknown}
 			}
 			if index != end {
-				return dateFromTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
+				return dateFromTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)}, dateOrder)
 			}
 			if overflow {
 				return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
@@ -16546,12 +16550,13 @@ func DateFromText(value TextValue) DateValue {
 				return DateValue{Kind: DateValueValue, Value: 2147483647}
 			}
 		}
-		return dateFromTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)})
+		return dateFromTemporalText(TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(text)}, dateOrder)
 	}
 	return DateValue{Kind: DateValueUnknown}
 }
-func dateFromTemporalText(value TextValue) DateValue {
-	parsed := parseTemporalText(value, false, true)
+func dateFromTemporalText(value TextValue, dateOrder int) DateValue {
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	parsed := parseTemporalText(value, false, true, dateOrder)
 	if parsed.Kind == Int8ValueError {
 		error := parsed.Error
 		return DateValue{Kind: DateValueError, Error: error}
@@ -16751,9 +16756,10 @@ func temporalNumberAfterClock(hour int, minute int, second int, compactClock boo
 	return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 }
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
-	return parseTemporalText(value, withTimezone, false)
+	return parseTemporalText(value, withTimezone, false, 0)
 }
-func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Value {
+func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOrder int) Int8Value {
+	dateOrder = langruntime.CheckedI32(dateOrder)
 	if value.Kind == TextValueError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -16969,10 +16975,46 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			compactDay := readTimestampNumber(&text, langruntime.CheckedSubtract(index, 2), index)
 			month = langruntime.CheckedI32(compactMonth.value)
 			day = langruntime.CheckedI32(compactDay.value)
-		} else {
-			if yearField.digits < 3 || index == end {
+		} else if (yearField.digits == 1 || yearField.digits == 2) && dateOrder > 0 && index < end {
+			separator := text.chars[index]
+			if separator != '-' && separator != '/' && separator != '.' {
 				return Int8Value{Kind: Int8ValueUnknown}
 			}
+			secondField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+			index = langruntime.CheckedIndex(secondField.next)
+			if secondField.digits < 1 || secondField.digits > 2 || index == end || text.chars[index] != separator {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			thirdField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+			index = langruntime.CheckedIndex(thirdField.next)
+			if thirdField.digits < 1 || thirdField.overflow || (index < end && text.chars[index] == separator) {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			shortYear := thirdField.value
+			yearDigits := thirdField.digits
+			if dateOrder == 1 {
+				month = langruntime.CheckedI32(yearField.value)
+				day = langruntime.CheckedI32(secondField.value)
+			} else if dateOrder == 2 {
+				day = langruntime.CheckedI32(yearField.value)
+				month = langruntime.CheckedI32(secondField.value)
+			} else {
+				shortYear = langruntime.CheckedI32(yearField.value)
+				yearDigits = langruntime.CheckedIndex(yearField.digits)
+				month = langruntime.CheckedI32(secondField.value)
+				day = langruntime.CheckedI32(thirdField.value)
+			}
+			year = langruntime.CheckedI32(shortYear)
+			if yearDigits <= 2 && bc == false {
+				if year < 70 {
+					year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 2000))
+				} else {
+					year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1900))
+				}
+			}
+		} else if yearField.digits < 3 || index == end {
+			return Int8Value{Kind: Int8ValueUnknown}
+		} else {
 			separator := text.chars[index]
 			if separator != '-' && separator != '/' && separator != '.' {
 				return Int8Value{Kind: Int8ValueUnknown}
@@ -17355,6 +17397,11 @@ func TimestampFromText(value TextValue) TimestampValue {
 	parsed := parseTimestampText(value, false)
 	return timestampFromMicroseconds(parsed)
 }
+func TimestampFromTextOrder(value TextValue, dateOrder int) TimestampValue {
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	parsed := parseTemporalText(value, false, false, dateOrder)
+	return timestampFromMicroseconds(parsed)
+}
 func timestamptzFromMicroseconds(value Int8Value) TimestamptzValue {
 	if value.Kind == Int8ValueError {
 		error := value.Error
@@ -17383,6 +17430,11 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 }
 func TimestamptzFromText(value TextValue) TimestamptzValue {
 	parsed := parseTimestampText(value, true)
+	return timestamptzFromMicroseconds(parsed)
+}
+func TimestamptzFromTextOrder(value TextValue, dateOrder int) TimestamptzValue {
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	parsed := parseTemporalText(value, true, false, dateOrder)
 	return timestamptzFromMicroseconds(parsed)
 }
 

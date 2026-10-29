@@ -24,7 +24,26 @@ const expressions = {
   lazy: 'CASE WHEN flag THEN true ELSE raw::timestamptz = anchor END',
   text_case: "(CASE WHEN flag THEN raw ELSE '2000-01-01 00:00:00Z' END)::timestamptz = anchor",
 }
-const sessions = ['UTC', 'America/New_York', 'Australia/Lord_Howe', '+02:30', 'Asia/Kathmandu']
+type DateOrder = 'MDY' | 'DMY' | 'YMD'
+const profiles: { zone: string; order?: DateOrder }[] = [
+  { zone: 'UTC', order: 'MDY' },
+  { zone: 'America/New_York', order: 'DMY' },
+  { zone: 'Australia/Lord_Howe', order: 'YMD' },
+  { zone: '+02:30' },
+  { zone: 'Asia/Kathmandu' },
+]
+const contextFor = (profile: { zone?: string; order?: DateOrder }): CheckExecutionContext => ({
+  ...(profile.zone === undefined ? {} : { timeZone: profile.zone }),
+  ...(profile.order === undefined ? {} : { dateStyle: { format: 'ISO', order: profile.order } }),
+})
+// Short leading date fields whose roles follow the configured DateStyle order.
+const ordered = [
+  '01/02/2000 12:00',
+  '1/2/03',
+  '13/02/2000',
+  '00/01/02',
+  '01.02.2000 America/New_York',
+]
 // Local times across DST gaps and overlaps, every date form, and explicit-zone controls.
 const definite = [
   '2000-01-01',
@@ -69,7 +88,7 @@ const outcome = (value: boolean | null): Outcome => ({
   kind: value === null ? 'Null' : value ? 'True' : 'False',
 })
 
-it('resolves timestamptz text without a zone through the configured session time zone', async () => {
+it('resolves timestamptz text through the configured session time zone and date order', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-timestamptz-session-input-'))
   try {
@@ -80,8 +99,8 @@ it('resolves timestamptz text without a zone through the configured session time
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((table) => table.name === 'session_input')!
     const names: string[] = []
-    const groups = sessions.map((session, index) => {
-      const context: CheckExecutionContext = { timeZone: session }
+    const groups = profiles.map((profile, index) => {
+      const context = contextFor(profile)
       return prepareCheckRustGroup(
         Object.keys(expressions).map((name) => {
           names.push(`p${index}_${name}`)
@@ -103,7 +122,7 @@ it('resolves timestamptz text without a zone through the configured session time
         context,
       )
     })
-    expect(groups[0]!.evaluatorSource).toContain('timestamptz_from_text_session(')
+    expect(groups[0]!.evaluatorSource).toContain('timestamptz_from_text_context(')
     expect(
       prepareCheckRustGroup([
         {
@@ -114,7 +133,7 @@ it('resolves timestamptz text without a zone through the configured session time
           )!.expression,
         },
       ]).evaluatorSource,
-    ).not.toContain('timestamptz_from_text_session(')
+    ).not.toContain('timestamptz_from_text_context(')
     const evaluatorSource = groups.map((group) => group.evaluatorSource!).join('\n')
     const group = {
       checks: groups.flatMap((group) => group.checks),
@@ -129,9 +148,10 @@ it('resolves timestamptz text without a zone through the configured session time
     }
     group.checks.forEach((check, i) => expect(check.kind, names[i]).toBe('supported'))
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
-    for (const [index, session] of sessions.entries()) {
-      await pg.query("SELECT set_config('TimeZone', $1, false)", [session])
-      for (const raw of [...definite, ...deferred, null]) {
+    for (const [index, profile] of profiles.entries()) {
+      await pg.query("SELECT set_config('TimeZone', $1, false)", [profile.zone])
+      await pg.exec(`SET DateStyle = 'ISO, ${profile.order ?? 'MDY'}'`)
+      for (const raw of [...definite, ...ordered, ...deferred, null]) {
         let anchor = 0n
         // The anchor is the session's own reading of the text, so the oracle can pass the text.
         let anchorText = '2000-01-01 00:00:00+00'
@@ -155,7 +175,10 @@ it('resolves timestamptz text without a zone through the configured session time
             let expected: Outcome
             // Only checks that read raw on this row defer with it.
             const readsRaw = name === 'lazy' ? !flag : name === 'text_case' ? flag : true
-            if (raw !== null && deferred.includes(raw) && readsRaw) {
+            const defers =
+              raw !== null &&
+              (deferred.includes(raw) || (ordered.includes(raw) && profile.order === undefined))
+            if (defers && readsRaw) {
               expected = { kind: 'Unknown' }
             } else {
               try {
@@ -183,6 +206,103 @@ it('resolves timestamptz text without a zone through the configured session time
       }
     }
     await runCheckParity(directory, 'timestamptz_session_input', group, names, fixtures)
+  } finally {
+    await pg.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 240_000)
+
+it('reads short leading date fields in the configured date order for date and timestamp text', async () => {
+  const pg = await PGlite.create()
+  const directory = await mkdtemp(join(tmpdir(), 'pgsid-date-order-input-'))
+  const casts = {
+    date_value: "raw::date = DATE '2000-01-02'",
+    date_null: 'raw::date IS NULL',
+    stamp_value: "raw::timestamp = TIMESTAMP '2000-01-02 12:00'",
+  }
+  const inputs = [
+    '01/02/2000',
+    '02/01/2000 12:00',
+    '1/2/2000 BC',
+    '01-02-00',
+    '00.01.02',
+    '13/02/2000',
+    '01/02/0 BC',
+    '01/02/000',
+    '2000-01-02',
+    null,
+  ]
+  try {
+    await pg.exec(`CREATE TABLE order_input (raw text,
+      ${Object.entries(casts)
+        .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
+        .join(',')})`)
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((table) => table.name === 'order_input')!
+    const orders: DateOrder[] = ['MDY', 'DMY', 'YMD']
+    const names: string[] = []
+    const groups = orders.map((order, index) =>
+      prepareCheckRustGroup(
+        Object.keys(casts).map((name) => {
+          names.push(`o${index}_${name}`)
+          return {
+            identity: {
+              schema: 'public',
+              kind: 'table' as const,
+              owner: table.name,
+              constraint: `o${index}_${name}`,
+            },
+            expression: portableCheckAtoms(
+              lowerTableCheck(
+                table,
+                table.constraints.find((check) => check.name === name)!,
+              )!.expression,
+            ),
+          }
+        }),
+        contextFor({ order }),
+      ),
+    )
+    expect(groups[0]!.evaluatorSource).toContain('date_from_text_order(')
+    expect(groups[0]!.evaluatorSource).toContain('timestamp_from_text_order(')
+    const evaluatorSource = groups.map((group) => group.evaluatorSource!).join('\n')
+    const group = {
+      checks: groups.flatMap((group) => group.checks),
+      evaluatorSource,
+      source: assembleCheckRust({
+        source: evaluatorSource,
+        callables: [
+          ...new Set([...evaluatorSource.matchAll(/\b(sql__\w+)\(/gu)].map((m) => m[1]!)),
+        ],
+      }),
+      requiresRegex: false,
+    }
+    group.checks.forEach((check, i) => expect(check.kind, names[i]).toBe('supported'))
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [index, order] of orders.entries()) {
+      await pg.exec(`SET DateStyle = 'ISO, ${order}'`)
+      for (const raw of inputs)
+        for (const [name, sql] of Object.entries(casts)) {
+          let expected: Outcome
+          try {
+            expected = outcome(
+              (
+                await pg.query<{ value: boolean | null }>(
+                  `SELECT (${sql}) AS value FROM (SELECT $1::text raw) candidate`,
+                  [raw],
+                )
+              ).rows[0]!.value,
+            )
+          } catch (error) {
+            expected = {
+              kind: 'Error',
+              value: { state: Number.parseInt((error as { code: string }).code, 36) },
+            }
+          }
+          fixtures.push({ name: `o${index}_${name}`, row: { raw: input(raw) }, expected })
+        }
+    }
+    await runCheckParity(directory, 'date_order_input', group, names, fixtures)
   } finally {
     await pg.close()
     await rm(directory, { recursive: true, force: true })

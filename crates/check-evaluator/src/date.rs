@@ -657,6 +657,11 @@ fn calendar_short_year(year: i32, digits: usize, bc: bool) -> i32 {
 }
 
 pub fn date_from_text(value: TextValue) -> DateValue {
+    date_from_text_order(value, 0)
+}
+
+// The date order is the session DateStyle field order: 0 when unknown, 1 MDY, 2 DMY, 3 YMD.
+pub fn date_from_text_order(value: TextValue, date_order: i32) -> DateValue {
     if let TextValue::Error(error) = value {
         return DateValue::Error(error);
     }
@@ -747,7 +752,7 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 return DateValue::Unknown;
             }
             if index != end {
-                return date_from_temporal_text(TextValue::Value(text.clone()));
+                return date_from_temporal_text(TextValue::Value(text.clone()), date_order);
             }
             if overflow {
                 return DateValue::Error(SqlError {
@@ -790,13 +795,13 @@ pub fn date_from_text(value: TextValue) -> DateValue {
                 return DateValue::Value(2147483647);
             }
         }
-        return date_from_temporal_text(TextValue::Value(text.clone()));
+        return date_from_temporal_text(TextValue::Value(text.clone()), date_order);
     }
     DateValue::Unknown
 }
 
-fn date_from_temporal_text(value: TextValue) -> DateValue {
-    let parsed = parse_temporal_text(value, false, true);
+fn date_from_temporal_text(value: TextValue, date_order: i32) -> DateValue {
+    let parsed = parse_temporal_text(value, false, true, date_order);
     if let Int8Value::Error(error) = parsed {
         return DateValue::Error(error);
     }

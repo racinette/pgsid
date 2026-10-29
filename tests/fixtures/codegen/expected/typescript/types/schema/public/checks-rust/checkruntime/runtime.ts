@@ -16372,6 +16372,10 @@ function calendarShortYear(year: number, digits: number, bc: boolean): number {
     return year;
 }
 export function dateFromText(value: TextValue): DateValue {
+    return dateFromTextOrder(value, 0);
+}
+export function dateFromTextOrder(value: TextValue, dateOrder: number): DateValue {
+    dateOrder = langruntime.checkedI32(dateOrder);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -16450,7 +16454,7 @@ export function dateFromText(value: TextValue): DateValue {
                 return { kind: "Unknown" };
             }
             if (!(index === end)) {
-                return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) });
+                return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) }, dateOrder);
             }
             if (overflow) {
                 return { kind: "Error", value: { state: dateFieldOverflow } };
@@ -16486,12 +16490,13 @@ export function dateFromText(value: TextValue): DateValue {
                 return { kind: "Value", value: 2147483647 };
             }
         }
-        return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) });
+        return dateFromTemporalText({ kind: "Value", value: langruntime.checkedString(text) }, dateOrder);
     }
     return { kind: "Unknown" };
 }
-function dateFromTemporalText(value: TextValue): DateValue {
-    const parsed: Int8Value = parseTemporalText(value, false, true);
+function dateFromTemporalText(value: TextValue, dateOrder: number): DateValue {
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const parsed: Int8Value = parseTemporalText(value, false, true, dateOrder);
     if (parsed.kind === "Error") {
         const error: SqlError = parsed.value;
         return { kind: "Error", value: error };
@@ -16696,11 +16701,12 @@ function temporalNumberAfterClock(hour: number, minute: number, second: number, 
 }
 function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
-    return parseTemporalText(value, withTimezone, false);
+    return parseTemporalText(value, withTimezone, false, 0);
 }
-function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: boolean): Int8Value {
+function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: boolean, dateOrder: number): Int8Value {
     withTimezone = langruntime.checkedBool(withTimezone);
     dateOnly = langruntime.checkedBool(dateOnly);
+    dateOrder = langruntime.checkedI32(dateOrder);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -16919,10 +16925,51 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             month = langruntime.checkedI32(compactMonth.value);
             day = langruntime.checkedI32(compactDay.value);
         }
-        else {
-            if (yearField.digits < 3 || index === end) {
+        else if ((yearField.digits === 1 || yearField.digits === 2) && dateOrder > 0 && index < end) {
+            const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
+            if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
                 return { kind: "Unknown" };
             }
+            const secondField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+            index = langruntime.checkedIndex(secondField.next);
+            if (secondField.digits < 1 || secondField.digits > 2 || index === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                return { kind: "Unknown" };
+            }
+            const thirdField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+            index = langruntime.checkedIndex(thirdField.next);
+            if (thirdField.digits < 1 || thirdField.overflow || (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                return { kind: "Unknown" };
+            }
+            let shortYear: number = thirdField.value;
+            let yearDigits: number = thirdField.digits;
+            if (dateOrder === 1) {
+                month = langruntime.checkedI32(yearField.value);
+                day = langruntime.checkedI32(secondField.value);
+            }
+            else if (dateOrder === 2) {
+                day = langruntime.checkedI32(yearField.value);
+                month = langruntime.checkedI32(secondField.value);
+            }
+            else {
+                shortYear = langruntime.checkedI32(yearField.value);
+                yearDigits = langruntime.checkedIndex(yearField.digits);
+                month = langruntime.checkedI32(secondField.value);
+                day = langruntime.checkedI32(thirdField.value);
+            }
+            year = langruntime.checkedI32(shortYear);
+            if (yearDigits <= 2 && bc === false) {
+                if (year < 70) {
+                    year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 2000));
+                }
+                else {
+                    year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1900));
+                }
+            }
+        }
+        else if (yearField.digits < 3 || index === end) {
+            return { kind: "Unknown" };
+        }
+        else {
             const separator: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(index));
             if (!(separator === "-") && !(separator === "/") && !(separator === ".")) {
                 return { kind: "Unknown" };
@@ -17321,6 +17368,11 @@ export function timestampFromText(value: TextValue): TimestampValue {
     const parsed: Int8Value = parseTimestampText(value, false);
     return timestampFromMicroseconds(parsed);
 }
+export function timestampFromTextOrder(value: TextValue, dateOrder: number): TimestampValue {
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const parsed: Int8Value = parseTemporalText(value, false, false, dateOrder);
+    return timestampFromMicroseconds(parsed);
+}
 function timestamptzFromMicroseconds(value: Int8Value): TimestamptzValue {
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -17349,6 +17401,11 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
 }
 export function timestamptzFromText(value: TextValue): TimestamptzValue {
     const parsed: Int8Value = parseTimestampText(value, true);
+    return timestamptzFromMicroseconds(parsed);
+}
+export function timestamptzFromTextOrder(value: TextValue, dateOrder: number): TimestamptzValue {
+    dateOrder = langruntime.checkedI32(dateOrder);
+    const parsed: Int8Value = parseTemporalText(value, true, false, dateOrder);
     return timestamptzFromMicroseconds(parsed);
 }
 const clockInputSyntax = 3452551;

@@ -389,6 +389,15 @@ export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean
   item.volatility === 'i' &&
   !item.returnsSet
 
+// Codes for the session DateStyle field order that temporal text input reads: 0 when unknown.
+const dateStyleOrderCode = (context: Pick<CheckExecutionContext, 'dateStyle'>): number =>
+  context.dateStyle?.order === 'MDY'
+    ? 1
+    : context.dateStyle?.order === 'DMY'
+      ? 2
+      : context.dateStyle?.order === 'YMD'
+        ? 3
+        : 0
 const intervalStyleCode = (context: Pick<CheckExecutionContext, 'intervalStyle'>): number =>
   context.intervalStyle === undefined
     ? 0
@@ -8040,6 +8049,9 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       }
+      // Session DateStyle order and time zone apply to direct text input; stored array elements
+      // were read when the DDL ran.
+      const dateOrder = storedArrayInputScope ? 0 : dateStyleOrderCode(executionContext)
       if (
         node.kind === 'text-to-timestamptz' &&
         executionContext.timeZone !== undefined &&
@@ -8047,8 +8059,18 @@ export function emitCheckRustEvaluator(
       )
         return {
           name: bind(
-            `timestamptz_from_text_session(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)})`,
+            `timestamptz_from_text_context(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)},${dateOrder})`,
           ),
+          type: node.type,
+        }
+      if (
+        dateOrder > 0 &&
+        (node.kind === 'text-to-date' ||
+          node.kind === 'text-to-timestamp' ||
+          node.kind === 'text-to-timestamptz')
+      )
+        return {
+          name: bind(`${helper}_order(${ownedOperand(operand)},${dateOrder})`),
           type: node.type,
         }
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }

@@ -295,6 +295,16 @@ function needsSessionTimezone(value: unknown): boolean {
   return Object.values(value).some(needsSessionTimezone)
 }
 
+// Text input to date, timestamp and timestamptz reads the session DateStyle field order and,
+// for timestamptz without an explicit zone, the session time zone.
+function needsTemporalTextInput(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const kind = (value as { kind?: string }).kind
+  if (kind === 'text-to-date' || kind === 'text-to-timestamp' || kind === 'text-to-timestamptz')
+    return true
+  return Object.values(value).some(needsTemporalTextInput)
+}
+
 function needsIntervalContext(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const node = value as {
@@ -368,6 +378,9 @@ export function checkUnknownMessage(
   if (context.intervalStyle === undefined && needsIntervalContext(expression))
     message +=
       ' Interval text input or output can require an explicit sql.codegen.checks.intervalStyle setting.'
+  if (context.dateStyle === undefined && needsTemporalTextInput(expression))
+    message +=
+      ' Date and timestamp text input with short leading fields can require an explicit sql.codegen.checks.dateStyle setting.'
   if (context.dateStyle === undefined && needsCalendarOutput(expression))
     message +=
       ' Calendar SQL text output can require an explicit sql.codegen.checks.dateStyle setting.'

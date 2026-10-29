@@ -197,10 +197,16 @@ fn temporal_number_after_clock(
 }
 
 fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
-    parse_temporal_text(value, with_timezone, false)
+    parse_temporal_text(value, with_timezone, false, 0)
 }
 
-fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -> Int8Value {
+// The date order is the session DateStyle field order: 0 when unknown, 1 MDY, 2 DMY, 3 YMD.
+fn parse_temporal_text(
+    value: TextValue,
+    with_timezone: bool,
+    date_only: bool,
+    date_order: i32,
+) -> Int8Value {
     if let TextValue::Error(error) = value {
         return Int8Value::Error(error);
     }
@@ -462,74 +468,121 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             month = compact_month.value;
             day = compact_day.value;
         } else {
-            if year_field.digits < 3 || index == end {
-                return Int8Value::Unknown;
-            }
-            let separator = text.chars[index];
-            if separator != '-' && separator != '/' && separator != '.' {
-                return Int8Value::Unknown;
-            }
-            let month_field = read_timestamp_number(&text, index + 1, end);
-            index = month_field.next;
-            if month_field.digits < 1 || index == end || text.chars[index] != separator {
-                return Int8Value::Unknown;
-            }
-            let day_field = read_timestamp_number(&text, index + 1, end);
-            index = day_field.next;
-            if index < end && text.chars[index] == separator {
-                let extra_field = read_timestamp_number(&text, index + 1, end);
-                if day_field.digits == 0
-                    || extra_field.digits == 0
-                    || extra_field.overflow
-                    || year_overflow
-                    || month_field.overflow
-                    || day_field.overflow
-                    || (month_field.digits == 3
-                        && month_field.value >= 1
-                        && month_field.value <= 366)
+            if (year_field.digits == 1 || year_field.digits == 2) && date_order > 0 && index < end {
+                // A short first field takes its role from the session field order, as in
+                // DecodeNumber; a one- or two-digit year maps into 1970-2069 unless BC is given.
+                let separator = text.chars[index];
+                if separator != '-' && separator != '/' && separator != '.' {
+                    return Int8Value::Unknown;
+                }
+                let second_field = read_timestamp_number(&text, index + 1, end);
+                index = second_field.next;
+                if second_field.digits < 1
+                    || second_field.digits > 2
+                    || index == end
+                    || text.chars[index] != separator
                 {
                     return Int8Value::Unknown;
                 }
-                return Int8Value::Error(SqlError {
-                    state: INVALID_TIMESTAMP_TEXT,
-                });
-            }
-            if month_field.digits == 3 && month_field.value >= 1 && month_field.value <= 366 {
-                // A field after a day of year is rejected in every width; four or six digits are
-                // not read as a clock on this path.
-                if day_field.digits > 0 {
-                    if year_overflow || day_field.overflow {
-                        if index == end {
-                            return Int8Value::Error(SqlError {
-                                state: TIMESTAMP_FIELD_OVERFLOW,
-                            });
-                        }
-                        return Int8Value::Unknown;
-                    }
-                    return Int8Value::Error(SqlError {
-                        state: INVALID_TIMESTAMP_TEXT,
-                    });
+                let third_field = read_timestamp_number(&text, index + 1, end);
+                index = third_field.next;
+                if third_field.digits < 1
+                    || third_field.overflow
+                    || (index < end && text.chars[index] == separator)
+                {
+                    return Int8Value::Unknown;
                 }
-                ordinal_day = month_field.value;
+                let mut short_year = third_field.value;
+                let mut year_digits = third_field.digits;
+                if date_order == 1 {
+                    month = year_field.value;
+                    day = second_field.value;
+                } else if date_order == 2 {
+                    day = year_field.value;
+                    month = second_field.value;
+                } else {
+                    short_year = year_field.value;
+                    year_digits = year_field.digits;
+                    month = second_field.value;
+                    day = third_field.value;
+                };
+                year = short_year;
+                if year_digits <= 2 && bc == false {
+                    if year < 70 {
+                        year = year + 2000;
+                    } else {
+                        year = year + 1900;
+                    };
+                };
+            } else if year_field.digits < 3 || index == end {
+                return Int8Value::Unknown;
             } else {
-                if day_field.digits < 1 {
-                    if year_overflow || month_field.overflow {
-                        if index == end {
-                            return Int8Value::Error(SqlError {
-                                state: TIMESTAMP_FIELD_OVERFLOW,
-                            });
-                        }
+                let separator = text.chars[index];
+                if separator != '-' && separator != '/' && separator != '.' {
+                    return Int8Value::Unknown;
+                }
+                let month_field = read_timestamp_number(&text, index + 1, end);
+                index = month_field.next;
+                if month_field.digits < 1 || index == end || text.chars[index] != separator {
+                    return Int8Value::Unknown;
+                }
+                let day_field = read_timestamp_number(&text, index + 1, end);
+                index = day_field.next;
+                if index < end && text.chars[index] == separator {
+                    let extra_field = read_timestamp_number(&text, index + 1, end);
+                    if day_field.digits == 0
+                        || extra_field.digits == 0
+                        || extra_field.overflow
+                        || year_overflow
+                        || month_field.overflow
+                        || day_field.overflow
+                        || (month_field.digits == 3
+                            && month_field.value >= 1
+                            && month_field.value <= 366)
+                    {
                         return Int8Value::Unknown;
                     }
                     return Int8Value::Error(SqlError {
                         state: INVALID_TIMESTAMP_TEXT,
                     });
                 }
-                if month_field.overflow || day_field.overflow {
-                    year_overflow = true;
-                }
-                month = month_field.value;
-                day = day_field.value;
+                if month_field.digits == 3 && month_field.value >= 1 && month_field.value <= 366 {
+                    // A field after a day of year is rejected in every width; four or six digits are
+                    // not read as a clock on this path.
+                    if day_field.digits > 0 {
+                        if year_overflow || day_field.overflow {
+                            if index == end {
+                                return Int8Value::Error(SqlError {
+                                    state: TIMESTAMP_FIELD_OVERFLOW,
+                                });
+                            }
+                            return Int8Value::Unknown;
+                        }
+                        return Int8Value::Error(SqlError {
+                            state: INVALID_TIMESTAMP_TEXT,
+                        });
+                    }
+                    ordinal_day = month_field.value;
+                } else {
+                    if day_field.digits < 1 {
+                        if year_overflow || month_field.overflow {
+                            if index == end {
+                                return Int8Value::Error(SqlError {
+                                    state: TIMESTAMP_FIELD_OVERFLOW,
+                                });
+                            }
+                            return Int8Value::Unknown;
+                        }
+                        return Int8Value::Error(SqlError {
+                            state: INVALID_TIMESTAMP_TEXT,
+                        });
+                    }
+                    if month_field.overflow || day_field.overflow {
+                        year_overflow = true;
+                    }
+                    month = month_field.value;
+                    day = day_field.value;
+                };
             };
         }
         if bc && julian_date == false {
@@ -971,5 +1024,10 @@ pub fn timestamp_from_calendar(
 
 pub fn timestamp_from_text(value: TextValue) -> TimestampValue {
     let parsed = parse_timestamp_text(value, false);
+    timestamp_from_microseconds(parsed)
+}
+
+pub fn timestamp_from_text_order(value: TextValue, date_order: i32) -> TimestampValue {
+    let parsed = parse_temporal_text(value, false, false, date_order);
     timestamp_from_microseconds(parsed)
 }
