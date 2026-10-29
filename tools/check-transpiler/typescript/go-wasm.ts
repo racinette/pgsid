@@ -19,6 +19,7 @@ export function transpileGo(
     readonlyValueTypes?: readonly string[]
     split?: boolean
     schemaImportPath?: string
+    emitModules?: readonly string[]
   },
 ): string {
   const bytes = new Uint8Array(wasmBytes.length)
