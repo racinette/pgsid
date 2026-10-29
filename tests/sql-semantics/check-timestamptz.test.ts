@@ -116,22 +116,35 @@ describe('portable Rust CHECK timestamptz', () => {
       [],
       catalog.domains,
     )!.expression
-  it('keeps parsing, timezone casts, timestamp, and arithmetic outside this slice', () => {
-    for (const sql of [
-      "a > '2000-01-01'::timestamp",
-      'a::date = b::date',
-      "a + INTERVAL '1 day' > b",
-    ])
-      expect(
-        bind(sql).kind === 'uncertain' ||
-          prepareCheckRustGroup([
-            {
-              expression: bind(sql),
-              identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
-            },
-          ]).checks[0]!.kind === 'unsupported',
-      ).toBe(true)
-  })
+  it('defers session-dependent timestamp, date and interval conversions', async () => {
+    const sqls = ["a > '2000-01-01'::timestamp", 'a::date = b::date', "a + INTERVAL '1 day' > b"]
+    const names = sqls.map((_, index) => `session_${index}`)
+    const group = prepareCheckRustGroup(
+      sqls.map((sql, index) => ({
+        expression: bind(sql),
+        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: names[index]! },
+      })),
+    )
+    for (const [index, check] of group.checks.entries())
+      expect(check.kind, sqls[index]).toBe('supported')
+    await mkdir(join(directory, 'session-deferral'))
+    await runCheckParity(
+      join(directory, 'session-deferral'),
+      'timestamptzsessiondeferral',
+      group,
+      names,
+      names.flatMap((name) =>
+        [
+          [0n, 3600000000n],
+          [86400000000n, 0n],
+        ].map(([a, b]) => ({
+          name,
+          row: { a: { kind: 'Value', value: a! }, b: { kind: 'Value', value: b! } },
+          expected: { kind: 'Unknown' },
+        })),
+      ),
+    )
+  }, 120_000)
   it('preserves the PostgreSQL epoch, microseconds, boundaries, and infinities', () => {
     expect(microseconds.get('2000-01-01 00:00:00+00')).toBe(0n)
     expect(microseconds.get('1999-12-31 23:59:59.999999+00')).toBe(-1n)
