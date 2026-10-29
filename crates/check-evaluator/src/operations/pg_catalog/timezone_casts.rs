@@ -201,12 +201,79 @@ pub fn timestamptz_from_text_session(input: TextValue, zone: &str) -> Timestampt
     if parsed != TimestamptzValue::Unknown {
         return parsed;
     };
-    let local = timestamp_from_text(input);
+    let local = timestamp_from_text(input.clone());
     if let TimestampValue::Value(value) = local {
         if value > -211813488000000000i64 + 86400000000i64
             && value < 9223371331200000000i64 - 86400000000i64
         {
             return sql__pg_catalog__timestamptz__m17a(local, zone);
+        };
+        return TimestamptzValue::Unknown;
+    };
+    timestamptz_from_text_named_zone(input)
+}
+
+fn timestamptz_text_space(value: char) -> bool {
+    value == ' '
+        || value == '\t'
+        || value == '\n'
+        || value == '\r'
+        || value == '\u{b}'
+        || value == '\u{c}'
+}
+
+// A trailing zone name containing a slash is never a session abbreviation, so it resolves
+// without session context and applies to the local time that the rest of the text gives.
+// Names elsewhere in the text, unknown names and names after an explicit offset defer.
+fn timestamptz_from_text_named_zone(input: TextValue) -> TimestamptzValue {
+    if let TextValue::Value(text) = input {
+        let chars: Vec<char> = text.chars().collect();
+        let mut zone_end = chars.len();
+        while zone_end > 0 && timestamptz_text_space(chars[zone_end - 1]) {
+            zone_end = zone_end - 1;
+        }
+        let mut zone_start = zone_end;
+        let mut slash = false;
+        while zone_start > 0 && timestamptz_text_space(chars[zone_start - 1]) == false {
+            if chars[zone_start - 1] == '/' {
+                slash = true;
+            };
+            zone_start = zone_start - 1;
+        }
+        if zone_start == 0 || slash == false {
+            return TimestamptzValue::Unknown;
+        };
+        let mut name = String::new();
+        let mut cursor = zone_start;
+        while cursor < zone_end {
+            name.push(chars[cursor]);
+            cursor += 1;
+        }
+        if find_zone_name(name.as_str(), false) >= ZONE_NAMES.len() {
+            return TimestamptzValue::Unknown;
+        };
+        let mut rest = String::new();
+        cursor = 0;
+        while cursor < zone_start {
+            rest.push(chars[cursor]);
+            cursor += 1;
+        }
+        let remainder = TextValue::Value(rest);
+        let zoned = timestamptz_from_text(remainder.clone());
+        // Errors in the earlier fields stand, since a known zone name changes none of them.
+        if let TimestamptzValue::Error(error) = zoned {
+            return TimestamptzValue::Error(error);
+        };
+        if zoned != TimestamptzValue::Unknown {
+            return TimestamptzValue::Unknown;
+        };
+        let local = timestamp_from_text(remainder);
+        if let TimestampValue::Value(value) = local {
+            if value > -211813488000000000i64 + 86400000000i64
+                && value < 9223371331200000000i64 - 86400000000i64
+            {
+                return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
+            };
         };
     };
     TimestamptzValue::Unknown
