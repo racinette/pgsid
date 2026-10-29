@@ -58,7 +58,7 @@ import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
+import { transpileCheckRustTypescriptFiles } from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
 import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
@@ -850,7 +850,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
     )
   }
-  const rustFiles = rustGroup?.source ? transpileCheckRustFiles(rustGroup.source).typescript : null
+  const rustFiles = rustGroup?.source ? transpileCheckRustTypescriptFiles(rustGroup.source) : null
   return {
     checks: printFile([
       ...(rustGroup?.source
