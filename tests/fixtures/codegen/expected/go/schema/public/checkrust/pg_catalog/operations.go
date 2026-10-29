@@ -14050,6 +14050,91 @@ func SinVhu2(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Val
 func CosXj1c(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
 	return float8Trigonometry(input, fdlibm, true)
 }
+func float8Fmod360(number float64) float64 {
+	remainder := langruntime.F64Abs(number)
+	step := float64(360.0)
+	for langruntime.F64Multiply(step, float64(2.0)) <= remainder {
+		step = langruntime.F64Multiply(step, float64(2.0))
+	}
+	for step >= float64(360.0) {
+		if remainder >= step {
+			remainder = langruntime.F64Subtract(remainder, step)
+		}
+		step = langruntime.F64Multiply(step, float64(0.5))
+	}
+	if number < float64(0.0) || (number == float64(0.0) && langruntime.F64Divide(float64(1.0), number) < float64(0.0)) {
+		return langruntime.F64Negate(remainder)
+	}
+	return remainder
+}
+func float8DegreeSine(x float64) float64 {
+	sinX := circleTrigonometry(langruntime.F64Multiply(x, radiansPerDegree), false)
+	sin30 := circleTrigonometry(langruntime.F64Multiply(float64(30.0), radiansPerDegree), false)
+	return langruntime.F64Divide((langruntime.F64Divide(sinX, sin30)), float64(2.0))
+}
+func float8DegreeCosine(x float64) float64 {
+	oneMinusCosX := langruntime.F64Subtract(float64(1.0), circleTrigonometry(langruntime.F64Multiply(x, radiansPerDegree), true))
+	oneMinusCos60 := langruntime.F64Subtract(float64(1.0), circleTrigonometry(langruntime.F64Multiply(float64(60.0), radiansPerDegree), true))
+	return langruntime.F64Subtract(float64(1.0), langruntime.F64Divide((langruntime.F64Divide(oneMinusCosX, oneMinusCos60)), float64(2.0)))
+}
+func float8DegreeTrigonometry(input checkruntime.Float8Value, fdlibm bool, cosine bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if langruntime.F64Abs(number) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if fdlibm == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		angle := float8Fmod360(number)
+		sign := float64(1.0)
+		if angle < float64(0.0) {
+			angle = langruntime.F64Negate(angle)
+			if cosine == false {
+				sign = langruntime.F64Negate(sign)
+			}
+		}
+		if angle > float64(180.0) {
+			angle = langruntime.F64Subtract(float64(360.0), angle)
+			if cosine == false {
+				sign = langruntime.F64Negate(sign)
+			}
+		}
+		if angle > float64(90.0) {
+			angle = langruntime.F64Subtract(float64(180.0), angle)
+			if cosine {
+				sign = langruntime.F64Negate(sign)
+			}
+		}
+		quadrant := float64(0.0)
+		if cosine {
+			if angle <= float64(60.0) {
+				quadrant = float8DegreeCosine(angle)
+			} else {
+				quadrant = float8DegreeSine(langruntime.F64Subtract(float64(90.0), angle))
+			}
+		} else if angle <= float64(30.0) {
+			quadrant = float8DegreeSine(angle)
+		} else {
+			quadrant = float8DegreeCosine(langruntime.F64Subtract(float64(90.0), angle))
+		}
+		return checkruntime.MakeFloat8Value(langruntime.F64Multiply(sign, quadrant))
+	}
+	return input
+}
+func SindN2je(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8DegreeTrigonometry(input, fdlibm, false)
+}
+func CosdYkq9(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8DegreeTrigonometry(input, fdlibm, true)
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

@@ -53,13 +53,20 @@ const samples: (string | null)[] = [
   '1647100',
   '2e6',
   '-1e10',
+  '30',
+  '-150',
+  '1e300',
   null,
 ]
 // fdlibm's medium reduction covers arguments whose high word is below that of 2^20 * pi/2, the
 // double with high word 0x413921fb; larger finite arguments defer.
 const reductionLimit = Buffer.from('413921fb00000000', 'hex').readDoubleBE()
-const reducible = (sample: string | null) =>
-  sample === null || !Number.isFinite(Number(sample)) || Math.abs(Number(sample)) < reductionLimit
+// Degree variants reduce exactly modulo 360 first, so they never defer.
+const reducible = (name: string, sample: string | null) =>
+  ['sind', 'cosd'].includes(name) ||
+  sample === null ||
+  !Number.isFinite(Number(sample)) ||
+  Math.abs(Number(sample)) < reductionLimit
 let seed = 0x6a09e667f3bcc909n
 for (let index = 0; index < 512; index++) {
   seed = BigInt.asUintN(64, seed * 6364136223846793005n + 1442695040888963407n)
@@ -75,7 +82,7 @@ for (let index = 0; index < 256; index++) {
   samples.push(String((unit * 2 - 1) * [1, 10, 1e3, 1.6e6][index % 4]!))
 }
 
-describe('float8 sine and cosine under the declared fdlibm profile', () => {
+describe('float8 sine and cosine in radians and degrees under the declared fdlibm profile', () => {
   let pg: PGlite
   let directory: string
   beforeAll(async () => {
@@ -97,7 +104,7 @@ describe('float8 sine and cosine under the declared fdlibm profile', () => {
         fn.args.length === 1 &&
         source.includes('pub fn ' + fn.rustName + '('),
     )
-    expect(functions).toHaveLength(2)
+    expect(functions).toHaveLength(4)
     const expressions: Record<string, string> = {}
     for (const fn of functions) {
       expect(fn).toMatchObject({
@@ -191,11 +198,11 @@ describe('float8 sine and cosine under the declared fdlibm profile', () => {
           add(
             name,
             row,
-            (nanWire && name !== fn.rustName) || !reducible(sample)
+            (nanWire && name !== fn.rustName) || !reducible(fn.name, sample)
               ? { kind: 'Unknown' }
               : expected,
           )
-        if (expected.kind === 'True' && reducible(sample)) {
+        if (expected.kind === 'True' && reducible(fn.name, sample)) {
           const wrong: Row = {
             ...row,
             recorded_value: value(
