@@ -409,7 +409,8 @@ import them. Keep schema-only helpers with their callables.
   third field returns 22007 unless that field has four or six digits, which
   defers; a separator ending the text after it is ignored. English month names
   and abbreviations pair with two numbers, either around the month or after it,
-  separated by whitespace and commas or by one repeated hyphen, slash or period;
+  separated by whitespace and commas or by one repeated hyphen, slash or period,
+  or adjacent where letters meet digits;
   an optional leading weekday is ignored. A first number of three or more digits
   is the year and the second the day; otherwise a second number of three or more
   digits is the year. Two short numbers defer because DateStyle assigns them, and

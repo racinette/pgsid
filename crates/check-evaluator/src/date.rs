@@ -261,7 +261,7 @@ fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         }
         let first_start = english_date_gap(text, after, end);
         let first = read_timestamp_number(text, first_start, end);
-        if first_start == after || first.digits == 0 {
+        if first.digits == 0 {
             return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
         }
         let second_start = english_date_gap(text, first.next, end);
@@ -302,10 +302,7 @@ fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
         return english_date_fields(&first, &second, month, second.next, true, true);
     }
     let word_start = english_date_gap(text, after, end);
-    if word_start == after
-        || word_start == end
-        || english_date_letter(text.chars[word_start]) == false
-    {
+    if word_start == end || english_date_letter(text.chars[word_start]) == false {
         return absent;
     }
     let word = english_date_word(text, word_start, end);
@@ -316,8 +313,7 @@ fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalD
     let word_end = english_date_word_end(text, word_start, end);
     let second_start = english_date_gap(text, word_end, end);
     let second = read_timestamp_number(text, second_start, end);
-    if second_start == word_end
-        || second.digits == 0
+    if second.digits == 0
         || (second.next < end
             && date_text_space(text.chars[second.next]) == false
             && text.chars[second.next].to_ascii_lowercase() != 't'
