@@ -597,7 +597,9 @@ export async function runCheckParity(
     join(directory, 'checks_test.rs'),
     '-o',
     join(directory, 'rust-test'),
-  ])
+  ]).catch((error: { stdout: string; stderr: string }) => {
+    throw new Error(error.stdout + error.stderr, { cause: error })
+  })
   await run(join(directory, 'rust-test'), []).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })

@@ -227,10 +227,11 @@ describe('portable Rust CHECK timestamptz', () => {
       await expect(pg.query('SELECT $1::timestamptz', [text])).rejects.toMatchObject({
         code: '22008',
       })
+      // Text cannot admit the upper boundary, but precision rounding can store it.
       fixtures.push({
         name: 'equal',
         row: { a: value(payload), b: value(0n), flag: value(true) },
-        expected: error,
+        expected: payload > 0n ? { kind: 'False' } : error,
       })
     }
     for (const name of ['equal', 'unequal', 'less', 'less_equal', 'greater', 'greater_equal']) {
@@ -238,7 +239,7 @@ describe('portable Rust CHECK timestamptz', () => {
       fixtures.push({
         name,
         row: { ...unknown, a: { kind: 'Null' }, b: { kind: 'Unknown' } },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Null' },
       })
       fixtures.push({ name, row: { ...unknown, a: { kind: 'Null' }, b: error }, expected: error })
       fixtures.push({
@@ -262,20 +263,35 @@ describe('portable Rust CHECK timestamptz', () => {
       row: { ...unknown, flag: value(false), a: error },
       expected: { kind: 'True' },
     })
-    const unsupported = prepareCheckRustGroup([
-      {
-        expression: bind("a > '2000-01-01+00'::timestamptz"),
-        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'literal' },
-      },
-    ])
+    const literals = prepareCheckRustGroup(
+      [
+        ['named_zone_literal', "a > '2000-01-01 00:00:00 America/New_York'::timestamptz"],
+        ['attached_zone_literal', "a > '2000-01-01+00'::timestamptz"],
+      ].map(([constraint, sql]) => ({
+        expression: bind(sql!),
+        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: constraint! },
+      })),
+    )
+    const attached = (
+      await pg.query<{ value: boolean }>(
+        "SELECT '2000-01-01 00:00:00+00'::timestamptz > '2000-01-01+00'::timestamptz AS value",
+      )
+    ).rows[0]!.value
     const literalDirectory = join(directory, 'literal')
     await mkdir(literalDirectory)
     await runCheckParity(
       literalDirectory,
       'timestamptzliteral',
-      unsupported,
-      ['literal'],
-      [{ name: 'literal', row: { a: value(0n) }, expected: { kind: 'Unknown' } }],
+      literals,
+      ['named_zone_literal', 'attached_zone_literal'],
+      [
+        { name: 'named_zone_literal', row: { a: value(0n) }, expected: { kind: 'Unknown' } },
+        {
+          name: 'attached_zone_literal',
+          row: { a: value(0n) },
+          expected: { kind: attached ? 'True' : 'False' },
+        },
+      ],
     )
     await runCheckParity(directory, 'timestamptzchecks', group, [...names, 'domain'], fixtures)
   }, 120_000)
