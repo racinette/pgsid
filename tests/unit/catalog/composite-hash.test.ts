@@ -160,7 +160,7 @@ it('keeps captured hash definitions portable across shifted catalog identities a
   try {
     await first.exec(schema)
     await second.exec(
-      "CREATE TYPE shifted AS ENUM('extra');" +
+      "CREATE TYPE shifted AS ENUM('extra');DROP TYPE shifted;" +
         schema +
         'SET quote_all_identifiers=on;SET search_path=pg_catalog',
     )
