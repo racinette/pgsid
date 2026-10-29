@@ -6,6 +6,17 @@
  * is preserved.
  */
 
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
+// Transcribed from musl's asin, acos, atan and atan2, which PostgreSQL calls through dasin,
+// dacos, datan and datan2. Sign tests use the bit pattern so that negative zero keeps its sign.
+
 // Portions Copyright (c) 1999-2025, PostgreSQL Global Development Group.
 
 /*
@@ -13567,6 +13578,361 @@ export function float8FromText(input: checkruntime.TextValue): checkruntime.Floa
         }
     }
     return { kind: "Unknown" };
+}
+const inversePio2Hi = 1.57079632679489655800e+00;
+const inversePio2Lo = 6.12323399573676603587e-17;
+const inversePi = 3.1415926535897931160e+00;
+const inversePiLo = 1.2246467991473531772e-16;
+function float8Negative(value: number): boolean {
+    value = langruntime.checkedF64(value);
+    return langruntime.f64ToI64Bits(value) < 0n;
+}
+function float8InverseRational(z: number): number {
+    z = langruntime.checkedF64(z);
+    const p: number = langruntime.f64Multiply(z, (langruntime.f64Add(1.66666666666666657415e-01, langruntime.f64Multiply(z, (langruntime.f64Add(-3.25565818622400915405e-01, langruntime.f64Multiply(z, (langruntime.f64Add(2.01212532134862925881e-01, langruntime.f64Multiply(z, (langruntime.f64Add(-4.00555345006794114027e-02, langruntime.f64Multiply(z, (langruntime.f64Add(7.91534994289814532176e-04, langruntime.f64Multiply(z, 3.47933107596021167570e-05))))))))))))))));
+    const q: number = langruntime.f64Add(1.0, langruntime.f64Multiply(z, (langruntime.f64Add(-2.40339491173441421878e+00, langruntime.f64Multiply(z, (langruntime.f64Add(2.02094576023350569471e+00, langruntime.f64Multiply(z, (langruntime.f64Add(-6.88283971605453293030e-01, langruntime.f64Multiply(z, 7.70381505559019352791e-02)))))))))));
+    return langruntime.f64Divide(p, q);
+}
+function float8AsinKernel(x: number): number {
+    x = langruntime.checkedF64(x);
+    const high: number = circleMathHighWord(x);
+    if (high >= 1072693248) {
+        if (float8Negative(x)) {
+            return langruntime.f64Negate(inversePio2Hi);
+        }
+        return inversePio2Hi;
+    }
+    if (high < 1071644672) {
+        if (high < 1045430272) {
+            return x;
+        }
+        return langruntime.f64Add(x, langruntime.f64Multiply(x, float8InverseRational(langruntime.f64Multiply(x, x))));
+    }
+    const z: number = langruntime.f64Multiply((langruntime.f64Subtract(1.0, langruntime.f64Abs(x))), 0.5);
+    const s: number = langruntime.f64Sqrt(z);
+    const r: number = float8InverseRational(z);
+    let result: number = 0.0;
+    if (high >= 1072640819) {
+        result = langruntime.checkedF64(langruntime.f64Subtract(inversePio2Hi, (langruntime.f64Subtract(langruntime.f64Multiply(2.0, (langruntime.f64Add(s, langruntime.f64Multiply(s, r)))), inversePio2Lo))));
+    }
+    else {
+        const f: number = float8ClearLowWord(s);
+        const c: number = langruntime.f64Divide((langruntime.f64Subtract(z, langruntime.f64Multiply(f, f))), (langruntime.f64Add(s, f)));
+        result = langruntime.checkedF64(langruntime.f64Subtract(langruntime.f64Multiply(0.5, inversePio2Hi), (langruntime.f64Subtract(langruntime.f64Subtract(langruntime.f64Multiply(langruntime.f64Multiply(2.0, s), r), (langruntime.f64Subtract(inversePio2Lo, langruntime.f64Multiply(2.0, c)))), (langruntime.f64Subtract(langruntime.f64Multiply(0.5, inversePio2Hi), langruntime.f64Multiply(2.0, f)))))));
+    }
+    if (float8Negative(x)) {
+        return langruntime.f64Negate(result);
+    }
+    return result;
+}
+function float8AcosKernel(x: number): number {
+    x = langruntime.checkedF64(x);
+    const high: number = circleMathHighWord(x);
+    if (high >= 1072693248) {
+        if (float8Negative(x)) {
+            return langruntime.f64Multiply(2.0, inversePio2Hi);
+        }
+        return 0.0;
+    }
+    if (high < 1071644672) {
+        if (high <= 1012924416) {
+            return inversePio2Hi;
+        }
+        return langruntime.f64Subtract(inversePio2Hi, (langruntime.f64Subtract(x, (langruntime.f64Subtract(inversePio2Lo, langruntime.f64Multiply(x, float8InverseRational(langruntime.f64Multiply(x, x))))))));
+    }
+    if (float8Negative(x)) {
+        const z: number = langruntime.f64Multiply((langruntime.f64Add(1.0, x)), 0.5);
+        const s: number = langruntime.f64Sqrt(z);
+        const w: number = langruntime.f64Subtract(langruntime.f64Multiply(float8InverseRational(z), s), inversePio2Lo);
+        return langruntime.f64Multiply(2.0, (langruntime.f64Subtract(inversePio2Hi, (langruntime.f64Add(s, w)))));
+    }
+    const z: number = langruntime.f64Multiply((langruntime.f64Subtract(1.0, x)), 0.5);
+    const s: number = langruntime.f64Sqrt(z);
+    const df: number = float8ClearLowWord(s);
+    const c: number = langruntime.f64Divide((langruntime.f64Subtract(z, langruntime.f64Multiply(df, df))), (langruntime.f64Add(s, df)));
+    const w: number = langruntime.f64Add(langruntime.f64Multiply(float8InverseRational(z), s), c);
+    return langruntime.f64Multiply(2.0, (langruntime.f64Add(df, w)));
+}
+function float8AtanKernel(input: number): number {
+    input = langruntime.checkedF64(input);
+    const high: number = circleMathHighWord(input);
+    const negative: boolean = float8Negative(input);
+    if (high >= 1141899264) {
+        if (negative) {
+            return langruntime.f64Negate(inversePio2Hi);
+        }
+        return inversePio2Hi;
+    }
+    let x: number = input;
+    let id: number = langruntime.checkedSignedNegate(1);
+    let atanHi: number = 0.0;
+    let atanLo: number = 0.0;
+    if (high < 1071382528) {
+        if (high < 1044381696) {
+            return x;
+        }
+    }
+    else {
+        x = langruntime.checkedF64(langruntime.f64Abs(x));
+        if (high < 1072889856) {
+            if (high < 1072037888) {
+                id = langruntime.checkedI32(0);
+                atanHi = langruntime.checkedF64(4.63647609000806093515e-01);
+                atanLo = langruntime.checkedF64(2.26987774529616870924e-17);
+                x = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(langruntime.f64Multiply(2.0, x), 1.0)), (langruntime.f64Add(2.0, x))));
+            }
+            else {
+                id = langruntime.checkedI32(1);
+                atanHi = langruntime.checkedF64(7.85398163397448278999e-01);
+                atanLo = langruntime.checkedF64(3.06161699786838301793e-17);
+                x = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(x, 1.0)), (langruntime.f64Add(x, 1.0))));
+            }
+        }
+        else if (high < 1073971200) {
+            id = langruntime.checkedI32(2);
+            atanHi = langruntime.checkedF64(9.82793723247329054082e-01);
+            atanLo = langruntime.checkedF64(1.39033110312309984516e-17);
+            x = langruntime.checkedF64(langruntime.f64Divide((langruntime.f64Subtract(x, 1.5)), (langruntime.f64Add(1.0, langruntime.f64Multiply(1.5, x)))));
+        }
+        else {
+            id = langruntime.checkedI32(3);
+            atanHi = langruntime.checkedF64(inversePio2Hi);
+            atanLo = langruntime.checkedF64(inversePio2Lo);
+            x = langruntime.checkedF64(langruntime.f64Divide(-1.0, x));
+        }
+    }
+    const z: number = langruntime.f64Multiply(x, x);
+    const w: number = langruntime.f64Multiply(z, z);
+    const s1: number = langruntime.f64Multiply(z, (langruntime.f64Add(3.33333333333329318027e-01, langruntime.f64Multiply(w, (langruntime.f64Add(1.42857142725034663711e-01, langruntime.f64Multiply(w, (langruntime.f64Add(9.09088713343650656196e-02, langruntime.f64Multiply(w, (langruntime.f64Add(6.66107313738753120669e-02, langruntime.f64Multiply(w, (langruntime.f64Add(4.97687799461593236017e-02, langruntime.f64Multiply(w, 1.62858201153657823623e-02))))))))))))))));
+    const s2: number = langruntime.f64Multiply(w, (langruntime.f64Add(-1.99999999998764832476e-01, langruntime.f64Multiply(w, (langruntime.f64Add(-1.11111104054623557880e-01, langruntime.f64Multiply(w, (langruntime.f64Add(-7.69187620504482999495e-02, langruntime.f64Multiply(w, (langruntime.f64Add(-5.83357013379057348645e-02, langruntime.f64Multiply(w, -3.65315727442169155270e-02)))))))))))));
+    if (id < 0) {
+        return langruntime.f64Subtract(x, langruntime.f64Multiply(x, (langruntime.f64Add(s1, s2))));
+    }
+    const result: number = langruntime.f64Subtract(atanHi, (langruntime.f64Subtract(langruntime.f64Subtract(langruntime.f64Multiply(x, (langruntime.f64Add(s1, s2))), atanLo), x)));
+    if (negative) {
+        return langruntime.f64Negate(result);
+    }
+    return result;
+}
+function float8Atan2Kernel(y: number, x: number): number {
+    y = langruntime.checkedF64(y);
+    x = langruntime.checkedF64(x);
+    if (x === 1.0) {
+        return float8AtanKernel(y);
+    }
+    let quadrant: number = 0;
+    if (float8Negative(y)) {
+        quadrant = langruntime.checkedI32(langruntime.checkedSignedAdd(quadrant, 1));
+    }
+    if (float8Negative(x)) {
+        quadrant = langruntime.checkedI32(langruntime.checkedSignedAdd(quadrant, 2));
+    }
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (y === 0.0) {
+        if (quadrant < 2) {
+            return y;
+        }
+        if (quadrant === 2) {
+            return inversePi;
+        }
+        return langruntime.f64Negate(inversePi);
+    }
+    if (x === 0.0) {
+        if (langruntime.checkedSignedRemainder(quadrant, 2) === 1) {
+            return langruntime.f64Divide(langruntime.f64Negate(inversePi), 2.0);
+        }
+        return langruntime.f64Divide(inversePi, 2.0);
+    }
+    if (langruntime.f64Abs(x) === infinity) {
+        if (langruntime.f64Abs(y) === infinity) {
+            if (quadrant === 0) {
+                return langruntime.f64Divide(inversePi, 4.0);
+            }
+            if (quadrant === 1) {
+                return langruntime.f64Divide(langruntime.f64Negate(inversePi), 4.0);
+            }
+            if (quadrant === 2) {
+                return langruntime.f64Divide(langruntime.f64Multiply(3.0, inversePi), 4.0);
+            }
+            return langruntime.f64Divide(langruntime.f64Multiply(-3.0, inversePi), 4.0);
+        }
+        if (quadrant === 0) {
+            return 0.0;
+        }
+        if (quadrant === 1) {
+            return -0.0;
+        }
+        if (quadrant === 2) {
+            return inversePi;
+        }
+        return langruntime.f64Negate(inversePi);
+    }
+    const xHigh: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    const yHigh: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(y)));
+    if (langruntime.checkedI64Add(xHigh, 67108864n) < yHigh || langruntime.f64Abs(y) === infinity) {
+        if (langruntime.checkedSignedRemainder(quadrant, 2) === 1) {
+            return langruntime.f64Divide(langruntime.f64Negate(inversePi), 2.0);
+        }
+        return langruntime.f64Divide(inversePi, 2.0);
+    }
+    let z: number = 0.0;
+    if (quadrant < 2 || langruntime.checkedI64Add(yHigh, 67108864n) >= xHigh) {
+        z = langruntime.checkedF64(float8AtanKernel(langruntime.f64Abs((langruntime.f64Divide(y, x)))));
+    }
+    if (quadrant === 0) {
+        return z;
+    }
+    if (quadrant === 1) {
+        return langruntime.f64Negate(z);
+    }
+    if (quadrant === 2) {
+        return langruntime.f64Subtract(inversePi, (langruntime.f64Subtract(z, inversePiLo)));
+    }
+    return langruntime.f64Subtract((langruntime.f64Subtract(z, inversePiLo)), inversePi);
+}
+function float8InverseTrigonometry(input: checkruntime.Float8Value, fdlibm: boolean, operation: number): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    operation = langruntime.checkedI32(operation);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (operation < 2 && (number < -1.0 || number > 1.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (fdlibm === false) {
+            return { kind: "Unknown" };
+        }
+        if (operation === 0) {
+            return checkruntime.makeFloat8Value(float8AsinKernel(number));
+        }
+        if (operation === 1) {
+            return checkruntime.makeFloat8Value(float8AcosKernel(number));
+        }
+        return checkruntime.makeFloat8Value(float8AtanKernel(number));
+    }
+    return input;
+}
+export function asinTexy(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseTrigonometry(input, fdlibm, 0);
+}
+export function acosH2s5(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseTrigonometry(input, fdlibm, 1);
+}
+export function atanQn3s(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseTrigonometry(input, fdlibm, 2);
+}
+export function atan2Re5y(left: checkruntime.Float8Value, right: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const knownLeft: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const knownRight: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (knownLeft.kind === "Value") {
+        const leftBits: bigint = langruntime.checkedI64(knownLeft.value);
+        if (knownRight.kind === "Value") {
+            const rightBits: bigint = langruntime.checkedI64(knownRight.value);
+            const y: number = checkruntime.float8Number(leftBits);
+            const x: number = checkruntime.float8Number(rightBits);
+            if (!(y === y) || !(x === x)) {
+                return { kind: "UnspecifiedNan" };
+            }
+            if (fdlibm === false) {
+                return { kind: "Unknown" };
+            }
+            return checkruntime.makeFloat8Value(float8Atan2Kernel(y, x));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function float8AsindQ1(x: number): number {
+    x = langruntime.checkedF64(x);
+    if (x <= 0.5) {
+        return langruntime.f64Multiply((langruntime.f64Divide(float8AsinKernel(x), float8AsinKernel(0.5))), 30.0);
+    }
+    return langruntime.f64Subtract(90.0, langruntime.f64Multiply((langruntime.f64Divide(float8AcosKernel(x), float8AcosKernel(0.5))), 60.0));
+}
+function float8AcosdQ1(x: number): number {
+    x = langruntime.checkedF64(x);
+    if (x <= 0.5) {
+        return langruntime.f64Subtract(90.0, langruntime.f64Multiply((langruntime.f64Divide(float8AsinKernel(x), float8AsinKernel(0.5))), 30.0));
+    }
+    return langruntime.f64Multiply((langruntime.f64Divide(float8AcosKernel(x), float8AcosKernel(0.5))), 60.0);
+}
+function float8InverseDegrees(input: checkruntime.Float8Value, fdlibm: boolean, operation: number): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    operation = langruntime.checkedI32(operation);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (operation < 2 && (number < -1.0 || number > 1.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (fdlibm === false) {
+            return { kind: "Unknown" };
+        }
+        if (operation === 0) {
+            if (number >= 0.0) {
+                return checkruntime.makeFloat8Value(float8AsindQ1(number));
+            }
+            return checkruntime.makeFloat8Value(langruntime.f64Negate(float8AsindQ1(langruntime.f64Negate(number))));
+        }
+        if (operation === 1) {
+            if (number >= 0.0) {
+                return checkruntime.makeFloat8Value(float8AcosdQ1(number));
+            }
+            return checkruntime.makeFloat8Value(langruntime.f64Add(90.0, float8AsindQ1(langruntime.f64Negate(number))));
+        }
+        return checkruntime.makeFloat8Value(langruntime.f64Multiply((langruntime.f64Divide(float8AtanKernel(number), float8AtanKernel(1.0))), 45.0));
+    }
+    return input;
+}
+export function asind6yjl(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseDegrees(input, fdlibm, 0);
+}
+export function acosdDjhi(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseDegrees(input, fdlibm, 1);
+}
+export function atandOtu6(input: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    return float8InverseDegrees(input, fdlibm, 2);
+}
+export function atan2d9uaz(left: checkruntime.Float8Value, right: checkruntime.Float8Value, fdlibm: boolean): checkruntime.Float8Value {
+    fdlibm = langruntime.checkedBool(fdlibm);
+    const radians: checkruntime.Float8Value = atan2Re5y(left, right, fdlibm);
+    if (radians.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(radians.value);
+        return checkruntime.makeFloat8Value(langruntime.f64Multiply((langruntime.f64Divide(checkruntime.float8Number(bits), float8AtanKernel(1.0))), 45.0));
+    }
+    return radians;
 }
 const floatSqrtArgument = 3452595;
 export function dsqrt5pmk(input: checkruntime.Float8Value): checkruntime.Float8Value {

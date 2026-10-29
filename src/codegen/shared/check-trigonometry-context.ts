@@ -13,18 +13,35 @@ export function circlePolygonTrigonometry(item: BuiltinCallable): boolean {
   )
 }
 
-// sin, cos, tan, cot and the degree variants come from the deployment's libm, which only the declared
-// fdlibm profile pins down.
+// Trigonometric float8 results come from the deployment's libm, which only the declared fdlibm
+// profile pins down.
+const unaryTrigonometry = new Set([
+  'sin',
+  'cos',
+  'tan',
+  'cot',
+  'sind',
+  'cosd',
+  'asin',
+  'acos',
+  'atan',
+  'asind',
+  'acosd',
+  'atand',
+])
+const binaryTrigonometry = new Set(['atan2', 'atan2d'])
+
 export function floatTrigonometry(item: BuiltinCallable): boolean {
   return (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
-    ['sin', 'cos', 'tan', 'cot', 'sind', 'cosd'].includes(item.name) &&
     item.result === 'pg_catalog.float8' &&
     item.strict &&
     item.volatility === 'i' &&
     !item.returnsSet &&
-    item.args.join(',') === 'pg_catalog.float8'
+    ((unaryTrigonometry.has(item.name) && item.args.join(',') === 'pg_catalog.float8') ||
+      (binaryTrigonometry.has(item.name) &&
+        item.args.join(',') === 'pg_catalog.float8,pg_catalog.float8'))
   )
 }
 
