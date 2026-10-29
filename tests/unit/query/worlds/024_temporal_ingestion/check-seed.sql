@@ -315,3 +315,7 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000 060 1230', '2000-02-29 12:30:00', false);
 -- name: instant_bare_number_after_date_error
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 01', NULL, false);
+-- name: local_clock_spaced_iso_separator
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 T12:00', '2000-01-01 12:00:00', false);
+-- name: local_clock_number_after_clock_error
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 12:00 05', NULL, false);

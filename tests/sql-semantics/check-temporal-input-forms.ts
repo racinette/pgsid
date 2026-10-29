@@ -780,18 +780,60 @@ const numericTailLocalText = [
 ]
 
 export const numericTailUnknownText = [
-  '2000 01 T12:00',
   '2000/ 060',
   '2000 . 060',
   '2000 - 060',
   '2000 01 12:',
   '0 01 12:00',
-  '2000 1 T1200',
-  '2000-01-01 12:00,5',
   '2000 /01/01',
   '2000-01-01 +05 01',
   '2000-01-01 +16 01',
   '99999999999-01-01 01',
+]
+
+const clockTailText = [
+  '2000-01-01 T',
+  '2000-01-01 T12:00+05',
+  '2000 13 T12:00',
+  '2000-01-01 12:00 5',
+  '2000-01-01 12:00 05',
+  '2000-01-01 12:00 1230',
+  '2000-01-01 12:00 12:00',
+  '2000-01-01 12:00:00 01',
+  '2000-01-01 12:00 +05 01',
+  '2000-01-01 12:00 01 +05',
+  '2000-01-01 12:00 pm 01',
+  '2000-01-01 12:00 25',
+  '2000-01-01 25:00 01',
+  '2000-01-01 12:00 +16 01',
+  '2000-01-01 12:60 01',
+  '2000-01-01 12:00 01 BC',
+  '2000-01-01 12:00+05 01',
+  'J2451545 12:00 01',
+  '2000-01-01 12:00:00.5 01',
+  '2000 01 T12:00',
+  '2000 1 T1200',
+  '2000-01-01 12:00,5',
+]
+
+const clockTailLocalText = [
+  '2000-01-01 T12:00',
+  '2000-01-01 t1200',
+  '2000-01-01 T 12:00',
+  '2000 060 T12:00',
+  '20000101 T120000',
+  'Jan 1 2000 T12:00',
+  '2000-01-01 T 1200',
+  '2000-01-01 Tuesday',
+  '2000-01-01 BC T12:00',
+]
+
+export const clockTailUnknownText = [
+  '2000-01-01T',
+  '2000-01-01 TT12:00',
+  '2000-01-01 1230 01',
+  '2000-01-01 24:00 01',
+  '2000 01 Tue',
 ]
 
 export const eraUnknownText = [
@@ -812,7 +854,6 @@ export const eraUnknownText = [
   '2000-01-01 12:00 BC:00',
   'J2451545 BC BC',
   '2000-01-01 12:00 BCZ',
-  '2000-01-01 BC T12:00',
 ]
 
 export const ordinalUnknownText = [
@@ -844,6 +885,8 @@ export const dateHandledText = [
   ...eraPositionLocalText,
   ...numericTailText,
   ...numericTailLocalText,
+  ...clockTailText,
+  ...clockTailLocalText,
   '4714-11-23 BC 12:00',
   'J2147483493.5',
   'Nov 23 4714 BC',
@@ -945,6 +988,8 @@ export const timestampHandledText = [
   ...eraPositionLocalText,
   ...numericTailText,
   ...numericTailLocalText,
+  ...clockTailText,
+  ...clockTailLocalText,
   '4714-11-23 BC 12:00',
   'J2147483493.5',
   'Nov 23 4714 BC',
@@ -1074,6 +1119,7 @@ export const timestamptzHandledText = [
   ...meridianText,
   ...eraPositionText,
   ...numericTailText,
+  ...clockTailText,
   '00000101',
   '000101 BC',
   '20001301',
@@ -1199,6 +1245,7 @@ export const timestamptzDeferredText = [
   ...meridianLocalText,
   ...eraPositionLocalText,
   ...numericTailLocalText,
+  ...clockTailLocalText,
   '2000-060 12:00',
   '2000 060 12:00',
 ]

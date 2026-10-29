@@ -16354,7 +16354,9 @@ func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 					month = langruntime.CheckedI32(field.value)
 					day = langruntime.CheckedI32(third.value)
 					index = langruntime.CheckedIndex(third.next)
-				} else if (third.digits > 0 && third.next < end && text.chars[third.next] == ':') || (third.digits == 0 && thirdStart < end && langruntime.AsciiLowercase(text.chars[thirdStart]) == 't') {
+				} else if third.digits == 0 && thirdStart < end && langruntime.AsciiLowercase(text.chars[thirdStart]) == 't' && (langruntime.CheckedAdd(thirdStart, 1) == end || dateTextDigit(text.chars[langruntime.CheckedAdd(thirdStart, 1)]) >= 0 || dateTextSpace(text.chars[langruntime.CheckedAdd(thirdStart, 1)])) {
+					state = langruntime.CheckedI32(ordinalDateSyntax)
+				} else if third.digits > 0 && third.next < end && text.chars[third.next] == ':' {
 					state = langruntime.CheckedI32(ordinalDateCalendar)
 					month = langruntime.CheckedI32(field.value)
 					day = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
@@ -16736,6 +16738,18 @@ func temporalSkippedPunctuation(value rune) bool {
 	value = langruntime.CheckedChar(value)
 	return value == '!' || value == '"' || value == '#' || value == '$' || value == '%' || value == '&' || value == '\'' || value == '(' || value == ')' || value == '*' || value == ',' || value == ';' || value == '<' || value == '=' || value == '>' || value == '?' || value == '@' || value == '[' || value == '\\' || value == ']' || value == '^' || value == '`' || value == '{' || value == '|' || value == '}' || value == '~'
 }
+func temporalNumberAfterClock(hour int, minute int, second int, compactClock bool, yearOverflow bool) Int8Value {
+	hour = langruntime.CheckedI32(hour)
+	minute = langruntime.CheckedI32(minute)
+	second = langruntime.CheckedI32(second)
+	if yearOverflow || compactClock || hour == 24 {
+		return Int8Value{Kind: Int8ValueUnknown}
+	}
+	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 {
+		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+	}
+	return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+}
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 	return parseTemporalText(value, withTimezone, false)
 }
@@ -17041,6 +17055,15 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 					index = langruntime.CheckedAdd(index, 1)
 				}
 			}
+			if index < end && langruntime.AsciiLowercase(text.chars[index]) == 't' && (langruntime.CheckedAdd(index, 1) == end || dateTextDigit(text.chars[langruntime.CheckedAdd(index, 1)]) >= 0 || dateTextSpace(text.chars[langruntime.CheckedAdd(index, 1)])) {
+				index = langruntime.CheckedAdd(index, 1)
+				for index < end && dateTextSpace(text.chars[index]) {
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if index == end {
+					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+				}
+			}
 			clockWord := englishDateWord(&text, index, end)
 			if index == end || text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z' || clockWord == "am" || clockWord == "pm" {
 				zoneOnly = true
@@ -17230,6 +17253,8 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 					offset = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, offset))
 				}
 			}
+		} else if index < end && deferredZone == false && hours.digits > 0 && dateTextDigit(text.chars[index]) >= 0 {
+			return temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow)
 		} else if index != end {
 			return Int8Value{Kind: Int8ValueUnknown}
 		} else if withTimezone {
@@ -17264,6 +17289,19 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}
+		}
+		if index < end && deferredZone == false && hours.digits > 0 && dateTextDigit(text.chars[index]) >= 0 {
+			afterClock := temporalNumberAfterClock(hour, minute, second, compactClock, yearOverflow)
+			if afterClock == (Int8Value{Kind: Int8ValueUnknown}) {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			if afterClock.Kind == Int8ValueError {
+				error := afterClock.Error
+				if error.State == invalidTimestampText && (offset < langruntime.CheckedSignedNegate(57599) || offset > 57599) {
+					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampZone}}
+				}
+			}
+			return afterClock
 		}
 		if index != end {
 			return Int8Value{Kind: Int8ValueUnknown}

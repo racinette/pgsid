@@ -4,6 +4,7 @@ import {
   ordinalUnknownText,
   eraUnknownText,
   numericTailUnknownText,
+  clockTailUnknownText,
 } from './check-temporal-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -187,6 +188,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
       ...ordinalUnknownText,
       ...eraUnknownText,
       ...numericTailUnknownText,
+      ...clockTailUnknownText,
       '42949692960101 000000Z',
       'not a timestamp',
       '2000-01-01 junk',
