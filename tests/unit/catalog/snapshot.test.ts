@@ -825,10 +825,11 @@ describe('snapshotCatalog: enums, domains, composite types, sequences', () => {
     )
     const s = await snapshotCatalog(pg)
     const twochk = s.domains.find((d) => d.schema === 'public' && d.name === 'twochk')
-    expect(twochk?.checks).toEqual([
+    expect(twochk?.checks.map(({ name, definition }) => ({ name, definition }))).toEqual([
       { name: 'aa_hi', definition: 'CHECK ((VALUE < 10))' },
       { name: 'zz_lo', definition: 'CHECK ((VALUE > 0))' },
     ])
+    expect(twochk?.checks.map((check) => check.rowCoercionContext?.complete)).toEqual([true, true])
   })
 
   it('captures composite type attributes', async () => {
