@@ -16208,6 +16208,155 @@ function readJulianDate(text: TimestampText, start: number, end: number): Ordina
     const calendar: OrdinalCalendar = julianCalendar(wideDay);
     return { state: ordinalDateCalendar, next: index, year: calendar.year, overflow: false, month: calendar.month, day: calendar.day, minusZone: false, julian: true, julianTime: julianTime };
 }
+function readOrderedDate(text: TimestampText, start: number, end: number, dateOrder: number, bc: boolean): OrdinalDateText {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    bc = langruntime.checkedBool(bc);
+    const absent: OrdinalDateText = englishDateResult(ordinalDateAbsent, start, 0, 0, 0);
+    let haveYear: boolean = false;
+    let haveMonth: boolean = false;
+    let haveDay: boolean = false;
+    let textMonth: boolean = false;
+    let twoDigitYear: boolean = false;
+    let year: number = 0;
+    let month: number = 0;
+    let day: number = 0;
+    let fields: number = 0;
+    let index: number = start;
+    let dateEnd: number = start;
+    while (index < end && (haveYear && haveMonth && haveDay) === false) {
+        const tokenStart: number = index;
+        const word: string = englishDateWord(text, tokenStart, end);
+        const wordMonth: number = englishDateMonth(word);
+        if (wordMonth > 0) {
+            const wordEnd: number = englishDateWordEnd(text, tokenStart, end);
+            if (wordEnd < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordEnd))) === false) {
+                break;
+            }
+            if (haveMonth) {
+                if (textMonth || haveDay || month < 1 || month > 31) {
+                    return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0);
+                }
+                day = langruntime.checkedI32(month);
+                haveDay = langruntime.checkedBool(true);
+            }
+            month = langruntime.checkedI32(wordMonth);
+            haveMonth = langruntime.checkedBool(true);
+            textMonth = langruntime.checkedBool(true);
+            index = langruntime.checkedIndex(wordEnd);
+        }
+        else {
+            const number: TimestampNumber = readTimestampNumber(text, tokenStart, end);
+            if (number.digits === 0) {
+                break;
+            }
+            if (number.next < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(number.next))) === false) {
+                break;
+            }
+            if (number.digits === 3 || number.digits >= 6 || number.overflow) {
+                if (fields === 0) {
+                    return absent;
+                }
+                return englishDateResult(ordinalDateDeferred, number.next, 0, 0, 0);
+            }
+            const value: number = number.value;
+            const long: boolean = number.digits >= 3;
+            let assignedYear: boolean = false;
+            if (haveYear === false && haveMonth === false && haveDay === false) {
+                if (long || dateOrder === 3) {
+                    year = langruntime.checkedI32(value);
+                    haveYear = langruntime.checkedBool(true);
+                    assignedYear = langruntime.checkedBool(true);
+                }
+                else if (dateOrder === 2) {
+                    day = langruntime.checkedI32(value);
+                    haveDay = langruntime.checkedBool(true);
+                }
+                else {
+                    month = langruntime.checkedI32(value);
+                    haveMonth = langruntime.checkedBool(true);
+                }
+            }
+            else if (haveYear && haveMonth === false && haveDay === false) {
+                month = langruntime.checkedI32(value);
+                haveMonth = langruntime.checkedBool(true);
+            }
+            else if (haveMonth && haveYear === false && haveDay === false) {
+                if (textMonth && (long || dateOrder === 3)) {
+                    year = langruntime.checkedI32(value);
+                    haveYear = langruntime.checkedBool(true);
+                    assignedYear = langruntime.checkedBool(true);
+                }
+                else {
+                    day = langruntime.checkedI32(value);
+                    haveDay = langruntime.checkedBool(true);
+                }
+            }
+            else if (haveYear && haveMonth && haveDay === false) {
+                if (textMonth && long && twoDigitYear) {
+                    day = langruntime.checkedI32(year);
+                    year = langruntime.checkedI32(value);
+                    twoDigitYear = langruntime.checkedBool(false);
+                }
+                else {
+                    day = langruntime.checkedI32(value);
+                }
+                haveDay = langruntime.checkedBool(true);
+            }
+            else if (haveDay && haveYear === false && haveMonth === false) {
+                month = langruntime.checkedI32(value);
+                haveMonth = langruntime.checkedBool(true);
+            }
+            else if (haveMonth && haveDay && haveYear === false) {
+                year = langruntime.checkedI32(value);
+                haveYear = langruntime.checkedBool(true);
+                assignedYear = langruntime.checkedBool(true);
+            }
+            else {
+                return englishDateResult(ordinalDateSyntax, number.next, 0, 0, 0);
+            }
+            if (assignedYear) {
+                twoDigitYear = langruntime.checkedBool(number.digits <= 2);
+            }
+            index = langruntime.checkedIndex(number.next);
+        }
+        fields = langruntime.checkedAdd(fields, 1);
+        dateEnd = langruntime.checkedIndex(index);
+        while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (fields < 2) {
+        return absent;
+    }
+    if ((haveYear && haveMonth && haveDay) === false) {
+        return englishDateResult(ordinalDateDeferred, dateEnd, 0, 0, 0);
+    }
+    if (twoDigitYear && bc === false) {
+        if (year < 70) {
+            year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 2000));
+        }
+        else {
+            year = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1900));
+        }
+    }
+    return englishDateResult(ordinalDateCalendar, dateEnd, year, month, day);
+}
+function readDateFields(text: TimestampText, start: number, end: number, dateOrder: number, bc: boolean): OrdinalDateText {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    dateOrder = langruntime.checkedI32(dateOrder);
+    bc = langruntime.checkedBool(bc);
+    const ordinal: OrdinalDateText = readOrdinalDate(text, start, end);
+    if (dateOrder > 0 && (ordinal.state === ordinalDateAbsent || ordinal.state === ordinalDateDeferred)) {
+        const ordered: OrdinalDateText = readOrderedDate(text, start, end, dateOrder, bc);
+        if (!(ordered.state === ordinalDateAbsent)) {
+            return ordered;
+        }
+    }
+    return ordinal;
+}
 function readOrdinalDate(text: TimestampText, start: number, end: number): OrdinalDateText {
     start = langruntime.checkedIndex(start);
     end = langruntime.checkedIndex(end);
@@ -16879,7 +17028,7 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 start = langruntime.checkedIndex(after);
             }
         }
-        const ordinal: OrdinalDateText = readOrdinalDate(text, start, end);
+        const ordinal: OrdinalDateText = readDateFields(text, start, end, dateOrder, bc);
         if (ordinal.state === ordinalDateSyntax) {
             return { kind: "Error", value: { state: invalidTimestampText } };
         }

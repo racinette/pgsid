@@ -248,6 +248,15 @@ it('reads short leading date fields in the configured date order for date and ti
     '01/02/0 BC',
     '01/02/000',
     '2000-01-02',
+    'Jan 2 00',
+    '00 1 Jan',
+    '2 Jan 00 12:00',
+    '12 Jan 31',
+    '01 02 2000',
+    '1 2 03',
+    '00 Jan 2',
+    '13 02 2000',
+    'Feb 30 00',
     null,
   ]
   try {

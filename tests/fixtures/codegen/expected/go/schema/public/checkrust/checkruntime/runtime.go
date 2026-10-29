@@ -16284,6 +16284,141 @@ func readJulianDate(text *timestampText, start int, end int) ordinalDateText {
 	calendar := julianCalendar(wideDay)
 	return ordinalDateText{state: ordinalDateCalendar, next: index, year: calendar.year, overflow: false, month: calendar.month, day: calendar.day, minusZone: false, julian: true, julianTime: julianTime}
 }
+func readOrderedDate(text *timestampText, start int, end int, dateOrder int, bc bool) ordinalDateText {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	absent := englishDateResult(ordinalDateAbsent, start, 0, 0, 0)
+	haveYear := false
+	haveMonth := false
+	haveDay := false
+	textMonth := false
+	twoDigitYear := false
+	year := 0
+	month := 0
+	day := 0
+	fields := 0
+	index := start
+	dateEnd := start
+	for index < end && (haveYear && haveMonth && haveDay) == false {
+		tokenStart := index
+		word := englishDateWord(text, tokenStart, end)
+		wordMonth := englishDateMonth(word)
+		if wordMonth > 0 {
+			wordEnd := englishDateWordEnd(text, tokenStart, end)
+			if wordEnd < end && dateTextSpace(text.chars[wordEnd]) == false {
+				break
+			}
+			if haveMonth {
+				if textMonth || haveDay || month < 1 || month > 31 {
+					return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0)
+				}
+				day = langruntime.CheckedI32(month)
+				haveDay = true
+			}
+			month = langruntime.CheckedI32(wordMonth)
+			haveMonth = true
+			textMonth = true
+			index = langruntime.CheckedIndex(wordEnd)
+		} else {
+			number := readTimestampNumber(text, tokenStart, end)
+			if number.digits == 0 {
+				break
+			}
+			if number.next < end && dateTextSpace(text.chars[number.next]) == false {
+				break
+			}
+			if number.digits == 3 || number.digits >= 6 || number.overflow {
+				if fields == 0 {
+					return absent
+				}
+				return englishDateResult(ordinalDateDeferred, number.next, 0, 0, 0)
+			}
+			value := number.value
+			long := number.digits >= 3
+			assignedYear := false
+			if haveYear == false && haveMonth == false && haveDay == false {
+				if long || dateOrder == 3 {
+					year = langruntime.CheckedI32(value)
+					haveYear = true
+					assignedYear = true
+				} else if dateOrder == 2 {
+					day = langruntime.CheckedI32(value)
+					haveDay = true
+				} else {
+					month = langruntime.CheckedI32(value)
+					haveMonth = true
+				}
+			} else if haveYear && haveMonth == false && haveDay == false {
+				month = langruntime.CheckedI32(value)
+				haveMonth = true
+			} else if haveMonth && haveYear == false && haveDay == false {
+				if textMonth && (long || dateOrder == 3) {
+					year = langruntime.CheckedI32(value)
+					haveYear = true
+					assignedYear = true
+				} else {
+					day = langruntime.CheckedI32(value)
+					haveDay = true
+				}
+			} else if haveYear && haveMonth && haveDay == false {
+				if textMonth && long && twoDigitYear {
+					day = langruntime.CheckedI32(year)
+					year = langruntime.CheckedI32(value)
+					twoDigitYear = false
+				} else {
+					day = langruntime.CheckedI32(value)
+				}
+				haveDay = true
+			} else if haveDay && haveYear == false && haveMonth == false {
+				month = langruntime.CheckedI32(value)
+				haveMonth = true
+			} else if haveMonth && haveDay && haveYear == false {
+				year = langruntime.CheckedI32(value)
+				haveYear = true
+				assignedYear = true
+			} else {
+				return englishDateResult(ordinalDateSyntax, number.next, 0, 0, 0)
+			}
+			if assignedYear {
+				twoDigitYear = number.digits <= 2
+			}
+			index = langruntime.CheckedIndex(number.next)
+		}
+		fields = langruntime.CheckedAdd(fields, 1)
+		dateEnd = langruntime.CheckedIndex(index)
+		for index < end && dateTextSpace(text.chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if fields < 2 {
+		return absent
+	}
+	if (haveYear && haveMonth && haveDay) == false {
+		return englishDateResult(ordinalDateDeferred, dateEnd, 0, 0, 0)
+	}
+	if twoDigitYear && bc == false {
+		if year < 70 {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 2000))
+		} else {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1900))
+		}
+	}
+	return englishDateResult(ordinalDateCalendar, dateEnd, year, month, day)
+}
+func readDateFields(text *timestampText, start int, end int, dateOrder int, bc bool) ordinalDateText {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	dateOrder = langruntime.CheckedI32(dateOrder)
+	ordinal := readOrdinalDate(text, start, end)
+	if dateOrder > 0 && (ordinal.state == ordinalDateAbsent || ordinal.state == ordinalDateDeferred) {
+		ordered := readOrderedDate(text, start, end, dateOrder, bc)
+		if ordered.state != ordinalDateAbsent {
+			return ordered
+		}
+	}
+	return ordinal
+}
 func readOrdinalDate(text *timestampText, start int, end int) ordinalDateText {
 	start = langruntime.CheckedIndex(start)
 	end = langruntime.CheckedIndex(end)
@@ -16932,7 +17067,7 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool, dateOr
 				start = langruntime.CheckedIndex(after)
 			}
 		}
-		ordinal := readOrdinalDate(&text, start, end)
+		ordinal := readDateFields(&text, start, end, dateOrder, bc)
 		if ordinal.state == ordinalDateSyntax {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 		}

@@ -415,7 +415,7 @@ fn parse_temporal_text(
                 start = after;
             }
         }
-        let ordinal = read_ordinal_date(&text, start, end);
+        let ordinal = read_date_fields(&text, start, end, date_order, bc);
         if ordinal.state == ORDINAL_DATE_SYNTAX {
             return Int8Value::Error(SqlError {
                 state: INVALID_TIMESTAMP_TEXT,
