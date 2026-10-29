@@ -16919,7 +16919,15 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			if index < end && (text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z') {
+			leadingWord := englishDateWord(&text, index, end)
+			if englishDateWeekday(leadingWord) {
+				index = langruntime.CheckedIndex(englishDateWordEnd(&text, index, end))
+				for index < end && dateTextSpace(text.chars[index]) {
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
+			clockWord := englishDateWord(&text, index, end)
+			if index == end || text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z' || clockWord == "am" || clockWord == "pm" {
 				zoneOnly = true
 			}
 		} else if zoneOnly == false {
@@ -17006,6 +17014,25 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 		for index < end && dateTextSpace(text.chars[index]) {
 			index = langruntime.CheckedAdd(index, 1)
 		}
+		meridian := 0
+		for index < end && englishDateLetter(text.chars[index]) {
+			word := englishDateWord(&text, index, end)
+			if word == "am" || word == "pm" {
+				if meridian != 0 {
+					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+				}
+				meridian = langruntime.CheckedI32(1)
+				if word == "pm" {
+					meridian = langruntime.CheckedI32(2)
+				}
+			} else if englishDateWeekday(word) == false {
+				break
+			}
+			index = langruntime.CheckedIndex(englishDateWordEnd(&text, index, end))
+			for index < end && dateTextSpace(text.chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
 		offset := 0
 		missingTimezone := false
 		if index < end && langruntime.AsciiLowercase(text.chars[index]) == 'z' {
@@ -17063,6 +17090,19 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 		}
 		if yearOverflow {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+		}
+		if meridian != 0 {
+			if hour > 12 {
+				if offset < langruntime.CheckedSignedNegate(57599) || offset > 57599 {
+					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampZone}}
+				}
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+			}
+			if meridian == 1 && hour == 12 {
+				hour = langruntime.CheckedI32(0)
+			} else if meridian == 2 && hour != 12 {
+				hour = langruntime.CheckedI32(langruntime.CheckedSignedAdd(hour, 12))
+			}
 		}
 		return timestampCalendarMicroseconds(year, month, day, hour, minute, second, fraction, offset, withTimezone, true, missingTimezone, compactClock, ordinalDay, dateOnly)
 	}
