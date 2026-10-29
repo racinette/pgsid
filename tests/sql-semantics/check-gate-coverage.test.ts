@@ -10,7 +10,7 @@ it('schedules every maintained CHECK test owner in the central integration gate'
   const patterns = script
     .split('\n')
     .flatMap((line) =>
-      /^(?:[A-Z][A-Z0-9_]*=\S+\s+)*pnpm exec vitest run\s/u.test(line)
+      /^(?:[A-Z][A-Z0-9_]*=\S+\s+)*node node_modules\/vitest\/vitest\.mjs run\s/u.test(line)
         ? (line.match(/tests\/sql-semantics\/[^\s"'`]+/gu) ?? [])
         : [],
     )
