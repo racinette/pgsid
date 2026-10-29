@@ -68,7 +68,267 @@ struct OrdinalCalendar {
     day: i32,
 }
 
+fn english_date_letter(value: char) -> bool {
+    let code = value.to_ascii_lowercase() as i32;
+    code >= 97 && code <= 122
+}
+
+fn english_date_word(text: &TimestampText, start: usize, end: usize) -> String {
+    let mut word = String::new();
+    let mut index = start;
+    while index < end && english_date_letter(text.chars[index]) {
+        word.push(text.chars[index].to_ascii_lowercase());
+        index += 1;
+    }
+    word
+}
+
+fn english_date_word_end(text: &TimestampText, start: usize, end: usize) -> usize {
+    let mut index = start;
+    while index < end && english_date_letter(text.chars[index]) {
+        index += 1;
+    }
+    index
+}
+
+fn english_date_month(word: &str) -> i32 {
+    if word == "jan" || word == "january" {
+        return 1;
+    }
+    if word == "feb" || word == "february" {
+        return 2;
+    }
+    if word == "mar" || word == "march" {
+        return 3;
+    }
+    if word == "apr" || word == "april" {
+        return 4;
+    }
+    if word == "may" {
+        return 5;
+    }
+    if word == "jun" || word == "june" {
+        return 6;
+    }
+    if word == "jul" || word == "july" {
+        return 7;
+    }
+    if word == "aug" || word == "august" {
+        return 8;
+    }
+    if word == "sep" || word == "sept" || word == "september" {
+        return 9;
+    }
+    if word == "oct" || word == "october" {
+        return 10;
+    }
+    if word == "nov" || word == "november" {
+        return 11;
+    }
+    if word == "dec" || word == "december" {
+        return 12;
+    }
+    0
+}
+
+fn english_date_weekday(word: &str) -> bool {
+    word == "sun"
+        || word == "sunday"
+        || word == "mon"
+        || word == "monday"
+        || word == "tue"
+        || word == "tues"
+        || word == "tuesday"
+        || word == "wed"
+        || word == "wednesday"
+        || word == "thu"
+        || word == "thur"
+        || word == "thurs"
+        || word == "thursday"
+        || word == "fri"
+        || word == "friday"
+        || word == "sat"
+        || word == "saturday"
+}
+
+fn english_date_gap(text: &TimestampText, start: usize, end: usize) -> usize {
+    let mut index = start;
+    while index < end && (date_text_space(text.chars[index]) || text.chars[index] == ',') {
+        index += 1;
+    }
+    index
+}
+
+fn english_date_delimiter(value: char) -> bool {
+    value == '-' || value == '/' || value == '.'
+}
+
+fn english_date_result(
+    state: i32,
+    next: usize,
+    year: i32,
+    month: i32,
+    day: i32,
+) -> OrdinalDateText {
+    OrdinalDateText {
+        state: state,
+        next: next,
+        year: year,
+        overflow: false,
+        month: month,
+        day: day,
+        minus_zone: false,
+    }
+}
+
+fn english_date_fields(
+    first: &TimestampNumber,
+    second: &TimestampNumber,
+    month: i32,
+    next: usize,
+    delimited: bool,
+    number_first: bool,
+) -> OrdinalDateText {
+    if delimited == false && (first.digits >= 6 || second.digits >= 6) {
+        return english_date_result(ORDINAL_DATE_SYNTAX, next, 0, 0, 0);
+    }
+    if delimited && (first.digits >= 10 || second.digits >= 10) {
+        return english_date_result(ORDINAL_DATE_DEFERRED, next, 0, 0, 0);
+    }
+    if first.digits >= 3 {
+        return english_date_result(
+            ORDINAL_DATE_CALENDAR,
+            next,
+            first.value,
+            month,
+            second.value,
+        );
+    }
+    // Two short numbers take their roles from DateStyle; a numeric month before a
+    // textual one is moved to the day only from 1 through 31.
+    if second.digits < 3
+        || (delimited == false && number_first && (first.value < 1 || first.value > 31))
+    {
+        return english_date_result(ORDINAL_DATE_DEFERRED, next, 0, 0, 0);
+    }
+    english_date_result(
+        ORDINAL_DATE_CALENDAR,
+        next,
+        second.value,
+        month,
+        first.value,
+    )
+}
+
+fn read_english_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
+    let absent = english_date_result(ORDINAL_DATE_ABSENT, start, 0, 0, 0);
+    let mut index = start;
+    let leading = english_date_word(text, index, end);
+    if english_date_weekday(leading.as_str()) {
+        let leading_end = english_date_word_end(text, index, end);
+        index = english_date_gap(text, leading_end, end);
+        if index == leading_end {
+            return absent;
+        }
+    }
+    if index == end {
+        return absent;
+    }
+    if english_date_letter(text.chars[index]) {
+        let word = english_date_word(text, index, end);
+        let month = english_date_month(word.as_str());
+        if month == 0 {
+            return absent;
+        }
+        let after = english_date_word_end(text, index, end);
+        if after < end && english_date_delimiter(text.chars[after]) {
+            let delimiter = text.chars[after];
+            let first = read_timestamp_number(text, after + 1, end);
+            if first.digits == 0 || first.next == end || text.chars[first.next] != delimiter {
+                return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+            }
+            let second = read_timestamp_number(text, first.next + 1, end);
+            if second.digits == 0
+                || (second.next < end && date_text_space(text.chars[second.next]) == false)
+            {
+                return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+            }
+            return english_date_fields(&first, &second, month, second.next, true, false);
+        }
+        let first_start = english_date_gap(text, after, end);
+        let first = read_timestamp_number(text, first_start, end);
+        if first_start == after || first.digits == 0 {
+            return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+        }
+        let second_start = english_date_gap(text, first.next, end);
+        let second = read_timestamp_number(text, second_start, end);
+        if second_start == first.next
+            || second.digits == 0
+            || (second.next < end
+                && date_text_space(text.chars[second.next]) == false
+                && text.chars[second.next].to_ascii_lowercase() != 't'
+                && text.chars[second.next] != '+')
+        {
+            return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+        }
+        return english_date_fields(&first, &second, month, second.next, false, false);
+    }
+    let first = read_timestamp_number(text, index, end);
+    if first.digits == 0 || first.next == end {
+        return absent;
+    }
+    let after = first.next;
+    if english_date_delimiter(text.chars[after])
+        && after + 1 < end
+        && english_date_letter(text.chars[after + 1])
+    {
+        let delimiter = text.chars[after];
+        let word = english_date_word(text, after + 1, end);
+        let month = english_date_month(word.as_str());
+        let word_end = english_date_word_end(text, after + 1, end);
+        if month == 0 || word_end == end || text.chars[word_end] != delimiter {
+            return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+        }
+        let second = read_timestamp_number(text, word_end + 1, end);
+        if second.digits == 0
+            || (second.next < end && date_text_space(text.chars[second.next]) == false)
+        {
+            return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+        }
+        return english_date_fields(&first, &second, month, second.next, true, true);
+    }
+    let word_start = english_date_gap(text, after, end);
+    if word_start == after
+        || word_start == end
+        || english_date_letter(text.chars[word_start]) == false
+    {
+        return absent;
+    }
+    let word = english_date_word(text, word_start, end);
+    let month = english_date_month(word.as_str());
+    if month == 0 {
+        return absent;
+    }
+    let word_end = english_date_word_end(text, word_start, end);
+    let second_start = english_date_gap(text, word_end, end);
+    let second = read_timestamp_number(text, second_start, end);
+    if second_start == word_end
+        || second.digits == 0
+        || (second.next < end
+            && date_text_space(text.chars[second.next]) == false
+            && text.chars[second.next].to_ascii_lowercase() != 't'
+            && text.chars[second.next] != '+')
+    {
+        return english_date_result(ORDINAL_DATE_DEFERRED, after, 0, 0, 0);
+    }
+    english_date_fields(&first, &second, month, second.next, false, true)
+}
+
 fn read_ordinal_date(text: &TimestampText, start: usize, end: usize) -> OrdinalDateText {
+    let english = read_english_date(text, start, end);
+    if english.state != ORDINAL_DATE_ABSENT {
+        return english;
+    }
     let year = read_timestamp_number(text, start, end);
     let mut index = year.next;
     let mut state = ORDINAL_DATE_ABSENT;
@@ -296,21 +556,19 @@ pub fn date_from_text(value: TextValue) -> DateValue {
         while start < end && date_text_space(chars[end - 1]) {
             end = end - 1;
         }
-        if start < end && chars[start].to_ascii_lowercase() == 'j' {
-            let mut index = start;
-            let mut label = String::new();
-            while index < end {
-                let character = chars[index].to_ascii_lowercase();
-                let code = character as i32;
-                if code < 97 || code > 122 {
-                    break;
-                }
-                label.push(character);
-                index += 1;
+        let mut label = String::new();
+        let mut label_end = start;
+        while label_end < end {
+            let character = chars[label_end].to_ascii_lowercase();
+            let code = character as i32;
+            if code < 97 || code > 122 {
+                break;
             }
-            if label != "j" && label != "jd" && label != "julian" {
-                return DateValue::Unknown;
-            }
+            label.push(character);
+            label_end += 1;
+        }
+        if label == "j" || label == "jd" || label == "julian" {
+            let mut index = label_end;
             while index < end && date_text_space(chars[index]) {
                 index += 1;
             }
