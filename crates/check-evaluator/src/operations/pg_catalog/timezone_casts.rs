@@ -333,3 +333,18 @@ fn timestamptz_from_text_trailing_zone(
     };
     TimestamptzValue::Unknown
 }
+
+// Timetz text without a zone takes the session offset at the current date, as the time-to-timetz
+// cast does; only session zones with a single fixed offset resolve, since others depend on the
+// transaction date.
+pub fn timetz_from_text_context(input: TextValue, zone: &str) -> TimetzValue {
+    let parsed = timetz_from_text(input.clone());
+    if parsed != TimetzValue::Unknown {
+        return parsed;
+    };
+    let clock = time_from_text(input);
+    if let TimeValue::Value(_) = clock {
+        return sql__pg_catalog__timetz__qcb2(clock, zone);
+    };
+    TimetzValue::Unknown
+}

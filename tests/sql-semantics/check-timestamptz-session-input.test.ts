@@ -335,3 +335,93 @@ it('reads short leading date fields in the configured date order for date and ti
     await rm(directory, { recursive: true, force: true })
   }
 }, 240_000)
+
+it('gives timetz text without a zone the offset of a fixed session zone', async () => {
+  const pg = await PGlite.create()
+  const directory = await mkdtemp(join(tmpdir(), 'pgsid-timetz-session-input-'))
+  const casts = {
+    clock_value: "raw::timetz = TIMETZ '12:00+00'",
+    clock_null: 'raw::timetz IS NULL',
+  }
+  const zones = ['UTC', '+02:30', 'America/New_York']
+  // Zones with DST resolve against the transaction date, so zone-less text defers there.
+  const zoneless = ['12:00', '1200', '12:00 pm', '24:00', 'T12:00', '2000-01-01 12:00']
+  const inputs = [...zoneless, '12:00+05', '12:00-00', '25:00', null]
+  try {
+    await pg.exec(`CREATE TABLE timetz_input (raw text,
+      ${Object.entries(casts)
+        .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
+        .join(',')})`)
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((table) => table.name === 'timetz_input')!
+    const names: string[] = []
+    const groups = zones.map((zone, index) =>
+      prepareCheckRustGroup(
+        Object.keys(casts).map((name) => {
+          names.push(`z${index}_${name}`)
+          return {
+            identity: {
+              schema: 'public',
+              kind: 'table' as const,
+              owner: table.name,
+              constraint: `z${index}_${name}`,
+            },
+            expression: portableCheckAtoms(
+              lowerTableCheck(
+                table,
+                table.constraints.find((check) => check.name === name)!,
+              )!.expression,
+            ),
+          }
+        }),
+        contextFor({ zone }),
+      ),
+    )
+    expect(groups[0]!.evaluatorSource).toContain('timetz_from_text_context(')
+    const evaluatorSource = groups.map((group) => group.evaluatorSource!).join('\n')
+    const group = {
+      checks: groups.flatMap((group) => group.checks),
+      evaluatorSource,
+      source: assembleCheckRust({
+        source: evaluatorSource,
+        callables: [
+          ...new Set([...evaluatorSource.matchAll(/\b(sql__\w+)\(/gu)].map((m) => m[1]!)),
+        ],
+      }),
+      requiresRegex: false,
+    }
+    group.checks.forEach((check, i) => expect(check.kind, names[i]).toBe('supported'))
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [index, zone] of zones.entries()) {
+      await pg.query("SELECT set_config('TimeZone', $1, false)", [zone])
+      for (const raw of inputs)
+        for (const [name, sql] of Object.entries(casts)) {
+          let expected: Outcome
+          if (raw !== null && zoneless.includes(raw) && zone === 'America/New_York') {
+            expected = { kind: 'Unknown' }
+          } else {
+            try {
+              expected = outcome(
+                (
+                  await pg.query<{ value: boolean | null }>(
+                    `SELECT (${sql}) AS value FROM (SELECT $1::text raw) candidate`,
+                    [raw],
+                  )
+                ).rows[0]!.value,
+              )
+            } catch (error) {
+              expected = {
+                kind: 'Error',
+                value: { state: Number.parseInt((error as { code: string }).code, 36) },
+              }
+            }
+          }
+          fixtures.push({ name: `z${index}_${name}`, row: { raw: input(raw) }, expected })
+        }
+    }
+    await runCheckParity(directory, 'timetz_session_input', group, names, fixtures)
+  } finally {
+    await pg.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 240_000)
