@@ -8040,6 +8040,17 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       }
+      if (
+        node.kind === 'text-to-timestamptz' &&
+        executionContext.timeZone !== undefined &&
+        !storedArrayInputScope
+      )
+        return {
+          name: bind(
+            `timestamptz_from_text_session(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)})`,
+          ),
+          type: node.type,
+        }
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
