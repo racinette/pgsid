@@ -417,7 +417,7 @@ import them. Keep schema-only helpers with their callables.
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
   date range checks apply. A numeric zone or Z may follow any of these dates
-  directly, with a midnight clock; after a slash- or
+  directly or after whitespace, with a midnight clock; after a slash- or
   period-separated ordinal date a minus sign also starts a zone. Invalid
   supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms

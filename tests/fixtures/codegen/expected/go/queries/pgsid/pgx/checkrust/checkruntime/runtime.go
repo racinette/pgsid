@@ -16883,6 +16883,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}
+			if index < end && (text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z') {
+				zoneOnly = true
+			}
 		} else if zoneOnly == false {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}

@@ -261,3 +261,9 @@ INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.5 12:00', NULL, false);
 -- name: instant_julian_zone
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.5+05', '2000-01-01 07:00:00+00', false);
+-- name: instant_spaced_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 -05', '2000-01-01 05:00:00+00', false);
+-- name: instant_spaced_zone_range_error
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '4714-11-24 +01 BC', NULL, false);
+-- name: local_spaced_zone_ignored
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Jan 1 2000 Z', '2000-01-01 00:00:00', false);

@@ -16825,13 +16825,16 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             }
             return timestampCalendarMicroseconds(year, month, day, julianHour, julianMinute, julianSecond, julianFraction, 0, false, false, withTimezone, false, ordinalDay, dateOnly);
         }
-        const zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
+        let zoneOnly: boolean = langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || (ordinal.state === ordinalDateFound && ordinal.minusZone && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
         }
         else if (dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
             while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
+            }
+            if (index < end && (langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z")) {
+                zoneOnly = langruntime.checkedBool(true);
             }
         }
         else if (zoneOnly === false) {
