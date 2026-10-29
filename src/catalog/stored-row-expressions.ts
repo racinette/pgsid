@@ -810,19 +810,29 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
           ].includes(callable.result))
     )
       return undefined
-    if (conversion?.method === 'f' && conversion.implementation === callable.signature)
+    if (conversion?.method === 'f' && conversion.implementation === callable.signature) {
+      // PostgreSQL selects the cast from the argument's own type, whose function may declare a
+      // binary-compatible input instead (cidr to bpchar runs text(inet)).
+      const argument = tree(provided[0]),
+        argumentBase = argument ? baseType(Number(expressionType(argument, input))) : undefined,
+        argumentType = argumentBase === undefined ? undefined : typeName(argumentBase),
+        source =
+          argumentType && builtinCast(argumentType, result!)?.implementation === callable.signature
+            ? argumentType
+            : callable.args[0]
       return collated(
         {
           PgsidStoredCast: {
             arg: args[0],
             type: result,
-            source: callable.args[0],
+            source,
             signature: callable.signature,
             kind: 'function',
           },
         },
         node.kind === 'FUNCEXPR' ? 'funccollid' : 'opcollid',
       )
+    }
     const call = {
       PgsidStoredCall: {
         signature: callable.signature,
