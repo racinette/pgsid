@@ -311,7 +311,7 @@ CREATE TABLE arrivals (id int PRIMARY KEY, local_at int, instant_at int,
     const corpus = checkCorpus(checkSchema.replace('-- @world checks\n', ''))
     const issues = await runAggregate(healthRule, {
       ...corpus,
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
     })
     expect(
@@ -330,7 +330,7 @@ CREATE TABLE arrivals (id int PRIMARY KEY, local_at int, instant_at int,
     ]) {
       const issues = await runAggregate(healthRule, {
         ...corpus,
-        pattern: 'worlds/**/*.sql',
+        patterns: ['worlds/**/*.sql'],
         at: 'worlds/',
       })
       expect(issues.some((issue) => issue.code === 'world_health_violation')).toBe(true)
@@ -343,7 +343,7 @@ CREATE TABLE arrivals (id int PRIMARY KEY, local_at int, instant_at int,
     const issues = await runAggregate(healthRule, {
       tree: { ...corpus.tree, [path]: 'SELECT * FROM arrivals;' },
       matches: [...corpus.matches, { path, captures: { world: ['001_arrivals'] } }],
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
     })
     expect(
@@ -373,7 +373,7 @@ CREATE TABLE arrivals (id int PRIMARY KEY, local_at int, instant_at int,
 
     const issues = await runAggregate(healthRule, {
       matches,
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree,
     })
@@ -402,7 +402,7 @@ CREATE TABLE sibling (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES pare
 
     const issues = await runAggregate(healthRule, {
       matches: [...shipping.matches, ...flat.matches],
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree: { ...shipping.tree, ...flat.tree },
     })
@@ -431,7 +431,7 @@ describe('Espalier world rung-reach aggregate', () => {
 
     const issues = await runAggregate(rungReachRule, {
       matches,
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree,
     })
@@ -452,7 +452,7 @@ describe('Espalier world rung-reach aggregate', () => {
 
     const issues = await runAggregate(rungReachRule, {
       matches: [...shipping.matches, ...library.matches, ...duplicate.matches],
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree: { ...shipping.tree, ...library.tree, ...duplicate.tree },
     })
@@ -474,7 +474,7 @@ describe('Espalier world rung-reach aggregate', () => {
 
     const issues = await runAggregate(rungReachRule, {
       matches: corpus.matches,
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree: corpus.tree,
     })
@@ -492,7 +492,7 @@ describe('Espalier world rung-reach aggregate', () => {
 
     const issues = await runAggregate(rungReachRule, {
       matches: corpus.matches,
-      pattern: 'worlds/**/*.sql',
+      patterns: ['worlds/**/*.sql'],
       at: 'worlds/',
       tree: corpus.tree,
     })
