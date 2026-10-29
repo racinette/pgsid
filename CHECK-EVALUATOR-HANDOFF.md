@@ -1,6 +1,6 @@
 # CHECK evaluator continuation handoff
 
-The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit accepts zones after whitespace following a date (identify it with `git log`), preceded by `56516233` (combined Julian input) and `4323e5be` (English month dates). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
+The goal was resumed by explicit request and remains incomplete. Work from `/home/andy/Projects/pgsid-workspace/pgsid`, branch `main`; inspect status/log before editing. The latest implementation commit rejects fourth date fields (identify it with `git log`), preceded by `f727edfb` (zones after whitespace) and `56516233` (combined Julian input). No production or test changes are pending after that commit. Preserve every unchecked ledger audit and final integration requirement.
 
 ## Current temporal checkpoint
 
@@ -24,11 +24,13 @@ English month dates follow DecodeNumber's textual-month rules, where swaps make 
 
 Julian input follows DecodeDateTime's DTK_JULIAN path: j2date sets the date (the shared unsigned j2date emulation), BC/AD is ignored, and a fraction becomes the clock as `trunc(strtod(fraction) * 86400000000)` microseconds; the dialect has no f64→i64 cast, so the code truncates whole seconds and the exact remainder separately. A clock after a fraction is 22007; an integer day takes the ordinary clock/zone tail, and date input still applies clock/zone errors but only date ranges. After whitespace, `+`, `-` or `z` starts a zone for every date form (whitespace ends PostgreSQL's date field, so `-` is unambiguous there); `zulu`, `z1`, `- 05`, `-05:` and a clock after the zone defer. Deferred: `J1e2`, `J2451545.5e1`, `J2451545.`, `J2451545-05`. `Z` directly after any date now starts a zone (`2000-01-01Z`). Evidence: temporal-julian-combined-active/.
 
+A fourth delimited field after a complete date is 22007 in every width, including four or six digits (natively not a clock on this path); an int4 overflow in it is 22008 natively and defers. Evidence: temporal-fourth-field-active/.
+
 ## Next work
 
 Remaining temporal grammar audits, each separate from genuine DateStyle/transaction-clock/catalog requirements:
 
-- Minus-signed fields after hyphen/compact/ISO dates (`2000-01-01-0530`) and zone tails followed by clocks (`2000-01-01+05 12:00`), punctuation-separated fields (` 2000 / 060`), BC/AD before the clock (`0002-366 BC 12:00Z`).
+- Zone tails followed by clocks (`2000-01-01+05 12:00`), punctuation-separated fields (` 2000 / 060`), BC/AD before the clock (`0002-366 BC 12:00Z`).
 - Day-of-year followed by a four/six-digit clock field (`2000-001-010203`), bare numeric fields after a complete date (`2000 060 01`, `2000 01 01 01` → 22007), year/month followed by a clock (`2000 01 12:00` → 22007, `2000 13 12:00` → 22008).
 - English forms that depend on DateStyle or adjacency (`Jan 1 00`, `Jan1 2000`, `2000 1 Jan`), split and escaped forms; additional timezone-only and named-zone grammar. Inspect src/time.rs and JSON-population normalization before sharing grammar.
 

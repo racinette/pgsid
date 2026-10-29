@@ -308,7 +308,22 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             let day_field = read_timestamp_number(&text, index + 1, end);
             index = day_field.next;
             if index < end && text.chars[index] == separator {
-                return Int8Value::Unknown;
+                let extra_field = read_timestamp_number(&text, index + 1, end);
+                if day_field.digits == 0
+                    || extra_field.digits == 0
+                    || extra_field.overflow
+                    || year_overflow
+                    || month_field.overflow
+                    || day_field.overflow
+                    || (month_field.digits == 3
+                        && month_field.value >= 1
+                        && month_field.value <= 366)
+                {
+                    return Int8Value::Unknown;
+                }
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_TEXT,
+                });
             }
             if month_field.digits == 3 && month_field.value >= 1 && month_field.value <= 366 {
                 if day_field.digits == 4 || day_field.digits == 6 {

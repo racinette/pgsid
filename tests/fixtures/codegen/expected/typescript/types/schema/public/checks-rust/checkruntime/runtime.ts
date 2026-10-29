@@ -16772,7 +16772,11 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             const dayField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
             index = langruntime.checkedIndex(dayField.next);
             if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator) {
-                return { kind: "Unknown" };
+                const extraField: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
+                if (dayField.digits === 0 || extraField.digits === 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366)) {
+                    return { kind: "Unknown" };
+                }
+                return { kind: "Error", value: { state: invalidTimestampText } };
             }
             if (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366) {
                 if (dayField.digits === 4 || dayField.digits === 6) {
