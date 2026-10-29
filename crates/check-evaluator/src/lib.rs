@@ -213,6 +213,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/float_exponential.rs");
     include!("operations/pg_catalog/float_hyperbolic.rs");
     include!("operations/pg_catalog/float_error_function.rs");
+    include!("operations/pg_catalog/float_window_support.rs");
     include!("operations/pg_catalog/point_core.rs");
     include!("operations/pg_catalog/line_core.rs");
     include!("operations/pg_catalog/point_operations.rs");
