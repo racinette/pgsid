@@ -14,6 +14,18 @@
  * is preserved.
  */
 
+// Transcribed from musl's expm1, log1p, __expo2 and hyperbolic functions, which PostgreSQL calls
+// through dsinh, dcosh, dtanh, dasinh, dacosh and datanh. musl sets no errno, so overflowing
+// sinh and cosh return infinity rather than an error, as in PGlite.
+
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
 // Transcribed from musl's asin, acos, atan and atan2, which PostgreSQL calls through dasin,
 // dacos, datan and datan2. Sign tests use the bit pattern so that negative zero keeps its sign.
 
@@ -13218,6 +13230,9 @@ func muslExp(x float64) float64 {
 	return langruntime.F64Add(scale, langruntime.F64Multiply(scale, tmp))
 }
 func muslLog(input float64) float64 {
+	if input == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+		return input
+	}
 	ix := langruntime.F64ToI64Bits(input)
 	if langruntime.CheckedI64Subtract(ix, int64(4606619468846596096)) < langruntime.CheckedI64Subtract(int64(4607473789381378048), int64(4606619468846596096)) && ix >= int64(4606619468846596096) {
 		if input == float64(1.0) {
@@ -13817,6 +13832,329 @@ func Hashfloat4extendedIjgq(input checkruntime.Float4Value, seed checkruntime.In
 	byteOrder = langruntime.CheckedI32(byteOrder)
 	widened := float4Widen(input)
 	return Hashfloat8extended7sph(widened, seed, byteOrder)
+}
+
+var hyperbolicLn2Hi = float64(6.93147180369123816490e-01)
+var hyperbolicLn2Lo = float64(1.90821492927058770002e-10)
+
+func muslExpm1(input float64) float64 {
+	x := input
+	high := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	negative := langruntime.F64ToI64Bits(x) < int64(0)
+	if high >= int64(1078159482) {
+		if x != x {
+			return x
+		}
+		if negative {
+			return float64(-1.0)
+		}
+		if x > float64(7.09782712893383973096e+02) {
+			return langruntime.F64Multiply(x, float64(8.98846567431158e+307))
+		}
+	}
+	k := 0
+	c := float64(0.0)
+	if high > int64(1071001154) {
+		hi := float64(0.0)
+		lo := float64(0.0)
+		if high < int64(1072734898) {
+			if negative == false {
+				hi = langruntime.F64Subtract(x, hyperbolicLn2Hi)
+				lo = hyperbolicLn2Lo
+				k = langruntime.CheckedI32(1)
+			} else {
+				hi = langruntime.F64Add(x, hyperbolicLn2Hi)
+				lo = langruntime.F64Negate(hyperbolicLn2Lo)
+				k = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			}
+		} else {
+			bias := float64(0.5)
+			if negative {
+				bias = float64(-0.5)
+			}
+			k = langruntime.CheckedI32(langruntime.F64ToI32((langruntime.F64Add(langruntime.F64Multiply(float64(1.44269504088896338700e+00), x), bias))))
+			t := float64(k)
+			hi = langruntime.F64Subtract(x, langruntime.F64Multiply(t, hyperbolicLn2Hi))
+			lo = langruntime.F64Multiply(t, hyperbolicLn2Lo)
+		}
+		x = langruntime.F64Subtract(hi, lo)
+		c = langruntime.F64Subtract((langruntime.F64Subtract(hi, x)), lo)
+	} else if high < int64(1016070144) {
+		return x
+	}
+	hfx := langruntime.F64Multiply(float64(0.5), x)
+	hxs := langruntime.F64Multiply(x, hfx)
+	r1 := langruntime.F64Add(float64(1.0), langruntime.F64Multiply(hxs, (langruntime.F64Add(float64(-3.33333333333331316428e-02), langruntime.F64Multiply(hxs, (langruntime.F64Add(float64(1.58730158725481460165e-03), langruntime.F64Multiply(hxs, (langruntime.F64Add(float64(-7.93650757867487942473e-05), langruntime.F64Multiply(hxs, (langruntime.F64Add(float64(4.00821782732936239552e-06), langruntime.F64Multiply(hxs, float64(-2.01099218183624371326e-07)))))))))))))))
+	t := langruntime.F64Subtract(float64(3.0), langruntime.F64Multiply(r1, hfx))
+	e := langruntime.F64Multiply(hxs, (langruntime.F64Divide((langruntime.F64Subtract(r1, t)), (langruntime.F64Subtract(float64(6.0), langruntime.F64Multiply(x, t))))))
+	if k == 0 {
+		return langruntime.F64Subtract(x, (langruntime.F64Subtract(langruntime.F64Multiply(x, e), hxs)))
+	}
+	e = langruntime.F64Subtract(langruntime.F64Multiply(x, (langruntime.F64Subtract(e, c))), c)
+	e = langruntime.F64Subtract(e, hxs)
+	if k == langruntime.CheckedSignedNegate(1) {
+		return langruntime.F64Subtract(langruntime.F64Multiply(float64(0.5), (langruntime.F64Subtract(x, e))), float64(0.5))
+	}
+	if k == 1 {
+		if x < float64(-0.25) {
+			return langruntime.F64Multiply(float64(-2.0), (langruntime.F64Subtract(e, (langruntime.F64Add(x, float64(0.5))))))
+		}
+		return langruntime.F64Add(float64(1.0), langruntime.F64Multiply(float64(2.0), (langruntime.F64Subtract(x, e))))
+	}
+	kWide := int64(langruntime.CheckedI32(k))
+	twopk := langruntime.F64FromI64Bits((langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(int64(1023), kWide)), int64(4503599627370496))))
+	if k < 0 || k > 56 {
+		y := langruntime.F64Add(langruntime.F64Subtract(x, e), float64(1.0))
+		if k == 1024 {
+			y = langruntime.F64Multiply(langruntime.F64Multiply(y, float64(2.0)), float64(8.98846567431158e+307))
+		} else {
+			y = langruntime.F64Multiply(y, twopk)
+		}
+		return langruntime.F64Subtract(y, float64(1.0))
+	}
+	inverse := langruntime.F64FromI64Bits((langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(int64(1023), kWide)), int64(4503599627370496))))
+	if k < 20 {
+		return langruntime.F64Multiply((langruntime.F64Add(langruntime.F64Subtract(x, e), (langruntime.F64Subtract(float64(1.0), inverse)))), twopk)
+	}
+	return langruntime.F64Multiply((langruntime.F64Add(langruntime.F64Subtract(x, (langruntime.F64Add(e, inverse))), float64(1.0))), twopk)
+}
+func muslLog1p(input float64) float64 {
+	x := input
+	bits := langruntime.F64ToI64Bits(x)
+	negative := bits < int64(0)
+	unsignedHigh := langruntime.CheckedI64Add(int64(langruntime.CheckedI32(circleMathHighWord(x))), ifNegativeHigh(negative))
+	k := int64(1)
+	c := float64(0.0)
+	f := float64(0.0)
+	if unsignedHigh < int64(1071284858) || negative {
+		if unsignedHigh >= int64(3220176896) {
+			if x == float64(-1.0) {
+				return langruntime.F64Divide(x, float64(0.0))
+			}
+			return langruntime.F64Divide((langruntime.F64Subtract(x, x)), float64(0.0))
+		}
+		if circleMathHighWord(x) < 1017118720 {
+			return x
+		}
+		if unsignedHigh <= int64(3218259652) {
+			k = int64(0)
+			c = float64(0.0)
+			f = x
+		}
+	} else if unsignedHigh >= int64(2146435072) {
+		return x
+	}
+	if k != int64(0) {
+		u := langruntime.F64Add(float64(1.0), x)
+		uBits := langruntime.F64ToI64Bits(u)
+		hu := langruntime.CheckedI64Divide(uBits, int64(4294967296))
+		hu = langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(hu, int64(1072693248)), int64(1072079006))
+		k = langruntime.CheckedI64Subtract(langruntime.CheckedI64Divide(hu, int64(1048576)), int64(1023))
+		if k < int64(54) {
+			if k >= int64(2) {
+				c = langruntime.F64Subtract(float64(1.0), (langruntime.F64Subtract(u, x)))
+			} else {
+				c = langruntime.F64Subtract(x, (langruntime.F64Subtract(u, float64(1.0))))
+			}
+			c = langruntime.F64Divide(c, u)
+		} else {
+			c = float64(0.0)
+		}
+		hu = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder(hu, int64(1048576)), int64(1072079006))
+		low := langruntime.CheckedI64Remainder(uBits, int64(4294967296))
+		f = langruntime.F64Subtract(langruntime.F64FromI64Bits((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(hu, int64(4294967296)), low))), float64(1.0))
+	}
+	hfsq := langruntime.F64Multiply(langruntime.F64Multiply(float64(0.5), f), f)
+	s := langruntime.F64Divide(f, (langruntime.F64Add(float64(2.0), f)))
+	z := langruntime.F64Multiply(s, s)
+	w := langruntime.F64Multiply(z, z)
+	t1 := langruntime.F64Multiply(w, (langruntime.F64Add(float64(3.999999999940941908e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(2.222219843214978396e-01), langruntime.F64Multiply(w, float64(1.531383769920937332e-01))))))))
+	t2 := langruntime.F64Multiply(z, (langruntime.F64Add(float64(6.666666666666735130e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(2.857142874366239149e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(1.818357216161805012e-01), langruntime.F64Multiply(w, float64(1.479819860511658591e-01)))))))))))
+	r := langruntime.F64Add(t2, t1)
+	dk := float64((int(int32(k))))
+	return langruntime.F64Add(langruntime.F64Add(langruntime.F64Subtract(langruntime.F64Add(langruntime.F64Multiply(s, (langruntime.F64Add(hfsq, r))), (langruntime.F64Add(langruntime.F64Multiply(dk, hyperbolicLn2Lo), c))), hfsq), f), langruntime.F64Multiply(dk, hyperbolicLn2Hi))
+}
+func ifNegativeHigh(negative bool) int64 {
+	if negative {
+		return int64(2147483648)
+	}
+	return int64(0)
+}
+func muslExpo2(x float64, sign float64) float64 {
+	scale := langruntime.F64FromI64Bits((langruntime.CheckedI64Multiply(int64(2044), int64(4503599627370496))))
+	return langruntime.F64Multiply(langruntime.F64Multiply(muslExp(langruntime.F64Subtract(x, float64(1416.0996898839683))), (langruntime.F64Multiply(sign, scale))), scale)
+}
+func muslSinh(x float64) float64 {
+	h := float64(0.5)
+	if langruntime.F64ToI64Bits(x) < int64(0) {
+		h = langruntime.F64Negate(h)
+	}
+	absx := langruntime.F64Abs(x)
+	w := int64(langruntime.CheckedI32(circleMathHighWord(absx)))
+	if w < int64(1082535490) {
+		t := muslExpm1(absx)
+		if w < int64(1072693248) {
+			if w < langruntime.CheckedI64Subtract(int64(1072693248), int64(27262976)) {
+				return x
+			}
+			return langruntime.F64Multiply(h, (langruntime.F64Subtract(langruntime.F64Multiply(float64(2.0), t), langruntime.F64Divide(langruntime.F64Multiply(t, t), (langruntime.F64Add(t, float64(1.0)))))))
+		}
+		return langruntime.F64Multiply(h, (langruntime.F64Add(t, langruntime.F64Divide(t, (langruntime.F64Add(t, float64(1.0)))))))
+	}
+	return muslExpo2(absx, langruntime.F64Multiply(float64(2.0), h))
+}
+func muslCosh(input float64) float64 {
+	x := langruntime.F64Abs(input)
+	w := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	if w < int64(1072049730) {
+		if w < langruntime.CheckedI64Subtract(int64(1072693248), int64(27262976)) {
+			return float64(1.0)
+		}
+		t := muslExpm1(x)
+		return langruntime.F64Add(float64(1.0), langruntime.F64Divide(langruntime.F64Multiply(t, t), (langruntime.F64Multiply(float64(2.0), (langruntime.F64Add(float64(1.0), t))))))
+	}
+	if w < int64(1082535490) {
+		t := muslExp(x)
+		return langruntime.F64Multiply(float64(0.5), (langruntime.F64Add(t, langruntime.F64Divide(float64(1.0), t))))
+	}
+	return muslExpo2(x, float64(1.0))
+}
+func muslTanh(input float64) float64 {
+	negative := langruntime.F64ToI64Bits(input) < int64(0)
+	x := langruntime.F64Abs(input)
+	w := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	t := float64(0.0)
+	if w > int64(1071748074) {
+		if w > int64(1077149696) {
+			t = langruntime.F64Subtract(float64(1.0), langruntime.F64Divide(float64(0.0), x))
+		} else {
+			t = muslExpm1(langruntime.F64Multiply(float64(2.0), x))
+			t = langruntime.F64Subtract(float64(1.0), langruntime.F64Divide(float64(2.0), (langruntime.F64Add(t, float64(2.0)))))
+		}
+	} else if w > int64(1070618798) {
+		t = muslExpm1(langruntime.F64Multiply(float64(2.0), x))
+		t = langruntime.F64Divide(t, (langruntime.F64Add(t, float64(2.0))))
+	} else if w >= int64(1048576) {
+		t = muslExpm1(langruntime.F64Multiply(float64(-2.0), x))
+		t = langruntime.F64Divide(langruntime.F64Negate(t), (langruntime.F64Add(t, float64(2.0))))
+	} else {
+		t = x
+	}
+	if negative {
+		return langruntime.F64Negate(t)
+	}
+	return t
+}
+func muslAsinh(input float64) float64 {
+	negative := langruntime.F64ToI64Bits(input) < int64(0)
+	x := langruntime.F64Abs(input)
+	e := langruntime.CheckedI64Divide(langruntime.F64ToI64Bits(x), int64(4503599627370496))
+	if e >= int64(1049) {
+		x = langruntime.F64Add(muslLog(x), float64(0.693147180559945309417232121458176568))
+	} else if e >= int64(1024) {
+		x = muslLog(langruntime.F64Add(langruntime.F64Multiply(float64(2.0), x), langruntime.F64Divide(float64(1.0), (langruntime.F64Add(langruntime.F64Sqrt((langruntime.F64Add(langruntime.F64Multiply(x, x), float64(1.0)))), x)))))
+	} else if e >= int64(997) {
+		x = muslLog1p(langruntime.F64Add(x, langruntime.F64Divide(langruntime.F64Multiply(x, x), (langruntime.F64Add(langruntime.F64Sqrt((langruntime.F64Add(langruntime.F64Multiply(x, x), float64(1.0)))), float64(1.0))))))
+	}
+	if negative {
+		return langruntime.F64Negate(x)
+	}
+	return x
+}
+func muslAcosh(x float64) float64 {
+	e := langruntime.CheckedI64Divide(langruntime.F64ToI64Bits(x), int64(4503599627370496))
+	if e < int64(1024) {
+		return muslLog1p(langruntime.F64Add(langruntime.F64Subtract(x, float64(1.0)), langruntime.F64Sqrt((langruntime.F64Add(langruntime.F64Multiply((langruntime.F64Subtract(x, float64(1.0))), (langruntime.F64Subtract(x, float64(1.0)))), langruntime.F64Multiply(float64(2.0), (langruntime.F64Subtract(x, float64(1.0)))))))))
+	}
+	if e < int64(1049) {
+		return muslLog(langruntime.F64Subtract(langruntime.F64Multiply(float64(2.0), x), langruntime.F64Divide(float64(1.0), (langruntime.F64Add(x, langruntime.F64Sqrt((langruntime.F64Subtract(langruntime.F64Multiply(x, x), float64(1.0)))))))))
+	}
+	return langruntime.F64Add(muslLog(x), float64(0.693147180559945309417232121458176568))
+}
+func muslAtanh(input float64) float64 {
+	negative := langruntime.F64ToI64Bits(input) < int64(0)
+	y := langruntime.F64Abs(input)
+	e := langruntime.CheckedI64Divide(langruntime.F64ToI64Bits(y), int64(4503599627370496))
+	if e < int64(1022) {
+		if e >= int64(991) {
+			y = langruntime.F64Multiply(float64(0.5), muslLog1p(langruntime.F64Add(langruntime.F64Multiply(float64(2.0), y), langruntime.F64Divide(langruntime.F64Multiply(langruntime.F64Multiply(float64(2.0), y), y), (langruntime.F64Subtract(float64(1.0), y))))))
+		}
+	} else {
+		y = langruntime.F64Multiply(float64(0.5), muslLog1p(langruntime.F64Multiply(float64(2.0), (langruntime.F64Divide(y, (langruntime.F64Subtract(float64(1.0), y)))))))
+	}
+	if negative {
+		return langruntime.F64Negate(y)
+	}
+	return y
+}
+func float8Hyperbolic(input checkruntime.Float8Value, musl bool, operation int) checkruntime.Float8Value {
+	operation = langruntime.CheckedI32(operation)
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if operation == 4 && number < float64(1.0) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if operation == 5 {
+			if number < float64(-1.0) || number > float64(1.0) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+			}
+			if number == float64(-1.0) {
+				return checkruntime.MakeFloat8Value(langruntime.F64Divide(float64(-1.0), float64(0.0)))
+			}
+			if number == float64(1.0) {
+				return checkruntime.MakeFloat8Value(langruntime.F64Divide(float64(1.0), float64(0.0)))
+			}
+		}
+		if musl == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		result := float64(0.0)
+		if operation == 0 {
+			result = muslSinh(number)
+		}
+		if operation == 1 {
+			result = muslCosh(number)
+		}
+		if operation == 2 {
+			result = muslTanh(number)
+		}
+		if operation == 3 {
+			result = muslAsinh(number)
+		}
+		if operation == 4 {
+			result = muslAcosh(number)
+		}
+		if operation == 5 {
+			result = muslAtanh(number)
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func SinhQ8zj(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 0)
+}
+func CoshSpqu(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 1)
+}
+func TanhR3xc(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 2)
+}
+func Asinh7c19(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 3)
+}
+func AcoshJeyr(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 4)
+}
+func AtanhNwxx(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8Hyperbolic(input, musl, 5)
 }
 
 const floatInputInvalid = 3484946

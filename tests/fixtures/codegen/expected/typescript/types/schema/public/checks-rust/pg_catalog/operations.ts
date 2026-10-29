@@ -14,6 +14,18 @@
  * is preserved.
  */
 
+// Transcribed from musl's expm1, log1p, __expo2 and hyperbolic functions, which PostgreSQL calls
+// through dsinh, dcosh, dtanh, dasinh, dacosh and datanh. musl sets no errno, so overflowing
+// sinh and cosh return infinity rather than an error, as in PGlite.
+
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
 // Transcribed from musl's asin, acos, atan and atan2, which PostgreSQL calls through dasin,
 // dacos, datan and datan2. Sign tests use the bit pattern so that negative zero keeps its sign.
 
@@ -13294,6 +13306,9 @@ function muslExp(x: number): number {
 }
 function muslLog(input: number): number {
     input = langruntime.checkedF64(input);
+    if (input === langruntime.f64Divide(1.0, 0.0)) {
+        return input;
+    }
     let ix: bigint = langruntime.f64ToI64Bits(input);
     if (langruntime.checkedI64Subtract(ix, 4606619468846596096n) < langruntime.checkedI64Subtract(4607473789381378048n, 4606619468846596096n) && ix >= 4606619468846596096n) {
         if (input === 1.0) {
@@ -13915,6 +13930,359 @@ export function hashfloat4extendedIjgq(input: checkruntime.Float4Value, seed: ch
     byteOrder = langruntime.checkedI32(byteOrder);
     const widened: checkruntime.Float8Value = float4Widen(input);
     return hashfloat8extended7sph(widened, seed, byteOrder);
+}
+const hyperbolicLn2Hi = 6.93147180369123816490e-01;
+const hyperbolicLn2Lo = 1.90821492927058770002e-10;
+function muslExpm1(input: number): number {
+    input = langruntime.checkedF64(input);
+    let x: number = input;
+    const high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    const negative: boolean = langruntime.f64ToI64Bits(x) < 0n;
+    if (high >= 1078159482n) {
+        if (!(x === x)) {
+            return x;
+        }
+        if (negative) {
+            return -1.0;
+        }
+        if (x > 7.09782712893383973096e+02) {
+            return langruntime.f64Multiply(x, 8.98846567431158e+307);
+        }
+    }
+    let k: number = 0;
+    let c: number = 0.0;
+    if (high > 1071001154n) {
+        let hi: number = 0.0;
+        let lo: number = 0.0;
+        if (high < 1072734898n) {
+            if (negative === false) {
+                hi = langruntime.checkedF64(langruntime.f64Subtract(x, hyperbolicLn2Hi));
+                lo = langruntime.checkedF64(hyperbolicLn2Lo);
+                k = langruntime.checkedI32(1);
+            }
+            else {
+                hi = langruntime.checkedF64(langruntime.f64Add(x, hyperbolicLn2Hi));
+                lo = langruntime.checkedF64(langruntime.f64Negate(hyperbolicLn2Lo));
+                k = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+        }
+        else {
+            let bias: number = 0.5;
+            if (negative) {
+                bias = langruntime.checkedF64(-0.5);
+            }
+            k = langruntime.checkedI32(langruntime.f64ToI32((langruntime.f64Add(langruntime.f64Multiply(1.44269504088896338700e+00, x), bias))));
+            const t: number = Number(langruntime.checkedI32(k));
+            hi = langruntime.checkedF64(langruntime.f64Subtract(x, langruntime.f64Multiply(t, hyperbolicLn2Hi)));
+            lo = langruntime.checkedF64(langruntime.f64Multiply(t, hyperbolicLn2Lo));
+        }
+        x = langruntime.checkedF64(langruntime.f64Subtract(hi, lo));
+        c = langruntime.checkedF64(langruntime.f64Subtract((langruntime.f64Subtract(hi, x)), lo));
+    }
+    else if (high < 1016070144n) {
+        return x;
+    }
+    const hfx: number = langruntime.f64Multiply(0.5, x);
+    const hxs: number = langruntime.f64Multiply(x, hfx);
+    const r1: number = langruntime.f64Add(1.0, langruntime.f64Multiply(hxs, (langruntime.f64Add(-3.33333333333331316428e-02, langruntime.f64Multiply(hxs, (langruntime.f64Add(1.58730158725481460165e-03, langruntime.f64Multiply(hxs, (langruntime.f64Add(-7.93650757867487942473e-05, langruntime.f64Multiply(hxs, (langruntime.f64Add(4.00821782732936239552e-06, langruntime.f64Multiply(hxs, -2.01099218183624371326e-07))))))))))))));
+    const t: number = langruntime.f64Subtract(3.0, langruntime.f64Multiply(r1, hfx));
+    let e: number = langruntime.f64Multiply(hxs, (langruntime.f64Divide((langruntime.f64Subtract(r1, t)), (langruntime.f64Subtract(6.0, langruntime.f64Multiply(x, t))))));
+    if (k === 0) {
+        return langruntime.f64Subtract(x, (langruntime.f64Subtract(langruntime.f64Multiply(x, e), hxs)));
+    }
+    e = langruntime.checkedF64(langruntime.f64Subtract(langruntime.f64Multiply(x, (langruntime.f64Subtract(e, c))), c));
+    e = langruntime.checkedF64(langruntime.f64Subtract(e, hxs));
+    if (k === langruntime.checkedSignedNegate(1)) {
+        return langruntime.f64Subtract(langruntime.f64Multiply(0.5, (langruntime.f64Subtract(x, e))), 0.5);
+    }
+    if (k === 1) {
+        if (x < -0.25) {
+            return langruntime.f64Multiply(-2.0, (langruntime.f64Subtract(e, (langruntime.f64Add(x, 0.5)))));
+        }
+        return langruntime.f64Add(1.0, langruntime.f64Multiply(2.0, (langruntime.f64Subtract(x, e))));
+    }
+    const kWide: bigint = BigInt(langruntime.checkedI32(k));
+    const twopk: number = langruntime.f64FromI64Bits((langruntime.checkedI64Multiply((langruntime.checkedI64Add(1023n, kWide)), 4503599627370496n)));
+    if (k < 0 || k > 56) {
+        let y: number = langruntime.f64Add(langruntime.f64Subtract(x, e), 1.0);
+        if (k === 1024) {
+            y = langruntime.checkedF64(langruntime.f64Multiply(langruntime.f64Multiply(y, 2.0), 8.98846567431158e+307));
+        }
+        else {
+            y = langruntime.checkedF64(langruntime.f64Multiply(y, twopk));
+        }
+        return langruntime.f64Subtract(y, 1.0);
+    }
+    const inverse: number = langruntime.f64FromI64Bits((langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(1023n, kWide)), 4503599627370496n)));
+    if (k < 20) {
+        return langruntime.f64Multiply((langruntime.f64Add(langruntime.f64Subtract(x, e), (langruntime.f64Subtract(1.0, inverse)))), twopk);
+    }
+    return langruntime.f64Multiply((langruntime.f64Add(langruntime.f64Subtract(x, (langruntime.f64Add(e, inverse))), 1.0)), twopk);
+}
+function muslLog1p(input: number): number {
+    input = langruntime.checkedF64(input);
+    const x: number = input;
+    const bits: bigint = langruntime.f64ToI64Bits(x);
+    const negative: boolean = bits < 0n;
+    const unsignedHigh: bigint = langruntime.checkedI64Add(BigInt(langruntime.checkedI32(circleMathHighWord(x))), ifNegativeHigh(negative));
+    let k: bigint = 1n;
+    let c: number = 0.0;
+    let f: number = 0.0;
+    if (unsignedHigh < 1071284858n || negative) {
+        if (unsignedHigh >= 3220176896n) {
+            if (x === -1.0) {
+                return langruntime.f64Divide(x, 0.0);
+            }
+            return langruntime.f64Divide((langruntime.f64Subtract(x, x)), 0.0);
+        }
+        if (circleMathHighWord(x) < 1017118720) {
+            return x;
+        }
+        if (unsignedHigh <= 3218259652n) {
+            k = langruntime.checkedI64(0n);
+            c = langruntime.checkedF64(0.0);
+            f = langruntime.checkedF64(x);
+        }
+    }
+    else if (unsignedHigh >= 2146435072n) {
+        return x;
+    }
+    if (!(k === 0n)) {
+        const u: number = langruntime.f64Add(1.0, x);
+        const uBits: bigint = langruntime.f64ToI64Bits(u);
+        let hu: bigint = langruntime.checkedI64Divide(uBits, 4294967296n);
+        hu = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Add(hu, 1072693248n), 1072079006n));
+        k = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Divide(hu, 1048576n), 1023n));
+        if (k < 54n) {
+            if (k >= 2n) {
+                c = langruntime.checkedF64(langruntime.f64Subtract(1.0, (langruntime.f64Subtract(u, x))));
+            }
+            else {
+                c = langruntime.checkedF64(langruntime.f64Subtract(x, (langruntime.f64Subtract(u, 1.0))));
+            }
+            c = langruntime.checkedF64(langruntime.f64Divide(c, u));
+        }
+        else {
+            c = langruntime.checkedF64(0.0);
+        }
+        hu = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder(hu, 1048576n), 1072079006n));
+        const low: bigint = langruntime.checkedI64Remainder(uBits, 4294967296n);
+        f = langruntime.checkedF64(langruntime.f64Subtract(langruntime.f64FromI64Bits((langruntime.checkedI64Add(langruntime.checkedI64Multiply(hu, 4294967296n), low))), 1.0));
+    }
+    const hfsq: number = langruntime.f64Multiply(langruntime.f64Multiply(0.5, f), f);
+    const s: number = langruntime.f64Divide(f, (langruntime.f64Add(2.0, f)));
+    const z: number = langruntime.f64Multiply(s, s);
+    const w: number = langruntime.f64Multiply(z, z);
+    const t1: number = langruntime.f64Multiply(w, (langruntime.f64Add(3.999999999940941908e-01, langruntime.f64Multiply(w, (langruntime.f64Add(2.222219843214978396e-01, langruntime.f64Multiply(w, 1.531383769920937332e-01)))))));
+    const t2: number = langruntime.f64Multiply(z, (langruntime.f64Add(6.666666666666735130e-01, langruntime.f64Multiply(w, (langruntime.f64Add(2.857142874366239149e-01, langruntime.f64Multiply(w, (langruntime.f64Add(1.818357216161805012e-01, langruntime.f64Multiply(w, 1.479819860511658591e-01))))))))));
+    const r: number = langruntime.f64Add(t2, t1);
+    const dk: number = Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(k))))));
+    return langruntime.f64Add(langruntime.f64Add(langruntime.f64Subtract(langruntime.f64Add(langruntime.f64Multiply(s, (langruntime.f64Add(hfsq, r))), (langruntime.f64Add(langruntime.f64Multiply(dk, hyperbolicLn2Lo), c))), hfsq), f), langruntime.f64Multiply(dk, hyperbolicLn2Hi));
+}
+function ifNegativeHigh(negative: boolean): bigint {
+    negative = langruntime.checkedBool(negative);
+    if (negative) {
+        return 2147483648n;
+    }
+    return 0n;
+}
+function muslExpo2(x: number, sign: number): number {
+    x = langruntime.checkedF64(x);
+    sign = langruntime.checkedF64(sign);
+    const scale: number = langruntime.f64FromI64Bits((langruntime.checkedI64Multiply(2044n, 4503599627370496n)));
+    return langruntime.f64Multiply(langruntime.f64Multiply(muslExp(langruntime.f64Subtract(x, 1416.0996898839683)), (langruntime.f64Multiply(sign, scale))), scale);
+}
+function muslSinh(x: number): number {
+    x = langruntime.checkedF64(x);
+    let h: number = 0.5;
+    if (langruntime.f64ToI64Bits(x) < 0n) {
+        h = langruntime.checkedF64(langruntime.f64Negate(h));
+    }
+    const absx: number = langruntime.f64Abs(x);
+    const w: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(absx)));
+    if (w < 1082535490n) {
+        const t: number = muslExpm1(absx);
+        if (w < 1072693248n) {
+            if (w < langruntime.checkedI64Subtract(1072693248n, 27262976n)) {
+                return x;
+            }
+            return langruntime.f64Multiply(h, (langruntime.f64Subtract(langruntime.f64Multiply(2.0, t), langruntime.f64Divide(langruntime.f64Multiply(t, t), (langruntime.f64Add(t, 1.0))))));
+        }
+        return langruntime.f64Multiply(h, (langruntime.f64Add(t, langruntime.f64Divide(t, (langruntime.f64Add(t, 1.0))))));
+    }
+    return muslExpo2(absx, langruntime.f64Multiply(2.0, h));
+}
+function muslCosh(input: number): number {
+    input = langruntime.checkedF64(input);
+    const x: number = langruntime.f64Abs(input);
+    const w: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    if (w < 1072049730n) {
+        if (w < langruntime.checkedI64Subtract(1072693248n, 27262976n)) {
+            return 1.0;
+        }
+        const t: number = muslExpm1(x);
+        return langruntime.f64Add(1.0, langruntime.f64Divide(langruntime.f64Multiply(t, t), (langruntime.f64Multiply(2.0, (langruntime.f64Add(1.0, t))))));
+    }
+    if (w < 1082535490n) {
+        const t: number = muslExp(x);
+        return langruntime.f64Multiply(0.5, (langruntime.f64Add(t, langruntime.f64Divide(1.0, t))));
+    }
+    return muslExpo2(x, 1.0);
+}
+function muslTanh(input: number): number {
+    input = langruntime.checkedF64(input);
+    const negative: boolean = langruntime.f64ToI64Bits(input) < 0n;
+    const x: number = langruntime.f64Abs(input);
+    const w: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    let t: number = 0.0;
+    if (w > 1071748074n) {
+        if (w > 1077149696n) {
+            t = langruntime.checkedF64(langruntime.f64Subtract(1.0, langruntime.f64Divide(0.0, x)));
+        }
+        else {
+            t = langruntime.checkedF64(muslExpm1(langruntime.f64Multiply(2.0, x)));
+            t = langruntime.checkedF64(langruntime.f64Subtract(1.0, langruntime.f64Divide(2.0, (langruntime.f64Add(t, 2.0)))));
+        }
+    }
+    else if (w > 1070618798n) {
+        t = langruntime.checkedF64(muslExpm1(langruntime.f64Multiply(2.0, x)));
+        t = langruntime.checkedF64(langruntime.f64Divide(t, (langruntime.f64Add(t, 2.0))));
+    }
+    else if (w >= 1048576n) {
+        t = langruntime.checkedF64(muslExpm1(langruntime.f64Multiply(-2.0, x)));
+        t = langruntime.checkedF64(langruntime.f64Divide(langruntime.f64Negate(t), (langruntime.f64Add(t, 2.0))));
+    }
+    else {
+        t = langruntime.checkedF64(x);
+    }
+    if (negative) {
+        return langruntime.f64Negate(t);
+    }
+    return t;
+}
+function muslAsinh(input: number): number {
+    input = langruntime.checkedF64(input);
+    const negative: boolean = langruntime.f64ToI64Bits(input) < 0n;
+    let x: number = langruntime.f64Abs(input);
+    const e: bigint = langruntime.checkedI64Divide(langruntime.f64ToI64Bits(x), 4503599627370496n);
+    if (e >= 1049n) {
+        x = langruntime.checkedF64(langruntime.f64Add(muslLog(x), 0.693147180559945309417232121458176568));
+    }
+    else if (e >= 1024n) {
+        x = langruntime.checkedF64(muslLog(langruntime.f64Add(langruntime.f64Multiply(2.0, x), langruntime.f64Divide(1.0, (langruntime.f64Add(langruntime.f64Sqrt((langruntime.f64Add(langruntime.f64Multiply(x, x), 1.0))), x))))));
+    }
+    else if (e >= 997n) {
+        x = langruntime.checkedF64(muslLog1p(langruntime.f64Add(x, langruntime.f64Divide(langruntime.f64Multiply(x, x), (langruntime.f64Add(langruntime.f64Sqrt((langruntime.f64Add(langruntime.f64Multiply(x, x), 1.0))), 1.0))))));
+    }
+    if (negative) {
+        return langruntime.f64Negate(x);
+    }
+    return x;
+}
+function muslAcosh(x: number): number {
+    x = langruntime.checkedF64(x);
+    const e: bigint = langruntime.checkedI64Divide(langruntime.f64ToI64Bits(x), 4503599627370496n);
+    if (e < 1024n) {
+        return muslLog1p(langruntime.f64Add(langruntime.f64Subtract(x, 1.0), langruntime.f64Sqrt((langruntime.f64Add(langruntime.f64Multiply((langruntime.f64Subtract(x, 1.0)), (langruntime.f64Subtract(x, 1.0))), langruntime.f64Multiply(2.0, (langruntime.f64Subtract(x, 1.0))))))));
+    }
+    if (e < 1049n) {
+        return muslLog(langruntime.f64Subtract(langruntime.f64Multiply(2.0, x), langruntime.f64Divide(1.0, (langruntime.f64Add(x, langruntime.f64Sqrt((langruntime.f64Subtract(langruntime.f64Multiply(x, x), 1.0))))))));
+    }
+    return langruntime.f64Add(muslLog(x), 0.693147180559945309417232121458176568);
+}
+function muslAtanh(input: number): number {
+    input = langruntime.checkedF64(input);
+    const negative: boolean = langruntime.f64ToI64Bits(input) < 0n;
+    let y: number = langruntime.f64Abs(input);
+    const e: bigint = langruntime.checkedI64Divide(langruntime.f64ToI64Bits(y), 4503599627370496n);
+    if (e < 1022n) {
+        if (e >= 991n) {
+            y = langruntime.checkedF64(langruntime.f64Multiply(0.5, muslLog1p(langruntime.f64Add(langruntime.f64Multiply(2.0, y), langruntime.f64Divide(langruntime.f64Multiply(langruntime.f64Multiply(2.0, y), y), (langruntime.f64Subtract(1.0, y)))))));
+        }
+    }
+    else {
+        y = langruntime.checkedF64(langruntime.f64Multiply(0.5, muslLog1p(langruntime.f64Multiply(2.0, (langruntime.f64Divide(y, (langruntime.f64Subtract(1.0, y))))))));
+    }
+    if (negative) {
+        return langruntime.f64Negate(y);
+    }
+    return y;
+}
+function float8Hyperbolic(input: checkruntime.Float8Value, musl: boolean, operation: number): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    operation = langruntime.checkedI32(operation);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (operation === 4 && number < 1.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (operation === 5) {
+            if (number < -1.0 || number > 1.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            if (number === -1.0) {
+                return checkruntime.makeFloat8Value(langruntime.f64Divide(-1.0, 0.0));
+            }
+            if (number === 1.0) {
+                return checkruntime.makeFloat8Value(langruntime.f64Divide(1.0, 0.0));
+            }
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        let result: number = 0.0;
+        if (operation === 0) {
+            result = langruntime.checkedF64(muslSinh(number));
+        }
+        if (operation === 1) {
+            result = langruntime.checkedF64(muslCosh(number));
+        }
+        if (operation === 2) {
+            result = langruntime.checkedF64(muslTanh(number));
+        }
+        if (operation === 3) {
+            result = langruntime.checkedF64(muslAsinh(number));
+        }
+        if (operation === 4) {
+            result = langruntime.checkedF64(muslAcosh(number));
+        }
+        if (operation === 5) {
+            result = langruntime.checkedF64(muslAtanh(number));
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function sinhQ8zj(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 0);
+}
+export function coshSpqu(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 1);
+}
+export function tanhR3xc(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 2);
+}
+export function asinh7c19(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 3);
+}
+export function acoshJeyr(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 4);
+}
+export function atanhNwxx(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8Hyperbolic(input, musl, 5);
 }
 const floatInputInvalid = 3484946;
 const floatInputRange = 3452547;
