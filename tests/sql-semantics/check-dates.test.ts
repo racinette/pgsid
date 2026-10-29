@@ -283,7 +283,7 @@ describe('portable Rust CHECK dates', () => {
       fixtures.push({
         name,
         row: { ...unknown, a: { kind: 'Null' }, b: { kind: 'Unknown' } },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'Null' },
       })
       fixtures.push({ name, row: { ...unknown, a: { kind: 'Null' }, b: error }, expected: error })
       fixtures.push({

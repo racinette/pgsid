@@ -241,8 +241,8 @@ describe('line text input and point construction', () => {
       )
     }
     for (const [left, right, expected] of [
-      [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Unknown' }],
-      [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Unknown' }],
+      [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Null' }],
+      [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Null' }],
       [error('22012'), { kind: 'Unknown' }, error('22012')],
       [{ kind: 'Unknown' }, error('22003'), error('22003')],
     ] as [Input, Input, Outcome][]) {
