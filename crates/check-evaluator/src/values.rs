@@ -1024,11 +1024,15 @@ pub struct JsonbPayload {
     pub root: usize,
 }
 
-#[derive(Clone, Copy)]
+// Partial JSONB facts. A shape with nodes is the complete logical tree except for kind 7 holes:
+// each hole stands for one nonnull JSON value, and its text holds seven '0'/'1' flags, one per
+// possible node kind from null to object. An empty shape records no structure.
+#[derive(Clone)]
 pub struct JsonbKnowledge {
     pub maximum: i64,
     pub kind: i32,
     pub length: i32,
+    pub shape: JsonbPayload,
 }
 
 #[derive(Clone)]
@@ -1043,7 +1047,7 @@ pub enum JsonbValue {
 #[derive(Clone)]
 pub enum JsonbInput {
     Unknown,
-    ScalarUnknown,
+    ScalarUnknown(String),
     JsonNonNull,
     JsonbNonNull(JsonbKnowledge),
     Null,
@@ -1126,7 +1130,7 @@ pub fn jsonb_input_from_bool(input: BoolValue) -> JsonbInput {
     if let BoolValue::Value(value) = input {
         return JsonbInput::Boolean(value);
     };
-    JsonbInput::ScalarUnknown
+    JsonbInput::ScalarUnknown("1110000".to_owned())
 }
 
 pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
@@ -1139,7 +1143,7 @@ pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
     if let NumericValue::Value(value) = input {
         return JsonbInput::Number(value);
     };
-    JsonbInput::ScalarUnknown
+    JsonbInput::ScalarUnknown("1001000".to_owned())
 }
 
 pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {

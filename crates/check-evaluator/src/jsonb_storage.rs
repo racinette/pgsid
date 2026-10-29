@@ -428,7 +428,174 @@ pub fn jsonb_partial_shape(maximum: i64, kind: i32, length: i32) -> JsonbValue {
         maximum: maximum,
         kind: kind,
         length: length,
+        shape: jsonb_empty_shape(),
     })
+}
+
+pub fn jsonb_empty_shape() -> JsonbPayload {
+    let characters: Vec<char> = Vec::new();
+    let nodes: Vec<JsonbNode> = Vec::new();
+    JsonbPayload {
+        characters: characters,
+        nodes: nodes,
+        root: 0,
+    }
+}
+
+// Shapes are kept only below the storage limit, like every other partial fact.
+pub fn jsonb_partial_tree(maximum: i64, shape: JsonbPayload) -> JsonbValue {
+    if maximum < 0i64 || maximum > JSONB_STORAGE_LIMIT {
+        return JsonbValue::Unknown;
+    };
+    let root = shape.nodes[shape.root];
+    let mut length: i32 = -1;
+    if root.kind >= 5 {
+        length = 0;
+        let mut member = root.child;
+        while member > 0 {
+            length = length + 1;
+            member = shape.nodes[member].next;
+        }
+    };
+    let mut kind = root.kind;
+    if kind == 7 {
+        kind = jsonb_hole_kind(&shape, shape.root);
+    };
+    JsonbValue::NonNull(JsonbKnowledge {
+        maximum: maximum,
+        kind: kind,
+        length: length,
+        shape: shape,
+    })
+}
+
+// The node's kind when it is known, a hole's only possible kind, or -1.
+pub fn jsonb_hole_kind(shape: &JsonbPayload, index: usize) -> i32 {
+    let node = shape.nodes[index];
+    if node.kind != 7 {
+        return node.kind;
+    };
+    let mut found: i32 = -1;
+    let mut kind: i32 = 0;
+    while kind < 7 {
+        if jsonb_hole_allows(shape, index, kind) {
+            if found >= 0 {
+                return -1;
+            };
+            found = kind;
+        };
+        kind = kind + 1;
+    }
+    found
+}
+
+pub fn jsonb_hole_allows(shape: &JsonbPayload, index: usize, kind: i32) -> bool {
+    let node = shape.nodes[index];
+    if node.kind != 7 {
+        return node.kind == kind;
+    };
+    let mut position = node.text_start;
+    let mut current: i32 = 0;
+    while position < node.text_end {
+        if current == kind {
+            return shape.characters[position] == '1';
+        };
+        current = current + 1;
+        position += 1;
+    }
+    false
+}
+
+pub fn jsonb_kind_flags(kind: i32) -> String {
+    let mut flags = String::new();
+    let mut current: i32 = 0;
+    while current < 7 {
+        if kind < 0 || current == kind {
+            flags.push('1');
+        } else {
+            flags.push('0');
+        };
+        current = current + 1;
+    }
+    flags
+}
+
+pub fn jsonb_hole_payload(flags: &str) -> JsonbPayload {
+    let characters: Vec<char> = flags.chars().collect();
+    let mut nodes: Vec<JsonbNode> = Vec::new();
+    nodes.push(JsonbNode {
+        kind: -1,
+        child: 0,
+        next: 0,
+        key_start: 0,
+        key_end: 0,
+        text_start: 0,
+        text_end: 0,
+    });
+    nodes.push(JsonbNode {
+        kind: 7,
+        child: 0,
+        next: 0,
+        key_start: 0,
+        key_end: 0,
+        text_start: 0,
+        text_end: characters.len(),
+    });
+    JsonbPayload {
+        characters: characters,
+        nodes: nodes,
+        root: 1,
+    }
+}
+
+// Whether the shape's root may have the kind; without a shape every kind is possible.
+pub fn jsonb_root_allows(facts: &JsonbKnowledge, kind: i32) -> bool {
+    if facts.shape.nodes.len() < 2 {
+        return true;
+    };
+    let node = facts.shape.nodes[facts.shape.root];
+    if node.kind != 7 {
+        return node.kind == kind;
+    };
+    let mut position = node.text_start;
+    let mut current: i32 = 0;
+    while position < node.text_end {
+        if current == kind {
+            return facts.shape.characters[position] == '1';
+        };
+        current = current + 1;
+        position += 1;
+    }
+    false
+}
+
+// Whether the subtree at index contains no hole, which makes it an exact value.
+pub fn jsonb_shape_exact(shape: &JsonbPayload, index: usize) -> bool {
+    let mut pending: Vec<usize> = Vec::new();
+    pending.push(index);
+    let mut depth: usize = 1;
+    while depth > 0 {
+        depth = depth - 1;
+        let node = shape.nodes[pending[depth]];
+        if node.kind == 7 {
+            return false;
+        };
+        let mut child = node.child;
+        while child > 0 {
+            if depth == pending.len() {
+                pending.push(child);
+            } else {
+                pending[depth] = child;
+            };
+            depth += 1;
+            child = shape.nodes[child].next;
+        }
+    }
+    true
+}
+
+pub fn jsonb_has_shape(facts: &JsonbKnowledge) -> bool {
+    facts.shape.nodes.len() > 1
 }
 
 pub fn jsonb_partial_bound(value: &JsonbPayload) -> i64 {

@@ -44,17 +44,33 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
     if state == Int4Value::Unknown {
         return JsonbValue::Unknown;
     };
-    if let JsonbValue::NonNull(facts) = input {
-        if let ArrayValue::Value(keys) = path {
+    let partial = input.clone();
+    let partial_path = path.clone();
+    if let JsonbValue::NonNull(facts) = partial {
+        if let ArrayValue::Value(keys) = partial_path {
             let mut selected = JsonbValue::NonNull(facts);
             let mut position: usize = 0;
             while position < keys.elements.len() {
                 if let JsonbValue::Null = selected {
                     return JsonbValue::Null;
                 };
+                // A path step through any scalar, exact or a hole that cannot be a container,
+                // gives NULL.
                 let mut kind = -1;
-                if let JsonbValue::NonNull(current) = selected {
+                let mut scalar = false;
+                let current_value = selected.clone();
+                if let JsonbValue::NonNull(current) = current_value {
                     kind = current.kind;
+                    if jsonb_has_shape(&current)
+                        && jsonb_root_allows(&current, 5) == false
+                        && jsonb_root_allows(&current, 6) == false
+                    {
+                        scalar = true;
+                    };
+                };
+                let exact_value = selected.clone();
+                if let JsonbValue::Value(current) = exact_value {
+                    kind = current.nodes[current.root].kind;
                 };
                 let key = array_element_to_text(keys.elements[position].clone());
                 if kind == 5 {
@@ -65,6 +81,8 @@ fn jsonb_array_path_select(input: JsonbValue, path: ArrayValue) -> JsonbValue {
                     selected = sql__pg_catalog__jsonb_array_element__08oi(selected, index);
                 } else if kind == 6 {
                     selected = sql__pg_catalog__jsonb_object_field__4uf3(selected, key);
+                } else if kind >= 0 || scalar {
+                    return JsonbValue::Null;
                 } else {
                     return JsonbValue::Unknown;
                 };
@@ -189,7 +207,15 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
     if let ArrayValue::Null = keys {
         return BoolValue::Null;
     };
-    if let JsonbValue::Value(value) = input {
+    let mut shape = jsonb_empty_shape();
+    let mut payload = input.clone();
+    if let JsonbValue::NonNull(facts) = input {
+        if jsonb_has_shape(&facts) {
+            shape = facts.shape;
+            payload = JsonbValue::Value(shape.clone());
+        };
+    };
+    if let JsonbValue::Value(value) = payload {
         if let ArrayValue::Value(queries) = keys {
             if queries.element_type != "pg_catalog.text" || queries.element_kind != 8 {
                 return BoolValue::Unknown;
@@ -209,11 +235,21 @@ fn jsonb_array_path_exists(input: JsonbValue, keys: ArrayValue, all: bool) -> Bo
                         let characters = JsonbExtractKey {
                             characters: text.chars().collect(),
                         };
-                        let found = jsonb_array_path_exists_key(&value, &characters);
-                        if found != all {
-                            return make_bool_value(found);
+                        if shape.nodes.len() > 1 {
+                            let presence = jsonb_shape_has_key(&shape, &characters);
+                            if presence >= 0 {
+                                if (presence == 1) != all {
+                                    return make_bool_value(presence == 1);
+                                };
+                                known = true;
+                            };
+                        } else {
+                            let found = jsonb_array_path_exists_key(&value, &characters);
+                            if found != all {
+                                return make_bool_value(found);
+                            };
+                            known = true;
                         };
-                        known = true;
                     };
                     if known == false {
                         uncertain = true;

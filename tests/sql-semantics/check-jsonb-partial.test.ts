@@ -315,7 +315,7 @@ it('bounds partial JSONB storage and output before claiming nonnull nested resul
 pub fn ${helpers[0]}(maximum:Int8Value)->CheckOutcome {
  if let Int8Value::Value(bound)=maximum {
   let initial=make_jsonb_arguments();
-  let first=append_jsonb_argument(initial,JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
+  let first=append_jsonb_argument(initial,JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
   let result=sql__pg_catalog__jsonb_build_array__gfm5(first);
   let nullness=jsonb_is_null(result);
   return check_from_bool(nullness);
@@ -325,7 +325,7 @@ pub fn ${helpers[0]}(maximum:Int8Value)->CheckOutcome {
 pub fn ${helpers[1]}(maximum:Int8Value)->CheckOutcome {
  if let Int8Value::Value(bound)=maximum {
   let initial=make_jsonb_arguments();
-  let first=append_jsonb_argument(initial,JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
+  let first=append_jsonb_argument(initial,JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
   let error=make_sql_error(${parseInt('22003', 36)});
   let second=append_jsonb_argument(first,JsonbInput::ConvertedError(error));
   let result=sql__pg_catalog__jsonb_build_array__gfm5(second);
@@ -340,11 +340,11 @@ pub fn ${helpers[2]}(maximum:Int8Value)->CheckOutcome {
   dimensions.push(ArrayDimension{lower:1,length:2});
   dimensions.push(ArrayDimension{lower:1,length:1});
   let mut elements:Vec<ArrayElement>=Vec::new();
-  elements.push(ArrayElement::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
-  elements.push(ArrayElement::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
+  elements.push(ArrayElement::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
+  elements.push(ArrayElement::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
   let mut values:Vec<JsonbInput>=Vec::new();
-  values.push(JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
-  values.push(JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1}));
+  values.push(JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
+  values.push(JsonbInput::JsonbNonNull(JsonbKnowledge{maximum:bound,kind:-1,length:-1,shape:jsonb_empty_shape()}));
   let input=JsonbArrayInputPayload{state:1,error:make_sql_error(0),dimensions:dimensions,elements:elements,values:values,position:2};
   let result=jsonb_array_input_value(input);
   let nullness=jsonb_is_null(result);

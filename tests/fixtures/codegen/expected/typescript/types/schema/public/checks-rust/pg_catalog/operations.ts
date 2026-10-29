@@ -19545,10 +19545,12 @@ function jsonbArrayPathSelect(input: checkruntime.JsonbValue, path: checkruntime
     if (checkruntime.equalInt4Value(state, { kind: "Unknown" })) {
         return { kind: "Unknown" };
     }
-    if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
-        if (path.kind === "Value") {
-            const keys: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(path.value);
+    const partial: checkruntime.JsonbValue = checkruntime.copyJsonbValue(input);
+    const partialPath: checkruntime.ArrayValue = checkruntime.copyArrayValue(path);
+    if (partial.kind === "NonNull") {
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(partial.value);
+        if (partialPath.kind === "Value") {
+            const keys: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(partialPath.value);
             let selected: checkruntime.JsonbValue = { kind: "NonNull", value: facts };
             let position: number = 0;
             while (position < keys.elements.length) {
@@ -19556,9 +19558,19 @@ function jsonbArrayPathSelect(input: checkruntime.JsonbValue, path: checkruntime
                     return { kind: "Null" };
                 }
                 let kind: number = langruntime.checkedSignedNegate(1);
-                if (selected.kind === "NonNull") {
-                    const current: checkruntime.JsonbKnowledge = selected.value;
+                let scalar: boolean = false;
+                const currentValue: checkruntime.JsonbValue = checkruntime.copyJsonbValue(selected);
+                if (currentValue.kind === "NonNull") {
+                    const current: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(currentValue.value);
                     kind = langruntime.checkedI32(current.kind);
+                    if (checkruntime.jsonbHasShape(current) && checkruntime.jsonbRootAllows(current, 5) === false && checkruntime.jsonbRootAllows(current, 6) === false) {
+                        scalar = langruntime.checkedBool(true);
+                    }
+                }
+                const exactValue: checkruntime.JsonbValue = checkruntime.copyJsonbValue(selected);
+                if (exactValue.kind === "Value") {
+                    const current: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(exactValue.value);
+                    kind = langruntime.checkedI32(langruntime.indexStruct(current.nodes, langruntime.checkedIndex(current.root), checkruntime.copyJsonbNode).kind);
                 }
                 const key: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
                 if (kind === 5) {
@@ -19571,6 +19583,9 @@ function jsonbArrayPathSelect(input: checkruntime.JsonbValue, path: checkruntime
                 }
                 else if (kind === 6) {
                     selected = checkruntime.copyJsonbValue(jsonbObjectField4uf3(selected, key));
+                }
+                else if (kind >= 0 || scalar) {
+                    return { kind: "Null" };
                 }
                 else {
                     return { kind: "Unknown" };
@@ -19692,8 +19707,17 @@ function jsonbArrayPathExists(input: checkruntime.JsonbValue, keys: checkruntime
     if (keys.kind === "Null") {
         return { kind: "Null" };
     }
-    if (input.kind === "Value") {
-        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+    let shape: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+    let payload: checkruntime.JsonbValue = checkruntime.copyJsonbValue(input);
+    if (input.kind === "NonNull") {
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
+        if (checkruntime.jsonbHasShape(facts)) {
+            shape = checkruntime.copyJsonbPayload(facts.shape);
+            payload = checkruntime.copyJsonbValue({ kind: "Value", value: checkruntime.copyJsonbPayload(shape) });
+        }
+    }
+    if (payload.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(payload.value);
         if (keys.kind === "Value") {
             const queries: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(keys.value);
             if (!(queries.elementType === "pg_catalog.text") || !(queries.elementKind === 8)) {
@@ -19713,11 +19737,22 @@ function jsonbArrayPathExists(input: checkruntime.JsonbValue, keys: checkruntime
                     if (key.kind === "Value") {
                         const text: string = langruntime.checkedString(key.value);
                         const characters: JsonbExtractKey = { characters: Array.from(text) };
-                        const found: boolean = jsonbArrayPathExistsKey(value, characters);
-                        if (!(found === all)) {
-                            return checkruntime.makeBoolValue(found);
+                        if (shape.nodes.length > 1) {
+                            const presence: number = jsonbShapeHasKey(shape, characters);
+                            if (presence >= 0) {
+                                if (!((presence === 1) === all)) {
+                                    return checkruntime.makeBoolValue(presence === 1);
+                                }
+                                known = langruntime.checkedBool(true);
+                            }
                         }
-                        known = langruntime.checkedBool(true);
+                        else {
+                            const found: boolean = jsonbArrayPathExistsKey(value, characters);
+                            if (!(found === all)) {
+                                return checkruntime.makeBoolValue(found);
+                            }
+                            known = langruntime.checkedBool(true);
+                        }
                     }
                     if (known === false) {
                         uncertain = langruntime.checkedBool(true);
@@ -20142,7 +20177,7 @@ function jsonbPrettyContext(input: checkruntime.JsonbValue, utf8: boolean): chec
 }
 export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkruntime.JsonbInput {
     if (input.kind === "Unknown") {
-        return { kind: "ScalarUnknown" };
+        return { kind: "ScalarUnknown", value: "1001000" };
     }
     const output: checkruntime.TextValue = arrayNumericOutput(input);
     if (output.kind === "Error") {
@@ -20162,7 +20197,7 @@ export function toJson25lg(input: checkruntime.JsonbInput, utf8: boolean): check
     input = checkruntime.copyJsonbInput(input);
     utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "JsonbNonNull") {
-        const maximum: checkruntime.JsonbKnowledge = input.value;
+        const maximum: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         return { kind: "NonNull" };
     }
     if (input.kind === "JsonNonNull") {
@@ -20339,7 +20374,7 @@ export function jsonbToJsonContext(input: checkruntime.JsonbValue, utf8: boolean
     input = checkruntime.copyJsonbValue(input);
     utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "NonNull") {
-        const maximum: checkruntime.JsonbKnowledge = input.value;
+        const maximum: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         return { kind: "NonNull" };
     }
     return checkruntime.jsonFromCoercedText(jsonbTextContext(input, utf8));
@@ -20836,7 +20871,7 @@ const jsonPopulateArrayError = 3484946;
 const jsonPopulateCalendarError = 3452551;
 export function jsonPopulateKind(input: checkruntime.JsonbInput): number {
     if (input.kind === "JsonbNonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         return facts.kind;
     }
     if (input.kind === "Json") {
@@ -21343,7 +21378,7 @@ export function jsonbArrayInputValue(input: checkruntime.JsonbArrayInputPayload)
         return flat;
     }
     if (flat.kind === "NonNull") {
-        const bound: checkruntime.JsonbKnowledge = flat.value;
+        const bound: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(flat.value);
         let maximum: bigint = bound.maximum;
         let containers: bigint = 1n;
         let level: number = 1;
@@ -21442,7 +21477,7 @@ export function numericUnkz(input: checkruntime.JsonbValue): checkruntime.Numeri
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind === 5 || facts.kind === 6) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbScalarCastError) };
         }
@@ -21471,7 +21506,7 @@ export function boolK8bw(input: checkruntime.JsonbValue): checkruntime.BoolValue
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind === 5 || facts.kind === 6) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbScalarCastError) };
         }
@@ -21571,7 +21606,7 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
                 partial = langruntime.checkedBool(true);
             }
             if (argument.kind === "JsonbNonNull") {
-                const maximum: checkruntime.JsonbKnowledge = argument.value;
+                const maximum: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(argument.value);
                 partial = langruntime.checkedBool(true);
             }
             odd = langruntime.checkedBool(odd === false);
@@ -21624,17 +21659,33 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
             const keyEnd: number = characters.length;
             const input1: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput));
             let scalarUnknown: boolean = false;
-            if (input1.kind === "ScalarUnknown") {
+            let flags: string = "1111111";
+            const scalarInput: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input1);
+            if (scalarInput.kind === "ScalarUnknown") {
+                const mask: string = langruntime.checkedString(scalarInput.value);
                 scalarUnknown = langruntime.checkedBool(true);
+                flags = langruntime.checkedString(mask);
             }
             let converted: checkruntime.JsonbValue = checkruntime.jsonbPartialValue(checkruntime.jsonbPartialScalarBound());
             if (scalarUnknown === false) {
                 converted = checkruntime.copyJsonbValue(toJsonb9y7o(input1));
             }
-            if (converted.kind === "NonNull") {
-                const bound: checkruntime.JsonbKnowledge = converted.value;
+            let spliced: boolean = false;
+            const partialValue: checkruntime.JsonbValue = checkruntime.copyJsonbValue(converted);
+            if (partialValue.kind === "NonNull") {
+                const bound: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(partialValue.value);
                 complete = langruntime.checkedBool(false);
+                spliced = langruntime.checkedBool(true);
                 maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, bound.maximum));
+                if (checkruntime.jsonbHasShape(bound)) {
+                    converted = checkruntime.copyJsonbValue({ kind: "Value", value: bound.shape });
+                }
+                else {
+                    if (scalarUnknown === false) {
+                        flags = langruntime.checkedString(checkruntime.jsonbKindFlags(bound.kind));
+                    }
+                    converted = checkruntime.copyJsonbValue({ kind: "Value", value: checkruntime.jsonbHolePayload(flags) });
+                }
             }
             if (converted.kind === "Null") {
                 converted = checkruntime.copyJsonbValue(checkruntime.makeJsonbValue("null"));
@@ -21648,7 +21699,7 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
             }
             if (converted.kind === "Value") {
                 const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(converted.value);
-                if (partial) {
+                if (partial && spliced === false) {
                     const bound: bigint = checkruntime.jsonbPartialBound(value);
                     maximum = langruntime.checkedI64(checkruntime.jsonbPartialAdd(maximum, bound));
                 }
@@ -21686,14 +21737,11 @@ function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkr
             }
             index = langruntime.checkedAdd(index, 1);
         }
-        if (complete === false) {
-            let length: number = langruntime.checkedSignedNegate(1);
-            if (object === false) {
-                length = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(batch.values.length)));
-            }
-            return checkruntime.jsonbPartialShape(maximum, kind, length);
-        }
         nodes[langruntime.checkedIndexIn(nodes, 1)] = { kind: kind, child: first, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
+        if (complete === false) {
+            const shape: checkruntime.JsonbPayload = checkruntime.jsonbNormalizeShape({ characters: characters, nodes: nodes, root: 1 });
+            return checkruntime.jsonbPartialTree(maximum, shape);
+        }
         return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: characters, nodes: nodes, root: 1 } }, true);
     }
     return { kind: "Unknown" };
@@ -21715,7 +21763,7 @@ export function jsonbBuildObjectA8ms(): checkruntime.JsonbValue {
 export function toJsonb9y7o(input: checkruntime.JsonbInput): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbInput(input);
     if (input.kind === "JsonbNonNull") {
-        const maximum: checkruntime.JsonbKnowledge = input.value;
+        const maximum: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         return { kind: "NonNull", value: maximum };
     }
     if (input.kind === "Error") {
@@ -22382,9 +22430,22 @@ export function jsonbInputFromEnum(input: checkruntime.EnumValue): checkruntime.
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind >= 0) {
             return checkruntime.jsonKindText(facts.kind);
+        }
+        if (checkruntime.jsonbHasShape(facts)) {
+            let kind: number = 0;
+            let boolean: boolean = true;
+            while (kind < 7) {
+                if (!(kind === 1) && !(kind === 2) && checkruntime.jsonbRootAllows(facts, kind)) {
+                    boolean = langruntime.checkedBool(false);
+                }
+                kind = langruntime.checkedI32(langruntime.checkedSignedAdd(kind, 1));
+            }
+            if (boolean) {
+                return checkruntime.jsonKindText(1);
+            }
         }
         return { kind: "NonNull" };
     }
@@ -22437,6 +22498,13 @@ function jsonbEditConcat(left: checkruntime.JsonbPayload, right: checkruntime.Js
             return { kind: "Value", value: left };
         }
     }
+    return checkruntime.jsonbRebuild({ kind: "Value", value: jsonbEditConcatTree(left, right) }, true);
+}
+function jsonbEditConcatTree(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload): checkruntime.JsonbPayload {
+    left = checkruntime.copyJsonbPayload(left);
+    right = checkruntime.copyJsonbPayload(right);
+    const a: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(left.root), checkruntime.copyJsonbNode);
+    const b: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(right.root), checkruntime.copyJsonbNode);
     let characters: string[] = left.characters;
     const textShift: number = characters.length;
     let index: number = 0;
@@ -22491,13 +22559,55 @@ function jsonbEditConcat(left: checkruntime.JsonbPayload, right: checkruntime.Js
     }
     const root: number = nodes.length;
     langruntime.pushStruct(nodes, { kind: kind, child: first, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
-    return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: characters, nodes: nodes, root: root } }, true);
+    return { characters: characters, nodes: nodes, root: root };
+}
+function jsonbEditShapeRoot(shape: checkruntime.JsonbPayload): boolean {
+    const root: checkruntime.JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(shape.root), checkruntime.copyJsonbNode);
+    if (!(root.kind === 7)) {
+        return true;
+    }
+    return checkruntime.jsonbHoleAllows(shape, shape.root, 5) === false && checkruntime.jsonbHoleAllows(shape, shape.root, 6) === false;
 }
 function jsonbEditPartialConcat(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.JsonbValue {
     left = checkruntime.copyJsonbValue(left);
     right = checkruntime.copyJsonbValue(right);
     const a: checkruntime.JsonbKnowledge = jsonbRootFacts(checkruntime.copyJsonbValue(left), true);
     const b: checkruntime.JsonbKnowledge = jsonbRootFacts(checkruntime.copyJsonbValue(right), true);
+    let first: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+    let second: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+    const leftShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+    if (leftShape.kind === "NonNull") {
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(leftShape.value);
+        first = checkruntime.copyJsonbPayload(facts.shape);
+    }
+    const leftExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+    if (leftExact.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(leftExact.value);
+        first = checkruntime.copyJsonbPayload(value);
+    }
+    const rightShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+    if (rightShape.kind === "NonNull") {
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(rightShape.value);
+        second = checkruntime.copyJsonbPayload(facts.shape);
+    }
+    const rightExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+    if (rightExact.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(rightExact.value);
+        second = checkruntime.copyJsonbPayload(value);
+    }
+    if (first.nodes.length > 1 && second.nodes.length > 1 && jsonbEditShapeRoot(first) && jsonbEditShapeRoot(second)) {
+        const rootA: checkruntime.JsonbNode = langruntime.indexStruct(first.nodes, langruntime.checkedIndex(first.root), checkruntime.copyJsonbNode);
+        const rootB: checkruntime.JsonbNode = langruntime.indexStruct(second.nodes, langruntime.checkedIndex(second.root), checkruntime.copyJsonbNode);
+        const both: boolean = rootA.kind === rootB.kind && rootA.kind >= 5 && rootA.kind < 7;
+        if (both && rootA.child === 0) {
+            return right;
+        }
+        if (both && rootB.child === 0) {
+            return left;
+        }
+        const combined: bigint = checkruntime.jsonbPartialAdd(a.maximum, b.maximum);
+        return checkruntime.jsonbShapeValue(checkruntime.jsonbPartialAdd(combined, 32n), jsonbEditConcatTree(first, second));
+    }
     if (a.kind === b.kind && a.kind >= 5) {
         if (a.length === 0) {
             return right;
@@ -22518,22 +22628,22 @@ function jsonbEditPartialConcat(left: checkruntime.JsonbValue, right: checkrunti
     }
     let length: number = langruntime.checkedSignedNegate(1);
     if (kind === 5) {
-        let first: number = langruntime.checkedSignedNegate(1);
-        let second: number = langruntime.checkedSignedNegate(1);
+        let first1: number = langruntime.checkedSignedNegate(1);
+        let second1: number = langruntime.checkedSignedNegate(1);
         if (a.kind >= 0) {
-            first = langruntime.checkedI32(1);
+            first1 = langruntime.checkedI32(1);
             if (a.kind === 5) {
-                first = langruntime.checkedI32(a.length);
+                first1 = langruntime.checkedI32(a.length);
             }
         }
         if (b.kind >= 0) {
-            second = langruntime.checkedI32(1);
+            second1 = langruntime.checkedI32(1);
             if (b.kind === 5) {
-                second = langruntime.checkedI32(b.length);
+                second1 = langruntime.checkedI32(b.length);
             }
         }
-        if (first >= 0 && second >= 0) {
-            const count: bigint = langruntime.checkedI64Add(BigInt(langruntime.checkedI32(first)), BigInt(langruntime.checkedI32(second)));
+        if (first1 >= 0 && second1 >= 0) {
+            const count: bigint = langruntime.checkedI64Add(BigInt(langruntime.checkedI32(first1)), BigInt(langruntime.checkedI32(second1)));
             if (count <= 2147483647n) {
                 length = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64(count))));
             }
@@ -22635,6 +22745,18 @@ function jsonbEditRemove(input: checkruntime.JsonbPayload, key: JsonbExtractKey,
     nodes[langruntime.checkedIndexIn(nodes, input.root)] = { kind: root.kind, child: first, next: 0, keyStart: root.keyStart, keyEnd: root.keyEnd, textStart: root.textStart, textEnd: root.textEnd };
     return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: input.characters, nodes: nodes, root: input.root } }, false);
 }
+function jsonbEditRemoveShape(maximum: bigint, shape: checkruntime.JsonbPayload, key: JsonbExtractKey, selected: bigint, byIndex: boolean): checkruntime.JsonbValue {
+    maximum = langruntime.checkedI64(maximum);
+    shape = checkruntime.copyJsonbPayload(shape);
+    selected = langruntime.checkedI64(selected);
+    byIndex = langruntime.checkedBool(byIndex);
+    const removed: checkruntime.JsonbValue = jsonbEditRemove(shape, key, selected, byIndex);
+    if (removed.kind === "Value") {
+        const tree: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(removed.value);
+        return checkruntime.jsonbShapeValue(maximum, tree);
+    }
+    return removed;
+}
 export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "Error") {
@@ -22658,9 +22780,29 @@ export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntim
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind >= 0 && facts.kind < 5) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbEditParameter) };
+        }
+        if (checkruntime.jsonbHasShape(facts) && (facts.kind === 5 || facts.kind === 6)) {
+            if (key.kind === "Value") {
+                const text: string = langruntime.checkedString(key.value);
+                const shape: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(facts.shape);
+                let decided: boolean = true;
+                if (facts.kind === 5) {
+                    let child: number = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(shape.root), checkruntime.copyJsonbNode).child;
+                    while (child > 0) {
+                        if (langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).kind === 7 && checkruntime.jsonbHoleAllows(shape, child, 4)) {
+                            decided = langruntime.checkedBool(false);
+                        }
+                        child = langruntime.checkedIndex(langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).next);
+                    }
+                }
+                if (decided) {
+                    const characters: JsonbExtractKey = { characters: Array.from(text) };
+                    return jsonbEditRemoveShape(facts.maximum, shape, characters, 0n, false);
+                }
+            }
         }
         if (facts.kind === 5 || facts.kind === 6) {
             return checkruntime.jsonbPartialShape(facts.maximum, facts.kind, langruntime.checkedSignedNegate(1));
@@ -22710,7 +22852,7 @@ export function jsonbDeleteBtgy(input: checkruntime.JsonbValue, index: checkrunt
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind >= 0 && !(facts.kind === 5)) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbEditParameter) };
         }
@@ -22728,6 +22870,15 @@ export function jsonbDeleteBtgy(input: checkruntime.JsonbValue, index: checkrunt
                     }
                     if (length === 0) {
                         return checkruntime.makeJsonbValue("[]");
+                    }
+                    if (checkruntime.jsonbHasShape(facts)) {
+                        if (selected < 0n || selected >= BigInt(langruntime.checkedI32(facts.length))) {
+                            return { kind: "NonNull", value: facts };
+                        }
+                        const empty: string[] = [];
+                        const marker: JsonbExtractKey = { characters: empty };
+                        const shape: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(facts.shape);
+                        return jsonbEditRemoveShape(facts.maximum, shape, marker, selected, true);
                     }
                 }
                 return checkruntime.jsonbPartialShape(facts.maximum, 5, length);
@@ -22793,6 +22944,46 @@ function jsonbExtractMember(source: checkruntime.JsonbPayload, key: JsonbExtract
     }
     return 0;
 }
+function jsonbShapeSelect(facts: checkruntime.JsonbKnowledge, index: number): checkruntime.JsonbValue {
+    index = langruntime.checkedIndex(index);
+    const shape: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(facts.shape);
+    const selected: checkruntime.JsonbPayload = { characters: shape.characters, nodes: shape.nodes, root: index };
+    if (checkruntime.jsonbShapeExact(selected, index)) {
+        return { kind: "Value", value: selected };
+    }
+    return checkruntime.jsonbPartialTree(facts.maximum, selected);
+}
+function jsonbShapeHasKey(shape: checkruntime.JsonbPayload, key: JsonbExtractKey): number {
+    const root: checkruntime.JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(shape.root), checkruntime.copyJsonbNode);
+    if (root.kind === 6) {
+        if (jsonbExtractMember(shape, key) > 0) {
+            return 1;
+        }
+        return 0;
+    }
+    if (root.kind === 5) {
+        let result: number = 0;
+        let child: number = root.child;
+        while (child > 0) {
+            const node: checkruntime.JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+            if (node.kind === 4 && jsonbExtractMatches(shape, node.textStart, node.textEnd, key)) {
+                return 1;
+            }
+            if (node.kind === 7 && checkruntime.jsonbHoleAllows(shape, child, 4)) {
+                result = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            child = langruntime.checkedIndex(node.next);
+        }
+        return result;
+    }
+    if (root.kind === 7 && (checkruntime.jsonbHoleAllows(shape, shape.root, 4) || checkruntime.jsonbHoleAllows(shape, shape.root, 5) || checkruntime.jsonbHoleAllows(shape, shape.root, 6))) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (root.kind === 4 && jsonbExtractMatches(shape, root.textStart, root.textEnd, key)) {
+        return 1;
+    }
+    return 0;
+}
 function jsonbExtractText(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     utf8 = langruntime.checkedBool(utf8);
@@ -22804,7 +22995,7 @@ function jsonbExtractText(input: checkruntime.JsonbValue, utf8: boolean): checkr
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind === 0) {
             return { kind: "Null" };
         }
@@ -22849,9 +23040,27 @@ export function jsonbObjectField4uf3(input: checkruntime.JsonbValue, key: checkr
         return { kind: "Unknown" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (checkruntime.equalTextValue(key, { kind: "Null" }) || (facts.kind >= 0 && !(facts.kind === 6))) {
             return { kind: "Null" };
+        }
+        if (checkruntime.jsonbHasShape(facts)) {
+            const root: checkruntime.JsonbNode = langruntime.indexStruct(facts.shape.nodes, langruntime.checkedIndex(facts.shape.root), checkruntime.copyJsonbNode);
+            if (root.kind === 6) {
+                if (key.kind === "Value") {
+                    const text: string = langruntime.checkedString(key.value);
+                    const characters: JsonbExtractKey = { characters: Array.from(text) };
+                    const shape: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(facts.shape);
+                    const member: number = jsonbExtractMember(shape, characters);
+                    if (member > 0) {
+                        return jsonbShapeSelect(facts, member);
+                    }
+                }
+                return { kind: "Null" };
+            }
+            if (checkruntime.jsonbRootAllows(facts, 6) === false) {
+                return { kind: "Null" };
+            }
         }
         return { kind: "Unknown" };
     }
@@ -22891,7 +23100,7 @@ export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: che
         return { kind: "Unknown" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (checkruntime.equalInt4Value(index, { kind: "Null" })) {
             return { kind: "Null" };
         }
@@ -22908,7 +23117,25 @@ export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: che
                 if (offset < 0n || offset >= BigInt(langruntime.checkedI32(facts.length))) {
                     return { kind: "Null" };
                 }
+                if (checkruntime.jsonbHasShape(facts)) {
+                    let selected: number = langruntime.indexStruct(facts.shape.nodes, langruntime.checkedIndex(facts.shape.root), checkruntime.copyJsonbNode).child;
+                    while (selected > 0 && offset > 0n) {
+                        selected = langruntime.checkedIndex(langruntime.indexStruct(facts.shape.nodes, langruntime.checkedIndex(selected), checkruntime.copyJsonbNode).next);
+                        offset = langruntime.checkedI64(langruntime.checkedI64Subtract(offset, 1n));
+                    }
+                    if (selected > 0) {
+                        return jsonbShapeSelect(facts, selected);
+                    }
+                }
                 return checkruntime.jsonbPartialValue(facts.maximum);
+            }
+            if (checkruntime.jsonbHasShape(facts) && checkruntime.jsonbRootAllows(facts, 5) === false) {
+                if (!(position === 0) && !(position === langruntime.checkedSignedNegate(1))) {
+                    return { kind: "Null" };
+                }
+                if (checkruntime.jsonbRootAllows(facts, 6) === false) {
+                    return { kind: "NonNull", value: facts };
+                }
             }
         }
         return { kind: "Unknown" };
@@ -22968,12 +23195,15 @@ export function jsonbArrayLength1gng(input: checkruntime.JsonbValue): checkrunti
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (facts.kind >= 0 && !(facts.kind === 5)) {
             return { kind: "Error", value: checkruntime.makeSqlError(jsonbExtractParameter) };
         }
         if (facts.kind === 5 && facts.length >= 0) {
             return { kind: "Value", value: facts.length };
+        }
+        if (checkruntime.jsonbHasShape(facts) && checkruntime.jsonbRootAllows(facts, 5) === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonbExtractParameter) };
         }
         return { kind: "Unknown" };
     }
@@ -23010,9 +23240,20 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
         return { kind: "Unknown" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (checkruntime.equalTextValue(key, { kind: "Null" })) {
             return { kind: "Null" };
+        }
+        if (checkruntime.jsonbHasShape(facts)) {
+            if (key.kind === "Value") {
+                const text: string = langruntime.checkedString(key.value);
+                const characters: JsonbExtractKey = { characters: Array.from(text) };
+                const shape: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(facts.shape);
+                const found: number = jsonbShapeHasKey(shape, characters);
+                if (found >= 0) {
+                    return { kind: "Value", value: found === 1 };
+                }
+            }
         }
         return { kind: "Unknown" };
     }
@@ -23124,7 +23365,7 @@ export function jsonbStripNullsRuwp(input: checkruntime.JsonbValue, arrays: chec
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         let length: number = facts.length;
         if (checkruntime.equalBoolValue(arrays, { kind: "Value", value: true }) && facts.kind === 5 && !(length === 0)) {
             length = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
@@ -23639,6 +23880,8 @@ function jsonbOrderWalk(left: checkruntime.JsonbPayload, right: checkruntime.Jso
     return { kind: "Value", value: 0 };
 }
 function jsonbOrderPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.JsonbKnowledge): checkruntime.Int4Value {
+    a = checkruntime.copyJsonbKnowledge(a);
+    b = checkruntime.copyJsonbKnowledge(b);
     if (a.kind < 0 || b.kind < 0) {
         return { kind: "Unknown" };
     }
@@ -23812,7 +24055,7 @@ export function jsonbDelete11uh(input: checkruntime.JsonbValue, keys: checkrunti
         return { kind: "Null" };
     }
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         if (keys.kind === "Value") {
             const queries: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(keys.value);
             if (!(queries.elementType === "pg_catalog.text") || !(queries.elementKind === 8)) {
@@ -23841,6 +24084,30 @@ export function jsonbDelete11uh(input: checkruntime.JsonbValue, keys: checkrunti
                         removes = langruntime.checkedBool(true);
                     }
                     position = langruntime.checkedAdd(position, 1);
+                }
+                if (checkruntime.jsonbHasShape(facts)) {
+                    let current: checkruntime.JsonbValue = { kind: "NonNull", value: checkruntime.copyJsonbKnowledge(facts) };
+                    position = langruntime.checkedIndex(0);
+                    while (position < queries.elements.length) {
+                        const key: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(queries.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+                        let isNull: boolean = false;
+                        if (key.kind === "Null") {
+                            isNull = langruntime.checkedBool(true);
+                        }
+                        if (isNull === false) {
+                            const text: checkruntime.TextValue = checkruntime.arrayElementToText(key);
+                            let known: boolean = false;
+                            if (text.kind === "Value") {
+                                known = langruntime.checkedBool(true);
+                            }
+                            if (known === false) {
+                                return checkruntime.jsonbPartialShape(facts.maximum, facts.kind, langruntime.checkedSignedNegate(1));
+                            }
+                            current = checkruntime.copyJsonbValue(jsonbDeleteCow2(current, text));
+                        }
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    return current;
                 }
                 let length: number = facts.length;
                 if (removes) {
@@ -23914,6 +24181,7 @@ function jsonbPathChild(node: checkruntime.JsonbNode, child: number): checkrunti
     return { kind: node.kind, child: child, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
 }
 function jsonbPathPartialGrowth(original: checkruntime.JsonbKnowledge, replacement: checkruntime.JsonbValue, key: string, length: number): checkruntime.JsonbValue {
+    original = checkruntime.copyJsonbKnowledge(original);
     replacement = checkruntime.copyJsonbValue(replacement);
     key = langruntime.checkedString(key);
     length = langruntime.checkedI32(length);
@@ -23931,6 +24199,7 @@ function jsonbPathPartialGrowth(original: checkruntime.JsonbKnowledge, replaceme
     return checkruntime.jsonbPartialShape(maximum, original.kind, length);
 }
 function jsonbPathEditPartial(facts: checkruntime.JsonbKnowledge, path: checkruntime.ArrayPayload, replacement: checkruntime.JsonbValue, mode: number): checkruntime.JsonbValue {
+    facts = checkruntime.copyJsonbKnowledge(facts);
     path = checkruntime.copyArrayPayload(path);
     replacement = checkruntime.copyJsonbValue(replacement);
     mode = langruntime.checkedI32(mode);
@@ -24042,11 +24311,11 @@ function jsonbPathSplice(input: checkruntime.JsonbPayload, replacement: checkrun
                     }
                 }
             }
-            const facts: checkruntime.JsonbKnowledge = { maximum: checkruntime.jsonbPartialBound(input), kind: root.kind, length: length };
-            const boundFacts: checkruntime.JsonbKnowledge = { maximum: facts.maximum, kind: langruntime.indexStruct(input.nodes, langruntime.checkedIndex(parent), checkruntime.copyJsonbNode).kind, length: length };
+            const facts: checkruntime.JsonbKnowledge = { maximum: checkruntime.jsonbPartialBound(input), kind: root.kind, length: length, shape: checkruntime.jsonbEmptyShape() };
+            const boundFacts: checkruntime.JsonbKnowledge = { maximum: facts.maximum, kind: langruntime.indexStruct(input.nodes, langruntime.checkedIndex(parent), checkruntime.copyJsonbNode).kind, length: length, shape: checkruntime.jsonbEmptyShape() };
             const admitted: checkruntime.JsonbValue = jsonbPathPartialGrowth(boundFacts, replacement, key, length);
             if (admitted.kind === "NonNull") {
-                const bounds: checkruntime.JsonbKnowledge = admitted.value;
+                const bounds: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(admitted.value);
                 return checkruntime.jsonbPartialShape(bounds.maximum, facts.kind, length);
             }
             return admitted;
@@ -24294,7 +24563,7 @@ function jsonbPathEdit(input: checkruntime.JsonbValue, path: checkruntime.ArrayV
                 }
             }
             if (input.kind === "NonNull") {
-                const facts: checkruntime.JsonbKnowledge = input.value;
+                const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
                 return jsonbPathEditPartial(facts, keys, replacement, mode);
             }
             if (input.kind === "Value") {
@@ -24522,7 +24791,7 @@ function jsonbRootFacts(input: checkruntime.JsonbValue, measure: boolean): check
     input = checkruntime.copyJsonbValue(input);
     measure = langruntime.checkedBool(measure);
     if (input.kind === "NonNull") {
-        const facts: checkruntime.JsonbKnowledge = input.value;
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(input.value);
         return facts;
     }
     if (input.kind === "Value") {
@@ -24536,14 +24805,20 @@ function jsonbRootFacts(input: checkruntime.JsonbValue, measure: boolean): check
         if (measure) {
             maximum = langruntime.checkedI64(checkruntime.jsonbPartialBound(value));
         }
-        return { maximum: maximum, kind: root.kind, length: length };
+        return { maximum: maximum, kind: root.kind, length: length, shape: checkruntime.jsonbEmptyShape() };
     }
-    return { maximum: -1n, kind: langruntime.checkedSignedNegate(1), length: langruntime.checkedSignedNegate(1) };
+    return { maximum: -1n, kind: langruntime.checkedSignedNegate(1), length: langruntime.checkedSignedNegate(1), shape: checkruntime.jsonbEmptyShape() };
 }
 function jsonbRelationWalk(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload, contains: boolean): boolean {
     contains = langruntime.checkedBool(contains);
+    return jsonbRelationWalkFrom(left, left.root, right, right.root, contains);
+}
+function jsonbRelationWalkFrom(left: checkruntime.JsonbPayload, leftRoot: number, right: checkruntime.JsonbPayload, rightRoot: number, contains: boolean): boolean {
+    leftRoot = langruntime.checkedIndex(leftRoot);
+    rightRoot = langruntime.checkedIndex(rightRoot);
+    contains = langruntime.checkedBool(contains);
     let frames: JsonbRelationFrame[] = [];
-    langruntime.pushStruct(frames, jsonbRelationCursor(left.root, right.root, 0, 0, 0), copyJsonbRelationFrame);
+    langruntime.pushStruct(frames, jsonbRelationCursor(leftRoot, rightRoot, 0, 0, 0), copyJsonbRelationFrame);
     let depth: number = 1;
     let returning: boolean = false;
     let result: boolean = false;
@@ -24687,6 +24962,8 @@ function jsonbRelationWalk(left: checkruntime.JsonbPayload, right: checkruntime.
     return result;
 }
 function jsonbRelationPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.JsonbKnowledge, contains: boolean): checkruntime.BoolValue {
+    a = checkruntime.copyJsonbKnowledge(a);
+    b = checkruntime.copyJsonbKnowledge(b);
     contains = langruntime.checkedBool(contains);
     if (a.kind < 0 || b.kind < 0) {
         return { kind: "Unknown" };
@@ -24722,6 +24999,135 @@ function jsonbRelationPartial(a: checkruntime.JsonbKnowledge, b: checkruntime.Js
     }
     return { kind: "Unknown" };
 }
+function jsonbShapeKindsMeet(a: checkruntime.JsonbPayload, ai: number, b: checkruntime.JsonbPayload, bi: number): boolean {
+    ai = langruntime.checkedIndex(ai);
+    bi = langruntime.checkedIndex(bi);
+    let kind: number = 0;
+    while (kind < 7) {
+        if (checkruntime.jsonbHoleAllows(a, ai, kind) && checkruntime.jsonbHoleAllows(b, bi, kind)) {
+            return true;
+        }
+        kind = langruntime.checkedI32(langruntime.checkedSignedAdd(kind, 1));
+    }
+    return false;
+}
+function jsonbShapeMember(shape: checkruntime.JsonbPayload, parent: number, key: checkruntime.JsonbPayload, member: number): number {
+    parent = langruntime.checkedIndex(parent);
+    member = langruntime.checkedIndex(member);
+    const wanted: checkruntime.JsonbNode = langruntime.indexStruct(key.nodes, langruntime.checkedIndex(member), checkruntime.copyJsonbNode);
+    let child: number = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(parent), checkruntime.copyJsonbNode).child;
+    while (child > 0) {
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(shape.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+        if (langruntime.checkedSubtract(node.keyEnd, node.keyStart) === langruntime.checkedSubtract(wanted.keyEnd, wanted.keyStart)) {
+            let offset: number = 0;
+            let same: boolean = true;
+            while (same && langruntime.checkedAdd(node.keyStart, offset) < node.keyEnd) {
+                if (!(langruntime.indexChar(shape.characters, langruntime.checkedIndex(langruntime.checkedAdd(node.keyStart, offset))) === langruntime.indexChar(key.characters, langruntime.checkedIndex(langruntime.checkedAdd(wanted.keyStart, offset))))) {
+                    same = langruntime.checkedBool(false);
+                }
+                offset = langruntime.checkedAdd(offset, 1);
+            }
+            if (same) {
+                return child;
+            }
+        }
+        child = langruntime.checkedIndex(node.next);
+    }
+    return 0;
+}
+function jsonbShapeRelation(a: checkruntime.JsonbPayload, ai: number, b: checkruntime.JsonbPayload, bi: number, contains: boolean): number {
+    ai = langruntime.checkedIndex(ai);
+    bi = langruntime.checkedIndex(bi);
+    contains = langruntime.checkedBool(contains);
+    const left: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(ai), checkruntime.copyJsonbNode);
+    const right: checkruntime.JsonbNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(bi), checkruntime.copyJsonbNode);
+    if (left.kind === 7 || right.kind === 7) {
+        if (jsonbShapeKindsMeet(a, ai, b, bi)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        return 0;
+    }
+    if (!(left.kind === right.kind)) {
+        return 0;
+    }
+    if (left.kind < 5) {
+        if (jsonbRelationScalar(a, b, left, right)) {
+            return 1;
+        }
+        return 0;
+    }
+    if (checkruntime.jsonbShapeExact(a, ai) && checkruntime.jsonbShapeExact(b, bi)) {
+        if (jsonbRelationWalkFrom(a, ai, b, bi, contains)) {
+            return 1;
+        }
+        return 0;
+    }
+    const first: number = jsonbRelationCount(a, left);
+    const second: number = jsonbRelationCount(b, right);
+    if ((contains === false && !(first === second)) || (left.kind === 6 && first < second)) {
+        return 0;
+    }
+    let result: number = 1;
+    let member: number = right.child;
+    let paired: number = left.child;
+    while (member > 0) {
+        let outcome: number = 0;
+        if (left.kind === 6) {
+            const found: number = jsonbShapeMember(a, ai, b, member);
+            if (found > 0) {
+                outcome = langruntime.checkedI32(jsonbShapeRelation(a, found, b, member, contains));
+            }
+        }
+        else if (contains === false) {
+            outcome = langruntime.checkedI32(jsonbShapeRelation(a, paired, b, member, false));
+            paired = langruntime.checkedIndex(langruntime.indexStruct(a.nodes, langruntime.checkedIndex(paired), checkruntime.copyJsonbNode).next);
+        }
+        else {
+            let candidate: number = left.child;
+            while (candidate > 0 && !(outcome === 1)) {
+                const found: number = jsonbShapeRelation(a, candidate, b, member, true);
+                if (found === 1 || (found === langruntime.checkedSignedNegate(1) && outcome === 0)) {
+                    outcome = langruntime.checkedI32(found);
+                }
+                candidate = langruntime.checkedIndex(langruntime.indexStruct(a.nodes, langruntime.checkedIndex(candidate), checkruntime.copyJsonbNode).next);
+            }
+        }
+        if (outcome === 0) {
+            return 0;
+        }
+        if (outcome === langruntime.checkedSignedNegate(1)) {
+            result = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        member = langruntime.checkedIndex(langruntime.indexStruct(b.nodes, langruntime.checkedIndex(member), checkruntime.copyJsonbNode).next);
+    }
+    return result;
+}
+function jsonbShapeRootRelation(a: checkruntime.JsonbPayload, b: checkruntime.JsonbPayload, contains: boolean): number {
+    contains = langruntime.checkedBool(contains);
+    const left: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(a.root), checkruntime.copyJsonbNode);
+    const right: checkruntime.JsonbNode = langruntime.indexStruct(b.nodes, langruntime.checkedIndex(b.root), checkruntime.copyJsonbNode);
+    if (contains && right.kind < 5) {
+        let result: number = 0;
+        if (left.kind === 5) {
+            let child: number = left.child;
+            while (child > 0) {
+                const candidate: checkruntime.JsonbNode = langruntime.indexStruct(a.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+                if (candidate.kind < 5 && jsonbRelationScalar(a, b, candidate, right)) {
+                    return 1;
+                }
+                if (candidate.kind === 7 && checkruntime.jsonbHoleAllows(a, child, right.kind)) {
+                    result = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                }
+                child = langruntime.checkedIndex(candidate.next);
+            }
+            return result;
+        }
+        if (left.kind === 7 && checkruntime.jsonbHoleAllows(a, a.root, 5)) {
+            return langruntime.checkedSignedNegate(1);
+        }
+    }
+    return jsonbShapeRelation(a, a.root, b, b.root, contains);
+}
 function jsonbRelationValues(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue, contains: boolean, invert: boolean): checkruntime.BoolValue {
     left = checkruntime.copyJsonbValue(left);
     right = checkruntime.copyJsonbValue(right);
@@ -24755,6 +25161,35 @@ function jsonbRelationValues(left: checkruntime.JsonbValue, right: checkruntime.
         partial = langruntime.checkedBool(true);
     }
     if (partial) {
+        let first: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+        let second: checkruntime.JsonbPayload = checkruntime.jsonbEmptyShape();
+        const leftShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+        if (leftShape.kind === "NonNull") {
+            const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(leftShape.value);
+            first = checkruntime.copyJsonbPayload(facts.shape);
+        }
+        const leftExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(left);
+        if (leftExact.kind === "Value") {
+            const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(leftExact.value);
+            first = checkruntime.copyJsonbPayload(value);
+        }
+        const rightShape: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+        if (rightShape.kind === "NonNull") {
+            const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(rightShape.value);
+            second = checkruntime.copyJsonbPayload(facts.shape);
+        }
+        const rightExact: checkruntime.JsonbValue = checkruntime.copyJsonbValue(right);
+        if (rightExact.kind === "Value") {
+            const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(rightExact.value);
+            second = checkruntime.copyJsonbPayload(value);
+        }
+        if (first.nodes.length > 1 && second.nodes.length > 1) {
+            const related: number = jsonbShapeRootRelation(first, second, contains);
+            if (related >= 0) {
+                return checkruntime.makeBoolValue(!((related === 1) === invert));
+            }
+            return { kind: "Unknown" };
+        }
         const a: checkruntime.JsonbKnowledge = jsonbRootFacts(left, false);
         const b: checkruntime.JsonbKnowledge = jsonbRootFacts(right, false);
         const compared: checkruntime.BoolValue = jsonbRelationPartial(a, b, contains);

@@ -3,6 +3,20 @@ pub fn sql__pg_catalog__jsonb_typeof__68xu(input: JsonbValue) -> TextValue {
         if facts.kind >= 0 {
             return json_kind_text(facts.kind);
         };
+        // false and true share the boolean type.
+        if jsonb_has_shape(&facts) {
+            let mut kind: i32 = 0;
+            let mut boolean = true;
+            while kind < 7 {
+                if kind != 1 && kind != 2 && jsonb_root_allows(&facts, kind) {
+                    boolean = false;
+                };
+                kind = kind + 1;
+            }
+            if boolean {
+                return json_kind_text(1);
+            };
+        };
         return TextValue::NonNull;
     };
     if let JsonbValue::Error(error) = input {

@@ -79,7 +79,7 @@ fn json_build_layout(
             let value = batch.values[index].clone();
             let mut converted = JsonValue::NonNull;
             let mut scalar_unknown = false;
-            if let JsonbInput::ScalarUnknown = value {
+            if let JsonbInput::ScalarUnknown(_) = value {
                 scalar_unknown = true;
             };
             if scalar_unknown {

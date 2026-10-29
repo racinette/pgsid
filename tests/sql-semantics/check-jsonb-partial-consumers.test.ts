@@ -21,12 +21,12 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
   { name: 'negative', sql: '(jsonb_build_array(n)->(-1)) IS NULL', partial: 'False' },
   { name: 'past_end', sql: '(jsonb_build_array(n)->1) IS NULL', partial: 'True' },
   { name: 'before_start', sql: '(jsonb_build_array(n)->(-2)) IS NULL', partial: 'True' },
-  { name: 'field', sql: "(jsonb_build_object('n',n)->k) IS NULL", partial: 'Unknown' },
+  { name: 'field', sql: "(jsonb_build_object('n',n)->k) IS NULL", partial: 'False' },
   { name: 'field_text', sql: "(jsonb_build_object('n',n)->>k) IS NULL", partial: 'Unknown' },
   { name: 'array_field', sql: '(jsonb_build_array(n)->k) IS NULL', partial: 'True' },
   { name: 'object_index', sql: "(jsonb_build_object('n',n)->i) IS NULL", partial: 'True' },
-  { name: 'exists', sql: "jsonb_build_object('n',n) ? k", partial: 'Unknown' },
-  { name: 'array_exists', sql: 'jsonb_build_array(n) ? k', partial: 'Unknown' },
+  { name: 'exists', sql: "jsonb_build_object('n',n) ? k", partial: 'True' },
+  { name: 'array_exists', sql: 'jsonb_build_array(n) ? k', partial: 'False' },
   { name: 'equal', sql: "jsonb_build_array(n) = '[1]'::jsonb", partial: 'Unknown' },
   { name: 'unequal', sql: "'[1]'::jsonb <> jsonb_build_array(n)", partial: 'Unknown' },
   { name: 'contains', sql: "jsonb_build_array(n) @> '[1]'::jsonb", partial: 'Unknown' },
@@ -70,7 +70,8 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
   {
     name: 'nested_shape',
     sql: 'jsonb_array_length(jsonb_build_array(n)->0) IS NULL',
-    partial: 'Unknown',
+    partial: 'Error',
+    error: '22023',
   },
   {
     name: 'empty_path',
@@ -82,7 +83,7 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
   {
     name: 'deep_path',
     sql: "(jsonb_build_array(n) #> '{0,n}'::text[]) IS NULL",
-    partial: 'Unknown',
+    partial: 'True',
   },
   { name: 'boolean_cast', sql: 'jsonb_build_array(n)::boolean', partial: 'Error', error: '22023' },
   {
@@ -213,7 +214,7 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
   {
     name: 'delete_bulk_length_unknown',
     sql: "jsonb_array_length(jsonb_build_array(n,'x')-ARRAY['x'])=1",
-    partial: 'Unknown',
+    partial: 'True',
   },
   {
     name: 'concat_chained',

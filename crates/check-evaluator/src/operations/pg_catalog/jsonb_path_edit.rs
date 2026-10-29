@@ -85,6 +85,31 @@ pub fn sql__pg_catalog__jsonb_delete__11uh(input: JsonbValue, keys: ArrayValue) 
                     };
                     position += 1;
                 }
+                if jsonb_has_shape(&facts) {
+                    let mut current = JsonbValue::NonNull(facts.clone());
+                    position = 0;
+                    while position < queries.elements.len() {
+                        let key = queries.elements[position].clone();
+                        let mut is_null = false;
+                        if let ArrayElement::Null = key {
+                            is_null = true;
+                        };
+                        if is_null == false {
+                            // A key that is not known removes an unknown member.
+                            let text = array_element_to_text(key);
+                            let mut known = false;
+                            if let TextValue::Value(_) = text {
+                                known = true;
+                            };
+                            if known == false {
+                                return jsonb_partial_shape(facts.maximum, facts.kind, -1);
+                            };
+                            current = sql__pg_catalog__jsonb_delete__cow2(current, text);
+                        };
+                        position += 1;
+                    }
+                    return current;
+                };
                 let mut length = facts.length;
                 if removes {
                     length = -1;
@@ -309,12 +334,14 @@ fn jsonb_path_splice(
                 maximum: jsonb_partial_bound(&input),
                 kind: root.kind,
                 length: length,
+                shape: jsonb_empty_shape(),
             };
             // A nested object key also contributes when the root is an array.
             let bound_facts = JsonbKnowledge {
                 maximum: facts.maximum,
                 kind: input.nodes[parent].kind,
                 length: length,
+                shape: jsonb_empty_shape(),
             };
             let admitted = jsonb_path_partial_growth(bound_facts, replacement, key, length);
             if let JsonbValue::NonNull(bounds) = admitted {

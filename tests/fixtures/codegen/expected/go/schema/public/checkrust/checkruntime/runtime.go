@@ -1154,7 +1154,13 @@ type JsonbKnowledge struct {
 	Maximum int64
 	Kind    int
 	Length  int
+	Shape   JsonbPayload
 }
+
+func CopyJsonbKnowledge(value JsonbKnowledge) JsonbKnowledge {
+	return JsonbKnowledge{Maximum: value.Maximum, Kind: langruntime.CheckedI32(value.Kind), Length: langruntime.CheckedI32(value.Length), Shape: CopyJsonbPayload(value.Shape)}
+}
+
 type JsonbValueKind uint8
 
 const (
@@ -1177,7 +1183,7 @@ func CopyJsonbValue(value JsonbValue) JsonbValue {
 	case JsonbValueUnknown:
 		return JsonbValue{Kind: JsonbValueUnknown}
 	case JsonbValueNonNull:
-		return JsonbValue{Kind: JsonbValueNonNull, NonNull: value.NonNull}
+		return JsonbValue{Kind: JsonbValueNonNull, NonNull: CopyJsonbKnowledge(value.NonNull)}
 	case JsonbValueNull:
 		return JsonbValue{Kind: JsonbValueNull}
 	case JsonbValueValue:
@@ -1207,6 +1213,7 @@ const (
 
 type JsonbInput struct {
 	Kind           JsonbInputKind
+	ScalarUnknown  string
 	JsonbNonNull   JsonbKnowledge
 	Error          SqlError
 	ConvertedError SqlError
@@ -1222,11 +1229,11 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 	case JsonbInputUnknown:
 		return JsonbInput{Kind: JsonbInputUnknown}
 	case JsonbInputScalarUnknown:
-		return JsonbInput{Kind: JsonbInputScalarUnknown}
+		return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: langruntime.CheckedString(value.ScalarUnknown)}
 	case JsonbInputJsonNonNull:
 		return JsonbInput{Kind: JsonbInputJsonNonNull}
 	case JsonbInputJsonbNonNull:
-		return JsonbInput{Kind: JsonbInputJsonbNonNull, JsonbNonNull: value.JsonbNonNull}
+		return JsonbInput{Kind: JsonbInputJsonbNonNull, JsonbNonNull: CopyJsonbKnowledge(value.JsonbNonNull)}
 	case JsonbInputNull:
 		return JsonbInput{Kind: JsonbInputNull}
 	case JsonbInputError:
@@ -1361,7 +1368,7 @@ func JsonbInputFromBool(input BoolValue) JsonbInput {
 		value := input.Value
 		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value}
 	}
-	return JsonbInput{Kind: JsonbInputScalarUnknown}
+	return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: "1110000"}
 }
 func JsonbInputFromNumeric(input NumericValue) JsonbInput {
 	if input.Kind == NumericValueError {
@@ -1375,7 +1382,7 @@ func JsonbInputFromNumeric(input NumericValue) JsonbInput {
 		value := langruntime.CheckedString(input.Value)
 		return JsonbInput{Kind: JsonbInputNumber, Number: value}
 	}
-	return JsonbInput{Kind: JsonbInputScalarUnknown}
+	return JsonbInput{Kind: JsonbInputScalarUnknown, ScalarUnknown: "1001000"}
 }
 func JsonbInputFromText(input TextValue) JsonbInput {
 	if input.Kind == TextValueError {
@@ -1411,7 +1418,7 @@ func JsonbInputFromJson(input JsonValue) JsonbInput {
 func JsonbInputFromJsonb(input JsonbValue) JsonbInput {
 	input = CopyJsonbValue(input)
 	if input.Kind == JsonbValueNonNull {
-		maximum := input.NonNull
+		maximum := CopyJsonbKnowledge(input.NonNull)
 		return JsonbInput{Kind: JsonbInputJsonbNonNull, JsonbNonNull: maximum}
 	}
 	if input.Kind == JsonbValueError {
@@ -6729,7 +6736,7 @@ func copyjsonbOutputFrame(value jsonbOutputFrame) jsonbOutputFrame {
 func jsonbRender(input JsonbValue, requireOrder bool, pretty bool) TextValue {
 	input = CopyJsonbValue(input)
 	if input.Kind == JsonbValueNonNull {
-		maximum := input.NonNull
+		maximum := CopyJsonbKnowledge(input.NonNull)
 		_ = maximum
 		if pretty {
 			return TextValue{Kind: TextValueUnknown}
@@ -7048,6 +7055,18 @@ func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
 		return JsonbValue{Kind: JsonbValueValue, Value: normalized}
 	}
 	return input
+}
+func JsonbNormalizeShape(input JsonbPayload) JsonbPayload {
+	input = CopyJsonbPayload(input)
+	return jsonbNormalizeObjects(jsonbPreorder(input))
+}
+func JsonbShapeValue(maximum int64, shape JsonbPayload) JsonbValue {
+	shape = CopyJsonbPayload(shape)
+	normalized := JsonbNormalizeShape(shape)
+	if JsonbShapeExact(&normalized, normalized.Root) {
+		return JsonbRebuild(JsonbValue{Kind: JsonbValueValue, Value: normalized}, true)
+	}
+	return JsonbPartialTree(maximum, normalized)
 }
 func JsonbFromString(input TextValue) JsonbValue {
 	if input.Kind == TextValueError {
@@ -7566,7 +7585,148 @@ func JsonbPartialShape(maximum int64, kind int, length int) JsonbValue {
 	if maximum < int64(0) || maximum > jsonbStorageLimit {
 		return JsonbValue{Kind: JsonbValueUnknown}
 	}
-	return JsonbValue{Kind: JsonbValueNonNull, NonNull: JsonbKnowledge{Maximum: maximum, Kind: kind, Length: length}}
+	return JsonbValue{Kind: JsonbValueNonNull, NonNull: JsonbKnowledge{Maximum: maximum, Kind: kind, Length: length, Shape: JsonbEmptyShape()}}
+}
+func JsonbEmptyShape() JsonbPayload {
+	characters := []rune{}
+	nodes := []JsonbNode{}
+	return JsonbPayload{Characters: characters, Nodes: nodes, Root: 0}
+}
+func JsonbPartialTree(maximum int64, shape JsonbPayload) JsonbValue {
+	shape = CopyJsonbPayload(shape)
+	if maximum < int64(0) || maximum > jsonbStorageLimit {
+		return JsonbValue{Kind: JsonbValueUnknown}
+	}
+	root := shape.Nodes[shape.Root]
+	length := langruntime.CheckedSignedNegate(1)
+	if root.Kind >= 5 {
+		length = langruntime.CheckedI32(0)
+		member := root.Child
+		for member > 0 {
+			length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+			member = langruntime.CheckedIndex(shape.Nodes[member].Next)
+		}
+	}
+	kind := root.Kind
+	if kind == 7 {
+		kind = langruntime.CheckedI32(JsonbHoleKind(&shape, shape.Root))
+	}
+	return JsonbValue{Kind: JsonbValueNonNull, NonNull: JsonbKnowledge{Maximum: maximum, Kind: kind, Length: length, Shape: shape}}
+}
+func JsonbHoleKind(shape *JsonbPayload, index int) int {
+	shape = langruntime.CheckedBorrowed(shape, CopyJsonbPayload)
+	index = langruntime.CheckedIndex(index)
+	node := shape.Nodes[index]
+	if node.Kind != 7 {
+		return node.Kind
+	}
+	found := langruntime.CheckedSignedNegate(1)
+	kind := 0
+	for kind < 7 {
+		if JsonbHoleAllows(shape, index, kind) {
+			if found >= 0 {
+				return langruntime.CheckedSignedNegate(1)
+			}
+			found = langruntime.CheckedI32(kind)
+		}
+		kind = langruntime.CheckedI32(langruntime.CheckedSignedAdd(kind, 1))
+	}
+	return found
+}
+func JsonbHoleAllows(shape *JsonbPayload, index int, kind int) bool {
+	shape = langruntime.CheckedBorrowed(shape, CopyJsonbPayload)
+	index = langruntime.CheckedIndex(index)
+	kind = langruntime.CheckedI32(kind)
+	node := shape.Nodes[index]
+	if node.Kind != 7 {
+		return node.Kind == kind
+	}
+	position := node.TextStart
+	current := 0
+	for position < node.TextEnd {
+		if current == kind {
+			return shape.Characters[position] == '1'
+		}
+		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return false
+}
+func JsonbKindFlags(kind int) string {
+	kind = langruntime.CheckedI32(kind)
+	flags := langruntime.NewTextBuffer("")
+	current := 0
+	for current < 7 {
+		if kind < 0 || current == kind {
+			flags = append(flags, string(langruntime.CheckedChar('1'))...)
+		} else {
+			flags = append(flags, string(langruntime.CheckedChar('0'))...)
+		}
+		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+	}
+	return string(flags)
+}
+func JsonbHolePayload(flags string) JsonbPayload {
+	flags = langruntime.CheckedString(flags)
+	characters := []rune(flags)
+	nodes := []JsonbNode{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, JsonbNode{Kind: langruntime.CheckedSignedNegate(1), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, JsonbNode{Kind: 7, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: len(characters)})
+	return JsonbPayload{Characters: characters, Nodes: nodes, Root: 1}
+}
+func JsonbRootAllows(facts *JsonbKnowledge, kind int) bool {
+	facts = langruntime.CheckedBorrowed(facts, CopyJsonbKnowledge)
+	kind = langruntime.CheckedI32(kind)
+	if len(facts.Shape.Nodes) < 2 {
+		return true
+	}
+	node := facts.Shape.Nodes[facts.Shape.Root]
+	if node.Kind != 7 {
+		return node.Kind == kind
+	}
+	position := node.TextStart
+	current := 0
+	for position < node.TextEnd {
+		if current == kind {
+			return facts.Shape.Characters[position] == '1'
+		}
+		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return false
+}
+func JsonbShapeExact(shape *JsonbPayload, index int) bool {
+	shape = langruntime.CheckedBorrowed(shape, CopyJsonbPayload)
+	index = langruntime.CheckedIndex(index)
+	pending := []int{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, langruntime.CheckedIndex(index))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		node := shape.Nodes[pending[depth]]
+		if node.Kind == 7 {
+			return false
+		}
+		child := node.Child
+		for child > 0 {
+			if depth == len(pending) {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, langruntime.CheckedIndex(child))
+			} else {
+				pending[depth] = langruntime.CheckedIndex(child)
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+			child = langruntime.CheckedIndex(shape.Nodes[child].Next)
+		}
+	}
+	return true
+}
+func JsonbHasShape(facts *JsonbKnowledge) bool {
+	facts = langruntime.CheckedBorrowed(facts, CopyJsonbKnowledge)
+	return len(facts.Shape.Nodes) > 1
 }
 func JsonbPartialBound(value *JsonbPayload) int64 {
 	value = langruntime.CheckedBorrowed(value, CopyJsonbPayload)
@@ -8026,7 +8186,7 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 	case ArrayElementJsonb:
 		return ArrayElement{Kind: ArrayElementJsonb, Jsonb: CopyJsonbPayload(value.Jsonb)}
 	case ArrayElementJsonbNonNull:
-		return ArrayElement{Kind: ArrayElementJsonbNonNull, JsonbNonNull: value.JsonbNonNull}
+		return ArrayElement{Kind: ArrayElementJsonbNonNull, JsonbNonNull: CopyJsonbKnowledge(value.JsonbNonNull)}
 	case ArrayElementNetwork:
 		return ArrayElement{Kind: ArrayElementNetwork, Network: value.Network}
 	case ArrayElementBit:
@@ -8123,7 +8283,7 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementJsonbNonNull {
-		maximum := input.JsonbNonNull
+		maximum := CopyJsonbKnowledge(input.JsonbNonNull)
 		_ = maximum
 		return 12
 	}
@@ -8667,7 +8827,7 @@ func ArrayElementToJson(input ArrayElement) JsonValue {
 func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 	input = CopyJsonbValue(input)
 	if input.Kind == JsonbValueNonNull {
-		maximum := input.NonNull
+		maximum := CopyJsonbKnowledge(input.NonNull)
 		return ArrayElement{Kind: ArrayElementJsonbNonNull, JsonbNonNull: maximum}
 	}
 	if input.Kind == JsonbValueError {
@@ -8686,7 +8846,7 @@ func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 func ArrayElementToJsonb(input ArrayElement) JsonbValue {
 	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementJsonbNonNull {
-		maximum := input.JsonbNonNull
+		maximum := CopyJsonbKnowledge(input.JsonbNonNull)
 		return JsonbValue{Kind: JsonbValueNonNull, NonNull: maximum}
 	}
 	if input.Kind == ArrayElementError {
