@@ -261,6 +261,8 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
         let mut month: i32 = 0;
         let mut day: i32 = 0;
         let mut ordinal_day: i32 = 0;
+        let mut julian_date = false;
+        let mut julian_time: i64 = -1i64;
         if ordinal.state == ORDINAL_DATE_FOUND {
             year = ordinal.year;
             year_overflow = ordinal.overflow;
@@ -272,6 +274,8 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             index = ordinal.next;
             month = ordinal.month;
             day = ordinal.day;
+            julian_date = ordinal.julian;
+            julian_time = ordinal.julian_time;
         } else if year_field.digits >= 6
             && (index == end
                 || (text.chars[index] != '-'
@@ -345,8 +349,18 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 day = day_field.value;
             };
         }
-        if bc {
+        if bc && julian_date == false {
             year = 0 - year;
+        }
+        let mut julian_hour: i32 = 0;
+        let mut julian_minute: i32 = 0;
+        let mut julian_second: i32 = 0;
+        let mut julian_fraction: i32 = 0;
+        if julian_time >= 0i64 {
+            julian_hour = (julian_time / 3600000000i64) as i32;
+            julian_minute = (julian_time / 60000000i64 % 60i64) as i32;
+            julian_second = (julian_time / 1000000i64 % 60i64) as i32;
+            julian_fraction = (julian_time % 1000000i64) as i32;
         }
         if index == end {
             if year_overflow {
@@ -358,10 +372,10 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 year,
                 month,
                 day,
-                0,
-                0,
-                0,
-                0,
+                julian_hour,
+                julian_minute,
+                julian_second,
+                julian_fraction,
                 0,
                 false,
                 false,
@@ -372,6 +386,7 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             );
         }
         let zone_only = text.chars[index] == '+'
+            || text.chars[index].to_ascii_lowercase() == 'z'
             || (ordinal.state == ORDINAL_DATE_FOUND
                 && ordinal.minus_zone
                 && text.chars[index] == '-');
@@ -419,6 +434,17 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             hour = hour / 100;
         } else if zone_only == false {
             return Int8Value::Unknown;
+        }
+        if julian_time >= 0i64 {
+            if hours.digits > 0 {
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_TEXT,
+                });
+            }
+            hour = julian_hour;
+            minute = julian_minute;
+            second = julian_second;
+            fraction = julian_fraction;
         }
         if fractional && index < end && text.chars[index] == '.' {
             let fraction_start = index + 1;

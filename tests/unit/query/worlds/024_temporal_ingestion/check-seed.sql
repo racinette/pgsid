@@ -249,3 +249,15 @@ INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2,
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Mon, 03 Jan 2000 12:00:00+05', '2000-01-03 12:00:00', false);
 -- name: instant_english_zone
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Jan 01 2000 12:00:00+05', '2000-01-01 07:00:00+00', false);
+-- name: calendar_julian_clock_ignored
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2451545 23:59:59+05', '2000-01-01', false);
+-- name: calendar_julian_clock_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'J2451545 25:00', NULL, false);
+-- name: local_julian_fraction
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.25', '2000-01-01 06:00:00', false);
+-- name: local_julian_fraction_precision
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.000001', '2000-01-01 00:00:00.0864', false);
+-- name: local_julian_fraction_clock_error
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.5 12:00', NULL, false);
+-- name: instant_julian_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'J2451545.5+05', '2000-01-01 07:00:00+00', false);

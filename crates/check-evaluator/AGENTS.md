@@ -385,8 +385,11 @@ import them. Keep schema-only helpers with their callables.
   final day returns 22007, or 22008 after an int4 field overflow. Forms accept
   optional case-insensitive BC/AD suffixes, ASCII
   whitespace, signed infinities, and the context-independent `epoch` token.
-  Integer Julian days use case-insensitive J/JD/julian labels, optional ASCII
-  whitespace and leading zeroes; BC/AD does not alter their absolute day.
+  Julian days use case-insensitive J/JD/julian labels, optional ASCII
+  whitespace and leading zeroes; BC/AD does not alter their absolute day. A
+  fractional day supplies the clock, scaled to microseconds in double precision
+  and truncated, so a following clock returns 22007; an integer day accepts the
+  usual clock and zone tail.
   Compact dates reserve the last four digits for month/day and interpret exactly
   two year digits using the fixed 1970–2069 window, except under BC. Compact
   year fields outside int4 defer because native atoi overflow is not portable.
@@ -413,8 +416,8 @@ import them. Keep schema-only helpers with their callables.
   timestamp clock and optional
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
-  date range checks apply. A numeric zone may follow any of these dates
-  directly after a plus sign, with a midnight clock; after a slash- or
+  date range checks apply. A numeric zone or Z may follow any of these dates
+  directly, with a midnight clock; after a slash- or
   period-separated ordinal date a minus sign also starts a zone. Invalid
   supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
