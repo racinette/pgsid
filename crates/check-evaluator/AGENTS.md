@@ -421,7 +421,8 @@ import them. Keep schema-only helpers with their callables.
   numeric zone parses through the timestamp grammar: colon clock fields and
   offsets validate in timestamp order, compact clock carry is ignored, and only
   date range checks apply. A numeric zone or Z may follow any of these dates
-  directly or after whitespace, with a midnight clock. Weekday names are
+  directly or after whitespace, with a midnight clock or a clock after it; a
+  zone before the clock reports its own error first. Weekday names are
   ignored around the clock and zone, and AM or PM after either (or alone) maps twelve-hour
   clocks once zone fields decode: hours above twelve return 22008 and a second
   meridian 22007; after a slash- or

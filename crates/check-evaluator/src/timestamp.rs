@@ -400,6 +400,9 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 date_only,
             );
         }
+        let mut deferred_zone = false;
+        let mut deferred_zone_start = index;
+        let mut deferred_zone_end = index;
         let mut zone_only = text.chars[index] == '+'
             || text.chars[index].to_ascii_lowercase() == 'z'
             || (ordinal.state == ORDINAL_DATE_FOUND
@@ -410,6 +413,39 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
         } else if date_text_space(text.chars[index]) {
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
+            }
+            let zone_mark = text.chars[index].to_ascii_lowercase();
+            if zone_mark == '+' || zone_mark == '-' || zone_mark == 'z' {
+                let mut token_end = index + 1;
+                if zone_mark != 'z' {
+                    while token_end < end
+                        && (date_text_digit(text.chars[token_end]) >= 0
+                            || text.chars[token_end] == ':')
+                    {
+                        token_end += 1;
+                    }
+                }
+                let mut clock_start = token_end;
+                while clock_start < end && date_text_space(text.chars[clock_start]) {
+                    clock_start += 1;
+                }
+                let mut digit_start = clock_start;
+                if digit_start < end && text.chars[digit_start].to_ascii_lowercase() == 't' {
+                    digit_start += 1;
+                }
+                let zone_body = zone_mark == 'z' || token_end > index + 1;
+                // A zone written before the clock decodes first, so it is parsed from
+                // its own span after the clock.
+                if zone_body
+                    && clock_start > token_end
+                    && digit_start < end
+                    && date_text_digit(text.chars[digit_start]) >= 0
+                {
+                    deferred_zone = true;
+                    deferred_zone_start = index;
+                    deferred_zone_end = token_end;
+                    index = digit_start;
+                }
             }
             let leading_word = english_date_word(&text, index, end);
             if english_date_weekday(leading_word.as_str()) {
@@ -535,6 +571,10 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 index += 1;
             }
         }
+        let resume_index = index;
+        if deferred_zone {
+            index = deferred_zone_start;
+        }
         let mut offset: i32 = 0;
         let mut missing_timezone = false;
         if index < end && text.chars[index].to_ascii_lowercase() == 'z' {
@@ -583,6 +623,17 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             return Int8Value::Unknown;
         } else if with_timezone {
             missing_timezone = true;
+        }
+        if deferred_zone {
+            if index != deferred_zone_end {
+                return Int8Value::Unknown;
+            }
+            if offset < -57599 || offset > 57599 {
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_ZONE,
+                });
+            }
+            index = resume_index;
         }
         while index < end && date_text_space(text.chars[index]) {
             index += 1;
