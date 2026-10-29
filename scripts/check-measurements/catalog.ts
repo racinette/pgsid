@@ -265,7 +265,7 @@ export function trigonometryValueRequirements(item: BuiltinCallable) {
         kind: 'platform',
         requirement:
           'Finite trigonometric float8 results require the declared PostgreSQL fdlibm binary64 trigonometry profile; target-language math libraries do not establish that profile.',
-        owner: ['sin', 'cos', 'tan', 'cot', 'sind', 'cosd'].includes(item.name)
+        owner: ['sin', 'cos', 'tan', 'cot', 'sind', 'cosd', 'tand', 'cotd'].includes(item.name)
           ? 'tests/sql-semantics/check-float-trigonometry.test.ts'
           : 'tests/sql-semantics/check-float-inverse-trigonometry.test.ts',
       },

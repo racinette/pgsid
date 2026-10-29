@@ -22,6 +22,8 @@ const unaryTrigonometry = new Set([
   'cot',
   'sind',
   'cosd',
+  'tand',
+  'cotd',
   'asin',
   'acos',
   'atan',

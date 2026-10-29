@@ -63,7 +63,7 @@ const samples: (string | null)[] = [
 const reductionLimit = Buffer.from('413921fb00000000', 'hex').readDoubleBE()
 // Degree variants reduce exactly modulo 360 first, so they never defer.
 const reducible = (name: string, sample: string | null) =>
-  ['sind', 'cosd'].includes(name) ||
+  ['sind', 'cosd', 'tand', 'cotd'].includes(name) ||
   sample === null ||
   !Number.isFinite(Number(sample)) ||
   Math.abs(Number(sample)) < reductionLimit
@@ -104,7 +104,7 @@ describe('float8 sine, cosine and tangent in radians and degrees under the decla
         fn.args.length === 1 &&
         source.includes('pub fn ' + fn.rustName + '('),
     )
-    expect(functions).toHaveLength(6)
+    expect(functions).toHaveLength(8)
     const expressions: Record<string, string> = {}
     for (const fn of functions) {
       expect(fn).toMatchObject({
