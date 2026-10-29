@@ -37,10 +37,12 @@ fn circle_sine_kernel(x: f64, y: f64, tail: bool) -> f64 {
 fn circle_cosine_kernel(x: f64, y: f64) -> f64 {
     let z = x * x;
     let mut w = z * z;
-    let r = z * (4.16666666666666019037e-02f64
-        + z * (-1.38888888888741095749e-03f64 + z * 2.48015872894767294178e-05f64))
-        + w * w * (-2.75573143513906633035e-07f64
-            + z * (2.08757232129817482790e-09f64 + z * -1.13596475577881948265e-11f64));
+    let r = z
+        * (4.16666666666666019037e-02f64
+            + z * (-1.38888888888741095749e-03f64 + z * 2.48015872894767294178e-05f64))
+        + w * w
+            * (-2.75573143513906633035e-07f64
+                + z * (2.08757232129817482790e-09f64 + z * -1.13596475577881948265e-11f64));
     let half = 0.5f64 * z;
     w = 1.0f64 - half;
     w + (((1.0f64 - w) - half) + (z * r - x * y))
@@ -62,7 +64,8 @@ fn circle_reduce_angle(x: f64) -> CircleAngleReduction {
                 quadrant = 3;
             };
         } else {
-            if high != 1075388923 {
+            // Like fdlibm, the four-quarter shortcut applies only up to 9pi/4.
+            if high <= 1075594811 && high != 1075388923 {
                 quadrant = 4;
             };
         };
@@ -78,8 +81,8 @@ fn circle_reduce_angle(x: f64) -> CircleAngleReduction {
             quadrant,
         };
     };
-    let mut count = (x * 6.36619772367581382433e-01f64 + 6755399441055744.0f64)
-        - 6755399441055744.0f64;
+    let mut count =
+        (x * 6.36619772367581382433e-01f64 + 6755399441055744.0f64) - 6755399441055744.0f64;
     quadrant = count as i32;
     let mut first = x - count * 1.57079632673412561417f64;
     let mut correction = count * 6.07710050650619224932e-11f64;

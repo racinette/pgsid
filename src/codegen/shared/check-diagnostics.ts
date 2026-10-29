@@ -9,7 +9,7 @@ import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/ran
 import { compositeProfile, compositeFieldType } from '../../sql-semantics/composite-profiles.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { CheckExecutionContext } from './check-rust-evaluator.js'
-import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
+import { trigonometryContext } from './check-trigonometry-context.js'
 import { builtinCallables } from '../../postgres/builtins/inventory.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
@@ -124,9 +124,7 @@ function needsIdentifierQuote(value: unknown): boolean {
   )
 }
 
-const trigonometry = new Set(
-  builtinCallables().filter(circlePolygonTrigonometry).map(callableIdentity),
-)
+const trigonometry = new Set(builtinCallables().filter(trigonometryContext).map(callableIdentity))
 function needsTrigonometry(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   return Object.entries(value).some(
@@ -425,6 +423,6 @@ export function checkUnknownMessage(
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
     ? message +
-        ' Circle-to-polygon coordinate generation also requires sql.codegen.checks.trigonometry: fdlibm.'
+        ' Circle-to-polygon coordinate generation, sin and cos also require sql.codegen.checks.trigonometry: fdlibm.'
     : message
 }

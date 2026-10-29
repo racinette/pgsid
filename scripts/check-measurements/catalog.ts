@@ -27,7 +27,10 @@ import {
   nativeHashContext,
 } from '../../src/codegen/shared/check-hash-context.js'
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
-import { circlePolygonTrigonometry } from '../../src/codegen/shared/check-trigonometry-context.js'
+import {
+  circlePolygonTrigonometry,
+  floatTrigonometry,
+} from '../../src/codegen/shared/check-trigonometry-context.js'
 import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
 import { isXmlOptionPredicate, isXmlXPathCallable } from '../../src/sql-semantics/xml-callables.js'
 import assert from 'node:assert/strict'
@@ -256,6 +259,15 @@ export function hashValueRequirements(item: BuiltinCallable) {
 }
 
 export function trigonometryValueRequirements(item: BuiltinCallable) {
+  if (floatTrigonometry(item))
+    return [
+      {
+        kind: 'platform',
+        requirement:
+          'Finite sin and cos results require the declared PostgreSQL fdlibm binary64 trigonometry profile; target-language math libraries do not establish that profile.',
+        owner: 'tests/sql-semantics/check-float-trigonometry.test.ts',
+      },
+    ]
   return circlePolygonTrigonometry(item)
     ? [
         {

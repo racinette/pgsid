@@ -90,7 +90,7 @@ import {
   rangeHashSupport,
 } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
-import { circlePolygonTrigonometry } from './check-trigonometry-context.js'
+import { trigonometryContext } from './check-trigonometry-context.js'
 import { jsonbTextRenderingContext, jsonScalarExtractionContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
@@ -6287,7 +6287,7 @@ export function emitCheckRustEvaluator(
         )
       if (textSend) arguments_.push(String(executionContext.clientEncoding === 'UTF8'))
       if (jsonExtraction) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
-      if (circlePolygonTrigonometry(implementation))
+      if (trigonometryContext(implementation))
         arguments_.push(String(executionContext.trigonometry === 'fdlibm'))
       if (jsonbTextRenderingContext(implementation))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))

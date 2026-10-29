@@ -11016,7 +11016,7 @@ func circleReduceAngle(x float64) circleAngleReduction {
 		if high != 1074977148 {
 			quadrant = langruntime.CheckedI32(3)
 		}
-	} else if high != 1075388923 {
+	} else if high <= 1075594811 && high != 1075388923 {
 		quadrant = langruntime.CheckedI32(4)
 	}
 	if quadrant != 0 {
@@ -14018,6 +14018,37 @@ func Float8send3bqt(input checkruntime.Float8Value) checkruntime.ByteaValue {
 		return binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: bits}, 8)
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func float8Trigonometry(input checkruntime.Float8Value, fdlibm bool, cosine bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		magnitude := langruntime.F64Abs(number)
+		if magnitude == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if fdlibm == false || circleMathHighWord(magnitude) >= 1094263291 {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		result := circleTrigonometry(magnitude, cosine)
+		if cosine == false && bits < int64(0) {
+			result = langruntime.F64Negate(result)
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func SinVhu2(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8Trigonometry(input, fdlibm, false)
+}
+func CosXj1c(input checkruntime.Float8Value, fdlibm bool) checkruntime.Float8Value {
+	return float8Trigonometry(input, fdlibm, true)
 }
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
