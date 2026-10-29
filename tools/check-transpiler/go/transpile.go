@@ -120,7 +120,6 @@ type Options struct {
 	ReadonlyValueTypes  []string `json:"readonlyValueTypes,omitempty"`
 	Split               bool     `json:"split,omitempty"`
 	SchemaImportPath    string   `json:"schemaImportPath,omitempty"`
-	EmitModules         []string `json:"emitModules,omitempty"`
 }
 
 // The AST decodes in the same pass as the options because the full corpus is too large to buffer twice.
@@ -708,15 +707,10 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 			identifier.Name = exported
 		}
 	}
-	// Callers translate the shared modules once and then request only the checks for each schema.
-	emitted := make(map[string]bool)
-	for _, module := range options.EmitModules {
-		emitted[module] = true
-	}
 	result := make(map[string]string)
 	for _, module := range moduleOrder {
 		file := files[module]
-		if len(file.Decls) == 0 || (len(emitted) > 0 && !emitted[module]) {
+		if len(file.Decls) == 0 {
 			result[keys[module]] = ""
 			continue
 		}
