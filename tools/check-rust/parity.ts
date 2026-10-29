@@ -50,6 +50,7 @@ import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 import { goFixtureBinding } from './go-fixtures.js'
+import { checkGoCacheDirectory } from './go-cache.js'
 
 export type Input =
   | {
@@ -936,7 +937,7 @@ func TestChecksMatchPostgres(t *testing.T) {
   // The data-driven driver reads its cases at runtime, so a cached pass could be stale.
   await run('go', ['test', '-count=1', '-trimpath', '-p', '1', './...'], {
     cwd: join(directory, 'go'),
-    env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+    env: { ...process.env, GOCACHE: checkGoCacheDirectory },
   }).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })

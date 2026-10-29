@@ -13,6 +13,8 @@ export default defineConfig({
     // instead; this preserves file parallelism without oversubscribing them.
     maxWorkers: 8,
     include: ['tests/**/*.test.ts'],
+    // Trims the CHECK parity Go build cache before any worker can be compiling into it.
+    globalSetup: ['tools/check-rust/go-cache-setup.ts'],
     // Coverage is a DORMANCY map, not a quality score. The question it
     // answers is "which conservative guards has the corpus never made fire",
     // and an unfired guard is a case nobody has invented yet rather than a

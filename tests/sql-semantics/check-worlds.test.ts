@@ -8,6 +8,7 @@ import { decodeCatalogVector } from './check-catalog-vector-fixtures.js'
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { WorldCheckOracles } from './check-world-oracles.js'
 import { captureRegexCharacterProfile } from '../../tools/check-rust/regex-profile.js'
+import { checkGoCacheDirectory } from '../../tools/check-rust/go-cache.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -1635,7 +1636,7 @@ describe('world CHECK INSERT parity', () => {
     await progress('go-test')
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: directory,
-      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      env: { ...process.env, GOCACHE: checkGoCacheDirectory },
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
