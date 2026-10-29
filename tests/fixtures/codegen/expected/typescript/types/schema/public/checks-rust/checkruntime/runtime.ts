@@ -16742,6 +16742,42 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 return makeInt8Value(9223372036854775807n);
             }
         }
+        const leadingWord: string = englishDateWord(text, start, end);
+        if (englishDateWeekday(leadingWord)) {
+            const leadingEnd: number = englishDateWordEnd(text, start, end);
+            const after: number = englishDateGap(text, leadingEnd, end);
+            let tokenEnd: number = after;
+            let delimited: boolean = false;
+            let longNumber: boolean = false;
+            let digitRun: number = 0;
+            while (tokenEnd < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(tokenEnd))) === false) {
+                const character: string = langruntime.indexChar(text.chars, langruntime.checkedIndex(tokenEnd));
+                if (dateTextDigit(character) >= 0) {
+                    digitRun = langruntime.checkedAdd(digitRun, 1);
+                    if (digitRun >= 10) {
+                        longNumber = langruntime.checkedBool(true);
+                    }
+                }
+                else {
+                    digitRun = langruntime.checkedIndex(0);
+                    if (tokenEnd > after && englishDateDelimiter(character)) {
+                        delimited = langruntime.checkedBool(true);
+                    }
+                }
+                tokenEnd = langruntime.checkedAdd(tokenEnd, 1);
+            }
+            const firstWord: string = englishDateWord(text, after, end);
+            const julianLabel: boolean = firstWord === "j" || firstWord === "jd" || firstWord === "julian";
+            if (delimited && julianLabel === false && after < end) {
+                if (longNumber) {
+                    return { kind: "Unknown" };
+                }
+                return { kind: "Error", value: { state: invalidTimestampText } };
+            }
+            if (after > leadingEnd) {
+                start = langruntime.checkedIndex(after);
+            }
+        }
         const ordinal: OrdinalDateText = readOrdinalDate(text, start, end);
         if (ordinal.state === ordinalDateSyntax) {
             return { kind: "Error", value: { state: invalidTimestampText } };
@@ -16872,6 +16908,22 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
             while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
                 index = langruntime.checkedAdd(index, 1);
             }
+            const leadingWord1: string = englishDateWord(text, index, end);
+            if (englishDateWeekday(leadingWord1)) {
+                index = langruntime.checkedIndex(englishDateWordEnd(text, index, end));
+                while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
+            const clockWord: string = englishDateWord(text, index, end);
+            if (index === end || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || clockWord === "am" || clockWord === "pm") {
+                zoneOnly = langruntime.checkedBool(true);
+            }
+        }
+        else if (zoneOnly === false) {
+            return { kind: "Unknown" };
+        }
+        if (zoneOnly && index < end) {
             const zoneMark: string = langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)));
             if (zoneMark === "+" || zoneMark === "-" || zoneMark === "z") {
                 let tokenEnd: number = langruntime.checkedAdd(index, 1);
@@ -16896,20 +16948,9 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                     index = langruntime.checkedIndex(digitStart);
                 }
             }
-            const leadingWord: string = englishDateWord(text, index, end);
-            if (englishDateWeekday(leadingWord)) {
-                index = langruntime.checkedIndex(englishDateWordEnd(text, index, end));
-                while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
-                    index = langruntime.checkedAdd(index, 1);
-                }
+            if (deferredZone) {
+                zoneOnly = langruntime.checkedBool(false);
             }
-            const clockWord: string = englishDateWord(text, index, end);
-            if (index === end || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "z" || clockWord === "am" || clockWord === "pm") {
-                zoneOnly = langruntime.checkedBool(true);
-            }
-        }
-        else if (zoneOnly === false) {
-            return { kind: "Unknown" };
         }
         const hours: TimestampNumber = readTimestampNumber(text, index, end);
         index = langruntime.checkedIndex(hours.next);

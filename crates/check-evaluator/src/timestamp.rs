@@ -240,6 +240,44 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 return make_int8_value(9223372036854775807i64);
             }
         }
+        let leading_word = english_date_word(&text, start, end);
+        if english_date_weekday(leading_word.as_str()) {
+            let leading_end = english_date_word_end(&text, start, end);
+            let after = english_date_gap(&text, leading_end, end);
+            let mut token_end = after;
+            let mut delimited = false;
+            let mut long_number = false;
+            let mut digit_run = 0;
+            while token_end < end && date_text_space(text.chars[token_end]) == false {
+                let character = text.chars[token_end];
+                if date_text_digit(character) >= 0 {
+                    digit_run += 1;
+                    if digit_run >= 10 {
+                        long_number = true;
+                    }
+                } else {
+                    digit_run = 0;
+                    if token_end > after && english_date_delimiter(character) {
+                        delimited = true;
+                    }
+                }
+                token_end += 1;
+            }
+            let first_word = english_date_word(&text, after, end);
+            let julian_label = first_word == "j" || first_word == "jd" || first_word == "julian";
+            // A weekday's field mask makes PostgreSQL reject any delimited date after it.
+            if delimited && julian_label == false && after < end {
+                if long_number {
+                    return Int8Value::Unknown;
+                }
+                return Int8Value::Error(SqlError {
+                    state: INVALID_TIMESTAMP_TEXT,
+                });
+            }
+            if after > leading_end {
+                start = after;
+            }
+        }
         let ordinal = read_ordinal_date(&text, start, end);
         if ordinal.state == ORDINAL_DATE_SYNTAX {
             return Int8Value::Error(SqlError {
@@ -414,6 +452,27 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             while index < end && date_text_space(text.chars[index]) {
                 index += 1;
             }
+            let leading_word = english_date_word(&text, index, end);
+            if english_date_weekday(leading_word.as_str()) {
+                index = english_date_word_end(&text, index, end);
+                while index < end && date_text_space(text.chars[index]) {
+                    index += 1;
+                }
+            }
+            let clock_word = english_date_word(&text, index, end);
+            if index == end
+                || text.chars[index] == '+'
+                || text.chars[index] == '-'
+                || text.chars[index].to_ascii_lowercase() == 'z'
+                || clock_word == "am"
+                || clock_word == "pm"
+            {
+                zone_only = true;
+            }
+        } else if zone_only == false {
+            return Int8Value::Unknown;
+        }
+        if zone_only && index < end {
             let zone_mark = text.chars[index].to_ascii_lowercase();
             if zone_mark == '+' || zone_mark == '-' || zone_mark == 'z' {
                 let mut token_end = index + 1;
@@ -447,25 +506,9 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                     index = digit_start;
                 }
             }
-            let leading_word = english_date_word(&text, index, end);
-            if english_date_weekday(leading_word.as_str()) {
-                index = english_date_word_end(&text, index, end);
-                while index < end && date_text_space(text.chars[index]) {
-                    index += 1;
-                }
+            if deferred_zone {
+                zone_only = false;
             }
-            let clock_word = english_date_word(&text, index, end);
-            if index == end
-                || text.chars[index] == '+'
-                || text.chars[index] == '-'
-                || text.chars[index].to_ascii_lowercase() == 'z'
-                || clock_word == "am"
-                || clock_word == "pm"
-            {
-                zone_only = true;
-            }
-        } else if zone_only == false {
-            return Int8Value::Unknown;
         }
         let hours = read_timestamp_number(&text, index, end);
         index = hours.next;

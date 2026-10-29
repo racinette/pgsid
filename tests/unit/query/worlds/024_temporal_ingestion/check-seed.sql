@@ -287,3 +287,9 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 -05 12:00', '2000-01-01 17:00:00+00', false);
 -- name: instant_zone_before_clock_error_order
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 -16 25:00', NULL, false);
+-- name: instant_attached_zone_clock
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01+05 12:00', '2000-01-01 07:00:00+00', false);
+-- name: calendar_weekday_delimited_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'Sat 2000-01-01', NULL, false);
+-- name: calendar_weekday_compact
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'Sat 20000101', '2000-01-01', false);

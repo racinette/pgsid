@@ -411,7 +411,8 @@ import them. Keep schema-only helpers with their callables.
   and abbreviations pair with two numbers, either around the month or after it,
   separated by whitespace and commas or by one repeated hyphen, slash or period,
   or adjacent where letters meet digits;
-  an optional leading weekday is ignored. A first number of three or more digits
+  an optional leading weekday is ignored, but any delimited date after a
+  weekday returns 22007. A first number of three or more digits
   is the year and the second the day; otherwise a second number of three or more
   digits is the year. After two numbers, a three- to five-digit year and a
   second number from 1 through 31 form the date; other second numbers return
