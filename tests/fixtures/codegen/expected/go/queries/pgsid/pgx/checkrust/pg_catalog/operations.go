@@ -13850,6 +13850,141 @@ func Float4OutputContext(input checkruntime.Float4Value, extra int, known bool) 
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+var radiansPerDegree = float64(0.0174532925199432957692)
+
+func float8TruncBits(bits int64) int64 {
+	minimum := langruntime.CheckedI64Subtract(langruntime.CheckedI64Subtract(int64(0), int64(9223372036854775807)), int64(1))
+	magnitude := bits
+	if bits < int64(0) {
+		magnitude = langruntime.CheckedI64Subtract(bits, minimum)
+	}
+	exponent := langruntime.CheckedI64Subtract(langruntime.CheckedI64Divide(magnitude, int64(4503599627370496)), int64(1023))
+	if exponent >= int64(52) {
+		return bits
+	}
+	truncated := int64(0)
+	if exponent >= int64(0) {
+		unit := int64(1)
+		shift := langruntime.CheckedI64Subtract(int64(52), exponent)
+		for shift > int64(0) {
+			unit = langruntime.CheckedI64Multiply(unit, int64(2))
+			shift = langruntime.CheckedI64Subtract(shift, int64(1))
+		}
+		truncated = langruntime.CheckedI64Subtract(magnitude, langruntime.CheckedI64Remainder(magnitude, unit))
+	}
+	if bits < int64(0) {
+		return langruntime.CheckedI64Add(truncated, minimum)
+	}
+	return truncated
+}
+func float8Rounded(input checkruntime.Float8Value, mode int) checkruntime.Float8Value {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		truncatedBits := float8TruncBits(bits)
+		truncated := checkruntime.Float8Number(truncatedBits)
+		if truncated == number {
+			return input
+		}
+		if mode == 1 && number < float64(0.0) {
+			return checkruntime.MakeFloat8Value(langruntime.F64Subtract(truncated, float64(1.0)))
+		}
+		if mode == 2 && number > float64(0.0) {
+			return checkruntime.MakeFloat8Value(langruntime.F64Add(truncated, float64(1.0)))
+		}
+		if mode == 3 {
+			remainder := langruntime.F64Abs((langruntime.F64Subtract(number, truncated)))
+			step := float64(1.0)
+			if number < float64(0.0) {
+				step = float64(-1.0)
+			}
+			half := langruntime.F64Multiply(truncated, float64(0.5))
+			odd := checkruntime.Float8Number(float8TruncBits(langruntime.F64ToI64Bits(half))) != half
+			if remainder > float64(0.5) || (remainder == float64(0.5) && odd) {
+				return checkruntime.MakeFloat8Value(langruntime.F64Add(truncated, step))
+			}
+		}
+		return checkruntime.MakeFloat8Bits(truncatedBits)
+	}
+	return input
+}
+func Dtrunc1lg2(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 0)
+}
+func Trunc6i9f(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 0)
+}
+func Floor239f(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 1)
+}
+func Ceil4g34(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 2)
+}
+func Ceiling4qew(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 2)
+}
+func Dround7iwz(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 3)
+}
+func RoundE4jt(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Rounded(input, 3)
+}
+func Sign6cgs(input checkruntime.Float8Value) checkruntime.Float8Value {
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number > float64(0.0) {
+			return checkruntime.MakeFloat8Value(float64(1.0))
+		}
+		if number < float64(0.0) {
+			return checkruntime.MakeFloat8Value(float64(-1.0))
+		}
+		return checkruntime.MakeFloat8Value(float64(0.0))
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.MakeFloat8Value(float64(0.0))
+	}
+	return input
+}
+func PiRrpi() checkruntime.Float8Value {
+	return checkruntime.MakeFloat8Value(float64(3.14159265358979323846))
+}
+func float8Scaled(input checkruntime.Float8Value, divide bool) checkruntime.Float8Value {
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		result := langruntime.F64Multiply(number, radiansPerDegree)
+		if divide {
+			result = langruntime.F64Divide(number, radiansPerDegree)
+		}
+		infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+		if langruntime.F64Abs(result) == infinity && langruntime.F64Abs(number) != infinity {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if result == float64(0.0) && number != float64(0.0) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	return input
+}
+func DegreesQosk(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Scaled(input, true)
+}
+func RadiansVm8j(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return float8Scaled(input, false)
+}
 func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.Float4ValueError {
 		error := input.Error

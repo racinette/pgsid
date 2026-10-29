@@ -13935,6 +13935,141 @@ export function float4OutputContext(input: checkruntime.Float4Value, extra: numb
     }
     return { kind: "Unknown" };
 }
+const radiansPerDegree = 0.0174532925199432957692;
+function float8TruncBits(bits: bigint): bigint {
+    bits = langruntime.checkedI64(bits);
+    const minimum: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n);
+    let magnitude: bigint = bits;
+    if (bits < 0n) {
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(bits, minimum));
+    }
+    const exponent: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Divide(magnitude, 4503599627370496n), 1023n);
+    if (exponent >= 52n) {
+        return bits;
+    }
+    let truncated: bigint = 0n;
+    if (exponent >= 0n) {
+        let unit: bigint = 1n;
+        let shift: bigint = langruntime.checkedI64Subtract(52n, exponent);
+        while (shift > 0n) {
+            unit = langruntime.checkedI64(langruntime.checkedI64Multiply(unit, 2n));
+            shift = langruntime.checkedI64(langruntime.checkedI64Subtract(shift, 1n));
+        }
+        truncated = langruntime.checkedI64(langruntime.checkedI64Subtract(magnitude, langruntime.checkedI64Remainder(magnitude, unit)));
+    }
+    if (bits < 0n) {
+        return langruntime.checkedI64Add(truncated, minimum);
+    }
+    return truncated;
+}
+function float8Rounded(input: checkruntime.Float8Value, mode: number): checkruntime.Float8Value {
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        const truncatedBits: bigint = float8TruncBits(bits);
+        const truncated: number = checkruntime.float8Number(truncatedBits);
+        if (truncated === number) {
+            return input;
+        }
+        if (mode === 1 && number < 0.0) {
+            return checkruntime.makeFloat8Value(langruntime.f64Subtract(truncated, 1.0));
+        }
+        if (mode === 2 && number > 0.0) {
+            return checkruntime.makeFloat8Value(langruntime.f64Add(truncated, 1.0));
+        }
+        if (mode === 3) {
+            const remainder: number = langruntime.f64Abs((langruntime.f64Subtract(number, truncated)));
+            let step: number = 1.0;
+            if (number < 0.0) {
+                step = langruntime.checkedF64(-1.0);
+            }
+            const half: number = langruntime.f64Multiply(truncated, 0.5);
+            const odd: boolean = !(checkruntime.float8Number(float8TruncBits(langruntime.f64ToI64Bits(half))) === half);
+            if (remainder > 0.5 || (remainder === 0.5 && odd)) {
+                return checkruntime.makeFloat8Value(langruntime.f64Add(truncated, step));
+            }
+        }
+        return checkruntime.makeFloat8Bits(truncatedBits);
+    }
+    return input;
+}
+export function dtrunc1lg2(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 0);
+}
+export function trunc6i9f(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 0);
+}
+export function floor239f(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 1);
+}
+export function ceil4g34(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 2);
+}
+export function ceiling4qew(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 2);
+}
+export function dround7iwz(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 3);
+}
+export function roundE4jt(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Rounded(input, 3);
+}
+export function sign6cgs(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (number > 0.0) {
+            return checkruntime.makeFloat8Value(1.0);
+        }
+        if (number < 0.0) {
+            return checkruntime.makeFloat8Value(-1.0);
+        }
+        return checkruntime.makeFloat8Value(0.0);
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return checkruntime.makeFloat8Value(0.0);
+    }
+    return input;
+}
+export function piRrpi(): checkruntime.Float8Value {
+    return checkruntime.makeFloat8Value(3.14159265358979323846);
+}
+function float8Scaled(input: checkruntime.Float8Value, divide: boolean): checkruntime.Float8Value {
+    divide = langruntime.checkedBool(divide);
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        let result: number = langruntime.f64Multiply(number, radiansPerDegree);
+        if (divide) {
+            result = langruntime.checkedF64(langruntime.f64Divide(number, radiansPerDegree));
+        }
+        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+        if (langruntime.f64Abs(result) === infinity && !(langruntime.f64Abs(number) === infinity)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (result === 0.0 && !(number === 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    return input;
+}
+export function degreesQosk(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Scaled(input, true);
+}
+export function radiansVm8j(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8Scaled(input, false);
+}
 export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.ByteaValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
