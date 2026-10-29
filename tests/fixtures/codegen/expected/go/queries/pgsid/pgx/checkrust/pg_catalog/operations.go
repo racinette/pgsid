@@ -14,6 +14,17 @@
  * is preserved.
  */
 
+// Transcribed from musl's erf and erfc, which keep fdlibm's rational approximations and use the
+// Arm-derived exp in the tails; PostgreSQL calls them through derf and derfc.
+
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
 // Transcribed from musl's expm1, log1p, __expo2 and hyperbolic functions, which PostgreSQL calls
 // through dsinh, dcosh, dtanh, dasinh, dacosh and datanh. musl sets no errno, so overflowing
 // sinh and cosh return infinity rather than an error, as in PGlite.
@@ -13149,6 +13160,402 @@ func Int8Kmmw(input checkruntime.Float8Value) checkruntime.Int8Value {
 }
 func Float4Frus(input checkruntime.Float8Value) checkruntime.Float4Value {
 	return float8Narrow(input)
+}
+
+var erfErx = float64(8.45062911510467529297e-01)
+
+func muslErfSmall(z float64) float64 {
+	r := langruntime.F64Add(float64(1.28379167095512558561e-01), langruntime.F64Multiply(z, (langruntime.F64Add(float64(-3.25042107247001499370e-01), langruntime.F64Multiply(z, (langruntime.F64Add(float64(-2.84817495755985104766e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(-5.77027029648944159157e-03), langruntime.F64Multiply(z, float64(-2.37630166566501626084e-05))))))))))))
+	s := langruntime.F64Add(float64(1.0), langruntime.F64Multiply(z, (langruntime.F64Add(float64(3.97917223959155352819e-01), langruntime.F64Multiply(z, (langruntime.F64Add(float64(6.50222499887672944485e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(5.08130628187576562776e-03), langruntime.F64Multiply(z, (langruntime.F64Add(float64(1.32494738004321644526e-04), langruntime.F64Multiply(z, float64(-3.96022827877536812320e-06)))))))))))))))
+	return langruntime.F64Divide(r, s)
+}
+func muslErfc1(x float64) float64 {
+	s := langruntime.F64Subtract(langruntime.F64Abs(x), float64(1.0))
+	p := langruntime.F64Add(float64(-2.36211856075265944077e-03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(4.14856118683748331666e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-3.72207876035701323847e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(3.18346619901161753674e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.10894694282396677476e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(3.54783043256182359371e-02), langruntime.F64Multiply(s, float64(-2.16637559486879084300e-03))))))))))))))))))
+	q := langruntime.F64Add(float64(1.0), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.06420880400844228286e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(5.40397917702171048937e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(7.18286544141962662868e-02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.26171219808761642112e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.36370839120290507362e-02), langruntime.F64Multiply(s, float64(1.19844998467991074170e-02))))))))))))))))))
+	return langruntime.F64Subtract(langruntime.F64Subtract(float64(1.0), erfErx), langruntime.F64Divide(p, q))
+}
+func muslErfc2(high int64, input float64) float64 {
+	if high < int64(1072955392) {
+		return muslErfc1(input)
+	}
+	x := langruntime.F64Abs(input)
+	s := langruntime.F64Divide(float64(1.0), (langruntime.F64Multiply(x, x)))
+	r := float64(0.0)
+	bigS := float64(0.0)
+	if high < int64(1074191213) {
+		r = langruntime.F64Add(float64(-9.86494403484714822705e-03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-6.93858572707181764372e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.05586262253232909814e+01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-6.23753324503260060396e+01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.62396669462573470355e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.84605092906711035994e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-8.12874355063065934246e+01), langruntime.F64Multiply(s, float64(-9.81432934416914548592e+00)))))))))))))))))))))
+		bigS = langruntime.F64Add(float64(1.0), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.96512716674392571292e+01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.37657754143519042600e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(4.34565877475229228821e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(6.45387271733267880336e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(4.29008140027567833386e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.08635005541779435134e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(6.57024977031928170135e+00), langruntime.F64Multiply(s, float64(-6.04244152148580987438e-02))))))))))))))))))))))))
+	} else {
+		r = langruntime.F64Add(float64(-9.86494292470009928597e-03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-7.99283237680523006574e-01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.77579549177547519889e+01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.60636384855821916062e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-6.37566443368389627722e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(-1.02509513161107724954e+03), langruntime.F64Multiply(s, float64(-4.83519191608651397019e+02))))))))))))))))))
+		bigS = langruntime.F64Add(float64(1.0), langruntime.F64Multiply(s, (langruntime.F64Add(float64(3.03380607434824582924e+01), langruntime.F64Multiply(s, (langruntime.F64Add(float64(3.25792512996573918826e+02), langruntime.F64Multiply(s, (langruntime.F64Add(float64(1.53672958608443695994e+03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(3.19985821950859553908e+03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(2.55305040643316442583e+03), langruntime.F64Multiply(s, (langruntime.F64Add(float64(4.74528541206955367215e+02), langruntime.F64Multiply(s, float64(-2.24409524465858183362e+01)))))))))))))))))))))
+	}
+	z := float8ClearLowWord(x)
+	return langruntime.F64Divide(langruntime.F64Multiply(muslExp(langruntime.F64Subtract(langruntime.F64Multiply(langruntime.F64Negate(z), z), float64(0.5625))), muslExp(langruntime.F64Add(langruntime.F64Multiply((langruntime.F64Subtract(z, x)), (langruntime.F64Add(z, x))), langruntime.F64Divide(r, bigS)))), x)
+}
+func muslErf(x float64) float64 {
+	negative := langruntime.F64ToI64Bits(x) < int64(0)
+	high := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	if high >= int64(2146435072) {
+		sign := float64(1.0)
+		if negative {
+			sign = float64(-1.0)
+		}
+		return langruntime.F64Add(sign, langruntime.F64Divide(float64(1.0), x))
+	}
+	if high < int64(1072365568) {
+		if high < int64(1043333120) {
+			return langruntime.F64Multiply(float64(0.125), (langruntime.F64Add(langruntime.F64Multiply(float64(8.0), x), langruntime.F64Multiply(float64(1.02703333676410069053e+00), x))))
+		}
+		return langruntime.F64Add(x, langruntime.F64Multiply(x, muslErfSmall(langruntime.F64Multiply(x, x))))
+	}
+	y := langruntime.F64Subtract(float64(1.0), float64(2.2250738585072014e-308))
+	if high < int64(1075314688) {
+		y = langruntime.F64Subtract(float64(1.0), muslErfc2(high, x))
+	}
+	if negative {
+		return langruntime.F64Negate(y)
+	}
+	return y
+}
+func muslErfc(x float64) float64 {
+	negative := langruntime.F64ToI64Bits(x) < int64(0)
+	high := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	if high >= int64(2146435072) {
+		twiceSign := float64(0.0)
+		if negative {
+			twiceSign = float64(2.0)
+		}
+		return langruntime.F64Add(twiceSign, langruntime.F64Divide(float64(1.0), x))
+	}
+	if high < int64(1072365568) {
+		if high < int64(1013972992) {
+			return langruntime.F64Subtract(float64(1.0), x)
+		}
+		y := muslErfSmall(langruntime.F64Multiply(x, x))
+		if negative || high < int64(1070596096) {
+			return langruntime.F64Subtract(float64(1.0), (langruntime.F64Add(x, langruntime.F64Multiply(x, y))))
+		}
+		return langruntime.F64Subtract(float64(0.5), (langruntime.F64Add(langruntime.F64Subtract(x, float64(0.5)), langruntime.F64Multiply(x, y))))
+	}
+	if high < int64(1077673984) {
+		if negative {
+			return langruntime.F64Subtract(float64(2.0), muslErfc2(high, x))
+		}
+		return muslErfc2(high, x)
+	}
+	if negative {
+		return langruntime.F64Subtract(float64(2.0), float64(2.2250738585072014e-308))
+	}
+	return langruntime.F64Multiply(float64(2.2250738585072014e-308), float64(2.2250738585072014e-308))
+}
+func float8ErrorFunction(input checkruntime.Float8Value, musl bool, complement bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if musl == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		if complement {
+			return checkruntime.MakeFloat8Value(muslErfc(number))
+		}
+		return checkruntime.MakeFloat8Value(muslErf(number))
+	}
+	return input
+}
+func ErfNlw2(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8ErrorFunction(input, musl, false)
+}
+func ErfcOibn(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	return float8ErrorFunction(input, musl, true)
+}
+
+var gammaNumerator = []int64{int64(4761969815764182174), int64(4765930390633663575), int64(4764985644051772954), int64(4760499098151822874), int64(4753126926655529448), int64(4743825433057030975), int64(4732626853539962666), int64(4719201174427651224), int64(4703431370238653516), int64(4685632857438652395), int64(4665596911923288068), int64(4641621736398011218), int64(4612826843881809669)}
+var gammaDenominator = []int64{int64(0), int64(4720626352061939712), int64(4727861969648877568), int64(4729339976074919936), int64(4726836159391465472), int64(4721442252235210752), int64(4713423218923274240), int64(4702918524023078912), int64(4689884092848668672), int64(4674709475175694336), int64(4656181054980227072), int64(4634344754052595712), int64(4607182418800017408)}
+var gammaFactorials = []int64{int64(4607182418800017408), int64(4607182418800017408), int64(4611686018427387904), int64(4618441417868443648), int64(4627448617123184640), int64(4638144666238189568), int64(4649544402794971136), int64(4662263553305083904), int64(4675774352187195392), int64(4689977843394805760), int64(4705047200009289728), int64(4720626352061939712), int64(4736815922046566400), int64(4753323511810883584), int64(4770521722250067968), int64(4788179038478794752), int64(4806193436988276736), int64(4824542600135966720), int64(4843268373501640704), int64(4862483217080946688), int64(4882150158176967168), int64(4901649482228549152), int64(4922002638466838636)}
+var gammaPi = float64(3.141592653589793238462643383279502884)
+var gammaHalfOffset = float64(5.524680040776729583740234375)
+
+func muslSinpi(input float64) float64 {
+	x := langruntime.F64Multiply(input, float64(0.5))
+	x = langruntime.F64Multiply(float64(2.0), (langruntime.F64Subtract(x, float8FloorValue(x))))
+	n := langruntime.F64ToI32((langruntime.F64Multiply(float64(4.0), x)))
+	n = langruntime.CheckedI32(langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(n, 1)), 2))
+	x = langruntime.F64Subtract(x, langruntime.F64Multiply((float64(n)), float64(0.5)))
+	x = langruntime.F64Multiply(x, gammaPi)
+	if n == 1 {
+		return circleCosineKernel(x, float64(0.0))
+	}
+	if n == 2 {
+		return circleSineKernel(langruntime.F64Negate(x), float64(0.0), false)
+	}
+	if n == 3 {
+		return langruntime.F64Negate(circleCosineKernel(x, float64(0.0)))
+	}
+	return circleSineKernel(x, float64(0.0), false)
+}
+func muslGammaSeries(x float64) float64 {
+	num := float64(0.0)
+	den := float64(0.0)
+	if x < float64(8.0) {
+		i := 13
+		for i > 0 {
+			i = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
+			num = langruntime.F64Add(langruntime.F64Multiply(num, x), langruntime.F64FromI64Bits(gammaNumerator[i]))
+			den = langruntime.F64Add(langruntime.F64Multiply(den, x), langruntime.F64FromI64Bits(gammaDenominator[i]))
+		}
+	} else {
+		i := 0
+		for i < 13 {
+			num = langruntime.F64Add(langruntime.F64Divide(num, x), langruntime.F64FromI64Bits(gammaNumerator[i]))
+			den = langruntime.F64Add(langruntime.F64Divide(den, x), langruntime.F64FromI64Bits(gammaDenominator[i]))
+			i = langruntime.CheckedAdd(i, 1)
+		}
+	}
+	return langruntime.F64Divide(num, den)
+}
+func muslTgamma(input float64) float64 {
+	x := input
+	high := int64(langruntime.CheckedI32(circleMathHighWord(x)))
+	negative := langruntime.F64ToI64Bits(x) < int64(0)
+	if high >= int64(2146435072) {
+		return langruntime.F64Add(x, langruntime.F64Divide(float64(1.0), float64(0.0)))
+	}
+	if high < int64(1016070144) {
+		return langruntime.F64Divide(float64(1.0), x)
+	}
+	if x == float8FloorValue(x) {
+		if negative {
+			return langruntime.F64Divide(float64(0.0), float64(0.0))
+		}
+		if x <= float64(23.0) {
+			index := 0
+			remaining := langruntime.F64Subtract(x, float64(1.0))
+			for remaining > float64(0.0) {
+				index = langruntime.CheckedAdd(index, 1)
+				remaining = langruntime.F64Subtract(remaining, float64(1.0))
+			}
+			return langruntime.F64FromI64Bits(gammaFactorials[index])
+		}
+	}
+	if high >= int64(1080492032) {
+		if negative {
+			if langruntime.F64Multiply(float8FloorValue(x), float64(0.5)) == float8FloorValue(langruntime.F64Multiply(x, float64(0.5))) {
+				return float64(0.0)
+			}
+			return langruntime.F64Negate(float64(0.0))
+		}
+		return langruntime.F64Multiply(x, float64(8.98846567431158e+307))
+	}
+	absx := langruntime.F64Abs(x)
+	y := langruntime.F64Add(absx, gammaHalfOffset)
+	dy := float64(0.0)
+	if absx > gammaHalfOffset {
+		dy = langruntime.F64Subtract(y, absx)
+		dy = langruntime.F64Subtract(dy, gammaHalfOffset)
+	} else {
+		dy = langruntime.F64Subtract(y, gammaHalfOffset)
+		dy = langruntime.F64Subtract(dy, absx)
+	}
+	z := langruntime.F64Subtract(absx, float64(0.5))
+	r := langruntime.F64Multiply(muslGammaSeries(absx), muslExp(langruntime.F64Negate(y)))
+	if x < float64(0.0) {
+		r = langruntime.F64Divide(langruntime.F64Negate(gammaPi), (langruntime.F64Multiply(langruntime.F64Multiply(muslSinpi(absx), absx), r)))
+		dy = langruntime.F64Negate(dy)
+		z = langruntime.F64Negate(z)
+	}
+	r = langruntime.F64Add(r, langruntime.F64Divide(langruntime.F64Multiply(langruntime.F64Multiply(dy, (langruntime.F64Add(gammaHalfOffset, float64(0.5)))), r), y))
+	z = muslPow(y, langruntime.F64Multiply(float64(0.5), z))
+	y = langruntime.F64Multiply(langruntime.F64Multiply(r, z), z)
+	return y
+}
+func GammaT3sa(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if number == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return input
+		}
+		if number == langruntime.F64Divide(float64(-1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if musl == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		result := muslTgamma(number)
+		if result != result || langruntime.F64Abs(result) == langruntime.F64Divide(float64(1.0), float64(0.0)) || result == float64(0.0) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func muslLgamma(input float64) float64 {
+	negative := langruntime.F64ToI64Bits(input) < int64(0)
+	high := int64(langruntime.CheckedI32(circleMathHighWord(input)))
+	if high >= int64(2146435072) {
+		return langruntime.F64Multiply(input, input)
+	}
+	if input == float64(0.0) {
+		return langruntime.F64Divide(float64(1.0), float64(0.0))
+	}
+	if high < int64(999292928) {
+		return langruntime.F64Negate(muslLog(langruntime.F64Abs(input)))
+	}
+	x := input
+	nadj := float64(0.0)
+	if negative {
+		x = langruntime.F64Negate(x)
+		t := muslSinpiLgamma(x)
+		if t == float64(0.0) {
+			return langruntime.F64Divide(float64(1.0), (langruntime.F64Subtract(x, x)))
+		}
+		if t < float64(0.0) {
+			t = langruntime.F64Negate(t)
+		}
+		nadj = muslLog(langruntime.F64Divide(gammaPi, (langruntime.F64Multiply(t, x))))
+	}
+	r := float64(0.0)
+	if x == float64(1.0) || x == float64(2.0) {
+		r = float64(0.0)
+	} else if high < int64(1073741824) {
+		y := float64(0.0)
+		i := 0
+		if high <= int64(1072483532) {
+			r = langruntime.F64Negate(muslLog(x))
+			if high >= int64(1072130372) {
+				y = langruntime.F64Subtract(float64(1.0), x)
+				i = langruntime.CheckedI32(0)
+			} else if high >= int64(1070442081) {
+				y = langruntime.F64Subtract(x, (langruntime.F64Subtract(float64(1.46163214496836224576e+00), float64(1.0))))
+				i = langruntime.CheckedI32(1)
+			} else {
+				y = x
+				i = langruntime.CheckedI32(2)
+			}
+		} else {
+			r = float64(0.0)
+			if high >= int64(1073460419) {
+				y = langruntime.F64Subtract(float64(2.0), x)
+				i = langruntime.CheckedI32(0)
+			} else if high >= int64(1072936132) {
+				y = langruntime.F64Subtract(x, float64(1.46163214496836224576e+00))
+				i = langruntime.CheckedI32(1)
+			} else {
+				y = langruntime.F64Subtract(x, float64(1.0))
+				i = langruntime.CheckedI32(2)
+			}
+		}
+		if i == 0 {
+			z := langruntime.F64Multiply(y, y)
+			p1 := langruntime.F64Add(float64(7.72156649015328655494e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(6.73523010531292681824e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(7.38555086081402883957e-03), langruntime.F64Multiply(z, (langruntime.F64Add(float64(1.19270763183362067845e-03), langruntime.F64Multiply(z, (langruntime.F64Add(float64(2.20862790713908385557e-04), langruntime.F64Multiply(z, float64(2.52144565451257326939e-05)))))))))))))))
+			p2 := langruntime.F64Multiply(z, (langruntime.F64Add(float64(3.22467033424113591611e-01), langruntime.F64Multiply(z, (langruntime.F64Add(float64(2.05808084325167332806e-02), langruntime.F64Multiply(z, (langruntime.F64Add(float64(2.89051383673415629091e-03), langruntime.F64Multiply(z, (langruntime.F64Add(float64(5.10069792153511336608e-04), langruntime.F64Multiply(z, (langruntime.F64Add(float64(1.08011567247583939954e-04), langruntime.F64Multiply(z, float64(4.48640949618915160150e-05)))))))))))))))))
+			p := langruntime.F64Add(langruntime.F64Multiply(y, p1), p2)
+			r = langruntime.F64Add(r, (langruntime.F64Subtract(p, langruntime.F64Multiply(float64(0.5), y))))
+		}
+		if i == 1 {
+			z := langruntime.F64Multiply(y, y)
+			w := langruntime.F64Multiply(z, y)
+			p1 := langruntime.F64Add(float64(4.83836122723810047042e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(-3.27885410759859649565e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(6.10053870246291332635e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(-1.40346469989232843813e-03), langruntime.F64Multiply(w, float64(3.15632070903625950361e-04))))))))))))
+			p2 := langruntime.F64Add(float64(-1.47587722994593911752e-01), langruntime.F64Multiply(w, (langruntime.F64Add(float64(1.79706750811820387126e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(-3.68452016781138256760e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(8.81081882437654011382e-04), langruntime.F64Multiply(w, float64(-3.12754168375120860518e-04))))))))))))
+			p3 := langruntime.F64Add(float64(6.46249402391333854778e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(-1.03142241298341437450e-02), langruntime.F64Multiply(w, (langruntime.F64Add(float64(2.25964780900612472250e-03), langruntime.F64Multiply(w, (langruntime.F64Add(float64(-5.38595305356740546715e-04), langruntime.F64Multiply(w, float64(3.35529192635519073543e-04))))))))))))
+			p := langruntime.F64Subtract(langruntime.F64Multiply(z, p1), (langruntime.F64Subtract(float64(-3.63867699703950536541e-18), langruntime.F64Multiply(w, (langruntime.F64Add(p2, langruntime.F64Multiply(y, p3)))))))
+			r = langruntime.F64Add(r, (langruntime.F64Add(float64(-1.21486290535849611461e-01), p)))
+		}
+		if i == 2 {
+			p1 := langruntime.F64Multiply(y, (langruntime.F64Add(float64(-7.72156649015328655494e-02), langruntime.F64Multiply(y, (langruntime.F64Add(float64(6.32827064025093366517e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.45492250137234768737e+00), langruntime.F64Multiply(y, (langruntime.F64Add(float64(9.77717527963372745603e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(2.28963728064692451092e-01), langruntime.F64Multiply(y, float64(1.33810918536787660377e-02)))))))))))))))))
+			p2 := langruntime.F64Add(float64(1.0), langruntime.F64Multiply(y, (langruntime.F64Add(float64(2.45597793713041134822e+00), langruntime.F64Multiply(y, (langruntime.F64Add(float64(2.12848976379893395361e+00), langruntime.F64Multiply(y, (langruntime.F64Add(float64(7.69285150456672783825e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.04222645593369134254e-01), langruntime.F64Multiply(y, float64(3.21709242282423911810e-03)))))))))))))))
+			r = langruntime.F64Add(r, (langruntime.F64Add(langruntime.F64Multiply(float64(-0.5), y), langruntime.F64Divide(p1, p2))))
+		}
+	} else if high < int64(1075838976) {
+		i := langruntime.F64ToI32(x)
+		y := langruntime.F64Subtract(x, (float64(i)))
+		p := langruntime.F64Multiply(y, (langruntime.F64Add(float64(-7.72156649015328655494e-02), langruntime.F64Multiply(y, (langruntime.F64Add(float64(2.14982415960608852501e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(3.25778796408930981787e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.46350472652464452805e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(2.66422703033638609560e-02), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.84028451407337715652e-03), langruntime.F64Multiply(y, float64(3.19475326584100867617e-05))))))))))))))))))))
+		q := langruntime.F64Add(float64(1.0), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.39200533467621045958e+00), langruntime.F64Multiply(y, (langruntime.F64Add(float64(7.21935547567138069525e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.71933865632803078993e-01), langruntime.F64Multiply(y, (langruntime.F64Add(float64(1.86459191715652901344e-02), langruntime.F64Multiply(y, (langruntime.F64Add(float64(7.77942496381893596434e-04), langruntime.F64Multiply(y, float64(7.32668430744625636189e-06))))))))))))))))))
+		r = langruntime.F64Add(langruntime.F64Multiply(float64(0.5), y), langruntime.F64Divide(p, q))
+		z := float64(1.0)
+		if i >= 7 {
+			z = langruntime.F64Multiply(z, (langruntime.F64Add(y, float64(6.0))))
+		}
+		if i >= 6 {
+			z = langruntime.F64Multiply(z, (langruntime.F64Add(y, float64(5.0))))
+		}
+		if i >= 5 {
+			z = langruntime.F64Multiply(z, (langruntime.F64Add(y, float64(4.0))))
+		}
+		if i >= 4 {
+			z = langruntime.F64Multiply(z, (langruntime.F64Add(y, float64(3.0))))
+		}
+		if i >= 3 {
+			z = langruntime.F64Multiply(z, (langruntime.F64Add(y, float64(2.0))))
+			r = langruntime.F64Add(r, muslLog(z))
+		}
+	} else if high < int64(1133510656) {
+		t := muslLog(x)
+		z := langruntime.F64Divide(float64(1.0), x)
+		y := langruntime.F64Multiply(z, z)
+		w := langruntime.F64Add(float64(4.18938533204672725052e-01), langruntime.F64Multiply(z, (langruntime.F64Add(float64(8.33333333333329678849e-02), langruntime.F64Multiply(y, (langruntime.F64Add(float64(-2.77777777728775536470e-03), langruntime.F64Multiply(y, (langruntime.F64Add(float64(7.93650558643019558500e-04), langruntime.F64Multiply(y, (langruntime.F64Add(float64(-5.95187557450339963135e-04), langruntime.F64Multiply(y, (langruntime.F64Add(float64(8.36339918996282139126e-04), langruntime.F64Multiply(y, float64(-1.63092934096575273989e-03))))))))))))))))))
+		r = langruntime.F64Add(langruntime.F64Multiply((langruntime.F64Subtract(x, float64(0.5))), (langruntime.F64Subtract(t, float64(1.0)))), w)
+	} else {
+		r = langruntime.F64Multiply(x, (langruntime.F64Subtract(muslLog(x), float64(1.0))))
+	}
+	if negative {
+		r = langruntime.F64Subtract(nadj, r)
+	}
+	return r
+}
+func muslSinpiLgamma(input float64) float64 {
+	x := langruntime.F64Multiply(float64(2.0), (langruntime.F64Subtract(langruntime.F64Multiply(input, float64(0.5)), float8FloorValue(langruntime.F64Multiply(input, float64(0.5))))))
+	n := langruntime.F64ToI32((langruntime.F64Multiply(x, float64(4.0))))
+	n = langruntime.CheckedI32(langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(n, 1)), 2))
+	x = langruntime.F64Subtract(x, langruntime.F64Multiply((float64(n)), float64(0.5)))
+	x = langruntime.F64Multiply(x, gammaPi)
+	if n == 1 {
+		return circleCosineKernel(x, float64(0.0))
+	}
+	if n == 2 {
+		return circleSineKernel(langruntime.F64Negate(x), float64(0.0), false)
+	}
+	if n == 3 {
+		return langruntime.F64Negate(circleCosineKernel(x, float64(0.0)))
+	}
+	return circleSineKernel(x, float64(0.0), false)
+}
+func LgammaRpzb(input checkruntime.Float8Value, musl bool) checkruntime.Float8Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		if langruntime.F64Abs(number) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.MakeFloat8Value(langruntime.F64Divide(float64(1.0), float64(0.0)))
+		}
+		if musl == false {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		result := muslLgamma(number)
+		if langruntime.F64Abs(result) == langruntime.F64Divide(float64(1.0), float64(0.0)) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
 }
 
 var muslExpPoly = []int64{int64(4602678819172646333), int64(4595172819793695804), int64(4586165622581701521), int64(4575957462836105239)}

@@ -51,7 +51,7 @@ export function trigonometryContext(item: BuiltinCallable): boolean {
   return circlePolygonTrigonometry(item) || floatTrigonometry(item)
 }
 
-// Exponentials, logarithms, roots, powers and hyperbolic functions come from musl's Arm-derived routines, so only a
+// Exponentials, logarithms, roots, powers, hyperbolic, error and gamma functions come from musl's routines, so only a
 // PostgreSQL built against musl, as PGlite is, reproduces their exact bits.
 const unaryMathLibrary = new Set([
   'exp',
@@ -69,6 +69,10 @@ const unaryMathLibrary = new Set([
   'asinh',
   'acosh',
   'atanh',
+  'erf',
+  'erfc',
+  'gamma',
+  'lgamma',
 ])
 const binaryMathLibrary = new Set(['pow', 'power', 'dpow'])
 

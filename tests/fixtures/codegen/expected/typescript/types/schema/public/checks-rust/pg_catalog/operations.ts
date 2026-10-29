@@ -14,6 +14,17 @@
  * is preserved.
  */
 
+// Transcribed from musl's erf and erfc, which keep fdlibm's rational approximations and use the
+// Arm-derived exp in the tails; PostgreSQL calls them through derf and derfc.
+
+/*
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ * Developed at SunSoft, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ */
+
 // Transcribed from musl's expm1, log1p, __expo2 and hyperbolic functions, which PostgreSQL calls
 // through dsinh, dcosh, dtanh, dasinh, dacosh and datanh. musl sets no errno, so overflowing
 // sinh and cosh return infinity rather than an error, as in PGlite.
@@ -13220,6 +13231,427 @@ export function int8Kmmw(input: checkruntime.Float8Value): checkruntime.Int8Valu
 }
 export function float4Frus(input: checkruntime.Float8Value): checkruntime.Float4Value {
     return float8Narrow(input);
+}
+const erfErx = 8.45062911510467529297e-01;
+function muslErfSmall(z: number): number {
+    z = langruntime.checkedF64(z);
+    const r: number = langruntime.f64Add(1.28379167095512558561e-01, langruntime.f64Multiply(z, (langruntime.f64Add(-3.25042107247001499370e-01, langruntime.f64Multiply(z, (langruntime.f64Add(-2.84817495755985104766e-02, langruntime.f64Multiply(z, (langruntime.f64Add(-5.77027029648944159157e-03, langruntime.f64Multiply(z, -2.37630166566501626084e-05)))))))))));
+    const s: number = langruntime.f64Add(1.0, langruntime.f64Multiply(z, (langruntime.f64Add(3.97917223959155352819e-01, langruntime.f64Multiply(z, (langruntime.f64Add(6.50222499887672944485e-02, langruntime.f64Multiply(z, (langruntime.f64Add(5.08130628187576562776e-03, langruntime.f64Multiply(z, (langruntime.f64Add(1.32494738004321644526e-04, langruntime.f64Multiply(z, -3.96022827877536812320e-06))))))))))))));
+    return langruntime.f64Divide(r, s);
+}
+function muslErfc1(x: number): number {
+    x = langruntime.checkedF64(x);
+    const s: number = langruntime.f64Subtract(langruntime.f64Abs(x), 1.0);
+    const p: number = langruntime.f64Add(-2.36211856075265944077e-03, langruntime.f64Multiply(s, (langruntime.f64Add(4.14856118683748331666e-01, langruntime.f64Multiply(s, (langruntime.f64Add(-3.72207876035701323847e-01, langruntime.f64Multiply(s, (langruntime.f64Add(3.18346619901161753674e-01, langruntime.f64Multiply(s, (langruntime.f64Add(-1.10894694282396677476e-01, langruntime.f64Multiply(s, (langruntime.f64Add(3.54783043256182359371e-02, langruntime.f64Multiply(s, -2.16637559486879084300e-03)))))))))))))))));
+    const q: number = langruntime.f64Add(1.0, langruntime.f64Multiply(s, (langruntime.f64Add(1.06420880400844228286e-01, langruntime.f64Multiply(s, (langruntime.f64Add(5.40397917702171048937e-01, langruntime.f64Multiply(s, (langruntime.f64Add(7.18286544141962662868e-02, langruntime.f64Multiply(s, (langruntime.f64Add(1.26171219808761642112e-01, langruntime.f64Multiply(s, (langruntime.f64Add(1.36370839120290507362e-02, langruntime.f64Multiply(s, 1.19844998467991074170e-02)))))))))))))))));
+    return langruntime.f64Subtract(langruntime.f64Subtract(1.0, erfErx), langruntime.f64Divide(p, q));
+}
+function muslErfc2(high: bigint, input: number): number {
+    high = langruntime.checkedI64(high);
+    input = langruntime.checkedF64(input);
+    if (high < 1072955392n) {
+        return muslErfc1(input);
+    }
+    const x: number = langruntime.f64Abs(input);
+    const s: number = langruntime.f64Divide(1.0, (langruntime.f64Multiply(x, x)));
+    let r: number = 0.0;
+    let bigS: number = 0.0;
+    if (high < 1074191213n) {
+        r = langruntime.checkedF64(langruntime.f64Add(-9.86494403484714822705e-03, langruntime.f64Multiply(s, (langruntime.f64Add(-6.93858572707181764372e-01, langruntime.f64Multiply(s, (langruntime.f64Add(-1.05586262253232909814e+01, langruntime.f64Multiply(s, (langruntime.f64Add(-6.23753324503260060396e+01, langruntime.f64Multiply(s, (langruntime.f64Add(-1.62396669462573470355e+02, langruntime.f64Multiply(s, (langruntime.f64Add(-1.84605092906711035994e+02, langruntime.f64Multiply(s, (langruntime.f64Add(-8.12874355063065934246e+01, langruntime.f64Multiply(s, -9.81432934416914548592e+00)))))))))))))))))))));
+        bigS = langruntime.checkedF64(langruntime.f64Add(1.0, langruntime.f64Multiply(s, (langruntime.f64Add(1.96512716674392571292e+01, langruntime.f64Multiply(s, (langruntime.f64Add(1.37657754143519042600e+02, langruntime.f64Multiply(s, (langruntime.f64Add(4.34565877475229228821e+02, langruntime.f64Multiply(s, (langruntime.f64Add(6.45387271733267880336e+02, langruntime.f64Multiply(s, (langruntime.f64Add(4.29008140027567833386e+02, langruntime.f64Multiply(s, (langruntime.f64Add(1.08635005541779435134e+02, langruntime.f64Multiply(s, (langruntime.f64Add(6.57024977031928170135e+00, langruntime.f64Multiply(s, -6.04244152148580987438e-02))))))))))))))))))))))));
+    }
+    else {
+        r = langruntime.checkedF64(langruntime.f64Add(-9.86494292470009928597e-03, langruntime.f64Multiply(s, (langruntime.f64Add(-7.99283237680523006574e-01, langruntime.f64Multiply(s, (langruntime.f64Add(-1.77579549177547519889e+01, langruntime.f64Multiply(s, (langruntime.f64Add(-1.60636384855821916062e+02, langruntime.f64Multiply(s, (langruntime.f64Add(-6.37566443368389627722e+02, langruntime.f64Multiply(s, (langruntime.f64Add(-1.02509513161107724954e+03, langruntime.f64Multiply(s, -4.83519191608651397019e+02))))))))))))))))));
+        bigS = langruntime.checkedF64(langruntime.f64Add(1.0, langruntime.f64Multiply(s, (langruntime.f64Add(3.03380607434824582924e+01, langruntime.f64Multiply(s, (langruntime.f64Add(3.25792512996573918826e+02, langruntime.f64Multiply(s, (langruntime.f64Add(1.53672958608443695994e+03, langruntime.f64Multiply(s, (langruntime.f64Add(3.19985821950859553908e+03, langruntime.f64Multiply(s, (langruntime.f64Add(2.55305040643316442583e+03, langruntime.f64Multiply(s, (langruntime.f64Add(4.74528541206955367215e+02, langruntime.f64Multiply(s, -2.24409524465858183362e+01)))))))))))))))))))));
+    }
+    const z: number = float8ClearLowWord(x);
+    return langruntime.f64Divide(langruntime.f64Multiply(muslExp(langruntime.f64Subtract(langruntime.f64Multiply(langruntime.f64Negate(z), z), 0.5625)), muslExp(langruntime.f64Add(langruntime.f64Multiply((langruntime.f64Subtract(z, x)), (langruntime.f64Add(z, x))), langruntime.f64Divide(r, bigS)))), x);
+}
+function muslErf(x: number): number {
+    x = langruntime.checkedF64(x);
+    const negative: boolean = langruntime.f64ToI64Bits(x) < 0n;
+    const high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    if (high >= 2146435072n) {
+        let sign: number = 1.0;
+        if (negative) {
+            sign = langruntime.checkedF64(-1.0);
+        }
+        return langruntime.f64Add(sign, langruntime.f64Divide(1.0, x));
+    }
+    if (high < 1072365568n) {
+        if (high < 1043333120n) {
+            return langruntime.f64Multiply(0.125, (langruntime.f64Add(langruntime.f64Multiply(8.0, x), langruntime.f64Multiply(1.02703333676410069053e+00, x))));
+        }
+        return langruntime.f64Add(x, langruntime.f64Multiply(x, muslErfSmall(langruntime.f64Multiply(x, x))));
+    }
+    let y: number = langruntime.f64Subtract(1.0, 2.2250738585072014e-308);
+    if (high < 1075314688n) {
+        y = langruntime.checkedF64(langruntime.f64Subtract(1.0, muslErfc2(high, x)));
+    }
+    if (negative) {
+        return langruntime.f64Negate(y);
+    }
+    return y;
+}
+function muslErfc(x: number): number {
+    x = langruntime.checkedF64(x);
+    const negative: boolean = langruntime.f64ToI64Bits(x) < 0n;
+    const high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    if (high >= 2146435072n) {
+        let twiceSign: number = 0.0;
+        if (negative) {
+            twiceSign = langruntime.checkedF64(2.0);
+        }
+        return langruntime.f64Add(twiceSign, langruntime.f64Divide(1.0, x));
+    }
+    if (high < 1072365568n) {
+        if (high < 1013972992n) {
+            return langruntime.f64Subtract(1.0, x);
+        }
+        const y: number = muslErfSmall(langruntime.f64Multiply(x, x));
+        if (negative || high < 1070596096n) {
+            return langruntime.f64Subtract(1.0, (langruntime.f64Add(x, langruntime.f64Multiply(x, y))));
+        }
+        return langruntime.f64Subtract(0.5, (langruntime.f64Add(langruntime.f64Subtract(x, 0.5), langruntime.f64Multiply(x, y))));
+    }
+    if (high < 1077673984n) {
+        if (negative) {
+            return langruntime.f64Subtract(2.0, muslErfc2(high, x));
+        }
+        return muslErfc2(high, x);
+    }
+    if (negative) {
+        return langruntime.f64Subtract(2.0, 2.2250738585072014e-308);
+    }
+    return langruntime.f64Multiply(2.2250738585072014e-308, 2.2250738585072014e-308);
+}
+function float8ErrorFunction(input: checkruntime.Float8Value, musl: boolean, complement: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    complement = langruntime.checkedBool(complement);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        if (complement) {
+            return checkruntime.makeFloat8Value(muslErfc(number));
+        }
+        return checkruntime.makeFloat8Value(muslErf(number));
+    }
+    return input;
+}
+export function erfNlw2(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8ErrorFunction(input, musl, false);
+}
+export function erfcOibn(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    return float8ErrorFunction(input, musl, true);
+}
+const gammaNumerator: ReadonlyArray<bigint> = [4761969815764182174n, 4765930390633663575n, 4764985644051772954n, 4760499098151822874n, 4753126926655529448n, 4743825433057030975n, 4732626853539962666n, 4719201174427651224n, 4703431370238653516n, 4685632857438652395n, 4665596911923288068n, 4641621736398011218n, 4612826843881809669n];
+const gammaDenominator: ReadonlyArray<bigint> = [0n, 4720626352061939712n, 4727861969648877568n, 4729339976074919936n, 4726836159391465472n, 4721442252235210752n, 4713423218923274240n, 4702918524023078912n, 4689884092848668672n, 4674709475175694336n, 4656181054980227072n, 4634344754052595712n, 4607182418800017408n];
+const gammaFactorials: ReadonlyArray<bigint> = [4607182418800017408n, 4607182418800017408n, 4611686018427387904n, 4618441417868443648n, 4627448617123184640n, 4638144666238189568n, 4649544402794971136n, 4662263553305083904n, 4675774352187195392n, 4689977843394805760n, 4705047200009289728n, 4720626352061939712n, 4736815922046566400n, 4753323511810883584n, 4770521722250067968n, 4788179038478794752n, 4806193436988276736n, 4824542600135966720n, 4843268373501640704n, 4862483217080946688n, 4882150158176967168n, 4901649482228549152n, 4922002638466838636n];
+const gammaPi = 3.141592653589793238462643383279502884;
+const gammaHalfOffset = 5.524680040776729583740234375;
+function muslSinpi(input: number): number {
+    input = langruntime.checkedF64(input);
+    let x: number = langruntime.f64Multiply(input, 0.5);
+    x = langruntime.checkedF64(langruntime.f64Multiply(2.0, (langruntime.f64Subtract(x, float8FloorValue(x)))));
+    let n: number = langruntime.f64ToI32((langruntime.f64Multiply(4.0, x)));
+    n = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(n, 1)), 2));
+    x = langruntime.checkedF64(langruntime.f64Subtract(x, langruntime.f64Multiply((Number(langruntime.checkedI32(n))), 0.5)));
+    x = langruntime.checkedF64(langruntime.f64Multiply(x, gammaPi));
+    if (n === 1) {
+        return circleCosineKernel(x, 0.0);
+    }
+    if (n === 2) {
+        return circleSineKernel(langruntime.f64Negate(x), 0.0, false);
+    }
+    if (n === 3) {
+        return langruntime.f64Negate(circleCosineKernel(x, 0.0));
+    }
+    return circleSineKernel(x, 0.0, false);
+}
+function muslGammaSeries(x: number): number {
+    x = langruntime.checkedF64(x);
+    let num: number = 0.0;
+    let den: number = 0.0;
+    if (x < 8.0) {
+        let i: number = 13;
+        while (i > 0) {
+            i = langruntime.checkedIndex(langruntime.checkedSubtract(i, 1));
+            num = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(num, x), langruntime.f64FromI64Bits(langruntime.indexStatic(gammaNumerator, langruntime.checkedIndex(i)))));
+            den = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(den, x), langruntime.f64FromI64Bits(langruntime.indexStatic(gammaDenominator, langruntime.checkedIndex(i)))));
+        }
+    }
+    else {
+        let i: number = 0;
+        while (i < 13) {
+            num = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Divide(num, x), langruntime.f64FromI64Bits(langruntime.indexStatic(gammaNumerator, langruntime.checkedIndex(i)))));
+            den = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Divide(den, x), langruntime.f64FromI64Bits(langruntime.indexStatic(gammaDenominator, langruntime.checkedIndex(i)))));
+            i = langruntime.checkedAdd(i, 1);
+        }
+    }
+    return langruntime.f64Divide(num, den);
+}
+function muslTgamma(input: number): number {
+    input = langruntime.checkedF64(input);
+    const x: number = input;
+    const high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(x)));
+    const negative: boolean = langruntime.f64ToI64Bits(x) < 0n;
+    if (high >= 2146435072n) {
+        return langruntime.f64Add(x, langruntime.f64Divide(1.0, 0.0));
+    }
+    if (high < 1016070144n) {
+        return langruntime.f64Divide(1.0, x);
+    }
+    if (x === float8FloorValue(x)) {
+        if (negative) {
+            return langruntime.f64Divide(0.0, 0.0);
+        }
+        if (x <= 23.0) {
+            let index: number = 0;
+            let remaining: number = langruntime.f64Subtract(x, 1.0);
+            while (remaining > 0.0) {
+                index = langruntime.checkedAdd(index, 1);
+                remaining = langruntime.checkedF64(langruntime.f64Subtract(remaining, 1.0));
+            }
+            return langruntime.f64FromI64Bits(langruntime.indexStatic(gammaFactorials, langruntime.checkedIndex(index)));
+        }
+    }
+    if (high >= 1080492032n) {
+        if (negative) {
+            if (langruntime.f64Multiply(float8FloorValue(x), 0.5) === float8FloorValue(langruntime.f64Multiply(x, 0.5))) {
+                return 0.0;
+            }
+            return -0.0;
+        }
+        return langruntime.f64Multiply(x, 8.98846567431158e+307);
+    }
+    const absx: number = langruntime.f64Abs(x);
+    let y: number = langruntime.f64Add(absx, gammaHalfOffset);
+    let dy: number = 0.0;
+    if (absx > gammaHalfOffset) {
+        dy = langruntime.checkedF64(langruntime.f64Subtract(y, absx));
+        dy = langruntime.checkedF64(langruntime.f64Subtract(dy, gammaHalfOffset));
+    }
+    else {
+        dy = langruntime.checkedF64(langruntime.f64Subtract(y, gammaHalfOffset));
+        dy = langruntime.checkedF64(langruntime.f64Subtract(dy, absx));
+    }
+    let z: number = langruntime.f64Subtract(absx, 0.5);
+    let r: number = langruntime.f64Multiply(muslGammaSeries(absx), muslExp(langruntime.f64Negate(y)));
+    if (x < 0.0) {
+        r = langruntime.checkedF64(langruntime.f64Divide(langruntime.f64Negate(gammaPi), (langruntime.f64Multiply(langruntime.f64Multiply(muslSinpi(absx), absx), r))));
+        dy = langruntime.checkedF64(langruntime.f64Negate(dy));
+        z = langruntime.checkedF64(langruntime.f64Negate(z));
+    }
+    r = langruntime.checkedF64(langruntime.f64Add(r, langruntime.f64Divide(langruntime.f64Multiply(langruntime.f64Multiply(dy, (langruntime.f64Add(gammaHalfOffset, 0.5))), r), y)));
+    z = langruntime.checkedF64(muslPow(y, langruntime.f64Multiply(0.5, z)));
+    y = langruntime.checkedF64(langruntime.f64Multiply(langruntime.f64Multiply(r, z), z));
+    return y;
+}
+export function gammaT3sa(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (number === langruntime.f64Divide(1.0, 0.0)) {
+            return input;
+        }
+        if (number === langruntime.f64Divide(-1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        const result: number = muslTgamma(number);
+        if (!(result === result) || langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0) || result === 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+function muslLgamma(input: number): number {
+    input = langruntime.checkedF64(input);
+    const negative: boolean = langruntime.f64ToI64Bits(input) < 0n;
+    const high: bigint = BigInt(langruntime.checkedI32(circleMathHighWord(input)));
+    if (high >= 2146435072n) {
+        return langruntime.f64Multiply(input, input);
+    }
+    if (input === 0.0) {
+        return langruntime.f64Divide(1.0, 0.0);
+    }
+    if (high < 999292928n) {
+        return langruntime.f64Negate(muslLog(langruntime.f64Abs(input)));
+    }
+    let x: number = input;
+    let nadj: number = 0.0;
+    if (negative) {
+        x = langruntime.checkedF64(langruntime.f64Negate(x));
+        let t: number = muslSinpiLgamma(x);
+        if (t === 0.0) {
+            return langruntime.f64Divide(1.0, (langruntime.f64Subtract(x, x)));
+        }
+        if (t < 0.0) {
+            t = langruntime.checkedF64(langruntime.f64Negate(t));
+        }
+        nadj = langruntime.checkedF64(muslLog(langruntime.f64Divide(gammaPi, (langruntime.f64Multiply(t, x)))));
+    }
+    let r: number = 0.0;
+    if (x === 1.0 || x === 2.0) {
+        r = langruntime.checkedF64(0.0);
+    }
+    else if (high < 1073741824n) {
+        let y: number = 0.0;
+        let i: number = 0;
+        if (high <= 1072483532n) {
+            r = langruntime.checkedF64(langruntime.f64Negate(muslLog(x)));
+            if (high >= 1072130372n) {
+                y = langruntime.checkedF64(langruntime.f64Subtract(1.0, x));
+                i = langruntime.checkedI32(0);
+            }
+            else if (high >= 1070442081n) {
+                y = langruntime.checkedF64(langruntime.f64Subtract(x, (langruntime.f64Subtract(1.46163214496836224576e+00, 1.0))));
+                i = langruntime.checkedI32(1);
+            }
+            else {
+                y = langruntime.checkedF64(x);
+                i = langruntime.checkedI32(2);
+            }
+        }
+        else {
+            r = langruntime.checkedF64(0.0);
+            if (high >= 1073460419n) {
+                y = langruntime.checkedF64(langruntime.f64Subtract(2.0, x));
+                i = langruntime.checkedI32(0);
+            }
+            else if (high >= 1072936132n) {
+                y = langruntime.checkedF64(langruntime.f64Subtract(x, 1.46163214496836224576e+00));
+                i = langruntime.checkedI32(1);
+            }
+            else {
+                y = langruntime.checkedF64(langruntime.f64Subtract(x, 1.0));
+                i = langruntime.checkedI32(2);
+            }
+        }
+        if (i === 0) {
+            const z: number = langruntime.f64Multiply(y, y);
+            const p1: number = langruntime.f64Add(7.72156649015328655494e-02, langruntime.f64Multiply(z, (langruntime.f64Add(6.73523010531292681824e-02, langruntime.f64Multiply(z, (langruntime.f64Add(7.38555086081402883957e-03, langruntime.f64Multiply(z, (langruntime.f64Add(1.19270763183362067845e-03, langruntime.f64Multiply(z, (langruntime.f64Add(2.20862790713908385557e-04, langruntime.f64Multiply(z, 2.52144565451257326939e-05))))))))))))));
+            const p2: number = langruntime.f64Multiply(z, (langruntime.f64Add(3.22467033424113591611e-01, langruntime.f64Multiply(z, (langruntime.f64Add(2.05808084325167332806e-02, langruntime.f64Multiply(z, (langruntime.f64Add(2.89051383673415629091e-03, langruntime.f64Multiply(z, (langruntime.f64Add(5.10069792153511336608e-04, langruntime.f64Multiply(z, (langruntime.f64Add(1.08011567247583939954e-04, langruntime.f64Multiply(z, 4.48640949618915160150e-05))))))))))))))));
+            const p: number = langruntime.f64Add(langruntime.f64Multiply(y, p1), p2);
+            r = langruntime.checkedF64(langruntime.f64Add(r, (langruntime.f64Subtract(p, langruntime.f64Multiply(0.5, y)))));
+        }
+        if (i === 1) {
+            const z: number = langruntime.f64Multiply(y, y);
+            const w: number = langruntime.f64Multiply(z, y);
+            const p1: number = langruntime.f64Add(4.83836122723810047042e-01, langruntime.f64Multiply(w, (langruntime.f64Add(-3.27885410759859649565e-02, langruntime.f64Multiply(w, (langruntime.f64Add(6.10053870246291332635e-03, langruntime.f64Multiply(w, (langruntime.f64Add(-1.40346469989232843813e-03, langruntime.f64Multiply(w, 3.15632070903625950361e-04)))))))))));
+            const p2: number = langruntime.f64Add(-1.47587722994593911752e-01, langruntime.f64Multiply(w, (langruntime.f64Add(1.79706750811820387126e-02, langruntime.f64Multiply(w, (langruntime.f64Add(-3.68452016781138256760e-03, langruntime.f64Multiply(w, (langruntime.f64Add(8.81081882437654011382e-04, langruntime.f64Multiply(w, -3.12754168375120860518e-04)))))))))));
+            const p3: number = langruntime.f64Add(6.46249402391333854778e-02, langruntime.f64Multiply(w, (langruntime.f64Add(-1.03142241298341437450e-02, langruntime.f64Multiply(w, (langruntime.f64Add(2.25964780900612472250e-03, langruntime.f64Multiply(w, (langruntime.f64Add(-5.38595305356740546715e-04, langruntime.f64Multiply(w, 3.35529192635519073543e-04)))))))))));
+            const p: number = langruntime.f64Subtract(langruntime.f64Multiply(z, p1), (langruntime.f64Subtract(-3.63867699703950536541e-18, langruntime.f64Multiply(w, (langruntime.f64Add(p2, langruntime.f64Multiply(y, p3)))))));
+            r = langruntime.checkedF64(langruntime.f64Add(r, (langruntime.f64Add(-1.21486290535849611461e-01, p))));
+        }
+        if (i === 2) {
+            const p1: number = langruntime.f64Multiply(y, (langruntime.f64Add(-7.72156649015328655494e-02, langruntime.f64Multiply(y, (langruntime.f64Add(6.32827064025093366517e-01, langruntime.f64Multiply(y, (langruntime.f64Add(1.45492250137234768737e+00, langruntime.f64Multiply(y, (langruntime.f64Add(9.77717527963372745603e-01, langruntime.f64Multiply(y, (langruntime.f64Add(2.28963728064692451092e-01, langruntime.f64Multiply(y, 1.33810918536787660377e-02))))))))))))))));
+            const p2: number = langruntime.f64Add(1.0, langruntime.f64Multiply(y, (langruntime.f64Add(2.45597793713041134822e+00, langruntime.f64Multiply(y, (langruntime.f64Add(2.12848976379893395361e+00, langruntime.f64Multiply(y, (langruntime.f64Add(7.69285150456672783825e-01, langruntime.f64Multiply(y, (langruntime.f64Add(1.04222645593369134254e-01, langruntime.f64Multiply(y, 3.21709242282423911810e-03))))))))))))));
+            r = langruntime.checkedF64(langruntime.f64Add(r, (langruntime.f64Add(langruntime.f64Multiply(-0.5, y), langruntime.f64Divide(p1, p2)))));
+        }
+    }
+    else if (high < 1075838976n) {
+        const i: number = langruntime.f64ToI32(x);
+        const y: number = langruntime.f64Subtract(x, (Number(langruntime.checkedI32(i))));
+        const p: number = langruntime.f64Multiply(y, (langruntime.f64Add(-7.72156649015328655494e-02, langruntime.f64Multiply(y, (langruntime.f64Add(2.14982415960608852501e-01, langruntime.f64Multiply(y, (langruntime.f64Add(3.25778796408930981787e-01, langruntime.f64Multiply(y, (langruntime.f64Add(1.46350472652464452805e-01, langruntime.f64Multiply(y, (langruntime.f64Add(2.66422703033638609560e-02, langruntime.f64Multiply(y, (langruntime.f64Add(1.84028451407337715652e-03, langruntime.f64Multiply(y, 3.19475326584100867617e-05)))))))))))))))))));
+        const q: number = langruntime.f64Add(1.0, langruntime.f64Multiply(y, (langruntime.f64Add(1.39200533467621045958e+00, langruntime.f64Multiply(y, (langruntime.f64Add(7.21935547567138069525e-01, langruntime.f64Multiply(y, (langruntime.f64Add(1.71933865632803078993e-01, langruntime.f64Multiply(y, (langruntime.f64Add(1.86459191715652901344e-02, langruntime.f64Multiply(y, (langruntime.f64Add(7.77942496381893596434e-04, langruntime.f64Multiply(y, 7.32668430744625636189e-06)))))))))))))))));
+        r = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(0.5, y), langruntime.f64Divide(p, q)));
+        let z: number = 1.0;
+        if (i >= 7) {
+            z = langruntime.checkedF64(langruntime.f64Multiply(z, (langruntime.f64Add(y, 6.0))));
+        }
+        if (i >= 6) {
+            z = langruntime.checkedF64(langruntime.f64Multiply(z, (langruntime.f64Add(y, 5.0))));
+        }
+        if (i >= 5) {
+            z = langruntime.checkedF64(langruntime.f64Multiply(z, (langruntime.f64Add(y, 4.0))));
+        }
+        if (i >= 4) {
+            z = langruntime.checkedF64(langruntime.f64Multiply(z, (langruntime.f64Add(y, 3.0))));
+        }
+        if (i >= 3) {
+            z = langruntime.checkedF64(langruntime.f64Multiply(z, (langruntime.f64Add(y, 2.0))));
+            r = langruntime.checkedF64(langruntime.f64Add(r, muslLog(z)));
+        }
+    }
+    else if (high < 1133510656n) {
+        const t: number = muslLog(x);
+        const z: number = langruntime.f64Divide(1.0, x);
+        const y: number = langruntime.f64Multiply(z, z);
+        const w: number = langruntime.f64Add(4.18938533204672725052e-01, langruntime.f64Multiply(z, (langruntime.f64Add(8.33333333333329678849e-02, langruntime.f64Multiply(y, (langruntime.f64Add(-2.77777777728775536470e-03, langruntime.f64Multiply(y, (langruntime.f64Add(7.93650558643019558500e-04, langruntime.f64Multiply(y, (langruntime.f64Add(-5.95187557450339963135e-04, langruntime.f64Multiply(y, (langruntime.f64Add(8.36339918996282139126e-04, langruntime.f64Multiply(y, -1.63092934096575273989e-03)))))))))))))))));
+        r = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply((langruntime.f64Subtract(x, 0.5)), (langruntime.f64Subtract(t, 1.0))), w));
+    }
+    else {
+        r = langruntime.checkedF64(langruntime.f64Multiply(x, (langruntime.f64Subtract(muslLog(x), 1.0))));
+    }
+    if (negative) {
+        r = langruntime.checkedF64(langruntime.f64Subtract(nadj, r));
+    }
+    return r;
+}
+function muslSinpiLgamma(input: number): number {
+    input = langruntime.checkedF64(input);
+    let x: number = langruntime.f64Multiply(2.0, (langruntime.f64Subtract(langruntime.f64Multiply(input, 0.5), float8FloorValue(langruntime.f64Multiply(input, 0.5)))));
+    let n: number = langruntime.f64ToI32((langruntime.f64Multiply(x, 4.0)));
+    n = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(n, 1)), 2));
+    x = langruntime.checkedF64(langruntime.f64Subtract(x, langruntime.f64Multiply((Number(langruntime.checkedI32(n))), 0.5)));
+    x = langruntime.checkedF64(langruntime.f64Multiply(x, gammaPi));
+    if (n === 1) {
+        return circleCosineKernel(x, 0.0);
+    }
+    if (n === 2) {
+        return circleSineKernel(langruntime.f64Negate(x), 0.0, false);
+    }
+    if (n === 3) {
+        return langruntime.f64Negate(circleCosineKernel(x, 0.0));
+    }
+    return circleSineKernel(x, 0.0, false);
+}
+export function lgammaRpzb(input: checkruntime.Float8Value, musl: boolean): checkruntime.Float8Value {
+    musl = langruntime.checkedBool(musl);
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        if (langruntime.f64Abs(number) === langruntime.f64Divide(1.0, 0.0)) {
+            return checkruntime.makeFloat8Value(langruntime.f64Divide(1.0, 0.0));
+        }
+        if (musl === false) {
+            return { kind: "Unknown" };
+        }
+        const result: number = muslLgamma(number);
+        if (langruntime.f64Abs(result) === langruntime.f64Divide(1.0, 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
 }
 const muslExpPoly: ReadonlyArray<bigint> = [4602678819172646333n, 4595172819793695804n, 4586165622581701521n, 4575957462836105239n];
 const muslExpTable: ReadonlyArray<bigint> = [0n, 4607182418800017408n, 4367149474599452526n, 4607171688528556853n, -4868004084858692515n, 4607161091040444513n, -4859280119576434991n, 4607150627056680837n, 4363093389540324883n, 4607140297302181236n, -4860564323061625094n, 4607130102505797342n, 4350749156061923425n, 4607120043400338376n, 4364168240100004761n, 4607110120722592643n, 4366128403083131757n, 4607100335213349135n, 4363624214708482044n, 4607090687617419255n, 4341116261916187857n, 4607081178683658658n, -4870076522866643445n, 4607071809164989211n, -4857881712154133234n, 4607062579818421073n, -4877256630102726059n, 4607053491405074892n, -4858881367677209578n, 4607044544690204128n, 4359717415120819631n, 4607035740443217489n, -4863857816615152824n, 4607027079437701499n, -4859630355816238531n, 4607018562451443178n, 4362731899485115327n, 4607010190266452853n, -4857455882053489882n, 4607001963668987092n, 4367063335334195040n, 4606993883449571754n, -4859410923963139939n, 4606985950403025181n, 4362421515177083789n, 4606978165328481494n, 4359618604155798653n, 4606970529029414038n, 4365834109879625876n, 4606963042313658936n, 4361558225371547773n, 4606955705993438783n, 4359562691856033778n, 4606948520885386461n, -4857492308587640738n, 4606941487810569089n, 4360319936817113905n, 4606934607594512097n, -4882709470952570886n, 4606927881067223440n, 4362641697437125300n, 4606921309063217931n, 4354440509323660175n, 4606914892421541718n, 4360414030434708406n, 4606908631985796885n, 4361245865020257356n, 4606902528604166193n, 4363949802402347082n, 4606896583129437951n, -4862018976549545212n, 4606890796419031025n, -4858738662784151448n, 4606885169335019979n, -4856841960950780530n, 4606879702744160358n, -4867878926798276910n, 4606874397517914103n, -4856823124960863467n, 4606869254532475109n, 4361066948569222253n, 4606864274668794914n, -4858519367427004022n, 4606859458812608540n, -4874962362796897957n, 4606854807854460458n, -4864964451502548453n, 4606850322689730711n, 4342424336897059857n, 4606846004218661165n, 4365789078613288175n, 4606841853346381911n, 4354643160121541497n, 4606837870982937808n, 4365113450260533808n, 4606834058043315166n, 4356828907110576048n, 4606830415447468583n, 4364865165386375287n, 4606826944120347917n, -4859502521842818162n, 4606823644991925415n, -4861672301267803319n, 4606820518997222978n, -4865894452217038753n, 4606817567076339586n, -4862178651875353354n, 4606814790174478863n, 4364890759862540174n, 4606812189241976794n, 4358244976955136773n, 4606809765234329597n, 4364097860734309385n, 4606807519112221737n, 4338311716453074666n, 4606805451841554103n, 4365169902980743221n, 4606803564393472328n, -4860258889723447649n, 4606801857744395273n, -4860452975632495192n, 4606800332876043653n, -4862669920490755666n, 4606798990775468832n, -4858312122400614312n, 4606797832435081765n, 4347962289735735652n, 4606796858852682099n, -4858341730713460184n, 4606796071031487437n, -4870059510540748414n, 4606795469980162751n, -4871936092595705362n, 4606795056712849967n, -4863645441585018799n, 4606794832249197700n, -4866104880896786737n, 4606794797614391156n, -4861936742874514000n, 4606794953839182196n, -4862171044651866486n, 4606795301959919561n, 4364160436192007379n, 4606795843018579263n, -4865239048860621539n, 4606796578062795143n, 4365374511615819883n, 4606797508145889586n, 4352143969406577749n, 4606798634326904418n, -4861457929465508030n, 4606799957670631954n, -4858423338550479052n, 4606801479247646227n, -4863783675556659426n, 4606803200134334381n, -4858024654332078226n, 4606805121412928237n, 4364178698342926848n, 4606807244171536025n, 4363345029737015988n, 4606809569504174299n, -4871286895867992065n, 4606812098510800012n, 4358348108421357380n, 4606814832297342774n, -4858529541450220157n, 4606817771975737286n, -4873552611666813399n, 4606820918663955941n, -4869477542650660519n, 4606824273486041615n, -4858747092350994006n, 4606827837572140624n, -4862257653857481141n, 4606831612058535866n, 4355455812241575463n, 4606835598087680144n, 4354367543587795899n, 4606839796808229667n, -4861700651175763357n, 4606844209375077733n, 4362612029712904661n, 4606848836949388595n, -4858896013081134315n, 4606853680698631517n, 4364212552380330450n, 4606858741796615000n, 4360726356711135923n, 4606864021423521215n, -4863078573502718540n, 4606869520765940602n, 4362891239881388935n, 4606875241016906669n, -4859248142566958598n, 4606881183375930982n, -4875775683326071110n, 4606887349049038331n, -4859203616861915584n, 4606893739248802106n, -4870406652589927628n, 4606900355194379847n, -4858839866725070283n, 4606907198111549002n, 4356388038631218637n, 4606914269232742866n, -4858893633017702228n, 4606921569797086729n, 4355946959017544883n, 4606929101050434204n, 4363674894410448276n, 4606936864245403770n, 4360857247493478828n, 4606944860641415499n, 4351547817417644647n, 4606953091504727989n, 4352565403421120872n, 4606961558108475497n, -4863735759665056302n, 4606970261732705274n, -4859474856892171665n, 4606979203664415100n, -4859368956010059447n, 4606988385197591026n, 4356286533989107623n, 4606997807633245319n, -4863164539274780145n, 4607007472279454616n, 4363524392198705836n, 4607017380451398277n, 4360674496013757259n, 4607027533471396960n, -4863090309766824417n, 4607037932668951391n, -4861307347717911095n, 4607048579380781353n, 4356306869484685523n, 4607059474950864886n, 4360546482996998769n, 4607070620730477699n, -4859393813814996496n, 4607082018078232794n, -4860036451210660739n, 4607093668360120305n, 4363640302291525640n, 4607105572949547559n, 4360658257139329842n, 4607117733227379351n, 4362409866909812206n, 4607130150581978432n, -4859885672053611539n, 4607142826409246228n, 4357102052301720989n, 4607155762112663768n, 4346824392926350473n, 4607168959103332849n];
