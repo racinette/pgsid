@@ -16797,6 +16797,41 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 				return MakeInt8Value(int64(9223372036854775807))
 			}
 		}
+		leadingWord := englishDateWord(&text, start, end)
+		if englishDateWeekday(leadingWord) {
+			leadingEnd := englishDateWordEnd(&text, start, end)
+			after := englishDateGap(&text, leadingEnd, end)
+			tokenEnd := after
+			delimited := false
+			longNumber := false
+			digitRun := 0
+			for tokenEnd < end && dateTextSpace(text.chars[tokenEnd]) == false {
+				character := text.chars[tokenEnd]
+				if dateTextDigit(character) >= 0 {
+					digitRun = langruntime.CheckedAdd(digitRun, 1)
+					if digitRun >= 10 {
+						longNumber = true
+					}
+				} else {
+					digitRun = langruntime.CheckedIndex(0)
+					if tokenEnd > after && englishDateDelimiter(character) {
+						delimited = true
+					}
+				}
+				tokenEnd = langruntime.CheckedAdd(tokenEnd, 1)
+			}
+			firstWord := englishDateWord(&text, after, end)
+			julianLabel := firstWord == "j" || firstWord == "jd" || firstWord == "julian"
+			if delimited && julianLabel == false && after < end {
+				if longNumber {
+					return Int8Value{Kind: Int8ValueUnknown}
+				}
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+			}
+			if after > leadingEnd {
+				start = langruntime.CheckedIndex(after)
+			}
+		}
 		ordinal := readOrdinalDate(&text, start, end)
 		if ordinal.state == ordinalDateSyntax {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
@@ -16922,6 +16957,21 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			for index < end && dateTextSpace(text.chars[index]) {
 				index = langruntime.CheckedAdd(index, 1)
 			}
+			leadingWord := englishDateWord(&text, index, end)
+			if englishDateWeekday(leadingWord) {
+				index = langruntime.CheckedIndex(englishDateWordEnd(&text, index, end))
+				for index < end && dateTextSpace(text.chars[index]) {
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
+			clockWord := englishDateWord(&text, index, end)
+			if index == end || text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z' || clockWord == "am" || clockWord == "pm" {
+				zoneOnly = true
+			}
+		} else if zoneOnly == false {
+			return Int8Value{Kind: Int8ValueUnknown}
+		}
+		if zoneOnly && index < end {
 			zoneMark := langruntime.AsciiLowercase(text.chars[index])
 			if zoneMark == '+' || zoneMark == '-' || zoneMark == 'z' {
 				tokenEnd := langruntime.CheckedAdd(index, 1)
@@ -16946,19 +16996,9 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 					index = langruntime.CheckedIndex(digitStart)
 				}
 			}
-			leadingWord := englishDateWord(&text, index, end)
-			if englishDateWeekday(leadingWord) {
-				index = langruntime.CheckedIndex(englishDateWordEnd(&text, index, end))
-				for index < end && dateTextSpace(text.chars[index]) {
-					index = langruntime.CheckedAdd(index, 1)
-				}
+			if deferredZone {
+				zoneOnly = false
 			}
-			clockWord := englishDateWord(&text, index, end)
-			if index == end || text.chars[index] == '+' || text.chars[index] == '-' || langruntime.AsciiLowercase(text.chars[index]) == 'z' || clockWord == "am" || clockWord == "pm" {
-				zoneOnly = true
-			}
-		} else if zoneOnly == false {
-			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		hours := readTimestampNumber(&text, index, end)
 		index = langruntime.CheckedIndex(hours.next)
