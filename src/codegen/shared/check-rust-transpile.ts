@@ -145,7 +145,7 @@ export function transpileCheckRust(source: string | CheckRustSource): {
   }
 }
 
-type GoParts = {
+type CheckRustFileParts = {
   regex: string
   operations: string
   runtime: string
@@ -154,7 +154,7 @@ type GoParts = {
 }
 type GoDocument = { items: ({ module?: string; kind?: string; body?: unknown } | null)[] }
 
-const sharedGoParts = new Map<string, Omit<GoParts, 'checks'>>()
+const sharedCheckRustFileParts = new Map<string, Omit<CheckRustFileParts, 'checks'>>()
 
 // The runtime, regex and operation modules are identical across check sets, so they
 // transpile once per source and options; the checks transpile against body-free
@@ -162,7 +162,7 @@ const sharedGoParts = new Map<string, Omit<GoParts, 'checks'>>()
 function transpileSplitGo(
   document: GoDocument,
   options: ReturnType<typeof checkValueOptions> & { split: boolean; schemaImportPath: string },
-): GoParts {
+): CheckRustFileParts {
   const wasm = checkRustAsset('check-go-transpiler.wasm')
   const shared = { ...document, items: document.items.filter((item) => item?.module !== 'checks') }
   const sharedJson = JSON.stringify(shared)
@@ -171,13 +171,13 @@ function transpileSplitGo(
     .update(JSON.stringify(options))
     .update(wasm)
     .digest('hex')
-  let parts = sharedGoParts.get(key)
+  let parts = sharedCheckRustFileParts.get(key)
   if (!parts) {
     const { checks: _, ...transpiled } = JSON.parse(
       transpileGo(Buffer.from(sharedJson, 'utf8'), wasm, options),
-    ) as GoParts
+    ) as CheckRustFileParts
     parts = transpiled
-    sharedGoParts.set(key, parts)
+    sharedCheckRustFileParts.set(key, parts)
   }
   const declarations = {
     ...document,
@@ -191,41 +191,68 @@ function transpileSplitGo(
         ...options,
         emitModules: ['checks'],
       }),
-    ) as GoParts
+    ) as CheckRustFileParts
   ).checks
   return { ...parts, checks }
 }
 
-export function transpileCheckRustFiles(
-  source: CheckRustSource,
-  schemaImportPath = 'checkrust/pg_catalog',
-): {
-  typescript: {
-    regex: string
-    operations: string
-    runtime: string
-    language: string
-    checks: string
-  }
-  go: { regex: string; operations: string; runtime: string; language: string; checks: string }
-} {
+function parseCheckRustDocument(source: CheckRustSource, schemaImportPath: string) {
   const ast = parseRust(JSON.stringify(source), checkRustAsset('check-rust-parser.wasm'))
   const document = JSON.parse(ast) as Parameters<typeof transpile>[0]
-  const options = { ...checkValueOptions(document.items), split: true, schemaImportPath }
-  const typescript = splitCheckTypescript(
-    transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
-    document.items,
-  )
-  const go = transpileSplitGo(document, options)
+  return {
+    document,
+    options: { ...checkValueOptions(document.items), split: true, schemaImportPath },
+  }
+}
+
+function withSourceNotices(source: CheckRustSource, parts: CheckRustFileParts): CheckRustFileParts {
+  const noticed = { ...parts }
   for (const [part, module] of [
     ['regex', 'regex_engine'],
     ['operations', 'pg_catalog'],
     ['runtime', 'checkruntime'],
     ['checks', 'checks'],
-  ] as const) {
-    const notices = sourceNotices(source, module)
-    typescript[part] = notices + typescript[part]
-    go[part] = notices + go[part]
+  ] as const)
+    noticed[part] = sourceNotices(source, module) + noticed[part]
+  return noticed
+}
+
+// Each target translates separately so that TypeScript generation, which places every schema in
+// one group, never pays for a Go translation of the whole corpus that it would discard.
+type ParsedCheckRust = ReturnType<typeof parseCheckRustDocument>
+
+const typescriptFiles = ({ document, options }: ParsedCheckRust) =>
+  splitCheckTypescript(
+    transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
+    document.items,
+  )
+
+const goFiles = ({ document, options }: ParsedCheckRust) => transpileSplitGo(document, options)
+
+export function transpileCheckRustTypescriptFiles(
+  source: CheckRustSource,
+  schemaImportPath = 'checkrust/pg_catalog',
+): CheckRustFileParts {
+  return withSourceNotices(
+    source,
+    typescriptFiles(parseCheckRustDocument(source, schemaImportPath)),
+  )
+}
+
+export function transpileCheckRustGoFiles(
+  source: CheckRustSource,
+  schemaImportPath = 'checkrust/pg_catalog',
+): CheckRustFileParts {
+  return withSourceNotices(source, goFiles(parseCheckRustDocument(source, schemaImportPath)))
+}
+
+export function transpileCheckRustFiles(
+  source: CheckRustSource,
+  schemaImportPath = 'checkrust/pg_catalog',
+): { typescript: CheckRustFileParts; go: CheckRustFileParts } {
+  const parsed = parseCheckRustDocument(source, schemaImportPath)
+  return {
+    typescript: withSourceNotices(source, typescriptFiles(parsed)),
+    go: withSourceNotices(source, goFiles(parsed)),
   }
-  return { typescript, go }
 }

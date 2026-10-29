@@ -57,7 +57,7 @@ import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
+import { transpileCheckRustGoFiles } from '../../shared/check-rust-transpile.js'
 import { go, printGoFile, type GoExpression } from '../ast.js'
 import { normalizeGoImports } from '../imports.js'
 import { goName } from '../names.js'
@@ -824,7 +824,7 @@ export function renderGoSchemaCheckArtifacts(
   const rustFiles = rustGroup?.source
     ? (Object.fromEntries(
         Object.entries(
-          transpileCheckRustFiles(rustGroup.source, `${rustImportPath}/checkrust/pg_catalog`).go,
+          transpileCheckRustGoFiles(rustGroup.source, `${rustImportPath}/checkrust/pg_catalog`),
         ).map(([name, source]) => [
           name,
           name === 'checks' ? source.replace(/^package generated\b/u, 'package checkrust') : source,
