@@ -44,3 +44,8 @@ pub fn timestamptz_from_text(value: TextValue) -> TimestamptzValue {
     let parsed = parse_timestamp_text(value, true);
     timestamptz_from_microseconds(parsed)
 }
+
+pub fn timestamptz_from_text_order(value: TextValue, date_order: i32) -> TimestamptzValue {
+    let parsed = parse_temporal_text(value, true, false, date_order);
+    timestamptz_from_microseconds(parsed)
+}

@@ -196,12 +196,17 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
 // Timestamptz input without a zone takes the session time zone through the same local-time
 // resolution as a timestamp cast. Input and casts check the range limits at different points,
 // so local times within a day of either limit defer.
-pub fn timestamptz_from_text_session(input: TextValue, zone: &str) -> TimestamptzValue {
-    let parsed = timestamptz_from_text(input.clone());
+// The session zone may be empty and the date order 0 when either is not configured.
+pub fn timestamptz_from_text_context(
+    input: TextValue,
+    zone: &str,
+    date_order: i32,
+) -> TimestamptzValue {
+    let parsed = timestamptz_from_text_order(input.clone(), date_order);
     if parsed != TimestamptzValue::Unknown {
         return parsed;
     };
-    let local = timestamp_from_text(input.clone());
+    let local = timestamp_from_text_order(input.clone(), date_order);
     if let TimestampValue::Value(value) = local {
         if value > -211813488000000000i64 + 86400000000i64
             && value < 9223371331200000000i64 - 86400000000i64
@@ -210,7 +215,7 @@ pub fn timestamptz_from_text_session(input: TextValue, zone: &str) -> Timestampt
         };
         return TimestamptzValue::Unknown;
     };
-    timestamptz_from_text_named_zone(input)
+    timestamptz_from_text_named_zone(input, date_order)
 }
 
 fn timestamptz_text_space(value: char) -> bool {
@@ -225,7 +230,7 @@ fn timestamptz_text_space(value: char) -> bool {
 // A trailing zone name containing a slash is never a session abbreviation, so it resolves
 // without session context and applies to the local time that the rest of the text gives.
 // Names elsewhere in the text, unknown names and names after an explicit offset defer.
-fn timestamptz_from_text_named_zone(input: TextValue) -> TimestamptzValue {
+fn timestamptz_from_text_named_zone(input: TextValue, date_order: i32) -> TimestamptzValue {
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let mut zone_end = chars.len();
@@ -259,7 +264,7 @@ fn timestamptz_from_text_named_zone(input: TextValue) -> TimestamptzValue {
             cursor += 1;
         }
         let remainder = TextValue::Value(rest);
-        let zoned = timestamptz_from_text(remainder.clone());
+        let zoned = timestamptz_from_text_order(remainder.clone(), date_order);
         // Errors in the earlier fields stand, since a known zone name changes none of them.
         if let TimestamptzValue::Error(error) = zoned {
             return TimestamptzValue::Error(error);
@@ -267,7 +272,7 @@ fn timestamptz_from_text_named_zone(input: TextValue) -> TimestamptzValue {
         if zoned != TimestamptzValue::Unknown {
             return TimestamptzValue::Unknown;
         };
-        let local = timestamp_from_text(remainder);
+        let local = timestamp_from_text_order(remainder, date_order);
         if let TimestampValue::Value(value) = local {
             if value > -211813488000000000i64 + 86400000000i64
                 && value < 9223371331200000000i64 - 86400000000i64
