@@ -25,17 +25,31 @@ const expressions = {
   text_case: "(CASE WHEN flag THEN raw ELSE '2000-01-01 00:00:00Z' END)::timestamptz = anchor",
 }
 type DateOrder = 'MDY' | 'DMY' | 'YMD'
-const profiles: { zone: string; order?: DateOrder }[] = [
-  { zone: 'UTC', order: 'MDY' },
+type Profile = { zone?: string; order?: DateOrder; abbreviations?: boolean }
+const profiles: Profile[] = [
+  { zone: 'UTC', order: 'MDY', abbreviations: true },
   { zone: 'America/New_York', order: 'DMY' },
-  { zone: 'Australia/Lord_Howe', order: 'YMD' },
+  { zone: 'Australia/Lord_Howe', order: 'YMD', abbreviations: true },
   { zone: '+02:30' },
-  { zone: 'Asia/Kathmandu' },
+  { zone: 'Europe/Dublin', abbreviations: true },
 ]
-const contextFor = (profile: { zone?: string; order?: DateOrder }): CheckExecutionContext => ({
+const contextFor = (profile: Profile): CheckExecutionContext => ({
   ...(profile.zone === undefined ? {} : { timeZone: profile.zone }),
   ...(profile.order === undefined ? {} : { dateStyle: { format: 'ISO', order: profile.order } }),
+  ...(profile.abbreviations
+    ? { timeZoneAbbreviations: 'Default', maxIdentifierBytes: 63, serverEncoding: 'UTF8' }
+    : {}),
 })
+// Trailing abbreviations of the session zone or the Default table, fixed or dynamic; Dublin's
+// own IST takes precedence over the Default table's.
+const abbreviated = [
+  '2000-01-01 12:00 UTC',
+  '2000-07-01 12:00 edt',
+  '2021-03-14 02:30 EST',
+  '1990-07-01 12:00 MSK',
+  '2000-07-01 12:00 IST',
+  'Jan 1 2000 12:00 PST',
+]
 // Short leading date fields whose roles follow the configured DateStyle order.
 const ordered = [
   '01/02/2000 12:00',
@@ -71,14 +85,16 @@ const definite = [
   '2000-01-01 12:00 :Asia/Kathmandu',
   '2000-01-01 25:00 America/New_York',
 ]
-// Local times beside the range limits, runtime words, abbreviations and zone names that are
-// unknown, not trailing or after an offset still defer.
+// Local times beside the range limits, runtime words, unknown words, all-letter zone names and
+// zones that are not trailing or follow an offset still defer.
 const deferred = [
   '4714-11-24 BC',
   '294276-12-31 23:59',
   'today',
   '2000-01-01 00:00 America/Nowhere',
-  '2000-01-01 12:00 UTC',
+  '2000-01-01 12:00 XYZ',
+  '2000-01-01 12:00 Japan',
+  '2000-01-01 12:00+05 UTC',
   '2000-01-01 America/New_York 12:00',
   '2000-01-01 00:00+05 America/New_York',
 ]
@@ -151,7 +167,7 @@ it('resolves timestamptz text through the configured session time zone and date 
     for (const [index, profile] of profiles.entries()) {
       await pg.query("SELECT set_config('TimeZone', $1, false)", [profile.zone])
       await pg.exec(`SET DateStyle = 'ISO, ${profile.order ?? 'MDY'}'`)
-      for (const raw of [...definite, ...ordered, ...deferred, null]) {
+      for (const raw of [...definite, ...ordered, ...abbreviated, ...deferred, null]) {
         let anchor = 0n
         // The anchor is the session's own reading of the text, so the oracle can pass the text.
         let anchorText = '2000-01-01 00:00:00+00'
@@ -177,7 +193,9 @@ it('resolves timestamptz text through the configured session time zone and date 
             const readsRaw = name === 'lazy' ? !flag : name === 'text_case' ? flag : true
             const defers =
               raw !== null &&
-              (deferred.includes(raw) || (ordered.includes(raw) && profile.order === undefined))
+              (deferred.includes(raw) ||
+                (ordered.includes(raw) && profile.order === undefined) ||
+                (abbreviated.includes(raw) && !profile.abbreviations))
             if (defers && readsRaw) {
               expected = { kind: 'Unknown' }
             } else {

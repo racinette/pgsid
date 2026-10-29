@@ -196,11 +196,15 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
 // Timestamptz input without a zone takes the session time zone through the same local-time
 // resolution as a timestamp cast. Input and casts check the range limits at different points,
 // so local times within a day of either limit defer.
-// The session zone may be empty and the date order 0 when either is not configured.
+// The session zone may be empty and the date order 0 when either is not configured;
+// abbreviations, the identifier limit and the encoding qualify trailing zone abbreviations.
 pub fn timestamptz_from_text_context(
     input: TextValue,
     zone: &str,
     date_order: i32,
+    abbreviations: bool,
+    limit: i32,
+    utf8: bool,
 ) -> TimestamptzValue {
     let parsed = timestamptz_from_text_order(input.clone(), date_order);
     if parsed != TimestamptzValue::Unknown {
@@ -215,7 +219,7 @@ pub fn timestamptz_from_text_context(
         };
         return TimestamptzValue::Unknown;
     };
-    timestamptz_from_text_named_zone(input, date_order)
+    timestamptz_from_text_trailing_zone(input, date_order, zone, abbreviations, limit, utf8)
 }
 
 fn timestamptz_text_space(value: char) -> bool {
@@ -227,10 +231,19 @@ fn timestamptz_text_space(value: char) -> bool {
         || value == '\u{c}'
 }
 
-// A trailing zone name containing a slash is never a session abbreviation, so it resolves
-// without session context and applies to the local time that the rest of the text gives.
-// Names elsewhere in the text, unknown names and names after an explicit offset defer.
-fn timestamptz_from_text_named_zone(input: TextValue, date_order: i32) -> TimestamptzValue {
+// A trailing zone applies to the local time that the rest of the text gives. A name containing a
+// slash is never an abbreviation and needs no session context. An all-letter word resolves as an
+// abbreviation of the session zone or the Default table, fixed or through its zone at that local
+// time; all-letter zone names, which PostgreSQL tries only after its special words, defer, as do
+// zones elsewhere in the text, unknown names and zones after an explicit offset.
+fn timestamptz_from_text_trailing_zone(
+    input: TextValue,
+    date_order: i32,
+    session: &str,
+    abbreviations: bool,
+    limit: i32,
+    utf8: bool,
+) -> TimestamptzValue {
     if let TextValue::Value(text) = input {
         let chars: Vec<char> = text.chars().collect();
         let mut zone_end = chars.len();
@@ -239,13 +252,19 @@ fn timestamptz_from_text_named_zone(input: TextValue, date_order: i32) -> Timest
         }
         let mut zone_start = zone_end;
         let mut slash = false;
+        let mut letters = true;
         while zone_start > 0 && timestamptz_text_space(chars[zone_start - 1]) == false {
-            if chars[zone_start - 1] == '/' {
+            let character = chars[zone_start - 1];
+            if character == '/' {
                 slash = true;
+            };
+            let code = character.to_ascii_lowercase() as i32;
+            if code < 97 || code > 122 {
+                letters = false;
             };
             zone_start = zone_start - 1;
         }
-        if zone_start == 0 || slash == false {
+        if zone_start == 0 || (slash == false && (letters == false || abbreviations == false)) {
             return TimestamptzValue::Unknown;
         };
         let mut name = String::new();
@@ -254,7 +273,7 @@ fn timestamptz_from_text_named_zone(input: TextValue, date_order: i32) -> Timest
             name.push(chars[cursor]);
             cursor += 1;
         }
-        if find_zone_name(name.as_str(), false) >= ZONE_NAMES.len() {
+        if slash && find_zone_name(name.as_str(), false) >= ZONE_NAMES.len() {
             return TimestamptzValue::Unknown;
         };
         let mut rest = String::new();
@@ -265,19 +284,50 @@ fn timestamptz_from_text_named_zone(input: TextValue, date_order: i32) -> Timest
         }
         let remainder = TextValue::Value(rest);
         let zoned = timestamptz_from_text_order(remainder.clone(), date_order);
-        // Errors in the earlier fields stand, since a known zone name changes none of them.
+        // Errors in the earlier fields stand, since a known zone changes none of them.
         if let TimestamptzValue::Error(error) = zoned {
-            return TimestamptzValue::Error(error);
+            if slash {
+                return TimestamptzValue::Error(error);
+            };
+            return TimestamptzValue::Unknown;
         };
         if zoned != TimestamptzValue::Unknown {
             return TimestamptzValue::Unknown;
         };
         let local = timestamp_from_text_order(remainder, date_order);
         if let TimestampValue::Value(value) = local {
-            if value > -211813488000000000i64 + 86400000000i64
-                && value < 9223371331200000000i64 - 86400000000i64
+            if value <= -211813488000000000i64 + 86400000000i64
+                || value >= 9223371331200000000i64 - 86400000000i64
             {
+                return TimestamptzValue::Unknown;
+            };
+            if slash {
                 return sql__pg_catalog__timestamptz__m17a(local, name.as_str());
+            };
+            let lookup = timezone_lookup_classify(
+                TextValue::Value(name.clone()),
+                session,
+                limit,
+                utf8,
+                true,
+            );
+            let mut east = Int4Value::Unknown;
+            if lookup.kind == 1 {
+                east = make_int4_value(lookup.seconds);
+            };
+            if lookup.kind == 2 {
+                let dynamic = lookup.profile.clone();
+                if let TextValue::Value(profile) = dynamic {
+                    east = timezone_forced_offset(
+                        profile.as_str(),
+                        lookup.spelling.as_str(),
+                        value,
+                        true,
+                    );
+                };
+            };
+            if let Int4Value::Value(seconds) = east {
+                return make_timestamptz_value(value - (seconds as i64) * 1000000i64);
             };
         };
     };

@@ -8059,7 +8059,7 @@ export function emitCheckRustEvaluator(
       )
         return {
           name: bind(
-            `timestamptz_from_text_context(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)},${dateOrder})`,
+            `timestamptz_from_text_context(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)},${dateOrder},${executionContext.timeZoneAbbreviations === 'Default'},${executionContext.maxIdentifierBytes ?? -1},${executionContext.serverEncoding === 'UTF8'})`,
           ),
           type: node.type,
         }
