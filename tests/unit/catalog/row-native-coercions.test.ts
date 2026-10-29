@@ -121,3 +121,30 @@ it('validates native domain base identities, stored type cycles and scalar versu
   expect(storedRowExpression({ ...node, kind: 'CONVERTROWTYPEEXPR' }, input)).toBeUndefined()
   expect(storedRowExpression(node, { ...input, storageTypes: new Map() })).toBeUndefined()
 })
+
+it('captures cast functions that declare a binary-compatible input as casts from the argument type', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE DOMAIN scope_domain AS cidr;
+    CREATE TABLE scopes(scope cidr,domain_scope scope_domain,address inet,
+     CONSTRAINT fixed CHECK(scope::char(12)::text IS NOT NULL),
+     CONSTRAINT truncated CHECK(domain_scope::char(4)::text IS NOT NULL),
+     CONSTRAINT variable CHECK(domain_scope::varchar(10)::text IS NOT NULL),
+     CONSTRAINT declared CHECK(address::char(20)::text IS NOT NULL))`)
+    const c = await snapshotCatalog(pg),
+      t = c.tables.find((t) => t.name === 'scopes')!
+    for (const k of t.constraints) {
+      expect(k.rowCoercionContext?.complete, k.name).toBe(true)
+      expect(JSON.stringify(k.rowCoercionContext), k.name).toContain(
+        `"source":"pg_catalog.${k.name === 'declared' ? 'inet' : 'cidr'}"`,
+      )
+      expect(
+        lowerTableCheck(t, k, c.enums, c.domains, 'stored', c.rangeTypes, c.compositeTypeGraph)!
+          .expression.kind,
+        k.name,
+      ).not.toBe('uncertain')
+    }
+  } finally {
+    await pg.close()
+  }
+}, 30_000)
