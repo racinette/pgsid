@@ -381,7 +381,8 @@ import them. Keep schema-only helpers with their callables.
   after their own Julian, epoch and infinity tokens. Year-first three-field dates
   need at least three year digits and one repeated hyphen, slash or period
   separator; month and day fields take any width, except that a three-digit
-  month field from 1 through 366 defers because it is a day of year. A missing
+  month field from 1 through 366 defers because it is a day of year. A fourth
+  field returns 22007 unless a field overflows int4. A missing
   final day returns 22007, or 22008 after an int4 field overflow. Forms accept
   optional case-insensitive BC/AD suffixes, ASCII
   whitespace, signed infinities, and the context-independent `epoch` token.

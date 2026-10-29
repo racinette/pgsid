@@ -267,3 +267,5 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '4714-11-24 +01 BC', NULL, false);
 -- name: local_spaced_zone_ignored
 INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, 'Jan 1 2000 Z', '2000-01-01 00:00:00', false);
+-- name: calendar_fourth_field_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-01-01-0530', NULL, false);

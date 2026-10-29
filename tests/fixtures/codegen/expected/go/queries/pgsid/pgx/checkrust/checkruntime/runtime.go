@@ -16824,7 +16824,11 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			dayField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(dayField.next)
 			if index < end && text.chars[index] == separator {
-				return Int8Value{Kind: Int8ValueUnknown}
+				extraField := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				if dayField.digits == 0 || extraField.digits == 0 || extraField.overflow || yearOverflow || monthField.overflow || dayField.overflow || (monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366) {
+					return Int8Value{Kind: Int8ValueUnknown}
+				}
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 			}
 			if monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366 {
 				if dayField.digits == 4 || dayField.digits == 6 {
