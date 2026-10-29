@@ -17026,9 +17026,6 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 hours1 = langruntime.checkedI32(langruntime.checkedSignedDivide(zoneHour.value, 100));
                 minutes = langruntime.checkedI32(langruntime.checkedSignedRemainder(zoneHour.value, 100));
             }
-            if (!(index === end)) {
-                return { kind: "Unknown" };
-            }
             if (hours1 > 15 || minutes > 59 || seconds > 59) {
                 offset = langruntime.checkedI32(57600);
             }
@@ -17044,6 +17041,28 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         else if (withTimezone) {
             missingTimezone = langruntime.checkedBool(true);
+        }
+        while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < end && englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+            const word: string = englishDateWord(text, index, end);
+            if (word === "am" || word === "pm") {
+                if (!(meridian === 0)) {
+                    return { kind: "Error", value: { state: invalidTimestampText } };
+                }
+                meridian = langruntime.checkedI32(1);
+                if (word === "pm") {
+                    meridian = langruntime.checkedI32(2);
+                }
+            }
+            else if (englishDateWeekday(word) === false) {
+                break;
+            }
+            index = langruntime.checkedIndex(englishDateWordEnd(text, index, end));
+            while (index < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
         }
         if (!(index === end)) {
             return { kind: "Unknown" };

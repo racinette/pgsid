@@ -17069,9 +17069,6 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 				hours = langruntime.CheckedI32(langruntime.CheckedSignedDivide(zoneHour.value, 100))
 				minutes = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(zoneHour.value, 100))
 			}
-			if index != end {
-				return Int8Value{Kind: Int8ValueUnknown}
-			}
 			if hours > 15 || minutes > 59 || seconds > 59 {
 				offset = langruntime.CheckedI32(57600)
 			} else {
@@ -17084,6 +17081,27 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 			return Int8Value{Kind: Int8ValueUnknown}
 		} else if withTimezone {
 			missingTimezone = true
+		}
+		for index < end && dateTextSpace(text.chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < end && englishDateLetter(text.chars[index]) {
+			word := englishDateWord(&text, index, end)
+			if word == "am" || word == "pm" {
+				if meridian != 0 {
+					return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+				}
+				meridian = langruntime.CheckedI32(1)
+				if word == "pm" {
+					meridian = langruntime.CheckedI32(2)
+				}
+			} else if englishDateWeekday(word) == false {
+				break
+			}
+			index = langruntime.CheckedIndex(englishDateWordEnd(&text, index, end))
+			for index < end && dateTextSpace(text.chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
 		}
 		if index != end {
 			return Int8Value{Kind: Int8ValueUnknown}
