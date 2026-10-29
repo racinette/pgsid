@@ -131,3 +131,114 @@ pub fn sql__pg_catalog__sind__n2je(input: Float8Value, fdlibm: bool) -> Float8Va
 pub fn sql__pg_catalog__cosd__ykq9(input: Float8Value, fdlibm: bool) -> Float8Value {
     float8_degree_trigonometry(input, fdlibm, true)
 }
+
+// SET_LOW_WORD(x, 0): keeps the sign, exponent and high fraction bits of the double.
+fn float8_clear_low_word(value: f64) -> f64 {
+    let bits = value.to_bits() as i64;
+    let low = ((bits % 4294967296i64) + 4294967296i64) % 4294967296i64;
+    f64::from_bits((bits - low) as u64)
+}
+
+// musl's __tan kernel for |x| <= pi/4 with tail y; odd selects -1/tan.
+fn float8_tan_kernel(head: f64, tail: f64, odd: bool) -> f64 {
+    let mut x = head;
+    let mut y = tail;
+    let big = circle_math_high_word(x) >= 1072010280;
+    let mut negative = false;
+    if big {
+        if x < 0.0f64 || (x == 0.0f64 && 1.0f64 / x < 0.0f64) {
+            negative = true;
+            x = -x;
+            y = -y;
+        };
+        x = (7.85398163397448278999e-01f64 - x) + (3.06161699786838301793e-17f64 - y);
+        y = 0.0f64;
+    };
+    let z = x * x;
+    let mut w = z * z;
+    let mut r = 1.33333333333201242699e-01f64
+        + w * (2.18694882948595424599e-02f64
+            + w * (3.59207910759131235356e-03f64
+                + w * (5.88041240820264096874e-04f64
+                    + w * (7.81794442939557092300e-05f64 + w * -1.85586374855275456654e-05f64))));
+    let mut v = z
+        * (5.39682539762260521377e-02f64
+            + w * (8.86323982359930005737e-03f64
+                + w * (1.45620945432529025516e-03f64
+                    + w * (2.46463134818469906812e-04f64
+                        + w * (7.14072491382608190305e-05f64
+                            + w * 2.59073051863633712884e-05f64)))));
+    let mut s = z * x;
+    r = y + z * (s * (r + v) + y) + s * 3.33333333333334091986e-01f64;
+    w = x + r;
+    if big {
+        s = 1.0f64;
+        if odd {
+            s = -1.0f64;
+        };
+        v = s - 2.0f64 * (x + (r - w * w / (w + s)));
+        if negative {
+            return -v;
+        };
+        return v;
+    };
+    if odd == false {
+        return w;
+    };
+    let w0 = float8_clear_low_word(w);
+    v = r - (w0 - x);
+    let a = -1.0f64 / w;
+    let a0 = float8_clear_low_word(a);
+    a0 + a * (1.0f64 + a0 * w0 + a0 * v)
+}
+
+// tan and cot follow PostgreSQL's dtan and dcot over musl's tan, which is odd in its argument,
+// so |x| is reduced and the sign restored; cot is 1/tan, infinite at zero as in PostgreSQL.
+fn float8_tangent(input: Float8Value, fdlibm: bool, cotangent: bool) -> Float8Value {
+    if input == Float8Value::UnspecifiedNan {
+        return Float8Value::UnspecifiedNan;
+    };
+    if let Float8Value::Value(bits) = input {
+        let number = float8_number(bits);
+        if number != number {
+            return Float8Value::UnspecifiedNan;
+        };
+        let magnitude = number.abs();
+        if magnitude == 1.0f64 / 0.0f64 {
+            return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));
+        };
+        let high = circle_math_high_word(magnitude);
+        if fdlibm == false || high >= 1094263291 {
+            return Float8Value::Unknown;
+        };
+        let mut result = magnitude;
+        if high <= 1072243195 {
+            if high >= 1044381696 {
+                result = float8_tan_kernel(magnitude, 0.0f64, false);
+            };
+        } else {
+            let reduced = circle_reduce_angle(magnitude);
+            result = float8_tan_kernel(
+                f64::from_bits(reduced.head as u64),
+                f64::from_bits(reduced.tail as u64),
+                reduced.quadrant % 2 != 0,
+            );
+        };
+        if bits < 0i64 {
+            result = -result;
+        };
+        if cotangent {
+            result = 1.0f64 / result;
+        };
+        return make_float8_value(result);
+    };
+    input
+}
+
+pub fn sql__pg_catalog__tan__9kzu(input: Float8Value, fdlibm: bool) -> Float8Value {
+    float8_tangent(input, fdlibm, false)
+}
+
+pub fn sql__pg_catalog__cot__8cml(input: Float8Value, fdlibm: bool) -> Float8Value {
+    float8_tangent(input, fdlibm, true)
+}

@@ -423,6 +423,6 @@ export function checkUnknownMessage(
     message += ' ACL text and JSON conversion can also depend on the deployment role catalog.'
   return context.trigonometry !== 'fdlibm' && needsTrigonometry(expression)
     ? message +
-        ' Circle-to-polygon coordinate generation, sin, cos, sind and cosd also require sql.codegen.checks.trigonometry: fdlibm.'
+        ' Circle-to-polygon coordinate generation and float8 trigonometry also require sql.codegen.checks.trigonometry: fdlibm.'
     : message
 }

@@ -13,13 +13,13 @@ export function circlePolygonTrigonometry(item: BuiltinCallable): boolean {
   )
 }
 
-// sin, cos and their degree variants come from the deployment's libm, which only the declared
+// sin, cos, tan, cot and the degree variants come from the deployment's libm, which only the declared
 // fdlibm profile pins down.
 export function floatTrigonometry(item: BuiltinCallable): boolean {
   return (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
-    ['sin', 'cos', 'sind', 'cosd'].includes(item.name) &&
+    ['sin', 'cos', 'tan', 'cot', 'sind', 'cosd'].includes(item.name) &&
     item.result === 'pg_catalog.float8' &&
     item.strict &&
     item.volatility === 'i' &&
