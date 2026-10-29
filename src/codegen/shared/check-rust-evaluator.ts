@@ -8064,6 +8064,18 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       if (
+        node.kind === 'text-to-clock' &&
+        node.type === 'pg_catalog.timetz' &&
+        executionContext.timeZone !== undefined &&
+        !storedArrayInputScope
+      )
+        return {
+          name: bind(
+            `timetz_from_text_context(${ownedOperand(operand)},${rustStringLiteral(executionContext.timeZone)})`,
+          ),
+          type: node.type,
+        }
+      if (
         dateOrder > 0 &&
         (node.kind === 'text-to-date' ||
           node.kind === 'text-to-timestamp' ||
