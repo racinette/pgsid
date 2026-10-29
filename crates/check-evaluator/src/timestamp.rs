@@ -149,7 +149,86 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
         if chars.len() > 128 {
             return Int8Value::Unknown;
         }
-        let text = TimestampText { chars: chars };
+        // PostgreSQL reads BC or AD as an ordinary field anywhere after the first one, so the era
+        // is blanked before the date and clock grammar runs. A leading era is rejected before
+        // other fields are validated; a repeated era is reported in field order, after clock and
+        // zone errors but before date validation, so it defers.
+        let mut bc = false;
+        let mut eras = 0;
+        let mut scanned: Vec<char> = Vec::new();
+        let mut era_index = 0;
+        while era_index < chars.len() {
+            let mut era_end = era_index;
+            while era_end < chars.len() && english_date_letter(chars[era_end]) {
+                era_end += 1;
+            }
+            if era_end == era_index {
+                scanned.push(chars[era_index]);
+                era_index += 1;
+            } else {
+                let era_letter = chars[era_index].to_ascii_lowercase();
+                let era = era_end - era_index == 2
+                    && ((era_letter == 'b' && chars[era_index + 1].to_ascii_lowercase() == 'c')
+                        || (era_letter == 'a' && chars[era_index + 1].to_ascii_lowercase() == 'd'));
+                if era {
+                    let mut era_leading = true;
+                    let mut era_digit_before = false;
+                    let mut era_before = 0;
+                    while era_before < era_index {
+                        if date_text_space(chars[era_before]) == false {
+                            era_leading = false;
+                        }
+                        if date_text_digit(chars[era_before]) >= 0 {
+                            era_digit_before = true;
+                        }
+                        era_before += 1;
+                    }
+                    if era_leading {
+                        return Int8Value::Error(SqlError {
+                            state: INVALID_TIMESTAMP_TEXT,
+                        });
+                    }
+                    let mut era_trailing = true;
+                    let mut era_after = era_end;
+                    while era_after < chars.len() {
+                        if date_text_space(chars[era_after]) == false {
+                            era_trailing = false;
+                        }
+                        era_after += 1;
+                    }
+                    // A trailing era after special words such as epoch is ignored, as before.
+                    if (era_digit_before == false && era_trailing == false) || eras > 0 {
+                        return Int8Value::Unknown;
+                    }
+                    let era_previous = chars[era_index - 1];
+                    if date_text_space(era_previous) == false && date_text_digit(era_previous) < 0 {
+                        return Int8Value::Unknown;
+                    }
+                    if era_end < chars.len() {
+                        let era_next = chars[era_end];
+                        if date_text_space(era_next) == false
+                            && date_text_digit(era_next) < 0
+                            && era_next != '+'
+                        {
+                            return Int8Value::Unknown;
+                        }
+                    }
+                    eras += 1;
+                    if era_letter == 'b' {
+                        bc = true;
+                    }
+                    scanned.push(' ');
+                    scanned.push(' ');
+                } else {
+                    while era_index < era_end {
+                        scanned.push(chars[era_index]);
+                        era_index += 1;
+                    }
+                }
+                era_index = era_end;
+            };
+        }
+        let text = TimestampText { chars: scanned };
         let mut start = 0;
         let mut end = text.chars.len();
         while start < end && date_text_space(text.chars[start]) {
@@ -162,31 +241,6 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
             return Int8Value::Error(SqlError {
                 state: INVALID_TIMESTAMP_TEXT,
             });
-        }
-        let mut bc = false;
-        if end - start >= 2
-            && text.chars[end - 1].to_ascii_lowercase() == 'c'
-            && text.chars[end - 2].to_ascii_lowercase() == 'b'
-        {
-            if end - start > 2
-                && date_text_space(text.chars[end - 3]) == false
-                && date_text_digit(text.chars[end - 3]) < 0
-            {
-                return Int8Value::Unknown;
-            }
-            bc = true;
-            end = end - 2;
-        } else if end - start >= 2
-            && text.chars[end - 1].to_ascii_lowercase() == 'd'
-            && text.chars[end - 2].to_ascii_lowercase() == 'a'
-        {
-            if end - start > 2
-                && date_text_space(text.chars[end - 3]) == false
-                && date_text_digit(text.chars[end - 3]) < 0
-            {
-                return Int8Value::Unknown;
-            }
-            end = end - 2;
         }
         while start < end && date_text_space(text.chars[end - 1]) {
             end = end - 1;
@@ -364,9 +418,8 @@ fn parse_temporal_text(value: TextValue, with_timezone: bool, date_only: bool) -
                 });
             }
             if month_field.digits == 3 && month_field.value >= 1 && month_field.value <= 366 {
-                if day_field.digits == 4 || day_field.digits == 6 {
-                    return Int8Value::Unknown;
-                }
+                // A field after a day of year is rejected in every width; four or six digits are
+                // not read as a clock on this path.
                 if day_field.digits > 0 {
                     if year_overflow || day_field.overflow {
                         if index == end {

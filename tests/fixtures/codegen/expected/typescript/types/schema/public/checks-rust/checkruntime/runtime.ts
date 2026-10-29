@@ -16684,7 +16684,76 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         if (chars.length > 128) {
             return { kind: "Unknown" };
         }
-        const text: TimestampText = { chars: chars };
+        let bc: boolean = false;
+        let eras: number = 0;
+        let scanned: string[] = [];
+        let eraIndex: number = 0;
+        while (eraIndex < chars.length) {
+            let eraEnd: number = eraIndex;
+            while (eraEnd < chars.length && englishDateLetter(langruntime.indexChar(chars, langruntime.checkedIndex(eraEnd)))) {
+                eraEnd = langruntime.checkedAdd(eraEnd, 1);
+            }
+            if (eraEnd === eraIndex) {
+                langruntime.pushChar(scanned, langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex)));
+                eraIndex = langruntime.checkedAdd(eraIndex, 1);
+            }
+            else {
+                const eraLetter: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex)));
+                const era: boolean = langruntime.checkedSubtract(eraEnd, eraIndex) === 2 && ((eraLetter === "b" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(eraIndex, 1)))) === "c") || (eraLetter === "a" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(eraIndex, 1)))) === "d"));
+                if (era) {
+                    let eraLeading: boolean = true;
+                    let eraDigitBefore: boolean = false;
+                    let eraBefore: number = 0;
+                    while (eraBefore < eraIndex) {
+                        if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(eraBefore))) === false) {
+                            eraLeading = langruntime.checkedBool(false);
+                        }
+                        if (dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(eraBefore))) >= 0) {
+                            eraDigitBefore = langruntime.checkedBool(true);
+                        }
+                        eraBefore = langruntime.checkedAdd(eraBefore, 1);
+                    }
+                    if (eraLeading) {
+                        return { kind: "Error", value: { state: invalidTimestampText } };
+                    }
+                    let eraTrailing: boolean = true;
+                    let eraAfter: number = eraEnd;
+                    while (eraAfter < chars.length) {
+                        if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(eraAfter))) === false) {
+                            eraTrailing = langruntime.checkedBool(false);
+                        }
+                        eraAfter = langruntime.checkedAdd(eraAfter, 1);
+                    }
+                    if ((eraDigitBefore === false && eraTrailing === false) || eras > 0) {
+                        return { kind: "Unknown" };
+                    }
+                    const eraPrevious: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(eraIndex, 1)));
+                    if (dateTextSpace(eraPrevious) === false && dateTextDigit(eraPrevious) < 0) {
+                        return { kind: "Unknown" };
+                    }
+                    if (eraEnd < chars.length) {
+                        const eraNext: string = langruntime.indexChar(chars, langruntime.checkedIndex(eraEnd));
+                        if (dateTextSpace(eraNext) === false && dateTextDigit(eraNext) < 0 && !(eraNext === "+")) {
+                            return { kind: "Unknown" };
+                        }
+                    }
+                    eras = langruntime.checkedAdd(eras, 1);
+                    if (eraLetter === "b") {
+                        bc = langruntime.checkedBool(true);
+                    }
+                    langruntime.pushChar(scanned, " ");
+                    langruntime.pushChar(scanned, " ");
+                }
+                else {
+                    while (eraIndex < eraEnd) {
+                        langruntime.pushChar(scanned, langruntime.indexChar(chars, langruntime.checkedIndex(eraIndex)));
+                        eraIndex = langruntime.checkedAdd(eraIndex, 1);
+                    }
+                }
+                eraIndex = langruntime.checkedIndex(eraEnd);
+            }
+        }
+        const text: TimestampText = { chars: scanned };
         let start: number = 0;
         let end: number = text.chars.length;
         while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(start)))) {
@@ -16695,20 +16764,6 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
         }
         if (start === end) {
             return { kind: "Error", value: { state: invalidTimestampText } };
-        }
-        let bc: boolean = false;
-        if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "b") {
-            if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
-                return { kind: "Unknown" };
-            }
-            bc = langruntime.checkedBool(true);
-            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
-        }
-        else if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "d" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "a") {
-            if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
-                return { kind: "Unknown" };
-            }
-            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
         }
         while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
@@ -16847,9 +16902,6 @@ function parseTemporalText(value: TextValue, withTimezone: boolean, dateOnly: bo
                 return { kind: "Error", value: { state: invalidTimestampText } };
             }
             if (monthField.digits === 3 && monthField.value >= 1 && monthField.value <= 366) {
-                if (dayField.digits === 4 || dayField.digits === 6) {
-                    return { kind: "Unknown" };
-                }
                 if (dayField.digits > 0) {
                     if (yearOverflow || dayField.overflow) {
                         if (index === end) {

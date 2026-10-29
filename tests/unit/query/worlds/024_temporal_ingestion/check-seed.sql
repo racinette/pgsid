@@ -293,3 +293,17 @@ INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_impo
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'Sat 2000-01-01', NULL, false);
 -- name: calendar_weekday_compact
 INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'Sat 20000101', '2000-01-01', false);
+-- name: calendar_era_between_fields
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000 BC 01 01', '2000-01-01 BC', false);
+-- name: calendar_era_leading_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, 'BC 2000-01-01', NULL, false);
+-- name: local_clock_era_before_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 BC 12:00', '2000-01-01 12:00:00 BC', false);
+-- name: local_clock_era_attached_after_clock
+INSERT INTO local_clock_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 12:00BC', '2000-01-01 12:00:00 BC', false);
+-- name: instant_era_after_zone
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '2000-01-01 12:00+05 BC', '2000-01-01 07:00:00+00 BC', false);
+-- name: instant_era_before_clock
+INSERT INTO instant_imports (id, calendar_id, raw_time, expected_time, skip_import) VALUES (2, 1, '0002-366 BC 12:00Z', '0001-01-01 12:00:00+00 BC', false);
+-- name: calendar_ordinal_clock_digits_error
+INSERT INTO calendar_imports (id, raw_day, expected_day, skip_import) VALUES (2, '2000-001-010203', NULL, false);

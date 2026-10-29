@@ -16741,7 +16741,78 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 		if len(chars) > 128 {
 			return Int8Value{Kind: Int8ValueUnknown}
 		}
-		text := timestampText{chars: chars}
+		bc := false
+		eras := 0
+		scanned := []rune{}
+		eraIndex := 0
+		for eraIndex < len(chars) {
+			eraEnd := eraIndex
+			for eraEnd < len(chars) && englishDateLetter(chars[eraEnd]) {
+				eraEnd = langruntime.CheckedAdd(eraEnd, 1)
+			}
+			if eraEnd == eraIndex {
+				langruntime.CheckedAdd(len(scanned), 1)
+				scanned = append(scanned, langruntime.CheckedChar(chars[eraIndex]))
+				eraIndex = langruntime.CheckedAdd(eraIndex, 1)
+			} else {
+				eraLetter := langruntime.AsciiLowercase(chars[eraIndex])
+				era := langruntime.CheckedSubtract(eraEnd, eraIndex) == 2 && ((eraLetter == 'b' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(eraIndex, 1)]) == 'c') || (eraLetter == 'a' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(eraIndex, 1)]) == 'd'))
+				if era {
+					eraLeading := true
+					eraDigitBefore := false
+					eraBefore := 0
+					for eraBefore < eraIndex {
+						if dateTextSpace(chars[eraBefore]) == false {
+							eraLeading = false
+						}
+						if dateTextDigit(chars[eraBefore]) >= 0 {
+							eraDigitBefore = true
+						}
+						eraBefore = langruntime.CheckedAdd(eraBefore, 1)
+					}
+					if eraLeading {
+						return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
+					}
+					eraTrailing := true
+					eraAfter := eraEnd
+					for eraAfter < len(chars) {
+						if dateTextSpace(chars[eraAfter]) == false {
+							eraTrailing = false
+						}
+						eraAfter = langruntime.CheckedAdd(eraAfter, 1)
+					}
+					if (eraDigitBefore == false && eraTrailing == false) || eras > 0 {
+						return Int8Value{Kind: Int8ValueUnknown}
+					}
+					eraPrevious := chars[langruntime.CheckedSubtract(eraIndex, 1)]
+					if dateTextSpace(eraPrevious) == false && dateTextDigit(eraPrevious) < 0 {
+						return Int8Value{Kind: Int8ValueUnknown}
+					}
+					if eraEnd < len(chars) {
+						eraNext := chars[eraEnd]
+						if dateTextSpace(eraNext) == false && dateTextDigit(eraNext) < 0 && eraNext != '+' {
+							return Int8Value{Kind: Int8ValueUnknown}
+						}
+					}
+					eras = langruntime.CheckedAdd(eras, 1)
+					if eraLetter == 'b' {
+						bc = true
+					}
+					langruntime.CheckedAdd(len(scanned), 1)
+					scanned = append(scanned, langruntime.CheckedChar(' '))
+					langruntime.CheckedAdd(len(scanned), 1)
+					scanned = append(scanned, langruntime.CheckedChar(' '))
+				} else {
+					for eraIndex < eraEnd {
+						langruntime.CheckedAdd(len(scanned), 1)
+						scanned = append(scanned, langruntime.CheckedChar(chars[eraIndex]))
+						eraIndex = langruntime.CheckedAdd(eraIndex, 1)
+					}
+				}
+				eraIndex = langruntime.CheckedIndex(eraEnd)
+			}
+		}
+		text := timestampText{chars: scanned}
 		start := 0
 		end := len(text.chars)
 		for start < end && dateTextSpace(text.chars[start]) {
@@ -16752,19 +16823,6 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 		}
 		if start == end {
 			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
-		}
-		bc := false
-		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
-			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
-				return Int8Value{Kind: Int8ValueUnknown}
-			}
-			bc = true
-			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
-		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
-			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
-				return Int8Value{Kind: Int8ValueUnknown}
-			}
-			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		}
 		for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
@@ -16898,9 +16956,6 @@ func parseTemporalText(value TextValue, withTimezone bool, dateOnly bool) Int8Va
 				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 			}
 			if monthField.digits == 3 && monthField.value >= 1 && monthField.value <= 366 {
-				if dayField.digits == 4 || dayField.digits == 6 {
-					return Int8Value{Kind: Int8ValueUnknown}
-				}
 				if dayField.digits > 0 {
 					if yearOverflow || dayField.overflow {
 						if index == end {
