@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -139,6 +139,7 @@ it('retains safe unknown hash validity, nominal enum deferrals, argument errors 
       plans.map((p) => p.identity.constraint),
       fixtures,
     )
+    await mkdir('artifacts/goal-checks/array-hash-dispatch', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash-dispatch/state-measurements.json',
       JSON.stringify({ fixtures: fixtures.length }, null, 2) + '\n',

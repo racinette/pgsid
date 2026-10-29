@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -67,6 +67,7 @@ it('hashes 50,000 cells with borrowed reads and bounded modular arithmetic in ev
       plans.map((p) => p.identity.constraint),
       plans.map((p) => ({ name: p.identity.constraint, row, expected: { kind: 'True' as const } })),
     )
+    await mkdir('artifacts/goal-checks/array-hash-dispatch', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash-dispatch/scale-measurements.json',
       JSON.stringify(

@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -233,6 +233,7 @@ it('matches both PostgreSQL byte-order branches, native digit/tuple layouts, exp
       contexts: Object.keys(contexts),
       sourceSha256: reference.sha256,
     }
+    await mkdir('artifacts/goal-checks/array-hash', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash/native-hash-measurements.json',
       JSON.stringify(report, null, 2) + '\n',

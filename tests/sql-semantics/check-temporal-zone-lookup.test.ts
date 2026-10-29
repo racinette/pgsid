@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import {
@@ -235,6 +235,7 @@ it('resolves explicit truncation zones before unit decoding with source/stored, 
           })
         }
     }
+    await mkdir('artifacts/goal-checks/temporal-zone-lookup-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/temporal-zone-lookup-active/native.json',
       JSON.stringify(native, null, 2) + '\n',

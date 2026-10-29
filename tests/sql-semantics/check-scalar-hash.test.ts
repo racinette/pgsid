@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -325,6 +325,7 @@ it('matches float and logical JSONB hashes, native layouts, canonical traversal,
       }
     }
     await runCheckParity(directory, 'scalarhash', group, names, fixtures)
+    await mkdir('artifacts/goal-checks/scalar-hash', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/scalar-hash/measurements.json',
       JSON.stringify(

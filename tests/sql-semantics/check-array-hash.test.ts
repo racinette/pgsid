@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -276,6 +276,7 @@ it('matches array hash folds, dimensions, NULL cells, support errors, strict arg
       ).rejects.toMatchObject({ code: '22003' })
     }
     add('wrapped_nan', base, { kind: 'True' })
+    await mkdir('artifacts/goal-checks/array-hash-dispatch', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-hash-dispatch/value-observations.json',
       JSON.stringify(observations, (_, v) => (typeof v === 'bigint' ? String(v) : v), 2) + '\n',

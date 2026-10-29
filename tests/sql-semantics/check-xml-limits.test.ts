@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
@@ -229,6 +229,7 @@ describe('CHECK XML resource limits', () => {
         await writeFile(path, input)
         rows.push({ name: item.name, path, ...oracle, query })
       }
+      await mkdir('artifacts/goal-checks/xml-query-policy-active', { recursive: true })
       await writeFile(
         'artifacts/goal-checks/xml-query-policy-active/limits-reference.json',
         JSON.stringify(
