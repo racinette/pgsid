@@ -37,7 +37,7 @@ import {
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import type { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
@@ -83,6 +83,9 @@ export type Input =
   | { kind: 'Unknown' }
   | { kind: 'Error'; value: { state: number } }
 export type Row = Record<string, Input>
+// Above this many fixtures, inline assertions make rustc and the Go toolchain spend
+// minutes per suite; value tables keep generated code proportional to distinct values.
+const DATA_DRIVEN_FIXTURES = 20000
 export type Outcome =
   { kind: 'True' | 'False' | 'Null' | 'Unknown' } | { kind: 'Error'; value: { state: number } }
 
@@ -470,6 +473,11 @@ export async function runCheckParity(
   let goAssertionBytes = 0
   let goBatchFixtures = 0
   await mkdir(join(directory, 'go'), { recursive: true })
+  const dataDrivenSetting = process.env['PGSID_PARITY_DATA_DRIVEN']
+  const dataDriven =
+    dataDrivenSetting === 'always' ||
+    (dataDrivenSetting !== 'never' && fixtures.length >= DATA_DRIVEN_FIXTURES)
+
   const flushGoAssertions = async (): Promise<void> => {
     if (!goAssertions.length) return
     const index = goBatchIndex++
@@ -506,89 +514,392 @@ export async function runCheckParity(
     goBatchFixtures = 0
     goBatchRequiresJsonpath = false
   }
-  for (const [index, fixture] of fixtures.entries()) {
-    const check = entries.get(fixture.name)!
-    const args = check.inputs
-      .map((input) =>
-        inputCode(
+  const writeDataDrivenFixtures = async (): Promise<void> => {
+    const complexPrefixes = new Set([
+      'composite',
+      'array',
+      'range',
+      'multirange',
+      'tsvector',
+      'tsquery',
+      'polygon',
+      'path',
+    ])
+    const tables = new Map<
+      string,
+      { rust: string[]; go: GoExpression[]; index: Map<string, number>; jsonpath: boolean }
+    >()
+    const valueIndex = (input: Input, type: string, definition?: EnumDefinition): number => {
+      const prefix = prefixOf(type)
+      let table = tables.get(prefix)
+      if (!table) {
+        table = { rust: [], go: [], index: new Map(), jsonpath: false }
+        tables.set(prefix, table)
+      }
+      const rust = inputCode(input, type, definition)
+      const known = table.index.get(rust)
+      if (known !== undefined) return known
+      goBatchRequiresJsonpath = false
+      const goValue = goInput(input, type, definition)
+      if (goBatchRequiresJsonpath) table.jsonpath = true
+      table.index.set(rust, table.rust.length)
+      table.rust.push(rust)
+      table.go.push(goValue)
+      return table.rust.length - 1
+    }
+    const checkNames = [...entries.keys()]
+    const checkIndex = new Map(checkNames.map((name, index) => [name, index]))
+    const outcomeCode = (outcome: Outcome): string =>
+      outcome.kind === 'Error' ? `E${outcome.value.state}` : outcome.kind[0]!
+    const caseLines: string[] = []
+    for (const [index, fixture] of fixtures.entries()) {
+      const check = entries.get(fixture.name)!
+      const args = check.inputs.map((input) =>
+        valueIndex(
           projectedInput(fixture.row[input.name]!, input.nullness),
           input.nullness ? 'pg_catalog.bool' : input.type,
           input.enum,
         ),
       )
-      .join(', ')
-    const rustExpected = `CheckOutcome::${fixture.expected.kind}${fixture.expected.kind === 'Error' ? `(make_sql_error(${fixture.expected.value.state}))` : ''}`
-    const rustAssertion = `{let actual=${check.entryName}(${args});let error=match actual {CheckOutcome::Error(error)=>error.state,_=>0};assert!(actual == ${rustExpected}, "${fixture.name} ${index}: unknown={} false={} null={} true={} error={}", actual==CheckOutcome::Unknown,actual==CheckOutcome::False,actual==CheckOutcome::Null,actual==CheckOutcome::True,error);}`
-    if (check.inputs.some((input) => input.type.startsWith('composite:'))) {
-      const name = `checks_fixture_${index}`
-      rustFixtureFunctions.push(`#[inline(never)]\nfn ${name}() {${rustAssertion}}`)
-      rustAssertions.push(`${name}();`)
-    } else rustAssertions.push(rustAssertion)
-    const goExpected = go.composite(go.selector(go.ident('checkruntime'), 'CheckOutcome'), [
-      go.keyValue(
-        'Kind',
-        go.selector(go.ident('checkruntime'), 'CheckOutcome' + fixture.expected.kind),
-      ),
-      ...(fixture.expected.kind === 'Error'
-        ? [
-            go.keyValue(
-              'Error',
-              go.composite(go.selector(go.ident('checkruntime'), 'SqlError'), [
-                go.keyValue('State', go.number(fixture.expected.value.state)),
-              ]),
+      caseLines.push(
+        `${checkIndex.get(fixture.name)} ${index} ${outcomeCode(fixture.expected)} ${args.join(',')}`,
+      )
+    }
+    const casesPath = resolve(directory, 'parity-cases.txt')
+    await writeFile(casesPath, caseLines.join('\n') + '\n')
+    const argumentPrefixes = (name: string) =>
+      entries
+        .get(name)!
+        .inputs.map((input) => prefixOf(input.nullness ? 'pg_catalog.bool' : input.type))
+    const rustType = (prefix: string) => `${pascal(prefix)}Value`
+    const rustTables = [...tables.entries()].map(([prefix, table]) => {
+      const complex = complexPrefixes.has(prefix)
+      const constructors = complex
+        ? table.rust.map(
+            (code, index) =>
+              `#[inline(never)]\nfn parity_${prefix}_${index}() -> ${rustType(prefix)} {${code}}`,
+          )
+        : []
+      const elements = complex
+        ? table.rust.map((_, index) => `parity_${prefix}_${index}()`)
+        : table.rust
+      return `${constructors.join('\n')}\nfn parity_table_${prefix}() -> Vec<${rustType(prefix)}> {vec![\n${elements.join(',\n')}\n]}`
+    })
+    const rustRunners = checkNames.map((name, index) => {
+      const args = argumentPrefixes(name).map(
+        (prefix, position) => `t.${prefix}_values[a[${position}]].clone()`,
+      )
+      return `fn parity_run_${index}(t: &ParityTables, a: &[usize]) -> CheckOutcome {${entries.get(name)!.entryName}(${args.join(', ')})}`
+    })
+    await writeFile(
+      join(directory, 'checks_test.rs'),
+      `include!("checks.rs");
+${rustTables.join('\n')}
+struct ParityTables {${[...tables.keys()].map((prefix) => `${prefix}_values: Vec<${rustType(prefix)}>`).join(', ')}}
+${rustRunners.join('\n')}
+#[test]
+fn checks_match_postgres() {
+    let t = ParityTables {${[...tables.keys()].map((prefix) => `${prefix}_values: parity_table_${prefix}()`).join(', ')}};
+    let runners: Vec<fn(&ParityTables, &[usize]) -> CheckOutcome> = vec![${checkNames.map((_, index) => `parity_run_${index}`).join(', ')}];
+    let names: Vec<&str> = vec![${checkNames.map((name) => rustStringLiteral(name)).join(', ')}];
+    let cases = std::fs::read_to_string(${rustStringLiteral(casesPath)}).unwrap();
+    let mut mismatches: Vec<String> = Vec::new();
+    let mut count = 0usize;
+    for line in cases.lines() {
+        let mut parts = line.split(' ');
+        let check: usize = parts.next().unwrap().parse().unwrap();
+        let fixture = parts.next().unwrap();
+        let expected = parts.next().unwrap();
+        let args: Vec<usize> = parts
+            .next()
+            .filter(|list| !list.is_empty())
+            .map(|list| list.split(',').map(|item| item.parse().unwrap()).collect())
+            .unwrap_or_default();
+        count += 1;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runners[check](&t, &args)));
+        let actual = match result {
+            Ok(CheckOutcome::True) => "T".to_string(),
+            Ok(CheckOutcome::False) => "F".to_string(),
+            Ok(CheckOutcome::Null) => "N".to_string(),
+            Ok(CheckOutcome::Unknown) => "U".to_string(),
+            Ok(CheckOutcome::Error(error)) => format!("E{}", error.state),
+            Err(_) => "panic".to_string(),
+        };
+        if actual != expected {
+            mismatches.push(format!("{} {}: expected {} got {}", names[check], fixture, expected, actual));
+        }
+    }
+    assert!(mismatches.is_empty(), "{} of {} cases mismatched:\\n{}", mismatches.len(), count, mismatches.iter().take(20).cloned().collect::<Vec<_>>().join("\\n"));
+}
+`,
+    )
+    const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+    const goType = (prefix: string) => runtime(`${pascal(prefix)}Value`)
+    const tableField = (prefix: string) => `${camel(prefix)}Values`
+    const tablesType = go.pointer(go.ident('parityTables'))
+    const fillers: string[] = []
+    const fillerDeclarations = [...tables.entries()].flatMap(([prefix, table]) => {
+      const chunks: GoExpression[][] = []
+      for (let start = 0; start < table.go.length; start += 200)
+        chunks.push(table.go.slice(start, start + 200))
+      return chunks.map((chunk, chunkIndex) => {
+        const statements: GoStatement[] = []
+        const values = chunk.map((value, position) => {
+          const binding = goFixtureBinding(value, `${camel(prefix)}${chunkIndex}_${position}_`)
+          statements.push(...binding.statements)
+          return binding.expression
+        })
+        const field = go.selector(go.ident('t'), tableField(prefix))
+        statements.push(go.assign([field], [go.call(go.ident('append'), [field, ...values])], '='))
+        const name = `fill${pascal(prefix)}${chunkIndex}`
+        fillers.push(name)
+        return go.function(name, [{ names: ['t'], type: tablesType }], [], statements)
+      })
+    })
+    const runnerType = go.functionType(
+      [
+        { names: [], type: tablesType },
+        { names: [], type: go.slice(go.ident('int')) },
+      ],
+      [{ names: [], type: runtime('CheckOutcome') }],
+    )
+    const runnerDeclarations = checkNames.map((name, index) =>
+      go.function(
+        `runCheck${index}`,
+        [
+          { names: ['t'], type: tablesType },
+          { names: ['a'], type: go.slice(go.ident('int')) },
+        ],
+        [{ names: [], type: runtime('CheckOutcome') }],
+        [
+          go.return(
+            go.call(
+              go.selector(go.ident('generated'), pascal(entries.get(name)!.entryName)),
+              argumentPrefixes(name).map((prefix, position) =>
+                go.index(
+                  go.selector(go.ident('t'), tableField(prefix)),
+                  go.index(go.ident('a'), go.number(position)),
+                ),
+              ),
             ),
-          ]
-        : []),
-    ])
-    const actual = go.ident('actual')
-    const expected = go.ident('expected' + index)
-    const binding = goFixtureBinding(
-      go.call(
-        go.selector(go.ident('generated'), pascal(check.entryName)),
-        check.inputs.map((input) =>
-          goInput(
+          ),
+        ],
+      ),
+    )
+    const parityDirectory = join(directory, 'go', 'parity')
+    await mkdir(parityDirectory, { recursive: true })
+    await writeFile(
+      join(parityDirectory, 'tables_test.go'),
+      printGoFile({
+        package: 'parity',
+        imports: [
+          { alias: 'generated', path: moduleName },
+          { path: moduleName + '/checkruntime' },
+          ...([...tables.values()].some((table) => table.jsonpath)
+            ? [{ path: moduleName + '/pg_catalog' }]
+            : []),
+        ],
+        declarations: [
+          go.type(
+            'parityTables',
+            go.struct(
+              [...tables.keys()].map((prefix) => ({
+                names: [tableField(prefix)],
+                type: go.slice(goType(prefix)),
+              })),
+            ),
+          ),
+          go.function(
+            'newParityTables',
+            [],
+            [{ names: [], type: tablesType }],
+            [
+              go.assign([go.ident('t')], [go.address(go.composite(go.ident('parityTables')))]),
+              ...fillers.map((name) => go.expression(go.call(go.ident(name), [go.ident('t')]))),
+              go.return(go.ident('t')),
+            ],
+          ),
+          ...fillerDeclarations,
+          ...runnerDeclarations,
+          go.function(
+            'parityRunners',
+            [],
+            [{ names: [], type: go.slice(runnerType) }],
+            [
+              go.return(
+                go.composite(
+                  go.slice(runnerType),
+                  checkNames.map((_, index) => go.ident(`runCheck${index}`)),
+                ),
+              ),
+            ],
+          ),
+          go.function(
+            'parityNames',
+            [],
+            [{ names: [], type: go.slice(go.ident('string')) }],
+            [go.return(go.composite(go.slice(go.ident('string')), checkNames.map(go.string)))],
+          ),
+        ],
+      }),
+    )
+    await writeFile(
+      join(parityDirectory, 'driver_test.go'),
+      `package parity
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+
+	"${moduleName}/checkruntime"
+)
+
+func runParityCase(runner func(*parityTables, []int) checkruntime.CheckOutcome, tables *parityTables, args []int) (code string) {
+	defer func() {
+		if recover() != nil {
+			code = "panic"
+		}
+	}()
+	actual := runner(tables, args)
+	switch actual.Kind {
+	case checkruntime.CheckOutcomeTrue:
+		return "T"
+	case checkruntime.CheckOutcomeFalse:
+		return "F"
+	case checkruntime.CheckOutcomeNull:
+		return "N"
+	case checkruntime.CheckOutcomeUnknown:
+		return "U"
+	default:
+		return "E" + strconv.Itoa(actual.Error.State)
+	}
+}
+
+func TestChecksMatchPostgres(t *testing.T) {
+	tables := newParityTables()
+	runners := parityRunners()
+	names := parityNames()
+	data, err := os.ReadFile(${JSON.stringify(casesPath)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mismatches []string
+	count := 0
+	for _, line := range strings.Split(strings.TrimRight(string(data), "\\n"), "\\n") {
+		parts := strings.Split(line, " ")
+		check, _ := strconv.Atoi(parts[0])
+		var args []int
+		if len(parts) > 3 && parts[3] != "" {
+			for _, item := range strings.Split(parts[3], ",") {
+				value, _ := strconv.Atoi(item)
+				args = append(args, value)
+			}
+		}
+		count++
+		if actual := runParityCase(runners[check], tables, args); actual != parts[2] {
+			mismatches = append(mismatches, fmt.Sprintf("%s %s: expected %s got %s", names[check], parts[1], parts[2], actual))
+		}
+	}
+	if len(mismatches) > 0 {
+		shown := mismatches
+		if len(shown) > 20 {
+			shown = shown[:20]
+		}
+		t.Fatalf("%d of %d cases mismatched:\\n%s", len(mismatches), count, strings.Join(shown, "\\n"))
+	}
+}
+`,
+    )
+  }
+  if (dataDriven) await writeDataDrivenFixtures()
+  else {
+    for (const [index, fixture] of fixtures.entries()) {
+      const check = entries.get(fixture.name)!
+      const args = check.inputs
+        .map((input) =>
+          inputCode(
             projectedInput(fixture.row[input.name]!, input.nullness),
             input.nullness ? 'pg_catalog.bool' : input.type,
             input.enum,
           ),
+        )
+        .join(', ')
+      const rustExpected = `CheckOutcome::${fixture.expected.kind}${fixture.expected.kind === 'Error' ? `(make_sql_error(${fixture.expected.value.state}))` : ''}`
+      const rustAssertion = `{let actual=${check.entryName}(${args});let error=match actual {CheckOutcome::Error(error)=>error.state,_=>0};assert!(actual == ${rustExpected}, "${fixture.name} ${index}: unknown={} false={} null={} true={} error={}", actual==CheckOutcome::Unknown,actual==CheckOutcome::False,actual==CheckOutcome::Null,actual==CheckOutcome::True,error);}`
+      if (check.inputs.some((input) => input.type.startsWith('composite:'))) {
+        const name = `checks_fixture_${index}`
+        rustFixtureFunctions.push(`#[inline(never)]\nfn ${name}() {${rustAssertion}}`)
+        rustAssertions.push(`${name}();`)
+      } else rustAssertions.push(rustAssertion)
+      const goExpected = go.composite(go.selector(go.ident('checkruntime'), 'CheckOutcome'), [
+        go.keyValue(
+          'Kind',
+          go.selector(go.ident('checkruntime'), 'CheckOutcome' + fixture.expected.kind),
         ),
-      ),
-      `fixture${index}_`,
-    )
-    const assertions = [
-      ...binding.statements,
-      go.assign([expected], [goExpected]),
-      go.if(
-        go.notEqual(actual, expected),
-        [
-          go.expression(
-            go.call(go.selector(go.ident('t'), 'Fatalf'), [
-              go.string(`${fixture.name} ${index}: %+v`),
-              actual,
-            ]),
+        ...(fixture.expected.kind === 'Error'
+          ? [
+              go.keyValue(
+                'Error',
+                go.composite(go.selector(go.ident('checkruntime'), 'SqlError'), [
+                  go.keyValue('State', go.number(fixture.expected.value.state)),
+                ]),
+              ),
+            ]
+          : []),
+      ])
+      const actual = go.ident('actual')
+      const expected = go.ident('expected' + index)
+      const binding = goFixtureBinding(
+        go.call(
+          go.selector(go.ident('generated'), pascal(check.entryName)),
+          check.inputs.map((input) =>
+            goInput(
+              projectedInput(fixture.row[input.name]!, input.nullness),
+              input.nullness ? 'pg_catalog.bool' : input.type,
+              input.enum,
+            ),
           ),
-        ],
-        go.assign([actual], [binding.expression]),
-      ),
-    ]
-    goAssertions.push(...assertions)
-    goAssertionBytes += Buffer.byteLength(JSON.stringify(assertions))
-    goBatchFixtures++
-    if (goBatchFixtures === 125 || goAssertionBytes >= 512 * 1024) await flushGoAssertions()
+        ),
+        `fixture${index}_`,
+      )
+      const assertions = [
+        ...binding.statements,
+        go.assign([expected], [goExpected]),
+        go.if(
+          go.notEqual(actual, expected),
+          [
+            go.expression(
+              go.call(go.selector(go.ident('t'), 'Fatalf'), [
+                go.string(`${fixture.name} ${index}: %+v`),
+                actual,
+              ]),
+            ),
+          ],
+          go.assign([actual], [binding.expression]),
+        ),
+      ]
+      goAssertions.push(...assertions)
+      goAssertionBytes += Buffer.byteLength(JSON.stringify(assertions))
+      goBatchFixtures++
+      if (goBatchFixtures === 125 || goAssertionBytes >= 512 * 1024) await flushGoAssertions()
+    }
+    await flushGoAssertions()
+    const batches = (assertions: readonly string[]): string[] => {
+      const result: string[] = []
+      for (let index = 0; index < assertions.length; index += 250)
+        result.push(assertions.slice(index, index + 250).join('\n'))
+      return result
+    }
+    await writeFile(
+      join(directory, 'checks_test.rs'),
+      `include!("checks.rs");\n${rustFixtureFunctions.join('\n')}\n${batches(rustAssertions)
+        .map((batch, index) => `#[test]\nfn checks_match_postgres_${index}() {\n${batch}\n}`)
+        .join('\n')}\n`,
+    )
   }
-  await flushGoAssertions()
-  const batches = (assertions: readonly string[]): string[] => {
-    const result: string[] = []
-    for (let index = 0; index < assertions.length; index += 250)
-      result.push(assertions.slice(index, index + 250).join('\n'))
-    return result
-  }
-  await writeFile(
-    join(directory, 'checks_test.rs'),
-    `include!("checks.rs");\n${rustFixtureFunctions.join('\n')}\n${batches(rustAssertions)
-      .map((batch, index) => `#[test]\nfn checks_match_postgres_${index}() {\n${batch}\n}`)
-      .join('\n')}\n`,
-  )
   await run('rustc', [
     '--edition',
     '2021',
@@ -622,9 +933,12 @@ export async function runCheckParity(
     await writeFile(path, source)
   }
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
-  await run('go', ['test', '-trimpath', '-p', '1', './...'], {
+  // The data-driven driver reads its cases at runtime, so a cached pass could be stale.
+  await run('go', ['test', '-count=1', '-trimpath', '-p', '1', './...'], {
     cwd: join(directory, 'go'),
     env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+  }).catch((error: { stdout: string; stderr: string }) => {
+    throw new Error(error.stdout + error.stderr, { cause: error })
   })
   for (const artifact of checkTypescriptArtifacts(split.typescript)) {
     const path = join(directory, 'typescript', artifact.path)
