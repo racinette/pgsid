@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { parseRust } from '../../../tools/check-transpiler/typescript/rust-wasm.js'
 import { transpileGo } from '../../../tools/check-transpiler/typescript/go-wasm.js'
 import { transpile } from '../../../tools/check-transpiler/typescript/transpile.js'
@@ -144,6 +145,57 @@ export function transpileCheckRust(source: string | CheckRustSource): {
   }
 }
 
+type GoParts = {
+  regex: string
+  operations: string
+  runtime: string
+  language: string
+  checks: string
+}
+type GoDocument = { items: ({ module?: string; kind?: string; body?: unknown } | null)[] }
+
+const sharedGoParts = new Map<string, Omit<GoParts, 'checks'>>()
+
+// The runtime, regex and operation modules are identical across check sets, so they
+// transpile once per source and options; the checks transpile against body-free
+// declarations of those modules, which carry the names and types they reference.
+function transpileSplitGo(
+  document: GoDocument,
+  options: ReturnType<typeof checkValueOptions> & { split: boolean; schemaImportPath: string },
+): GoParts {
+  const wasm = checkRustAsset('check-go-transpiler.wasm')
+  const shared = { ...document, items: document.items.filter((item) => item?.module !== 'checks') }
+  const sharedJson = JSON.stringify(shared)
+  const key = createHash('sha256')
+    .update(sharedJson)
+    .update(JSON.stringify(options))
+    .update(wasm)
+    .digest('hex')
+  let parts = sharedGoParts.get(key)
+  if (!parts) {
+    const { checks: _, ...transpiled } = JSON.parse(
+      transpileGo(Buffer.from(sharedJson, 'utf8'), wasm, options),
+    ) as GoParts
+    parts = transpiled
+    sharedGoParts.set(key, parts)
+  }
+  const declarations = {
+    ...document,
+    items: document.items.map((item) =>
+      item && item.module !== 'checks' && item.kind === 'function' ? { ...item, body: [] } : item,
+    ),
+  }
+  const checks = (
+    JSON.parse(
+      transpileGo(Buffer.from(JSON.stringify(declarations), 'utf8'), wasm, {
+        ...options,
+        emitModules: ['checks'],
+      }),
+    ) as GoParts
+  ).checks
+  return { ...parts, checks }
+}
+
 export function transpileCheckRustFiles(
   source: CheckRustSource,
   schemaImportPath = 'checkrust/pg_catalog',
@@ -164,9 +216,7 @@ export function transpileCheckRustFiles(
     transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
     document.items,
   )
-  const go = JSON.parse(
-    transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), options),
-  ) as { regex: string; operations: string; runtime: string; language: string; checks: string }
+  const go = transpileSplitGo(document, options)
   for (const [part, module] of [
     ['regex', 'regex_engine'],
     ['operations', 'pg_catalog'],

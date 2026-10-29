@@ -106,6 +106,7 @@ type Options struct {
 	ReadonlyValueTypes  []string `json:"readonlyValueTypes,omitempty"`
 	Split               bool     `json:"split,omitempty"`
 	SchemaImportPath    string   `json:"schemaImportPath,omitempty"`
+	EmitModules         []string `json:"emitModules,omitempty"`
 }
 
 type configuredInput struct {
@@ -688,10 +689,15 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 			identifier.Name = exported
 		}
 	}
+	// Callers translate the shared modules once and then request only the checks for each schema.
+	emitted := make(map[string]bool)
+	for _, module := range options.EmitModules {
+		emitted[module] = true
+	}
 	result := make(map[string]string)
 	for _, module := range moduleOrder {
 		file := files[module]
-		if len(file.Decls) == 0 {
+		if len(file.Decls) == 0 || (len(emitted) > 0 && !emitted[module]) {
 			result[keys[module]] = ""
 			continue
 		}
