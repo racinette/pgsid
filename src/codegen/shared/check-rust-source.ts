@@ -67,7 +67,7 @@ export function assembleCheckRust(evaluator: {
   const requiresTimezone =
     requiresJsonpathExecution ||
     evaluator.callables.some((name) => timezoneCallables.has(name)) ||
-    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context|format_accept_timezone)\(/u.test(
+    /\b(?:timestamptz_output_context|jsonb_input_from_timestamptz_context|format_accept_timezone|timestamptz_from_text_session)\(/u.test(
       evaluator.source,
     )
   const regexCallables = checkRustCallableNames({

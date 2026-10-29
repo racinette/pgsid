@@ -192,3 +192,22 @@ pub fn sql__pg_catalog__timetz__sqdw(input: TimestamptzValue, zone: &str) -> Tim
     };
     TimetzValue::Unknown
 }
+
+// Timestamptz input without a zone takes the session time zone through the same local-time
+// resolution as a timestamp cast. Input and casts check the range limits at different points,
+// so local times within a day of either limit defer.
+pub fn timestamptz_from_text_session(input: TextValue, zone: &str) -> TimestamptzValue {
+    let parsed = timestamptz_from_text(input.clone());
+    if parsed != TimestamptzValue::Unknown {
+        return parsed;
+    };
+    let local = timestamp_from_text(input);
+    if let TimestampValue::Value(value) = local {
+        if value > -211813488000000000i64 + 86400000000i64
+            && value < 9223371331200000000i64 - 86400000000i64
+        {
+            return sql__pg_catalog__timestamptz__m17a(local, zone);
+        };
+    };
+    TimestamptzValue::Unknown
+}
