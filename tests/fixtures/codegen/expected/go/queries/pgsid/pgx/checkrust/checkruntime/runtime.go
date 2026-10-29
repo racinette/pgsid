@@ -16108,6 +16108,35 @@ func englishDateFields(first *timestampNumber, second *timestampNumber, month in
 	}
 	return englishDateResult(ordinalDateCalendar, next, second.value, month, first.value)
 }
+func readEnglishTrailingMonth(text *timestampText, first *timestampNumber, secondStart int, end int) ordinalDateText {
+	secondStart = langruntime.CheckedIndex(secondStart)
+	end = langruntime.CheckedIndex(end)
+	absent := englishDateResult(ordinalDateAbsent, secondStart, 0, 0, 0)
+	second := readTimestampNumber(text, secondStart, end)
+	wordStart := englishDateGap(text, second.next, end)
+	if wordStart == end || englishDateLetter(text.chars[wordStart]) == false {
+		return absent
+	}
+	word := englishDateWord(text, wordStart, end)
+	month := englishDateMonth(word)
+	if month == 0 {
+		return absent
+	}
+	wordEnd := englishDateWordEnd(text, wordStart, end)
+	if wordEnd < end && dateTextSpace(text.chars[wordEnd]) == false && langruntime.AsciiLowercase(text.chars[wordEnd]) != 't' && text.chars[wordEnd] != '+' {
+		return englishDateResult(ordinalDateDeferred, wordEnd, 0, 0, 0)
+	}
+	if first.digits >= 6 || second.digits >= 6 {
+		return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0)
+	}
+	if first.digits <= 2 {
+		return englishDateResult(ordinalDateDeferred, wordEnd, 0, 0, 0)
+	}
+	if (second.digits == 3 && second.value >= 1 && second.value <= 366) || second.value < 1 || second.value > 31 {
+		return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0)
+	}
+	return englishDateResult(ordinalDateCalendar, wordEnd, first.value, month, second.value)
+}
 func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
 	start = langruntime.CheckedIndex(start)
 	end = langruntime.CheckedIndex(end)
@@ -16175,6 +16204,9 @@ func readEnglishDate(text *timestampText, start int, end int) ordinalDateText {
 		return englishDateFields(&first, &second, month, second.next, true, true)
 	}
 	wordStart := englishDateGap(text, after, end)
+	if wordStart < end && wordStart > after && dateTextDigit(text.chars[wordStart]) >= 0 {
+		return readEnglishTrailingMonth(text, &first, wordStart, end)
+	}
 	if wordStart == end || englishDateLetter(text.chars[wordStart]) == false {
 		return absent
 	}

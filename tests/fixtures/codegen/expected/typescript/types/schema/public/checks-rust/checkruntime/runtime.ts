@@ -16032,6 +16032,35 @@ function englishDateFields(first: TimestampNumber, second: TimestampNumber, mont
     }
     return englishDateResult(ordinalDateCalendar, next, second.value, month, first.value);
 }
+function readEnglishTrailingMonth(text: TimestampText, first: TimestampNumber, secondStart: number, end: number): OrdinalDateText {
+    secondStart = langruntime.checkedIndex(secondStart);
+    end = langruntime.checkedIndex(end);
+    const absent: OrdinalDateText = englishDateResult(ordinalDateAbsent, secondStart, 0, 0, 0);
+    const second: TimestampNumber = readTimestampNumber(text, secondStart, end);
+    const wordStart: number = englishDateGap(text, second.next, end);
+    if (wordStart === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) === false) {
+        return absent;
+    }
+    const word: string = englishDateWord(text, wordStart, end);
+    const month: number = englishDateMonth(word);
+    if (month === 0) {
+        return absent;
+    }
+    const wordEnd: number = englishDateWordEnd(text, wordStart, end);
+    if (wordEnd < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordEnd))) === false && !(langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordEnd))) === "t") && !(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordEnd)) === "+")) {
+        return englishDateResult(ordinalDateDeferred, wordEnd, 0, 0, 0);
+    }
+    if (first.digits >= 6 || second.digits >= 6) {
+        return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0);
+    }
+    if (first.digits <= 2) {
+        return englishDateResult(ordinalDateDeferred, wordEnd, 0, 0, 0);
+    }
+    if ((second.digits === 3 && second.value >= 1 && second.value <= 366) || second.value < 1 || second.value > 31) {
+        return englishDateResult(ordinalDateSyntax, wordEnd, 0, 0, 0);
+    }
+    return englishDateResult(ordinalDateCalendar, wordEnd, first.value, month, second.value);
+}
 function readEnglishDate(text: TimestampText, start: number, end: number): OrdinalDateText {
     start = langruntime.checkedIndex(start);
     end = langruntime.checkedIndex(end);
@@ -16099,6 +16128,9 @@ function readEnglishDate(text: TimestampText, start: number, end: number): Ordin
         return englishDateFields(first, second, month, second.next, true, true);
     }
     const wordStart: number = englishDateGap(text, after, end);
+    if (wordStart < end && wordStart > after && dateTextDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) >= 0) {
+        return readEnglishTrailingMonth(text, first, wordStart, end);
+    }
     if (wordStart === end || englishDateLetter(langruntime.indexChar(text.chars, langruntime.checkedIndex(wordStart))) === false) {
         return absent;
     }

@@ -360,6 +360,19 @@ const spaceCalendarLocalText = [
 ]
 
 const englishDateText = [
+  '2000 32 Jan',
+  '2000 0 Jan',
+  '2000 060 Jan',
+  '2000 367 Jan',
+  '1900 29 Feb',
+  '200000 1 Jan',
+  '2000 100000 Jan',
+  '0000 1 Jan',
+  '2000 1 Jan+05',
+  '2000 1 Jan -05',
+  '2000 1 Jan Z',
+  '5874897 1 Jan',
+  '2000 060 Jan 12:00',
   '01Jan2000 12:00Z',
   'Jan32 2000',
   '2000Jan32',
@@ -381,6 +394,17 @@ const englishDateText = [
 ]
 
 const englishDateLocalText = [
+  '2000 1 Jan',
+  '2000 31 Jan',
+  '2000 0001 Jan',
+  '2000 01 Feb 12:00',
+  '2000 29 Feb',
+  '200 1 Jan',
+  '20000 1 Jan',
+  '2000, 1, Jan',
+  '2000 1Jan',
+  '2000 1 Jan 2001',
+  '2000 1 Jan BC',
   'Jan1 2000',
   '1Jan2000',
   'January1 2000',

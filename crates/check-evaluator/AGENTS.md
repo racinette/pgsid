@@ -413,7 +413,9 @@ import them. Keep schema-only helpers with their callables.
   or adjacent where letters meet digits;
   an optional leading weekday is ignored. A first number of three or more digits
   is the year and the second the day; otherwise a second number of three or more
-  digits is the year. Two short numbers defer because DateStyle assigns them, and
+  digits is the year. After two numbers, a three- to five-digit year and a
+  second number from 1 through 31 form the date; other second numbers return
+  SQLSTATE 22007. Two short numbers defer because DateStyle assigns them, and
   a whitespace-separated field of six or more digits returns 22007. A date followed by a
   timestamp clock and optional
   numeric zone parses through the timestamp grammar: colon clock fields and
