@@ -1,5 +1,6 @@
 import { catalogIdentifierSql as identifier } from '../catalog-identities.js'
 import type { PGlite } from '@electric-sql/pglite'
+import { withRolledBackProbe } from '../rolled-back-probe.js'
 
 export interface BuiltinTypeComparison {
   identity: string
@@ -69,7 +70,7 @@ export async function readTypeComparisons(
     let hashAvailable: boolean | undefined, hashExtendedAvailable: boolean | undefined
     for (const method of ['btree', 'hash']) {
       try {
-        await pg.transaction(async (tx) => {
+        await withRolledBackProbe(pg, async (tx) => {
           let type = identity
           if (identity === 'pg_catalog.anyenum') {
             await tx.exec('CREATE TEMP TABLE _pgsid_type_comparison_init(value integer)')
@@ -160,7 +161,6 @@ export async function readTypeComparisons(
               `Default comparison index did not select one operator class: ${identity}/${method}`,
             )
           supports[method] = result.rows[0]!
-          await tx.rollback()
         })
       } catch (error) {
         if (!error || typeof error !== 'object' || !('code' in error) || error.code !== '42704')

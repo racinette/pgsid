@@ -17,6 +17,7 @@ import {
 } from '../catalog/container-constant-storage.js'
 import { tsvectorConstantTypes } from '../catalog/tsvector-container-constants.js'
 import type { PGlite } from '@electric-sql/pglite'
+import { withRolledBackProbe } from './rolled-back-probe.js'
 
 import type {
   RangeTypeMetadata,
@@ -64,7 +65,7 @@ async function readTypeSupports(
     let hashEquality: string | null = null
     for (const method of ['btree', 'hash'])
       try {
-        await pg.transaction(async (tx) => {
+        await withRolledBackProbe(pg, async (tx) => {
           await tx.exec(`CREATE TEMP TABLE _pgsid_range_hash_probe(value ${type})`)
           await tx.exec(
             `CREATE INDEX _pgsid_range_hash_index ON _pgsid_range_hash_probe USING ${method}(value)`,
@@ -98,7 +99,6 @@ async function readTypeSupports(
             support.hash = signature(row.first)
             support.extended = signature(row.extended)
           }
-          await tx.rollback()
         })
       } catch (error) {
         if (!error || typeof error !== 'object' || !('code' in error) || error.code !== '42704')
