@@ -287,6 +287,48 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: "jsonb_set(jsonb_build_object('n',n),'{n,x}','1') ?& ARRAY['n']",
     partial: 'True',
   },
+  { name: 'order_rank_below', sql: "jsonb_build_array(n) < '[true]'::jsonb", partial: 'True' },
+  {
+    name: 'order_rank_overlap',
+    sql: 'jsonb_build_array(n) < \'["x"]\'::jsonb',
+    partial: 'Unknown',
+  },
+  { name: 'order_container', sql: "jsonb_build_array(n) < '[[1]]'::jsonb", partial: 'True' },
+  {
+    name: 'order_key_first',
+    sql: "jsonb_build_object('a',n) < '{\"b\":1}'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'order_value_depends',
+    sql: "jsonb_build_object('n',n) < '{\"n\":1}'::jsonb",
+    partial: 'Unknown',
+  },
+  {
+    name: 'order_earlier_element',
+    sql: "jsonb_build_array('x',n) > '[\"w\",5]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'order_object_element',
+    sql: 'jsonb_cmp(jsonb_build_array(n,1),\'[{"a":1},0]\'::jsonb) = -1',
+    partial: 'True',
+  },
+  {
+    name: 'order_scalar_empty_array',
+    sql: "(jsonb_build_object('n',n)->'n') < '[]'::jsonb",
+    partial: 'False',
+  },
+  {
+    name: 'order_scalar_array',
+    sql: "(jsonb_build_object('n',n)->'n') < '[1]'::jsonb",
+    partial: 'True',
+  },
+  {
+    name: 'order_partial_pair',
+    sql: "jsonb_build_object('a',n) <= jsonb_build_object('b',b)",
+    partial: 'True',
+  },
 ]
 const value = (value: number | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }

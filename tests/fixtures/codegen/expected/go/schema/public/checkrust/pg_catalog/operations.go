@@ -23521,9 +23521,14 @@ func jsonbOrderWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPa
 		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
 	}
+	return jsonbOrderWalkFrom(left, left.Root, right, right.Root)
+}
+func jsonbOrderWalkFrom(left *checkruntime.JsonbPayload, leftRoot int, right *checkruntime.JsonbPayload, rightRoot int) checkruntime.Int4Value {
+	leftRoot = langruntime.CheckedIndex(leftRoot)
+	rightRoot = langruntime.CheckedIndex(rightRoot)
 	frames := []jsonbOrderFrame{}
 	langruntime.CheckedAdd(len(frames), 1)
-	frames = append(frames, copyjsonbOrderFrame(jsonbOrderFrame{left: left.Root, right: right.Root, key: false}))
+	frames = append(frames, copyjsonbOrderFrame(jsonbOrderFrame{left: leftRoot, right: rightRoot, key: false}))
 	depth := 1
 	for depth > 0 {
 		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
@@ -23597,6 +23602,103 @@ func jsonbOrderWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPa
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+}
+func jsonbOrderRankBound(shape *checkruntime.JsonbPayload, index int, highest bool) int {
+	index = langruntime.CheckedIndex(index)
+	found := langruntime.CheckedSignedNegate(1)
+	kind := 0
+	for kind < 7 {
+		if checkruntime.JsonbHoleAllows(shape, index, kind) {
+			rank := jsonbOrderRank(kind)
+			if found < 0 || (highest && rank > found) || (highest == false && rank < found) {
+				found = langruntime.CheckedI32(rank)
+			}
+		}
+		kind = langruntime.CheckedI32(langruntime.CheckedSignedAdd(kind, 1))
+	}
+	return found
+}
+func jsonbOrderShape(a *checkruntime.JsonbPayload, ai int, b *checkruntime.JsonbPayload, bi int) int {
+	ai = langruntime.CheckedIndex(ai)
+	bi = langruntime.CheckedIndex(bi)
+	left := a.Nodes[ai]
+	right := b.Nodes[bi]
+	if left.Kind == 7 || right.Kind == 7 {
+		if jsonbOrderRankBound(a, ai, true) < jsonbOrderRankBound(b, bi, false) {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if jsonbOrderRankBound(a, ai, false) > jsonbOrderRankBound(b, bi, true) {
+			return 1
+		}
+		return langruntime.CheckedSignedNegate(2)
+	}
+	rankA := jsonbOrderRank(left.Kind)
+	rankB := jsonbOrderRank(right.Kind)
+	if rankA < rankB {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if rankA > rankB {
+		return 1
+	}
+	if left.Kind < 5 || (checkruntime.JsonbShapeExact(a, ai) && checkruntime.JsonbShapeExact(b, bi)) {
+		compared := jsonbOrderWalkFrom(a, ai, b, bi)
+		if compared.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(compared.Value)
+			return order
+		}
+		return langruntime.CheckedSignedNegate(2)
+	}
+	countA := jsonbRelationCount(a, left)
+	countB := jsonbRelationCount(b, right)
+	if countA < countB {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if countA > countB {
+		return 1
+	}
+	childrenA := jsonbOrderChildren(a, left)
+	childrenB := jsonbOrderChildren(b, right)
+	index := 0
+	for index < countA {
+		childA := childrenA[index]
+		childB := childrenB[index]
+		if left.Kind == 6 {
+			first := a.Nodes[childA]
+			second := b.Nodes[childB]
+			keyed := jsonbOrderSpan(a, b, first.KeyStart, first.KeyEnd, second.KeyStart, second.KeyEnd)
+			if keyed != 0 {
+				return keyed
+			}
+		}
+		compared := jsonbOrderShape(a, childA, b, childB)
+		if compared != 0 {
+			return compared
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return 0
+}
+func jsonbOrderShapeRoot(a *checkruntime.JsonbPayload, b *checkruntime.JsonbPayload) int {
+	left := a.Nodes[a.Root]
+	right := b.Nodes[b.Root]
+	scalarA := left.Kind < 5 || (left.Kind == 7 && checkruntime.JsonbHoleAllows(a, a.Root, 5) == false && checkruntime.JsonbHoleAllows(a, a.Root, 6) == false)
+	scalarB := right.Kind < 5 || (right.Kind == 7 && checkruntime.JsonbHoleAllows(b, b.Root, 5) == false && checkruntime.JsonbHoleAllows(b, b.Root, 6) == false)
+	if scalarA && right.Kind == 5 {
+		if right.Child == 0 {
+			return 1
+		}
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left.Kind == 5 && scalarB {
+		if left.Child == 0 {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		return 1
+	}
+	if (left.Kind == 7 && scalarA == false) || (right.Kind == 7 && scalarB == false) {
+		return langruntime.CheckedSignedNegate(2)
+	}
+	return jsonbOrderShape(a, a.Root, b, b.Root)
 }
 func jsonbOrderPartial(a checkruntime.JsonbKnowledge, b checkruntime.JsonbKnowledge) checkruntime.Int4Value {
 	a = checkruntime.CopyJsonbKnowledge(a)
@@ -23683,6 +23785,34 @@ func JsonbCmpN2cx(left checkruntime.JsonbValue, right checkruntime.JsonbValue) c
 		partial = true
 	}
 	if partial {
+		first := checkruntime.JsonbEmptyShape()
+		second := checkruntime.JsonbEmptyShape()
+		leftShape := checkruntime.CopyJsonbValue(left)
+		if leftShape.Kind == checkruntime.JsonbValueNonNull {
+			facts := checkruntime.CopyJsonbKnowledge(leftShape.NonNull)
+			first = checkruntime.CopyJsonbPayload(facts.Shape)
+		}
+		leftExact := checkruntime.CopyJsonbValue(left)
+		if leftExact.Kind == checkruntime.JsonbValueValue {
+			value := checkruntime.CopyJsonbPayload(leftExact.Value)
+			first = checkruntime.CopyJsonbPayload(value)
+		}
+		rightShape := checkruntime.CopyJsonbValue(right)
+		if rightShape.Kind == checkruntime.JsonbValueNonNull {
+			facts := checkruntime.CopyJsonbKnowledge(rightShape.NonNull)
+			second = checkruntime.CopyJsonbPayload(facts.Shape)
+		}
+		rightExact := checkruntime.CopyJsonbValue(right)
+		if rightExact.Kind == checkruntime.JsonbValueValue {
+			value := checkruntime.CopyJsonbPayload(rightExact.Value)
+			second = checkruntime.CopyJsonbPayload(value)
+		}
+		if len(first.Nodes) > 1 && len(second.Nodes) > 1 {
+			ordered := jsonbOrderShapeRoot(&first, &second)
+			if ordered != langruntime.CheckedSignedNegate(2) {
+				return checkruntime.MakeInt4Value(ordered)
+			}
+		}
 		a := jsonbRootFacts(left, false)
 		b := jsonbRootFacts(right, false)
 		return jsonbOrderPartial(a, b)
