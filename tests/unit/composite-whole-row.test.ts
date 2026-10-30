@@ -120,15 +120,23 @@ it('projects owner fields without requiring a representation of unrelated column
       expect(uncertain(plan.expression), name).toBe(false)
       expect(plan.inputs).toEqual(['n'])
     }
-    for (const sql of [
-      'to_jsonb(opaque) IS NULL',
-      'to_jsonb(opaque.opaque) IS NULL',
-      'to_jsonb(other.*) IS NULL',
-    ]) {
-      if (sql !== 'to_jsonb(opaque) IS NULL')
-        await expect(
-          pg.exec('ALTER TABLE opaque ADD CHECK(' + sql + ') NOT VALID'),
-        ).rejects.toHaveProperty('code')
+    // The whole owner row is valid PostgreSQL and every column is representable, XML included,
+    // so it lowers over all columns; the forms PostgreSQL rejects stay uncertain.
+    const whole = lowerTableCheck(
+      t,
+      { name: 'boundary', type: 'check', definition: 'CHECK(to_jsonb(opaque) IS NULL)' },
+      c.enums,
+      c.domains,
+      'source',
+      c.rangeTypes,
+      c.compositeTypeGraph,
+    )!
+    expect(uncertain(whole.expression)).toBe(false)
+    expect(whole.inputs).toEqual(['n', 'payload'])
+    for (const sql of ['to_jsonb(opaque.opaque) IS NULL', 'to_jsonb(other.*) IS NULL']) {
+      await expect(
+        pg.exec('ALTER TABLE opaque ADD CHECK(' + sql + ') NOT VALID'),
+      ).rejects.toHaveProperty('code')
       const plan = lowerTableCheck(
         t,
         { name: 'boundary', type: 'check', definition: 'CHECK(' + sql + ')' },
