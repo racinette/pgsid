@@ -7,14 +7,14 @@ import (
 	"unicode/utf8"
 )
 
-func checkedOpaqueBorrow[T any](value *T) *T {
+func CheckedOpaqueBorrow[T any](value *T) *T {
 	if value == nil {
 		panic("nil borrowed value")
 	}
 	return value
 }
 
-func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
+func CheckedBorrowed[T any](value *T, copyValue func(T) T) *T {
 	if value == nil {
 		panic("nil borrowed value")
 	}
@@ -22,28 +22,28 @@ func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
 	return &copied
 }
 
-const maxSharedIndex = 2147483647
-const minSharedI32 = -2147483648
+const MaxSharedIndex = 2147483647
+const MinSharedI32 = -2147483648
 
-const maxSharedI64 int64 = 9223372036854775807
-const minSharedI64 int64 = -9223372036854775808
+const MaxSharedI64 int64 = 9223372036854775807
+const MinSharedI64 int64 = -9223372036854775808
 
-func checkedI64Add(left int64, right int64) int64 {
-	if (right > 0 && left > maxSharedI64-right) || (right < 0 && left < minSharedI64-right) {
+func CheckedI64Add(left int64, right int64) int64 {
+	if (right > 0 && left > MaxSharedI64-right) || (right < 0 && left < MinSharedI64-right) {
 		panic("i64 overflow")
 	}
 	return left + right
 }
 
-func checkedI64Subtract(left int64, right int64) int64 {
-	if (right < 0 && left > maxSharedI64+right) || (right > 0 && left < minSharedI64+right) {
+func CheckedI64Subtract(left int64, right int64) int64 {
+	if (right < 0 && left > MaxSharedI64+right) || (right > 0 && left < MinSharedI64+right) {
 		panic("i64 overflow")
 	}
 	return left - right
 }
 
-func checkedI64Multiply(left int64, right int64) int64 {
-	if (left == minSharedI64 && right == -1) || (right == minSharedI64 && left == -1) {
+func CheckedI64Multiply(left int64, right int64) int64 {
+	if (left == MinSharedI64 && right == -1) || (right == MinSharedI64 && left == -1) {
 		panic("i64 overflow")
 	}
 	result := left * right
@@ -53,186 +53,186 @@ func checkedI64Multiply(left int64, right int64) int64 {
 	return result
 }
 
-func checkedI64Divide(left int64, right int64) int64 {
+func CheckedI64Divide(left int64, right int64) int64 {
 	if right == 0 {
 		panic("integer division by zero")
 	}
-	if left == minSharedI64 && right == -1 {
+	if left == MinSharedI64 && right == -1 {
 		panic("i64 overflow")
 	}
 	return left / right
 }
 
-func checkedI64Remainder(left int64, right int64) int64 {
+func CheckedI64Remainder(left int64, right int64) int64 {
 	if right == 0 {
 		panic("integer remainder by zero")
 	}
-	if left == minSharedI64 && right == -1 {
+	if left == MinSharedI64 && right == -1 {
 		panic("i64 overflow")
 	}
 	return left % right
 }
 
-func checkedIndex(value int) int {
-	if value < 0 || value > maxSharedIndex {
+func CheckedIndex(value int) int {
+	if value < 0 || value > MaxSharedIndex {
 		panic("index outside shared numeric range")
 	}
 	return value
 }
 
-func indexFromI32(value int, fallback int) int {
-	checkedI32(value)
-	checkedIndex(fallback)
+func IndexFromI32(value int, fallback int) int {
+	CheckedI32(value)
+	CheckedIndex(fallback)
 	if value < 0 {
 		return fallback
 	}
 	return value
 }
 
-func checkedI32(value int) int {
-	if value < -2147483648 || value > maxSharedIndex {
+func CheckedI32(value int) int {
+	if value < -2147483648 || value > MaxSharedIndex {
 		panic("signed integer outside shared numeric range")
 	}
 	return value
 }
 
-func checkedAdd(left int, right int) int {
-	checkedIndex(left)
-	checkedIndex(right)
-	if right > maxSharedIndex-left {
+func CheckedAdd(left int, right int) int {
+	CheckedIndex(left)
+	CheckedIndex(right)
+	if right > MaxSharedIndex-left {
 		panic("shared numeric overflow")
 	}
 	return left + right
 }
 
-func checkedSubtract(left int, right int) int {
-	checkedIndex(left)
-	checkedIndex(right)
+func CheckedSubtract(left int, right int) int {
+	CheckedIndex(left)
+	CheckedIndex(right)
 	if right > left {
 		panic("shared numeric underflow")
 	}
 	return left - right
 }
 
-func checkedSignedNegate(value int) int {
-	checkedI32(value)
-	if value == minSharedI32 {
+func CheckedSignedNegate(value int) int {
+	CheckedI32(value)
+	if value == MinSharedI32 {
 		panic("signed integer overflow")
 	}
 	return -value
 }
 
-func checkedSignedAdd(left int, right int) int {
-	checkedI32(left)
-	checkedI32(right)
-	if (right > 0 && left > maxSharedIndex-right) || (right < 0 && left < minSharedI32-right) {
+func CheckedSignedAdd(left int, right int) int {
+	CheckedI32(left)
+	CheckedI32(right)
+	if (right > 0 && left > MaxSharedIndex-right) || (right < 0 && left < MinSharedI32-right) {
 		panic("signed integer overflow")
 	}
 	return left + right
 }
 
-func checkedSignedSubtract(left int, right int) int {
-	checkedI32(left)
-	checkedI32(right)
-	if (right < 0 && left > maxSharedIndex+right) || (right > 0 && left < minSharedI32+right) {
+func CheckedSignedSubtract(left int, right int) int {
+	CheckedI32(left)
+	CheckedI32(right)
+	if (right < 0 && left > MaxSharedIndex+right) || (right > 0 && left < MinSharedI32+right) {
 		panic("signed integer overflow")
 	}
 	return left - right
 }
 
-func checkedSignedMultiply(left int, right int) int {
-	checkedI32(left)
-	checkedI32(right)
+func CheckedSignedMultiply(left int, right int) int {
+	CheckedI32(left)
+	CheckedI32(right)
 	result := int64(left) * int64(right)
-	if result < minSharedI32 || result > maxSharedIndex {
+	if result < MinSharedI32 || result > MaxSharedIndex {
 		panic("signed integer overflow")
 	}
 	return int(result)
 }
 
-func checkedSignedDivide(left int, right int) int {
-	checkedI32(left)
-	checkedI32(right)
+func CheckedSignedDivide(left int, right int) int {
+	CheckedI32(left)
+	CheckedI32(right)
 	if right == 0 {
 		panic("integer division by zero")
 	}
-	if left == minSharedI32 && right == -1 {
+	if left == MinSharedI32 && right == -1 {
 		panic("signed integer overflow")
 	}
 	return left / right
 }
 
-func checkedSignedRemainder(left int, right int) int {
-	checkedI32(left)
-	checkedI32(right)
+func CheckedSignedRemainder(left int, right int) int {
+	CheckedI32(left)
+	CheckedI32(right)
 	if right == 0 {
 		panic("integer remainder by zero")
 	}
-	if left == minSharedI32 && right == -1 {
+	if left == MinSharedI32 && right == -1 {
 		panic("signed integer overflow")
 	}
 	return left % right
 }
 
-func checkedChar(value rune) rune {
+func CheckedChar(value rune) rune {
 	if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) {
 		panic("invalid Unicode scalar")
 	}
 	return value
 }
 
-func characterFromI32(value int, fallback rune) rune {
-	checkedI32(value)
-	checkedChar(fallback)
+func CharacterFromI32(value int, fallback rune) rune {
+	CheckedI32(value)
+	CheckedChar(fallback)
 	if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) {
 		return fallback
 	}
 	return rune(value)
 }
 
-func asciiLowercase(value rune) rune {
-	checkedChar(value)
+func AsciiLowercase(value rune) rune {
+	CheckedChar(value)
 	if value >= 'A' && value <= 'Z' {
 		return value + ('a' - 'A')
 	}
 	return value
 }
 
-func newTextBuffer(value string) []byte {
+func NewTextBuffer(value string) []byte {
 	return []byte(value)
 }
 
-func checkedString(value string) string {
-	if len(value) > maxSharedIndex || !utf8.ValidString(value) {
+func CheckedString(value string) string {
+	if len(value) > MaxSharedIndex || !utf8.ValidString(value) {
 		panic("invalid or oversized string")
 	}
 	return value
 }
 
-func checkedChars(value []rune) []rune {
-	if len(value) > maxSharedIndex {
+func CheckedChars(value []rune) []rune {
+	if len(value) > MaxSharedIndex {
 		panic("vector outside shared numeric range")
 	}
 	result := make([]rune, len(value))
 	for index, character := range value {
-		result[index] = checkedChar(character)
+		result[index] = CheckedChar(character)
 	}
 	return result
 }
 
-func checkedIndices(value []int) []int {
-	if len(value) > maxSharedIndex {
+func CheckedIndices(value []int) []int {
+	if len(value) > MaxSharedIndex {
 		panic("vector outside shared numeric range")
 	}
 	result := make([]int, len(value))
 	for index, position := range value {
-		result[index] = checkedIndex(position)
+		result[index] = CheckedIndex(position)
 	}
 	return result
 }
 
-func checkedStructs[T any](value []T, copyValue func(T) T) []T {
-	checkedIndex(len(value))
+func CheckedStructs[T any](value []T, copyValue func(T) T) []T {
+	CheckedIndex(len(value))
 	result := make([]T, len(value))
 	for index, entry := range value {
 		result[index] = copyValue(entry)
@@ -240,16 +240,16 @@ func checkedStructs[T any](value []T, copyValue func(T) T) []T {
 	return result
 }
 
-func f64Negate(value float64) float64                 { return -value }
-func f64Add(left float64, right float64) float64      { return float64(left + right) }
-func f64Subtract(left float64, right float64) float64 { return float64(left - right) }
-func f64Multiply(left float64, right float64) float64 { return float64(left * right) }
-func f64Divide(left float64, right float64) float64   { return float64(left / right) }
-func f64Abs(value float64) float64                    { return math.Abs(value) }
-func f64Sqrt(value float64) float64                   { return math.Sqrt(value) }
-func f64Ln(value float64) float64                     { return math.Log(value) }
-func f64Log10(value float64) float64                  { return math.Log10(value) }
-func f64ToI32(value float64) int {
+func F64Negate(value float64) float64                 { return -value }
+func F64Add(left float64, right float64) float64      { return float64(left + right) }
+func F64Subtract(left float64, right float64) float64 { return float64(left - right) }
+func F64Multiply(left float64, right float64) float64 { return float64(left * right) }
+func F64Divide(left float64, right float64) float64   { return float64(left / right) }
+func F64Abs(value float64) float64                    { return math.Abs(value) }
+func F64Sqrt(value float64) float64                   { return math.Sqrt(value) }
+func F64Ln(value float64) float64                     { return math.Log(value) }
+func F64Log10(value float64) float64                  { return math.Log10(value) }
+func F64ToI32(value float64) int {
 	if math.IsNaN(value) {
 		return 0
 	}
@@ -262,7 +262,7 @@ func f64ToI32(value float64) int {
 	return int(math.Trunc(value))
 }
 
-func f64FromText(value string, fallback float64) float64 {
+func F64FromText(value string, fallback float64) float64 {
 	unsigned := value
 	if len(unsigned) > 0 && (unsigned[0] == '+' || unsigned[0] == '-') {
 		unsigned = unsigned[1:]
@@ -283,9 +283,9 @@ func f64FromText(value string, fallback float64) float64 {
 	return fallback
 }
 
-func f64FromI64Bits(value int64) float64 { return math.Float64frombits(uint64(value)) }
-func f64ToI64Bits(value float64) int64   { return int64(math.Float64bits(value)) }
-func f32FromI32Bits(value int) float64 {
-	return float64(math.Float32frombits(uint32(checkedI32(value))))
+func F64FromI64Bits(value int64) float64 { return math.Float64frombits(uint64(value)) }
+func F64ToI64Bits(value float64) int64   { return int64(math.Float64bits(value)) }
+func F32FromI32Bits(value int) float64 {
+	return float64(math.Float32frombits(uint32(CheckedI32(value))))
 }
-func f32ToI32Bits(value float64) int { return int(int32(math.Float32bits(float32(value)))) }
+func F32ToI32Bits(value float64) int { return int(int32(math.Float32bits(float32(value)))) }

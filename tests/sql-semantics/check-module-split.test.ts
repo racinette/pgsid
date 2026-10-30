@@ -15,7 +15,9 @@ it('splits many cross-module Go symbols within a bounded WASM heap', () => {
   const items = Array.from({ length: count }, (_, index) => ({
     kind: 'function',
     module: 'regex_engine',
-    visibility: 'private',
+    // Called from another module, so declared public as Rust requires; exports follow
+    // declarations, never use.
+    visibility: 'public',
     name: `measure_${index}`,
     returnType: { kind: 'path', segments: ['usize'] },
     parameters: [],
