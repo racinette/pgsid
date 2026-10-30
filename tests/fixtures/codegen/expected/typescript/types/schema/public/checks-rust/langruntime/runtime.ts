@@ -1,5 +1,5 @@
 
-const MAX_SHARED_INDEX = 2147483647;
+export const MAX_SHARED_INDEX = 2147483647;
 export function checkedIndex(value: number): number {
     if (!Number.isInteger(value) || value < 0 || value > MAX_SHARED_INDEX)
         throw new RangeError('index outside shared numeric range');
@@ -176,20 +176,20 @@ export function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T)
     checkedAdd(values.length, 1);
     values.push(copyValue(value));
 }
-const opaqueValues = new WeakSet<object>();
-function freezeDeep(value: object): void {
+export const opaqueValues = new WeakSet<object>();
+export function freezeDeep(value: object): void {
     for (const child of Object.values(value)) {
         if (typeof child === 'object' && child !== null)
             freezeDeep(child);
     }
     Object.freeze(value);
 }
-function sealOpaque<T extends object>(value: T): T {
+export function sealOpaque<T extends object>(value: T): T {
     freezeDeep(value);
     opaqueValues.add(value);
     return value;
 }
-function checkedOpaque<T extends object>(value: T): T {
+export function checkedOpaque<T extends object>(value: T): T {
     if (typeof value !== 'object' || value === null || !opaqueValues.has(value))
         throw new TypeError('invalid borrowed handle');
     return value;

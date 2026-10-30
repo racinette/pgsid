@@ -20652,14 +20652,14 @@ export interface JsonPopulateArrayPayload {
     values: checkruntime.JsonbInput[];
     hardIndex: number;
 }
-function copyJsonPopulateArrayPayload(value: JsonPopulateArrayPayload): JsonPopulateArrayPayload {
+export function copyJsonPopulateArrayPayload(value: JsonPopulateArrayPayload): JsonPopulateArrayPayload {
     return { text: checkruntime.copyArrayTextPayload(value.text), values: langruntime.checkedStructs(value.values, checkruntime.copyJsonbInput), hardIndex: langruntime.checkedI32(value.hardIndex) };
 }
 export type JsonPopulateArrayPlan = {
     kind: "Value";
     value: JsonPopulateArrayPayload;
 };
-function copyJsonPopulateArrayPlan(value: JsonPopulateArrayPlan): JsonPopulateArrayPlan {
+export function copyJsonPopulateArrayPlan(value: JsonPopulateArrayPlan): JsonPopulateArrayPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyJsonPopulateArrayPayload(value.value) };
     }
@@ -21074,14 +21074,14 @@ export interface JsonPopulateState {
     readonly current: checkruntime.JsonbInput;
     readonly utf8: boolean;
 }
-function copyJsonPopulateState(value: JsonPopulateState): JsonPopulateState {
+export function copyJsonPopulateState(value: JsonPopulateState): JsonPopulateState {
     return { input: checkruntime.copyJsonbInput(value.input), base: checkruntime.copyCompositeValue(value.base), output: checkruntime.copyCompositeValue(value.output), status: value.status, hard: value.hard, position: langruntime.checkedI32(value.position), count: langruntime.checkedI32(value.count), active: langruntime.checkedBool(value.active), convert: langruntime.checkedBool(value.convert), current: checkruntime.copyJsonbInput(value.current), utf8: langruntime.checkedBool(value.utf8) };
 }
 export type JsonPopulatePlan = {
     readonly kind: "Value";
     readonly value: JsonPopulateState;
 };
-function copyJsonPopulatePlan(value: JsonPopulatePlan): JsonPopulatePlan {
+export function copyJsonPopulatePlan(value: JsonPopulatePlan): JsonPopulatePlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyJsonPopulateState(value.value) };
     }
@@ -50097,7 +50097,7 @@ export interface TextFormatBounds {
     maximum: bigint;
     width: checkruntime.Int4Value;
 }
-function copyTextFormatBounds(value: TextFormatBounds): TextFormatBounds {
+export function copyTextFormatBounds(value: TextFormatBounds): TextFormatBounds {
     return { status: value.status, minimum: langruntime.checkedI64(value.minimum), maximum: langruntime.checkedI64(value.maximum), width: value.width };
 }
 export interface TextFormatOutput {
@@ -50402,7 +50402,7 @@ export interface TextFormatToken {
     left: boolean;
     conversion: number;
 }
-function copyTextFormatToken(value: TextFormatToken): TextFormatToken {
+export function copyTextFormatToken(value: TextFormatToken): TextFormatToken {
     return { status: value.status, end: langruntime.checkedIndex(value.end), argument: langruntime.checkedI32(value.argument), widthArgument: langruntime.checkedI32(value.widthArgument), width: langruntime.checkedI32(value.width), left: langruntime.checkedBool(value.left), conversion: langruntime.checkedI32(value.conversion) };
 }
 interface TextFormatDigits {
@@ -50704,14 +50704,14 @@ export function formatAcceptTyped(input: TextFormatState, value: checkruntime.Te
 export interface TextFormatSource {
     readonly characters: string[];
 }
-function copyTextFormatSource(value: TextFormatSource): TextFormatSource {
+export function copyTextFormatSource(value: TextFormatSource): TextFormatSource {
     return { characters: langruntime.checkedChars(value.characters) };
 }
 export type TextFormatInput = {
     readonly kind: "Value";
     readonly value: TextFormatState;
 };
-function copyTextFormatInput(value: TextFormatInput): TextFormatInput {
+export function copyTextFormatInput(value: TextFormatInput): TextFormatInput {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyTextFormatState(value.value) };
     }
@@ -50731,7 +50731,7 @@ export interface TextFormatState {
     readonly count: number;
     readonly render: boolean;
 }
-function copyTextFormatState(value: TextFormatState): TextFormatState {
+export function copyTextFormatState(value: TextFormatState): TextFormatState {
     return { source: copyTextFormatSource(value.source), position: langruntime.checkedIndex(value.position), status: value.status, output: value.output, nextArgument: langruntime.checkedI32(value.nextArgument), argument: langruntime.checkedI32(value.argument), width: langruntime.checkedI32(value.width), left: langruntime.checkedBool(value.left), conversion: langruntime.checkedI32(value.conversion), phase: langruntime.checkedI32(value.phase), request: langruntime.checkedI32(value.request), count: langruntime.checkedI32(value.count), render: langruntime.checkedBool(value.render) };
 }
 export function formatBegin(format: checkruntime.TextValue, count: checkruntime.Int4Value, guard: checkruntime.BoolValue): TextFormatState {
@@ -58984,7 +58984,7 @@ export interface TsqueryStoragePlan {
     entries: checkruntime.TsqueryPayload[];
     valid: boolean;
 }
-function copyTsqueryStoragePlan(value: TsqueryStoragePlan): TsqueryStoragePlan {
+export function copyTsqueryStoragePlan(value: TsqueryStoragePlan): TsqueryStoragePlan {
     return { entries: langruntime.checkedStructs(value.entries, checkruntime.copyTsqueryPayload), valid: langruntime.checkedBool(value.valid) };
 }
 export function makeTsqueryStoragePlan(): TsqueryStoragePlan {
@@ -71472,7 +71472,7 @@ export interface XPathSqlResult {
     present: checkruntime.BoolValue;
     output: checkruntime.ArrayValue;
 }
-function copyXPathSqlResult(value: XPathSqlResult): XPathSqlResult {
+export function copyXPathSqlResult(value: XPathSqlResult): XPathSqlResult {
     return { state: langruntime.checkedI32(value.state), present: value.present, output: checkruntime.copyArrayValue(value.output) };
 }
 export function xpathDiagnosticExecute(expression: checkruntime.TextValue, input: checkruntime.XmlValue, mappings: checkruntime.ArrayValue, utf8: boolean, limit: number, extra: number, known: boolean, powerWords: string, serialize: boolean): XPathSqlResult {
