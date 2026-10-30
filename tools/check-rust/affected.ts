@@ -23,6 +23,7 @@ const smoke = [
   'tests/sql-semantics/check-range-support-values.test.ts',
   'tests/sql-semantics/check-timestamptz-session-input.test.ts',
   'tests/sql-semantics/check-anonymous-record-json.test.ts',
+  'tests/sql-semantics/check-translation-reuse.test.ts',
 ]
 
 const base = process.argv[2] ?? 'HEAD'

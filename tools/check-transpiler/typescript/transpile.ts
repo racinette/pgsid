@@ -88,6 +88,8 @@ type Document = {
 type TranspileOptions = {
   immutableValueTypes?: readonly string[]
   readonlyValueTypes?: readonly string[]
+  // Emits only this module's items and no prelude; the other items still inform their lowering.
+  module?: string
 }
 
 function pascalCase(name: string): string {
@@ -175,11 +177,13 @@ class Transpiler {
   private readonly equality = new Set<string>()
   private readonly opaque = new Set<string>()
   private returningOpaque = false
+  private readonly module: string | undefined
 
   constructor(
     private readonly document: Document,
     options: TranspileOptions = {},
   ) {
+    this.module = options.module
     this.immutableValues = new Set(options.immutableValueTypes)
     this.readonlyValues = new Set([
       ...(options.immutableValueTypes ?? []),
@@ -187,16 +191,23 @@ class Transpiler {
     ])
     if (document.schemaVersion !== 1)
       throw new Error(`unsupported AST version ${document.schemaVersion}`)
-    const collectVectors = (value: unknown): void => {
+    const collectVectors = (value: unknown, elements: Set<string>): void => {
       if (!value || typeof value !== 'object') return
       const node = value as Partial<Extract<TypeNode, { kind: 'path' }>>
       if (node.kind === 'path' && node.segments?.[0] === 'Vec') {
         const element = node.typeArguments?.[0]
-        if (element) this.vectorElements.add(this.path(element))
+        if (element) elements.add(this.path(element))
       }
-      for (const child of Object.values(value)) collectVectors(child)
+      for (const child of Object.values(value)) collectVectors(child, elements)
     }
-    collectVectors(document.items)
+    // Vector elements decide which runtime copy helpers exist, so only the runtime modules
+    // decide them; a check may not need a copy the runtime omits.
+    const checkVectors = new Set<string>()
+    for (const item of document.items)
+      collectVectors(item, item.module === 'checks' ? checkVectors : this.vectorElements)
+    for (const name of checkVectors)
+      if (!this.vectorElements.has(name) && this.immutableValues.has(name))
+        throw new Error(`CHECK evaluators copy vectors of ${name}, which the runtime does not copy`)
     for (const item of document.items) {
       // Items are found by Rust name across modules, so a repeated name would silently
       // resolve to whichever came last.
@@ -1075,8 +1086,9 @@ class Transpiler {
       true,
       ts.ScriptKind.TS,
     )
-    const declarations: ts.Statement[] = [...source.statements]
+    const declarations: ts.Statement[] = this.module === undefined ? [...source.statements] : []
     for (const item of this.document.items) {
+      if (this.module !== undefined && item.module !== this.module) continue
       switch (item.kind) {
         case 'constant': {
           const value = this.expression(item.value, new LocalBindings())

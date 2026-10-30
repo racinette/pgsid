@@ -2,7 +2,12 @@ import { parseRust } from '../../../tools/check-transpiler/typescript/rust-wasm.
 import { transpileGo } from '../../../tools/check-transpiler/typescript/go-wasm.js'
 import { transpile } from '../../../tools/check-transpiler/typescript/transpile.js'
 export { checkTypescriptArtifacts } from '../../../tools/check-transpiler/typescript/split.js'
-import { splitCheckTypescript } from '../../../tools/check-transpiler/typescript/split.js'
+import {
+  splitCheckTypescript,
+  splitCheckTypescriptChecks,
+  splitCheckTypescriptRuntime,
+  type CheckTypescriptFacts,
+} from '../../../tools/check-transpiler/typescript/split.js'
 import { checkRustAsset } from './check-rust-assets.js'
 import type { CheckRustSource } from './check-rust-source.js'
 
@@ -39,7 +44,7 @@ type RustItem = {
   returnType?: RustType
 }
 
-function checkValueOptions(items: RustItem[]): {
+function valueOptions(items: RustItem[]): {
   immutableValueTypes: string[]
   readonlyValueTypes: string[]
 } {
@@ -121,6 +126,23 @@ function checkValueOptions(items: RustItem[]): {
     immutableValueTypes: [...immutableValueTypes],
     readonlyValueTypes: [...readonlyValueTypes],
   }
+}
+
+// The value contract shapes how the runtime itself is emitted, so it is decided by the runtime
+// modules alone and the checks must stay within it; otherwise one runtime could not serve
+// every check.
+function checkValueOptions(items: RustItem[]): ReturnType<typeof valueOptions> {
+  const options = valueOptions(items)
+  if (!items.some((item) => item.module === 'checks')) return options
+  const runtime = valueOptions(items.filter((item) => item.module !== 'checks'))
+  for (const key of ['immutableValueTypes', 'readonlyValueTypes'] as const) {
+    const outside = options[key].filter((name) => !runtime[key].includes(name))
+    if (outside.length)
+      throw new Error(
+        `CHECK evaluators expose value types outside the runtime: ${outside.join(', ')}`,
+      )
+  }
+  return options
 }
 
 export function transpileCheckRust(source: string | CheckRustSource): {
@@ -213,5 +235,110 @@ export function transpileCheckRustFiles(
   return {
     typescript: withSourceNotices(source, typescriptFiles(parsed)),
     go: withSourceNotices(source, goFiles(parsed)),
+  }
+}
+
+// A runtime translated once serves every check built on the same runtime modules: the checks are
+// then parsed, validated and emitted alone, against facts each stage recorded for the runtime.
+// Both target emitters derive the runtime's output from the runtime alone, so appending the
+// checks reproduces translating the combined source.
+type DocumentItem = Parameters<typeof transpile>[0]['items'][number]
+
+export type CheckRustRuntimeTranslation = {
+  modules: { name: string; dependencies: string[] }[]
+  items: DocumentItem[]
+  declarations: string
+  parserFacts: unknown
+  typescriptFacts: CheckTypescriptFacts
+  goFacts: unknown
+  typescript: CheckRustFileParts
+  go: CheckRustFileParts
+}
+
+// The Go emitter needs only the runtime's declarations, and decoding the bodies would cost
+// as much as translating them.
+function declarationsOnly(items: DocumentItem[]): unknown[] {
+  return items.map((item) =>
+    item.kind === 'function'
+      ? { ...item, body: [] }
+      : item.kind === 'constant'
+        ? { ...item, value: { kind: 'integer', digits: '0' } }
+        : item,
+  )
+}
+
+export function translateCheckRustRuntime(
+  source: CheckRustSource,
+  schemaImportPath = 'checkrust/pg_catalog',
+): CheckRustRuntimeTranslation {
+  const modules = source.modules.filter((module) => module.name !== 'checks')
+  const ast = parseRust(
+    JSON.stringify({ schemaVersion: 1, modules, emitFacts: true }),
+    checkRustAsset('check-rust-parser.wasm'),
+  )
+  const { facts: parserFacts, ...document } = JSON.parse(ast) as Parameters<typeof transpile>[0] & {
+    facts: unknown
+  }
+  const options = { ...checkValueOptions(document.items), split: true, schemaImportPath }
+  const runtime = { schemaVersion: 1 as const, modules }
+  const typescript = splitCheckTypescriptRuntime(
+    transpile(document, options, checkRustAsset('check-ts-prelude.ts').toString('utf8')),
+    document.items,
+  )
+  const { facts: goFacts, ...go } = JSON.parse(
+    transpileGo(
+      Buffer.from(JSON.stringify(document), 'utf8'),
+      checkRustAsset('check-go-transpiler.wasm'),
+      {
+        ...options,
+        emitFacts: true,
+      },
+    ),
+  ) as CheckRustFileParts & { facts: string }
+  return {
+    modules: document.modules!,
+    items: document.items,
+    declarations: JSON.stringify(declarationsOnly(document.items)),
+    parserFacts,
+    typescriptFacts: typescript.facts,
+    goFacts: JSON.parse(goFacts) as unknown,
+    typescript: withSourceNotices(runtime, typescript.files),
+    go: withSourceNotices(runtime, go),
+  }
+}
+
+export function translateCheckRustChecks(
+  source: CheckRustSource,
+  runtime: CheckRustRuntimeTranslation,
+  schemaImportPath = 'checkrust/pg_catalog',
+): { typescript: CheckRustFileParts; go: CheckRustFileParts } {
+  const modules = source.modules.filter((module) => module.name === 'checks')
+  const checks = JSON.parse(
+    parseRust(
+      JSON.stringify({ schemaVersion: 1, modules, runtimeFacts: runtime.parserFacts }),
+      checkRustAsset('check-rust-parser.wasm'),
+    ),
+  ) as Parameters<typeof transpile>[0]
+  const items = [...runtime.items, ...checks.items]
+  const options = { ...checkValueOptions(items), split: true, schemaImportPath }
+  const typescript = splitCheckTypescriptChecks(
+    transpile({ schemaVersion: 1, items }, { ...options, module: 'checks' }),
+    checks.items,
+    runtime.typescriptFacts,
+  )
+  const ast =
+    `{"schemaVersion":1,"modules":${JSON.stringify([...runtime.modules, ...checks.modules!])},` +
+    `"items":${runtime.declarations.slice(0, -1)}${checks.items.length ? ',' : ''}` +
+    `${JSON.stringify(checks.items).slice(1)}}`
+  const go = JSON.parse(
+    transpileGo(Buffer.from(ast, 'utf8'), checkRustAsset('check-go-transpiler.wasm'), {
+      ...options,
+      runtimeFacts: runtime.goFacts,
+    }),
+  ) as { checks: string }
+  const notices = sourceNotices({ schemaVersion: 1, modules }, 'checks')
+  return {
+    typescript: { ...runtime.typescript, checks: notices + typescript },
+    go: { ...runtime.go, checks: notices + go.checks },
   }
 }

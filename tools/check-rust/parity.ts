@@ -36,18 +36,19 @@ import {
 } from './multirange-input.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import type { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
-import {
-  checkTypescriptArtifacts,
-  transpileCheckRustFiles,
-} from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from './sources.js'
 import { checkRustRuntimeLibrary, linkedCheckRustRoot } from './rust-runtime.js'
 import { recordCheckRustReach } from './reach.js'
+import {
+  checkRustTranslation,
+  checkTypescriptRuntime,
+  typescriptCompilerFlags,
+} from './runtime-translation.js'
 import { expect } from 'vitest'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
@@ -111,7 +112,7 @@ export async function runCheckParity(
   recordCheckRustReach(group.source, expect.getState().testPath)
   const runtimeLibrary = await checkRustRuntimeLibrary(group.source)
   await writeFile(join(directory, 'checks.rs'), linkedCheckRustRoot(group.source) + '\n')
-  const split = transpileCheckRustFiles(group.source, `${goParityModule}/pg_catalog`)
+  const split = await checkRustTranslation(group.source, `${goParityModule}/pg_catalog`)
   await run('cargo', [
     'run',
     '--quiet',
@@ -953,23 +954,23 @@ func TestChecksMatchPostgres(t *testing.T) {
   }).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })
-  for (const artifact of checkTypescriptArtifacts(split.typescript)) {
-    const path = join(directory, 'typescript', artifact.path)
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, artifact.content)
+  // The checks run and type-check against the variant's prepared runtime (see
+  // checkTypescriptRuntime): the source for running, the declarations for checking.
+  const runtimeTypescript = await checkTypescriptRuntime(split)
+  for (const [folder, runtime] of [
+    ['typescript', 'source'],
+    ['typecheck', 'declarations'],
+  ] as const) {
+    await mkdir(join(directory, folder), { recursive: true })
+    await writeFile(join(directory, folder, 'checks.ts'), split.typescript.checks)
+    for (const entry of await readdir(join(runtimeTypescript, runtime)))
+      await symlink(join(runtimeTypescript, runtime, entry), join(directory, folder, entry))
   }
   await run(process.execPath, [
     'node_modules/typescript/bin/tsc',
-    '--strict',
     '--noEmit',
-    '--skipLibCheck',
-    '--target',
-    'es2022',
-    '--module',
-    'esnext',
-    '--moduleResolution',
-    'bundler',
-    join(directory, 'typescript/checks.ts'),
+    ...typescriptCompilerFlags,
+    join(directory, 'typecheck/checks.ts'),
   ]).catch((error: { stdout: string; stderr: string }) => {
     throw new Error(error.stdout + error.stderr, { cause: error })
   })

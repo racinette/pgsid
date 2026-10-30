@@ -45,6 +45,14 @@ change to the regex transpiler unless the regex engine itself changes.
 - Resolve target module references by symbol identity. Local bindings may
   shadow exported functions; declarations, field names, and literal contents
   must retain their meanings when splitting files and adding namespaces.
+- The runtime modules alone decide the runtime output, so one translated
+  runtime serves every check: the value contract comes from the runtime
+  operations and copy helpers from the runtime's vectors, and checks needing
+  more are rejected. Exports follow declared visibility, never use. The parser
+  records facts for a validated graph and validates added modules against them;
+  added modules declare only functions and constants. Checks-only emission
+  resolves runtime names as stubs in the same scope, so its output must equal
+  the combined translation; `check-translation-reuse.test.ts` compares both.
 - Owned text uses Rust `String`, Go string, and TypeScript string. Accept only
   `String::new`, borrowed `to_owned`, owned `as_str`, Unicode `chars().collect`,
   and local mutable string `push(char)` / `push_str(&str)`. Mutable Go string

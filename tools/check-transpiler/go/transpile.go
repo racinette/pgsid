@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"io"
 	"reflect"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -120,6 +121,17 @@ type Options struct {
 	ReadonlyValueTypes  []string `json:"readonlyValueTypes,omitempty"`
 	Split               bool     `json:"split,omitempty"`
 	SchemaImportPath    string   `json:"schemaImportPath,omitempty"`
+	// A split with runtime facts emits only the checks module; the runtime items it is given
+	// need only their declarations. EmitFacts records those facts from a whole split.
+	RuntimeFacts *RuntimeFacts `json:"runtimeFacts,omitempty"`
+	EmitFacts    bool          `json:"emitFacts,omitempty"`
+}
+
+// What a checks-only split needs from the whole split of a runtime: the module and item
+// behind every top-level Go name, and the types the runtime copies inside vectors.
+type RuntimeFacts struct {
+	Declarers      map[string]string `json:"declarers"`
+	VectorElements []string          `json:"vectorElements"`
 }
 
 // The AST decodes in the same pass as the options because the full corpus is too large to buffer twice.
@@ -164,30 +176,30 @@ type generator struct {
 	vectorElements map[string]bool
 }
 
-func (g *generator) collectVectorElements(value *node) {
+func collectVectorElements(value *node, elements map[string]bool) {
 	if value == nil {
 		return
 	}
 	if value.Kind == "path" && path(value) == "Vec" && len(value.cold().TypeArguments) == 1 {
-		g.vectorElements[path(value.cold().TypeArguments[0])] = true
+		elements[path(value.cold().TypeArguments[0])] = true
 	}
 	for _, child := range []*node{value.Type, value.cold().ReturnType, value.Value, value.Initializer, value.cold().Inner} {
-		g.collectVectorElements(child)
+		collectVectorElements(child, elements)
 	}
 	for _, field := range value.cold().Fields {
-		g.collectVectorElements(field.Type)
+		collectVectorElements(field.Type, elements)
 	}
 	for _, variant := range value.cold().Variants {
-		g.collectVectorElements(variant.Payload)
+		collectVectorElements(variant.Payload, elements)
 	}
 	for _, parameter := range value.cold().Parameters {
-		g.collectVectorElements(parameter.Type)
+		collectVectorElements(parameter.Type, elements)
 	}
 	for _, child := range value.cold().Body {
-		g.collectVectorElements(child)
+		collectVectorElements(child, elements)
 	}
 	for _, child := range value.cold().ElseBody {
-		g.collectVectorElements(child)
+		collectVectorElements(child, elements)
 	}
 }
 
@@ -531,9 +543,22 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		publicEnum: make(map[string]bool),
 		immutable:  make(map[string]bool),
 	}
+	// Vector elements decide which runtime copy helpers exist, so only the runtime modules decide
+	// them; a check may not need a copy the runtime omits.
 	generator.vectorElements = map[string]bool{}
+	checkVectors := map[string]bool{}
 	for _, item := range document.Items {
-		generator.collectVectorElements(item)
+		if item != nil && item.cold().Module == "checks" {
+			collectVectorElements(item, checkVectors)
+		} else {
+			collectVectorElements(item, generator.vectorElements)
+		}
+	}
+	// The runtime items of a checks-only split carry no bodies, so their vectors come from the facts.
+	if options.RuntimeFacts != nil {
+		for _, name := range options.RuntimeFacts.VectorElements {
+			generator.vectorElements[name] = true
+		}
 	}
 	for _, item := range document.Items {
 		if item == nil {
@@ -583,6 +608,11 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 	}
 	for _, name := range options.ImmutableValueTypes {
 		generator.immutable[name] = true
+	}
+	for name := range checkVectors {
+		if generator.immutable[name] && !generator.vectorElements[name] {
+			return nil, fmt.Errorf("CHECK evaluators copy vectors of %s, which the runtime does not copy", name)
+		}
 	}
 	for name := range generator.immutable {
 		item := generator.structs[name]
@@ -646,7 +676,6 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		files[module] = &ast.File{Name: ast.NewIdent(packages[module])}
 		owned[module] = make(map[string]bool)
 	}
-	files["langruntime"].Decls = runtime.Decls
 	// Every module is resolved in one flat scope below, where a second declaration of a Go name
 	// would silently lose to the first; any repeated name is an error instead.
 	declarers := make(map[string]string)
@@ -662,13 +691,37 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		}
 		return nil
 	}
-	if err := declare(runtime.Decls, "langruntime", "prelude"); err != nil {
-		return nil, err
+	// A checks-only split declares the runtime's names as stubs: identifiers resolve by scope
+	// alone, so the checks bind to the same runtime declarations as in the whole program.
+	var stubs []ast.Decl
+	if facts := options.RuntimeFacts; facts != nil {
+		names := make([]string, 0, len(facts.Declarers))
+		for name := range facts.Declarers {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			module, _, _ := strings.Cut(facts.Declarers[name], "::")
+			if owned[module] == nil || module == "checks" {
+				return nil, fmt.Errorf("runtime facts name an unsupported module: %s", facts.Declarers[name])
+			}
+			declarers[name] = facts.Declarers[name]
+			owned[module][name] = true
+			stubs = append(stubs, &ast.GenDecl{Tok: token.VAR, Specs: []ast.Spec{&ast.ValueSpec{Names: []*ast.Ident{ast.NewIdent(name)}, Type: ast.NewIdent("int")}}})
+		}
+	} else {
+		files["langruntime"].Decls = runtime.Decls
+		if err := declare(runtime.Decls, "langruntime", "prelude"); err != nil {
+			return nil, err
+		}
 	}
 	for _, item := range document.Items {
 		file := files[item.cold().Module]
 		if file == nil || item.cold().Module == "langruntime" {
 			return nil, fmt.Errorf("CHECK item has no supported module: %s", item.cold().Name)
+		}
+		if options.RuntimeFacts != nil && item.cold().Module != "checks" {
+			continue
 		}
 		declarations := generator.goItem(item)
 		file.Decls = append(file.Decls, declarations...)
@@ -677,7 +730,7 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		}
 	}
 	var flat bytes.Buffer
-	var declarations []ast.Decl
+	declarations := append([]ast.Decl(nil), stubs...)
 	for _, module := range moduleOrder {
 		declarations = append(declarations, files[module].Decls...)
 	}
@@ -690,7 +743,7 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 	}
 	objects := make(map[string]map[*ast.Object]bool)
 	owners := make(map[*ast.Object]string)
-	offset := 0
+	offset := len(stubs)
 	for _, module := range moduleOrder {
 		length := len(files[module].Decls)
 		files[module].Decls = bound.Decls[offset : offset+length]
@@ -732,6 +785,9 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 	result := make(map[string]string)
 	for _, module := range moduleOrder {
 		file := files[module]
+		if options.RuntimeFacts != nil && module != "checks" {
+			continue
+		}
 		if len(file.Decls) == 0 {
 			result[keys[module]] = ""
 			continue
@@ -761,6 +817,24 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 			return nil, err
 		}
 		result[keys[module]] = output.String()
+	}
+	if options.EmitFacts {
+		facts := RuntimeFacts{Declarers: make(map[string]string)}
+		for name, declarer := range declarers {
+			if !strings.HasPrefix(declarer, "checks::") {
+				facts.Declarers[name] = declarer
+			}
+		}
+		for name := range generator.vectorElements {
+			facts.VectorElements = append(facts.VectorElements, name)
+		}
+		sort.Strings(facts.VectorElements)
+		encoded, err := json.Marshal(facts)
+		if err != nil {
+			return nil, err
+		}
+		// The parts are strings, so the facts travel as encoded JSON alongside them.
+		result["facts"] = string(encoded)
 	}
 	return json.Marshal(result)
 }

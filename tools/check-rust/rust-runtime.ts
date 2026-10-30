@@ -16,7 +16,7 @@ const crateName = 'pgsid_parity_runtime'
 const keptVariants = 16
 const run = promisify(execFile)
 
-async function ownDirectory(directory: string): Promise<void> {
+export async function ownDirectory(directory: string): Promise<void> {
   let entries: string[]
   try {
     entries = await readdir(directory)
@@ -31,7 +31,7 @@ async function ownDirectory(directory: string): Promise<void> {
 }
 
 // Only directories named by a variant hash inside the marked directory are removed.
-async function trimVariants(directory: string): Promise<void> {
+export async function trimVariants(directory: string): Promise<void> {
   const variants: { path: string; time: number }[] = []
   for (const entry of await readdir(directory, { withFileTypes: true }))
     if (entry.isDirectory() && /^[0-9a-f]{32}$/u.test(entry.name)) {
