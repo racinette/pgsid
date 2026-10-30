@@ -4097,8 +4097,9 @@ export function emitCheckRustEvaluator(
               lines,
             )
           const prefix = rustValuePrefix(rustType(type))
-          const scalar = bindBinary(`array_element_to_${prefix}(${cell}.clone())`, lines)
-          let argument = { name: scalar, type }
+          // The element is read only once its send support is known: a binding the missing
+          // branches leave unread does not compile in Go.
+          const scalar = () => bindBinary(`array_element_to_${prefix}(${cell}.clone())`, lines)
           if (
             type.startsWith('enum:') &&
             metadata.name === 'enum_send' &&
@@ -4107,7 +4108,7 @@ export function emitCheckRustEvaluator(
             const labels = definition ?? binaryEnums.get(type)
             if (!labels) return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
             const text = bindBinary(
-              `enum_to_text(${scalar},${rustStringLiteral(labels.values.join('\0'))},${labels.values.length})`,
+              `enum_to_text(${scalar()},${rustStringLiteral(labels.values.join('\0'))},${labels.values.length})`,
               lines,
             )
             const result = emitCallInner(
@@ -4126,27 +4127,22 @@ export function emitCheckRustEvaluator(
           }
           if (!checkRustCallableNames().has(metadata.rustName))
             return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
-          if (
-            ![
-              type,
-              'pg_catalog.anyarray',
-              'pg_catalog.anyrange',
-              'pg_catalog.anymultirange',
-              'pg_catalog.record',
-            ].includes(metadata.args[0]!)
-          ) {
-            if (rustType(type) === rustType(metadata.args[0]!)) {
-              argument = { ...argument, type: metadata.args[0]! }
-            } else {
-              if (builtinCast(type, metadata.args[0]!)?.method !== 'b')
-                return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
-              argument = emitCallInner(
-                { kind: 'cast', signature: null, type: metadata.args[0]! },
-                [argument],
-                lines,
-              )
-            }
-          }
+          const parameter = metadata.args[0]!
+          const generic = [
+            type,
+            'pg_catalog.anyarray',
+            'pg_catalog.anyrange',
+            'pg_catalog.anymultirange',
+            'pg_catalog.record',
+          ].includes(parameter)
+          const shared = !generic && rustType(type) === rustType(parameter)
+          if (!generic && !shared && builtinCast(type, parameter)?.method !== 'b')
+            return bindBinary(`container_binary_missing(${cell}.clone(),false)`, lines)
+          let argument = { name: scalar(), type }
+          if (!generic)
+            argument = shared
+              ? { ...argument, type: parameter }
+              : emitCallInner({ kind: 'cast', signature: null, type: parameter }, [argument], lines)
           const result = emitCallInner(
             { kind: 'function', signature: signature!, type: 'pg_catalog.bytea' },
             [argument],
