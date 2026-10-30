@@ -133,7 +133,12 @@ pub fn sql__pg_catalog__date_bin__67ed(
                         return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
                     };
                     result = result - width;
-                    return make_timestamp_value(result);
+                    // IS_VALID_TIMESTAMP excludes the infinity sentinels, which a step of almost
+                    // the whole int64 range can reach.
+                    if result < -211813488000000000i64 || result >= 9223371331200000000i64 {
+                        return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
+                    };
+                    return TimestampValue::Value(result);
                 };
                 if result == low || result == high {
                     return TimestampValue::Error(make_sql_error(CLOCK_RANGE));
