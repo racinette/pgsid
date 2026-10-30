@@ -60,3 +60,29 @@ CREATE TABLE hashed_readings (
   CONSTRAINT precise_seeded CHECK(CASE WHEN bypass THEN true ELSE hashfloat8extended(precise_reading,seed)=recorded_precise_seeded END),
   CONSTRAINT reading_widened CHECK(CASE WHEN bypass THEN true ELSE hashfloat8(reading::float8)=recorded_hash END)
 );
+
+CREATE TABLE signal_transforms (
+  id integer PRIMARY KEY,
+  sensor_id integer NOT NULL REFERENCES sensor_limits (id),
+  phase double precision,
+  recorded_sine bytea,
+  recorded_growth bytea,
+  recorded_spread bytea,
+  skip_transform boolean NOT NULL,
+  CONSTRAINT transform_sine CHECK (CASE WHEN skip_transform THEN true ELSE float8send(sin(phase)) = recorded_sine END),
+  CONSTRAINT transform_growth CHECK (CASE WHEN skip_transform THEN true ELSE float8send(exp(phase) + ln(abs(phase) + 1)) = recorded_growth END),
+  CONSTRAINT transform_spread CHECK (CASE WHEN skip_transform THEN true ELSE float8send(erf(phase) * tanh(phase) + lgamma(abs(phase) + 1)) = recorded_spread END)
+);
+
+CREATE TABLE signal_buckets (
+  id integer PRIMARY KEY,
+  sensor_id integer NOT NULL REFERENCES sensor_limits (id),
+  phase double precision,
+  low_bound double precision,
+  high_bound double precision,
+  recorded_bucket integer,
+  recorded_shape bytea,
+  skip_bucket boolean NOT NULL,
+  CONSTRAINT bucket_position CHECK (CASE WHEN skip_bucket THEN true ELSE width_bucket(phase, low_bound, high_bound, 4) = recorded_bucket END),
+  CONSTRAINT bucket_shape CHECK (CASE WHEN skip_bucket THEN true ELSE float8send(power(abs(phase), 1.5) + cbrt(phase) + atan2d(phase, 2) + gamma(abs(phase) + 0.5)) = recorded_shape END)
+);

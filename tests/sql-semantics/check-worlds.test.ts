@@ -522,6 +522,7 @@ describe('world CHECK INSERT parity', () => {
       nativeByteOrder: 'little',
       maxIdentifierBytes,
       trigonometry: 'fdlibm',
+      mathLibrary: 'musl',
       extraFloatDigits: 1,
       moneyFractionDigits,
       moneyLocale,

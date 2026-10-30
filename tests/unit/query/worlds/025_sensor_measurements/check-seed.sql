@@ -189,3 +189,60 @@ INSERT INTO hashed_readings(id,sensor_id,label,reading,precise_reading,seed,reco
 INSERT INTO hashed_readings(id,sensor_id,label,reading,precise_reading,seed,recorded_hash,recorded_seeded,recorded_precise_hash,recorded_precise_seeded,bypass) VALUES(2,1,'hash_reject_p32','1'::real,'1'::real::float8,-1,376496956,2963906028543945686,0,2963906028543945686,false);
 -- name: hash_reject_p64
 INSERT INTO hashed_readings(id,sensor_id,label,reading,precise_reading,seed,recorded_hash,recorded_seeded,recorded_precise_hash,recorded_precise_seeded,bypass) VALUES(2,1,'hash_reject_p64','1'::real,'1'::real::float8,-1,376496956,2963906028543945686,376496956,0,false);
+-- name: transform_pass
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,-2.75,'\xbfd86d2239c183fb','\x3ff62bc2ac335050','\x4003d41f6454a979',false);
+-- name: transform_exact_pass
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,3,'\x3fc210386db6d55b','\x403578c9ef5f54a5','\x40064b59bb156f63',false);
+-- name: transform_wrong_sine
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,3,'\x3fdeaee8744b05f0','\x403578c9ef5f54a5','\x40064b59bb156f63',false);
+-- name: transform_wrong_growth
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,3,'\x3fc210386db6d55b','\x403578c9ef5f54a4','\x40064b59bb156f63',false);
+-- name: transform_wrong_spread
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,3,'\x3fc210386db6d55b','\x403578c9ef5f54a5','\x40064b59bb156f62',false);
+-- name: transform_null_phase
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,NULL,'\x3fc210386db6d55b','\x403578c9ef5f54a5','\x40064b59bb156f63',false);
+-- name: transform_growth_overflow
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,1000,NULL,'\x00',NULL,false);
+-- name: transform_spread_underflow
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,1e-300,'\x01a56e1fc2f8f359','\x3ff0000000000000',NULL,false);
+-- name: transform_skipped_overflow
+INSERT INTO signal_transforms (id,sensor_id,phase,recorded_sine,recorded_growth,recorded_spread,skip_transform)
+VALUES (2,1,1000,NULL,'\x00',NULL,true);
+-- name: bucket_negative_pass
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,-7.25,-10,10,1,'\x40a771a94694ca25',false);
+-- name: bucket_upper_edge_pass
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,10,-10,10,5,'\x41314b4edb31bb70',false);
+-- name: bucket_below_range_pass
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,-10.5,-10,10,0,'\x414baf684f289d61',false);
+-- name: bucket_wrong_position
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,0.5,-10,10,2,'\x40302ef9af415878',false);
+-- name: bucket_wrong_shape
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,0.5,-10,10,3,'\x40302ef9af415879',false);
+-- name: bucket_equal_bounds
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,0.5,5,5,3,'\x40302ef9af415878',false);
+-- name: bucket_null_bound
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,0.5,NULL,10,3,'\x40302ef9af415878',false);
+-- name: bucket_large_shape_pass
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,171,-10,10,5,'\x7fe0e1863dcad78a',false);
+-- name: bucket_gamma_overflow
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,172,-10,10,5,'\x00',false);
+-- name: bucket_skipped_errors
+INSERT INTO signal_buckets (id,sensor_id,phase,low_bound,high_bound,recorded_bucket,recorded_shape,skip_bucket)
+VALUES (2,1,172,5,5,NULL,'\x00',true);
