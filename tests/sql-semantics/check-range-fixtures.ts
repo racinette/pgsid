@@ -255,15 +255,33 @@ export async function readArrayBoundQueryFixture(
       [sqlType],
     )
   ).rows[0]!.identity
-  const rows = (
-    await pg.query<{ value: string | null }>(
-      `SELECT ${base.startsWith('array:') ? 'cells.value::text' : rangeBoundProjection('cells.value', base)} value ${from} CROSS JOIN LATERAL unnest(${column}) WITH ORDINALITY AS cells(value,ordinal) ORDER BY ordinal`,
-      parameters,
+  // Elements are read by subscript in storage order: unnest would expand an array of a
+  // composite type into the type's fields.
+  const subscripts = (index: number) => {
+    const parts: string[] = []
+    for (let dimension = shape.length - 1; dimension >= 0; dimension--) {
+      const { lower, length } = shape[dimension]!
+      parts.unshift(`[${lower + (index % length)}]`)
+      index = Math.floor(index / length)
+    }
+    return parts.join('')
+  }
+  const count = shape.length ? shape.reduce((total, { length }) => total * length, 1) : 0
+  const rows: { value: string | null }[] = []
+  for (let index = 0; index < count; index++) {
+    const value = `(${column})${subscripts(index)}`
+    rows.push(
+      (
+        await pg.query<{ value: string | null }>(
+          `SELECT ${base.startsWith('array:') ? `${value}::text` : rangeBoundProjection(value, base)} value ${from}`,
+          parameters,
+        )
+      ).rows[0]!,
     )
-  ).rows
+  }
   const elements: OwnedArrayInputPayload['elements'] = []
   for (const [index, row] of rows.entries()) {
-    const cell = `SELECT cells.value AS value ${from} CROSS JOIN LATERAL unnest(${column}) WITH ORDINALITY AS cells(value,ordinal) WHERE ordinal=${index + 1}`
+    const cell = `SELECT (${column})${subscripts(index)} AS value ${from}`
     const span = rangeTypeProfile(base),
       multi = multirangeTypeProfile(base)
     if (row.value === null) elements.push({ kind: 'Null' })
