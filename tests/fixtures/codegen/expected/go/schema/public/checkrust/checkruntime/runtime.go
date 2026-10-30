@@ -560,7 +560,7 @@ type CheckEvaluationResult struct {
 	Reason  int
 }
 
-func copyCheckEvaluationResult(value CheckEvaluationResult) CheckEvaluationResult {
+func CopyCheckEvaluationResult(value CheckEvaluationResult) CheckEvaluationResult {
 	return CheckEvaluationResult{Outcome: value.Outcome, Reason: langruntime.CheckedI32(value.Reason)}
 }
 func MakeCheckEvaluationResult(outcome CheckOutcome, reason int) CheckEvaluationResult {
@@ -568,11 +568,11 @@ func MakeCheckEvaluationResult(outcome CheckOutcome, reason int) CheckEvaluation
 	return CheckEvaluationResult{Outcome: outcome, Reason: reason}
 }
 func CheckEvaluationOutcome(input CheckEvaluationResult) CheckOutcome {
-	input = copyCheckEvaluationResult(input)
+	input = CopyCheckEvaluationResult(input)
 	return input.Outcome
 }
 func CheckEvaluationReason(input CheckEvaluationResult) Int4Value {
-	input = copyCheckEvaluationResult(input)
+	input = CopyCheckEvaluationResult(input)
 	return Int4Value{Kind: Int4ValueValue, Value: input.Reason}
 }
 func CheckRequirementCode(input int) int {
@@ -696,7 +696,7 @@ type SqlErrorDescription struct {
 	Message string
 }
 
-func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
+func CopySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
 	return SqlErrorDescription{Message: langruntime.CheckedString(value.Message)}
 }
 
@@ -1011,7 +1011,7 @@ type NumericValue struct {
 	Error SqlError
 }
 
-func copyNumericValue(value NumericValue) NumericValue {
+func CopyNumericValue(value NumericValue) NumericValue {
 	switch value.Kind {
 	case NumericValueUnknown:
 		return NumericValue{Kind: NumericValueUnknown}
@@ -1136,7 +1136,7 @@ type JsonbNode struct {
 	TextEnd   int
 }
 
-func copyJsonbNode(value JsonbNode) JsonbNode {
+func CopyJsonbNode(value JsonbNode) JsonbNode {
 	return JsonbNode{Kind: langruntime.CheckedI32(value.Kind), Child: langruntime.CheckedIndex(value.Child), Next: langruntime.CheckedIndex(value.Next), KeyStart: langruntime.CheckedIndex(value.KeyStart), KeyEnd: langruntime.CheckedIndex(value.KeyEnd), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd)}
 }
 
@@ -1147,7 +1147,7 @@ type JsonbPayload struct {
 }
 
 func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
-	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
+	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
 }
 
 type JsonbKnowledge struct {
@@ -1988,7 +1988,7 @@ type Float8Value struct {
 	Error SqlError
 }
 
-func copyFloat8Value(value Float8Value) Float8Value {
+func CopyFloat8Value(value Float8Value) Float8Value {
 	switch value.Kind {
 	case Float8ValueUnknown:
 		return Float8Value{Kind: Float8ValueUnknown}
@@ -3055,7 +3055,7 @@ type SnapshotXid struct {
 	Bits int64
 }
 
-func copySnapshotXid(value SnapshotXid) SnapshotXid {
+func CopySnapshotXid(value SnapshotXid) SnapshotXid {
 	return SnapshotXid{Bits: value.Bits}
 }
 
@@ -3066,7 +3066,7 @@ type SnapshotPayload struct {
 }
 
 func CopySnapshotPayload(value SnapshotPayload) SnapshotPayload {
-	return SnapshotPayload{Xmin: value.Xmin, Xmax: value.Xmax, Xip: langruntime.CheckedStructs(value.Xip, copySnapshotXid)}
+	return SnapshotPayload{Xmin: value.Xmin, Xmax: value.Xmax, Xip: langruntime.CheckedStructs(value.Xip, CopySnapshotXid)}
 }
 
 type SnapshotValueKind uint8
@@ -3880,7 +3880,7 @@ type NumericLayout struct {
 	End     int
 }
 
-func copyNumericLayout(value NumericLayout) NumericLayout {
+func CopyNumericLayout(value NumericLayout) NumericLayout {
 	return NumericLayout{Valid: value.Valid, Special: langruntime.CheckedI32(value.Special), Sign: langruntime.CheckedI32(value.Sign), Weight: langruntime.CheckedI32(value.Weight), First: langruntime.CheckedIndex(value.First), End: langruntime.CheckedIndex(value.End)}
 }
 func invalidNumericParts() NumericLayout {
@@ -4894,7 +4894,7 @@ type JsonSyntaxLayout struct {
 	MaxDepth int
 }
 
-func copyJsonSyntaxLayout(value JsonSyntaxLayout) JsonSyntaxLayout {
+func CopyJsonSyntaxLayout(value JsonSyntaxLayout) JsonSyntaxLayout {
 	return JsonSyntaxLayout{Valid: value.Valid, Kind: langruntime.CheckedI32(value.Kind), MaxDepth: langruntime.CheckedIndex(value.MaxDepth)}
 }
 
@@ -7138,7 +7138,7 @@ type JsonbArrayInputPayload struct {
 }
 
 func CopyJsonbArrayInputPayload(value JsonbArrayInputPayload) JsonbArrayInputPayload {
-	return JsonbArrayInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
+	return JsonbArrayInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, CopyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
 }
 
 type JsonbArrayInputPlanKind uint8
@@ -7798,7 +7798,7 @@ type JsonpathNode struct {
 	Flags     int
 }
 
-func copyJsonpathNode(value JsonpathNode) JsonpathNode {
+func CopyJsonpathNode(value JsonpathNode) JsonpathNode {
 	return JsonpathNode{Kind: langruntime.CheckedI32(value.Kind), Next: langruntime.CheckedIndex(value.Next), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd), First: langruntime.CheckedI32(value.First), Last: langruntime.CheckedI32(value.Last), Flags: langruntime.CheckedI32(value.Flags)}
 }
 
@@ -7810,7 +7810,7 @@ type JsonpathPayload struct {
 }
 
 func CopyJsonpathPayload(value JsonpathPayload) JsonpathPayload {
-	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
+	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
 }
 
 type JsonpathValueKind uint8
@@ -10193,7 +10193,7 @@ type CompositeTypeNode struct {
 	BoundProfile RangeBoundContext
 }
 
-func copyCompositeTypeNode(value CompositeTypeNode) CompositeTypeNode {
+func CopyCompositeTypeNode(value CompositeTypeNode) CompositeTypeNode {
 	return CompositeTypeNode{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), Fields: langruntime.CheckedIndices(value.Fields), BoundProfile: CopyRangeBoundContext(value.BoundProfile)}
 }
 
@@ -10201,8 +10201,8 @@ type CompositeTypeContext struct {
 	Nodes []CompositeTypeNode
 }
 
-func copyCompositeTypeContext(value CompositeTypeContext) CompositeTypeContext {
-	return CompositeTypeContext{Nodes: langruntime.CheckedStructs(value.Nodes, copyCompositeTypeNode)}
+func CopyCompositeTypeContext(value CompositeTypeContext) CompositeTypeContext {
+	return CompositeTypeContext{Nodes: langruntime.CheckedStructs(value.Nodes, CopyCompositeTypeNode)}
 }
 
 type CompositeTypePlanKind uint8
@@ -10216,10 +10216,10 @@ type CompositeTypePlan struct {
 	Value CompositeTypeContext
 }
 
-func copyCompositeTypePlan(value CompositeTypePlan) CompositeTypePlan {
+func CopyCompositeTypePlan(value CompositeTypePlan) CompositeTypePlan {
 	switch value.Kind {
 	case CompositeTypePlanValue:
-		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: copyCompositeTypeContext(value.Value)}
+		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CopyCompositeTypeContext(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -10228,36 +10228,36 @@ func EmptyCompositeTypePlan() CompositeTypePlan {
 	return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
 }
 func AppendCompositeTypeNode(input CompositeTypePlan, typeName string, kind int, elementType string, child int, boundProfile RangeBoundContext) CompositeTypePlan {
-	input = copyCompositeTypePlan(input)
+	input = CopyCompositeTypePlan(input)
 	typeName = langruntime.CheckedString(typeName)
 	kind = langruntime.CheckedI32(kind)
 	elementType = langruntime.CheckedString(elementType)
 	child = langruntime.CheckedI32(child)
 	boundProfile = CopyRangeBoundContext(boundProfile)
 	if input.Kind == CompositeTypePlanValue {
-		value := copyCompositeTypeContext(input.Value)
+		value := CopyCompositeTypeContext(input.Value)
 		nodes := value.Nodes
 		fields := []int{}
 		langruntime.CheckedAdd(len(nodes), 1)
-		nodes = append(nodes, copyCompositeTypeNode(CompositeTypeNode{TypeName: typeName, Kind: kind, ElementType: elementType, Child: langruntime.IndexFromI32(child, 2147483647), Fields: fields, BoundProfile: boundProfile}))
+		nodes = append(nodes, CopyCompositeTypeNode(CompositeTypeNode{TypeName: typeName, Kind: kind, ElementType: elementType, Child: langruntime.IndexFromI32(child, 2147483647), Fields: fields, BoundProfile: boundProfile}))
 		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
 	}
 	return input
 }
 func AppendCompositeTypeField(input CompositeTypePlan, index int, child int) CompositeTypePlan {
-	input = copyCompositeTypePlan(input)
+	input = CopyCompositeTypePlan(input)
 	index = langruntime.CheckedI32(index)
 	child = langruntime.CheckedI32(child)
 	if input.Kind == CompositeTypePlanValue {
-		value := copyCompositeTypeContext(input.Value)
+		value := CopyCompositeTypeContext(input.Value)
 		nodes := value.Nodes
 		position := langruntime.IndexFromI32(index, len(nodes))
 		if position < len(nodes) {
-			node := copyCompositeTypeNode(nodes[position])
+			node := CopyCompositeTypeNode(nodes[position])
 			fields := node.Fields
 			langruntime.CheckedAdd(len(fields), 1)
 			fields = append(fields, langruntime.CheckedIndex(langruntime.IndexFromI32(child, 2147483647)))
-			nodes[position] = copyCompositeTypeNode(CompositeTypeNode{TypeName: node.TypeName, Kind: node.Kind, ElementType: node.ElementType, Child: node.Child, Fields: fields, BoundProfile: node.BoundProfile})
+			nodes[position] = CopyCompositeTypeNode(CompositeTypeNode{TypeName: node.TypeName, Kind: node.Kind, ElementType: node.ElementType, Child: node.Child, Fields: fields, BoundProfile: node.BoundProfile})
 		}
 		return CompositeTypePlan{Kind: CompositeTypePlanValue, Value: CompositeTypeContext{Nodes: nodes}}
 	}
@@ -10266,7 +10266,7 @@ func AppendCompositeTypeField(input CompositeTypePlan, index int, child int) Com
 func compositeTypeContextValid(context *CompositeTypeContext) bool {
 	index := 0
 	for index < len(context.Nodes) {
-		node := copyCompositeTypeNode(context.Nodes[index])
+		node := CopyCompositeTypeNode(context.Nodes[index])
 		if node.TypeName == "" || node.Kind < 0 || node.Kind > 48 {
 			return false
 		}
@@ -10308,7 +10308,7 @@ func compositePrepareCell(input ArrayElement, context *CompositeTypeContext, ind
 	if index >= len(context.Nodes) {
 		return ArrayElement{Kind: ArrayElementUnknown}
 	}
-	node := copyCompositeTypeNode(context.Nodes[index])
+	node := CopyCompositeTypeNode(context.Nodes[index])
 	if ArrayElementFamily(CopyArrayElement(input)) != node.Kind {
 		return ArrayElement{Kind: ArrayElementUnknown}
 	}
@@ -10479,11 +10479,11 @@ func CompositePrepareScalarCell(checked ArrayElement) ArrayElement {
 }
 func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) CompositeValue {
 	input = CopyCompositeValue(input)
-	plan = copyCompositeTypePlan(plan)
+	plan = CopyCompositeTypePlan(plan)
 	if input.Kind == CompositeValueValue {
 		payload := CopyCompositePayload(input.Value)
 		if plan.Kind == CompositeTypePlanValue {
-			context := copyCompositeTypeContext(plan.Value)
+			context := CopyCompositeTypeContext(plan.Value)
 			if compositeTypeContextValid(&context) == false {
 				return CompositeValue{Kind: CompositeValueUnknown}
 			}
@@ -10499,11 +10499,11 @@ func CompositeFromCoercedPlan(input CompositeValue, plan CompositeTypePlan) Comp
 func ArrayFromCoercedCompositePlan(input ArrayValue, elementType string, plan CompositeTypePlan) ArrayValue {
 	input = CopyArrayValue(input)
 	elementType = langruntime.CheckedString(elementType)
-	plan = copyCompositeTypePlan(plan)
+	plan = CopyCompositeTypePlan(plan)
 	if input.Kind == ArrayValueValue {
 		payload := CopyArrayPayload(input.Value)
 		if plan.Kind == CompositeTypePlanValue {
-			context := copyCompositeTypeContext(plan.Value)
+			context := CopyCompositeTypeContext(plan.Value)
 			if compositeTypeContextValid(&context) == false {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
@@ -10704,7 +10704,7 @@ type RangeBoundField struct {
 	ComparisonAvailable bool
 }
 
-func copyRangeBoundField(value RangeBoundField) RangeBoundField {
+func CopyRangeBoundField(value RangeBoundField) RangeBoundField {
 	return RangeBoundField{TypeName: langruntime.CheckedString(value.TypeName), Child: langruntime.CheckedIndex(value.Child), ComparisonAvailable: value.ComparisonAvailable}
 }
 
@@ -10722,7 +10722,7 @@ type RangeBoundProfile struct {
 }
 
 func CopyRangeBoundProfile(value RangeBoundProfile) RangeBoundProfile {
-	return RangeBoundProfile{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), Comparison: langruntime.CheckedI32(value.Comparison), Canonical: langruntime.CheckedI32(value.Canonical), MissingComparison: value.MissingComparison, ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), EnumLabels: langruntime.CheckedString(value.EnumLabels), EnumCount: langruntime.CheckedI32(value.EnumCount), Fields: langruntime.CheckedStructs(value.Fields, copyRangeBoundField)}
+	return RangeBoundProfile{TypeName: langruntime.CheckedString(value.TypeName), Kind: langruntime.CheckedI32(value.Kind), Comparison: langruntime.CheckedI32(value.Comparison), Canonical: langruntime.CheckedI32(value.Canonical), MissingComparison: value.MissingComparison, ElementType: langruntime.CheckedString(value.ElementType), Child: langruntime.CheckedIndex(value.Child), EnumLabels: langruntime.CheckedString(value.EnumLabels), EnumCount: langruntime.CheckedI32(value.EnumCount), Fields: langruntime.CheckedStructs(value.Fields, CopyRangeBoundField)}
 }
 
 type RangeBoundContext struct {
@@ -11704,7 +11704,7 @@ type MultirangeTextPlan struct {
 	Value MultirangeTextPayload
 }
 
-func copyMultirangeTextPlan(value MultirangeTextPlan) MultirangeTextPlan {
+func CopyMultirangeTextPlan(value MultirangeTextPlan) MultirangeTextPlan {
 	switch value.Kind {
 	case MultirangeTextPlanValue:
 		return MultirangeTextPlan{Kind: MultirangeTextPlanValue, Value: CopyMultirangeTextPayload(value.Value)}
@@ -12107,7 +12107,7 @@ type ArrayDimension struct {
 	Length int
 }
 
-func copyArrayDimension(value ArrayDimension) ArrayDimension {
+func CopyArrayDimension(value ArrayDimension) ArrayDimension {
 	return ArrayDimension{Lower: langruntime.CheckedI32(value.Lower), Length: langruntime.CheckedI32(value.Length)}
 }
 
@@ -12120,7 +12120,7 @@ type ArrayPayload struct {
 }
 
 func CopyArrayPayload(value ArrayPayload) ArrayPayload {
-	return ArrayPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
+	return ArrayPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, CopyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
 }
 
 type ArrayValueKind uint8
@@ -12187,7 +12187,7 @@ type ArrayOutputPayload struct {
 }
 
 func CopyArrayOutputPayload(value ArrayOutputPayload) ArrayOutputPayload {
-	return ArrayOutputPayload{NullBitmap: value.NullBitmap, State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
+	return ArrayOutputPayload{NullBitmap: value.NullBitmap, State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, CopyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
 }
 
 type ArrayOutputPlanKind uint8
@@ -12201,7 +12201,7 @@ type ArrayOutputPlan struct {
 	Value ArrayOutputPayload
 }
 
-func copyArrayOutputPlan(value ArrayOutputPlan) ArrayOutputPlan {
+func CopyArrayOutputPlan(value ArrayOutputPlan) ArrayOutputPlan {
 	switch value.Kind {
 	case ArrayOutputPlanValue:
 		return ArrayOutputPlan{Kind: ArrayOutputPlanValue, Value: CopyArrayOutputPayload(value.Value)}
@@ -13049,7 +13049,7 @@ type ArrayChildrenPayload struct {
 	Arrays      []ArrayValue
 }
 
-func copyArrayChildrenPayload(value ArrayChildrenPayload) ArrayChildrenPayload {
+func CopyArrayChildrenPayload(value ArrayChildrenPayload) ArrayChildrenPayload {
 	return ArrayChildrenPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Arrays: langruntime.CheckedStructs(value.Arrays, CopyArrayValue)}
 }
 
@@ -13067,14 +13067,14 @@ type ArrayChildrenArguments struct {
 	Value ArrayChildrenPayload
 }
 
-func copyArrayChildrenArguments(value ArrayChildrenArguments) ArrayChildrenArguments {
+func CopyArrayChildrenArguments(value ArrayChildrenArguments) ArrayChildrenArguments {
 	switch value.Kind {
 	case ArrayChildrenArgumentsUnknown:
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnknown}
 	case ArrayChildrenArgumentsError:
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsError, Error: value.Error}
 	case ArrayChildrenArgumentsValue:
-		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: copyArrayChildrenPayload(value.Value)}
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: CopyArrayChildrenPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -13085,7 +13085,7 @@ func MakeArrayChildren(elementType string, elementKind int) ArrayChildrenArgumen
 	return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: ArrayChildrenPayload{ElementType: elementType, ElementKind: elementKind, Arrays: arrays}}
 }
 func AppendArrayChild(input ArrayChildrenArguments, child ArrayValue) ArrayChildrenArguments {
-	input = copyArrayChildrenArguments(input)
+	input = CopyArrayChildrenArguments(input)
 	child = CopyArrayValue(child)
 	if input.Kind == ArrayChildrenArgumentsError {
 		return input
@@ -13095,7 +13095,7 @@ func AppendArrayChild(input ArrayChildrenArguments, child ArrayValue) ArrayChild
 		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsError, Error: error}
 	}
 	if input.Kind == ArrayChildrenArgumentsValue {
-		value := copyArrayChildrenPayload(input.Value)
+		value := CopyArrayChildrenPayload(input.Value)
 		arrays := value.Arrays
 		langruntime.CheckedAdd(len(arrays), 1)
 		arrays = append(arrays, CopyArrayValue(child))
@@ -13104,13 +13104,13 @@ func AppendArrayChild(input ArrayChildrenArguments, child ArrayValue) ArrayChild
 	return input
 }
 func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
-	input = copyArrayChildrenArguments(input)
+	input = CopyArrayChildrenArguments(input)
 	if input.Kind == ArrayChildrenArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
 	}
 	if input.Kind == ArrayChildrenArgumentsValue {
-		value := copyArrayChildrenPayload(input.Value)
+		value := CopyArrayChildrenPayload(input.Value)
 		position := 0
 		for position < len(value.Arrays) {
 			child := CopyArrayValue(value.Arrays[position])
@@ -13210,7 +13210,7 @@ type ArrayTextPayload struct {
 }
 
 func CopyArrayTextPayload(value ArrayTextPayload) ArrayTextPayload {
-	return ArrayTextPayload{State: langruntime.CheckedI32(value.State), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, CopyArrayTextEvent)}
+	return ArrayTextPayload{State: langruntime.CheckedI32(value.State), Dimensions: langruntime.CheckedStructs(value.Dimensions, CopyArrayDimension), Events: langruntime.CheckedStructs(value.Events, CopyArrayTextEvent)}
 }
 
 type ArrayTextPlanKind uint8
@@ -13226,7 +13226,7 @@ type ArrayTextPlan struct {
 	Value ArrayTextPayload
 }
 
-func copyArrayTextPlan(value ArrayTextPlan) ArrayTextPlan {
+func CopyArrayTextPlan(value ArrayTextPlan) ArrayTextPlan {
 	switch value.Kind {
 	case ArrayTextPlanUnknown:
 		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
@@ -13417,7 +13417,7 @@ func arrayTextReadToken(source *arrayTextSource, start int, delimiter rune) arra
 	return arrayTextToken{next: position, kind: 4, text: string(text)}
 }
 func arrayTextResult(dimensions []ArrayDimension, input []ArrayTextEvent, error int) ArrayTextPlan {
-	dimensions = langruntime.CheckedStructs(dimensions, copyArrayDimension)
+	dimensions = langruntime.CheckedStructs(dimensions, CopyArrayDimension)
 	input = langruntime.CheckedStructs(input, CopyArrayTextEvent)
 	error = langruntime.CheckedIndex(error)
 	events := input
@@ -13650,7 +13650,7 @@ func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
 	return TextValue{Kind: TextValueUnknown}
 }
 func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
-	plan = copyArrayTextPlan(plan)
+	plan = CopyArrayTextPlan(plan)
 	converted = CopyArrayArguments(converted)
 	if converted.Kind == ArrayArgumentsError {
 		error := converted.Error
@@ -13757,7 +13757,7 @@ type ArraySubscriptBound struct {
 	Value    int
 }
 
-func copyArraySubscriptBound(value ArraySubscriptBound) ArraySubscriptBound {
+func CopyArraySubscriptBound(value ArraySubscriptBound) ArraySubscriptBound {
 	return ArraySubscriptBound{Provided: value.Provided, State: langruntime.CheckedI32(value.State), Value: langruntime.CheckedI32(value.Value)}
 }
 
@@ -13766,8 +13766,8 @@ type ArraySubscriptPayload struct {
 	Lower []ArraySubscriptBound
 }
 
-func copyArraySubscriptPayload(value ArraySubscriptPayload) ArraySubscriptPayload {
-	return ArraySubscriptPayload{Upper: langruntime.CheckedStructs(value.Upper, copyArraySubscriptBound), Lower: langruntime.CheckedStructs(value.Lower, copyArraySubscriptBound)}
+func CopyArraySubscriptPayload(value ArraySubscriptPayload) ArraySubscriptPayload {
+	return ArraySubscriptPayload{Upper: langruntime.CheckedStructs(value.Upper, CopyArraySubscriptBound), Lower: langruntime.CheckedStructs(value.Lower, CopyArraySubscriptBound)}
 }
 
 type ArraySubscriptsKind uint8
@@ -13788,7 +13788,7 @@ func CopyArraySubscripts(value ArraySubscripts) ArraySubscripts {
 	case ArraySubscriptsError:
 		return ArraySubscripts{Kind: ArraySubscriptsError, Error: value.Error}
 	case ArraySubscriptsValue:
-		return ArraySubscripts{Kind: ArraySubscriptsValue, Value: copyArraySubscriptPayload(value.Value)}
+		return ArraySubscripts{Kind: ArraySubscriptsValue, Value: CopyArraySubscriptPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -13807,7 +13807,7 @@ func AppendArraySubscript(input ArraySubscripts, index Int4Value, isLower bool, 
 		return ArraySubscripts{Kind: ArraySubscriptsError, Error: error}
 	}
 	if input.Kind == ArraySubscriptsValue {
-		payload := copyArraySubscriptPayload(input.Value)
+		payload := CopyArraySubscriptPayload(input.Value)
 		state := langruntime.CheckedSignedNegate(1)
 		value := 0
 		if index.Kind == Int4ValueNull {
@@ -13823,10 +13823,10 @@ func AppendArraySubscript(input ArraySubscripts, index Int4Value, isLower bool, 
 		lower := payload.Lower
 		if isLower {
 			langruntime.CheckedAdd(len(lower), 1)
-			lower = append(lower, copyArraySubscriptBound(bound))
+			lower = append(lower, CopyArraySubscriptBound(bound))
 		} else {
 			langruntime.CheckedAdd(len(upper), 1)
-			upper = append(upper, copyArraySubscriptBound(bound))
+			upper = append(upper, CopyArraySubscriptBound(bound))
 		}
 		return ArraySubscripts{Kind: ArraySubscriptsValue, Value: ArraySubscriptPayload{Upper: upper, Lower: lower}}
 	}
@@ -13856,9 +13856,9 @@ func arraySubscriptState(input *ArraySubscriptPayload) int {
 	for position < langruntime.CheckedAdd(len(input.Upper), len(input.Lower)) {
 		bound := ArraySubscriptBound{Provided: false, State: 1, Value: 0}
 		if position < len(input.Upper) {
-			bound = copyArraySubscriptBound(input.Upper[position])
+			bound = CopyArraySubscriptBound(input.Upper[position])
 		} else {
-			bound = copyArraySubscriptBound(input.Lower[langruntime.CheckedSubtract(position, len(input.Upper))])
+			bound = CopyArraySubscriptBound(input.Lower[langruntime.CheckedSubtract(position, len(input.Upper))])
 		}
 		if bound.Provided {
 			if bound.State == langruntime.CheckedSignedNegate(1) {
@@ -13890,7 +13890,7 @@ func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement
 		return ArrayElement{Kind: ArrayElementError, Error: error}
 	}
 	if indices.Kind == ArraySubscriptsValue {
-		bounds := copyArraySubscriptPayload(indices.Value)
+		bounds := CopyArraySubscriptPayload(indices.Value)
 		state := arraySubscriptState(&bounds)
 		if state == langruntime.CheckedSignedNegate(1) {
 			return ArrayElement{Kind: ArrayElementUnknown}
@@ -13962,7 +13962,7 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 		return ArrayValue{Kind: ArrayValueError, Error: error}
 	}
 	if indices.Kind == ArraySubscriptsValue {
-		bounds := copyArraySubscriptPayload(indices.Value)
+		bounds := CopyArraySubscriptPayload(indices.Value)
 		state := arraySubscriptState(&bounds)
 		if state == langruntime.CheckedSignedNegate(1) {
 			return ArrayValue{Kind: ArrayValueUnknown}
@@ -14056,7 +14056,7 @@ type ArrayComparisonPayload struct {
 	Value int
 }
 
-func copyArrayComparisonPayload(value ArrayComparisonPayload) ArrayComparisonPayload {
+func CopyArrayComparisonPayload(value ArrayComparisonPayload) ArrayComparisonPayload {
 	return ArrayComparisonPayload{Left: langruntime.CheckedStructs(value.Left, CopyArrayElement), Right: langruntime.CheckedStructs(value.Right, CopyArrayElement), Limit: langruntime.CheckedIndex(value.Limit), State: langruntime.CheckedI32(value.State), Error: value.Error, Tail: langruntime.CheckedI32(value.Tail), Value: langruntime.CheckedI32(value.Value)}
 }
 
@@ -14071,10 +14071,10 @@ type ArrayComparisonPlan struct {
 	Value ArrayComparisonPayload
 }
 
-func copyArrayComparisonPlan(value ArrayComparisonPlan) ArrayComparisonPlan {
+func CopyArrayComparisonPlan(value ArrayComparisonPlan) ArrayComparisonPlan {
 	switch value.Kind {
 	case ArrayComparisonPlanValue:
-		return ArrayComparisonPlan{Kind: ArrayComparisonPlanValue, Value: copyArrayComparisonPayload(value.Value)}
+		return ArrayComparisonPlan{Kind: ArrayComparisonPlanValue, Value: CopyArrayComparisonPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -14312,7 +14312,7 @@ func PrepareArrayMembership(left ArrayValue, right ArrayValue, reverse bool, ava
 	return payload
 }
 func ArrayMembershipInitial(input *ArrayComparisonPayload, all bool) BoolValue {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return BoolValue{Kind: BoolValueError, Error: input.Error}
 	}
@@ -14325,7 +14325,7 @@ func ArrayMembershipInitial(input *ArrayComparisonPayload, all bool) BoolValue {
 	return BoolValue{Kind: BoolValueValue, Value: all}
 }
 func ArrayMembershipContinues(input *ArrayComparisonPayload, index Int4Value, result BoolValue, all bool) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State != 1 {
 		return false
 	}
@@ -14343,7 +14343,7 @@ func ArrayMembershipContinues(input *ArrayComparisonPayload, index Int4Value, re
 	return false
 }
 func ArrayMembershipElementAt(input *ArrayComparisonPayload, index Int4Value, right bool) ArrayElement {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		if right {
@@ -14361,7 +14361,7 @@ func ArrayMembershipElementAt(input *ArrayComparisonPayload, index Int4Value, ri
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayMembershipMatchInitial(input *ArrayComparisonPayload, index Int4Value) BoolValue {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	source := ArrayMembershipElementAt(input, index, false)
 	if source.Kind == ArrayElementError {
 		error := source.Error
@@ -14370,7 +14370,7 @@ func ArrayMembershipMatchInitial(input *ArrayComparisonPayload, index Int4Value)
 	return BoolValue{Kind: BoolValueValue, Value: false}
 }
 func ArrayMembershipScanContinues(input *ArrayComparisonPayload, sourceIndex Int4Value, index Int4Value, matched BoolValue) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if OrStops(CheckFromBool(matched)) {
 		return false
 	}
@@ -14684,7 +14684,7 @@ func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, 
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
 func ArraySearchInitial(input *ArrayComparisonPayload) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return Int4Value{Kind: Int4ValueError, Error: input.Error}
 	}
@@ -14694,11 +14694,11 @@ func ArraySearchInitial(input *ArrayComparisonPayload) Int4Value {
 	return Int4Value{Kind: Int4ValueNull}
 }
 func ArraySearchStart(input *ArrayComparisonPayload) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	return Int4Value{Kind: Int4ValueValue, Value: input.Value}
 }
 func ArraySearchContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value, all bool) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State != 1 {
 		return false
 	}
@@ -14720,14 +14720,14 @@ func ArraySearchContinues(input *ArrayComparisonPayload, index Int4Value, result
 	return false
 }
 func ArraySearchNeedle(input *ArrayComparisonPayload) ArrayElement {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State == 1 && len(input.Right) == 1 {
 		return CopyArrayElement(input.Right[0])
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArraySearchResultStep(input *ArrayComparisonPayload, index Int4Value, compared Int4Value) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if compared.Kind == Int4ValueError {
 		error := compared.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
@@ -14757,7 +14757,7 @@ func ArraySearchAppend(input ArrayArguments, result Int4Value) ArrayArguments {
 	return input
 }
 func FinishArraySearchPositions(input *ArrayComparisonPayload, values ArrayArguments, result Int4Value) ArrayValue {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	values = CopyArrayArguments(values)
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
@@ -14811,14 +14811,14 @@ func PrepareArrayRewrite(input ArrayValue, needle ArrayElement, replacement Arra
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
 func ArrayRewriteNeedle(input *ArrayComparisonPayload) ArrayElement {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State == 1 && len(input.Right) == 2 {
 		return CopyArrayElement(input.Right[0])
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayRewriteContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if input.State != 1 {
 		return false
 	}
@@ -14833,7 +14833,7 @@ func ArrayRewriteContinues(input *ArrayComparisonPayload, index Int4Value, resul
 }
 func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index Int4Value, compared Int4Value, remove bool) ArrayArguments {
 	input = CopyArrayArguments(input)
-	plan = langruntime.CheckedBorrowed(plan, copyArrayComparisonPayload)
+	plan = langruntime.CheckedBorrowed(plan, CopyArrayComparisonPayload)
 	if input.Kind == ArrayArgumentsError {
 		return input
 	}
@@ -14867,7 +14867,7 @@ func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index 
 	return ArrayArguments{Kind: ArrayArgumentsUnknown}
 }
 func ArrayRewriteChanged(input *ArrayComparisonPayload, compared Int4Value, remove bool) BoolValue {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	input = langruntime.CheckedBorrowed(input, CopyArrayComparisonPayload)
 	if remove == false && len(input.Right) == 2 {
 		needle := CopyArrayElement(input.Right[0])
 		replacement := CopyArrayElement(input.Right[1])
@@ -14885,7 +14885,7 @@ func ArrayRewriteChanged(input *ArrayComparisonPayload, compared Int4Value, remo
 }
 func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, values ArrayArguments, remove bool, changed BoolValue) ArrayValue {
 	original = CopyArrayValue(original)
-	plan = langruntime.CheckedBorrowed(plan, copyArrayComparisonPayload)
+	plan = langruntime.CheckedBorrowed(plan, CopyArrayComparisonPayload)
 	values = CopyArrayArguments(values)
 	if plan.State == langruntime.CheckedSignedNegate(2) {
 		return ArrayValue{Kind: ArrayValueError, Error: plan.Error}
@@ -14960,8 +14960,8 @@ type ArraySortPayload struct {
 	NullsFirst  bool
 }
 
-func copyArraySortPayload(value ArraySortPayload) ArraySortPayload {
-	return ArraySortPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Order: langruntime.CheckedIndices(value.Order), Buffer: langruntime.CheckedIndices(value.Buffer), Ties: langruntime.CheckedIndices(value.Ties), Rows: langruntime.CheckedI32(value.Rows), Width: langruntime.CheckedI32(value.Width), Run: langruntime.CheckedI32(value.Run), Segment: langruntime.CheckedI32(value.Segment), Left: langruntime.CheckedI32(value.Left), Right: langruntime.CheckedI32(value.Right), Output: langruntime.CheckedI32(value.Output), Phase: langruntime.CheckedI32(value.Phase), Tie: langruntime.CheckedI32(value.Tie), State: langruntime.CheckedI32(value.State), Error: value.Error, Descending: value.Descending, NullsFirst: value.NullsFirst}
+func CopyArraySortPayload(value ArraySortPayload) ArraySortPayload {
+	return ArraySortPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, CopyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Order: langruntime.CheckedIndices(value.Order), Buffer: langruntime.CheckedIndices(value.Buffer), Ties: langruntime.CheckedIndices(value.Ties), Rows: langruntime.CheckedI32(value.Rows), Width: langruntime.CheckedI32(value.Width), Run: langruntime.CheckedI32(value.Run), Segment: langruntime.CheckedI32(value.Segment), Left: langruntime.CheckedI32(value.Left), Right: langruntime.CheckedI32(value.Right), Output: langruntime.CheckedI32(value.Output), Phase: langruntime.CheckedI32(value.Phase), Tie: langruntime.CheckedI32(value.Tie), State: langruntime.CheckedI32(value.State), Error: value.Error, Descending: value.Descending, NullsFirst: value.NullsFirst}
 }
 
 type ArraySortPlanKind uint8
@@ -14975,10 +14975,10 @@ type ArraySortPlan struct {
 	Value ArraySortPayload
 }
 
-func copyArraySortPlan(value ArraySortPlan) ArraySortPlan {
+func CopyArraySortPlan(value ArraySortPlan) ArraySortPlan {
 	switch value.Kind {
 	case ArraySortPlanValue:
-		return ArraySortPlan{Kind: ArraySortPlanValue, Value: copyArraySortPayload(value.Value)}
+		return ArraySortPlan{Kind: ArraySortPlanValue, Value: CopyArraySortPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -15118,7 +15118,7 @@ type TsvectorStorageEntry struct {
 	LexemeCount int
 }
 
-func copyTsvectorStorageEntry(value TsvectorStorageEntry) TsvectorStorageEntry {
+func CopyTsvectorStorageEntry(value TsvectorStorageEntry) TsvectorStorageEntry {
 	return TsvectorStorageEntry{NativeBytes: langruntime.CheckedI32(value.NativeBytes), LexemeCount: langruntime.CheckedI32(value.LexemeCount)}
 }
 
@@ -15127,26 +15127,26 @@ type TsvectorStoragePlan struct {
 	Valid   bool
 }
 
-func copyTsvectorStoragePlan(value TsvectorStoragePlan) TsvectorStoragePlan {
-	return TsvectorStoragePlan{Entries: langruntime.CheckedStructs(value.Entries, copyTsvectorStorageEntry), Valid: value.Valid}
+func CopyTsvectorStoragePlan(value TsvectorStoragePlan) TsvectorStoragePlan {
+	return TsvectorStoragePlan{Entries: langruntime.CheckedStructs(value.Entries, CopyTsvectorStorageEntry), Valid: value.Valid}
 }
 func MakeTsvectorStoragePlan() TsvectorStoragePlan {
 	entries := []TsvectorStorageEntry{}
 	return TsvectorStoragePlan{Entries: entries, Valid: true}
 }
 func AppendTsvectorStorage(input TsvectorStoragePlan, bytes int, count int) TsvectorStoragePlan {
-	input = copyTsvectorStoragePlan(input)
+	input = CopyTsvectorStoragePlan(input)
 	bytes = langruntime.CheckedI32(bytes)
 	count = langruntime.CheckedI32(count)
 	entries := input.Entries
 	valid := input.Valid && count >= 0 && count <= 1048575 && bytes >= langruntime.CheckedSignedAdd(8, langruntime.CheckedSignedMultiply(count, 4)) && bytes <= 1073741823
 	langruntime.CheckedAdd(len(entries), 1)
-	entries = append(entries, copyTsvectorStorageEntry(TsvectorStorageEntry{NativeBytes: bytes, LexemeCount: count}))
+	entries = append(entries, CopyTsvectorStorageEntry(TsvectorStorageEntry{NativeBytes: bytes, LexemeCount: count}))
 	return TsvectorStoragePlan{Entries: entries, Valid: valid}
 }
 func ApplyTsvectorStorage(input TsvectorValue, plan *TsvectorStoragePlan, index Int4Value) TsvectorValue {
 	input = CopyTsvectorValue(input)
-	plan = langruntime.CheckedBorrowed(plan, copyTsvectorStoragePlan)
+	plan = langruntime.CheckedBorrowed(plan, CopyTsvectorStoragePlan)
 	if input.Kind == TsvectorValueNull {
 		return input
 	}
@@ -15190,7 +15190,7 @@ func AdvanceTsvectorStorage(nullness BoolValue, index Int4Value) Int4Value {
 }
 func FinishTsvectorStorage(input ArrayElement, plan *TsvectorStoragePlan, index Int4Value) ArrayElement {
 	input = CopyArrayElement(input)
-	plan = langruntime.CheckedBorrowed(plan, copyTsvectorStoragePlan)
+	plan = langruntime.CheckedBorrowed(plan, CopyTsvectorStoragePlan)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -15274,7 +15274,7 @@ type ArrayStoragePlan struct {
 	valid   bool
 }
 
-func copyArrayStoragePlan(value ArrayStoragePlan) ArrayStoragePlan {
+func CopyArrayStoragePlan(value ArrayStoragePlan) ArrayStoragePlan {
 	return ArrayStoragePlan{entries: langruntime.CheckedStructs(value.entries, copyarrayStorageEntry), valid: value.valid}
 }
 func MakeArrayStoragePlan() ArrayStoragePlan {
@@ -15282,7 +15282,7 @@ func MakeArrayStoragePlan() ArrayStoragePlan {
 	return ArrayStoragePlan{entries: entries, valid: true}
 }
 func AppendArrayStorage(input ArrayStoragePlan, path string, dimensions int, elements int, bitmap bool) ArrayStoragePlan {
-	input = copyArrayStoragePlan(input)
+	input = CopyArrayStoragePlan(input)
 	path = langruntime.CheckedString(path)
 	dimensions = langruntime.CheckedI32(dimensions)
 	elements = langruntime.CheckedI32(elements)
@@ -15467,7 +15467,7 @@ func applyArrayStorageAt(input ArrayElement, plan *ArrayStoragePlan, path string
 }
 func ApplyArrayStorage(input ArrayElement, plan *ArrayStoragePlan) ArrayElement {
 	input = CopyArrayElement(input)
-	plan = langruntime.CheckedBorrowed(plan, copyArrayStoragePlan)
+	plan = langruntime.CheckedBorrowed(plan, CopyArrayStoragePlan)
 	result := applyArrayStorageAt(input, plan, "")
 	if plan.valid && result.valid && result.matched == len(plan.entries) {
 		return result.value

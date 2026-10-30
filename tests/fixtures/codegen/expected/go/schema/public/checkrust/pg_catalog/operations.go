@@ -20373,7 +20373,7 @@ type JsonPopulateArrayPayload struct {
 	HardIndex int
 }
 
-func copyJsonPopulateArrayPayload(value JsonPopulateArrayPayload) JsonPopulateArrayPayload {
+func CopyJsonPopulateArrayPayload(value JsonPopulateArrayPayload) JsonPopulateArrayPayload {
 	return JsonPopulateArrayPayload{Text: checkruntime.CopyArrayTextPayload(value.Text), Values: langruntime.CheckedStructs(value.Values, checkruntime.CopyJsonbInput), HardIndex: langruntime.CheckedI32(value.HardIndex)}
 }
 
@@ -20388,10 +20388,10 @@ type JsonPopulateArrayPlan struct {
 	Value JsonPopulateArrayPayload
 }
 
-func copyJsonPopulateArrayPlan(value JsonPopulateArrayPlan) JsonPopulateArrayPlan {
+func CopyJsonPopulateArrayPlan(value JsonPopulateArrayPlan) JsonPopulateArrayPlan {
 	switch value.Kind {
 	case JsonPopulateArrayPlanValue:
-		return JsonPopulateArrayPlan{Kind: JsonPopulateArrayPlanValue, Value: copyJsonPopulateArrayPayload(value.Value)}
+		return JsonPopulateArrayPlan{Kind: JsonPopulateArrayPlanValue, Value: CopyJsonPopulateArrayPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -20812,7 +20812,7 @@ type JsonPopulateState struct {
 	Utf8     bool
 }
 
-func copyJsonPopulateState(value JsonPopulateState) JsonPopulateState {
+func CopyJsonPopulateState(value JsonPopulateState) JsonPopulateState {
 	return JsonPopulateState{Input: checkruntime.CopyJsonbInput(value.Input), Base: checkruntime.CopyCompositeValue(value.Base), Output: checkruntime.CopyCompositeValue(value.Output), Status: value.Status, Hard: value.Hard, Position: langruntime.CheckedI32(value.Position), Count: langruntime.CheckedI32(value.Count), Active: value.Active, Convert: value.Convert, Current: checkruntime.CopyJsonbInput(value.Current), Utf8: value.Utf8}
 }
 
@@ -20827,10 +20827,10 @@ type JsonPopulatePlan struct {
 	Value JsonPopulateState
 }
 
-func copyJsonPopulatePlan(value JsonPopulatePlan) JsonPopulatePlan {
+func CopyJsonPopulatePlan(value JsonPopulatePlan) JsonPopulatePlan {
 	switch value.Kind {
 	case JsonPopulatePlanValue:
-		return JsonPopulatePlan{Kind: JsonPopulatePlanValue, Value: copyJsonPopulateState(value.Value)}
+		return JsonPopulatePlan{Kind: JsonPopulatePlanValue, Value: CopyJsonPopulateState(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -21062,23 +21062,23 @@ func JsonPopulateGuard(input JsonPopulateState, flag checkruntime.BoolValue, saf
 	return JsonPopulateState{Input: input.Input, Base: input.Base, Output: input.Output, Status: status, Hard: hard, Position: input.Position, Count: input.Count, Active: input.Active, Convert: input.Convert, Current: input.Current, Utf8: input.Utf8}
 }
 func JsonPopulateRecordQo9b(input JsonPopulatePlan) checkruntime.CompositeValue {
-	input = copyJsonPopulatePlan(input)
+	input = CopyJsonPopulatePlan(input)
 	if input.Kind == JsonPopulatePlanValue {
-		value := copyJsonPopulateState(input.Value)
+		value := CopyJsonPopulateState(input.Value)
 		return FinishJsonPopulate(value)
 	}
 	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
 }
 func JsonbPopulateRecordF6m5(input JsonPopulatePlan) checkruntime.CompositeValue {
-	input = copyJsonPopulatePlan(input)
+	input = CopyJsonPopulatePlan(input)
 	if input.Kind == JsonPopulatePlanValue {
-		value := copyJsonPopulateState(input.Value)
+		value := CopyJsonPopulateState(input.Value)
 		return FinishJsonPopulate(value)
 	}
 	return checkruntime.CompositeValue{Kind: checkruntime.CompositeValueUnknown}
 }
 func finishJsonPopulateValid(input JsonPopulateState) checkruntime.BoolValue {
-	input = copyJsonPopulateState(input)
+	input = CopyJsonPopulateState(input)
 	hard := input.Hard
 	if hard.Kind == checkruntime.CheckOutcomeError {
 		error := hard.Error
@@ -21103,9 +21103,9 @@ func finishJsonPopulateValid(input JsonPopulateState) checkruntime.BoolValue {
 	return checkruntime.MakeBoolValue(true)
 }
 func JsonbPopulateRecordValidRd7k(input JsonPopulatePlan) checkruntime.BoolValue {
-	input = copyJsonPopulatePlan(input)
+	input = CopyJsonPopulatePlan(input)
 	if input.Kind == JsonPopulatePlanValue {
-		value := copyJsonPopulateState(input.Value)
+		value := CopyJsonPopulateState(input.Value)
 		return finishJsonPopulateValid(value)
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
@@ -49630,7 +49630,7 @@ type TextFormatBounds struct {
 	Width   checkruntime.Int4Value
 }
 
-func copyTextFormatBounds(value TextFormatBounds) TextFormatBounds {
+func CopyTextFormatBounds(value TextFormatBounds) TextFormatBounds {
 	return TextFormatBounds{Status: value.Status, Minimum: value.Minimum, Maximum: value.Maximum, Width: value.Width}
 }
 
@@ -49652,8 +49652,8 @@ func formatErrorBounds(error checkruntime.SqlError) TextFormatBounds {
 	return TextFormatBounds{Status: checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}, Minimum: int64(0), Maximum: int64(0), Width: checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}}
 }
 func formatMergeBounds(left TextFormatBounds, right TextFormatBounds) TextFormatBounds {
-	left = copyTextFormatBounds(left)
-	right = copyTextFormatBounds(right)
+	left = CopyTextFormatBounds(left)
+	right = CopyTextFormatBounds(right)
 	if left.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeNull}) {
 		return right
 	}
@@ -49771,7 +49771,7 @@ func formatBeginOutput(guard checkruntime.BoolValue) TextFormatOutput {
 	return TextFormatOutput{Status: buffer.Status, Buffer: buffer, Minimum: int64(0), Maximum: int64(0), Known: true}
 }
 func formatAppendOutput(input TextFormatOutput, value checkruntime.TextValue, facts TextFormatBounds, width int, left bool) TextFormatOutput {
-	facts = copyTextFormatBounds(facts)
+	facts = CopyTextFormatBounds(facts)
 	width = langruntime.CheckedI32(width)
 	if input.Status != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 		return input
@@ -49912,7 +49912,7 @@ func formatChoiceBounds(input *TextFormatState, original checkruntime.ArrayEleme
 		source := checkruntime.CopyArrayElement(original)
 		candidate := formatChoiceValue(source, family, index)
 		bounds := formatCandidateBounds(input, candidate, quoteAll)
-		result = copyTextFormatBounds(formatMergeBounds(result, bounds))
+		result = CopyTextFormatBounds(formatMergeBounds(result, bounds))
 		if result.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
 			return result
 		}
@@ -49934,7 +49934,7 @@ type TextFormatToken struct {
 	Conversion    int
 }
 
-func copyTextFormatToken(value TextFormatToken) TextFormatToken {
+func CopyTextFormatToken(value TextFormatToken) TextFormatToken {
 	return TextFormatToken{Status: value.Status, End: langruntime.CheckedIndex(value.End), Argument: langruntime.CheckedI32(value.Argument), WidthArgument: langruntime.CheckedI32(value.WidthArgument), Width: langruntime.CheckedI32(value.Width), Left: value.Left, Conversion: langruntime.CheckedI32(value.Conversion)}
 }
 
@@ -50130,9 +50130,9 @@ func formatPadOutput(input TextConcatState, value checkruntime.TextValue, width 
 	return ConcatAfterArgument(input, missing)
 }
 func formatAcceptWithBounds(input TextFormatState, value checkruntime.TextValue, quoteAll int, hint TextFormatBounds) TextFormatState {
-	input = copyTextFormatState(input)
+	input = CopyTextFormatState(input)
 	quoteAll = langruntime.CheckedI32(quoteAll)
-	hint = copyTextFormatBounds(hint)
+	hint = CopyTextFormatBounds(hint)
 	status := input.Status
 	phase := input.Phase
 	request := input.Request
@@ -50180,7 +50180,7 @@ func formatAcceptWithBounds(input TextFormatState, value checkruntime.TextValue,
 		prepared := rendered
 		facts := formatPreparedBounds(prepared, width)
 		if facts.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
-			facts = copyTextFormatBounds(hint)
+			facts = CopyTextFormatBounds(hint)
 		}
 		output = formatAppendOutput(output, rendered, facts, width, input.Left)
 		status = output.Status
@@ -50213,7 +50213,7 @@ func FormatAccept(input TextFormatState, value checkruntime.TextValue, quoteAll 
 	facts := formatUnknownBounds()
 	if input.Phase == 2 && input.Conversion == 73 && quoteAll == langruntime.CheckedSignedNegate(1) {
 		raw := value
-		facts = copyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
+		facts = CopyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
 	}
 	return formatAcceptWithBounds(input, value, quoteAll, facts)
 }
@@ -50221,10 +50221,10 @@ func FormatAcceptTyped(input TextFormatState, value checkruntime.TextValue, orig
 	facts := formatUnknownBounds()
 	if input.Phase == 2 && input.Conversion == 73 && quoteAll == langruntime.CheckedSignedNegate(1) {
 		raw := value
-		facts = copyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
+		facts = CopyTextFormatBounds(formatCandidateBounds(&input, raw, quoteAll))
 	}
 	if facts.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) && (value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull})) {
-		facts = copyTextFormatBounds(formatChoiceBounds(&input, original, family, quoteAll))
+		facts = CopyTextFormatBounds(formatChoiceBounds(&input, original, family, quoteAll))
 	}
 	return formatAcceptWithBounds(input, value, quoteAll, facts)
 }
@@ -50233,7 +50233,7 @@ type TextFormatSource struct {
 	Characters []rune
 }
 
-func copyTextFormatSource(value TextFormatSource) TextFormatSource {
+func CopyTextFormatSource(value TextFormatSource) TextFormatSource {
 	return TextFormatSource{Characters: langruntime.CheckedChars(value.Characters)}
 }
 
@@ -50248,10 +50248,10 @@ type TextFormatInput struct {
 	Value TextFormatState
 }
 
-func copyTextFormatInput(value TextFormatInput) TextFormatInput {
+func CopyTextFormatInput(value TextFormatInput) TextFormatInput {
 	switch value.Kind {
 	case TextFormatInputValue:
-		return TextFormatInput{Kind: TextFormatInputValue, Value: copyTextFormatState(value.Value)}
+		return TextFormatInput{Kind: TextFormatInputValue, Value: CopyTextFormatState(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -50272,8 +50272,8 @@ type TextFormatState struct {
 	Render       bool
 }
 
-func copyTextFormatState(value TextFormatState) TextFormatState {
-	return TextFormatState{Source: copyTextFormatSource(value.Source), Position: langruntime.CheckedIndex(value.Position), Status: value.Status, Output: value.Output, NextArgument: langruntime.CheckedI32(value.NextArgument), Argument: langruntime.CheckedI32(value.Argument), Width: langruntime.CheckedI32(value.Width), Left: value.Left, Conversion: langruntime.CheckedI32(value.Conversion), Phase: langruntime.CheckedI32(value.Phase), Request: langruntime.CheckedI32(value.Request), Count: langruntime.CheckedI32(value.Count), Render: value.Render}
+func CopyTextFormatState(value TextFormatState) TextFormatState {
+	return TextFormatState{Source: CopyTextFormatSource(value.Source), Position: langruntime.CheckedIndex(value.Position), Status: value.Status, Output: value.Output, NextArgument: langruntime.CheckedI32(value.NextArgument), Argument: langruntime.CheckedI32(value.Argument), Width: langruntime.CheckedI32(value.Width), Left: value.Left, Conversion: langruntime.CheckedI32(value.Conversion), Phase: langruntime.CheckedI32(value.Phase), Request: langruntime.CheckedI32(value.Request), Count: langruntime.CheckedI32(value.Count), Render: value.Render}
 }
 func FormatBegin(format checkruntime.TextValue, count checkruntime.Int4Value, guard checkruntime.BoolValue) TextFormatState {
 	formatText := langruntime.NewTextBuffer("")
@@ -50406,9 +50406,9 @@ func MakeFormatInput(input TextFormatState) TextFormatInput {
 	return TextFormatInput{Kind: TextFormatInputValue, Value: input}
 }
 func formatFinish(input TextFormatInput) checkruntime.TextValue {
-	input = copyTextFormatInput(input)
+	input = CopyTextFormatInput(input)
 	if input.Kind == TextFormatInputValue {
-		state := copyTextFormatState(input.Value)
+		state := CopyTextFormatState(input.Value)
 		if state.Status == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
 			return formatFinishOutput(state.Output)
 		}
@@ -50424,11 +50424,11 @@ func formatFinish(input TextFormatInput) checkruntime.TextValue {
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func FormatBz7w(input TextFormatInput) checkruntime.TextValue {
-	input = copyTextFormatInput(input)
+	input = CopyTextFormatInput(input)
 	return formatFinish(input)
 }
 func FormatTfn6(input TextFormatInput) checkruntime.TextValue {
-	input = copyTextFormatInput(input)
+	input = CopyTextFormatInput(input)
 	return formatFinish(input)
 }
 func QuoteLiteralI1gy(input checkruntime.TextValue) checkruntime.TextValue {
@@ -58431,7 +58431,7 @@ type TsqueryStoragePlan struct {
 	valid   bool
 }
 
-func copyTsqueryStoragePlan(value TsqueryStoragePlan) TsqueryStoragePlan {
+func CopyTsqueryStoragePlan(value TsqueryStoragePlan) TsqueryStoragePlan {
 	return TsqueryStoragePlan{entries: langruntime.CheckedStructs(value.entries, checkruntime.CopyTsqueryPayload), valid: value.valid}
 }
 func MakeTsqueryStoragePlan() TsqueryStoragePlan {
@@ -58439,7 +58439,7 @@ func MakeTsqueryStoragePlan() TsqueryStoragePlan {
 	return TsqueryStoragePlan{entries: entries, valid: true}
 }
 func AppendTsqueryStorage(input TsqueryStoragePlan, value checkruntime.TsqueryValue) TsqueryStoragePlan {
-	input = copyTsqueryStoragePlan(input)
+	input = CopyTsqueryStoragePlan(input)
 	value = checkruntime.CopyTsqueryValue(value)
 	entries := input.entries
 	if value.Kind == checkruntime.TsqueryValueValue {
@@ -58451,7 +58451,7 @@ func AppendTsqueryStorage(input TsqueryStoragePlan, value checkruntime.TsqueryVa
 	return TsqueryStoragePlan{entries: entries, valid: false}
 }
 func TsqueryFromCapturedText(input checkruntime.TextValue, plan *TsqueryStoragePlan, index checkruntime.Int4Value) checkruntime.TsqueryValue {
-	plan = langruntime.CheckedBorrowed(plan, copyTsqueryStoragePlan)
+	plan = langruntime.CheckedBorrowed(plan, CopyTsqueryStoragePlan)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.TsqueryValue{Kind: checkruntime.TsqueryValueError, Error: error}
@@ -58498,7 +58498,7 @@ func AdvanceTsqueryStorage(nullness checkruntime.BoolValue, index checkruntime.I
 }
 func FinishTsqueryStorage(input checkruntime.ArrayElement, plan *TsqueryStoragePlan, index checkruntime.Int4Value) checkruntime.ArrayElement {
 	input = checkruntime.CopyArrayElement(input)
-	plan = langruntime.CheckedBorrowed(plan, copyTsqueryStoragePlan)
+	plan = langruntime.CheckedBorrowed(plan, CopyTsqueryStoragePlan)
 	if input.Kind == checkruntime.ArrayElementError {
 		error := input.Error
 		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementError, Error: error}
@@ -70674,7 +70674,7 @@ type XPathSqlResult struct {
 	output  checkruntime.ArrayValue
 }
 
-func copyXPathSqlResult(value XPathSqlResult) XPathSqlResult {
+func CopyXPathSqlResult(value XPathSqlResult) XPathSqlResult {
 	return XPathSqlResult{state: langruntime.CheckedI32(value.state), present: value.present, output: checkruntime.CopyArrayValue(value.output)}
 }
 func XpathDiagnosticExecute(expression checkruntime.TextValue, input checkruntime.XmlValue, mappings checkruntime.ArrayValue, utf8 bool, limit int, extra int, known bool, powerWords string, serialize bool) XPathSqlResult {

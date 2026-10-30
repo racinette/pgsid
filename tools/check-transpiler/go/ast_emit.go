@@ -9,6 +9,15 @@ import (
 
 func goIdent(name string) *ast.Ident { return ast.NewIdent(name) }
 
+// A struct's synthesized copy helper is exported exactly when the struct is, so the helper is
+// usable wherever the type is and the package surface follows declarations alone.
+func copyHelperName(generated string) string {
+	if token.IsExported(generated) {
+		return "Copy" + generated
+	}
+	return "copy" + generated
+}
+
 func goCall(name string, arguments ...ast.Expr) ast.Expr {
 	return &ast.CallExpr{Fun: goIdent(name), Args: arguments}
 }
@@ -110,16 +119,16 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	if valueType.Kind == "reference" {
 		name := path(valueType.cold().Inner)
 		if name == "str" {
-			return goCall("checkedString", value)
+			return goCall("CheckedString", value)
 		}
 		structure := g.structs[name]
 		if structure == nil {
 			reject("unsupported borrowed type")
 		}
 		if opaqueStruct(structure) {
-			return goCall("checkedOpaqueBorrow", value)
+			return goCall("CheckedOpaqueBorrow", value)
 		}
-		return goCall("checkedBorrowed", value, goIdent("copy"+g.name(name)))
+		return goCall("CheckedBorrowed", value, goIdent(copyHelperName(g.name(name))))
 	}
 	name := path(valueType)
 	if g.immutable[name] {
@@ -127,37 +136,37 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	}
 	switch name {
 	case "usize", "u32":
-		return goCall("checkedIndex", value)
+		return goCall("CheckedIndex", value)
 	case "i32":
-		return goCall("checkedI32", value)
+		return goCall("CheckedI32", value)
 	case "i64":
 		return value
 	case "String":
-		return goCall("checkedString", value)
+		return goCall("CheckedString", value)
 	case "char":
-		return goCall("checkedChar", value)
+		return goCall("CheckedChar", value)
 	case "Vec":
 		if len(valueType.cold().TypeArguments) == 1 && path(valueType.cold().TypeArguments[0]) == "usize" {
-			return goCall("checkedIndices", value)
+			return goCall("CheckedIndices", value)
 		}
 		if len(valueType.cold().TypeArguments) == 1 && path(valueType.cold().TypeArguments[0]) == "char" {
-			return goCall("checkedChars", value)
+			return goCall("CheckedChars", value)
 		}
 		if len(valueType.cold().TypeArguments) == 1 && g.types[path(valueType.cold().TypeArguments[0])] {
-			return goCall("checkedStructs", value, goIdent("copy"+g.name(path(valueType.cold().TypeArguments[0]))))
+			return goCall("CheckedStructs", value, goIdent(copyHelperName(g.name(path(valueType.cold().TypeArguments[0])))))
 		}
 		reject("unsupported vector element type")
 		return nil
 	default:
 		if g.types[name] {
-			return goCall("copy"+g.name(name), value)
+			return goCall(copyHelperName(g.name(name)), value)
 		}
 		return value
 	}
 }
 
 func goTextBuffer(value ast.Expr) ast.Expr {
-	return goCall("newTextBuffer", value)
+	return goCall("NewTextBuffer", value)
 }
 
 func (g *generator) goTextBinding(value *node) ast.Expr {
@@ -202,11 +211,11 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
 	case "index-from-signed":
-		return goCall("indexFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
+		return goCall("IndexFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "float-from-text":
-		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
+		return goCall("F64FromText", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "float-bits":
-		helper := map[string]string{"decode-double": "f64FromI64Bits", "encode-double": "f64ToI64Bits", "decode-single": "f32FromI32Bits", "encode-single": "f32ToI32Bits"}[value.cold().Operation]
+		helper := map[string]string{"decode-double": "F64FromI64Bits", "encode-double": "F64ToI64Bits", "decode-single": "F32FromI32Bits", "encode-single": "F32ToI32Bits"}[value.cold().Operation]
 		if helper == "" {
 			reject("unknown float bit conversion")
 		}
@@ -217,7 +226,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			reject("invalid f64 literal")
 		}
 		if parsed == 0 && strings.HasPrefix(value.Digits, "-") {
-			return goCall("f64Negate", goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: strings.TrimPrefix(value.Digits, "-")}))
+			return goCall("F64Negate", goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: strings.TrimPrefix(value.Digits, "-")}))
 		}
 		return goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: value.Digits})
 	case "integer":
@@ -226,7 +235,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goInteger(value.Digits)
 	case "character-from-codepoint":
-		return goCall("characterFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
+		return goCall("CharacterFromI32", g.goExpression(value.Value), g.goExpression(value.cold().Fallback))
 	case "character":
 		characters := []rune(value.cold().Scalar)
 		if len(characters) != 1 {
@@ -249,37 +258,37 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			reject("unsupported unary operator")
 		}
 		if path(g.inferType(value.Value)) == "f64" {
-			return goCall("f64Negate", g.goExpression(value.Value))
+			return goCall("F64Negate", g.goExpression(value.Value))
 		}
-		return goCall("checkedSignedNegate", g.goExpression(value.Value))
+		return goCall("CheckedSignedNegate", g.goExpression(value.Value))
 	case "cast":
 		switch path(value.cold().TargetType) {
 		case "f64":
 			return goCall("float64", g.goExpression(value.Value))
 		case "i32":
 			if path(g.inferType(value.Value)) == "f64" {
-				return goCall("f64ToI32", g.goExpression(value.Value))
+				return goCall("F64ToI32", g.goExpression(value.Value))
 			}
 			if path(g.inferType(value.Value)) == "char" {
-				return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
+				return goCall("int", goCall("CheckedChar", g.goExpression(value.Value)))
 			}
 			return goCall("int", goCall("int32", g.goExpression(value.Value)))
 		case "i64":
-			return goCall("int64", goCall("checkedI32", g.goExpression(value.Value)))
+			return goCall("int64", goCall("CheckedI32", g.goExpression(value.Value)))
 		case "u32":
-			return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
+			return goCall("int", goCall("CheckedChar", g.goExpression(value.Value)))
 		case "usize":
 			if path(g.inferType(value.Value)) == "u16" {
-				return goCall("checkedIndex", goCall("int", g.goExpression(value.Value)))
+				return goCall("CheckedIndex", goCall("int", g.goExpression(value.Value)))
 			}
-			return goCall("checkedIndex", g.goExpression(value.Value))
+			return goCall("CheckedIndex", g.goExpression(value.Value))
 		default:
 			reject("unsupported cast target")
 		}
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
 		if (value.cold().Operator == "add" || value.cold().Operator == "subtract" || value.cold().Operator == "multiply" || value.cold().Operator == "divide") && path(g.inferType(value.Left)) == "f64" {
-			helpers := map[string]string{"add": "f64Add", "subtract": "f64Subtract", "multiply": "f64Multiply", "divide": "f64Divide"}
+			helpers := map[string]string{"add": "F64Add", "subtract": "F64Subtract", "multiply": "F64Multiply", "divide": "F64Divide"}
 			if helper, ok := helpers[value.cold().Operator]; ok {
 				return goCall(helper, left, right)
 			}
@@ -287,36 +296,36 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if (value.cold().Operator == "multiply" || value.cold().Operator == "add" || value.cold().Operator == "subtract" || value.cold().Operator == "divide" || value.cold().Operator == "remainder") && path(g.inferType(value.Left)) == "i64" {
 			switch value.cold().Operator {
 			case "multiply":
-				return goCall("checkedI64Multiply", left, right)
+				return goCall("CheckedI64Multiply", left, right)
 			case "add":
-				return goCall("checkedI64Add", left, right)
+				return goCall("CheckedI64Add", left, right)
 			case "subtract":
-				return goCall("checkedI64Subtract", left, right)
+				return goCall("CheckedI64Subtract", left, right)
 			case "divide":
-				return goCall("checkedI64Divide", left, right)
+				return goCall("CheckedI64Divide", left, right)
 			case "remainder":
-				return goCall("checkedI64Remainder", left, right)
+				return goCall("CheckedI64Remainder", left, right)
 			}
 		}
 		switch value.cold().Operator {
 		case "multiply":
-			return goCall("checkedSignedMultiply", left, right)
+			return goCall("CheckedSignedMultiply", left, right)
 		case "divide":
-			return goCall("checkedSignedDivide", left, right)
+			return goCall("CheckedSignedDivide", left, right)
 		case "remainder":
-			return goCall("checkedSignedRemainder", left, right)
+			return goCall("CheckedSignedRemainder", left, right)
 		case "add":
 			signed := path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32"
 			if signed {
-				return goCall("checkedSignedAdd", left, right)
+				return goCall("CheckedSignedAdd", left, right)
 			}
-			return goCall("checkedAdd", left, right)
+			return goCall("CheckedAdd", left, right)
 		case "subtract":
 			signed := path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32"
 			if signed {
-				return goCall("checkedSignedSubtract", left, right)
+				return goCall("CheckedSignedSubtract", left, right)
 			}
-			return goCall("checkedSubtract", left, right)
+			return goCall("CheckedSubtract", left, right)
 		}
 		operators := map[string]token.Token{
 			"less-than": token.LSS, "less-or-equal": token.LEQ,
@@ -342,13 +351,13 @@ func (g *generator) goExpression(value *node) ast.Expr {
 	case "method-call":
 		switch {
 		case value.Method == "abs" && len(value.Arguments) == 0:
-			return goCall("f64Abs", g.goExpression(value.Receiver))
+			return goCall("F64Abs", g.goExpression(value.Receiver))
 		case value.Method == "ln" && len(value.Arguments) == 0:
-			return goCall("f64Ln", g.goExpression(value.Receiver))
+			return goCall("F64Ln", g.goExpression(value.Receiver))
 		case value.Method == "log10" && len(value.Arguments) == 0:
-			return goCall("f64Log10", g.goExpression(value.Receiver))
+			return goCall("F64Log10", g.goExpression(value.Receiver))
 		case value.Method == "sqrt" && len(value.Arguments) == 0:
-			return goCall("f64Sqrt", g.goExpression(value.Receiver))
+			return goCall("F64Sqrt", g.goExpression(value.Receiver))
 		case value.Method == "clone":
 			return g.goDetach(g.goExpression(value.Receiver), g.inferType(value.Receiver))
 		case value.Method == "to_owned" || value.Method == "as_str":
@@ -356,7 +365,7 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		case value.Method == "len" && len(value.Arguments) == 0:
 			return goCall("len", g.goExpression(value.Receiver))
 		case value.Method == "to_ascii_lowercase" && len(value.Arguments) == 0:
-			return goCall("asciiLowercase", g.goExpression(value.Receiver))
+			return goCall("AsciiLowercase", g.goExpression(value.Receiver))
 		case value.Method == "collect" && len(value.Arguments) == 0 && value.Receiver != nil && value.Receiver.Kind == "method-call" && value.Receiver.Method == "chars" && len(value.Receiver.Arguments) == 0:
 			return &ast.CallExpr{Fun: &ast.ArrayType{Elt: goIdent("rune")}, Args: []ast.Expr{g.goExpression(value.Receiver.Receiver)}}
 		}
@@ -472,7 +481,7 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				receiver := g.goExpression(value.Receiver)
 				argument := g.goExpression(value.Arguments[0])
 				if value.Method == "push" {
-					argument = goCall("string", goCall("checkedChar", argument))
+					argument = goCall("string", goCall("CheckedChar", argument))
 				}
 				if buffer := g.goTextBinding(value.Receiver); buffer != nil {
 					appended := &ast.CallExpr{Fun: goIdent("append"), Args: []ast.Expr{buffer, argument}, Ellipsis: 1}
@@ -484,7 +493,7 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			}
 			if value.Method == "push" && len(value.Arguments) == 1 {
 				receiver := g.goExpression(value.Receiver)
-				result = append(result, &ast.ExprStmt{X: goCall("checkedAdd", goCall("len", receiver), goInteger("1"))})
+				result = append(result, &ast.ExprStmt{X: goCall("CheckedAdd", goCall("len", receiver), goInteger("1"))})
 				receiverType := g.inferType(value.Receiver)
 				if receiverType == nil || path(receiverType) != "Vec" || len(receiverType.cold().TypeArguments) != 1 {
 					reject("push receiver is not a vector")
@@ -573,7 +582,7 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 		case "binary":
 			if value.cold().Operator == "add-assign" {
 				left := g.goExpression(value.Left)
-				result = append(result, goAssign(left, goCall("checkedAdd", left, g.goExpression(value.Right)), token.ASSIGN))
+				result = append(result, goAssign(left, goCall("CheckedAdd", left, g.goExpression(value.Right)), token.ASSIGN))
 				continue
 			}
 			fallthrough
@@ -629,7 +638,7 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		if g.immutable[value.cold().Name] && !g.vectorElements[value.cold().Name] {
 			return []ast.Decl{structure}
 		}
-		copy := goFunction("copy"+generated, []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
+		copy := goFunction(copyHelperName(generated), []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
 			&ast.ReturnStmt{Results: []ast.Expr{goComposite(generated, copyFields...)}},
 		})
 		return []ast.Decl{structure, copy}
@@ -663,7 +672,7 @@ func (g *generator) goItem(value *node) []ast.Decl {
 		if g.immutable[value.cold().Name] && !g.vectorElements[value.cold().Name] {
 			return []ast.Decl{kindType, constants, structure}
 		}
-		copy := goFunction("copy"+generated, []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
+		copy := goFunction(copyHelperName(generated), []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{
 			&ast.SwitchStmt{Tag: goSelect(goIdent("value"), kindField), Body: &ast.BlockStmt{List: cases}},
 			&ast.ExprStmt{X: goCall("panic", goString("unknown enum variant"))},
 		})

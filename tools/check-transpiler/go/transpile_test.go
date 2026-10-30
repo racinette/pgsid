@@ -101,9 +101,51 @@ func TestVectorElementCopyDetectionAcceptsBorrowedFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"message string", "func copyPoint(value Point) Point", "values []Point", "copyPoint"} {
+	for _, expected := range []string{"message string", "func CopyPoint(value Point) Point", "values []Point", "CopyPoint"} {
 		if !strings.Contains(string(output), expected) {
 			t.Errorf("generated Go is missing %q", expected)
 		}
+	}
+}
+
+func splitTranspile(t *testing.T, items []*node) error {
+	t.Helper()
+	input, err := json.Marshal(document{SchemaVersion: 1, Items: items})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = TranspileWithOptions(input, Options{Split: true, SchemaImportPath: "splitchecks/pg_catalog"})
+	return err
+}
+
+func TestSplitNamesRejectCollisionsInsteadOfReplacing(t *testing.T) {
+	indexType := &node{Kind: "path", Segments: []string{"usize"}}
+	constant := func(module, name string) *node {
+		return &node{Kind: "function", NodeDetail: &NodeDetail{Module: module, Visibility: "public", Name: name, ReturnType: indexType, Body: []*node{
+			{Kind: "expression", Value: &node{Kind: "integer", Digits: "1"}},
+		}}}
+	}
+	err := splitTranspile(t, []*node{constant("checkruntime", "shared_name"), constant("pg_catalog", "shared_name")})
+	if err == nil || !strings.Contains(err.Error(), "SharedName is declared by both checkruntime::shared_name and pg_catalog::shared_name") {
+		t.Fatalf("expected a collision error, got %v", err)
+	}
+	err = splitTranspile(t, []*node{constant("checkruntime", "checked_index")})
+	if err == nil || !strings.Contains(err.Error(), "CheckedIndex is declared by both langruntime::prelude") {
+		t.Fatalf("expected a collision with the prelude, got %v", err)
+	}
+}
+
+func TestSplitReferencesNeedDeclaredExports(t *testing.T) {
+	indexType := &node{Kind: "path", Segments: []string{"usize"}}
+	err := splitTranspile(t, []*node{
+		{Kind: "function", NodeDetail: &NodeDetail{Module: "checkruntime", Visibility: "private", Name: "hidden", ReturnType: indexType, Body: []*node{
+			{Kind: "expression", Value: &node{Kind: "integer", Digits: "1"}},
+		}}},
+		{Kind: "function", NodeDetail: &NodeDetail{Module: "pg_catalog", Visibility: "public", Name: "reveal", ReturnType: indexType, Body: []*node{
+			{Kind: "expression", Value: &node{Kind: "call", Callee: &node{Kind: "path", Segments: []string{"hidden"}}}},
+		}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "hidden is referenced from another package but declared unexported in checkruntime") {
+		t.Fatalf("expected an unexported reference error, got %v", err)
 	}
 }

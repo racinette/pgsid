@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-func checkedOpaqueBorrow[T any](value *T) *T {
+func CheckedOpaqueBorrow[T any](value *T) *T {
 	if value == nil {
 		panic("nil borrowed value")
 	}
@@ -22,28 +22,28 @@ func CheckedBorrowed[T any](value *T, copyValue func(T) T) *T {
 	return &copied
 }
 
-const maxSharedIndex = 2147483647
-const minSharedI32 = -2147483648
+const MaxSharedIndex = 2147483647
+const MinSharedI32 = -2147483648
 
-const maxSharedI64 int64 = 9223372036854775807
-const minSharedI64 int64 = -9223372036854775808
+const MaxSharedI64 int64 = 9223372036854775807
+const MinSharedI64 int64 = -9223372036854775808
 
 func CheckedI64Add(left int64, right int64) int64 {
-	if (right > 0 && left > maxSharedI64-right) || (right < 0 && left < minSharedI64-right) {
+	if (right > 0 && left > MaxSharedI64-right) || (right < 0 && left < MinSharedI64-right) {
 		panic("i64 overflow")
 	}
 	return left + right
 }
 
 func CheckedI64Subtract(left int64, right int64) int64 {
-	if (right < 0 && left > maxSharedI64+right) || (right > 0 && left < minSharedI64+right) {
+	if (right < 0 && left > MaxSharedI64+right) || (right > 0 && left < MinSharedI64+right) {
 		panic("i64 overflow")
 	}
 	return left - right
 }
 
 func CheckedI64Multiply(left int64, right int64) int64 {
-	if (left == minSharedI64 && right == -1) || (right == minSharedI64 && left == -1) {
+	if (left == MinSharedI64 && right == -1) || (right == MinSharedI64 && left == -1) {
 		panic("i64 overflow")
 	}
 	result := left * right
@@ -57,7 +57,7 @@ func CheckedI64Divide(left int64, right int64) int64 {
 	if right == 0 {
 		panic("integer division by zero")
 	}
-	if left == minSharedI64 && right == -1 {
+	if left == MinSharedI64 && right == -1 {
 		panic("i64 overflow")
 	}
 	return left / right
@@ -67,14 +67,14 @@ func CheckedI64Remainder(left int64, right int64) int64 {
 	if right == 0 {
 		panic("integer remainder by zero")
 	}
-	if left == minSharedI64 && right == -1 {
+	if left == MinSharedI64 && right == -1 {
 		panic("i64 overflow")
 	}
 	return left % right
 }
 
 func CheckedIndex(value int) int {
-	if value < 0 || value > maxSharedIndex {
+	if value < 0 || value > MaxSharedIndex {
 		panic("index outside shared numeric range")
 	}
 	return value
@@ -90,7 +90,7 @@ func IndexFromI32(value int, fallback int) int {
 }
 
 func CheckedI32(value int) int {
-	if value < -2147483648 || value > maxSharedIndex {
+	if value < -2147483648 || value > MaxSharedIndex {
 		panic("signed integer outside shared numeric range")
 	}
 	return value
@@ -99,7 +99,7 @@ func CheckedI32(value int) int {
 func CheckedAdd(left int, right int) int {
 	CheckedIndex(left)
 	CheckedIndex(right)
-	if right > maxSharedIndex-left {
+	if right > MaxSharedIndex-left {
 		panic("shared numeric overflow")
 	}
 	return left + right
@@ -116,7 +116,7 @@ func CheckedSubtract(left int, right int) int {
 
 func CheckedSignedNegate(value int) int {
 	CheckedI32(value)
-	if value == minSharedI32 {
+	if value == MinSharedI32 {
 		panic("signed integer overflow")
 	}
 	return -value
@@ -125,7 +125,7 @@ func CheckedSignedNegate(value int) int {
 func CheckedSignedAdd(left int, right int) int {
 	CheckedI32(left)
 	CheckedI32(right)
-	if (right > 0 && left > maxSharedIndex-right) || (right < 0 && left < minSharedI32-right) {
+	if (right > 0 && left > MaxSharedIndex-right) || (right < 0 && left < MinSharedI32-right) {
 		panic("signed integer overflow")
 	}
 	return left + right
@@ -134,7 +134,7 @@ func CheckedSignedAdd(left int, right int) int {
 func CheckedSignedSubtract(left int, right int) int {
 	CheckedI32(left)
 	CheckedI32(right)
-	if (right < 0 && left > maxSharedIndex+right) || (right > 0 && left < minSharedI32+right) {
+	if (right < 0 && left > MaxSharedIndex+right) || (right > 0 && left < MinSharedI32+right) {
 		panic("signed integer overflow")
 	}
 	return left - right
@@ -144,7 +144,7 @@ func CheckedSignedMultiply(left int, right int) int {
 	CheckedI32(left)
 	CheckedI32(right)
 	result := int64(left) * int64(right)
-	if result < minSharedI32 || result > maxSharedIndex {
+	if result < MinSharedI32 || result > MaxSharedIndex {
 		panic("signed integer overflow")
 	}
 	return int(result)
@@ -156,7 +156,7 @@ func CheckedSignedDivide(left int, right int) int {
 	if right == 0 {
 		panic("integer division by zero")
 	}
-	if left == minSharedI32 && right == -1 {
+	if left == MinSharedI32 && right == -1 {
 		panic("signed integer overflow")
 	}
 	return left / right
@@ -168,7 +168,7 @@ func CheckedSignedRemainder(left int, right int) int {
 	if right == 0 {
 		panic("integer remainder by zero")
 	}
-	if left == minSharedI32 && right == -1 {
+	if left == MinSharedI32 && right == -1 {
 		panic("signed integer overflow")
 	}
 	return left % right
@@ -203,14 +203,14 @@ func NewTextBuffer(value string) []byte {
 }
 
 func CheckedString(value string) string {
-	if len(value) > maxSharedIndex || !utf8.ValidString(value) {
+	if len(value) > MaxSharedIndex || !utf8.ValidString(value) {
 		panic("invalid or oversized string")
 	}
 	return value
 }
 
 func CheckedChars(value []rune) []rune {
-	if len(value) > maxSharedIndex {
+	if len(value) > MaxSharedIndex {
 		panic("vector outside shared numeric range")
 	}
 	result := make([]rune, len(value))
@@ -221,7 +221,7 @@ func CheckedChars(value []rune) []rune {
 }
 
 func CheckedIndices(value []int) []int {
-	if len(value) > maxSharedIndex {
+	if len(value) > MaxSharedIndex {
 		panic("vector outside shared numeric range")
 	}
 	result := make([]int, len(value))

@@ -543,7 +543,9 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		if options.Split && item.cold().Module != "regex_engine" {
 			generatedName = schemaFunctionName(generatedName)
 		}
-		exported := (item.cold().Visibility == "public" || item.cold().Visibility == "crate") && !(options.Split && item.cold().Module == "regex_engine" && item.Kind == "function")
+		// Exported names follow declared visibility alone, so a runtime package's public surface
+		// does not depend on which checks are emitted with it.
+		exported := item.cold().Visibility == "public" || item.cold().Visibility == "crate"
 		if options.Split && strings.HasPrefix(item.cold().Name, "sql__pg_catalog__") {
 			exported = true
 		}
@@ -645,7 +647,24 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		owned[module] = make(map[string]bool)
 	}
 	files["langruntime"].Decls = runtime.Decls
-	collectDeclarationNames(runtime.Decls, owned["langruntime"])
+	// Every module is resolved in one flat scope below, where a second declaration of a Go name
+	// would silently lose to the first; any repeated name is an error instead.
+	declarers := make(map[string]string)
+	declare := func(declarations []ast.Decl, module, item string) error {
+		names := make(map[string]bool)
+		collectDeclarationNames(declarations, names)
+		for name := range names {
+			if previous, ok := declarers[name]; ok {
+				return fmt.Errorf("Go name %s is declared by both %s and %s", name, previous, module+"::"+item)
+			}
+			declarers[name] = module + "::" + item
+			owned[module][name] = true
+		}
+		return nil
+	}
+	if err := declare(runtime.Decls, "langruntime", "prelude"); err != nil {
+		return nil, err
+	}
 	for _, item := range document.Items {
 		file := files[item.cold().Module]
 		if file == nil || item.cold().Module == "langruntime" {
@@ -653,7 +672,9 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 		}
 		declarations := generator.goItem(item)
 		file.Decls = append(file.Decls, declarations...)
-		collectDeclarationNames(declarations, owned[item.cold().Module])
+		if err := declare(declarations, item.cold().Module, item.cold().Name); err != nil {
+			return nil, err
+		}
 	}
 	var flat bytes.Buffer
 	var declarations []ast.Decl
@@ -701,10 +722,11 @@ func transpileDocument(document *document, options Options) (output []byte, err 
 			})
 		}
 	}
+	// A cross-package reference needs an exported declaration; renaming it on use would make the
+	// package surface depend on its users and could land on another declaration's name.
 	for object := range exports {
-		exported := casedName(object.Name, true)
-		for _, identifier := range references[object] {
-			identifier.Name = exported
+		if !token.IsExported(object.Name) {
+			return nil, fmt.Errorf("%s is referenced from another package but declared unexported in %s", object.Name, owners[object])
 		}
 	}
 	result := make(map[string]string)
