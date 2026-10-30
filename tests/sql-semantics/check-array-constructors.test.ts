@@ -128,10 +128,12 @@ it('constructs scalar and nested ARRAY expressions with PostgreSQL shape, coerci
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((table) => table.name === 'constructor_inputs')!
     const domainTable = catalog.tables.find((table) => table.name === 'domain_constructor_inputs')!
+    // Arrays of array-domain values bind as one-dimensional arrays of the domain; their
+    // evaluation is checked against PostgreSQL in check-array-domain-constructor.test.ts.
     for (const [array, dimensions, deferred] of [
-      ['ARRAY[a,b]', '[1:2]', true],
-      ['ARRAY[COALESCE(a,b),b]', '[1:2]', true],
-      ['ARRAY[CASE WHEN bypass THEN a ELSE b END,b]', '[1:2]', true],
+      ['ARRAY[a,b]', '[1:2]', false],
+      ['ARRAY[COALESCE(a,b),b]', '[1:2]', false],
+      ['ARRAY[CASE WHEN bypass THEN a ELSE b END,b]', '[1:2]', false],
       ['ARRAY[a::integer[],b::integer[]]', '[1:2][1:1]', false],
       ['ARRAY[a,plain]', '[1:2][1:1]', false],
       ['ARRAY[lane,lane]', '[1:2]', false],
