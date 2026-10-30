@@ -1,4 +1,5 @@
 mod ast_json;
+mod facts;
 mod source_graph;
 mod syntax;
 mod validate;

@@ -5,8 +5,12 @@ use syn::punctuated::Punctuated;
 use syn::{BinOp, Expr, Fields, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibility};
 
 use crate::{
+    facts::Facts,
     syntax,
-    validate::{check_operations, inspect, path_name, pattern_ident, type_name, Result},
+    validate::{
+        check_operation_items, check_operations, collect_constants, collect_semantics, inspect,
+        path_name, pattern_ident, type_name, Result,
+    },
 };
 
 fn derive_names(attrs: &[syn::Attribute]) -> Result<Vec<String>> {
@@ -50,17 +54,12 @@ fn record_visibility(value: &Visibility) -> Result<&'static str> {
     visibility(value)
 }
 
-fn check_type(
-    value: &Type,
-    declarations: &BTreeSet<String>,
-    structs: &BTreeSet<String>,
-    vector_elements: &BTreeSet<String>,
-) -> Result<()> {
+fn check_type(value: &Type, sets: &TypeSets) -> Result<()> {
     match value {
         Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)) => {}
         Type::Reference(reference) => {
             let inner = type_name(&reference.elem)?;
-            if inner != "str" && !structs.contains(&inner) {
+            if inner != "str" && !sets.structs.contains(&inner) {
                 return Err(
                     "only &str and declared struct references are in the AST contract".into(),
                 );
@@ -80,11 +79,11 @@ fn check_type(
                     | "String"
                     | "Vec<char>"
                     | "Vec<usize>"
-            ) && !declarations.contains(&name)
+            ) && !sets.declarations.contains(&name)
                 && !name
                     .strip_prefix("Vec<")
                     .and_then(|element| element.strip_suffix('>'))
-                    .is_some_and(|element| vector_elements.contains(element))
+                    .is_some_and(|element| sets.vector_elements.contains(element))
             {
                 return Err(format!("type {name} is outside the AST contract"));
             }
@@ -103,56 +102,44 @@ fn reject_stored_struct_borrow(value: &Type) -> Result<()> {
     Ok(())
 }
 
-fn check_body_types(
-    block: &syn::Block,
-    declarations: &BTreeSet<String>,
-    structs: &BTreeSet<String>,
-    vector_elements: &BTreeSet<String>,
-) -> Result<()> {
+fn check_body_types(block: &syn::Block, sets: &TypeSets) -> Result<()> {
     for statement in &block.stmts {
         match statement {
             Stmt::Local(local) => {
                 if let Pat::Type(typed) = &local.pat {
                     reject_stored_struct_borrow(&typed.ty)?;
-                    check_type(&typed.ty, declarations, structs, vector_elements)?;
+                    check_type(&typed.ty, sets)?;
                 }
             }
-            Stmt::Expr(Expr::If(branch), _) => {
-                check_if_body_types(branch, declarations, structs, vector_elements)?
-            }
-            Stmt::Expr(Expr::While(loop_), _) => {
-                check_body_types(&loop_.body, declarations, structs, vector_elements)?
-            }
+            Stmt::Expr(Expr::If(branch), _) => check_if_body_types(branch, sets)?,
+            Stmt::Expr(Expr::While(loop_), _) => check_body_types(&loop_.body, sets)?,
             _ => {}
         }
     }
     Ok(())
 }
 
-fn check_if_body_types(
-    branch: &syn::ExprIf,
-    declarations: &BTreeSet<String>,
-    structs: &BTreeSet<String>,
-    vector_elements: &BTreeSet<String>,
-) -> Result<()> {
-    check_body_types(&branch.then_branch, declarations, structs, vector_elements)?;
+fn check_if_body_types(branch: &syn::ExprIf, sets: &TypeSets) -> Result<()> {
+    check_body_types(&branch.then_branch, sets)?;
     if let Some((_, alternate)) = &branch.else_branch {
         match &**alternate {
-            Expr::Block(alternate) => {
-                check_body_types(&alternate.block, declarations, structs, vector_elements)?
-            }
-            Expr::If(alternate) => {
-                check_if_body_types(alternate, declarations, structs, vector_elements)?
-            }
+            Expr::Block(alternate) => check_body_types(&alternate.block, sets)?,
+            Expr::If(alternate) => check_if_body_types(alternate, sets)?,
             _ => unreachable!(),
         }
     }
     Ok(())
 }
 
-fn check_types(file: &syn::File) -> Result<()> {
-    let declarations = file
-        .items
+#[derive(Default)]
+pub(crate) struct TypeSets {
+    pub(crate) declarations: BTreeSet<String>,
+    pub(crate) structs: BTreeSet<String>,
+    pub(crate) vector_elements: BTreeSet<String>,
+}
+
+pub(crate) fn collect_type_sets(items: &[Item], sets: &mut TypeSets) {
+    let declarations = items
         .iter()
         .filter_map(|item| match item {
             Item::Struct(node) => Some(node.ident.to_string()),
@@ -160,16 +147,14 @@ fn check_types(file: &syn::File) -> Result<()> {
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    let structs = file
-        .items
+    let structs = items
         .iter()
         .filter_map(|item| match item {
             Item::Struct(node) => Some(node.ident.to_string()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    let vector_elements = file
-        .items
+    let vector_elements = items
         .iter()
         .filter_map(|item| match item {
             Item::Struct(node)
@@ -187,14 +172,26 @@ fn check_types(file: &syn::File) -> Result<()> {
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    for item in &file.items {
+    sets.declarations.extend(declarations);
+    sets.structs.extend(structs);
+    sets.vector_elements.extend(vector_elements);
+}
+
+fn check_types(file: &syn::File) -> Result<()> {
+    let mut sets = TypeSets::default();
+    collect_type_sets(&file.items, &mut sets);
+    check_item_types(&file.items, &sets)
+}
+
+pub(crate) fn check_item_types(items: &[Item], sets: &TypeSets) -> Result<()> {
+    for item in items {
         match item {
             Item::Const(node) => {
                 if !matches!(&*node.ty, Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)))
                 {
                     reject_stored_struct_borrow(&node.ty)?;
                 }
-                check_type(&node.ty, &declarations, &structs, &vector_elements)?;
+                check_type(&node.ty, sets)?;
             }
             Item::Struct(node) => {
                 let Fields::Named(fields) = &node.fields else {
@@ -205,7 +202,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                     if type_name(&field.ty)? == "f64" {
                         return Err("f64 is limited to scalar calculations".into());
                     }
-                    check_type(&field.ty, &declarations, &structs, &vector_elements)?;
+                    check_type(&field.ty, sets)?;
                 }
             }
             Item::Enum(node) => {
@@ -215,12 +212,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                         if type_name(&fields.unnamed[0].ty)? == "f64" {
                             return Err("f64 is limited to scalar calculations".into());
                         }
-                        check_type(
-                            &fields.unnamed[0].ty,
-                            &declarations,
-                            &structs,
-                            &vector_elements,
-                        )?;
+                        check_type(&fields.unnamed[0].ty, sets)?;
                     }
                 }
             }
@@ -229,7 +221,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                     let FnArg::Typed(arg) = arg else {
                         unreachable!()
                     };
-                    check_type(&arg.ty, &declarations, &structs, &vector_elements)?;
+                    check_type(&arg.ty, sets)?;
                 }
                 let ReturnType::Type(_, output) = &node.sig.output else {
                     unreachable!()
@@ -237,8 +229,8 @@ fn check_types(file: &syn::File) -> Result<()> {
                 if matches!(&**output, Type::Reference(_)) {
                     return Err("borrowed return types are outside the AST contract".into());
                 }
-                check_type(output, &declarations, &structs, &vector_elements)?;
-                check_body_types(&node.block, &declarations, &structs, &vector_elements)?;
+                check_type(output, sets)?;
+                check_body_types(&node.block, sets)?;
             }
             _ => unreachable!(),
         }
@@ -683,6 +675,31 @@ pub(crate) fn validate_file(file: &syn::File) -> Result<()> {
     inspect(file)?;
     check_types(file)?;
     check_operations(file)
+}
+
+// Validates modules linked against an already validated graph. The modules may only add
+// functions and constants: those checks need the cached tables alone, while checks of type
+// declarations range over every type in the graph.
+pub(crate) fn validate_against(file: &syn::File, facts: Facts) -> Result<()> {
+    if let Some(declaration) = file.items.iter().find_map(|item| match item {
+        Item::Struct(node) => Some(node.ident.to_string()),
+        Item::Enum(node) => Some(node.ident.to_string()),
+        _ => None,
+    }) {
+        return Err(format!(
+            "{declaration}: modules linked against runtime facts cannot declare types"
+        ));
+    }
+    syntax::check(file)?;
+    inspect(file)?;
+    let mut sets = facts.types;
+    collect_type_sets(&file.items, &mut sets);
+    check_item_types(&file.items, &sets)?;
+    let mut semantics = facts.semantics;
+    collect_semantics(&file.items, &mut semantics)?;
+    let mut constants = facts.constants;
+    collect_constants(&file.items, &mut constants)?;
+    check_operation_items(&file.items, &constants, &mut semantics)
 }
 
 #[cfg(test)]
