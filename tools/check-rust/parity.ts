@@ -87,6 +87,10 @@ export type Row = Record<string, Input>
 // Above this many fixtures, inline assertions make rustc and the Go toolchain spend
 // minutes per suite; value tables keep generated code proportional to distinct values.
 const DATA_DRIVEN_FIXTURES = 20000
+// Every suite writes its Go code under one module path: the build cache keys packages by import
+// path and content (paths are trimmed), so suites sharing a runtime reuse its compiled packages,
+// while each suite keeps its own directory.
+const goParityModule = 'pgsidparity'
 export type Outcome =
   { kind: 'True' | 'False' | 'Null' | 'Unknown' } | { kind: 'Error'; value: { state: number } }
 
@@ -101,7 +105,7 @@ export async function runCheckParity(
   assert.ok(group.source && group.evaluatorSource)
   await writeFile(join(directory, 'evaluators.rs'), group.evaluatorSource)
   writeCheckRustSources(join(directory, 'checks.rs'), group.source)
-  const split = transpileCheckRustFiles(group.source, `${moduleName}/pg_catalog`)
+  const split = transpileCheckRustFiles(group.source, `${goParityModule}/pg_catalog`)
   await run('cargo', [
     'run',
     '--quiet',
@@ -488,9 +492,9 @@ export async function runCheckParity(
         package: 'parity',
         imports: [
           { path: 'testing' },
-          { alias: 'generated', path: moduleName },
-          { path: moduleName + '/checkruntime' },
-          ...(goBatchRequiresJsonpath ? [{ path: moduleName + '/pg_catalog' }] : []),
+          { alias: 'generated', path: goParityModule },
+          { path: goParityModule + '/checkruntime' },
+          ...(goBatchRequiresJsonpath ? [{ path: goParityModule + '/pg_catalog' }] : []),
         ],
         declarations: [
           go.function(
@@ -694,10 +698,10 @@ fn checks_match_postgres() {
       printGoFile({
         package: 'parity',
         imports: [
-          { alias: 'generated', path: moduleName },
-          { path: moduleName + '/checkruntime' },
+          { alias: 'generated', path: goParityModule },
+          { path: goParityModule + '/checkruntime' },
           ...([...tables.values()].some((table) => table.jsonpath)
-            ? [{ path: moduleName + '/pg_catalog' }]
+            ? [{ path: goParityModule + '/pg_catalog' }]
             : []),
         ],
         declarations: [
@@ -755,7 +759,7 @@ import (
 	"strings"
 	"testing"
 
-	"${moduleName}/checkruntime"
+	"${goParityModule}/checkruntime"
 )
 
 func runParityCase(runner func(*parityTables, []int) checkruntime.CheckOutcome, tables *parityTables, args []int) (code string) {
@@ -933,7 +937,7 @@ func TestChecksMatchPostgres(t *testing.T) {
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, source)
   }
-  await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
+  await writeFile(join(directory, 'go/go.mod'), `module ${goParityModule}\n\ngo 1.25\n`)
   // The data-driven driver reads its cases at runtime, so a cached pass could be stale.
   await run('go', ['test', '-count=1', '-trimpath', '-p', '1', './...'], {
     cwd: join(directory, 'go'),
