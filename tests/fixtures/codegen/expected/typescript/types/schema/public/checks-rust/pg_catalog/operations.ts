@@ -46636,7 +46636,10 @@ export function dateBin67ed(stride: checkruntime.IntervalValue, input: checkrunt
                         return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
                     }
                     result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, width));
-                    return checkruntime.makeTimestampValue(result);
+                    if (result < -211813488000000000n || result >= 9223371331200000000n) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                    }
+                    return { kind: "Value", value: result };
                 }
                 if (result === low || result === high) {
                     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };

@@ -46197,7 +46197,10 @@ func DateBin67ed(stride checkruntime.IntervalValue, input checkruntime.Timestamp
 						return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
 					}
 					result = langruntime.CheckedI64Subtract(result, width)
-					return checkruntime.MakeTimestampValue(result)
+					if result < int64(-211813488000000000) || result >= int64(9223371331200000000) {
+						return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+					}
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: result}
 				}
 				if result == low || result == high {
 					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
