@@ -251,12 +251,11 @@ it.each(families)(
               `INSERT INTO ${family}_checks SELECT v,w,m,a,b,input_text,$2,$3 FROM ${family}_inputs WHERE id=$1`,
               [id, mode, result],
             )
-            const opaqueWire = name === 'wire' && id === 0 && family !== 'nested_span'
             for (const origin of ['source', 'stored'])
               fixtures.push({
                 name: name + '_' + origin,
                 row: { ...row, mode: known(mode), expected: known(result) },
-                expected: { kind: opaqueWire ? 'Unknown' : 'True' },
+                expected: { kind: 'True' },
               })
             if (result !== null) {
               await expect(
@@ -269,7 +268,7 @@ it.each(families)(
                 fixtures.push({
                   name: name + '_' + origin,
                   row: { ...row, mode: known(mode), expected: known('different') },
-                  expected: { kind: opaqueWire ? 'Unknown' : 'False' },
+                  expected: { kind: 'False' },
                 })
             }
           }
@@ -284,10 +283,6 @@ it.each(families)(
               fixtures: fixtures.length,
               nativeInserts: fixtures.length / 2,
               unknown: fixtures.filter((f) => f.expected.kind === 'Unknown').length,
-              binaryBoundary:
-                family === 'nested_span'
-                  ? null
-                  : 'Finite generic array/record send retains unavailable deployment header OIDs; its exact wire length is not modeled by the existing opaque send backend.',
             },
             null,
             2,
