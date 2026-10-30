@@ -12,7 +12,12 @@ import {
   translateCheckRustRuntime,
   type CheckRustRuntimeTranslation,
 } from '../../src/codegen/shared/check-rust-transpile.js'
-import { checkRustRuntimeDirectory, ownDirectory, trimVariants } from './rust-runtime.js'
+import {
+  checkRustRuntimeDirectory,
+  ownDirectory,
+  trimVariants,
+  useVariant,
+} from './rust-runtime.js'
 
 // The runtime is translated once per variant and each parity group translates only its checks.
 // The key covers everything the translation reads: the runtime modules, the translator assets
@@ -57,7 +62,9 @@ async function runtimeTranslation(
   const target = join(checkRustRuntimeDirectory, key)
   const path = join(target, 'translation.json')
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as CheckRustRuntimeTranslation
+    const translation = JSON.parse(await readFile(path, 'utf8')) as CheckRustRuntimeTranslation
+    await useVariant(target)
+    return translation
   } catch {
     // Not translated yet.
   }
@@ -89,10 +96,12 @@ export async function checkRustTranslation(
     translations.set(key, runtime)
     runtime.catch(() => translations.delete(key))
   }
-  return {
-    ...translateCheckRustChecks(source, await runtime, schemaImportPath),
-    variant: join(checkRustRuntimeDirectory, key),
-  }
+  const translation = await runtime
+  const variant = join(checkRustRuntimeDirectory, key)
+  // Another run may have trimmed the variant since this process translated it.
+  await mkdir(variant, { recursive: true })
+  await useVariant(variant)
+  return { ...translateCheckRustChecks(source, translation, schemaImportPath), variant }
 }
 
 export const typescriptCompilerFlags = [
@@ -111,8 +120,16 @@ const typescriptRuntimes = new Map<string, Promise<string>>()
 // The runtime TypeScript is written to the variant once and type-checked there, emitting its
 // declarations: a group then type-checks its checks against the declarations alone, and
 // imports the runtime from one path, so the modules load once per process.
-export function checkTypescriptRuntime(translation: CheckRustTranslation): Promise<string> {
+export async function checkTypescriptRuntime(translation: CheckRustTranslation): Promise<string> {
   let prepared = typescriptRuntimes.get(translation.variant)
+  if (prepared) {
+    // Another run may have trimmed the variant since this process prepared it.
+    const path = await prepared.catch(() => undefined)
+    if (!path || !(await stat(join(path, 'declarations')).catch(() => undefined))) {
+      typescriptRuntimes.delete(translation.variant)
+      prepared = undefined
+    }
+  }
   if (!prepared) {
     prepared = prepareTypescriptRuntime(translation)
     typescriptRuntimes.set(translation.variant, prepared)

@@ -1,6 +1,16 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { CheckRustSource } from '../../src/codegen/shared/check-rust-source.js'
@@ -28,6 +38,12 @@ export async function ownDirectory(directory: string): Promise<void> {
   }
   if (!entries.includes(ownershipMarker))
     throw new Error(`${directory} exists without the pgsid runtime cache marker`)
+}
+
+// Trimming keeps the most recently used variants, so every use marks its variant.
+export async function useVariant(target: string): Promise<void> {
+  const now = new Date()
+  await utimes(target, now, now)
 }
 
 // Only directories named by a variant hash inside the marked directory are removed.
@@ -58,6 +74,7 @@ export async function checkRustRuntimeLibrary(source: CheckRustSource): Promise<
   const library = join(target, `lib${crateName}.rlib`)
   try {
     await stat(library)
+    await useVariant(target)
     return library
   } catch {
     // Not built yet.
