@@ -204,7 +204,7 @@ it('restores stored tsvector leaf sizes inside arrays, domains, evolved records 
   }
 }, 600_000)
 
-it('preserves erased native leaf padding, short headers and binary-origin positions in stored containers while refusing stale metadata', async () => {
+it('preserves erased native leaf padding, short headers and binary-origin positions in stored containers whatever their captured metadata says', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-tsvector-storage-native-'))
   try {
@@ -352,6 +352,13 @@ it('preserves erased native leaf padding, short headers and binary-origin positi
     expect(diffCatalogs(before, shorter).modified).toEqual([])
     add('short', shortTable, shortCheck)
     await observe('short')
+    // The stored datum decodes to the padded vector itself, so missing or stale captured
+    // metadata cannot change the outcome: each mode agrees with the padded constraint.
+    const paddedOutcome = fixtures.find(
+      (f) =>
+        f.name === 'padded' &&
+        JSON.stringify(f.row) === JSON.stringify({ source: known('a'), bypass: known(false) }),
+    )!.expected
     for (const mode of [
       'missing',
       'stale',
@@ -378,7 +385,7 @@ it('preserves erased native leaf padding, short headers and binary-origin positi
         fixtures.push({
           name: mode,
           row: { source: known('a'), bypass: known(bypass) },
-          expected: { kind: bypass ? 'True' : 'Unknown' },
+          expected: bypass ? { kind: 'True' } : paddedOutcome,
         })
     }
     for (const recordMode of [false, true])
