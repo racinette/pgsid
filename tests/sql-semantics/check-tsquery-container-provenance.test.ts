@@ -9,7 +9,9 @@ import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
 import { runCheckParity, type Outcome, type Row } from '../../tools/check-rust/parity.js'
 
-it('rejects unverified query-container capture sites and defers inconsistent captured trees or leaf counts', async () => {
+// The stored expression carries each query constant's datum, which decodes to the exact tree;
+// a capture that is missing, unverified or inconsistent must not change the evaluator.
+it('evaluates stored query containers from their datum whatever their capture says', async () => {
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-tsquery-container-provenance-'))
   const context = { serverEncoding: 'UTF8', defaultCollation: 'C', arrayNulls: true } as const
@@ -38,7 +40,11 @@ it('rejects unverified query-container capture sites and defers inconsistent cap
         )!.expression,
       ),
     })
-    const prepare = (c: Check) => prepareCheckRustGroup([lower('guard', c)], context).checks[0]!
+    const prepare = (c: Check) => prepareCheckRustGroup([lower('guard', c)], context)
+    const recovered = prepare({ ...constraint, tsqueryConstants: undefined })
+    expect(recovered.checks[0]!.kind).toBe('supported')
+    const invalid = structuredClone(constraint)
+    invalid.tsqueryConstants!.containers![0]!.storage![0]!.root = 999
     for (const c of [
       { ...constraint, tsqueryConstants: undefined },
       { ...constraint, tsqueryConstants: { ...captured, complete: false } },
@@ -50,17 +56,9 @@ it('rejects unverified query-container capture sites and defers inconsistent cap
           containers: [...captured.containers!, ...captured.containers!],
         },
       },
+      invalid,
     ])
-      expect(prepare(c)).toMatchObject({
-        kind: 'unsupported',
-        reason: expect.stringContaining('captured query trees'),
-      })
-    const invalid = structuredClone(constraint)
-    invalid.tsqueryConstants!.containers![0]!.storage![0]!.root = 999
-    expect(prepare(invalid)).toMatchObject({
-      kind: 'unsupported',
-      reason: expect.stringContaining('Invalid tsquery container storage metadata'),
-    })
+      expect(prepare(c).evaluatorSource).toBe(recovered.evaluatorSource)
     const altered = structuredClone(constraint)
     altered.tsqueryConstants!.containers![0]!.storage![0]!.nodes[0]!.text = 'changed'
     const missing = structuredClone(constraint)
@@ -97,9 +95,8 @@ it('rejects unverified query-container capture sites and defers inconsistent cap
       const actual: Outcome = state
         ? { kind: 'Error', value: { state: parseInt(state, 36) } }
         : { kind: value === null ? 'Null' : value ? 'True' : 'False' }
-      fixtures.push({ name: 'original', row, expected: actual })
-      for (const name of ['altered', 'missing', 'extra'])
-        fixtures.push({ name, row, expected: { kind: 'Unknown' } })
+      for (const name of ['original', 'altered', 'missing', 'extra'])
+        fixtures.push({ name, row, expected: actual })
     }
     await runCheckParity(
       root,
@@ -111,11 +108,8 @@ it('rejects unverified query-container capture sites and defers inconsistent cap
     await mkdir('artifacts/goal-checks/tsquery-container-storage-active', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/tsquery-container-storage-active/provenance-reference.json',
-      JSON.stringify(
-        { fixtures: fixtures.length, unverifiedCaptures: 5, mismatchedPlans: 3 },
-        null,
-        2,
-      ) + '\n',
+      JSON.stringify({ fixtures: fixtures.length, inconsistentCaptures: 8, unknown: 0 }, null, 2) +
+        '\n',
     )
   } finally {
     await pg.close()

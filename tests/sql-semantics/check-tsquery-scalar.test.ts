@@ -217,7 +217,7 @@ it('keeps raw tsquery and domain query parameters on database coercion', async (
   }
 })
 
-it('preserves captured tsquery trees and refuses ambiguous stored literals without their capture', async () => {
+it('preserves captured tsquery trees and recovers ambiguous stored literals without their capture', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(
@@ -278,10 +278,10 @@ it('preserves captured tsquery trees and refuses ambiguous stored literals witho
       ],
       { serverEncoding: 'UTF8', clientEncoding: 'UTF8', defaultCollation: 'C' },
     )
-    expect(missing.checks[0]).toMatchObject({
-      kind: 'unsupported',
-      reason: expect.stringContaining('Stored tsquery constants require captured query trees'),
-    })
+    // The stored expression carries the constant's datum, which decodes to the exact tree,
+    // so the capture is not needed to tell the textually equal queries apart.
+    expect(missing.checks[0]).toMatchObject({ kind: 'supported' })
+    expect(missing.evaluatorSource).toBe(prepared.evaluatorSource)
     await pg.query('INSERT INTO query_literal VALUES($1)', [native.right_wire])
     await expect(
       pg.query('INSERT INTO query_literal VALUES($1)', [native.left_wire]),
