@@ -134,6 +134,10 @@ func TestOwnedValue(t *testing.T) {
       '--noEmit',
       join(root, 'runtime.ts'),
     ])
+    // In a module graph the operations are the runtime's API: their names root the value
+    // contract that the checks must stay within.
+    const operation = (text: string) =>
+      text.replace(/\b(path_open|extend_path)\b/gu, 'sql__pg_catalog__$1')
     const group = {
       schemaVersion: 1 as const,
       modules: [
@@ -145,12 +149,12 @@ func TestOwnedValue(t *testing.T) {
         {
           name: 'pg_catalog',
           dependencies: ['checkruntime'],
-          files: [{ path: 'operations.rs', source: operations }],
+          files: [{ path: 'operations.rs', source: operation(operations) }],
         },
         {
           name: 'checks',
           dependencies: ['checkruntime', 'pg_catalog'],
-          files: [{ path: 'checks.rs', source: evaluator }],
+          files: [{ path: 'checks.rs', source: operation(evaluator) }],
         },
       ],
     }
