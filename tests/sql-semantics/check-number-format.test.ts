@@ -17,6 +17,8 @@ const expressions = {
   int4: 'to_char(v4, t) IS NOT DISTINCT FROM expected',
   int8: 'to_char(v8, t) IS NOT DISTINCT FROM expected',
   numeric: 'to_char(vn, t) IS NOT DISTINCT FROM expected',
+  float8: 'to_char(vd, t) IS NOT DISTINCT FROM expected',
+  float4: 'to_char(vr, t) IS NOT DISTINCT FROM expected',
   lazy: 'CASE WHEN skip THEN true ELSE to_char(v8, t) IS NOT DISTINCT FROM expected END',
 }
 const templates = [
@@ -108,6 +110,28 @@ const numerics = [
   'Infinity',
   '-Infinity',
 ]
+const floats = [
+  '0',
+  '-0',
+  '1.5',
+  '-1.5',
+  '2.5',
+  '0.125',
+  '0.1',
+  '-0.004',
+  '9.995',
+  '1.1',
+  '12345.678',
+  '123456789.123',
+  '1e15',
+  '1e300',
+  '1e-300',
+  '0.000123',
+  '3999.5',
+  'NaN',
+  'Infinity',
+  '-Infinity',
+]
 const input = (value: string | bigint | number | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 // D, G, S and L read the locale; SG, SP and PL only contain those letters.
@@ -133,7 +157,7 @@ it('formats int4 and int8 through number templates as PostgreSQL does', async ()
         (await pg.query<{ value: string }>(`SELECT current_setting('${setting}') value`)).rows[0]!
           .value,
       ).toBe('C')
-    await pg.exec(`CREATE TABLE number_formats (v4 int4, v8 int8, vn numeric, t text, expected text, skip bool,
+    await pg.exec(`CREATE TABLE number_formats (v4 int4, v8 int8, vn numeric, vd float8, vr float4, t text, expected text, skip bool,
       ${Object.entries(expressions)
         .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
         .join(',')})`)
@@ -201,6 +225,8 @@ it('formats int4 and int8 through number templates as PostgreSQL does', async ()
             v4: input(narrow ? Number(value) : null),
             v8: input(value),
             vn: input(null),
+            vd: input(null),
+            vr: input(null),
             t: input(template),
             expected: input(result.text ?? null),
             skip: input(false),
@@ -236,6 +262,8 @@ it('formats int4 and int8 through number templates as PostgreSQL does', async ()
           v4: input(null),
           v8: input(null),
           vn: input(value),
+          vd: input(null),
+          vr: input(null),
           t: input(template),
           expected: input(result.text ?? null),
           skip: input(false),
@@ -253,11 +281,59 @@ it('formats int4 and int8 through number templates as PostgreSQL does', async ()
         )
           add(deferred, 'numeric', row, result.code === '42601' ? expected : { kind: 'Unknown' })
       }
+    const floatBits = async (type: 'float4' | 'float8', text: string): Promise<Input> => {
+      const hex = (
+        await pg.query<{ hex: string }>(`SELECT encode(${type}send($1::${type}),'hex') hex`, [text])
+      ).rows[0]!.hex
+      return type === 'float4'
+        ? input(Number(BigInt.asIntN(32, BigInt('0x' + hex))))
+        : input(BigInt.asIntN(64, BigInt('0x' + hex)))
+    }
+    for (const template of templates)
+      for (const value of floats)
+        for (const type of ['float8', 'float4'] as const) {
+          // float4 cannot hold the extreme float8 magnitudes.
+          if (type === 'float4' && ['1e300', '1e-300'].includes(value)) continue
+          const result = await native(type, value, template)
+          const row: Row = {
+            v4: input(null),
+            v8: input(null),
+            vn: input(null),
+            vd: type === 'float8' ? await floatBits('float8', value) : input(null),
+            vr: type === 'float4' ? await floatBits('float4', value) : input(null),
+            t: input(template),
+            expected: input(result.text ?? null),
+            skip: input(false),
+          }
+          // V beyond 10^22 needs pow() results that are no longer exact powers of ten.
+          const wide = /V(9*)/u.exec(template)
+          const expected: Outcome =
+            result.code !== undefined
+              ? { kind: 'Error', value: { state: Number.parseInt(result.code, 36) } }
+              : wide && wide[1]!.length > 22
+                ? { kind: 'Unknown' }
+                : { kind: 'True' }
+          add(known, type, row, expected)
+          if (result.code === undefined)
+            add(
+              known,
+              type,
+              { ...row, expected: input('wrong') },
+              expected.kind === 'Unknown' ? expected : { kind: 'False' },
+            )
+          if (
+            template !== '' &&
+            locale.test(template.replace(/"[^"]*"/gu, '').replace(/SG|SP|PL|sg|sp|pl/gu, ''))
+          )
+            add(deferred, type, row, result.code === '42601' ? expected : { kind: 'Unknown' })
+        }
     for (const name of ['int4', 'int8'] as const) {
       const base: Row = {
         v4: input(1),
         v8: input(1n),
         vn: input(null),
+        vd: input(null),
+        vr: input(null),
         t: input('9'),
         expected: input(' 1'),
         skip: input(false),

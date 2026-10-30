@@ -36340,8 +36340,9 @@ function numberFormatDecimal(text: string): NumberDecimal {
     }
     return { special: special, negative: negative, whole: whole, fraction: fraction };
 }
-function numberFormatDecimalRound(value: NumberDecimal, scale: number): NumberDecimal {
+function numberFormatDecimalRound(value: NumberDecimal, scale: number, tiesEven: boolean): NumberDecimal {
     scale = langruntime.checkedI32(scale);
+    tiesEven = langruntime.checkedBool(tiesEven);
     let digits: string[] = [];
     let index: number = 0;
     while (index < value.whole.length) {
@@ -36363,6 +36364,23 @@ function numberFormatDecimalRound(value: NumberDecimal, scale: number): NumberDe
     let up: boolean = false;
     if (index < value.fraction.length) {
         up = langruntime.checkedBool((langruntime.checkedChar(langruntime.indexChar(value.fraction, langruntime.checkedIndex(index))).codePointAt(0)!) >= 53);
+        if (tiesEven && langruntime.indexChar(value.fraction, langruntime.checkedIndex(index)) === "5") {
+            let later: number = langruntime.checkedAdd(index, 1);
+            let beyond: boolean = false;
+            while (later < value.fraction.length) {
+                if (!(langruntime.indexChar(value.fraction, langruntime.checkedIndex(later)) === "0")) {
+                    beyond = langruntime.checkedBool(true);
+                }
+                later = langruntime.checkedAdd(later, 1);
+            }
+            if (beyond === false) {
+                let previous: string = "0";
+                if (digits.length > 0) {
+                    previous = langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(digits.length, 1))));
+                }
+                up = langruntime.checkedBool(previous === "1" || previous === "3" || previous === "5" || previous === "7" || previous === "9");
+            }
+        }
     }
     let overflow: boolean = false;
     if (up) {
@@ -36408,7 +36426,7 @@ function numberFormatDecimalRound(value: NumberDecimal, scale: number): NumberDe
         langruntime.pushChar(fraction, langruntime.indexChar(digits, langruntime.checkedIndex(slot)));
         slot = langruntime.checkedAdd(slot, 1);
     }
-    return { special: 0, negative: value.negative && zero === false, whole: whole, fraction: fraction };
+    return { special: 0, negative: value.negative && (zero === false || tiesEven), whole: whole, fraction: fraction };
 }
 function numberFormatDecimalShift(value: NumberDecimal, places: number): NumberDecimal {
     places = langruntime.checkedI32(places);
@@ -36454,7 +36472,7 @@ function numberFormatNumeric(text: string, template: string, numericC: boolean, 
     if (format.roman) {
         let roman: bigint = 2147483647n;
         if (value.special === 0) {
-            const rounded: NumberDecimal = numberFormatDecimalRound(value, 0);
+            const rounded: NumberDecimal = numberFormatDecimalRound(value, 0, false);
             if (rounded.whole.length <= 10) {
                 let magnitude: bigint = 0n;
                 let index: number = 0;
@@ -36515,7 +36533,7 @@ function numberFormatNumeric(text: string, template: string, numericC: boolean, 
         pre = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, format.multi));
     }
     const scaled: NumberDecimal = numberFormatDecimalShift(value, places);
-    const rounded: NumberDecimal = numberFormatDecimalRound(scaled, format.post);
+    const rounded: NumberDecimal = numberFormatDecimalRound(scaled, format.post, false);
     let characters: string[] = [];
     let sign: string = "+";
     let wholeLength: number = 0;
@@ -36584,6 +36602,299 @@ export function toCharHftr(input: checkruntime.NumericValue, template: checkrunt
         if (template.kind === "Value") {
             const format: string = langruntime.checkedString(template.value);
             return numberFormatNumeric(text, format, numericC, monetaryC);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function numberFormatFloatDecimal(magnitude: bigint, single: boolean): NumberDecimal {
+    magnitude = langruntime.checkedI64(magnitude);
+    single = langruntime.checkedBool(single);
+    let unit: bigint = 4503599627370496n;
+    let bias: number = 1023;
+    let width: number = 52;
+    if (single) {
+        unit = langruntime.checkedI64(8388608n);
+        bias = langruntime.checkedI32(127);
+        width = langruntime.checkedI32(23);
+    }
+    let whole: string[] = [];
+    let fraction: string[] = [];
+    if (magnitude === 0n) {
+        langruntime.pushChar(whole, "0");
+        return { special: 0, negative: false, whole: whole, fraction: fraction };
+    }
+    const exponent: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(magnitude, unit)))));
+    const mantissa: bigint = langruntime.checkedI64Remainder(magnitude, unit);
+    let coefficient: bigint = mantissa;
+    let power: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(1, bias), width);
+    if (exponent > 0) {
+        coefficient = langruntime.checkedI64(langruntime.checkedI64Add(coefficient, unit));
+        power = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(exponent, bias), width));
+    }
+    const exact: NumericWork = floatOutputDyadic(coefficient, power);
+    const digits: string[] = Array.from(exact.digits);
+    const weight: number = exact.weight;
+    if (weight < 0) {
+        langruntime.pushChar(whole, "0");
+        let zeros: number = langruntime.checkedSignedAdd(weight, 1);
+        while (zeros < 0) {
+            langruntime.pushChar(fraction, "0");
+            zeros = langruntime.checkedI32(langruntime.checkedSignedAdd(zeros, 1));
+        }
+        let index: number = 0;
+        while (index < digits.length) {
+            langruntime.pushChar(fraction, langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    else {
+        let position: number = 0;
+        let index: number = 0;
+        while (position <= weight) {
+            if (index < digits.length) {
+                langruntime.pushChar(whole, langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+            }
+            else {
+                langruntime.pushChar(whole, "0");
+            }
+            index = langruntime.checkedAdd(index, 1);
+            position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+        }
+        while (index < digits.length) {
+            langruntime.pushChar(fraction, langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    return { special: 0, negative: false, whole: whole, fraction: fraction };
+}
+function numberFormatFloatField(format: NumberFormat): checkruntime.TextValue {
+    let field: string[] = [];
+    let count: number = 0;
+    while (count < langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(format.pre, format.post), 6)) {
+        if (count === 0) {
+            langruntime.pushChar(field, " ");
+        }
+        else if (count === langruntime.checkedSignedAdd(format.pre, 1)) {
+            langruntime.pushChar(field, ".");
+        }
+        else {
+            langruntime.pushChar(field, "#");
+        }
+        count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+    }
+    const number: NumberDigits = { characters: field };
+    return numberFormatProcess(format, format.pre, format.post, number, 0, "+");
+}
+function numberFormatFloat(bits: bigint, single: boolean, template: string, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
+    bits = langruntime.checkedI64(bits);
+    single = langruntime.checkedBool(single);
+    template = langruntime.checkedString(template);
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    if (template === "") {
+        return checkruntime.makeTextValue("");
+    }
+    const format: NumberFormat = numberFormatPrepare(template, numericC, monetaryC);
+    const state: checkruntime.TextValue = numberFormatTemplateState(format);
+    if (!(checkruntime.equalTextValue(state, { kind: "NonNull" }))) {
+        return state;
+    }
+    let value: number = checkruntime.float8Number(bits);
+    if (single) {
+        value = langruntime.checkedF64(checkruntime.float4Number(Number(BigInt.asIntN(32, langruntime.checkedI64(bits)))));
+    }
+    const nan: boolean = !(value === value);
+    const infinite: boolean = nan === false && !((langruntime.f64Subtract(value, value)) === 0.0);
+    if (format.roman) {
+        let roman: number = 2147483647;
+        if (nan === false) {
+            const rounded: checkruntime.Float8Value = float8Rounded(checkruntime.makeFloat8Value(value), 3);
+            if (rounded.kind === "Value") {
+                const roundedBits: bigint = langruntime.checkedI64(rounded.value);
+                const whole: number = checkruntime.float8Number(roundedBits);
+                if (whole >= -2147483648.0 && whole < 2147483648.0) {
+                    roman = langruntime.checkedI32(langruntime.f64ToI32(whole));
+                }
+            }
+        }
+        const number: NumberDigits = { characters: numberFormatRoman(roman) };
+        return numberFormatProcess(format, format.pre, format.post, number, 0, "\0");
+    }
+    let digitsLimit: number = 15;
+    if (single) {
+        digitsLimit = langruntime.checkedI32(6);
+    }
+    if (format.eeee) {
+        if (nan || infinite) {
+            return numberFormatFloatField(format);
+        }
+        const negative: boolean = bits < 0n;
+        let magnitude: bigint = bits;
+        if (negative) {
+            magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(bits, (langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n))));
+            if (single) {
+                magnitude = langruntime.checkedI64(langruntime.checkedI64Add(bits, 2147483648n));
+            }
+        }
+        const exact: NumberDecimal = numberFormatFloatDecimal(magnitude, single);
+        let collected: string[] = [];
+        let index: number = 0;
+        while (index < exact.whole.length) {
+            langruntime.pushChar(collected, langruntime.indexChar(exact.whole, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        index = langruntime.checkedIndex(0);
+        while (index < exact.fraction.length) {
+            langruntime.pushChar(collected, langruntime.indexChar(exact.fraction, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const source: NumberDigits = { characters: collected };
+        const number: NumberDigits = { characters: numberFormatScientific(source, langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(exact.whole.length))), 1), negative, format.post, true) };
+        return numberFormatProcess(format, format.pre, format.post, number, 0, "+");
+    }
+    let pre: number = format.pre;
+    let scaled: number = value;
+    if (format.multiplied) {
+        if (format.multi > 22) {
+            return { kind: "Unknown" };
+        }
+        let factor: number = 1.0;
+        let count: number = 0;
+        while (count < format.multi) {
+            factor = langruntime.checkedF64(langruntime.f64Multiply(factor, 10.0));
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+        }
+        if (single) {
+            const narrow: number = checkruntime.float4Number(langruntime.f32ToI32Bits(factor));
+            const product: number = langruntime.f64Multiply(value, narrow);
+            scaled = langruntime.checkedF64(checkruntime.float4Number(langruntime.f32ToI32Bits(product)));
+        }
+        else {
+            scaled = langruntime.checkedF64(langruntime.f64Multiply(value, factor));
+        }
+        pre = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, format.multi));
+    }
+    let post: number = format.post;
+    const scaledBits: bigint = langruntime.f64ToI64Bits(scaled);
+    const negative: boolean = scaledBits < 0n && scaled === scaled;
+    let sign: string = "+";
+    if (negative) {
+        sign = langruntime.checkedChar("-");
+    }
+    let characters: string[] = [];
+    let wholeLength: number = 0;
+    if (!(scaled === scaled) || !((langruntime.f64Subtract(scaled, scaled)) === 0.0)) {
+        let choice: number = 0;
+        if (scaled === scaled) {
+            choice = langruntime.checkedIndex(1);
+        }
+        const spelledText: string = langruntime.indexStatic(numberSpecialSpellings, langruntime.checkedIndex(choice));
+        const spelled: string[] = Array.from(spelledText);
+        wholeLength = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(spelled.length)));
+        if (wholeLength >= digitsLimit) {
+            post = langruntime.checkedI32(0);
+        }
+        else if (langruntime.checkedSignedAdd(wholeLength, post) > digitsLimit) {
+            post = langruntime.checkedI32(langruntime.checkedSignedSubtract(digitsLimit, wholeLength));
+        }
+        let index: number = 0;
+        while (index < spelled.length) {
+            langruntime.pushChar(characters, langruntime.indexChar(spelled, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    else {
+        let magnitude: bigint = scaledBits;
+        if (scaledBits < 0n) {
+            magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(scaledBits, (langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n))));
+        }
+        const exact: NumberDecimal = numberFormatFloatDecimal(magnitude, false);
+        const integral: NumberDecimal = numberFormatDecimalRound(exact, 0, true);
+        const integralLength: number = langruntime.checkedI32(langruntime.checkedIndex(integral.whole.length));
+        if (integralLength >= digitsLimit) {
+            post = langruntime.checkedI32(0);
+        }
+        else if (langruntime.checkedSignedAdd(integralLength, post) > digitsLimit) {
+            post = langruntime.checkedI32(langruntime.checkedSignedSubtract(digitsLimit, integralLength));
+        }
+        const rounded: NumberDecimal = numberFormatDecimalRound(exact, post, true);
+        let index: number = 0;
+        while (index < rounded.whole.length) {
+            langruntime.pushChar(characters, langruntime.indexChar(rounded.whole, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        wholeLength = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(rounded.whole.length)));
+        if (rounded.fraction.length > 0) {
+            langruntime.pushChar(characters, ".");
+            index = langruntime.checkedIndex(0);
+            while (index < rounded.fraction.length) {
+                langruntime.pushChar(characters, langruntime.indexChar(rounded.fraction, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+    }
+    if (wholeLength > pre) {
+        const overflow: NumberDigits = { characters: numberFormatOverflow(pre, post) };
+        return numberFormatProcess(format, pre, post, overflow, 0, sign);
+    }
+    const number: NumberDigits = { characters: characters };
+    return numberFormatProcess(format, pre, post, number, langruntime.checkedSignedSubtract(pre, wholeLength), sign);
+}
+export function toCharB68b(input: checkruntime.Float8Value, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "NonNull" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const known: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (known.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(known.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberFormatFloat(bits, false, format, numericC, monetaryC);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function toChar1rcw(input: checkruntime.Float4Value, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "NonNull" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "UnspecifiedNan" })) {
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberFormatFloat(2143289344n, true, format, numericC, monetaryC);
+        }
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberFormatFloat(BigInt(langruntime.checkedI32(bits)), true, format, numericC, monetaryC);
         }
     }
     return { kind: "Unknown" };
