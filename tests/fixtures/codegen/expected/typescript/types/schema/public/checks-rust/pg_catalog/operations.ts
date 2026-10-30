@@ -35309,6 +35309,983 @@ export function numNullsJx40(input: NullCountArguments): checkruntime.Int4Value 
 export function numNonnullsY0jf(input: NullCountArguments): checkruntime.Int4Value {
     return input.nonnulls;
 }
+const numberFormatSyntax = 6819553;
+const numberFormatText = 3484946;
+const numberFormatRange = 3452547;
+const numberKeyComma = 1;
+const numberKeyDec = 2;
+const numberKeyZero = 3;
+const numberKeyNine = 4;
+const numberKeyB = 5;
+const numberKeyD = 7;
+const numberKeyE = 8;
+const numberKeyFm = 9;
+const numberKeyG = 10;
+const numberKeyL = 11;
+const numberKeyMi = 12;
+const numberKeyPl = 13;
+const numberKeyPr = 14;
+const numberKeyRn = 15;
+const numberKeyLowerRn = 16;
+const numberKeySg = 17;
+const numberKeyS = 19;
+const numberKeyTh = 20;
+const numberKeyLowerTh = 21;
+const numberKeyV = 22;
+const numberKeywordNames: ReadonlyArray<string> = [",", ".", "0", "9", "B", "C", "D", "EEEE", "FM", "G", "L", "MI", "PL", "PR", "RN", "SG", "SP", "S", "TH", "V", "b", "c", "d", "eeee", "fm", "g", "l", "mi", "pl", "pr", "rn", "sg", "sp", "s", "th", "v"];
+const numberKeywordIds: ReadonlyArray<number> = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 22, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22];
+const numberSuffixUpper: ReadonlyArray<string> = ["ST", "ND", "RD", "TH"];
+const numberSuffixLower: ReadonlyArray<string> = ["st", "nd", "rd", "th"];
+interface NumberDigits {
+    characters: string[];
+}
+function copyNumberDigits(value: NumberDigits): NumberDigits {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+interface NumberFormatNode {
+    action: boolean;
+    key: number;
+    position: number;
+}
+function copyNumberFormatNode(value: NumberFormatNode): NumberFormatNode {
+    return { action: langruntime.checkedBool(value.action), key: langruntime.checkedI32(value.key), position: langruntime.checkedIndex(value.position) };
+}
+interface NumberFormat {
+    error: number;
+    characters: string[];
+    nodes: NumberFormatNode[];
+    pre: number;
+    post: number;
+    multi: number;
+    decimal: boolean;
+    zero: boolean;
+    blank: boolean;
+    fillmode: boolean;
+    bracket: boolean;
+    minus: boolean;
+    plus: boolean;
+    lsign: number;
+    preLsignNum: number;
+    roman: boolean;
+    multiplied: boolean;
+    eeee: boolean;
+    zeroStart: number;
+    zeroEnd: number;
+    numericLocale: boolean;
+    monetaryLocale: boolean;
+}
+function copyNumberFormat(value: NumberFormat): NumberFormat {
+    return { error: langruntime.checkedIndex(value.error), characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyNumberFormatNode), pre: langruntime.checkedI32(value.pre), post: langruntime.checkedI32(value.post), multi: langruntime.checkedI32(value.multi), decimal: langruntime.checkedBool(value.decimal), zero: langruntime.checkedBool(value.zero), blank: langruntime.checkedBool(value.blank), fillmode: langruntime.checkedBool(value.fillmode), bracket: langruntime.checkedBool(value.bracket), minus: langruntime.checkedBool(value.minus), plus: langruntime.checkedBool(value.plus), lsign: langruntime.checkedI32(value.lsign), preLsignNum: langruntime.checkedI32(value.preLsignNum), roman: langruntime.checkedBool(value.roman), multiplied: langruntime.checkedBool(value.multiplied), eeee: langruntime.checkedBool(value.eeee), zeroStart: langruntime.checkedI32(value.zeroStart), zeroEnd: langruntime.checkedI32(value.zeroEnd), numericLocale: langruntime.checkedBool(value.numericLocale), monetaryLocale: langruntime.checkedBool(value.monetaryLocale) };
+}
+function numberFormatKeyword(text: NumberDigits, position: number): number {
+    position = langruntime.checkedIndex(position);
+    let index: number = 0;
+    while (index < numberKeywordNames.length) {
+        const keyword: string = langruntime.indexStatic(numberKeywordNames, langruntime.checkedIndex(index));
+        const name: string[] = Array.from(keyword);
+        let offset: number = 0;
+        let matched: boolean = true;
+        while (matched && offset < name.length) {
+            if (langruntime.checkedAdd(position, offset) >= text.characters.length || !(langruntime.indexChar(text.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, offset))) === langruntime.indexChar(name, langruntime.checkedIndex(offset)))) {
+                matched = langruntime.checkedBool(false);
+            }
+            offset = langruntime.checkedAdd(offset, 1);
+        }
+        if (matched) {
+            return langruntime.checkedAdd(index, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return 0;
+}
+function numberFormatParse(template: string): NumberFormat {
+    template = langruntime.checkedString(template);
+    const characters: string[] = Array.from(template);
+    const scanCharacters: string[] = Array.from(template);
+    const scanned: NumberDigits = { characters: scanCharacters };
+    let nodes: NumberFormatNode[] = [];
+    let error: number = 0;
+    let pre: number = 0;
+    let post: number = 0;
+    let multi: number = 0;
+    let decimal: boolean = false;
+    let ldecimal: boolean = false;
+    let zero: boolean = false;
+    let blank: boolean = false;
+    let fillmode: boolean = false;
+    let bracket: boolean = false;
+    let minus: boolean = false;
+    let minusPost: boolean = false;
+    let plus: boolean = false;
+    let plusPost: boolean = false;
+    let lsignFlag: boolean = false;
+    let lsign: number = 0;
+    let preLsignNum: number = 0;
+    let roman: boolean = false;
+    let multiplied: boolean = false;
+    let eeee: boolean = false;
+    let zeroStart: number = 0;
+    let zeroEnd: number = 0;
+    let numericLocale: boolean = false;
+    let monetaryLocale: boolean = false;
+    let position: number = 0;
+    while (position < characters.length && error === 0) {
+        const found: number = numberFormatKeyword(scanned, position);
+        if (found > 0) {
+            const key: number = langruntime.indexStatic(numberKeywordIds, langruntime.checkedIndex(langruntime.checkedSubtract(found, 1)));
+            const keyword: string = langruntime.indexStatic(numberKeywordNames, langruntime.checkedIndex(langruntime.checkedSubtract(found, 1)));
+            const name: string[] = Array.from(keyword);
+            langruntime.pushStruct(nodes, { action: true, key: key, position: position }, copyNumberFormatNode);
+            position = langruntime.checkedIndex(langruntime.checkedAdd(position, name.length));
+            if (eeee && !(key === numberKeyE)) {
+                error = langruntime.checkedIndex(numberFormatSyntax);
+            }
+            else if (key === numberKeyNine) {
+                if (bracket) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else if (multiplied) {
+                    multi = langruntime.checkedI32(langruntime.checkedSignedAdd(multi, 1));
+                }
+                else if (decimal) {
+                    post = langruntime.checkedI32(langruntime.checkedSignedAdd(post, 1));
+                }
+                else {
+                    pre = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, 1));
+                }
+            }
+            else if (key === numberKeyZero) {
+                if (bracket) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    if (zero === false && decimal === false) {
+                        zero = langruntime.checkedBool(true);
+                        zeroStart = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, 1));
+                    }
+                    if (decimal === false) {
+                        pre = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, 1));
+                    }
+                    else {
+                        post = langruntime.checkedI32(langruntime.checkedSignedAdd(post, 1));
+                    }
+                    zeroEnd = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, post));
+                }
+            }
+            else if (key === numberKeyB) {
+                if (pre === 0 && post === 0 && zero === false) {
+                    blank = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyD || key === numberKeyDec) {
+                if (key === numberKeyD) {
+                    ldecimal = langruntime.checkedBool(true);
+                    numericLocale = langruntime.checkedBool(true);
+                }
+                if (decimal || multiplied) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    decimal = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyFm) {
+                fillmode = langruntime.checkedBool(true);
+            }
+            else if (key === numberKeyS) {
+                if (lsignFlag || plus || minus || bracket) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else if (decimal === false) {
+                    lsign = langruntime.checkedI32(1);
+                    preLsignNum = langruntime.checkedI32(pre);
+                    monetaryLocale = langruntime.checkedBool(true);
+                    lsignFlag = langruntime.checkedBool(true);
+                }
+                else if (lsign === 0) {
+                    lsign = langruntime.checkedI32(2);
+                    monetaryLocale = langruntime.checkedBool(true);
+                    lsignFlag = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyMi) {
+                if (lsignFlag) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    minus = langruntime.checkedBool(true);
+                    if (decimal) {
+                        minusPost = langruntime.checkedBool(true);
+                    }
+                }
+            }
+            else if (key === numberKeyPl) {
+                if (lsignFlag) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    plus = langruntime.checkedBool(true);
+                    if (decimal) {
+                        plusPost = langruntime.checkedBool(true);
+                    }
+                }
+            }
+            else if (key === numberKeySg) {
+                if (lsignFlag) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    minus = langruntime.checkedBool(true);
+                    plus = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyPr) {
+                if (lsignFlag || plus || minus) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    bracket = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyRn || key === numberKeyLowerRn) {
+                if (roman) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    roman = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyL || key === numberKeyG) {
+                if (key === numberKeyL) {
+                    monetaryLocale = langruntime.checkedBool(true);
+                }
+                else {
+                    numericLocale = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyV) {
+                if (decimal) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    multiplied = langruntime.checkedBool(true);
+                }
+            }
+            else if (key === numberKeyE) {
+                if (eeee || blank || fillmode || lsignFlag || bracket || minus || plus || roman || multiplied) {
+                    error = langruntime.checkedIndex(numberFormatSyntax);
+                }
+                else {
+                    eeee = langruntime.checkedBool(true);
+                }
+            }
+            if (error === 0 && roman && (decimal || ldecimal || zero || blank || bracket || minus || minusPost || plus || plusPost || lsignFlag || multiplied || eeee)) {
+                error = langruntime.checkedIndex(numberFormatSyntax);
+            }
+        }
+        else if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\"") {
+            position = langruntime.checkedAdd(position, 1);
+            let open: boolean = true;
+            while (open && position < characters.length) {
+                if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\"") {
+                    position = langruntime.checkedAdd(position, 1);
+                    open = langruntime.checkedBool(false);
+                }
+                else {
+                    if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\\" && langruntime.checkedAdd(position, 1) < characters.length) {
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    langruntime.pushStruct(nodes, { action: false, key: 0, position: position }, copyNumberFormatNode);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+        }
+        else {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\\" && langruntime.checkedAdd(position, 1) < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\"") {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            langruntime.pushStruct(nodes, { action: false, key: 0, position: position }, copyNumberFormatNode);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return { error: error, characters: characters, nodes: nodes, pre: pre, post: post, multi: multi, decimal: decimal, zero: zero, blank: blank, fillmode: fillmode, bracket: bracket, minus: minus, plus: plus, lsign: lsign, preLsignNum: preLsignNum, roman: roman, multiplied: multiplied, eeee: eeee, zeroStart: zeroStart, zeroEnd: zeroEnd, numericLocale: numericLocale, monetaryLocale: monetaryLocale };
+}
+function numberFormatAt(number: NumberDigits, index: number): string {
+    index = langruntime.checkedIndex(index);
+    if (index < number.characters.length) {
+        return langruntime.indexChar(number.characters, langruntime.checkedIndex(index));
+    }
+    return "\0";
+}
+function numberFormatIndex(value: number): number {
+    value = langruntime.checkedI32(value);
+    let index: number = 0;
+    let remaining: number = value;
+    while (remaining > 0) {
+        index = langruntime.checkedAdd(index, 1);
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return index;
+}
+function numberFormatRoman(value: number): string[] {
+    value = langruntime.checkedI32(value);
+    let result: string[] = [];
+    if (value > 3999 || value < 1) {
+        let count: number = 0;
+        while (count < 15) {
+            langruntime.pushChar(result, "#");
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+        }
+        return result;
+    }
+    let place: number = 3;
+    while (place >= 0) {
+        let divisor: number = 1;
+        let step: number = 0;
+        while (step < place) {
+            divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 10));
+            step = langruntime.checkedI32(langruntime.checkedSignedAdd(step, 1));
+        }
+        const digit: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(value, divisor)), 10);
+        let one: string = "M";
+        let five: string = "M";
+        let ten: string = "M";
+        if (place === 2) {
+            one = langruntime.checkedChar("C");
+            five = langruntime.checkedChar("D");
+        }
+        else if (place === 1) {
+            one = langruntime.checkedChar("X");
+            five = langruntime.checkedChar("L");
+            ten = langruntime.checkedChar("C");
+        }
+        else if (place === 0) {
+            one = langruntime.checkedChar("I");
+            five = langruntime.checkedChar("V");
+            ten = langruntime.checkedChar("X");
+        }
+        if (place === 2) {
+            ten = langruntime.checkedChar("M");
+        }
+        if (place === 3) {
+            let count: number = 0;
+            while (count < digit) {
+                langruntime.pushChar(result, "M");
+                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            }
+        }
+        else if (digit === 9) {
+            langruntime.pushChar(result, one);
+            langruntime.pushChar(result, ten);
+        }
+        else if (digit === 4) {
+            langruntime.pushChar(result, one);
+            langruntime.pushChar(result, five);
+        }
+        else {
+            let ones: number = digit;
+            if (digit >= 5) {
+                langruntime.pushChar(result, five);
+                ones = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, 5));
+            }
+            let count: number = 0;
+            while (count < ones) {
+                langruntime.pushChar(result, one);
+                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            }
+        }
+        place = langruntime.checkedI32(langruntime.checkedSignedSubtract(place, 1));
+    }
+    return result;
+}
+function numberFormatOverflow(pre: number, post: number): string[] {
+    pre = langruntime.checkedI32(pre);
+    post = langruntime.checkedI32(post);
+    let result: string[] = [];
+    let count: number = 0;
+    while (count < langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(pre, post), 1)) {
+        if (count === pre) {
+            langruntime.pushChar(result, ".");
+        }
+        else {
+            langruntime.pushChar(result, "#");
+        }
+        count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+    }
+    return result;
+}
+function numberFormatProcess(format: NumberFormat, pre: number, post: number, number: NumberDigits, outPreSpaces: number, sign: string): checkruntime.TextValue {
+    pre = langruntime.checkedI32(pre);
+    post = langruntime.checkedI32(post);
+    outPreSpaces = langruntime.checkedI32(outPreSpaces);
+    sign = langruntime.checkedChar(sign);
+    if (format.eeee) {
+        let text: string = "";
+        let index: number = 0;
+        while (index < number.characters.length) {
+            text = text + langruntime.checkedChar(langruntime.indexChar(number.characters, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: text };
+    }
+    let zeroStart: number = format.zeroStart;
+    if (zeroStart > 0) {
+        zeroStart = langruntime.checkedI32(langruntime.checkedSignedSubtract(zeroStart, 1));
+    }
+    const zeroEnd: number = format.zeroEnd;
+    let bracket: boolean = format.bracket;
+    let lsign: number = format.lsign;
+    let signWrote: boolean = false;
+    if (format.plus || format.minus) {
+        signWrote = langruntime.checkedBool((format.plus && format.minus === false) === false);
+    }
+    else {
+        if (!(sign === "-") && format.fillmode) {
+            bracket = langruntime.checkedBool(false);
+        }
+        signWrote = langruntime.checkedBool(sign === "+" && format.fillmode && format.lsign === 0);
+        if (lsign === 1 && pre === format.preLsignNum) {
+            lsign = langruntime.checkedI32(2);
+        }
+    }
+    let numCount: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(post, pre), 1);
+    let hasLast: boolean = false;
+    let lastRelevant: number = 0;
+    if (format.fillmode && format.decimal) {
+        let index: number = 0;
+        let found: boolean = false;
+        while (index < number.characters.length) {
+            if (found === false && langruntime.indexChar(number.characters, langruntime.checkedIndex(index)) === ".") {
+                found = langruntime.checkedBool(true);
+                lastRelevant = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(index)));
+            }
+            else if (found && !(langruntime.indexChar(number.characters, langruntime.checkedIndex(index)) === "0")) {
+                lastRelevant = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(index)));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        hasLast = langruntime.checkedBool(found);
+        if (hasLast && zeroEnd > outPreSpaces) {
+            let lastZero: number = langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(number.characters.length))), 1);
+            if (langruntime.checkedSignedSubtract(zeroEnd, outPreSpaces) < lastZero) {
+                lastZero = langruntime.checkedI32(langruntime.checkedSignedSubtract(zeroEnd, outPreSpaces));
+            }
+            if (lastRelevant < lastZero) {
+                lastRelevant = langruntime.checkedI32(lastZero);
+            }
+        }
+    }
+    if (signWrote === false && outPreSpaces === 0) {
+        numCount = langruntime.checkedI32(langruntime.checkedSignedAdd(numCount, 1));
+    }
+    let lastChar: string = "\0";
+    if (hasLast) {
+        lastChar = langruntime.checkedChar(numberFormatAt(number, numberFormatIndex(lastRelevant)));
+    }
+    let output: string = "";
+    let numIn: boolean = false;
+    let numCurr: number = 0;
+    let numberP: number = 0;
+    let position: number = 0;
+    while (position < format.nodes.length) {
+        const node: NumberFormatNode = copyNumberFormatNode(langruntime.indexStruct(format.nodes, langruntime.checkedIndex(position), copyNumberFormatNode));
+        position = langruntime.checkedAdd(position, 1);
+        if (node.action === false) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(format.characters, langruntime.checkedIndex(node.position)));
+        }
+        else if (node.key === numberKeyNine || node.key === numberKeyZero || node.key === numberKeyDec || node.key === numberKeyD) {
+            if (format.roman === false) {
+                numIn = langruntime.checkedBool(false);
+                const predecSpace: boolean = format.zero === false && numberP === 0 && numberFormatAt(number, 0) === "0" && !(post === 0);
+                if (signWrote === false && (numCurr >= outPreSpaces || (format.zero && zeroStart === numCurr)) && (predecSpace === false || (hasLast && lastChar === "."))) {
+                    if (!(format.lsign === 0) && !(lsign === 0)) {
+                        if (lsign === 1) {
+                            if (sign === "-") {
+                                output = output + langruntime.checkedChar("-");
+                            }
+                            else {
+                                output = output + langruntime.checkedChar("+");
+                            }
+                            signWrote = langruntime.checkedBool(true);
+                        }
+                    }
+                    else if (bracket) {
+                        if (sign === "+") {
+                            output = output + langruntime.checkedChar(" ");
+                        }
+                        else {
+                            output = output + langruntime.checkedChar("<");
+                        }
+                        signWrote = langruntime.checkedBool(true);
+                    }
+                    else if (sign === "+") {
+                        if (format.fillmode === false) {
+                            output = output + langruntime.checkedChar(" ");
+                        }
+                        signWrote = langruntime.checkedBool(true);
+                    }
+                    else if (sign === "-") {
+                        output = output + langruntime.checkedChar("-");
+                        signWrote = langruntime.checkedBool(true);
+                    }
+                }
+                if (numCurr < outPreSpaces && (zeroStart > numCurr || format.zero === false)) {
+                    if (format.fillmode === false) {
+                        output = output + langruntime.checkedChar(" ");
+                    }
+                }
+                else if (format.zero && numCurr < outPreSpaces && zeroStart <= numCurr) {
+                    output = output + langruntime.checkedChar("0");
+                    numIn = langruntime.checkedBool(true);
+                }
+                else {
+                    const current: string = numberFormatAt(number, numberP);
+                    if (current === ".") {
+                        if (hasLast === false || !(lastChar === ".") || format.fillmode) {
+                            output = output + langruntime.checkedChar(".");
+                        }
+                    }
+                    else if (hasLast && (langruntime.checkedI32(langruntime.checkedIndex(numberP))) > lastRelevant && !(node.key === numberKeyZero)) {
+                    }
+                    else if (format.zero === false && numberP === 0 && numberFormatAt(number, 0) === "0" && !(post === 0)) {
+                        if (format.fillmode === false) {
+                            output = output + langruntime.checkedChar(" ");
+                        }
+                        else if (hasLast && lastChar === ".") {
+                            output = output + langruntime.checkedChar("0");
+                        }
+                    }
+                    else {
+                        output = output + langruntime.checkedChar(current);
+                        numIn = langruntime.checkedBool(true);
+                    }
+                    if (!(current === "\0")) {
+                        numberP = langruntime.checkedAdd(numberP, 1);
+                    }
+                }
+                let end: number = numCount;
+                if (!(outPreSpaces === 0)) {
+                    end = langruntime.checkedI32(langruntime.checkedSignedAdd(end, 1));
+                }
+                if (format.decimal) {
+                    end = langruntime.checkedI32(langruntime.checkedSignedAdd(end, 1));
+                }
+                if (hasLast && lastRelevant === (langruntime.checkedI32(langruntime.checkedIndex(numberP)))) {
+                    end = langruntime.checkedI32(numCurr);
+                }
+                if (langruntime.checkedSignedAdd(numCurr, 1) === end) {
+                    if (signWrote && bracket) {
+                        if (sign === "+") {
+                            output = output + langruntime.checkedChar(" ");
+                        }
+                        else {
+                            output = output + langruntime.checkedChar(">");
+                        }
+                    }
+                    else if (!(format.lsign === 0) && lsign === 2) {
+                        if (sign === "-") {
+                            output = output + langruntime.checkedChar("-");
+                        }
+                        else {
+                            output = output + langruntime.checkedChar("+");
+                        }
+                    }
+                }
+                numCurr = langruntime.checkedI32(langruntime.checkedSignedAdd(numCurr, 1));
+            }
+        }
+        else if (node.key === numberKeyComma || node.key === numberKeyG) {
+            if (numIn) {
+                output = output + langruntime.checkedChar(",");
+            }
+            else if (format.fillmode === false) {
+                output = output + langruntime.checkedChar(" ");
+            }
+        }
+        else if (node.key === numberKeyL) {
+            output = output + langruntime.checkedChar(" ");
+        }
+        else if (node.key === numberKeyRn || node.key === numberKeyLowerRn) {
+            if (format.fillmode === false) {
+                let pad: number = langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(number.characters.length))), (langruntime.checkedI32(langruntime.checkedIndex(numberP))));
+                while (pad < 15) {
+                    output = output + langruntime.checkedChar(" ");
+                    pad = langruntime.checkedI32(langruntime.checkedSignedAdd(pad, 1));
+                }
+            }
+            let index: number = numberP;
+            while (index < number.characters.length) {
+                let letter: string = langruntime.indexChar(number.characters, langruntime.checkedIndex(index));
+                if (node.key === numberKeyLowerRn) {
+                    letter = langruntime.checkedChar(langruntime.asciiLowercase(letter));
+                }
+                output = output + langruntime.checkedChar(letter);
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        else if (node.key === numberKeyTh || node.key === numberKeyLowerTh) {
+            if (format.roman === false && !(numberFormatAt(number, 0) === "#") && !(sign === "-") && format.decimal === false) {
+                const last: string = numberFormatAt(number, langruntime.checkedSubtract(number.characters.length, 1));
+                if ((langruntime.checkedChar(last).codePointAt(0)!) < 48 || (langruntime.checkedChar(last).codePointAt(0)!) > 57) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(numberFormatText) };
+                }
+                let choice: number = 3;
+                if (number.characters.length < 2 || !(langruntime.indexChar(number.characters, langruntime.checkedIndex(langruntime.checkedSubtract(number.characters.length, 2))) === "1")) {
+                    if (last === "1") {
+                        choice = langruntime.checkedIndex(0);
+                    }
+                    else if (last === "2") {
+                        choice = langruntime.checkedIndex(1);
+                    }
+                    else if (last === "3") {
+                        choice = langruntime.checkedIndex(2);
+                    }
+                }
+                if (node.key === numberKeyTh) {
+                    output = output + langruntime.indexStatic(numberSuffixUpper, langruntime.checkedIndex(choice));
+                }
+                else {
+                    output = output + langruntime.indexStatic(numberSuffixLower, langruntime.checkedIndex(choice));
+                }
+            }
+        }
+        else if (node.key === numberKeyMi) {
+            if (sign === "-") {
+                output = output + langruntime.checkedChar("-");
+            }
+            else if (format.fillmode === false) {
+                output = output + langruntime.checkedChar(" ");
+            }
+        }
+        else if (node.key === numberKeyPl) {
+            if (sign === "+") {
+                output = output + langruntime.checkedChar("+");
+            }
+            else if (format.fillmode === false) {
+                output = output + langruntime.checkedChar(" ");
+            }
+        }
+        else if (node.key === numberKeySg) {
+            output = output + langruntime.checkedChar(sign);
+        }
+    }
+    return { kind: "Value", value: output };
+}
+function numberFormatScientific(digits: NumberDigits, exponent: number, negative: boolean, post: number, tiesEven: boolean): string[] {
+    exponent = langruntime.checkedI32(exponent);
+    negative = langruntime.checkedBool(negative);
+    post = langruntime.checkedI32(post);
+    tiesEven = langruntime.checkedBool(tiesEven);
+    let first: number = 0;
+    while (first < digits.characters.length && langruntime.indexChar(digits.characters, langruntime.checkedIndex(first)) === "0") {
+        first = langruntime.checkedAdd(first, 1);
+    }
+    let kept: string[] = [];
+    let integerDigits: number = 1;
+    let power: number = exponent;
+    if (first === digits.characters.length) {
+        power = langruntime.checkedI32(0);
+        let count: number = 0;
+        while (count <= post) {
+            langruntime.pushChar(kept, "0");
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+        }
+    }
+    else {
+        power = langruntime.checkedI32(langruntime.checkedSignedSubtract(exponent, (langruntime.checkedI32(langruntime.checkedIndex(first)))));
+        let index: number = first;
+        while ((langruntime.checkedI32(langruntime.checkedIndex(kept.length))) <= post) {
+            if (index < digits.characters.length) {
+                langruntime.pushChar(kept, langruntime.indexChar(digits.characters, langruntime.checkedIndex(index)));
+            }
+            else {
+                langruntime.pushChar(kept, "0");
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let up: boolean = false;
+        if (index < digits.characters.length) {
+            const next: string = langruntime.indexChar(digits.characters, langruntime.checkedIndex(index));
+            let restNonzero: boolean = false;
+            let later: number = langruntime.checkedAdd(index, 1);
+            while (later < digits.characters.length) {
+                if (!(langruntime.indexChar(digits.characters, langruntime.checkedIndex(later)) === "0")) {
+                    restNonzero = langruntime.checkedBool(true);
+                }
+                later = langruntime.checkedAdd(later, 1);
+            }
+            const previous: string = langruntime.indexChar(kept, langruntime.checkedIndex(langruntime.checkedSubtract(kept.length, 1)));
+            const odd: boolean = previous === "1" || previous === "3" || previous === "5" || previous === "7" || previous === "9";
+            if ((langruntime.checkedChar(next).codePointAt(0)!) > 53 || (next === "5" && restNonzero)) {
+                up = langruntime.checkedBool(true);
+            }
+            else if (next === "5") {
+                up = langruntime.checkedBool(tiesEven === false || odd);
+            }
+        }
+        if (up) {
+            let carry: boolean = true;
+            let slot: number = kept.length;
+            while (carry && slot > 0) {
+                slot = langruntime.checkedIndex(langruntime.checkedSubtract(slot, 1));
+                const digit: string = langruntime.indexChar(kept, langruntime.checkedIndex(slot));
+                if (digit === "9") {
+                    kept[langruntime.checkedIndexIn(kept, slot)] = langruntime.checkedChar("0");
+                }
+                else {
+                    kept[langruntime.checkedIndexIn(kept, slot)] = langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd((langruntime.checkedChar(digit).codePointAt(0)!), 1)), "0"));
+                    carry = langruntime.checkedBool(false);
+                }
+            }
+            if (carry) {
+                kept[langruntime.checkedIndexIn(kept, 0)] = langruntime.checkedChar("1");
+                if (tiesEven) {
+                    power = langruntime.checkedI32(langruntime.checkedSignedAdd(power, 1));
+                }
+                else {
+                    langruntime.pushChar(kept, "0");
+                    integerDigits = langruntime.checkedIndex(2);
+                }
+            }
+        }
+    }
+    let output: string[] = [];
+    if (negative) {
+        langruntime.pushChar(output, "-");
+    }
+    else {
+        langruntime.pushChar(output, " ");
+    }
+    let slot: number = 0;
+    while (slot < kept.length) {
+        if (slot === integerDigits) {
+            langruntime.pushChar(output, ".");
+        }
+        langruntime.pushChar(output, langruntime.indexChar(kept, langruntime.checkedIndex(slot)));
+        slot = langruntime.checkedAdd(slot, 1);
+    }
+    langruntime.pushChar(output, "e");
+    let magnitude: number = power;
+    if (power < 0) {
+        langruntime.pushChar(output, "-");
+        magnitude = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, power));
+    }
+    else {
+        langruntime.pushChar(output, "+");
+    }
+    if (magnitude < 10) {
+        langruntime.pushChar(output, "0");
+    }
+    const exponentString: string = checkruntime.textNumber(magnitude, 10);
+    const exponentText: string[] = Array.from(exponentString);
+    let place: number = 0;
+    while (place < exponentText.length) {
+        langruntime.pushChar(output, langruntime.indexChar(exponentText, langruntime.checkedIndex(place)));
+        place = langruntime.checkedAdd(place, 1);
+    }
+    return output;
+}
+function numberFormatInteger(format: NumberFormat, digits: NumberDigits, negative: boolean, pre: number): checkruntime.TextValue {
+    negative = langruntime.checkedBool(negative);
+    pre = langruntime.checkedI32(pre);
+    let number: string[] = [];
+    let copied: number = 0;
+    while (copied < digits.characters.length) {
+        langruntime.pushChar(number, langruntime.indexChar(digits.characters, langruntime.checkedIndex(copied)));
+        copied = langruntime.checkedAdd(copied, 1);
+    }
+    const digitsBefore: number = langruntime.checkedI32(langruntime.checkedIndex(digits.characters.length));
+    if (format.post > 0) {
+        langruntime.pushChar(number, ".");
+        let count: number = 0;
+        while (count < format.post) {
+            langruntime.pushChar(number, "0");
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+        }
+    }
+    let sign: string = "+";
+    if (negative) {
+        sign = langruntime.checkedChar("-");
+    }
+    let outPreSpaces: number = 0;
+    if (digitsBefore < pre) {
+        outPreSpaces = langruntime.checkedI32(langruntime.checkedSignedSubtract(pre, digitsBefore));
+    }
+    else if (digitsBefore > pre) {
+        const overflow: NumberDigits = { characters: numberFormatOverflow(pre, format.post) };
+        return numberFormatProcess(format, pre, format.post, overflow, 0, sign);
+    }
+    const rendered: NumberDigits = { characters: number };
+    return numberFormatProcess(format, pre, format.post, rendered, outPreSpaces, sign);
+}
+function numberFormatPrepare(template: string, numericC: boolean, monetaryC: boolean): NumberFormat {
+    template = langruntime.checkedString(template);
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    const format: NumberFormat = numberFormatParse(template);
+    if (!(format.error === 0)) {
+        return format;
+    }
+    let error: number = 0;
+    if ((format.numericLocale && numericC === false) || (format.monetaryLocale && monetaryC === false)) {
+        error = langruntime.checkedIndex(1);
+    }
+    return { error: error, characters: format.characters, nodes: format.nodes, pre: format.pre, post: format.post, multi: format.multi, decimal: format.decimal, zero: format.zero, blank: format.blank, fillmode: format.fillmode, bracket: format.bracket, minus: format.minus, plus: format.plus, lsign: format.lsign, preLsignNum: format.preLsignNum, roman: format.roman, multiplied: format.multiplied, eeee: format.eeee, zeroStart: format.zeroStart, zeroEnd: format.zeroEnd, numericLocale: format.numericLocale, monetaryLocale: format.monetaryLocale };
+}
+function numberFormatTemplateState(format: NumberFormat): checkruntime.TextValue {
+    if (format.error === 1) {
+        return { kind: "Unknown" };
+    }
+    if (!(format.error === 0)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(format.error) };
+    }
+    return { kind: "NonNull" };
+}
+function numberFormatDigits(value: bigint): string[] {
+    value = langruntime.checkedI64(value);
+    let digits: string[] = [];
+    if (value === 0n) {
+        langruntime.pushChar(digits, "0");
+        return digits;
+    }
+    let reversed: string[] = [];
+    let remaining: bigint = value;
+    while (!(remaining === 0n)) {
+        let digit: bigint = langruntime.checkedI64Remainder(remaining, 10n);
+        if (digit < 0n) {
+            digit = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, digit));
+        }
+        langruntime.pushChar(reversed, langruntime.characterFromI32((langruntime.checkedSignedAdd((Number(BigInt.asIntN(32, langruntime.checkedI64(digit)))), 48)), "0"));
+        remaining = langruntime.checkedI64(langruntime.checkedI64Divide(remaining, 10n));
+    }
+    let index: number = reversed.length;
+    while (index > 0) {
+        index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+        langruntime.pushChar(digits, langruntime.indexChar(reversed, langruntime.checkedIndex(index)));
+    }
+    return digits;
+}
+function numberFormatPower(multi: number): bigint {
+    multi = langruntime.checkedI32(multi);
+    let result: bigint = 1n;
+    let count: number = 0;
+    while (count < multi) {
+        result = langruntime.checkedI64(langruntime.checkedI64Multiply(result, 10n));
+        count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+    }
+    return result;
+}
+function numberFormatInt8(value: bigint, template: string, numericC: boolean, monetaryC: boolean, wide: boolean): checkruntime.TextValue {
+    value = langruntime.checkedI64(value);
+    template = langruntime.checkedString(template);
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    wide = langruntime.checkedBool(wide);
+    if (template === "") {
+        return checkruntime.makeTextValue("");
+    }
+    const format: NumberFormat = numberFormatPrepare(template, numericC, monetaryC);
+    const state: checkruntime.TextValue = numberFormatTemplateState(format);
+    if (!(checkruntime.equalTextValue(state, { kind: "NonNull" }))) {
+        return state;
+    }
+    if (format.roman) {
+        let roman: bigint = value;
+        if (value > 2147483647n || value < -2147483648n) {
+            roman = langruntime.checkedI64(2147483647n);
+        }
+        const number: NumberDigits = { characters: numberFormatRoman(Number(BigInt.asIntN(32, langruntime.checkedI64(roman)))) };
+        return numberFormatProcess(format, format.pre, format.post, number, 0, "\0");
+    }
+    const negative: boolean = value < 0n;
+    if (format.eeee) {
+        const digits: NumberDigits = { characters: numberFormatDigits(value) };
+        const exponent: number = langruntime.checkedSignedSubtract((langruntime.checkedI32(langruntime.checkedIndex(digits.characters.length))), 1);
+        const number: string[] = numberFormatScientific(digits, exponent, negative, format.post, wide === false);
+        const rendered: NumberDigits = { characters: number };
+        return numberFormatProcess(format, format.pre, format.post, rendered, 0, "+");
+    }
+    let scaled: bigint = value;
+    let pre: number = format.pre;
+    if (format.multiplied) {
+        if (wide) {
+            if (format.multi >= 19) {
+                return { kind: "Error", value: checkruntime.makeSqlError(numberFormatRange) };
+            }
+            const factor: bigint = numberFormatPower(format.multi);
+            if (!(value === 0n) && (value > langruntime.checkedI64Divide(9223372036854775807n, factor) || value < langruntime.checkedI64Divide((langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(0n, 9223372036854775807n), 1n)), factor))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(numberFormatRange) };
+            }
+            scaled = langruntime.checkedI64(langruntime.checkedI64Multiply(value, factor));
+        }
+        else {
+            if (format.multi >= 10) {
+                return { kind: "Unknown" };
+            }
+            const factor: bigint = numberFormatPower(format.multi);
+            const product: bigint = langruntime.checkedI64Multiply(value, factor);
+            if (product > 2147483647n || product < -2147483648n) {
+                return { kind: "Unknown" };
+            }
+            scaled = langruntime.checkedI64(product);
+        }
+        pre = langruntime.checkedI32(langruntime.checkedSignedAdd(pre, format.multi));
+    }
+    const digits: NumberDigits = { characters: numberFormatDigits(scaled) };
+    return numberFormatInteger(format, digits, scaled < 0n, pre);
+}
+export function toCharC1f5(input: checkruntime.Int4Value, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "NonNull" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberFormatInt8(BigInt(langruntime.checkedI32(value)), format, numericC, monetaryC, false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function toCharOw74(input: checkruntime.Int8Value, template: checkruntime.TextValue, numericC: boolean, monetaryC: boolean): checkruntime.TextValue {
+    numericC = langruntime.checkedBool(numericC);
+    monetaryC = langruntime.checkedBool(monetaryC);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "Unknown" }) || checkruntime.equalTextValue(template, { kind: "NonNull" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" }) || checkruntime.equalTextValue(template, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            return numberFormatInt8(value, format, numericC, monetaryC, true);
+        }
+    }
+    return { kind: "Unknown" };
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

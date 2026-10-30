@@ -7,6 +7,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
+  isNumberFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -483,6 +484,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
   return (
     isTemporalIntervalFormatting(metadata) ||
     isTemporalTimestampFormatting(metadata) ||
+    isNumberFormatting(metadata) ||
     isTemporalTemplateParsing(metadata) ||
     isTemporalClockZoneLookup(metadata) ||
     (isTemporalInstantConstructor(metadata) && metadata.args.length === 7) ||

@@ -372,6 +372,7 @@ export const codegenSchema = z
         xmlBinary: z.enum(['base64', 'hex']).optional(),
         timeLocale: z.literal('C').optional(),
         moneyLocale: z.literal('C').optional(),
+        numericLocale: z.literal('C').optional(),
         moneyFractionDigits: z.number().int().min(0).max(10).optional(),
         extraFloatDigits: z.number().int().min(-15).max(3).optional(),
         xpathRecursionLimit: z.number().int().min(1).max(2147483647).optional(),

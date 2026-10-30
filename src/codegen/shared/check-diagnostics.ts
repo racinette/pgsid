@@ -27,6 +27,7 @@ import {
   isTemporalCurrentAge,
   isTemporalDatePart,
   isTemporalTimestampFormatting,
+  isNumberFormatting,
   isTemporalTemplateParsing,
   isTemporalSessionTruncation,
   isTemporalSessionExtraction,
@@ -66,6 +67,7 @@ const temporalTimestampFormats = new Set(
     .filter((item) => isTemporalTimestampFormatting(item) || isTemporalTemplateParsing(item))
     .map(callableIdentity),
 )
+const numberFormats = new Set(builtinCallables().filter(isNumberFormatting).map(callableIdentity))
 const temporalTemplateParsers = new Set(
   builtinCallables().filter(isTemporalTemplateParsing).map(callableIdentity),
 )
@@ -365,6 +367,12 @@ export function checkUnknownMessage(
   if (containsSignature(expression, temporalCurrentAge))
     message +=
       ' Finite one-argument calendar age requires the transaction current local date and session timezone; static timezone settings alone do not supply that date.'
+  if (
+    containsSignature(expression, numberFormats) &&
+    (context.numericLocale === undefined || context.moneyLocale === undefined)
+  )
+    message +=
+      ' Number templates using D or G require sql.codegen.checks.numericLocale, and S or L require sql.codegen.checks.moneyLocale.'
   if (containsSignature(expression, temporalTimestampFormats)) {
     if (context.timeLocale === undefined)
       message += ' Localized temporal template names can require sql.codegen.checks.timeLocale.'
