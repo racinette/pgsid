@@ -1,12 +1,17 @@
 use crate::{
-    ast_json::{item, validate_file},
+    ast_json::{item, validate_against, validate_file},
+    facts::Facts,
     syntax,
     validate::Result,
 };
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use syn::visit::{self, Visit};
 
+// A graph either validates whole, optionally recording its facts ("emitFacts"), or adds
+// modules to a graph validated earlier, given that graph's facts ("runtimeFacts"). The
+// second form returns only the added modules and their items; appended to the earlier
+// output they are what parsing the combined graph returns.
 pub fn parse(source: &str) -> Result<String> {
     let graph: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     if graph["schemaVersion"] != 1 {
@@ -15,15 +20,29 @@ pub fn parse(source: &str) -> Result<String> {
     let modules = graph["modules"]
         .as_array()
         .ok_or("source graph requires modules")?;
+    let cached = match graph.get("runtimeFacts") {
+        Some(facts) => Some(Facts::from_json(facts)?),
+        None => None,
+    };
+    let emit_facts = graph["emitFacts"] == true;
+    if emit_facts && cached.is_some() {
+        return Err("a graph linked against runtime facts cannot record facts".into());
+    }
     let mut module_names = BTreeSet::new();
-    for module in modules {
+    for module in cached
+        .iter()
+        .flat_map(|facts| &facts.modules)
+        .chain(modules)
+    {
         let name = module["name"].as_str().ok_or("module requires name")?;
         if !module_names.insert(name) {
             return Err(format!("duplicate module {name}"));
         }
     }
     let mut parsed = Vec::new();
-    let mut owners = std::collections::BTreeMap::new();
+    let mut owners = cached
+        .as_ref()
+        .map_or_else(BTreeMap::new, |facts| facts.owners.clone());
     for module in modules {
         let name = module["name"].as_str().unwrap();
         let dependencies = module["dependencies"]
@@ -42,24 +61,25 @@ pub fn parse(source: &str) -> Result<String> {
             let text = source["source"].as_str().ok_or("file requires source")?;
             let file = syn::parse_file(text).map_err(|error| format!("{path}: {error}"))?;
             syntax::check(&file).map_err(|error| format!("{path}: {error}"))?;
+            let mut serialized = Vec::new();
             for declaration in &file.items {
-                let serialized = item(declaration)?;
-                let symbol = serialized["name"].as_str().unwrap().to_string();
+                let value = item(declaration)?;
+                let symbol = value["name"].as_str().unwrap().to_string();
                 if owners
                     .insert(
                         symbol.clone(),
                         (
-                            name,
-                            serialized["visibility"] == "public"
-                                || serialized["visibility"] == "crate",
+                            name.to_string(),
+                            value["visibility"] == "public" || value["visibility"] == "crate",
                         ),
                     )
                     .is_some()
                 {
                     return Err(format!("duplicate linked symbol {symbol} in {path}"));
                 }
+                serialized.push(value);
             }
-            parsed.push((name, path, dependencies, file));
+            parsed.push((name, path, dependencies, file, serialized));
         }
     }
     let linked = syn::File {
@@ -67,34 +87,39 @@ pub fn parse(source: &str) -> Result<String> {
         attrs: Vec::new(),
         items: parsed
             .iter()
-            .flat_map(|(_, _, _, file)| file.items.iter().cloned())
+            .flat_map(|(_, _, _, file, _)| file.items.iter().cloned())
             .collect(),
     };
-    validate_file(&linked)?;
+    match cached {
+        Some(facts) => validate_against(&linked, facts)?,
+        None => validate_file(&linked)?,
+    }
     let mut items = Vec::new();
-    for (name, path, dependencies, file) in &parsed {
-        for declaration in &file.items {
-            let mut serialized = item(declaration)?;
+    for (name, path, dependencies, file, serialized) in parsed {
+        for (declaration, mut value) in file.items.iter().zip(serialized) {
             check_dependencies(declaration, name, dependencies, &owners)
                 .map_err(|error| format!("{path}: {error}"))?;
-            serialized["module"] = json!(name);
-            serialized["sourceFile"] = json!(path);
-            items.push(serialized);
+            value["module"] = json!(name);
+            value["sourceFile"] = json!(path);
+            items.push(value);
         }
     }
-    serde_json::to_string(
-        &json!({ "schemaVersion": 1, "modules": modules.iter().map(|module|
-        json!({ "name": module["name"], "dependencies": module["dependencies"] })
-    ).collect::<Vec<_>>(), "items": items }),
-    )
-    .map_err(|error| error.to_string())
+    let modules = modules
+        .iter()
+        .map(|module| json!({ "name": module["name"], "dependencies": module["dependencies"] }))
+        .collect::<Vec<_>>();
+    let mut document = json!({ "schemaVersion": 1, "modules": modules, "items": items });
+    if emit_facts {
+        document["facts"] = Facts::collect(&linked.items, modules, owners)?.to_json();
+    }
+    serde_json::to_string(&document).map_err(|error| error.to_string())
 }
 
 fn check_dependencies(
     declaration: &syn::Item,
     module: &str,
     dependencies: &[Value],
-    owners: &std::collections::BTreeMap<String, (&str, bool)>,
+    owners: &BTreeMap<String, (String, bool)>,
 ) -> Result<()> {
     let mut checker = DependencyChecker {
         module,
@@ -110,7 +135,7 @@ fn check_dependencies(
 struct DependencyChecker<'a> {
     module: &'a str,
     dependencies: &'a [Value],
-    owners: &'a std::collections::BTreeMap<String, (&'a str, bool)>,
+    owners: &'a BTreeMap<String, (String, bool)>,
     scopes: Vec<BTreeSet<String>>,
     error: Option<String>,
 }
@@ -161,7 +186,7 @@ impl DependencyChecker<'_> {
             if !self
                 .dependencies
                 .iter()
-                .any(|dependency| dependency.as_str() == Some(*owner))
+                .any(|dependency| dependency.as_str() == Some(owner.as_str()))
             {
                 self.error = Some(format!(
                     "{} references {owner}::{symbol} without a dependency",
@@ -314,6 +339,87 @@ mod tests {
         assert!(parse(&graph.to_string())
             .unwrap_err()
             .contains("duplicate linked symbol"));
+    }
+
+    // Splits the fixture into the runtime graph, which records its facts, and the checks
+    // module, which links against them.
+    fn split(graph: &str) -> (serde_json::Value, serde_json::Value) {
+        let graph: serde_json::Value = serde_json::from_str(graph).unwrap();
+        let (checks, runtime): (Vec<_>, Vec<_>) = graph["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .cloned()
+            .partition(|module| module["name"] == "checks");
+        let runtime =
+            serde_json::json!({ "schemaVersion": 1, "modules": runtime, "emitFacts": true });
+        let runtime: serde_json::Value =
+            serde_json::from_str(&parse(&runtime.to_string()).unwrap()).unwrap();
+        let checks = serde_json::json!({ "schemaVersion": 1, "modules": checks, "runtimeFacts": runtime["facts"] });
+        (runtime, checks)
+    }
+
+    #[test]
+    fn modules_linked_against_runtime_facts_extend_the_runtime_output() {
+        let graph = modules(&["pg_catalog"]);
+        let (runtime, checks) = split(&graph);
+        let checks: serde_json::Value =
+            serde_json::from_str(&parse(&checks.to_string()).unwrap()).unwrap();
+        let mut combined = serde_json::json!({ "schemaVersion": 1 });
+        for key in ["modules", "items"] {
+            combined[key] = serde_json::json!([
+                runtime[key].as_array().unwrap().clone(),
+                checks[key].as_array().unwrap().clone()
+            ]
+            .concat());
+        }
+        let mut graph: serde_json::Value = serde_json::from_str(&graph).unwrap();
+        graph["modules"].as_array_mut().unwrap().reverse();
+        let full: serde_json::Value =
+            serde_json::from_str(&parse(&graph.to_string()).unwrap()).unwrap();
+        assert_eq!(combined, full);
+    }
+
+    #[test]
+    fn modules_linked_against_runtime_facts_keep_whole_graph_checks() {
+        let graph = modules(&["pg_catalog"]);
+        let (_, checks) = split(&graph);
+        let with_source = |source: &str| {
+            let mut graph = checks.clone();
+            graph["modules"][0]["files"][0]["source"] = serde_json::json!(source);
+            parse(&graph.to_string()).unwrap_err()
+        };
+        assert!(
+            with_source("pub fn positive(value: Value) -> bool { true }")
+                .contains("duplicate linked symbol")
+        );
+        assert!(
+            with_source("pub fn evaluate(value: Missing) -> bool { true }")
+                .contains("outside the AST contract")
+        );
+        assert!(with_source("#[derive(Clone)] pub enum Local { Empty } pub fn evaluate(value: Value) -> bool { true }")
+            .contains("cannot declare types"));
+        assert!(
+            with_source("pub fn evaluate(value: Value) -> i64 { 1 }").contains("explicitly typed")
+        );
+        let mut graph = checks.clone();
+        graph["modules"][0]["dependencies"] = serde_json::json!([]);
+        assert!(parse(&graph.to_string())
+            .unwrap_err()
+            .contains("without a dependency"));
+        graph["modules"][0]["dependencies"] = serde_json::json!(["missing"]);
+        assert!(parse(&graph.to_string())
+            .unwrap_err()
+            .contains("invalid dependency"));
+        graph["modules"][0]["name"] = serde_json::json!("pg_catalog");
+        assert!(parse(&graph.to_string())
+            .unwrap_err()
+            .contains("duplicate module"));
+        let private = modules(&["pg_catalog"]).replace("pub fn positive", "fn positive");
+        let (_, checks) = split(&private);
+        assert!(parse(&checks.to_string())
+            .unwrap_err()
+            .contains("private symbol"));
     }
 
     fn shadow_graph(source: &str, dependencies: &[&str]) -> String {

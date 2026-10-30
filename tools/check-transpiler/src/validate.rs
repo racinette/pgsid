@@ -216,14 +216,15 @@ pub fn inspect(file: &syn::File) -> Result<()> {
     Ok(())
 }
 
-struct Semantics {
-    return_type: Option<String>,
-    fields: BTreeMap<String, BTreeMap<String, String>>,
-    copy: BTreeSet<String>,
-    clone: BTreeSet<String>,
-    equality: BTreeSet<String>,
-    variants: BTreeMap<(String, String), Option<String>>,
-    functions: BTreeMap<String, (Vec<String>, String)>,
+#[derive(Default)]
+pub(crate) struct Semantics {
+    pub(crate) return_type: Option<String>,
+    pub(crate) fields: BTreeMap<String, BTreeMap<String, String>>,
+    pub(crate) copy: BTreeSet<String>,
+    pub(crate) clone: BTreeSet<String>,
+    pub(crate) equality: BTreeSet<String>,
+    pub(crate) variants: BTreeMap<(String, String), Option<String>>,
+    pub(crate) functions: BTreeMap<String, (Vec<String>, String)>,
 }
 
 fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
@@ -258,12 +259,12 @@ fn vector_element_type(name: &str, semantics: &Semantics) -> Option<String> {
 }
 
 #[derive(Clone)]
-struct Binding {
-    ty: String,
-    mutable: bool,
+pub(crate) struct Binding {
+    pub(crate) ty: String,
+    pub(crate) mutable: bool,
 }
 
-type Bindings = BTreeMap<String, Binding>;
+pub(crate) type Bindings = BTreeMap<String, Binding>;
 
 fn assignment_root(value: &Expr) -> Option<String> {
     match value {
@@ -976,16 +977,18 @@ fn check_body_methods(
 }
 
 pub fn check_operations(file: &syn::File) -> Result<()> {
-    let mut semantics = Semantics {
-        return_type: None,
-        fields: BTreeMap::new(),
-        copy: BTreeSet::new(),
-        clone: BTreeSet::new(),
-        equality: BTreeSet::new(),
-        variants: BTreeMap::new(),
-        functions: BTreeMap::new(),
-    };
-    for item in &file.items {
+    let mut semantics = Semantics::default();
+    collect_semantics(&file.items, &mut semantics)?;
+    check_clone_types(&file.items, &semantics)?;
+    let mut constants = Bindings::new();
+    collect_constants(&file.items, &mut constants)?;
+    check_operation_items(&file.items, &constants, &mut semantics)
+}
+
+// The declaration tables are additive per item, so tables collected from one set of linked
+// files extend those cached from another without changing the result.
+pub(crate) fn collect_semantics(items: &[Item], semantics: &mut Semantics) -> Result<()> {
+    for item in items {
         match item {
             Item::Struct(structure) => {
                 let name = structure.ident.to_string();
@@ -1055,8 +1058,12 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             _ => {}
         }
     }
+    Ok(())
+}
+
+fn check_clone_types(items: &[Item], semantics: &Semantics) -> Result<()> {
     let mut exported_payloads = BTreeSet::new();
-    let mut pending = file.items.iter().filter_map(|item| {
+    let mut pending = items.iter().filter_map(|item| {
         let Item::Enum(enumeration) = item else { return None; };
         (matches!(enumeration.vis, syn::Visibility::Public(_))
             && semantics.clone.contains(&enumeration.ident.to_string()))
@@ -1074,7 +1081,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
     }
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
-        let owned_record = file.items.iter().any(|item| {
+        let owned_record = items.iter().any(|item| {
             let Item::Struct(structure) = item else { return false; };
             if structure.ident != name.as_str() { return false; }
             matches!(structure.vis, syn::Visibility::Inherited)
@@ -1104,16 +1111,25 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             ));
         }
     }
-    let constants = file
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Const(value) => Some((value.ident.to_string(), type_name(&value.ty))),
-            _ => None,
-        })
-        .map(|(name, ty)| ty.map(|ty| (name, Binding { ty, mutable: false })))
-        .collect::<Result<Bindings>>()?;
-    for item in &file.items {
+    Ok(())
+}
+
+pub(crate) fn collect_constants(items: &[Item], constants: &mut Bindings) -> Result<()> {
+    for item in items {
+        if let Item::Const(value) = item {
+            let ty = type_name(&value.ty)?;
+            constants.insert(value.ident.to_string(), Binding { ty, mutable: false });
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn check_operation_items(
+    items: &[Item],
+    constants: &Bindings,
+    semantics: &mut Semantics,
+) -> Result<()> {
+    for item in items {
         if let Item::Const(constant) = item {
             if let Type::Reference(reference) = &*constant.ty {
                 if let Type::Slice(slice) = &*reference.elem {
@@ -1140,7 +1156,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                                 return Err("u16 table literal exceeds its element range".into());
                             }
                         }
-                        let inferred = infer_expr_type(value, &constants, &semantics)?;
+                        let inferred = infer_expr_type(value, constants, semantics)?;
                         let numeric_literal = matches!(value, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(number), .. }) if number.suffix().is_empty());
                         if inferred.as_deref() != Some(&element)
                             && !(matches!(element.as_str(), "i32" | "u16") && numeric_literal)
@@ -1152,7 +1168,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             }
             let expected = type_name(&constant.ty)?;
             if matches!(expected.as_str(), "i64" | "f64")
-                && infer_expr_type(&constant.expr, &constants, &semantics)?.as_deref()
+                && infer_expr_type(&constant.expr, constants, semantics)?.as_deref()
                     != Some(expected.as_str())
             {
                 return Err(format!(
@@ -1191,12 +1207,12 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                     },
                 );
             }
-            check_body_methods(&function.block, &mut locals, &semantics)?;
+            check_body_methods(&function.block, &mut locals, semantics)?;
             if let Some(expected) = semantics.return_type.as_deref() {
                 if matches!(expected, "i64" | "f64") {
                     if let Some(Stmt::Expr(tail, None)) = function.block.stmts.last() {
                         if !matches!(tail, Expr::Return(_))
-                            && infer_expr_type(tail, &locals, &semantics)?.as_deref()
+                            && infer_expr_type(tail, &locals, semantics)?.as_deref()
                                 != Some(expected)
                         {
                             return Err(format!(
