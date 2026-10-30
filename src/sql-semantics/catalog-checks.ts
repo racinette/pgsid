@@ -473,7 +473,9 @@ export function lowerTableCheck(
       rowCoercionSites = aligned
       rowConstructorBindings = sourceConstructors
     } else {
-      rowFieldBindings = storedScalarBindings
+      // A bindings map tells the binder that source alignment ran, so an empty one would make
+      // unaligned source calls uncertain; only captured stored scalars are passed on.
+      rowFieldBindings = storedScalarBindings.size > 0 ? storedScalarBindings : undefined
       rowCoercionSites = sites
       rowConstructorBindings = constructors
     }
