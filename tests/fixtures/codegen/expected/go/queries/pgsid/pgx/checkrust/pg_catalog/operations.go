@@ -34949,6 +34949,931 @@ func NumNullsJx40(input NullCountArguments) checkruntime.Int4Value {
 func NumNonnullsY0jf(input NullCountArguments) checkruntime.Int4Value {
 	return input.Nonnulls
 }
+
+const numberFormatSyntax = 6819553
+const numberFormatText = 3484946
+const numberFormatRange = 3452547
+const numberKeyComma = 1
+const numberKeyDec = 2
+const numberKeyZero = 3
+const numberKeyNine = 4
+const numberKeyB = 5
+const numberKeyD = 7
+const numberKeyE = 8
+const numberKeyFm = 9
+const numberKeyG = 10
+const numberKeyL = 11
+const numberKeyMi = 12
+const numberKeyPl = 13
+const numberKeyPr = 14
+const numberKeyRn = 15
+const numberKeyLowerRn = 16
+const numberKeySg = 17
+const numberKeyS = 19
+const numberKeyTh = 20
+const numberKeyLowerTh = 21
+const numberKeyV = 22
+
+var numberKeywordNames = []string{",", ".", "0", "9", "B", "C", "D", "EEEE", "FM", "G", "L", "MI", "PL", "PR", "RN", "SG", "SP", "S", "TH", "V", "b", "c", "d", "eeee", "fm", "g", "l", "mi", "pl", "pr", "rn", "sg", "sp", "s", "th", "v"}
+var numberKeywordIds = []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 22, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22}
+var numberSuffixUpper = []string{"ST", "ND", "RD", "TH"}
+var numberSuffixLower = []string{"st", "nd", "rd", "th"}
+
+type numberDigits struct {
+	characters []rune
+}
+
+func copynumberDigits(value numberDigits) numberDigits {
+	return numberDigits{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type numberFormatNode struct {
+	action   bool
+	key      int
+	position int
+}
+
+func copynumberFormatNode(value numberFormatNode) numberFormatNode {
+	return numberFormatNode{action: value.action, key: langruntime.CheckedI32(value.key), position: langruntime.CheckedIndex(value.position)}
+}
+
+type numberFormat struct {
+	error          int
+	characters     []rune
+	nodes          []numberFormatNode
+	pre            int
+	post           int
+	multi          int
+	decimal        bool
+	zero           bool
+	blank          bool
+	fillmode       bool
+	bracket        bool
+	minus          bool
+	plus           bool
+	lsign          int
+	preLsignNum    int
+	roman          bool
+	multiplied     bool
+	eeee           bool
+	zeroStart      int
+	zeroEnd        int
+	numericLocale  bool
+	monetaryLocale bool
+}
+
+func copynumberFormat(value numberFormat) numberFormat {
+	return numberFormat{error: langruntime.CheckedIndex(value.error), characters: langruntime.CheckedChars(value.characters), nodes: langruntime.CheckedStructs(value.nodes, copynumberFormatNode), pre: langruntime.CheckedI32(value.pre), post: langruntime.CheckedI32(value.post), multi: langruntime.CheckedI32(value.multi), decimal: value.decimal, zero: value.zero, blank: value.blank, fillmode: value.fillmode, bracket: value.bracket, minus: value.minus, plus: value.plus, lsign: langruntime.CheckedI32(value.lsign), preLsignNum: langruntime.CheckedI32(value.preLsignNum), roman: value.roman, multiplied: value.multiplied, eeee: value.eeee, zeroStart: langruntime.CheckedI32(value.zeroStart), zeroEnd: langruntime.CheckedI32(value.zeroEnd), numericLocale: value.numericLocale, monetaryLocale: value.monetaryLocale}
+}
+func numberFormatKeyword(text *numberDigits, position int) int {
+	position = langruntime.CheckedIndex(position)
+	index := 0
+	for index < len(numberKeywordNames) {
+		keyword := numberKeywordNames[index]
+		name := []rune(keyword)
+		offset := 0
+		matched := true
+		for matched && offset < len(name) {
+			if langruntime.CheckedAdd(position, offset) >= len(text.characters) || text.characters[langruntime.CheckedAdd(position, offset)] != name[offset] {
+				matched = false
+			}
+			offset = langruntime.CheckedAdd(offset, 1)
+		}
+		if matched {
+			return langruntime.CheckedAdd(index, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return 0
+}
+func numberFormatParse(template string) numberFormat {
+	template = langruntime.CheckedString(template)
+	characters := []rune(template)
+	scanCharacters := []rune(template)
+	scanned := numberDigits{characters: scanCharacters}
+	nodes := []numberFormatNode{}
+	error := 0
+	pre := 0
+	post := 0
+	multi := 0
+	decimal := false
+	ldecimal := false
+	zero := false
+	blank := false
+	fillmode := false
+	bracket := false
+	minus := false
+	minusPost := false
+	plus := false
+	plusPost := false
+	lsignFlag := false
+	lsign := 0
+	preLsignNum := 0
+	roman := false
+	multiplied := false
+	eeee := false
+	zeroStart := 0
+	zeroEnd := 0
+	numericLocale := false
+	monetaryLocale := false
+	position := 0
+	for position < len(characters) && error == 0 {
+		found := numberFormatKeyword(&scanned, position)
+		if found > 0 {
+			key := numberKeywordIds[langruntime.CheckedSubtract(found, 1)]
+			keyword := numberKeywordNames[langruntime.CheckedSubtract(found, 1)]
+			name := []rune(keyword)
+			langruntime.CheckedAdd(len(nodes), 1)
+			nodes = append(nodes, copynumberFormatNode(numberFormatNode{action: true, key: key, position: position}))
+			position = langruntime.CheckedIndex(langruntime.CheckedAdd(position, len(name)))
+			if eeee && key != numberKeyE {
+				error = langruntime.CheckedIndex(numberFormatSyntax)
+			} else if key == numberKeyNine {
+				if bracket {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else if multiplied {
+					multi = langruntime.CheckedI32(langruntime.CheckedSignedAdd(multi, 1))
+				} else if decimal {
+					post = langruntime.CheckedI32(langruntime.CheckedSignedAdd(post, 1))
+				} else {
+					pre = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, 1))
+				}
+			} else if key == numberKeyZero {
+				if bracket {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					if zero == false && decimal == false {
+						zero = true
+						zeroStart = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, 1))
+					}
+					if decimal == false {
+						pre = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, 1))
+					} else {
+						post = langruntime.CheckedI32(langruntime.CheckedSignedAdd(post, 1))
+					}
+					zeroEnd = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, post))
+				}
+			} else if key == numberKeyB {
+				if pre == 0 && post == 0 && zero == false {
+					blank = true
+				}
+			} else if key == numberKeyD || key == numberKeyDec {
+				if key == numberKeyD {
+					ldecimal = true
+					numericLocale = true
+				}
+				if decimal || multiplied {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					decimal = true
+				}
+			} else if key == numberKeyFm {
+				fillmode = true
+			} else if key == numberKeyS {
+				if lsignFlag || plus || minus || bracket {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else if decimal == false {
+					lsign = langruntime.CheckedI32(1)
+					preLsignNum = langruntime.CheckedI32(pre)
+					monetaryLocale = true
+					lsignFlag = true
+				} else if lsign == 0 {
+					lsign = langruntime.CheckedI32(2)
+					monetaryLocale = true
+					lsignFlag = true
+				}
+			} else if key == numberKeyMi {
+				if lsignFlag {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					minus = true
+					if decimal {
+						minusPost = true
+					}
+				}
+			} else if key == numberKeyPl {
+				if lsignFlag {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					plus = true
+					if decimal {
+						plusPost = true
+					}
+				}
+			} else if key == numberKeySg {
+				if lsignFlag {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					minus = true
+					plus = true
+				}
+			} else if key == numberKeyPr {
+				if lsignFlag || plus || minus {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					bracket = true
+				}
+			} else if key == numberKeyRn || key == numberKeyLowerRn {
+				if roman {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					roman = true
+				}
+			} else if key == numberKeyL || key == numberKeyG {
+				if key == numberKeyL {
+					monetaryLocale = true
+				} else {
+					numericLocale = true
+				}
+			} else if key == numberKeyV {
+				if decimal {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					multiplied = true
+				}
+			} else if key == numberKeyE {
+				if eeee || blank || fillmode || lsignFlag || bracket || minus || plus || roman || multiplied {
+					error = langruntime.CheckedIndex(numberFormatSyntax)
+				} else {
+					eeee = true
+				}
+			}
+			if error == 0 && roman && (decimal || ldecimal || zero || blank || bracket || minus || minusPost || plus || plusPost || lsignFlag || multiplied || eeee) {
+				error = langruntime.CheckedIndex(numberFormatSyntax)
+			}
+		} else if characters[position] == '"' {
+			position = langruntime.CheckedAdd(position, 1)
+			open := true
+			for open && position < len(characters) {
+				if characters[position] == '"' {
+					position = langruntime.CheckedAdd(position, 1)
+					open = false
+				} else {
+					if characters[position] == '\\' && langruntime.CheckedAdd(position, 1) < len(characters) {
+						position = langruntime.CheckedAdd(position, 1)
+					}
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, copynumberFormatNode(numberFormatNode{action: false, key: 0, position: position}))
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+		} else {
+			if characters[position] == '\\' && langruntime.CheckedAdd(position, 1) < len(characters) && characters[langruntime.CheckedAdd(position, 1)] == '"' {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			langruntime.CheckedAdd(len(nodes), 1)
+			nodes = append(nodes, copynumberFormatNode(numberFormatNode{action: false, key: 0, position: position}))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return numberFormat{error: error, characters: characters, nodes: nodes, pre: pre, post: post, multi: multi, decimal: decimal, zero: zero, blank: blank, fillmode: fillmode, bracket: bracket, minus: minus, plus: plus, lsign: lsign, preLsignNum: preLsignNum, roman: roman, multiplied: multiplied, eeee: eeee, zeroStart: zeroStart, zeroEnd: zeroEnd, numericLocale: numericLocale, monetaryLocale: monetaryLocale}
+}
+func numberFormatAt(number *numberDigits, index int) rune {
+	index = langruntime.CheckedIndex(index)
+	if index < len(number.characters) {
+		return number.characters[index]
+	}
+	return '\x00'
+}
+func numberFormatIndex(value int) int {
+	value = langruntime.CheckedI32(value)
+	index := 0
+	remaining := value
+	for remaining > 0 {
+		index = langruntime.CheckedAdd(index, 1)
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return index
+}
+func numberFormatRoman(value int) []rune {
+	value = langruntime.CheckedI32(value)
+	result := []rune{}
+	if value > 3999 || value < 1 {
+		count := 0
+		for count < 15 {
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar('#'))
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+		}
+		return result
+	}
+	place := 3
+	for place >= 0 {
+		divisor := 1
+		step := 0
+		for step < place {
+			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 10))
+			step = langruntime.CheckedI32(langruntime.CheckedSignedAdd(step, 1))
+		}
+		digit := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(value, divisor)), 10)
+		one := 'M'
+		five := 'M'
+		ten := 'M'
+		if place == 2 {
+			one = langruntime.CheckedChar('C')
+			five = langruntime.CheckedChar('D')
+		} else if place == 1 {
+			one = langruntime.CheckedChar('X')
+			five = langruntime.CheckedChar('L')
+			ten = langruntime.CheckedChar('C')
+		} else if place == 0 {
+			one = langruntime.CheckedChar('I')
+			five = langruntime.CheckedChar('V')
+			ten = langruntime.CheckedChar('X')
+		}
+		if place == 2 {
+			ten = langruntime.CheckedChar('M')
+		}
+		if place == 3 {
+			count := 0
+			for count < digit {
+				langruntime.CheckedAdd(len(result), 1)
+				result = append(result, langruntime.CheckedChar('M'))
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			}
+		} else if digit == 9 {
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar(one))
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar(ten))
+		} else if digit == 4 {
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar(one))
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar(five))
+		} else {
+			ones := digit
+			if digit >= 5 {
+				langruntime.CheckedAdd(len(result), 1)
+				result = append(result, langruntime.CheckedChar(five))
+				ones = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(digit, 5))
+			}
+			count := 0
+			for count < ones {
+				langruntime.CheckedAdd(len(result), 1)
+				result = append(result, langruntime.CheckedChar(one))
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			}
+		}
+		place = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(place, 1))
+	}
+	return result
+}
+func numberFormatOverflow(pre int, post int) []rune {
+	pre = langruntime.CheckedI32(pre)
+	post = langruntime.CheckedI32(post)
+	result := []rune{}
+	count := 0
+	for count < langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(pre, post), 1) {
+		if count == pre {
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar('.'))
+		} else {
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, langruntime.CheckedChar('#'))
+		}
+		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+	}
+	return result
+}
+func numberFormatProcess(format *numberFormat, pre int, post int, number *numberDigits, outPreSpaces int, sign rune) checkruntime.TextValue {
+	pre = langruntime.CheckedI32(pre)
+	post = langruntime.CheckedI32(post)
+	outPreSpaces = langruntime.CheckedI32(outPreSpaces)
+	sign = langruntime.CheckedChar(sign)
+	if format.eeee {
+		text := langruntime.NewTextBuffer("")
+		index := 0
+		for index < len(number.characters) {
+			text = append(text, string(langruntime.CheckedChar(number.characters[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+	}
+	zeroStart := format.zeroStart
+	if zeroStart > 0 {
+		zeroStart = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(zeroStart, 1))
+	}
+	zeroEnd := format.zeroEnd
+	bracket := format.bracket
+	lsign := format.lsign
+	signWrote := false
+	if format.plus || format.minus {
+		signWrote = (format.plus && format.minus == false) == false
+	} else {
+		if sign != '-' && format.fillmode {
+			bracket = false
+		}
+		signWrote = sign == '+' && format.fillmode && format.lsign == 0
+		if lsign == 1 && pre == format.preLsignNum {
+			lsign = langruntime.CheckedI32(2)
+		}
+	}
+	numCount := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(post, pre), 1)
+	hasLast := false
+	lastRelevant := 0
+	if format.fillmode && format.decimal {
+		index := 0
+		found := false
+		for index < len(number.characters) {
+			if found == false && number.characters[index] == '.' {
+				found = true
+				lastRelevant = langruntime.CheckedI32(int(int32(index)))
+			} else if found && number.characters[index] != '0' {
+				lastRelevant = langruntime.CheckedI32(int(int32(index)))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		hasLast = found
+		if hasLast && zeroEnd > outPreSpaces {
+			lastZero := langruntime.CheckedSignedSubtract((int(int32(len(number.characters)))), 1)
+			if langruntime.CheckedSignedSubtract(zeroEnd, outPreSpaces) < lastZero {
+				lastZero = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(zeroEnd, outPreSpaces))
+			}
+			if lastRelevant < lastZero {
+				lastRelevant = langruntime.CheckedI32(lastZero)
+			}
+		}
+	}
+	if signWrote == false && outPreSpaces == 0 {
+		numCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(numCount, 1))
+	}
+	lastChar := '\x00'
+	if hasLast {
+		lastChar = langruntime.CheckedChar(numberFormatAt(number, numberFormatIndex(lastRelevant)))
+	}
+	output := langruntime.NewTextBuffer("")
+	numIn := false
+	numCurr := 0
+	numberP := 0
+	position := 0
+	for position < len(format.nodes) {
+		node := format.nodes[position]
+		position = langruntime.CheckedAdd(position, 1)
+		if node.action == false {
+			output = append(output, string(langruntime.CheckedChar(format.characters[node.position]))...)
+		} else if node.key == numberKeyNine || node.key == numberKeyZero || node.key == numberKeyDec || node.key == numberKeyD {
+			if format.roman == false {
+				numIn = false
+				predecSpace := format.zero == false && numberP == 0 && numberFormatAt(number, 0) == '0' && post != 0
+				if signWrote == false && (numCurr >= outPreSpaces || (format.zero && zeroStart == numCurr)) && (predecSpace == false || (hasLast && lastChar == '.')) {
+					if format.lsign != 0 && lsign != 0 {
+						if lsign == 1 {
+							if sign == '-' {
+								output = append(output, string(langruntime.CheckedChar('-'))...)
+							} else {
+								output = append(output, string(langruntime.CheckedChar('+'))...)
+							}
+							signWrote = true
+						}
+					} else if bracket {
+						if sign == '+' {
+							output = append(output, string(langruntime.CheckedChar(' '))...)
+						} else {
+							output = append(output, string(langruntime.CheckedChar('<'))...)
+						}
+						signWrote = true
+					} else if sign == '+' {
+						if format.fillmode == false {
+							output = append(output, string(langruntime.CheckedChar(' '))...)
+						}
+						signWrote = true
+					} else if sign == '-' {
+						output = append(output, string(langruntime.CheckedChar('-'))...)
+						signWrote = true
+					}
+				}
+				if numCurr < outPreSpaces && (zeroStart > numCurr || format.zero == false) {
+					if format.fillmode == false {
+						output = append(output, string(langruntime.CheckedChar(' '))...)
+					}
+				} else if format.zero && numCurr < outPreSpaces && zeroStart <= numCurr {
+					output = append(output, string(langruntime.CheckedChar('0'))...)
+					numIn = true
+				} else {
+					current := numberFormatAt(number, numberP)
+					if current == '.' {
+						if hasLast == false || lastChar != '.' || format.fillmode {
+							output = append(output, string(langruntime.CheckedChar('.'))...)
+						}
+					} else if hasLast && (int(int32(numberP))) > lastRelevant && node.key != numberKeyZero {
+					} else if format.zero == false && numberP == 0 && numberFormatAt(number, 0) == '0' && post != 0 {
+						if format.fillmode == false {
+							output = append(output, string(langruntime.CheckedChar(' '))...)
+						} else if hasLast && lastChar == '.' {
+							output = append(output, string(langruntime.CheckedChar('0'))...)
+						}
+					} else {
+						output = append(output, string(langruntime.CheckedChar(current))...)
+						numIn = true
+					}
+					if current != '\x00' {
+						numberP = langruntime.CheckedAdd(numberP, 1)
+					}
+				}
+				end := numCount
+				if outPreSpaces != 0 {
+					end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(end, 1))
+				}
+				if format.decimal {
+					end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(end, 1))
+				}
+				if hasLast && lastRelevant == (int(int32(numberP))) {
+					end = langruntime.CheckedI32(numCurr)
+				}
+				if langruntime.CheckedSignedAdd(numCurr, 1) == end {
+					if signWrote && bracket {
+						if sign == '+' {
+							output = append(output, string(langruntime.CheckedChar(' '))...)
+						} else {
+							output = append(output, string(langruntime.CheckedChar('>'))...)
+						}
+					} else if format.lsign != 0 && lsign == 2 {
+						if sign == '-' {
+							output = append(output, string(langruntime.CheckedChar('-'))...)
+						} else {
+							output = append(output, string(langruntime.CheckedChar('+'))...)
+						}
+					}
+				}
+				numCurr = langruntime.CheckedI32(langruntime.CheckedSignedAdd(numCurr, 1))
+			}
+		} else if node.key == numberKeyComma || node.key == numberKeyG {
+			if numIn {
+				output = append(output, string(langruntime.CheckedChar(','))...)
+			} else if format.fillmode == false {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+		} else if node.key == numberKeyL {
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+		} else if node.key == numberKeyRn || node.key == numberKeyLowerRn {
+			if format.fillmode == false {
+				pad := langruntime.CheckedSignedSubtract((int(int32(len(number.characters)))), (int(int32(numberP))))
+				for pad < 15 {
+					output = append(output, string(langruntime.CheckedChar(' '))...)
+					pad = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pad, 1))
+				}
+			}
+			index := numberP
+			for index < len(number.characters) {
+				letter := number.characters[index]
+				if node.key == numberKeyLowerRn {
+					letter = langruntime.CheckedChar(langruntime.AsciiLowercase(letter))
+				}
+				output = append(output, string(langruntime.CheckedChar(letter))...)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		} else if node.key == numberKeyTh || node.key == numberKeyLowerTh {
+			if format.roman == false && numberFormatAt(number, 0) != '#' && sign != '-' && format.decimal == false {
+				last := numberFormatAt(number, langruntime.CheckedSubtract(len(number.characters), 1))
+				if (int(langruntime.CheckedChar(last))) < 48 || (int(langruntime.CheckedChar(last))) > 57 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(numberFormatText)}
+				}
+				choice := 3
+				if len(number.characters) < 2 || number.characters[langruntime.CheckedSubtract(len(number.characters), 2)] != '1' {
+					if last == '1' {
+						choice = langruntime.CheckedIndex(0)
+					} else if last == '2' {
+						choice = langruntime.CheckedIndex(1)
+					} else if last == '3' {
+						choice = langruntime.CheckedIndex(2)
+					}
+				}
+				if node.key == numberKeyTh {
+					output = append(output, numberSuffixUpper[choice]...)
+				} else {
+					output = append(output, numberSuffixLower[choice]...)
+				}
+			}
+		} else if node.key == numberKeyMi {
+			if sign == '-' {
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+			} else if format.fillmode == false {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+		} else if node.key == numberKeyPl {
+			if sign == '+' {
+				output = append(output, string(langruntime.CheckedChar('+'))...)
+			} else if format.fillmode == false {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+		} else if node.key == numberKeySg {
+			output = append(output, string(langruntime.CheckedChar(sign))...)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func numberFormatScientific(digits *numberDigits, exponent int, negative bool, post int, tiesEven bool) []rune {
+	exponent = langruntime.CheckedI32(exponent)
+	post = langruntime.CheckedI32(post)
+	first := 0
+	for first < len(digits.characters) && digits.characters[first] == '0' {
+		first = langruntime.CheckedAdd(first, 1)
+	}
+	kept := []rune{}
+	integerDigits := 1
+	power := exponent
+	if first == len(digits.characters) {
+		power = langruntime.CheckedI32(0)
+		count := 0
+		for count <= post {
+			langruntime.CheckedAdd(len(kept), 1)
+			kept = append(kept, langruntime.CheckedChar('0'))
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+		}
+	} else {
+		power = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(exponent, (int(int32(first)))))
+		index := first
+		for (int(int32(len(kept)))) <= post {
+			if index < len(digits.characters) {
+				langruntime.CheckedAdd(len(kept), 1)
+				kept = append(kept, langruntime.CheckedChar(digits.characters[index]))
+			} else {
+				langruntime.CheckedAdd(len(kept), 1)
+				kept = append(kept, langruntime.CheckedChar('0'))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		up := false
+		if index < len(digits.characters) {
+			next := digits.characters[index]
+			restNonzero := false
+			later := langruntime.CheckedAdd(index, 1)
+			for later < len(digits.characters) {
+				if digits.characters[later] != '0' {
+					restNonzero = true
+				}
+				later = langruntime.CheckedAdd(later, 1)
+			}
+			previous := kept[langruntime.CheckedSubtract(len(kept), 1)]
+			odd := previous == '1' || previous == '3' || previous == '5' || previous == '7' || previous == '9'
+			if (int(langruntime.CheckedChar(next))) > 53 || (next == '5' && restNonzero) {
+				up = true
+			} else if next == '5' {
+				up = tiesEven == false || odd
+			}
+		}
+		if up {
+			carry := true
+			slot := len(kept)
+			for carry && slot > 0 {
+				slot = langruntime.CheckedIndex(langruntime.CheckedSubtract(slot, 1))
+				digit := kept[slot]
+				if digit == '9' {
+					kept[slot] = langruntime.CheckedChar('0')
+				} else {
+					kept[slot] = langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd((int(langruntime.CheckedChar(digit))), 1)), '0'))
+					carry = false
+				}
+			}
+			if carry {
+				kept[0] = langruntime.CheckedChar('1')
+				if tiesEven {
+					power = langruntime.CheckedI32(langruntime.CheckedSignedAdd(power, 1))
+				} else {
+					langruntime.CheckedAdd(len(kept), 1)
+					kept = append(kept, langruntime.CheckedChar('0'))
+					integerDigits = langruntime.CheckedIndex(2)
+				}
+			}
+		}
+	}
+	output := []rune{}
+	if negative {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar('-'))
+	} else {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar(' '))
+	}
+	slot := 0
+	for slot < len(kept) {
+		if slot == integerDigits {
+			langruntime.CheckedAdd(len(output), 1)
+			output = append(output, langruntime.CheckedChar('.'))
+		}
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar(kept[slot]))
+		slot = langruntime.CheckedAdd(slot, 1)
+	}
+	langruntime.CheckedAdd(len(output), 1)
+	output = append(output, langruntime.CheckedChar('e'))
+	magnitude := power
+	if power < 0 {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar('-'))
+		magnitude = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, power))
+	} else {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar('+'))
+	}
+	if magnitude < 10 {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar('0'))
+	}
+	exponentString := checkruntime.TextNumber(magnitude, 10)
+	exponentText := []rune(exponentString)
+	place := 0
+	for place < len(exponentText) {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, langruntime.CheckedChar(exponentText[place]))
+		place = langruntime.CheckedAdd(place, 1)
+	}
+	return output
+}
+func numberFormatInteger(format *numberFormat, digits *numberDigits, negative bool, pre int) checkruntime.TextValue {
+	pre = langruntime.CheckedI32(pre)
+	number := []rune{}
+	copied := 0
+	for copied < len(digits.characters) {
+		langruntime.CheckedAdd(len(number), 1)
+		number = append(number, langruntime.CheckedChar(digits.characters[copied]))
+		copied = langruntime.CheckedAdd(copied, 1)
+	}
+	digitsBefore := int(int32(len(digits.characters)))
+	if format.post > 0 {
+		langruntime.CheckedAdd(len(number), 1)
+		number = append(number, langruntime.CheckedChar('.'))
+		count := 0
+		for count < format.post {
+			langruntime.CheckedAdd(len(number), 1)
+			number = append(number, langruntime.CheckedChar('0'))
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+		}
+	}
+	sign := '+'
+	if negative {
+		sign = langruntime.CheckedChar('-')
+	}
+	outPreSpaces := 0
+	if digitsBefore < pre {
+		outPreSpaces = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(pre, digitsBefore))
+	} else if digitsBefore > pre {
+		overflow := numberDigits{characters: numberFormatOverflow(pre, format.post)}
+		return numberFormatProcess(format, pre, format.post, &overflow, 0, sign)
+	}
+	rendered := numberDigits{characters: number}
+	return numberFormatProcess(format, pre, format.post, &rendered, outPreSpaces, sign)
+}
+func numberFormatPrepare(template string, numericC bool, monetaryC bool) numberFormat {
+	template = langruntime.CheckedString(template)
+	format := numberFormatParse(template)
+	if format.error != 0 {
+		return format
+	}
+	error := 0
+	if (format.numericLocale && numericC == false) || (format.monetaryLocale && monetaryC == false) {
+		error = langruntime.CheckedIndex(1)
+	}
+	return numberFormat{error: error, characters: format.characters, nodes: format.nodes, pre: format.pre, post: format.post, multi: format.multi, decimal: format.decimal, zero: format.zero, blank: format.blank, fillmode: format.fillmode, bracket: format.bracket, minus: format.minus, plus: format.plus, lsign: format.lsign, preLsignNum: format.preLsignNum, roman: format.roman, multiplied: format.multiplied, eeee: format.eeee, zeroStart: format.zeroStart, zeroEnd: format.zeroEnd, numericLocale: format.numericLocale, monetaryLocale: format.monetaryLocale}
+}
+func numberFormatTemplateState(format *numberFormat) checkruntime.TextValue {
+	if format.error == 1 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if format.error != 0 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(format.error)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}
+}
+func numberFormatDigits(value int64) []rune {
+	digits := []rune{}
+	if value == int64(0) {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, langruntime.CheckedChar('0'))
+		return digits
+	}
+	reversed := []rune{}
+	remaining := value
+	for remaining != int64(0) {
+		digit := langruntime.CheckedI64Remainder(remaining, int64(10))
+		if digit < int64(0) {
+			digit = langruntime.CheckedI64Subtract(int64(0), digit)
+		}
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd((int(int32(digit))), 48)), '0')))
+		remaining = langruntime.CheckedI64Divide(remaining, int64(10))
+	}
+	index := len(reversed)
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, langruntime.CheckedChar(reversed[index]))
+	}
+	return digits
+}
+func numberFormatPower(multi int) int64 {
+	multi = langruntime.CheckedI32(multi)
+	result := int64(1)
+	count := 0
+	for count < multi {
+		result = langruntime.CheckedI64Multiply(result, int64(10))
+		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+	}
+	return result
+}
+func numberFormatInt8(value int64, template string, numericC bool, monetaryC bool, wide bool) checkruntime.TextValue {
+	template = langruntime.CheckedString(template)
+	if template == "" {
+		return checkruntime.MakeTextValue("")
+	}
+	format := numberFormatPrepare(template, numericC, monetaryC)
+	state := numberFormatTemplateState(&format)
+	if state != (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return state
+	}
+	if format.roman {
+		roman := value
+		if value > int64(2147483647) || value < int64(-2147483648) {
+			roman = int64(2147483647)
+		}
+		number := numberDigits{characters: numberFormatRoman(int(int32(roman)))}
+		return numberFormatProcess(&format, format.pre, format.post, &number, 0, '\x00')
+	}
+	negative := value < int64(0)
+	if format.eeee {
+		digits := numberDigits{characters: numberFormatDigits(value)}
+		exponent := langruntime.CheckedSignedSubtract((int(int32(len(digits.characters)))), 1)
+		number := numberFormatScientific(&digits, exponent, negative, format.post, wide == false)
+		rendered := numberDigits{characters: number}
+		return numberFormatProcess(&format, format.pre, format.post, &rendered, 0, '+')
+	}
+	scaled := value
+	pre := format.pre
+	if format.multiplied {
+		if wide {
+			if format.multi >= 19 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(numberFormatRange)}
+			}
+			factor := numberFormatPower(format.multi)
+			if value != int64(0) && (value > langruntime.CheckedI64Divide(int64(9223372036854775807), factor) || value < langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(langruntime.CheckedI64Subtract(int64(0), int64(9223372036854775807)), int64(1))), factor)) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(numberFormatRange)}
+			}
+			scaled = langruntime.CheckedI64Multiply(value, factor)
+		} else {
+			if format.multi >= 10 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			factor := numberFormatPower(format.multi)
+			product := langruntime.CheckedI64Multiply(value, factor)
+			if product > int64(2147483647) || product < int64(-2147483648) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			scaled = product
+		}
+		pre = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, format.multi))
+	}
+	digits := numberDigits{characters: numberFormatDigits(scaled)}
+	return numberFormatInteger(&format, &digits, scaled < int64(0), pre)
+}
+func ToCharC1f5(input checkruntime.Int4Value, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			return numberFormatInt8(int64(langruntime.CheckedI32(value)), format, numericC, monetaryC, false)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ToCharOw74(input checkruntime.Int8Value, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			return numberFormatInt8(value, format, numericC, monetaryC, true)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.NumericValueError {
 		error := left.Error

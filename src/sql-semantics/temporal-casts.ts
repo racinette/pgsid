@@ -321,3 +321,26 @@ export function isTemporalDatePart(item: BuiltinCallable): boolean {
     item.result === 'pg_catalog.float8'
   )
 }
+
+// Number templates render with PostgreSQL's default symbols; D and G read LC_NUMERIC and S and L
+// read LC_MONETARY, so those keywords need the declared C locales.
+export function isNumberFormatting(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'to_char' &&
+    item.volatility === 's' &&
+    item.strict &&
+    !item.returnsSet &&
+    item.result === 'pg_catalog.text' &&
+    item.args.length === 2 &&
+    item.args[1] === 'pg_catalog.text' &&
+    [
+      'pg_catalog.int4',
+      'pg_catalog.int8',
+      'pg_catalog."numeric"',
+      'pg_catalog.float4',
+      'pg_catalog.float8',
+    ].includes(item.args[0]!)
+  )
+}

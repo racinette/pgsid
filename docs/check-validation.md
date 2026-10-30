@@ -58,6 +58,15 @@ profile, reached results stay uncertain; context-independent NULL results,
 domain and range errors, NaN and infinity cases, and skipped branches remain
 available.
 
+Number templates for `to_char` over int4 and int8 follow PostgreSQL 18.6's
+template grammar, including fill mode, zero padding, signs, `PR`, Roman numerals,
+ordinal suffixes, `V` and `EEEE`. Templates using `D` or `G` read LC_NUMERIC and
+need `numericLocale: C`; templates using `S` or `L` read LC_MONETARY and need
+`moneyLocale: C`. Other templates do not depend on the locale. Template syntax
+errors stay definite without either setting. int4 values scaled by `V` beyond
+the int32 range stay uncertain, because PostgreSQL 18.6 computes them with
+undefined C overflow.
+
 Interval output uses `intervalStyle: postgres`, `postgres_verbose`,
 `sql_standard` or `iso_8601`. The shared formatter preserves independent signs
 for month, day and time components across casts, containers and JSON. Missing

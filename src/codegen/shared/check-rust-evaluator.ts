@@ -38,6 +38,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
+  isNumberFormatting,
   isTemporalTemplateParsing,
   isTemporalInstantPeriod,
   isTemporalInstantAge,
@@ -840,6 +841,7 @@ export type CheckExecutionContext = {
   xmlBinary?: 'base64' | 'hex'
   timeLocale?: 'C'
   moneyLocale?: 'C'
+  numericLocale?: 'C'
   moneyFractionDigits?: number
   extraFloatDigits?: number
   xpathRecursionLimit?: number
@@ -3845,6 +3847,7 @@ export function emitCheckRustEvaluator(
           !isTemporalCurrentAge(implementation) &&
           !isTemporalIntervalFormatting(implementation) &&
           !isTemporalTimestampFormatting(implementation) &&
+          !isNumberFormatting(implementation) &&
           !isTemporalTemplateParsing(implementation) &&
           !isTemporalExplicitZoneLookup(implementation) &&
           !isTemporalSessionTruncation(implementation) &&
@@ -6369,6 +6372,11 @@ export function emitCheckRustEvaluator(
           ),
           String(executionContext.serverEncoding === 'UTF8'),
           String(executionContext.timeZoneAbbreviations === 'Default'),
+        )
+      if (isNumberFormatting(implementation))
+        arguments_.push(
+          String(executionContext.numericLocale === 'C'),
+          String(executionContext.moneyLocale === 'C'),
         )
       if (isTemporalTimestampFormatting(implementation)) {
         if (implementation.args[0] === 'pg_catalog.timestamptz')

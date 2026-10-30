@@ -18,6 +18,7 @@ import {
   isTemporalInstantConstructor,
   isTemporalIntervalFormatting,
   isTemporalTimestampFormatting,
+  isNumberFormatting,
   isTemporalTemplateParsing,
   isTemporalInstantPeriod,
   isTemporalCurrentAge,
@@ -137,6 +138,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
           isTemporalCurrentAge(implementation) ||
           isTemporalIntervalFormatting(implementation) ||
           isTemporalTimestampFormatting(implementation) ||
+          isNumberFormatting(implementation) ||
           isTemporalTemplateParsing(implementation) ||
           isTemporalContextArithmetic(implementation) ||
           isTemporalExplicitZoneLookup(implementation) ||
