@@ -482,6 +482,27 @@ const safeFloatEncoding = (node: Extract<EvalExpression, { kind: 'call' }>): boo
   )
 }
 
+// Stored expressions spell constants as typed text, so an explicit-cast flag arrives either as a
+// boolean or as text that boolin reads as true: surrounding ASCII whitespace, then any case of a
+// prefix of true or yes, on, or 1.
+const booleanTrueText = new Set(['t', 'tr', 'tru', 'true', 'y', 'ye', 'yes', 'on', '1'])
+function literalTrue(node: EvalExpression | undefined): boolean {
+  if (node?.kind === 'certain')
+    return node.expression.kind === 'boolean' && node.expression.value === true
+  if (
+    node?.kind !== 'text-to-boolean' ||
+    node.literal !== true ||
+    node.operand.kind !== 'certain' ||
+    node.operand.expression.kind !== 'text' ||
+    typeof node.operand.expression.value !== 'string'
+  )
+    return false
+  const text = node.operand.expression.value
+    .replace(/^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/gu, '')
+    .replace(/[A-Z]/gu, (letter) => letter.toLowerCase())
+  return booleanTrueText.has(text)
+}
+
 export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityContext = {}): boolean {
   switch (node.kind) {
     case 'xml-constructor':
@@ -566,9 +587,7 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
           callable.name === 'varchar' &&
           callable.args.join(',') === 'pg_catalog."varchar",pg_catalog.int4,pg_catalog.bool' &&
           callable.result === 'pg_catalog."varchar"' &&
-          explicit?.kind === 'certain' &&
-          explicit.expression.kind === 'boolean' &&
-          explicit.expression.value === true
+          literalTrue(explicit)
         )
           return false
       }
