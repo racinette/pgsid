@@ -21133,9 +21133,13 @@ export function prepareJsonPopulate(base: checkruntime.CompositeValue, input: ch
             if (input.kind === "Jsonb") {
                 binary = langruntime.checkedBool(true);
             }
-            if (input.kind === "JsonbNonNull") {
+            const partialSource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input);
+            if (partialSource.kind === "JsonbNonNull") {
+                const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(partialSource.value);
                 binary = langruntime.checkedBool(true);
-                partial = langruntime.checkedBool(true);
+                if (checkruntime.jsonbHasShape(facts) === false) {
+                    partial = langruntime.checkedBool(true);
+                }
             }
             if (binary) {
                 const kind: number = jsonPopulateKind(checkruntime.copyJsonbInput(input));
@@ -21183,6 +21187,14 @@ export function jsonPopulateSelect(input: JsonPopulateState, name: string): Json
             const text: string = langruntime.checkedString(selected.value);
             const value1: checkruntime.JsonValue = checkruntime.makeJsonValue(text);
             current = checkruntime.copyJsonbInput(checkruntime.jsonbInputFromJson(value1));
+        }
+    }
+    const shapedSource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input.input);
+    if (shapedSource.kind === "JsonbNonNull") {
+        const facts: checkruntime.JsonbKnowledge = checkruntime.copyJsonbKnowledge(shapedSource.value);
+        if (checkruntime.jsonbHasShape(facts)) {
+            const selected: checkruntime.JsonbValue = jsonbObjectField4uf3({ kind: "NonNull", value: facts }, key);
+            current = checkruntime.copyJsonbInput(checkruntime.jsonbInputFromJsonb(selected));
         }
     }
     const binarySource: checkruntime.JsonbInput = checkruntime.copyJsonbInput(input.input);

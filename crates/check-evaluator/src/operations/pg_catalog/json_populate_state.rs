@@ -69,9 +69,14 @@ pub(crate) fn prepare_json_populate(
             if let JsonbInput::Jsonb(_) = input {
                 binary = true;
             };
-            if let JsonbInput::JsonbNonNull(_) = input {
+            // A shape knows every key, so only unshaped partial values hide which fields
+            // the input supplies.
+            let partial_source = input.clone();
+            if let JsonbInput::JsonbNonNull(facts) = partial_source {
                 binary = true;
-                partial = true;
+                if jsonb_has_shape(&facts) == false {
+                    partial = true;
+                };
             };
             if binary {
                 let kind = json_populate_kind(input.clone());
@@ -130,6 +135,14 @@ pub(crate) fn json_populate_select(input: JsonPopulateState, name: &str) -> Json
         if let TextValue::Value(text) = selected {
             let value = make_json_value(text.as_str());
             current = jsonb_input_from_json(value);
+        };
+    };
+    let shaped_source = input.input.clone();
+    if let JsonbInput::JsonbNonNull(facts) = shaped_source {
+        if jsonb_has_shape(&facts) {
+            let selected =
+                sql__pg_catalog__jsonb_object_field__4uf3(JsonbValue::NonNull(facts), key.clone());
+            current = jsonb_input_from_jsonb(selected);
         };
     };
     let binary_source = input.input.clone();

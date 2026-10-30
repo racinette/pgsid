@@ -329,6 +329,37 @@ const profiles: { name: string; sql: string; partial: Outcome['kind']; error?: s
     sql: "jsonb_build_object('a',n) <= jsonb_build_object('b',b)",
     partial: 'True',
   },
+  {
+    name: 'populate_missing',
+    sql: "(jsonb_populate_record(NULL::shape_pair,jsonb_build_object('a',1,'n',n))).b IS NULL",
+    partial: 'True',
+  },
+  {
+    name: 'populate_exact',
+    sql: "(jsonb_populate_record(NULL::shape_pair,jsonb_build_object('a',1,'n',n))).a = 1",
+    partial: 'True',
+  },
+  {
+    name: 'populate_base',
+    sql: "(jsonb_populate_record(ROW(5,6)::shape_pair,jsonb_build_object('a',1,'n',n))).b = 6",
+    partial: 'True',
+  },
+  {
+    name: 'populate_json_null',
+    sql: "(jsonb_populate_record(ROW(5,6)::shape_pair,jsonb_build_object('b',NULL::int,'n',n))).b IS NULL",
+    partial: 'True',
+  },
+  {
+    name: 'populate_error',
+    sql: "(jsonb_populate_record(NULL::shape_pair,jsonb_build_object('a','x','n',n))).a IS NULL",
+    partial: 'Error',
+    error: '22P02',
+  },
+  {
+    name: 'populate_depends',
+    sql: "(jsonb_populate_record(NULL::shape_pair,jsonb_build_object('a',n))).a IS NULL",
+    partial: 'Unknown',
+  },
 ]
 const value = (value: number | boolean): Input => ({ kind: 'Value', value })
 const unknown: Input = { kind: 'Unknown' }
@@ -343,6 +374,7 @@ it('decides JSONB keys, positions and possible kinds around unknown builder valu
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-shapes-'))
   try {
     const checked = (sql: string) => `CASE WHEN bypass THEN true ELSE (${sql}) END`
+    await pg.exec('CREATE TYPE shape_pair AS (a int, b int)')
     await pg.exec(
       `CREATE TABLE jsonb_shapes(n int,b bool,bypass bool,${profiles.map((p) => `CONSTRAINT "${p.name}" CHECK(${checked(p.sql)})`).join(',')})`,
     )

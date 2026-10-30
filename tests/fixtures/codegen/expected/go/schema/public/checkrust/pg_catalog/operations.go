@@ -20881,9 +20881,13 @@ func PrepareJsonPopulate(base checkruntime.CompositeValue, input checkruntime.Js
 			if input.Kind == checkruntime.JsonbInputJsonb {
 				binary = true
 			}
-			if input.Kind == checkruntime.JsonbInputJsonbNonNull {
+			partialSource := checkruntime.CopyJsonbInput(input)
+			if partialSource.Kind == checkruntime.JsonbInputJsonbNonNull {
+				facts := checkruntime.CopyJsonbKnowledge(partialSource.JsonbNonNull)
 				binary = true
-				partial = true
+				if checkruntime.JsonbHasShape(&facts) == false {
+					partial = true
+				}
 			}
 			if binary {
 				kind := JsonPopulateKind(checkruntime.CopyJsonbInput(input))
@@ -20930,6 +20934,14 @@ func JsonPopulateSelect(input JsonPopulateState, name string) JsonPopulateState 
 			text := langruntime.CheckedString(selected.Value)
 			value := checkruntime.MakeJsonValue(text)
 			current = checkruntime.CopyJsonbInput(checkruntime.JsonbInputFromJson(value))
+		}
+	}
+	shapedSource := checkruntime.CopyJsonbInput(input.Input)
+	if shapedSource.Kind == checkruntime.JsonbInputJsonbNonNull {
+		facts := checkruntime.CopyJsonbKnowledge(shapedSource.JsonbNonNull)
+		if checkruntime.JsonbHasShape(&facts) {
+			selected := JsonbObjectField4uf3(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNonNull, NonNull: facts}, key)
+			current = checkruntime.CopyJsonbInput(checkruntime.JsonbInputFromJsonb(selected))
 		}
 	}
 	binarySource := checkruntime.CopyJsonbInput(input.Input)
