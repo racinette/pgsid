@@ -1138,8 +1138,13 @@ fn number_format_decimal(text: &str) -> NumberDecimal {
 }
 
 // numeric_round to scale digits (halves away from zero) followed by numeric_out, which prints no
-// sign for a zero result.
-fn number_format_decimal_round(value: &NumberDecimal, scale: i32) -> NumberDecimal {
+// sign for a zero result; with ties_even it is printf's %.*f on an exact binary value instead,
+// which keeps the sign of a negative value that rounds to zero.
+fn number_format_decimal_round(
+    value: &NumberDecimal,
+    scale: i32,
+    ties_even: bool,
+) -> NumberDecimal {
     let mut digits: Vec<char> = Vec::new();
     let mut index: usize = 0;
     while index < value.whole.len() {
@@ -1160,6 +1165,27 @@ fn number_format_decimal_round(value: &NumberDecimal, scale: i32) -> NumberDecim
     let mut up = false;
     if index < value.fraction.len() {
         up = (value.fraction[index] as i32) >= 53;
+        if ties_even && value.fraction[index] == '5' {
+            let mut later = index + 1;
+            let mut beyond = false;
+            while later < value.fraction.len() {
+                if value.fraction[later] != '0' {
+                    beyond = true;
+                };
+                later += 1;
+            }
+            if beyond == false {
+                let mut previous = '0';
+                if digits.len() > 0 {
+                    previous = digits[digits.len() - 1];
+                };
+                up = previous == '1'
+                    || previous == '3'
+                    || previous == '5'
+                    || previous == '7'
+                    || previous == '9';
+            };
+        };
     };
     let mut overflow = false;
     if up {
@@ -1206,7 +1232,7 @@ fn number_format_decimal_round(value: &NumberDecimal, scale: i32) -> NumberDecim
     }
     NumberDecimal {
         special: 0,
-        negative: value.negative && zero == false,
+        negative: value.negative && (zero == false || ties_even),
         whole: whole,
         fraction: fraction,
     }
@@ -1264,7 +1290,7 @@ fn number_format_numeric(
         // overflow become PG_INT32_MAX, which prints as the overflow marker.
         let mut roman: i64 = 2147483647i64;
         if value.special == 0 {
-            let rounded = number_format_decimal_round(&value, 0);
+            let rounded = number_format_decimal_round(&value, 0, false);
             if rounded.whole.len() <= 10 {
                 let mut magnitude: i64 = 0i64;
                 let mut index: usize = 0;
@@ -1333,7 +1359,7 @@ fn number_format_numeric(
         pre = pre + format.multi;
     };
     let scaled = number_format_decimal_shift(&value, places);
-    let rounded = number_format_decimal_round(&scaled, format.post);
+    let rounded = number_format_decimal_round(&scaled, format.post, false);
     let mut characters: Vec<char> = Vec::new();
     let mut sign = '+';
     let mut whole_length: i32 = 0;
@@ -1408,6 +1434,336 @@ pub fn sql__pg_catalog__to_char__hftr(
     if let NumericValue::Value(text) = input {
         if let TextValue::Value(format) = template {
             return number_format_numeric(text.as_str(), format.as_str(), numeric_c, monetary_c);
+        };
+    };
+    TextValue::Unknown
+}
+
+// The exact decimal expansion of a float magnitude, from the same decomposition float_output
+// uses; the caller handles NaN and infinities.
+fn number_format_float_decimal(magnitude: i64, single: bool) -> NumberDecimal {
+    let mut unit = 4503599627370496i64;
+    let mut bias: i32 = 1023;
+    let mut width: i32 = 52;
+    if single {
+        unit = 8388608i64;
+        bias = 127;
+        width = 23;
+    };
+    let mut whole: Vec<char> = Vec::new();
+    let mut fraction: Vec<char> = Vec::new();
+    if magnitude == 0i64 {
+        whole.push('0');
+        return NumberDecimal {
+            special: 0,
+            negative: false,
+            whole: whole,
+            fraction: fraction,
+        };
+    };
+    let exponent = (magnitude / unit) as i32;
+    let mantissa = magnitude % unit;
+    let mut coefficient = mantissa;
+    let mut power = 1 - bias - width;
+    if exponent > 0 {
+        coefficient = coefficient + unit;
+        power = exponent - bias - width;
+    };
+    let exact = float_output_dyadic(coefficient, power);
+    let digits: Vec<char> = exact.digits.chars().collect();
+    let weight = exact.weight;
+    if weight < 0 {
+        whole.push('0');
+        let mut zeros: i32 = weight + 1;
+        while zeros < 0 {
+            fraction.push('0');
+            zeros = zeros + 1;
+        }
+        let mut index: usize = 0;
+        while index < digits.len() {
+            fraction.push(digits[index]);
+            index += 1;
+        }
+    } else {
+        let mut position: i32 = 0;
+        let mut index: usize = 0;
+        while position <= weight {
+            if index < digits.len() {
+                whole.push(digits[index]);
+            } else {
+                whole.push('0');
+            };
+            index += 1;
+            position = position + 1;
+        }
+        while index < digits.len() {
+            fraction.push(digits[index]);
+            index += 1;
+        }
+    };
+    NumberDecimal {
+        special: 0,
+        negative: false,
+        whole: whole,
+        fraction: fraction,
+    }
+}
+
+fn number_format_float_field(format: &NumberFormat) -> TextValue {
+    let mut field: Vec<char> = Vec::new();
+    let mut count: i32 = 0;
+    while count < format.pre + format.post + 6 {
+        if count == 0 {
+            field.push(' ');
+        } else if count == format.pre + 1 {
+            field.push('.');
+        } else {
+            field.push('#');
+        };
+        count = count + 1;
+    }
+    let number = NumberDigits { characters: field };
+    number_format_process(format, format.pre, format.post, &number, 0, '+')
+}
+
+// float4_to_char and float8_to_char. bits holds the float's IEEE pattern (float4 widened with
+// its sign). PostgreSQL prints with its own snprintf, which spells NaN and the infinities itself
+// and otherwise rounds the exact binary value to nearest with ties to even.
+fn number_format_float(
+    bits: i64,
+    single: bool,
+    template: &str,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> TextValue {
+    if template == "" {
+        return make_text_value("");
+    };
+    let format = number_format_prepare(template, numeric_c, monetary_c);
+    let state = number_format_template_state(&format);
+    if state != TextValue::NonNull {
+        return state;
+    };
+    let mut value = float8_number(bits);
+    if single {
+        value = float4_number(bits as i32);
+    };
+    let nan = value != value;
+    let infinite = nan == false && (value - value) != 0.0f64;
+    if format.roman {
+        let mut roman: i32 = 2147483647;
+        if nan == false {
+            let rounded = float8_rounded(make_float8_value(value), 3);
+            if let Float8Value::Value(rounded_bits) = rounded {
+                let whole = float8_number(rounded_bits);
+                if whole >= -2147483648.0f64 && whole < 2147483648.0f64 {
+                    roman = whole as i32;
+                };
+            };
+        };
+        let number = NumberDigits {
+            characters: number_format_roman(roman),
+        };
+        return number_format_process(&format, format.pre, format.post, &number, 0, '\0');
+    };
+    let mut digits_limit: i32 = 15;
+    if single {
+        digits_limit = 6;
+    };
+    if format.eeee {
+        if nan || infinite {
+            return number_format_float_field(&format);
+        };
+        let negative = bits < 0i64;
+        let mut magnitude = bits;
+        if negative {
+            magnitude = bits - (0i64 - 9223372036854775807i64 - 1i64);
+            if single {
+                magnitude = bits + 2147483648i64;
+            };
+        };
+        let exact = number_format_float_decimal(magnitude, single);
+        let mut collected: Vec<char> = Vec::new();
+        let mut index: usize = 0;
+        while index < exact.whole.len() {
+            collected.push(exact.whole[index]);
+            index += 1;
+        }
+        index = 0;
+        while index < exact.fraction.len() {
+            collected.push(exact.fraction[index]);
+            index += 1;
+        }
+        let source = NumberDigits {
+            characters: collected,
+        };
+        let number = NumberDigits {
+            characters: number_format_scientific(
+                &source,
+                (exact.whole.len() as i32) - 1,
+                negative,
+                format.post,
+                true,
+            ),
+        };
+        return number_format_process(&format, format.pre, format.post, &number, 0, '+');
+    };
+    let mut pre = format.pre;
+    let mut scaled = value;
+    if format.multiplied {
+        // pow(10, multi) is exact only through 10^22; float4 rounds it and the product to
+        // single precision, as its float arithmetic does.
+        if format.multi > 22 {
+            return TextValue::Unknown;
+        };
+        let mut factor = 1.0f64;
+        let mut count: i32 = 0;
+        while count < format.multi {
+            factor = factor * 10.0f64;
+            count = count + 1;
+        }
+        if single {
+            let narrow = float4_number((factor as f32).to_bits() as i32);
+            let product = value * narrow;
+            scaled = float4_number((product as f32).to_bits() as i32);
+        } else {
+            scaled = value * factor;
+        };
+        pre = pre + format.multi;
+    };
+    let mut post = format.post;
+    let scaled_bits = scaled.to_bits() as i64;
+    let negative = scaled_bits < 0i64 && scaled == scaled;
+    let mut sign = '+';
+    if negative {
+        sign = '-';
+    };
+    let mut characters: Vec<char> = Vec::new();
+    let mut whole_length: i32 = 0;
+    if scaled != scaled || (scaled - scaled) != 0.0f64 {
+        let mut choice: usize = 0;
+        if scaled == scaled {
+            choice = 1;
+        };
+        let spelled_text = NUMBER_SPECIAL_SPELLINGS[choice];
+        let spelled: Vec<char> = spelled_text.chars().collect();
+        whole_length = spelled.len() as i32;
+        if whole_length >= digits_limit {
+            post = 0;
+        } else if whole_length + post > digits_limit {
+            post = digits_limit - whole_length;
+        };
+        let mut index: usize = 0;
+        while index < spelled.len() {
+            characters.push(spelled[index]);
+            index += 1;
+        }
+    } else {
+        let mut magnitude = scaled_bits;
+        if scaled_bits < 0i64 {
+            magnitude = scaled_bits - (0i64 - 9223372036854775807i64 - 1i64);
+        };
+        let exact = number_format_float_decimal(magnitude, false);
+        let integral = number_format_decimal_round(&exact, 0, true);
+        let integral_length = integral.whole.len() as i32;
+        if integral_length >= digits_limit {
+            post = 0;
+        } else if integral_length + post > digits_limit {
+            post = digits_limit - integral_length;
+        };
+        let rounded = number_format_decimal_round(&exact, post, true);
+        let mut index: usize = 0;
+        while index < rounded.whole.len() {
+            characters.push(rounded.whole[index]);
+            index += 1;
+        }
+        whole_length = rounded.whole.len() as i32;
+        if rounded.fraction.len() > 0 {
+            characters.push('.');
+            index = 0;
+            while index < rounded.fraction.len() {
+                characters.push(rounded.fraction[index]);
+                index += 1;
+            }
+        };
+    };
+    if whole_length > pre {
+        let overflow = NumberDigits {
+            characters: number_format_overflow(pre, post),
+        };
+        return number_format_process(&format, pre, post, &overflow, 0, sign);
+    };
+    let number = NumberDigits {
+        characters: characters,
+    };
+    number_format_process(&format, pre, post, &number, pre - whole_length, sign)
+}
+
+pub fn sql__pg_catalog__to_char__b68b(
+    input: Float8Value,
+    template: TextValue,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> TextValue {
+    if let Float8Value::Error(error) = input {
+        return TextValue::Error(error);
+    };
+    if let TextValue::Error(error) = template {
+        return TextValue::Error(error);
+    };
+    if input == Float8Value::Unknown
+        || template == TextValue::Unknown
+        || template == TextValue::NonNull
+    {
+        return TextValue::Unknown;
+    };
+    if input == Float8Value::Null || template == TextValue::Null {
+        return TextValue::Null;
+    };
+    let known = float8_semantic(input);
+    if let Float8Value::Value(bits) = known {
+        if let TextValue::Value(format) = template {
+            return number_format_float(bits, false, format.as_str(), numeric_c, monetary_c);
+        };
+    };
+    TextValue::Unknown
+}
+
+pub fn sql__pg_catalog__to_char__1rcw(
+    input: Float4Value,
+    template: TextValue,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> TextValue {
+    if let Float4Value::Error(error) = input {
+        return TextValue::Error(error);
+    };
+    if let TextValue::Error(error) = template {
+        return TextValue::Error(error);
+    };
+    if input == Float4Value::Unknown
+        || template == TextValue::Unknown
+        || template == TextValue::NonNull
+    {
+        return TextValue::Unknown;
+    };
+    if input == Float4Value::Null || template == TextValue::Null {
+        return TextValue::Null;
+    };
+    if input == Float4Value::UnspecifiedNan {
+        if let TextValue::Value(format) = template {
+            return number_format_float(
+                2143289344i64,
+                true,
+                format.as_str(),
+                numeric_c,
+                monetary_c,
+            );
+        };
+    };
+    if let Float4Value::Value(bits) = input {
+        if let TextValue::Value(format) = template {
+            return number_format_float(bits as i64, true, format.as_str(), numeric_c, monetary_c);
         };
     };
     TextValue::Unknown
