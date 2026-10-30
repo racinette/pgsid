@@ -58,7 +58,7 @@ profile, reached results stay uncertain; context-independent NULL results,
 domain and range errors, NaN and infinity cases, and skipped branches remain
 available.
 
-Number templates for `to_char` over int4 and int8 follow PostgreSQL 18.6's
+Number templates for `to_char` over int4, int8 and numeric follow PostgreSQL 18.6's
 template grammar, including fill mode, zero padding, signs, `PR`, Roman numerals,
 ordinal suffixes, `V` and `EEEE`. Templates using `D` or `G` read LC_NUMERIC and
 need `numericLocale: C`; templates using `S` or `L` read LC_MONETARY and need

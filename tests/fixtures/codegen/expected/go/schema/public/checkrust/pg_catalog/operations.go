@@ -35561,7 +35561,15 @@ func numberFormatProcess(format *numberFormat, pre int, post int, number *number
 			output = append(output, string(langruntime.CheckedChar(sign))...)
 		}
 	}
-	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	finished := string(output)
+	written := []rune(finished)
+	text := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(written) && written[index] != '\x00' {
+		text = append(text, string(langruntime.CheckedChar(written[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
 }
 func numberFormatScientific(digits *numberDigits, exponent int, negative bool, post int, tiesEven bool) []rune {
 	exponent = langruntime.CheckedI32(exponent)
@@ -35870,6 +35878,310 @@ func ToCharOw74(input checkruntime.Int8Value, template checkruntime.TextValue, n
 		if template.Kind == checkruntime.TextValueValue {
 			format := langruntime.CheckedString(template.Value)
 			return numberFormatInt8(value, format, numericC, monetaryC, true)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+var numberSpecialSpellings = []string{"NaN", "Infinity"}
+
+type numberDecimal struct {
+	special  int
+	negative bool
+	whole    []rune
+	fraction []rune
+}
+
+func copynumberDecimal(value numberDecimal) numberDecimal {
+	return numberDecimal{special: langruntime.CheckedI32(value.special), negative: value.negative, whole: langruntime.CheckedChars(value.whole), fraction: langruntime.CheckedChars(value.fraction)}
+}
+func numberFormatDecimal(text string) numberDecimal {
+	text = langruntime.CheckedString(text)
+	characters := []rune(text)
+	whole := []rune{}
+	fraction := []rune{}
+	special := 0
+	if text == "NaN" {
+		special = langruntime.CheckedI32(1)
+	} else if text == "Infinity" {
+		special = langruntime.CheckedI32(2)
+	} else if text == "-Infinity" {
+		special = langruntime.CheckedI32(3)
+	}
+	negative := false
+	point := false
+	index := 0
+	for special == 0 && index < len(characters) {
+		current := characters[index]
+		if current == '-' {
+			negative = true
+		} else if current == '.' {
+			point = true
+		} else if point {
+			langruntime.CheckedAdd(len(fraction), 1)
+			fraction = append(fraction, langruntime.CheckedChar(current))
+		} else {
+			langruntime.CheckedAdd(len(whole), 1)
+			whole = append(whole, langruntime.CheckedChar(current))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numberDecimal{special: special, negative: negative, whole: whole, fraction: fraction}
+}
+func numberFormatDecimalRound(value *numberDecimal, scale int) numberDecimal {
+	scale = langruntime.CheckedI32(scale)
+	digits := []rune{}
+	index := 0
+	for index < len(value.whole) {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, langruntime.CheckedChar(value.whole[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	kept := 0
+	index = langruntime.CheckedIndex(0)
+	for kept < scale {
+		if index < len(value.fraction) {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedChar(value.fraction[index]))
+		} else {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedChar('0'))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		kept = langruntime.CheckedI32(langruntime.CheckedSignedAdd(kept, 1))
+	}
+	up := false
+	if index < len(value.fraction) {
+		up = (int(langruntime.CheckedChar(value.fraction[index]))) >= 53
+	}
+	overflow := false
+	if up {
+		carry := true
+		slot := len(digits)
+		for carry && slot > 0 {
+			slot = langruntime.CheckedIndex(langruntime.CheckedSubtract(slot, 1))
+			digit := digits[slot]
+			if digit == '9' {
+				digits[slot] = langruntime.CheckedChar('0')
+			} else {
+				digits[slot] = langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd((int(langruntime.CheckedChar(digit))), 1)), '0'))
+				carry = false
+			}
+		}
+		overflow = carry
+	}
+	wide := langruntime.CheckedSignedSubtract((int(int32(len(digits)))), scale)
+	whole := []rune{}
+	if overflow {
+		langruntime.CheckedAdd(len(whole), 1)
+		whole = append(whole, langruntime.CheckedChar('1'))
+	}
+	position := 0
+	slot := 0
+	for position < wide {
+		digit := digits[slot]
+		if len(whole) > 0 || digit != '0' {
+			langruntime.CheckedAdd(len(whole), 1)
+			whole = append(whole, langruntime.CheckedChar(digit))
+		}
+		slot = langruntime.CheckedAdd(slot, 1)
+		position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+	}
+	if len(whole) == 0 {
+		langruntime.CheckedAdd(len(whole), 1)
+		whole = append(whole, langruntime.CheckedChar('0'))
+	}
+	fraction := []rune{}
+	zero := len(whole) == 1 && whole[0] == '0'
+	for slot < len(digits) {
+		if digits[slot] != '0' {
+			zero = false
+		}
+		langruntime.CheckedAdd(len(fraction), 1)
+		fraction = append(fraction, langruntime.CheckedChar(digits[slot]))
+		slot = langruntime.CheckedAdd(slot, 1)
+	}
+	return numberDecimal{special: 0, negative: value.negative && zero == false, whole: whole, fraction: fraction}
+}
+func numberFormatDecimalShift(value *numberDecimal, places int) numberDecimal {
+	places = langruntime.CheckedI32(places)
+	whole := []rune{}
+	index := 0
+	for index < len(value.whole) {
+		langruntime.CheckedAdd(len(whole), 1)
+		whole = append(whole, langruntime.CheckedChar(value.whole[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	moved := 0
+	index = langruntime.CheckedIndex(0)
+	for moved < places {
+		if index < len(value.fraction) {
+			langruntime.CheckedAdd(len(whole), 1)
+			whole = append(whole, langruntime.CheckedChar(value.fraction[index]))
+		} else {
+			langruntime.CheckedAdd(len(whole), 1)
+			whole = append(whole, langruntime.CheckedChar('0'))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		moved = langruntime.CheckedI32(langruntime.CheckedSignedAdd(moved, 1))
+	}
+	fraction := []rune{}
+	for index < len(value.fraction) {
+		langruntime.CheckedAdd(len(fraction), 1)
+		fraction = append(fraction, langruntime.CheckedChar(value.fraction[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return numberDecimal{special: value.special, negative: value.negative, whole: whole, fraction: fraction}
+}
+func numberFormatNumeric(text string, template string, numericC bool, monetaryC bool) checkruntime.TextValue {
+	text = langruntime.CheckedString(text)
+	template = langruntime.CheckedString(template)
+	if template == "" {
+		return checkruntime.MakeTextValue("")
+	}
+	format := numberFormatPrepare(template, numericC, monetaryC)
+	state := numberFormatTemplateState(&format)
+	if state != (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return state
+	}
+	value := numberFormatDecimal(text)
+	if format.roman {
+		roman := int64(2147483647)
+		if value.special == 0 {
+			rounded := numberFormatDecimalRound(&value, 0)
+			if len(rounded.whole) <= 10 {
+				magnitude := int64(0)
+				index := 0
+				for index < len(rounded.whole) {
+					magnitude = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(magnitude, int64(10)), int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract((int(langruntime.CheckedChar(rounded.whole[index]))), 48)))))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if rounded.negative {
+					magnitude = langruntime.CheckedI64Subtract(int64(0), magnitude)
+				}
+				if magnitude <= int64(2147483647) && magnitude >= int64(-2147483648) {
+					roman = magnitude
+				}
+			}
+		}
+		number := numberDigits{characters: numberFormatRoman(int(int32(roman)))}
+		return numberFormatProcess(&format, format.pre, format.post, &number, 0, '\x00')
+	}
+	if format.eeee {
+		if value.special != 0 {
+			field := []rune{}
+			count := 0
+			for count < langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(format.pre, format.post), 6) {
+				if count == 0 {
+					langruntime.CheckedAdd(len(field), 1)
+					field = append(field, langruntime.CheckedChar(' '))
+				} else if count == langruntime.CheckedSignedAdd(format.pre, 1) {
+					langruntime.CheckedAdd(len(field), 1)
+					field = append(field, langruntime.CheckedChar('.'))
+				} else {
+					langruntime.CheckedAdd(len(field), 1)
+					field = append(field, langruntime.CheckedChar('#'))
+				}
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			}
+			number := numberDigits{characters: field}
+			return numberFormatProcess(&format, format.pre, format.post, &number, 0, '+')
+		}
+		digits := []rune{}
+		index := 0
+		for index < len(value.whole) {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedChar(value.whole[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		index = langruntime.CheckedIndex(0)
+		for index < len(value.fraction) {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedChar(value.fraction[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		exponent := langruntime.CheckedSignedSubtract((int(int32(len(value.whole)))), 1)
+		source := numberDigits{characters: digits}
+		number := numberDigits{characters: numberFormatScientific(&source, exponent, value.negative, format.post, false)}
+		return numberFormatProcess(&format, format.pre, format.post, &number, 0, '+')
+	}
+	pre := format.pre
+	places := 0
+	if format.multiplied {
+		places = langruntime.CheckedI32(format.multi)
+		pre = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pre, format.multi))
+	}
+	scaled := numberFormatDecimalShift(&value, places)
+	rounded := numberFormatDecimalRound(&scaled, format.post)
+	characters := []rune{}
+	sign := '+'
+	wholeLength := 0
+	if value.special != 0 {
+		choice := 0
+		if value.special > 1 {
+			choice = langruntime.CheckedIndex(1)
+		}
+		if value.special == 3 {
+			sign = langruntime.CheckedChar('-')
+		}
+		spelledText := numberSpecialSpellings[choice]
+		spelled := []rune(spelledText)
+		index := 0
+		for index < len(spelled) {
+			langruntime.CheckedAdd(len(characters), 1)
+			characters = append(characters, langruntime.CheckedChar(spelled[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		wholeLength = langruntime.CheckedI32(int(int32(len(spelled))))
+	} else {
+		if rounded.negative {
+			sign = langruntime.CheckedChar('-')
+		}
+		index := 0
+		for index < len(rounded.whole) {
+			langruntime.CheckedAdd(len(characters), 1)
+			characters = append(characters, langruntime.CheckedChar(rounded.whole[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		wholeLength = langruntime.CheckedI32(int(int32(len(rounded.whole))))
+		if len(rounded.fraction) > 0 {
+			langruntime.CheckedAdd(len(characters), 1)
+			characters = append(characters, langruntime.CheckedChar('.'))
+			index = langruntime.CheckedIndex(0)
+			for index < len(rounded.fraction) {
+				langruntime.CheckedAdd(len(characters), 1)
+				characters = append(characters, langruntime.CheckedChar(rounded.fraction[index]))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+	}
+	if wholeLength > pre {
+		overflow := numberDigits{characters: numberFormatOverflow(pre, format.post)}
+		return numberFormatProcess(&format, pre, format.post, &overflow, 0, sign)
+	}
+	number := numberDigits{characters: characters}
+	return numberFormatProcess(&format, pre, format.post, &number, langruntime.CheckedSignedSubtract(pre, wholeLength), sign)
+}
+func ToCharHftr(input checkruntime.NumericValue, template checkruntime.TextValue, numericC bool, monetaryC bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if template.Kind == checkruntime.TextValueError {
+		error := template.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNonNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || template == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if template.Kind == checkruntime.TextValueValue {
+			format := langruntime.CheckedString(template.Value)
+			return numberFormatNumeric(text, format, numericC, monetaryC)
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}

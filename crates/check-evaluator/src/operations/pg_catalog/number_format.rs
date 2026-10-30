@@ -701,7 +701,17 @@ fn number_format_process(
             output.push(sign);
         };
     }
-    TextValue::Value(output)
+    // A digit position past the end of the number writes the C string terminator, and the text
+    // ends there when PostgreSQL measures it.
+    let finished = output;
+    let written: Vec<char> = finished.chars().collect();
+    let mut text = String::new();
+    let mut index: usize = 0;
+    while index < written.len() && written[index] != '\0' {
+        text.push(written[index]);
+        index += 1;
+    }
+    TextValue::Value(text)
 }
 
 // Rounds a decimal digit string with an implied exponent to scientific notation with post
@@ -1073,6 +1083,331 @@ pub fn sql__pg_catalog__to_char__ow74(
     if let Int8Value::Value(value) = input {
         if let TextValue::Value(format) = template {
             return number_format_int8(value, format.as_str(), numeric_c, monetary_c, true);
+        };
+    };
+    TextValue::Unknown
+}
+
+// numeric_out's spellings of NaN and infinity (the sign is separate).
+const NUMBER_SPECIAL_SPELLINGS: &[&str] = &["NaN", "Infinity"];
+
+// A numeric value's sign and digits as numeric_out prints them; special is 1 for NaN and 2 or 3
+// for positive or negative infinity.
+#[derive(Clone)]
+struct NumberDecimal {
+    special: i32,
+    negative: bool,
+    whole: Vec<char>,
+    fraction: Vec<char>,
+}
+
+fn number_format_decimal(text: &str) -> NumberDecimal {
+    let characters: Vec<char> = text.chars().collect();
+    let mut whole: Vec<char> = Vec::new();
+    let mut fraction: Vec<char> = Vec::new();
+    let mut special: i32 = 0;
+    if text == "NaN" {
+        special = 1;
+    } else if text == "Infinity" {
+        special = 2;
+    } else if text == "-Infinity" {
+        special = 3;
+    };
+    let mut negative = false;
+    let mut point = false;
+    let mut index: usize = 0;
+    while special == 0 && index < characters.len() {
+        let current = characters[index];
+        if current == '-' {
+            negative = true;
+        } else if current == '.' {
+            point = true;
+        } else if point {
+            fraction.push(current);
+        } else {
+            whole.push(current);
+        };
+        index += 1;
+    }
+    NumberDecimal {
+        special: special,
+        negative: negative,
+        whole: whole,
+        fraction: fraction,
+    }
+}
+
+// numeric_round to scale digits (halves away from zero) followed by numeric_out, which prints no
+// sign for a zero result.
+fn number_format_decimal_round(value: &NumberDecimal, scale: i32) -> NumberDecimal {
+    let mut digits: Vec<char> = Vec::new();
+    let mut index: usize = 0;
+    while index < value.whole.len() {
+        digits.push(value.whole[index]);
+        index += 1;
+    }
+    let mut kept: i32 = 0;
+    index = 0;
+    while kept < scale {
+        if index < value.fraction.len() {
+            digits.push(value.fraction[index]);
+        } else {
+            digits.push('0');
+        };
+        index += 1;
+        kept = kept + 1;
+    }
+    let mut up = false;
+    if index < value.fraction.len() {
+        up = (value.fraction[index] as i32) >= 53;
+    };
+    let mut overflow = false;
+    if up {
+        let mut carry = true;
+        let mut slot = digits.len();
+        while carry && slot > 0 {
+            slot = slot - 1;
+            let digit = digits[slot];
+            if digit == '9' {
+                digits[slot] = '0';
+            } else {
+                digits[slot] = char::from_u32(((digit as i32) + 1) as u32).unwrap_or('0');
+                carry = false;
+            };
+        }
+        overflow = carry;
+    };
+    let wide = (digits.len() as i32) - scale;
+    let mut whole: Vec<char> = Vec::new();
+    if overflow {
+        whole.push('1');
+    };
+    let mut position: i32 = 0;
+    let mut slot: usize = 0;
+    while position < wide {
+        let digit = digits[slot];
+        if whole.len() > 0 || digit != '0' {
+            whole.push(digit);
+        };
+        slot += 1;
+        position = position + 1;
+    }
+    if whole.len() == 0 {
+        whole.push('0');
+    };
+    let mut fraction: Vec<char> = Vec::new();
+    let mut zero = whole.len() == 1 && whole[0] == '0';
+    while slot < digits.len() {
+        if digits[slot] != '0' {
+            zero = false;
+        };
+        fraction.push(digits[slot]);
+        slot += 1;
+    }
+    NumberDecimal {
+        special: 0,
+        negative: value.negative && zero == false,
+        whole: whole,
+        fraction: fraction,
+    }
+}
+
+// Multiplying by a power of ten shifts the decimal point.
+fn number_format_decimal_shift(value: &NumberDecimal, places: i32) -> NumberDecimal {
+    let mut whole: Vec<char> = Vec::new();
+    let mut index: usize = 0;
+    while index < value.whole.len() {
+        whole.push(value.whole[index]);
+        index += 1;
+    }
+    let mut moved: i32 = 0;
+    index = 0;
+    while moved < places {
+        if index < value.fraction.len() {
+            whole.push(value.fraction[index]);
+        } else {
+            whole.push('0');
+        };
+        index += 1;
+        moved = moved + 1;
+    }
+    let mut fraction: Vec<char> = Vec::new();
+    while index < value.fraction.len() {
+        fraction.push(value.fraction[index]);
+        index += 1;
+    }
+    NumberDecimal {
+        special: value.special,
+        negative: value.negative,
+        whole: whole,
+        fraction: fraction,
+    }
+}
+
+fn number_format_numeric(
+    text: &str,
+    template: &str,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> TextValue {
+    if template == "" {
+        return make_text_value("");
+    };
+    let format = number_format_prepare(template, numeric_c, monetary_c);
+    let state = number_format_template_state(&format);
+    if state != TextValue::NonNull {
+        return state;
+    };
+    let value = number_format_decimal(text);
+    if format.roman {
+        // numeric_int4_opt_error rounds halves away from zero; NaN, infinities and int32
+        // overflow become PG_INT32_MAX, which prints as the overflow marker.
+        let mut roman: i64 = 2147483647i64;
+        if value.special == 0 {
+            let rounded = number_format_decimal_round(&value, 0);
+            if rounded.whole.len() <= 10 {
+                let mut magnitude: i64 = 0i64;
+                let mut index: usize = 0;
+                while index < rounded.whole.len() {
+                    magnitude = magnitude * 10i64 + ((rounded.whole[index] as i32) - 48) as i64;
+                    index += 1;
+                }
+                if rounded.negative {
+                    magnitude = 0i64 - magnitude;
+                };
+                if magnitude <= 2147483647i64 && magnitude >= -2147483648i64 {
+                    roman = magnitude;
+                };
+            };
+        };
+        let number = NumberDigits {
+            characters: number_format_roman(roman as i32),
+        };
+        return number_format_process(&format, format.pre, format.post, &number, 0, '\0');
+    };
+    if format.eeee {
+        if value.special != 0 {
+            let mut field: Vec<char> = Vec::new();
+            let mut count: i32 = 0;
+            while count < format.pre + format.post + 6 {
+                if count == 0 {
+                    field.push(' ');
+                } else if count == format.pre + 1 {
+                    field.push('.');
+                } else {
+                    field.push('#');
+                };
+                count = count + 1;
+            }
+            let number = NumberDigits { characters: field };
+            return number_format_process(&format, format.pre, format.post, &number, 0, '+');
+        };
+        let mut digits: Vec<char> = Vec::new();
+        let mut index: usize = 0;
+        while index < value.whole.len() {
+            digits.push(value.whole[index]);
+            index += 1;
+        }
+        index = 0;
+        while index < value.fraction.len() {
+            digits.push(value.fraction[index]);
+            index += 1;
+        }
+        let exponent = (value.whole.len() as i32) - 1;
+        let source = NumberDigits { characters: digits };
+        let number = NumberDigits {
+            characters: number_format_scientific(
+                &source,
+                exponent,
+                value.negative,
+                format.post,
+                false,
+            ),
+        };
+        return number_format_process(&format, format.pre, format.post, &number, 0, '+');
+    };
+    let mut pre = format.pre;
+    let mut places: i32 = 0;
+    if format.multiplied {
+        places = format.multi;
+        pre = pre + format.multi;
+    };
+    let scaled = number_format_decimal_shift(&value, places);
+    let rounded = number_format_decimal_round(&scaled, format.post);
+    let mut characters: Vec<char> = Vec::new();
+    let mut sign = '+';
+    let mut whole_length: i32 = 0;
+    if value.special != 0 {
+        let mut choice: usize = 0;
+        if value.special > 1 {
+            choice = 1;
+        };
+        if value.special == 3 {
+            sign = '-';
+        };
+        let spelled_text = NUMBER_SPECIAL_SPELLINGS[choice];
+        let spelled: Vec<char> = spelled_text.chars().collect();
+        let mut index: usize = 0;
+        while index < spelled.len() {
+            characters.push(spelled[index]);
+            index += 1;
+        }
+        whole_length = spelled.len() as i32;
+    } else {
+        if rounded.negative {
+            sign = '-';
+        };
+        let mut index: usize = 0;
+        while index < rounded.whole.len() {
+            characters.push(rounded.whole[index]);
+            index += 1;
+        }
+        whole_length = rounded.whole.len() as i32;
+        if rounded.fraction.len() > 0 {
+            characters.push('.');
+            index = 0;
+            while index < rounded.fraction.len() {
+                characters.push(rounded.fraction[index]);
+                index += 1;
+            }
+        };
+    };
+    if whole_length > pre {
+        let overflow = NumberDigits {
+            characters: number_format_overflow(pre, format.post),
+        };
+        return number_format_process(&format, pre, format.post, &overflow, 0, sign);
+    };
+    let number = NumberDigits {
+        characters: characters,
+    };
+    number_format_process(&format, pre, format.post, &number, pre - whole_length, sign)
+}
+
+pub fn sql__pg_catalog__to_char__hftr(
+    input: NumericValue,
+    template: TextValue,
+    numeric_c: bool,
+    monetary_c: bool,
+) -> TextValue {
+    if let NumericValue::Error(error) = input {
+        return TextValue::Error(error);
+    };
+    if let TextValue::Error(error) = template {
+        return TextValue::Error(error);
+    };
+    if input == NumericValue::Unknown
+        || template == TextValue::Unknown
+        || template == TextValue::NonNull
+    {
+        return TextValue::Unknown;
+    };
+    if input == NumericValue::Null || template == TextValue::Null {
+        return TextValue::Null;
+    };
+    if let NumericValue::Value(text) = input {
+        if let TextValue::Value(format) = template {
+            return number_format_numeric(text.as_str(), format.as_str(), numeric_c, monetary_c);
         };
     };
     TextValue::Unknown
