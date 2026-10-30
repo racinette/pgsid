@@ -787,7 +787,17 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
               activeDefaults: active,
             }),
     )
+    // An explicit variadic array of anonymous records has no capturable element layout; leaving
+    // the call uncaptured keeps the binder's own handling of such arrays.
+    const anonymousRecords =
+      explicit &&
+      provided.some((value) => {
+        const arg = tree(value),
+          oid = arg ? expressionType(arg, input) : null
+        return oid !== null && typeName(Number(oid)) === 'pg_catalog.record[]'
+      })
     if (
+      anonymousRecords ||
       args.some((arg) => arg === undefined) ||
       (expanded ? args.length < callable.args.length : callable.args.length !== args.length) ||
       collation('inputcollid') === undefined ||
