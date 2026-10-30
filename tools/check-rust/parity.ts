@@ -47,6 +47,8 @@ import {
 } from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from './sources.js'
 import { checkRustRuntimeLibrary, linkedCheckRustRoot } from './rust-runtime.js'
+import { recordCheckRustReach } from './reach.js'
+import { expect } from 'vitest'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
@@ -106,6 +108,7 @@ export async function runCheckParity(
   assert.ok(group.source && group.evaluatorSource)
   await writeFile(join(directory, 'evaluators.rs'), group.evaluatorSource)
   writeCheckRustSources(join(directory, 'checks.rs'), group.source)
+  recordCheckRustReach(group.source, expect.getState().testPath)
   const runtimeLibrary = await checkRustRuntimeLibrary(group.source)
   await writeFile(join(directory, 'checks.rs'), linkedCheckRustRoot(group.source) + '\n')
   const split = transpileCheckRustFiles(group.source, `${goParityModule}/pg_catalog`)
