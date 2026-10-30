@@ -198,6 +198,10 @@ class Transpiler {
     }
     collectVectors(document.items)
     for (const item of document.items) {
+      // Items are found by Rust name across modules, so a repeated name would silently
+      // resolve to whichever came last.
+      if (this.names.has(item.name))
+        throw new Error(`CHECK item name ${item.name} is declared more than once`)
       this.names.set(
         item.name,
         item.kind === 'struct' || item.kind === 'enum'

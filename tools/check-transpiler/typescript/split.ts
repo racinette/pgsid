@@ -93,20 +93,41 @@ export function splitCheckTypescript(
   const checker = ts.createProgram([source.fileName], options, host).getTypeChecker()
   const symbols = new Map<ts.Symbol, string>()
   const owners = new Map<string, Group>()
+  const declarers = new Map<string, string>()
+  const declared: Record<Group, Set<string>> = {
+    regex: new Set(),
+    operations: new Set(),
+    runtime: new Set(),
+    language: new Set(),
+    checks: new Set(),
+  }
   const publicTypes: string[] = []
   const publicValues: string[] = []
+  // Every generated name has exactly one owner; a second claim is an error rather than a
+  // silent replacement. Exports follow declared visibility, never use.
+  const own = (name: string, owner: Group, item: Item, exported: boolean) => {
+    const previous = declarers.get(name)
+    if (previous)
+      throw new Error(
+        `TypeScript name ${name} is generated for both ${previous} and ${item.module}::${item.name}`,
+      )
+    declarers.set(name, `${item.module}::${item.name}`)
+    owners.set(name, owner)
+    if (exported) declared[owner].add(name)
+  }
   for (const item of items) {
     const owner = moduleGroups[item.module ?? '']
     if (!owner) throw new Error(`CHECK item has no supported module: ${item.name}`)
+    const exported = item.visibility === 'public' || item.visibility === 'crate'
     if (item.kind === 'struct' || item.kind === 'enum') {
       const name = upper(item.name)
-      owners.set(name, owner)
-      owners.set(`copy${name}`, owner)
-      owners.set(`equal${name}`, owner)
+      own(name, owner, item, exported)
+      own(`copy${name}`, owner, item, exported)
+      own(`equal${name}`, owner, item, exported)
       if (owner === 'runtime' && item.visibility === 'public') publicTypes.push(name)
     } else {
       const name = lower(item.name)
-      owners.set(name, owner)
+      own(name, owner, item, exported)
       if (
         owner === 'runtime' &&
         item.visibility === 'public' &&
@@ -141,6 +162,8 @@ export function splitCheckTypescript(
     const group = name ? (owners.get(name) ?? 'language') : 'language'
     groups[group].push(statement)
     if (name) names[group].add(name)
+    // The language prelude is a fixed library whose declarations are all public.
+    if (name && group === 'language') declared.language.add(name)
     const binding = ts.isVariableStatement(statement)
       ? statement.declarationList.declarations[0]?.name
       : 'name' in statement
@@ -160,13 +183,17 @@ export function splitCheckTypescript(
     name.startsWith('sqlPgCatalog')
       ? name.slice('sqlPgCatalog'.length).replace(/^./u, (letter) => letter.toLowerCase())
       : name
-  const exports: Record<Group, Set<string>> = {
-    regex: new Set(),
-    operations: new Set(),
-    runtime: new Set([...publicTypes, ...publicValues]),
-    language: new Set(),
-    checks: new Set(),
+  const shortened = new Map<string, string>()
+  for (const name of names.operations) {
+    const short = shortName(name)
+    const previous = shortened.get(short)
+    if (previous && previous !== name)
+      throw new Error(
+        `TypeScript operation name ${short} is generated for both ${previous} and ${name}`,
+      )
+    shortened.set(short, name)
   }
+  const exports = declared
   const used = new Map<Group, Map<Group, string[]>>()
   for (const group of Object.keys(groups) as Group[]) {
     const dependencies = new Map<Group, string[]>()
@@ -174,7 +201,9 @@ export function splitCheckTypescript(
       if (owner === group) continue
       const references = namesUsed(groups[group], names[owner], checker, symbols)
       if (references.length) dependencies.set(owner, references)
-      for (const name of references) exports[owner].add(name)
+      for (const name of references)
+        if (!exports[owner].has(name))
+          throw new Error(`${name} is referenced from ${group} but not declared public in ${owner}`)
     }
     used.set(group, dependencies)
   }

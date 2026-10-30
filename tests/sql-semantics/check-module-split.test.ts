@@ -181,3 +181,42 @@ it('re-exports public array and composite value constructors from their runtime 
   expect(files.checks).toContain('export { arrayUnknown, arrayElementFamily, compositeUnknown }')
   expect(files.checks).not.toContain('privateHelper')
 })
+
+it('rejects TypeScript name collisions and references to undeclared exports instead of rewriting them', () => {
+  const generated = `
+    function sharedName(): number { return 1; }
+    export function evaluateCheck(): number { return sharedName(); }
+  `
+  expect(() =>
+    splitCheckTypescript(generated, [
+      { kind: 'function', name: 'shared_name', module: 'checkruntime', visibility: 'public' },
+      { kind: 'function', name: 'shared_name', module: 'pg_catalog', visibility: 'public' },
+      { kind: 'function', name: 'evaluate_check', module: 'checks', visibility: 'public' },
+    ]),
+  ).toThrow(
+    'TypeScript name sharedName is generated for both checkruntime::shared_name and pg_catalog::shared_name',
+  )
+  expect(() =>
+    splitCheckTypescript(generated, [
+      { kind: 'function', name: 'shared_name', module: 'checkruntime', visibility: 'private' },
+      { kind: 'function', name: 'evaluate_check', module: 'checks', visibility: 'public' },
+    ]),
+  ).toThrow('sharedName is referenced from checks but not declared public in runtime')
+  const shortened = `
+    function sqlPgCatalogMeasure(): number { return 1; }
+    function measure(): number { return 2; }
+    export function evaluateCheck(): number { return sqlPgCatalogMeasure() + measure(); }
+  `
+  expect(() =>
+    splitCheckTypescript(shortened, [
+      {
+        kind: 'function',
+        name: 'sql_pg_catalog_measure',
+        module: 'pg_catalog',
+        visibility: 'public',
+      },
+      { kind: 'function', name: 'measure', module: 'pg_catalog', visibility: 'public' },
+      { kind: 'function', name: 'evaluate_check', module: 'checks', visibility: 'public' },
+    ]),
+  ).toThrow('TypeScript operation name measure is generated for both')
+})

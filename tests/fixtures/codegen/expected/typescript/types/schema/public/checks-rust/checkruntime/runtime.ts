@@ -241,7 +241,7 @@ export interface EnumPayload {
     readonly ordinal: number;
     readonly labelOid: bigint;
 }
-function equalEnumPayload(left: EnumPayload, right: EnumPayload): boolean {
+export function equalEnumPayload(left: EnumPayload, right: EnumPayload): boolean {
     return left.ordinal === right.ordinal && left.labelOid === right.labelOid;
 }
 export type EnumValue = {
@@ -596,7 +596,7 @@ export interface CheckEvaluationResult {
     outcome: CheckOutcome;
     reason: number;
 }
-function copyCheckEvaluationResult(value: CheckEvaluationResult): CheckEvaluationResult {
+export function copyCheckEvaluationResult(value: CheckEvaluationResult): CheckEvaluationResult {
     return { outcome: value.outcome, reason: langruntime.checkedI32(value.reason) };
 }
 export function makeCheckEvaluationResult(outcome: CheckOutcome, reason: number): CheckEvaluationResult {
@@ -722,7 +722,7 @@ export function checkRequirementMessage(reason: number): TextValue {
 export interface SqlError {
     readonly state: number;
 }
-function equalSqlError(left: SqlError, right: SqlError): boolean {
+export function equalSqlError(left: SqlError, right: SqlError): boolean {
     return left.state === right.state;
 }
 export function makeSqlError(state: number): SqlError {
@@ -732,10 +732,10 @@ export function makeSqlError(state: number): SqlError {
 export interface SqlErrorDescription {
     message: string;
 }
-function copySqlErrorDescription(value: SqlErrorDescription): SqlErrorDescription {
+export function copySqlErrorDescription(value: SqlErrorDescription): SqlErrorDescription {
     return { message: langruntime.checkedString(value.message) };
 }
-function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDescription): boolean {
+export function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDescription): boolean {
     return left.message === right.message;
 }
 const sqlErrorNumericOutOfRange = 3452547;
@@ -1047,7 +1047,7 @@ export type NumericValue = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
-function copyNumericValue(value: NumericValue): NumericValue {
+export function copyNumericValue(value: NumericValue): NumericValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
@@ -1547,7 +1547,7 @@ export interface NetworkAddress {
     readonly word6: number;
     readonly word7: number;
 }
-function equalNetworkAddress(left: NetworkAddress, right: NetworkAddress): boolean {
+export function equalNetworkAddress(left: NetworkAddress, right: NetworkAddress): boolean {
     return left.family === right.family && left.prefix === right.prefix && left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3 && left.word4 === right.word4 && left.word5 === right.word5 && left.word6 === right.word6 && left.word7 === right.word7;
 }
 export type NetworkValue = {
@@ -1750,7 +1750,7 @@ export interface MacAddress {
     readonly word2: number;
     readonly word3: number;
 }
-function equalMacAddress(left: MacAddress, right: MacAddress): boolean {
+export function equalMacAddress(left: MacAddress, right: MacAddress): boolean {
     return left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3;
 }
 export type MacaddrValue = {
@@ -1875,7 +1875,7 @@ export interface Uuid {
     readonly word6: number;
     readonly word7: number;
 }
-function equalUuid(left: Uuid, right: Uuid): boolean {
+export function equalUuid(left: Uuid, right: Uuid): boolean {
     return left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3 && left.word4 === right.word4 && left.word5 === right.word5 && left.word6 === right.word6 && left.word7 === right.word7;
 }
 export type UuidValue = {
@@ -2134,7 +2134,7 @@ export interface TimetzPayload {
     readonly time: bigint;
     readonly zone: number;
 }
-function equalTimetzPayload(left: TimetzPayload, right: TimetzPayload): boolean {
+export function equalTimetzPayload(left: TimetzPayload, right: TimetzPayload): boolean {
     return left.time === right.time && left.zone === right.zone;
 }
 export type TimetzValue = {
@@ -2193,7 +2193,7 @@ export interface IntervalPayload {
     readonly days: number;
     readonly time: bigint;
 }
-function equalIntervalPayload(left: IntervalPayload, right: IntervalPayload): boolean {
+export function equalIntervalPayload(left: IntervalPayload, right: IntervalPayload): boolean {
     return left.months === right.months && left.days === right.days && left.time === right.time;
 }
 export type IntervalValue = {
@@ -2317,7 +2317,7 @@ export interface LinePayload {
     readonly c: bigint;
     readonly wireKnown: boolean;
 }
-function equalLinePayload(left: LinePayload, right: LinePayload): boolean {
+export function equalLinePayload(left: LinePayload, right: LinePayload): boolean {
     return left.a === right.a && left.b === right.b && left.c === right.c && left.wireKnown === right.wireKnown;
 }
 export type LineValue = {
@@ -2387,7 +2387,7 @@ export interface LsegPayload {
     readonly y2: bigint;
     readonly wireKnown: boolean;
 }
-function equalLsegPayload(left: LsegPayload, right: LsegPayload): boolean {
+export function equalLsegPayload(left: LsegPayload, right: LsegPayload): boolean {
     return left.x1 === right.x1 && left.y1 === right.y1 && left.x2 === right.x2 && left.y2 === right.y2 && left.wireKnown === right.wireKnown;
 }
 export type LsegValue = {
@@ -2447,7 +2447,7 @@ export interface BoxPayload {
     readonly lowY: bigint;
     readonly wireKnown: boolean;
 }
-function equalBoxPayload(left: BoxPayload, right: BoxPayload): boolean {
+export function equalBoxPayload(left: BoxPayload, right: BoxPayload): boolean {
     return left.highX === right.highX && left.highY === right.highY && left.lowX === right.lowX && left.lowY === right.lowY && left.wireKnown === right.wireKnown;
 }
 export type BoxValue = {
@@ -2508,7 +2508,7 @@ export interface CirclePayload {
     readonly radius: bigint;
     readonly wireKnown: boolean;
 }
-function equalCirclePayload(left: CirclePayload, right: CirclePayload): boolean {
+export function equalCirclePayload(left: CirclePayload, right: CirclePayload): boolean {
     return left.x === right.x && left.y === right.y && left.radius === right.radius && left.wireKnown === right.wireKnown;
 }
 export interface PathPayload {
@@ -2852,7 +2852,7 @@ export interface AclitemPayload {
     readonly privileges: bigint;
     readonly grantOptions: bigint;
 }
-function equalAclitemPayload(left: AclitemPayload, right: AclitemPayload): boolean {
+export function equalAclitemPayload(left: AclitemPayload, right: AclitemPayload): boolean {
     return left.grantee === right.grantee && left.grantor === right.grantor && left.privileges === right.privileges && left.grantOptions === right.grantOptions;
 }
 export interface AclitemCatalogPayload {
@@ -2861,7 +2861,7 @@ export interface AclitemCatalogPayload {
     readonly publicGrantee: boolean;
     readonly invalidGrantor: boolean;
 }
-function equalAclitemCatalogPayload(left: AclitemCatalogPayload, right: AclitemCatalogPayload): boolean {
+export function equalAclitemCatalogPayload(left: AclitemCatalogPayload, right: AclitemCatalogPayload): boolean {
     return left.privileges === right.privileges && left.grantOptions === right.grantOptions && left.publicGrantee === right.publicGrantee && left.invalidGrantor === right.invalidGrantor;
 }
 export type AclitemValue = {
@@ -5001,7 +5001,7 @@ export interface JsonSyntaxLayout {
     kind: number;
     maxDepth: number;
 }
-function copyJsonSyntaxLayout(value: JsonSyntaxLayout): JsonSyntaxLayout {
+export function copyJsonSyntaxLayout(value: JsonSyntaxLayout): JsonSyntaxLayout {
     return { valid: langruntime.checkedBool(value.valid), kind: langruntime.checkedI32(value.kind), maxDepth: langruntime.checkedIndex(value.maxDepth) };
 }
 const jsonSyntaxInvalid = 12;
@@ -10311,20 +10311,20 @@ export interface CompositeTypeNode {
     fields: number[];
     boundProfile: RangeBoundContext;
 }
-function copyCompositeTypeNode(value: CompositeTypeNode): CompositeTypeNode {
+export function copyCompositeTypeNode(value: CompositeTypeNode): CompositeTypeNode {
     return { typeName: langruntime.checkedString(value.typeName), kind: langruntime.checkedI32(value.kind), elementType: langruntime.checkedString(value.elementType), child: langruntime.checkedIndex(value.child), fields: langruntime.checkedIndices(value.fields), boundProfile: copyRangeBoundContext(value.boundProfile) };
 }
 export interface CompositeTypeContext {
     nodes: CompositeTypeNode[];
 }
-function copyCompositeTypeContext(value: CompositeTypeContext): CompositeTypeContext {
+export function copyCompositeTypeContext(value: CompositeTypeContext): CompositeTypeContext {
     return { nodes: langruntime.checkedStructs(value.nodes, copyCompositeTypeNode) };
 }
 export type CompositeTypePlan = {
     kind: "Value";
     value: CompositeTypeContext;
 };
-function copyCompositeTypePlan(value: CompositeTypePlan): CompositeTypePlan {
+export function copyCompositeTypePlan(value: CompositeTypePlan): CompositeTypePlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyCompositeTypeContext(value.value) };
     }
@@ -11749,7 +11749,7 @@ export type MultirangeTextPlan = {
     kind: "Value";
     value: MultirangeTextPayload;
 };
-function copyMultirangeTextPlan(value: MultirangeTextPlan): MultirangeTextPlan {
+export function copyMultirangeTextPlan(value: MultirangeTextPlan): MultirangeTextPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyMultirangeTextPayload(value.value) };
     }
@@ -12215,7 +12215,7 @@ export type ArrayOutputPlan = {
     kind: "Value";
     value: ArrayOutputPayload;
 };
-function copyArrayOutputPlan(value: ArrayOutputPlan): ArrayOutputPlan {
+export function copyArrayOutputPlan(value: ArrayOutputPlan): ArrayOutputPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyArrayOutputPayload(value.value) };
     }
@@ -13057,7 +13057,7 @@ export interface ArrayChildrenPayload {
     elementKind: number;
     arrays: ArrayValue[];
 }
-function copyArrayChildrenPayload(value: ArrayChildrenPayload): ArrayChildrenPayload {
+export function copyArrayChildrenPayload(value: ArrayChildrenPayload): ArrayChildrenPayload {
     return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), arrays: langruntime.checkedStructs(value.arrays, copyArrayValue) };
 }
 export type ArrayChildrenArguments = {
@@ -13069,7 +13069,7 @@ export type ArrayChildrenArguments = {
     kind: "Value";
     value: ArrayChildrenPayload;
 };
-function copyArrayChildrenArguments(value: ArrayChildrenArguments): ArrayChildrenArguments {
+export function copyArrayChildrenArguments(value: ArrayChildrenArguments): ArrayChildrenArguments {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Error": return { kind: "Error", value: value.value };
@@ -13211,7 +13211,7 @@ export type ArrayTextPlan = {
     kind: "Value";
     value: ArrayTextPayload;
 };
-function copyArrayTextPlan(value: ArrayTextPlan): ArrayTextPlan {
+export function copyArrayTextPlan(value: ArrayTextPlan): ArrayTextPlan {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
@@ -13718,14 +13718,14 @@ export interface ArraySubscriptBound {
     state: number;
     value: number;
 }
-function copyArraySubscriptBound(value: ArraySubscriptBound): ArraySubscriptBound {
+export function copyArraySubscriptBound(value: ArraySubscriptBound): ArraySubscriptBound {
     return { provided: langruntime.checkedBool(value.provided), state: langruntime.checkedI32(value.state), value: langruntime.checkedI32(value.value) };
 }
 export interface ArraySubscriptPayload {
     upper: ArraySubscriptBound[];
     lower: ArraySubscriptBound[];
 }
-function copyArraySubscriptPayload(value: ArraySubscriptPayload): ArraySubscriptPayload {
+export function copyArraySubscriptPayload(value: ArraySubscriptPayload): ArraySubscriptPayload {
     return { upper: langruntime.checkedStructs(value.upper, copyArraySubscriptBound), lower: langruntime.checkedStructs(value.lower, copyArraySubscriptBound) };
 }
 export type ArraySubscripts = {
@@ -13999,14 +13999,14 @@ export interface ArrayComparisonPayload {
     tail: number;
     value: number;
 }
-function copyArrayComparisonPayload(value: ArrayComparisonPayload): ArrayComparisonPayload {
+export function copyArrayComparisonPayload(value: ArrayComparisonPayload): ArrayComparisonPayload {
     return { left: langruntime.checkedStructs(value.left, copyArrayElement), right: langruntime.checkedStructs(value.right, copyArrayElement), limit: langruntime.checkedIndex(value.limit), state: langruntime.checkedI32(value.state), error: value.error, tail: langruntime.checkedI32(value.tail), value: langruntime.checkedI32(value.value) };
 }
 export type ArrayComparisonPlan = {
     kind: "Value";
     value: ArrayComparisonPayload;
 };
-function copyArrayComparisonPlan(value: ArrayComparisonPlan): ArrayComparisonPlan {
+export function copyArrayComparisonPlan(value: ArrayComparisonPlan): ArrayComparisonPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyArrayComparisonPayload(value.value) };
     }
@@ -14903,14 +14903,14 @@ export interface ArraySortPayload {
     descending: boolean;
     nullsFirst: boolean;
 }
-function copyArraySortPayload(value: ArraySortPayload): ArraySortPayload {
+export function copyArraySortPayload(value: ArraySortPayload): ArraySortPayload {
     return { nullBitmap: value.nullBitmap, elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), order: langruntime.checkedIndices(value.order), buffer: langruntime.checkedIndices(value.buffer), ties: langruntime.checkedIndices(value.ties), rows: langruntime.checkedI32(value.rows), width: langruntime.checkedI32(value.width), run: langruntime.checkedI32(value.run), segment: langruntime.checkedI32(value.segment), left: langruntime.checkedI32(value.left), right: langruntime.checkedI32(value.right), output: langruntime.checkedI32(value.output), phase: langruntime.checkedI32(value.phase), tie: langruntime.checkedI32(value.tie), state: langruntime.checkedI32(value.state), error: value.error, descending: langruntime.checkedBool(value.descending), nullsFirst: langruntime.checkedBool(value.nullsFirst) };
 }
 export type ArraySortPlan = {
     kind: "Value";
     value: ArraySortPayload;
 };
-function copyArraySortPlan(value: ArraySortPlan): ArraySortPlan {
+export function copyArraySortPlan(value: ArraySortPlan): ArraySortPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyArraySortPayload(value.value) };
     }
@@ -15050,14 +15050,14 @@ export interface TsvectorStorageEntry {
     nativeBytes: number;
     lexemeCount: number;
 }
-function copyTsvectorStorageEntry(value: TsvectorStorageEntry): TsvectorStorageEntry {
+export function copyTsvectorStorageEntry(value: TsvectorStorageEntry): TsvectorStorageEntry {
     return { nativeBytes: langruntime.checkedI32(value.nativeBytes), lexemeCount: langruntime.checkedI32(value.lexemeCount) };
 }
 export interface TsvectorStoragePlan {
     entries: TsvectorStorageEntry[];
     valid: boolean;
 }
-function copyTsvectorStoragePlan(value: TsvectorStoragePlan): TsvectorStoragePlan {
+export function copyTsvectorStoragePlan(value: TsvectorStoragePlan): TsvectorStoragePlan {
     return { entries: langruntime.checkedStructs(value.entries, copyTsvectorStorageEntry), valid: langruntime.checkedBool(value.valid) };
 }
 export function makeTsvectorStoragePlan(): TsvectorStoragePlan {
@@ -15195,7 +15195,7 @@ export interface ArrayStoragePlan {
     entries: ArrayStorageEntry[];
     valid: boolean;
 }
-function copyArrayStoragePlan(value: ArrayStoragePlan): ArrayStoragePlan {
+export function copyArrayStoragePlan(value: ArrayStoragePlan): ArrayStoragePlan {
     return { entries: langruntime.checkedStructs(value.entries, copyArrayStorageEntry), valid: langruntime.checkedBool(value.valid) };
 }
 export function makeArrayStoragePlan(): ArrayStoragePlan {
@@ -15573,7 +15573,7 @@ export interface HashByte {
 export function copyHashByte(value: HashByte): HashByte {
     return { value: langruntime.checkedI64(value.value) };
 }
-function equalHashByte(left: HashByte, right: HashByte): boolean {
+export function equalHashByte(left: HashByte, right: HashByte): boolean {
     return left.value === right.value;
 }
 interface HashState {
