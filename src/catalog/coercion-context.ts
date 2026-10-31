@@ -727,8 +727,9 @@ function captureExpressionCoercions(
     const expression = rowExpressions
       ? storedRowExpression(scalarRoots.get(site)!, rowExpressions)
       : undefined
-    if (expression === undefined) omittedComplete = false
-    else scalars.push({ site, expression })
+    // A scalar the capture cannot express, such as a constant holding deployment OIDs, binds
+    // as unknown at its own site, so branches that never reach it keep their outcome.
+    scalars.push({ site, expression: expression === undefined ? null : expression })
   }
   return {
     ...(arrayCandidate
