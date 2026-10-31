@@ -70,8 +70,16 @@ it('requires C for every regex array overload and preserves lazy context deferra
     for (const plan of plans)
       expect(hasUncertain(plan.expression), plan.identity.constraint).toBe(false)
     let total = 0
-    for (const declared of [false, true]) {
-      const group = prepareCheckRustGroup(plans, declared ? { defaultCollation: 'C' } : {})
+    // A C default ordering does not fix regex classification; only a declared C ctype decides
+    // default-collation regex arrays.
+    const contexts = [
+      { name: 'missing', context: {} },
+      { name: 'ordering', context: { defaultCollation: 'C' as const } },
+      { name: 'ctype', context: { defaultCollation: 'C' as const, defaultCtype: 'C' as const } },
+    ]
+    for (const { name: contextName, context } of contexts) {
+      const declared = context.defaultCtype === 'C'
+      const group = prepareCheckRustGroup(plans, context)
       const fixtures: { name: string; row: Row; expected: Outcome }[] = []
       for (const [i, c] of collations.entries())
         for (const fn of functions) {
@@ -97,6 +105,21 @@ it('requires C for every regex array overload and preserves lazy context deferra
                   },
                 })
               }
+          // PGlite's C.UTF-8 ctype classifies this letter, while C does not.
+          if (i === 0 && !declared)
+            for (const origin of ['source', 'stored'])
+              for (const bypass of [false, true])
+                fixtures.push({
+                  name: `${fn.rustName}_${i}_${origin}`,
+                  row: {
+                    subject: { kind: 'Value', value: 'é' },
+                    pattern: { kind: 'Value', value: '[[:alpha:]]' },
+                    flags: { kind: 'Value', value: '' },
+                    expected: { kind: 'Value', value: 1 },
+                    bypass: { kind: 'Value', value: bypass },
+                  },
+                  expected: { kind: bypass ? 'True' : 'Unknown' },
+                })
           for (const origin of ['source', 'stored']) {
             const row: Row = {
               subject: { kind: 'Null' },
@@ -123,7 +146,7 @@ it('requires C for every regex array overload and preserves lazy context deferra
             })
           }
         }
-      const batchDirectory = join(directory, declared ? 'declared' : 'missing')
+      const batchDirectory = join(directory, contextName)
       await mkdir(batchDirectory)
       await runCheckParity(
         batchDirectory,
@@ -137,8 +160,11 @@ it('requires C for every regex array overload and preserves lazy context deferra
     await mkdir('artifacts/goal-checks/array-regex', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-regex/context-measurements.json',
-      JSON.stringify({ fixtures: total, collations: collations.length, contexts: 2 }, null, 2) +
-        '\n',
+      JSON.stringify(
+        { fixtures: total, collations: collations.length, contexts: contexts.length },
+        null,
+        2,
+      ) + '\n',
     )
   } finally {
     await pg.close()

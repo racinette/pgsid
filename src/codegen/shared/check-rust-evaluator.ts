@@ -5736,12 +5736,14 @@ export function emitCheckRustEvaluator(
       }
       if (isIdentifierParseCallable(call.signature))
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      // Regex classes and case folding read the collation's ctype, which a C default ordering
+      // does not fix: a C-ordered database can classify characters by C.UTF-8 or a locale.
       if (arrayRegex)
         arguments_.push(
           String(
             call.kind !== 'cast' &&
               (call.collation === 'C' ||
-                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+                (call.collationDefault === true && executionContext.defaultCtype === 'C')),
           ),
         )
       if (jsonbConversion || jsonConversion || (builder && operands.length > 0)) {
@@ -6361,10 +6363,12 @@ export function emitCheckRustEvaluator(
         arguments_.push(
           rustStringLiteral(executionContext.timeZone ?? ''),
           String(executionContext.timeLocale === 'C'),
+          // Translated names match after lowercasing the input by the ctype, so only a C ctype
+          // agrees with C on non-ASCII input.
           String(
             call.kind !== 'cast' &&
               (call.collation === 'C' ||
-                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+                (call.collationDefault === true && executionContext.defaultCtype === 'C')),
           ),
           String(executionContext.serverEncoding === 'UTF8'),
           String(executionContext.timeZoneAbbreviations === 'Default'),
@@ -6379,10 +6383,14 @@ export function emitCheckRustEvaluator(
           arguments_.push(rustStringLiteral(executionContext.timeZone ?? ''))
         arguments_.push(
           String(executionContext.timeLocale === 'C'),
+          // C time-locale names are ASCII, which C and C.UTF-8 ctypes case alike; other ctypes
+          // can case ASCII differently.
           String(
             call.kind !== 'cast' &&
               (call.collation === 'C' ||
-                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+                (call.collationDefault === true &&
+                  (executionContext.defaultCtype === 'C' ||
+                    executionContext.defaultCtype === 'C.UTF-8'))),
           ),
         )
       }
