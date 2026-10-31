@@ -909,7 +909,15 @@ export function storedRowExpression(value: Value, input: StoredRowExpressionInpu
   if (node.kind === 'RELABELTYPE' || node.kind === 'COERCEVIAIO') {
     const arg = convert(node.fields['arg']?.[0]),
       target = input.types.get(Number(scalar(node, 'resulttype')))
-    return arg !== undefined && target?.startsWith('pg_catalog.')
+    // An I/O cast replays by type name, so it may also target a user range, multirange or
+    // composite, as a text round trip does. Domains and arrays keep their own capture paths;
+    // a binary relabel needs a built-in cast.
+    const userContainer = ['r', 'm', 'c'].includes(
+      input.storageTypes?.get(Number(scalar(node, 'resulttype')))?.kind ?? '',
+    )
+    return arg !== undefined &&
+      target !== undefined &&
+      (target.startsWith('pg_catalog.') || (node.kind === 'COERCEVIAIO' && userContainer))
       ? collated(
           {
             PgsidStoredCast: {

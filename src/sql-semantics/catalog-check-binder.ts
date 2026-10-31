@@ -3895,10 +3895,12 @@ export function bindCatalogCheck(
         target =
           typeof storedCast['type'] === 'string' ? catalogScalarType(storedCast['type']) : null,
         conversion = operand.type && target ? builtinCast(operand.type, target) : null
+      // An I/O cast to a type outside the built-in catalog, such as a user range, is rebound
+      // by name below, where the usual cast binding resolves and checks it.
       if (
         !operand.value ||
         !operand.type ||
-        !target ||
+        (!target && storedCast['kind'] !== 'io') ||
         (storedCast['kind'] === 'binary'
           ? operand.type !== target && conversion?.method !== 'b'
           : storedCast['kind'] === 'function'
